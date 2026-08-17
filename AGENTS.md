@@ -702,6 +702,51 @@ If your plan contains a hand-rolled dispatcher, an ad-hoc form, bespoke CRUD
 routes, or hand-written row (de)serialization, stop: there is a `define*`
 factory for that already. Use it — or extend it for every caller.
 
+### Checked forwards and backwards
+
+A stateful lifecycle is declared as a machine, its combinations with other
+machines are declared as a seam, and both declarations are checked in both
+directions: forwards by tests that drive the real transitions and crash them
+mid-flight, backwards by reading the stored data and proving it fits. This was
+retrofitted onto the payment machines across three large PRs (#2065, #2079,
+#2084); a new lifecycle declares it with its first slice, when it is cheap. The
+mechanisms, each with its reference:
+
+- **Declare the machine as data.** Nodes carrying representative states built
+  through the production transitions, events, and an exhaustive moves table — a
+  cell missing from the table is a declared refusal, never a fallthrough. The
+  framework is `src/shared/schema-atlas/machine-spec.ts`; the machines are
+  `src/shared/payment/{row,refund,review}-machine-spec.ts`, with whole-graph
+  properties (all reachable, all can end, one declared provider-wait) in their
+  `graph.test.ts` suites over the shared `#test-utils/machine-graph.ts` walker.
+- **Derive, never restate.** SQL guards (`rowWorkMirrorSql`), status words,
+  danger flags, and the operator map (`SCHEMA_ATLAS_MACHINES`, rendered at
+  `/admin/schema`) all derive from the spec. Vocabulary lists derive from the
+  machine's own types — an exhaustive mapped record keyed by the machine's union
+  (`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`) — so a grown
+  or renamed state stops compiling until every consumer learns it.
+- **Declare the seam.** When two machines share reality, declare the ILLEGAL
+  combinations, each entry naming the invariant it breaks
+  (`ILLEGAL_JOINT_STATES` in `src/shared/payment/joint-state.ts`). List only
+  what is provably impossible: every crash window's intermediate state must stay
+  legal, because a redelivery has to finish from it.
+- **Witness every manufactured crash.** Each crash-manufacture test helper reads
+  back every stored record it touched and asserts the combination is one a real
+  run can produce (`expectLegalJointStates` in
+  `test/test-utils/joint-state.ts`), so the whole crash suite polices the seam
+  without new tests.
+- **Enumerate flows × crash windows.** List every flow; every await between two
+  durable writes is a window; each window gets an idempotent-redelivery proof or
+  a fault-injected test. Faults are triggers at SQLite's own boundary, not stubs
+  (`test/test-utils/db-fault.ts`), so the failing write rolls back exactly as
+  production would.
+- **Check backwards from the data.** A bounded scan reads the declared
+  impossibilities back out of the live database and shows the operator every hit
+  (`src/shared/db/joint-state-scan.ts`, the `/admin/schema` "Live check"). Key
+  the scan's queries by the declaration table's own literal types, so declaring
+  a new illegal combination refuses to compile until the scan knows how to find
+  it.
+
 ### Pure, functional
 
 Write the core of a feature as pure data-in/data-out functions and keep IO (DB
