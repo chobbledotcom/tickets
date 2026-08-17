@@ -31,6 +31,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
 
 const getListingPageHtml = async (listingId: number): Promise<string> => {
@@ -118,6 +119,25 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
     await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
 
     await expectCannotRefund(ctx.attendee.id, false);
+  });
+
+  test("decides canRefund without asking about the booking again", async () => {
+    const ctx = await setupRefundTest("pi_no_second_line_read");
+    const seen: string[] = [];
+    const restore = recordQueries(seen);
+    try {
+      await withTestSession(() => loadAttendeeForEdit(ctx.attendee.id));
+    } finally {
+      restore();
+    }
+
+    // The page loads every one of the attendee's lines; asking the database
+    // whether one of them is a real booking would be asking twice.
+    expect(
+      seen.filter((sql) =>
+        sql.includes("attendee_id = ? AND listing_id = ? AND quantity > 0"),
+      ),
+    ).toEqual([]);
   });
 
   test("loads canRefund as false once every charge is returned", async () => {
