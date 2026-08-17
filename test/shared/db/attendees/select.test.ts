@@ -114,6 +114,26 @@ describe("attendeeColumns", () => {
       attendeeColumns("inner", ATTENDEE_FIELDS).length,
     );
   });
+
+  // Pins what each ledger field costs against the subrequest budget, and keeps
+  // the six the module's header quotes from drifting away from the SQL again.
+  test("each ledger field emits a fixed number of subqueries", () => {
+    const subqueries = (field: AttendeeField): number =>
+      (attendeeColumns("inner", [field]).match(/\(SELECT/g) ?? []).length;
+    expect(subqueries("price_paid")).toBe(6);
+    expect(subqueries("refunded")).toBe(2);
+    expect(subqueries("remaining_balance")).toBe(1);
+  });
+
+  test("the cheap fields add no subquery at all", () => {
+    for (const field of [
+      "end_date",
+      "attachment_downloads",
+      "package_group_id",
+    ] as const) {
+      expect(attendeeColumns("inner", [field])).not.toContain("(SELECT");
+    }
+  });
 });
 
 describe("attendee filter and order SQL", () => {

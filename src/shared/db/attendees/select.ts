@@ -1,6 +1,6 @@
 /**
  * Field selection for attendee booking reads. A field's subquery is emitted
- * only when asked for, and `price_paid` alone costs four correlated subqueries
+ * only when asked for, and `price_paid` alone emits six correlated subqueries
  * per row, so narrow reads are much cheaper than full ones.
  */
 
@@ -176,8 +176,8 @@ const KIND_CLAUSE: Record<AttendeeKindFilter, string> = {
 
 /**
  * Which attendees a read keeps. Each field present adds one WHERE clause;
- * absent ones don't constrain. `kind` defaults to regular attendees, and every
- * id filter takes an array, so one and many read the same way.
+ * absent ones don't constrain. `kind` defaults to regular attendees.
+ * `attendeeIds` and `listingIds` take arrays, so one and many read the same way.
  */
 export type AttendeeWhere = {
   kind?: AttendeeKindFilter;
