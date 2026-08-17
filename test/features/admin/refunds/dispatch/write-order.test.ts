@@ -80,6 +80,27 @@ describeWithEnv(
       expect(counts.refundedCount).toBe(1);
     });
 
+    test("keeps recorded row facts when authority retirement fails", async () => {
+      const reference = "pi_retire_crash";
+      const claim = grantingRowClaim(new Map([[11, [`sess_${reference}`]]]));
+      const source = provider({ refunded: new Set([reference]) });
+
+      await expect(
+        processRefundBatchAt(source, [candidate([{ reference }], 11)], 7, {
+          claim,
+          record: recordEveryRefund,
+          recordAuthorities: () =>
+            Promise.reject(new Error("authority unavailable")),
+        }),
+      ).rejects.toThrow("authority unavailable");
+
+      // The ledger landed before the throw, so the row facts say the books
+      // are recorded — the authority stays due, which the admission gate
+      // turns into refresh-owned work instead of a second send.
+      expect(claim.recorded).toEqual([[`sess_${reference}`]]);
+      expect(claim.released).toEqual([[`sess_${reference}`]]);
+    });
+
     test("a ledger throw preserves every returned row before propagating", async () => {
       const active = ["pi_active"];
       const knownReturned = "pi_known_returned";

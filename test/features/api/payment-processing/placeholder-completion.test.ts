@@ -7,7 +7,6 @@
  * every step held: one pair of legs, one note, one activity line, and an
  * authority that stays recorded. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
@@ -26,9 +25,15 @@ import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import { readRowState } from "#shared/payment/row-state.ts";
 import { rejectedChargeReference } from "#shared/payment/validated-session.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  withAuthorityRetirementFault,
+  withRefundConfirmationFault,
+} from "#test-utils/db-fault.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
   expectOnePairOfLegs,
@@ -101,6 +106,10 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     if (state.claim === undefined || state.unrecorded === undefined) {
       throw new Error("held anchor row lost its claim or return time");
     }
+    await expectLegalJointStates(
+      rejection.sessionId,
+      "after a crashed rejected store",
+    );
     return {
       attendeeId: held.attendee_id,
       claim: state.claim,
@@ -279,5 +288,66 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
         [referenceIndex],
       ),
     ).toEqual({ failure_data: "", protected_state: "" });
+  });
+
+  /** Die at one exact point of the first delivery under a real database
+   * fault, prove the crash state and the books, then redeliver clean and
+   * prove the words landed exactly once. Returns the rejection so a test
+   * can add its own point-specific checks. */
+  const crashesThenFinishes = async (
+    reference: string,
+    fault: <T>(body: () => Promise<T>) => Promise<T>,
+    message: string,
+  ) => {
+    const listing = await createTestListing({});
+    const rejection = ourRejection(reference, {
+      items: singleItem(listing.id, 1, 500),
+    });
+    await fault(() =>
+      expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow(message),
+    );
+    await expectLegalJointStates(rejection.sessionId, `after: ${message}`);
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect(await storedNote()).toBeNull();
+    expect(await activityCount()).toBe(0);
+
+    await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect((await storedNote())?.total).toBe(1);
+    expect(await activityCount()).toBe(1);
+    return rejection;
+  };
+
+  it("finishes the tail when the first delivery died at authority retirement", async () => {
+    // The refund returns and the ledger posts, then the retirement write
+    // refuses — the redelivery finishes retirement, words, and release
+    // without doubling the legs.
+    const rejection = await crashesThenFinishes(
+      "pi_retire_window",
+      withAuthorityRetirementFault,
+      "authority retirement unavailable",
+    );
+    const referenceIndex = await paymentReferenceIndex(
+      rejectedChargeReference(rejection),
+    );
+    const after = await loadRefundAuthorityByReference(referenceIndex);
+    expect(after?.state.local.kind).toBe("recorded");
+  });
+
+  it("finishes the tail when the first delivery died at the confirmation", async () => {
+    // Ledger and retirement land, then the once-only latch refuses — the
+    // note and activity line ride its transaction, so neither exists until
+    // the redelivery writes them exactly once.
+    await crashesThenFinishes(
+      "pi_confirm_window",
+      withRefundConfirmationFault,
+      "refund confirmation unavailable",
+    );
   });
 });

@@ -10,6 +10,7 @@ import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
 import {
   findHeldAnchor,
+  resumePlaceholderSession,
   settlementForHeldClaim,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requestSessionRefund } from "#routes/api/payment-processing/refunds.ts";
@@ -268,6 +269,23 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       status: 200,
       success: false,
     });
+  });
+
+  test("a stored refunded answer resumes to nothing, even beside a completed charge", async () => {
+    const sessionId = "cs_resume_already_told";
+    const placeholder = await crashedPlaceholderStore(sessionId);
+    await finishMoneyByHand(placeholder, await rebuiltSettlement());
+    // The first redelivery advances the stored words to the refunded answer.
+    await processPaymentSession(sessionId, placeholder.data);
+    const record = await getProcessedPayment(sessionId);
+    const stored = requireValue(
+      await parseSessionFailure(record!.failure_data),
+      "the advanced outcome is missing",
+    );
+    expect(stored.refunded).toBe(true);
+    // Nothing is left to finish: the resume must answer null so the caller
+    // replays the stored outcome, not rebuild it beside the completed charge.
+    expect(await resumePlaceholderSession(placeholder.data, stored)).toBeNull();
   });
 
   describe("findHeldAnchor", () => {

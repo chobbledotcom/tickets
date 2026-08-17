@@ -2605,3 +2605,23 @@ words — then the story steps and the direct pins in
 `test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
 instead of pinning copied wording. Out of scope for the migration, which does
 not touch `src/`.
+
+## Pin the mirror pair with a table check when processed_payments is next rebuilt
+
+_Origin: the PR #2084 write-site sweep._
+
+`processed_payments` should promise
+`(protected_state = '' OR failure_data !=
+'')` — a live-work mirror can never
+exist without the stored state it mirrors. Deeper checks are impossible because
+`failure_data` is encrypted; this weak form is the whole expressible invariant.
+Every current writer already keeps it by construction (`paymentRowStateValues`
+in `src/shared/db/payment-claim.ts` writes the pair together, and
+`reserveSession` derives its blank pair from the same builder), so today the
+check would only guard against a future rogue writer. Adding it to an existing
+table needs a full table-rebuild migration of a money-adjacent table across
+every site — the riskiest change class we ship — which is not worth it for a
+state nothing can currently produce. If a real schema change ever rebuilds
+`processed_payments` anyway, add this check in the same rebuild: the DDL belongs
+on the last column via the `alsoAbout` pattern in
+`src/shared/db/migrations/schema/payments/columns.ts`.
