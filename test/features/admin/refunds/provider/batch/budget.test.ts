@@ -131,7 +131,9 @@ const expectCompletedCommand = async (
       kind: "finished",
     });
   });
-  expect(source.refunds).toEqual(references);
+  // A command sends its charges together, so they can come back either way
+  // round. What matters is that each one was sent exactly once.
+  expect([...source.refunds].sort()).toEqual([...references].sort());
   expect(granted.released).toEqual([sessionIds]);
 };
 
