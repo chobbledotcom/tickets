@@ -7,7 +7,12 @@ import {
   invalidateCachesForTable,
   resetAllCaches,
 } from "#shared/cache-registry.ts";
-import { executeWithoutCacheInvalidation, getDb } from "#shared/db/client.ts";
+import { hashSessionToken } from "#shared/crypto/hashing.ts";
+import {
+  execute,
+  executeWithoutCacheInvalidation,
+  getDb,
+} from "#shared/db/client.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -15,9 +20,12 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
+  getSessionWithUser,
 } from "#shared/db/sessions.ts";
+import { createUser } from "#shared/db/users.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession and getSession work together", async () => {
@@ -76,6 +84,54 @@ describeWithEnv("db > sessions", { db: true }, () => {
   test("getAllSessions returns empty array when no sessions", async () => {
     const sessions = await getAllSessions();
     expect(sessions).toEqual([]);
+  });
+
+  test("getSessionWithUser reads the session and its user in one call", async () => {
+    const user = await createUser("joined-user", "", null, "manager");
+    const expires = Date.now() + 1000;
+    await createSession("joined", "csrf-joined", expires, null, user.id);
+
+    let found: Awaited<ReturnType<typeof getSessionWithUser>> = null;
+    const calls = await countDatabaseCalls(1, async () => {
+      found = await getSessionWithUser("joined");
+    });
+
+    expect(calls).toBe(1);
+    expect(found).toEqual({
+      session: {
+        csrf_token: "csrf-joined",
+        expires,
+        token: await hashSessionToken("joined"),
+        user_id: user.id,
+        wrapped_data_key: null,
+      },
+      user: { admin_level: user.admin_level, id: user.id },
+    });
+  });
+
+  test("getSessionWithUser keeps a session whose user was deleted", async () => {
+    const user = await createUser("gone-user", "", null, "manager");
+    await createSession(
+      "orphan",
+      "csrf-orphan",
+      Date.now() + 1000,
+      null,
+      {
+        ...user,
+      }.id,
+    );
+    await execute("DELETE FROM users WHERE id = ?", [user.id]);
+
+    const found = await getSessionWithUser("orphan");
+
+    // The caller tells this apart from an unknown token: it reports the broken
+    // session and clears the row, rather than silently leaving it behind.
+    expect(found?.session.csrf_token).toBe("csrf-orphan");
+    expect(found?.user).toBeNull();
+  });
+
+  test("getSessionWithUser returns null for a token nobody has", async () => {
+    expect(await getSessionWithUser("never-issued")).toBeNull();
   });
 
   test("deleteOtherSessions removes all sessions except current", async () => {
