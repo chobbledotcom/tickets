@@ -20,6 +20,24 @@ const addPage = async (name: string, slug: string, sortOrder: number) =>
     sortOrder,
   });
 
+/** Put one listing on a page and read the nav as that page. `change` runs
+ *  after the listing is placed, so a test can alter it first. */
+const navShowingListing = async (
+  listingName: string,
+  change: (listingId: number) => Promise<unknown> = () => Promise.resolve(),
+) => {
+  const page = await addPage("Things", "things", 1);
+  const listing = await createTestListing({ name: listingName });
+  await addPageItem(page.id, "listing", listing.id);
+  await change(listing.id);
+  return {
+    listing,
+    model: await publicNavModel(
+      sitePageItemTargets.key(sitePageItemTargets.of("page")(page.id)),
+    ),
+  };
+};
+
 describeWithEnv("public site nav", { db: true, triggers: true }, () => {
   test("lists the site's pages in their chosen order", async () => {
     await addPage("Second", "second", 2);
@@ -59,28 +77,18 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
   });
 
   test("resolves a page's listing item to a live link", async () => {
-    const page = await addPage("Things", "things", 1);
-    const listing = await createTestListing({ name: "Live listing" });
-    await addPageItem(page.id, "listing", listing.id);
-
-    const model = await publicNavModel(
-      sitePageItemTargets.key(sitePageItemTargets.of("page")(page.id)),
-    );
+    const { listing, model } = await navShowingListing("Live listing");
 
     expect(model.currentChildren.map((node) => node.label)).toEqual([
       "Live listing",
     ]);
     expect(model.currentChildren[0]?.href).toBe(`/ticket/${listing.slug}`);
+    expect(model.currentChildren[0]?.live).toBe(true);
   });
 
   test("keeps an inactive listing in the nav but not as a link", async () => {
-    const page = await addPage("Things", "things", 1);
-    const listing = await createTestListing({ name: "Off sale" });
-    await addPageItem(page.id, "listing", listing.id);
-    await execute("UPDATE listings SET active = 0 WHERE id = ?", [listing.id]);
-
-    const model = await publicNavModel(
-      sitePageItemTargets.key(sitePageItemTargets.of("page")(page.id)),
+    const { model } = await navShowingListing("Off sale", (listingId) =>
+      execute("UPDATE listings SET active = 0 WHERE id = ?", [listingId]),
     );
 
     expect(model.currentChildren.map((node) => node.label)).toEqual([
