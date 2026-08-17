@@ -133,6 +133,7 @@ const unfinishedRunExit = (
  */
 const establishBaseline = async (
   opts: RunMutantsOptions,
+  plans: readonly FileMutationPlan[],
 ): Promise<{ code: number } | null> => {
   const { abortSignal, batchJobs, testFiles } = opts;
   console.log(dim("Running baseline (unmutated) tests…"));
@@ -144,7 +145,7 @@ const establishBaseline = async (
   );
   // The guard can fire here too, and a run it stopped is a failure to report
   // rather than an operator changing their mind.
-  const stopped = unfinishedRunExit(opts, 0, []);
+  const stopped = unfinishedRunExit(opts, 0, plans);
   if (stopped !== null) return { code: stopped };
   if (baseline.outcome !== "passed") {
     console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
@@ -250,11 +251,10 @@ const runOnePlan = async (
   ctx: MutantLoopContext,
   plans: readonly FileMutationPlan[],
 ): Promise<number | null> => {
-  const gateSignal = AbortSignal.any([
-    opts.abortSignal,
-    AbortSignal.timeout(BASELINE_TIMEOUT),
-  ]);
-  const dirty = await isUnmutatedTargetDirty(plan, ctx.gates, gateSignal);
+  // The run's own signal, with no clock of its own: then a stopped probe means
+  // the run was stopped, and nothing else. A gate that genuinely hangs is the
+  // whole-run guard's business, which reports it properly.
+  const dirty = await isUnmutatedTargetDirty(plan, ctx.gates, opts.abortSignal);
   // How the run ended outranks what a probe made of it.
   const stopped = unfinishedRunExit(opts, opts.results.length, plans);
   if (stopped !== null) return stopped;
@@ -303,7 +303,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     plans.push(plan);
   }
 
-  const baseline = await establishBaseline(opts);
+  const baseline = await establishBaseline(opts, plans);
   if (baseline !== null) return baseline.code;
   const gates = await createStaticGates();
   console.log(
