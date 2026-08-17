@@ -6,11 +6,14 @@ import {
   fromTx,
   insertStatement,
   type RowReader,
+  selectByEventGroup,
+  selectById,
   selectTransfers,
   selectTransfersMany,
 } from "#shared/accounting/rows.ts";
 import {
   executeBatch,
+  queryOne,
   type SqlStatement,
   type TxScope,
   withTransaction,
@@ -107,24 +110,38 @@ const recordingReader = (): {
   return { asked, reader };
 };
 
+const STORED_AT = "2026-06-21T12:00:00.000Z";
+
+const leg = (reference: string, eventGroup: string): TransferInput => ({
+  amount: 5000,
+  destination: account("revenue", 7),
+  eventGroup,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+  reference,
+  source: account("attendee", 3),
+});
+
+/** Two legs under different events, so a reader that ignores its filter and
+ *  returns everything is visible. */
+const storeTwoLegs = (): Promise<void> =>
+  executeBatch([
+    insertStatement(leg("ref-a", "evt-a"), STORED_AT),
+    insertStatement(leg("ref-b", "evt-b"), STORED_AT),
+  ]);
+
+/** The id a reference was stored under, read straight from the table: a test of
+ *  one reader must not lean on another to set itself up. */
+const storedIdFor = async (reference: string): Promise<number> => {
+  const row = await queryOne<{ id: number | bigint }>(
+    "SELECT id FROM transfers WHERE reference = ?",
+    [reference],
+  );
+  if (row === null) throw new Error(`Nothing was stored for ${reference}`);
+  return Number(row.id);
+};
+
 describe("accounting > rows > selectTransfersMany", () => {
   useTransactionalDb();
-  const recordedAt = "2026-06-21T12:00:00.000Z";
-
-  const leg = (reference: string, eventGroup: string): TransferInput => ({
-    amount: 5000,
-    destination: account("revenue", 7),
-    eventGroup,
-    occurredAt: "2026-06-21T00:00:00.000Z",
-    reference,
-    source: account("attendee", 3),
-  });
-
-  const storeTwoLegs = (): Promise<void> =>
-    executeBatch([
-      insertStatement(leg("ref-a", "evt-a"), recordedAt),
-      insertStatement(leg("ref-b", "evt-b"), recordedAt),
-    ]);
 
   test("gives each set of rows back to the query that asked for it", async () => {
     await storeTwoLegs();
@@ -135,8 +152,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     ]);
 
     // Swapped answers would read as a stored collision that is not there.
-    expect(byGroup?.map((row) => row.reference)).toEqual(["ref-b"]);
-    expect(byReference?.map((row) => row.reference)).toEqual(["ref-a"]);
+    expect(byGroup.map((row) => row.reference)).toEqual(["ref-b"]);
+    expect(byReference.map((row) => row.reference)).toEqual(["ref-a"]);
   });
 
   test("answers a query nothing can match without asking for it", async () => {
@@ -193,6 +210,34 @@ describe("accounting > rows > selectTransfersMany", () => {
       ["ref-a"],
       ["ref-b"],
     ]);
+  });
+});
+
+describe("accounting > rows > readers for one event and one row", () => {
+  useTransactionalDb();
+
+  test("selectByEventGroup reads that event's legs and not its neighbour's", async () => {
+    await storeTwoLegs();
+
+    const legs = await selectByEventGroup(fromDb, "evt-a");
+
+    expect(legs.map((row) => row.reference)).toEqual(["ref-a"]);
+  });
+
+  test("selectById reads the transfer stored under that id", async () => {
+    await storeTwoLegs();
+    const id = await storedIdFor("ref-b");
+
+    const found = await selectById(fromDb, id);
+
+    expect(found?.id).toBe(id);
+    expect(found?.reference).toBe("ref-b");
+  });
+
+  test("selectById answers null when no transfer has that id", async () => {
+    await storeTwoLegs();
+
+    expect(await selectById(fromDb, 999_999)).toBeNull();
   });
 });
 
@@ -259,5 +304,23 @@ describe("accounting > rows > stored-row round-trip", () => {
     // on what "no kind" looks like (mirroring reverses_id).
     expect(stored!.kind).toBeUndefined();
     expect("kind" in stored!).toBe(false);
+  });
+
+  test("a leg with no memo stores an empty one, not a stand-in", async () => {
+    const memoless: TransferInput = {
+      amount: 100,
+      destination: account("revenue", 7),
+      eventGroup: "evt-memoless",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-memoless",
+      source: account("attendee", 3),
+    };
+    await executeBatch([insertStatement(memoless, recordedAt)]);
+
+    const [stored] = await selectTransfers(fromDb);
+
+    // Unlike kind, memo keeps its "" — so the absence must be stored as empty
+    // rather than as any filler a reader would later show to an operator.
+    expect(stored!.memo).toBe("");
   });
 });

@@ -334,21 +334,36 @@ const planTransferBatch = (
   return { inserts, kind: "posted", results };
 };
 
+/** One outcome for each set posted, in the order the sets were given, so a
+ *  caller passing a known number of sets can name them by destructuring. */
+type ResultPerBatch<Batches extends readonly TransferInput[][][]> = {
+  [Index in keyof Batches]: PostTransferBatchResult;
+};
+
+/** The outcome for a set with no legs in it. Annotated rather than written
+ *  inline, so the shape is still checked despite the tuple cast at the return. */
+const nothingToPost = (
+  batch: readonly TransferInput[][],
+): PostTransferBatchResult => ({
+  kind: "posted",
+  results: batch.map(() => EMPTY_RESULT),
+});
+
 /**
  * Post several independent sets of event groups from one ledger snapshot and
  * one write. A stored-data conflict rejects only its own set; malformed input
  * and database failures still reject the whole call.
  */
-export const postTransferGroupBatches = async (
-  batches: TransferInput[][][],
-): Promise<PostTransferBatchResult[]> => {
+export const postTransferGroupBatches = async <
+  const Batches extends readonly TransferInput[][][],
+>(
+  batches: Batches,
+): Promise<ResultPerBatch<Batches>> => {
   const groups = batches.flat();
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
   if (nonEmpty.length === 0) {
-    return batches.map((batch) => ({
-      kind: "posted",
-      results: batch.map(() => EMPTY_RESULT),
-    }));
+    // Mapped from the sets given, so it is one outcome per set by construction.
+    return batches.map(nothingToPost) as ResultPerBatch<Batches>;
   }
   assertUniqueGroups(groups);
   const snapshot = await loadBatchSnapshot(nonEmpty, fromDb);
@@ -360,20 +375,18 @@ export const postTransferGroupBatches = async (
     batch.kind === "posted" ? batch.inserts : [],
   );
   if (inserts.length > 0) await executeBatch(inserts);
+  // Mapped from the sets given, so it is one outcome per set by construction.
   return planned.map((batch) =>
     batch.kind === "conflict"
       ? batch
       : { kind: batch.kind, results: batch.results },
-  );
+  ) as ResultPerBatch<Batches>;
 };
 
 export const postTransferGroups = async (
   groups: TransferInput[][],
 ): Promise<PostResult[]> => {
-  const result = requireValue(
-    (await postTransferGroupBatches([groups]))[0],
-    "Ledger post omitted its transfer batch",
-  );
+  const [result] = await postTransferGroupBatches([groups]);
   if (result.kind === "conflict") throw result.error;
   return result.results;
 };
