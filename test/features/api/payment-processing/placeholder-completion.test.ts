@@ -25,10 +25,14 @@ import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
 import { readRowState } from "#shared/payment/row-state.ts";
 import { rejectedChargeReference } from "#shared/payment/validated-session.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  withAuthorityRetirementFault,
+  withRefundConfirmationFault,
+} from "#test-utils/db-fault.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
-/* jscpd:ignore-start -- imports */
 import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
@@ -284,5 +288,73 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
         [referenceIndex],
       ),
     ).toEqual({ failure_data: "", protected_state: "" });
+  });
+
+  it("finishes the tail when the first delivery died at authority retirement", async () => {
+    const listing = await createTestListing({});
+    const rejection = ourRejection("pi_retire_window", {
+      items: singleItem(listing.id, 1, 500),
+    });
+    // The refund returns and the ledger posts, then the retirement write
+    // refuses — the delivery fails with the books already recorded.
+    await withAuthorityRetirementFault(() =>
+      expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("authority retirement unavailable"),
+    );
+    await expectLegalJointStates(
+      rejection.sessionId,
+      "after a retirement crash",
+    );
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect(await storedNote()).toBeNull();
+
+    // The redelivery finishes only what is missing: retirement, the note and
+    // activity line, and the release — the legs never double.
+    await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect((await storedNote())?.total).toBe(1);
+    expect(await activityCount()).toBe(1);
+    const referenceIndex = await paymentReferenceIndex(
+      rejectedChargeReference(rejection),
+    );
+    const after = await loadRefundAuthorityByReference(referenceIndex);
+    expect(after?.state.local.kind).toBe("recorded");
+  });
+
+  it("finishes the tail when the first delivery died at the confirmation", async () => {
+    const listing = await createTestListing({});
+    const rejection = ourRejection("pi_confirm_window", {
+      items: singleItem(listing.id, 1, 500),
+    });
+    // Ledger and retirement land, then the once-only latch refuses — the
+    // note and activity line ride its transaction, so neither exists yet.
+    await withRefundConfirmationFault(() =>
+      expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("refund confirmation unavailable"),
+    );
+    await expectLegalJointStates(
+      rejection.sessionId,
+      "after a confirmation crash",
+    );
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect(await storedNote()).toBeNull();
+    expect(await activityCount()).toBe(0);
+
+    // The redelivery tolerates the already-recorded authority and writes the
+    // words exactly once.
+    await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+    await expectOnePairOfLegs(rejection.sessionId);
+    expect((await storedNote())?.total).toBe(1);
+    expect(await activityCount()).toBe(1);
   });
 });
