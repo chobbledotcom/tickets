@@ -5,7 +5,6 @@ import {
   claimProcessedSmsInbound,
   pruneProcessedSmsInboundBefore,
 } from "#shared/db/processed-sms-inbound.ts";
-import { isoBefore } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const storedCount = async (): Promise<number> => {
@@ -29,10 +28,12 @@ describeWithEnv("db > processed sms inbound", { db: true }, () => {
 
   test("prunes only rows older than the cutoff", async () => {
     await claimProcessedSmsInbound("wh_recent");
-    await pruneProcessedSmsInboundBefore(isoBefore(60 * 60 * 1000));
+    // Fixed bounds either side of any possible stamp, so the assertion never
+    // depends on the process clock a neighbouring grouped test may control.
+    await pruneProcessedSmsInboundBefore("1970-01-01T00:00:00.000Z");
     expect(await storedCount()).toBe(1);
 
-    await pruneProcessedSmsInboundBefore(new Date().toISOString());
+    await pruneProcessedSmsInboundBefore("9999-12-31T23:59:59.999Z");
     expect(await storedCount()).toBe(0);
   });
 });
