@@ -137,6 +137,81 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     expect(after?.state.local.kind).toBe("recorded");
   });
 
+  it("a ledger miss settles the row saying the books are behind", async () => {
+    const listing = await createTestListing({});
+    const rejection = ourRejection("pi_unrecorded_settle", {
+      items: singleItem(listing.id, 1, 500),
+    });
+    // The store crashes at the ledger, leaving the ghost with its held claim.
+    await withRefundLedgerFault(() =>
+      expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("could not be recorded"),
+    );
+    const referenceIndex = await paymentReferenceIndex(
+      rejectedChargeReference(rejection),
+    );
+    const held = await queryOne<{
+      attendee_id: number;
+      failure_data: EnvKeyEncrypted | "";
+    }>(
+      "SELECT attendee_id, failure_data FROM processed_payments WHERE payment_reference_index = ?",
+      [referenceIndex],
+    );
+    if (held === null || held.failure_data === "") {
+      throw new Error("crashed delivery left no held anchor row");
+    }
+    const state = readRowState(
+      await decrypt(held.failure_data),
+      "unrecorded settle test",
+    );
+    if (state.claim === undefined || state.unrecorded === undefined) {
+      throw new Error("held anchor row lost its claim or return time");
+    }
+
+    // With the fault still in place, a mark_unrecorded completion must not
+    // fail — it lets go of the claim while the row keeps saying the books
+    // have not caught up, so the refresh route can finish the job.
+    const recording = await withRefundLedgerFault(async () =>
+      completePlaceholderMoney({
+        activityMessage:
+          "Automatic refund (malformed_charge); rejected payment kept at quantity 0",
+        amount: CAPTURED,
+        attendeeId: held.attendee_id,
+        dueAuthority: null,
+        listingId: listing.id,
+        occurredAt: state.unrecorded!.returnedAt,
+        onLedgerMiss: "mark_unrecorded",
+        referenceIndexes: [referenceIndex],
+        sessionId: rejection.sessionId,
+        settlement: {
+          commandId: state.claim!.commandId,
+          heldSince: state.claim!.writtenAt,
+          rows: new Map([
+            [
+              anchorSessionId(held.attendee_id, referenceIndex),
+              { claim: "release", phase: "checking" },
+            ],
+          ]),
+        },
+        spec: placeholderRefund("malformed_charge")("books behind"),
+      }),
+    );
+
+    expect(recording.posted).toBe(false);
+    // No note or activity was invented for money the books do not show.
+    expect(await storedNote()).toBeNull();
+    expect(await activityCount()).toBe(0);
+    expect(
+      await queryOne<{ protected_state: string }>(
+        "SELECT protected_state FROM processed_payments WHERE payment_reference_index = ?",
+        [referenceIndex],
+      ),
+    ).toEqual({ protected_state: "unrecorded" });
+  });
+
   it("finishes a crashed delivery's remaining tail exactly once", async () => {
     const listing = await createTestListing({});
     const rejection = ourRejection("pi_partial_tail", {

@@ -20,6 +20,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { parseSessionFailure } from "#shared/db/processed-payments.ts";
 import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
 import { readRowState } from "#shared/payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
@@ -27,7 +28,10 @@ import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import {
+  getProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
@@ -249,6 +253,12 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       refunded: true,
       status: 200,
       success: false,
+    });
+    // The advance is durable, not recomputed: the stored outcome itself now
+    // says the refund happened, so a later replay needs no anchor rows.
+    const record = await getProcessedPayment(sessionId);
+    expect(await parseSessionFailure(record!.failure_data)).toMatchObject({
+      refunded: true,
     });
     await expectOnePairOfLegs(sessionId);
     expect(await noteCount()).toBe(1);
