@@ -39,10 +39,15 @@ src/shared/ledger/reverse.ts::reverseOf.memo~0ibvp6e  ?? → ||   # reverseOf me
 src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → ||   # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
 src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → ||   # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/store.ts::newLegConflict~1dordwu  ?? → ||   # newLegConflict originalsById.get(id): Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/store.ts::eventGroupOf~004j2p7  Ledger event cannot be empty → ""   # every caller drops empty groups first (postTransfersTx returns early, assertUniqueGroups and loadBatchSnapshot take nonEmpty, planTransferBatch skips them), so requireValue never throws and no test can read its message
+src/shared/accounting/store.ts::postTransfers~0by69o5  Ledger post omitted its event → ""   # postTransferGroups returns one PostResult per group, so a one-group post always has a [0] and this message is unreachable
 src/shared/accounting/rows.ts::legColumns~1u7xtcf  ?? → ||   # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts::legColumns~12222gj  ?? → ||   # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts::selectById~1v2xab7  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
 src/shared/accounting/rows.ts::renderInsert.args~06yrdj4  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
+src/shared/accounting/rows.ts::selectById~1v2xab7  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/rows.ts::selectTransfersMany~0htorzu  ?? → ||   # rowsByQuery.get(index): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/rows.ts::selectTransfersMany.asked~16v286s  ?? → ||   # query.where: WhereClause[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts::assertManualLedgerTransfer.kind~1kt86ag  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts::bookingFactsFromOrder.bookingFee~0t6vqf5  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts::settingsForPath~1at4rp9  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
