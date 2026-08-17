@@ -1,13 +1,31 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { withTransaction } from "#shared/db/client.ts";
-import { linkTableSide } from "#shared/db/link-table.ts";
+import { linkTableSide, selfLinkTableSides } from "#shared/db/link-table.ts";
+import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 // Exercised through a real link table so the SQL runs against the schema's
 // unique (key, value) index — the constraint the factory's dedupe protects.
 const byUser = linkTableSide("user_logistics_agents", "user_id", "agent_id");
 const byAgent = linkTableSide("user_logistics_agents", "agent_id", "user_id");
+
+// A listing's children and its parents are both listings, so this table is
+// read from both ends of the same id.
+const edges = selfLinkTableSides(
+  "listing_parents",
+  "parent_listing_id",
+  "child_listing_id",
+);
+
+/** Count the database calls `work` makes with a request's memory switched on,
+ * the way a real request runs. */
+const callsInOneRequest = (
+  limit: number,
+  work: () => Promise<unknown>,
+): Promise<number> =>
+  runWithRequestCache(() => countDatabaseCalls(limit, work));
 
 describeWithEnv("db link-table", { db: true }, () => {
   test("getIds returns [] when the key has no links", async () => {
@@ -120,5 +138,84 @@ describeWithEnv("db link-table", { db: true }, () => {
     await byAgent.clear(4);
     expect(await byUser.getIds(1)).toEqual([5]);
     expect(await byUser.getIds(2)).toEqual([]);
+  });
+
+  describe("both directions of a self-linking table", () => {
+    test("each side reads its own direction, ascending", async () => {
+      await edges.pointsAt.setIds(1, [7, 3]);
+      await edges.pointsAt.setIds(2, [3]);
+
+      expect(await edges.pointsAt.getIds(1)).toEqual([3, 7]);
+      expect(await edges.pointedAtBy.getIds(3)).toEqual([1, 2]);
+    });
+
+    test("asking both ways round about one record costs a single read", async () => {
+      await edges.pointsAt.setIds(1, [3]);
+      await edges.pointedAtBy.setIds(1, [4]);
+
+      const both = await callsInOneRequest(1, async () => {
+        expect(await edges.pointsAt.getIds(1)).toEqual([3]);
+        expect(await edges.pointedAtBy.getIds(1)).toEqual([4]);
+      });
+
+      expect(both).toBe(1);
+    });
+
+    test("asking both ways round at once costs a single read", async () => {
+      await edges.pointsAt.setIds(1, [3]);
+      await edges.pointsAt.setIds(2, [3]);
+
+      const both = await callsInOneRequest(1, async () => {
+        const [children, parents] = await Promise.all([
+          edges.pointsAt.getIdsByKeys([1, 2, 3]),
+          edges.pointedAtBy.getIdsByKeys([1, 2, 3]),
+        ]);
+        expect(children).toEqual(
+          new Map([
+            [1, [3]],
+            [2, [3]],
+            [3, []],
+          ]),
+        );
+        expect(parents).toEqual(
+          new Map([
+            [1, []],
+            [2, []],
+            [3, [1, 2]],
+          ]),
+        );
+      });
+
+      expect(both).toBe(1);
+    });
+
+    test("a record nobody links to comes back empty both ways", async () => {
+      await edges.pointsAt.setIds(1, [3]);
+
+      expect(await edges.pointsAt.getIdsByKeys([9])).toEqual(
+        new Map([[9, []]]),
+      );
+      expect(await edges.pointedAtBy.getIdsByKeys([9])).toEqual(
+        new Map([[9, []]]),
+      );
+    });
+
+    test("an empty list of records reads nothing at all", async () => {
+      const calls = await callsInOneRequest(0, async () => {
+        expect(await edges.pointsAt.getIdsByKeys([])).toEqual(new Map());
+        expect(await edges.pointedAtBy.getIdsByKeys([])).toEqual(new Map());
+      });
+
+      expect(calls).toBe(0);
+    });
+
+    test("a write makes the next read fetch again", async () => {
+      await edges.pointsAt.setIds(1, [3]);
+      await runWithRequestCache(async () => {
+        expect(await edges.pointedAtBy.getIds(3)).toEqual([1]);
+        await edges.pointsAt.setIds(2, [3]);
+        expect(await edges.pointedAtBy.getIds(3)).toEqual([1, 2]);
+      });
+    });
   });
 });
