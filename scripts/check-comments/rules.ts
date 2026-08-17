@@ -138,17 +138,29 @@ const NAME_RE = /[A-Za-z_][A-Za-z0-9_]*/g;
 export const namesMentioned = (content: string): Set<string> =>
   new Set(content.replace(DOC_LINK_RE, " ").match(NAME_RE) ?? []);
 
+/** One file's comments checked against whatever that rule needs to know. */
+export type CommentCheck<Config> = (
+  content: string,
+  config: Config,
+) => CommentIssue[];
+
+/** Turn a rule about one comment into a rule about a whole file, so every check
+ *  walks the comments the same way and reports them in source order. */
+const eachComment =
+  <Config>(
+    check: (comment: SourceComment, config: Config) => CommentIssue[],
+  ): CommentCheck<Config> =>
+  (content, config) =>
+    readComments(content).flatMap((comment) => check(comment, config));
+
 /**
  * Doc links pointing at a name that appears nowhere in the scanned tree, which
  * means a rename or delete left the comment behind. Deliberately permissive: a
  * name still mentioned anywhere counts, so only a target with no home at all is
  * reported.
  */
-export const findDeadLinks = (
-  content: string,
-  known: ReadonlySet<string>,
-): CommentIssue[] =>
-  readComments(content).flatMap((comment) =>
+export const findDeadLinks: CommentCheck<ReadonlySet<string>> = eachComment(
+  (comment, known) =>
     [...comment.text.matchAll(DOC_LINK_RE)]
       .filter((match) => !known.has(match[1]!))
       .map((match) => ({
@@ -158,18 +170,15 @@ export const findDeadLinks = (
         problem: `{@link ${match[1]}} names nothing in the tree`,
         rule: "comment-dead-link",
       })),
-  );
+);
 
 /** Every limit one file's comments break, ordered by where they appear. */
-export const findCommentIssues = (
-  content: string,
-  limits: CommentLimits,
-): CommentIssue[] =>
-  readComments(content).flatMap((comment) =>
+export const findCommentIssues: CommentCheck<CommentLimits> = eachComment(
+  (comment, limits) =>
     [tooLong(comment, limits), tooWide(comment, limits)].filter(
       (issue): issue is CommentIssue => issue !== null,
     ),
-  );
+);
 
 /** One issue as a reader-friendly line. */
 export const formatIssue = (file: string, issue: CommentIssue): string =>
