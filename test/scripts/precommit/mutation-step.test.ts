@@ -4,6 +4,7 @@ import type { RunCommand } from "#scripts/precommit/git.ts";
 import {
   type ChangedFiles,
   changedFiles,
+  codeShape,
   MUTATION_NOTICE_PREFIX,
   mutationNoticeSummary,
   partitionChanged,
@@ -15,20 +16,29 @@ import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
 const fail = (stderr = ""): CapturedOutput => capturedFail(1, stderr);
 
-/**
- * A fake git modelling base-ref resolution: `base` is the only
- * `rev-parse --verify` ref that exists (null = none), and `diff` is served for
- * the `git diff` call. Mirrors how `changedFiles` resolves a base ref then
- * diffs `base...HEAD`.
- */
+/** A fake git: `base` is the only ref that resolves (null = none), `diff`
+ *  answers `git diff`, and `show` the two revisions of each changed source. */
 const fakeGit =
-  (opts: { base?: string | null; diff: CapturedOutput }): RunCommand =>
-  (cmd) =>
-    cmd[1] === "rev-parse"
-      ? Promise.resolve(
-          cmd.at(-1) === (opts.base ?? null) ? capturedOk() : fail(),
-        )
-      : Promise.resolve(opts.diff);
+  (opts: {
+    base?: string | null;
+    diff: CapturedOutput;
+    /** Contents per `git show <rev>:<path>`; by default each revision differs,
+     *  so every changed file counts as a real code change. */
+    show?: (revPath: string) => CapturedOutput;
+  }): RunCommand =>
+  (cmd) => {
+    if (cmd[1] === "rev-parse") {
+      return Promise.resolve(
+        cmd.at(-1) === (opts.base ?? null) ? capturedOk() : fail(),
+      );
+    }
+    if (cmd[1] === "show") {
+      const revPath = cmd[2] ?? "";
+      const fallback = capturedOk(`const a = "${revPath}";\n`);
+      return Promise.resolve(opts.show ? opts.show(revPath) : fallback);
+    }
+    return Promise.resolve(opts.diff);
+  };
 
 describe("partitionChanged", () => {
   test("collects src .ts, .tsx and .js files as sources", () => {
@@ -389,5 +399,108 @@ describe("runMutationStep", () => {
       runMutation: () => Promise.resolve(2),
     });
     expect(code).toBe(0);
+  });
+});
+
+describe("codeShape", () => {
+  test("drops a comment and the blank line it leaves behind", () => {
+    expect(codeShape("// note\nconst a = 1;\n")).toBe("const a = 1;");
+  });
+
+  test("reads the same for a comment of any length", () => {
+    const short = "/** one */\nconst a = 1;\n";
+    const long = "/**\n * one\n * two\n * three\n */\nconst a = 1;\n";
+    expect(codeShape(long)).toBe(codeShape(short));
+  });
+
+  test("reads the same when a trailing comment moves above its code", () => {
+    const trailing = "const a = 1; // note\n";
+    const above = "// note\nconst a = 1;\n";
+    expect(codeShape(trailing)).toBe(codeShape(above));
+  });
+
+  test("reads the same when a mid-line comment changes length", () => {
+    const short = "const a = /* x */ 1;";
+    const long = "const a = /* a much longer note */ 1;";
+    expect(codeShape(long)).toBe(codeShape(short));
+  });
+
+  test("still sees whitespace changed inside a string literal", () => {
+    expect(codeShape('const a = "p  q";')).not.toBe(
+      codeShape('const a = "p q";'),
+    );
+  });
+
+  test("still sees a changed string literal", () => {
+    expect(codeShape('const a = "x";')).not.toBe(codeShape('const a = "y";'));
+  });
+
+  test("still sees a changed operator", () => {
+    expect(codeShape("a > b;")).not.toBe(codeShape("a >= b;"));
+  });
+
+  test("keeps a // inside a string as code", () => {
+    expect(codeShape('const u = "http://x";')).toBe('const u = "http://x";');
+  });
+});
+
+describe("changedFiles — comment-only sources", () => {
+  const sameCode = (revPath: string) =>
+    capturedOk(
+      revPath.startsWith("origin/main")
+        ? "/** long\n * doc\n */\nconst a = 1;\n"
+        : "/** short */\nconst a = 1;\n",
+    );
+
+  test("drops a source whose only change is its comments", async () => {
+    const changed = await changedFiles(
+      fakeGit({
+        base: "origin/main",
+        diff: capturedOk("src/a.ts\n"),
+        show: sameCode,
+      }),
+    );
+    expect(changed?.sources).toEqual([]);
+  });
+
+  test("keeps a source whose code changed too", async () => {
+    const changed = await changedFiles(
+      fakeGit({
+        base: "origin/main",
+        diff: capturedOk("src/a.ts\n"),
+        show: (revPath) =>
+          capturedOk(
+            revPath.startsWith("origin/main")
+              ? "const a = 1;\n"
+              : "// note\nconst a = 2;\n",
+          ),
+      }),
+    );
+    expect(changed?.sources).toEqual(["src/a.ts"]);
+  });
+
+  test("keeps a source the base revision cannot show, which is new", async () => {
+    const changed = await changedFiles(
+      fakeGit({
+        base: "origin/main",
+        diff: capturedOk("src/a.ts\n"),
+        show: (revPath) =>
+          revPath.startsWith("origin/main")
+            ? capturedFail()
+            : capturedOk("const a = 1;\n"),
+      }),
+    );
+    expect(changed?.sources).toEqual(["src/a.ts"]);
+  });
+
+  test("leaves changed tests alone, which are not mutated anyway", async () => {
+    const changed = await changedFiles(
+      fakeGit({
+        base: "origin/main",
+        diff: capturedOk("src/a.ts\ntest/shared/a.test.ts\n"),
+        show: sameCode,
+      }),
+    );
+    expect(changed).toEqual({ sources: [], tests: ["test/shared/a.test.ts"] });
   });
 });

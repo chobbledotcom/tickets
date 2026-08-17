@@ -287,12 +287,11 @@ export type PlaceholderRefundFacts = {
  * the diary. Posts the `payment` we received and, when the provider refund
  * succeeded, the `refund_cash` returning it. Both event groups are posted in one
  * atomic batch, so the payment can never commit without its completed refund.
- * Deliberately posts NO `sale` leg:
- * the booking was never honoured, so no revenue is recognised and the quantity-0
- * line's projected `price_paid` stays 0 (a sale leg would re-break that invariant
- * and read as still-paid). A failed refund posts only the payment, so the ledger
- * shows we still hold the customer's money until a manual refund reverses it —
- * `memo` (a PII-free reason code) is stamped on the refund leg.
+ * It deliberately posts no `sale` leg: the booking was never honoured, so no
+ * revenue is recognised and the quantity-0 line's projected `price_paid` stays
+ * 0, where a sale leg would read as still-paid. A failed refund posts only the
+ * payment, so the ledger shows we still hold the customer's money until a manual
+ * refund reverses it. `memo`, a PII-free reason code, is stamped on the refund.
  *
  * {@link recordAttendeeRefund} can't be reused here: this placeholder records a
  * cash-only booking that was never honoured, so there is no sale leg or

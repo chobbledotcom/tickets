@@ -73,28 +73,20 @@ export const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
  * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
  * the number of retries, so four verify attempts in total.
  *
- * A migration applies DDL in up() and then verify() reads the live schema back
- * to confirm it landed. The snapshot is already pinned to the primary
- * (queryBatchPrimary, "write" mode) to dodge replica lag, but a freshly-opened
- * primary connection can still briefly observe the pre-DDL schema —
- * read-your-writes propagation lag — so a column the ALTER just added reads as
- * missing and verify() throws spuriously. (Observed in production: a column-add
- * migration failed verification on one request and passed on the retry moments
- * later.) verify() re-snapshots on every call, so retrying after a short backoff
- * lets the schema settle within the same request rather than 503-ing it. A
- * genuine schema defect stays missing across every attempt and still throws, so
- * this never masks a real bug.
+ * up() applies DDL and verify() reads the live schema back to confirm it
+ * landed. The snapshot is pinned to the primary to dodge replica lag, but a
+ * freshly-opened primary connection can still briefly observe the pre-DDL
+ * schema, so a column the ALTER just added reads as missing and verify() throws
+ * spuriously. It re-snapshots on every call, so a short backoff lets the schema
+ * settle within the same request rather than 503-ing it. A genuine defect stays
+ * missing across every attempt and still throws.
  *
- * Retrying verify() alone is not always enough, though: up() can itself skip a
- * write when its own snapshot lagged. syncIndexes() reads the live schema to
- * decide which indexes to create and skips any whose table the snapshot doesn't
- * show — correct for an index on a table a later migration creates, but it also
- * skips an index whose table THIS migration just created when the read lags
- * behind that write. The index is then never created, so verify() fails on every
- * attempt until up() runs again — the observed "missing index
- * idx_system_notes_attendee_id, passed on the next request" failure. So once
- * verify()'s own retries are exhausted, {@link applyMigrationWithRetry} re-runs
- * up() once and verifies again.
+ * Retrying verify() alone is not always enough: up() can skip a write when its
+ * own snapshot lagged. syncIndexes() skips an index whose table the snapshot
+ * does not show — right for a table a later migration creates, wrong when this
+ * migration just created it. The index is then never created and verify() fails
+ * on every attempt, so once its retries are exhausted
+ * {@link applyMigrationWithRetry} re-runs up() once and verifies again.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
 

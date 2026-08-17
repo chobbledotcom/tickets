@@ -53,7 +53,7 @@ const md = once(
     }),
 );
 
-/** Render markdown to HTML (block-level: paragraphs, lists, etc.). Raw HTML is escaped and unsafe URLs are stripped. */
+/** Renders block markdown, escaping raw HTML and stripping unsafe URLs. */
 export const renderMarkdown = (text: string): string =>
   md().parse(text) as string;
 

@@ -72,7 +72,8 @@ type SiteAssignmentConfigEntry = {
     name: string;
   };
 };
-/** Pick the cheapest qualifying tier listing (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
+/** A tier listing qualifies when it is purchase-only, hidden, active, and
+ * priced by the month. */
 export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
   listing.purchase_only &&
   listing.hidden &&

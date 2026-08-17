@@ -27,11 +27,10 @@ describe("check-copy runner", () => {
     Deno.writeTextFileSync(`${dir.path}/${fileName}`, JSON.stringify(contents));
     const out: string[] = [];
     const errors: string[] = [];
-    const code = runCopyCheck(
-      dir.path,
-      (l) => out.push(l),
-      (l) => errors.push(l),
-    );
+    const code = runCopyCheck(dir.path, {
+      log: (l) => out.push(l),
+      logError: (l) => errors.push(l),
+    });
     return { code, errors, out };
   };
 
@@ -93,11 +92,10 @@ describe("the real copy catalog", () => {
 
   test("passes every mechanical simple-language check", () => {
     const errors: string[] = [];
-    const code = runCopyCheck(
-      CATALOG_DIR,
-      () => {},
-      (l) => errors.push(l),
-    );
+    const code = runCopyCheck(CATALOG_DIR, {
+      log: () => {},
+      logError: (l) => errors.push(l),
+    });
     expect(errors).toEqual([]);
     expect(code).toBe(0);
   });

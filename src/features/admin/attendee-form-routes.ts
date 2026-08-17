@@ -1,23 +1,15 @@
 /**
- * Routes for creating and saving attendees.
+ * Routes for creating and saving attendees. Viewing an existing attendee
+ * renders through the entity page in `attendee-page.ts` instead.
  *
- *   GET  /admin/attendees/new      — render the create form
- *   POST /admin/attendees/new      — handle create submission
- *   POST /admin/attendees/:id      — handle edit submission
+ * The editor is a fixed table — one quantity box per bookable listing, plus any
+ * inactive listing already booked — over one shared date range, so a
+ * submission saves in one go with no add-or-remove round trips. The calendar
+ * can deep-link a create with `?select_<id>=1&start_date=…` to pre-fill it.
  *
- * (GET /admin/attendees/:id and its tabs render through the attendee entity
- * page — attendee-page.ts.)
- *
- * The editor is a fixed table — one quantity box per bookable listing (plus any
- * inactive listing the attendee already booked) — and one shared date range, so
- * a submission is a single self-contained save with no add/remove-line round
- * trips. Create can be deep-linked from the calendar availability checker with
- * `?select_<id>=1&start_date=…` to pre-fill the chosen listings and date.
- *
- * Feedback: a successful save PRG-redirects to the Edit tab; a validation or
- * recoverable save failure re-renders the submitted form IN PLACE (through the
- * entity page for edits) so entered data and per-line errors are never lost —
- * deliberately not a stash-dependent bounce.
+ * A successful save redirects to the Edit tab. A validation or recoverable
+ * failure re-renders the submitted form in place, so entered data and per-line
+ * errors survive without depending on a stash living until the next GET.
  */
 
 /* jscpd:ignore-start */

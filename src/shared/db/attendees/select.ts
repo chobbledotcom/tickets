@@ -1,20 +1,12 @@
 /**
  * Field-selection interface for reading attendee booking rows.
  *
- * Every attendee read used to share one of two fat SELECT projections
- * (`ATTENDEE_JOIN_SELECT` / `ATTENDEE_LEFT_JOIN_SELECT`) that always computed
- * the expensive ledger subqueries — `price_paid` alone is four correlated
- * subqueries per row — even when the caller displayed none of them. The admin
- * dashboard's recent-bookings table and the attendees browser, for example,
- * show only a booking's quantity, check-in state and refunded badge, yet paid
- * for `price_paid` and `remaining_balance` on every line.
- *
- * This module lets each caller declare exactly which projected fields it needs.
- * The builder always emits the cheap identity and per-listing columns and adds
- * an expensive field's subquery ONLY when it is asked for, so a table read that
- * wants none of the money fields runs none of their subqueries. Passing
- * {@link ATTENDEE_FIELDS} asks for every field and reproduces the old full
- * projection byte-for-byte (column order aside, which callers read by name).
+ * Each caller declares exactly which projected fields it needs. The builder
+ * always emits the cheap identity and per-listing columns, and adds an
+ * expensive field's subquery only when it is asked for — `price_paid` alone
+ * costs four correlated subqueries per row — so a table showing just quantity
+ * and check-in state runs none of the money subqueries. Passing
+ * {@link ATTENDEE_FIELDS} asks for every field.
  *
  * The three ledger-subquery fragments live here because this is where the
  * attendee projection is assembled; `queries.ts`, `tokens.ts` and `balance.ts`
@@ -55,34 +47,24 @@ export const refundedFromLedger = (attendeeIdExpr: string): string =>
   ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)})) AS refunded`;
 
 /**
- * Per-row amount paid, projected from the ledger instead of a stored column: the
- * gross `sale` leg this booking row recognised — `kind='sale'`, billed from the
- * attendee to the listing's revenue account, within the row's stored
- * `ledger_event_group` (so an attendee holding several orders for one listing
- * resolves to exactly this booking's leg). A site has one currency, so amounts
- * sum directly. Equals the dropped `price_paid` column for a fully-paid booking
- * (every production booking) and stays put after a refund (the reversal is a
- * separate `refund_*` leg). 0 when the row has no sale leg — a free or
- * provider-less-owed booking, or an unmatched LEFT JOIN row (NULL ids/group
- * match nothing).
+ * Per-row amount paid, projected from the ledger rather than a stored column:
+ * the gross `sale` leg this row recognised, within its stored
+ * `ledger_event_group`, so an attendee holding several orders for one listing
+ * resolves to exactly this booking's leg. A site has one currency, so amounts
+ * sum directly. It stays put after a refund, the reversal being a separate
+ * `refund_*` leg, and is 0 when there is no sale leg — a free booking, or an
+ * unmatched LEFT JOIN row.
  *
- * A booking's `sale` leg is posted once per listing, but a child that folds
- * under several parents — or folds AND keeps a standalone remainder — turns one
- * order into several `listing_attendees` rows sharing that single `(attendee,
- * listing, event_group)` leg. Crediting the whole leg to each row would
- * double-count the child on any summed readback, so the leg is split across
- * those rows in QUANTITY proportion, deterministically by row id: each row takes
- * `floor(total * qtyThroughThisRow / totalQty) − floor(total * qtyBeforeThisRow
- * / totalQty)`. Those shares telescope to the full leg with no penny lost, and
- * collapse to the whole leg for the ordinary one-row-per-listing case.
- * `rowIdExpr` is the row's own `id`; all four expressions MUST be qualified
- * (they seed correlated subqueries whose inner `sibling` alias would otherwise
- * shadow a bare column).
- *
- * The same split covers a listing booked through two order paths (a package
- * member row beside its standalone row). When those paths priced differently,
- * the quantity split AVERAGES the rows — the leg carries no per-path key to do
- * better with (see the per-path TODO entry). Sums over the order stay exact.
+ * A `sale` leg is posted once per listing, but a child folding under several
+ * parents turns one order into several rows sharing that single leg. Crediting
+ * the whole leg to each would double-count it, so it is split across them in
+ * quantity proportion, deterministically by row id: `floor(total *
+ * qtyThroughThisRow / totalQty) − floor(total * qtyBeforeThisRow / totalQty)`.
+ * The shares telescope to the full leg with no penny lost, and collapse to the
+ * whole leg for the ordinary single-row case. All four expressions must be
+ * qualified, as they seed correlated subqueries whose inner `sibling` alias
+ * would otherwise shadow a bare column. A listing booked through two paths
+ * priced differently is averaged, the leg carrying no per-path key.
  */
 export const pricePaidFromLedger = (
   attendeeIdExpr: string,

@@ -2,34 +2,21 @@
  * One-shot backfill of the transfers ledger from existing booking rows.
  *
  * No production modifier or reservation has ever existed, so every historical
- * booking is paid in full: an attendee's `listing_attendees` rows with
- * `price_paid > 0` reconstruct to one `sale` per listing plus a single
- * `payment` for the lot (the attendee nets to zero), and a refunded attendee
- * also gets the matching reversal. One event group per attendee
- * (`backfill:att:<id>`) mirrors the live booking flow — a multi-listing booking
- * is one order — so a later admin refund still finds a single booking order via
- * {@link file://../refund-ledger.ts}.
+ * booking is paid in full: rows with `price_paid > 0` reconstruct to one `sale`
+ * per listing plus a single `payment` for the lot, and a refunded attendee gets
+ * the matching reversal. One event group per attendee mirrors the live flow, so
+ * a later refund still finds a single booking order. It reuses the live
+ * mappers, so references and validation match the dual-write path exactly.
  *
- * It reuses the live mappers, so references and validation match the dual-write
- * path exactly. Each attendee's legs are written with `INSERT OR IGNORE` keyed
- * on the unique reference, which makes a re-run a no-op, in batches rather than
- * interactive transactions so it never contends the single SQLite writer
- * mid-migration.
- *
- * A whole page of attendees is written in one batch (see {@link ATTENDEE_PAGE})
- * rather than one batch per attendee: the migration runs inline on a Bunny edge
- * isolate whose subrequest/CPU budget a round-trip-per-attendee backfill would
- * blow on any real booking history, evicting the isolate mid-run and leaving the
- * migration lock held (endless 503s). One batch per page keeps the cost at
- * O(pages) round-trips, and an attendee's legs and row-stamp always land in the
- * same batch, so each attendee still posts all-or-nothing — the already-ledgered
- * guard relies on "has legs ⟺ fully posted".
- *
- * A guard keeps it safe even though, at the Phase-0 point it runs (the ledger is
- * rebuilt empty by the immediately-preceding migration), it never normally fires:
- * an attendee that already carries ledger legs is skipped, so a booking the live
- * dual-write path already recorded is never double-posted. (Currency needs no
- * guard — a site has one, fixed at setup, so every transfer shares it.)
+ * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}): this
+ * runs inline on an edge isolate whose subrequest budget a
+ * round-trip-per-attendee backfill would blow on real booking history, evicting
+ * the isolate mid-run and leaving the migration lock held. An attendee's legs
+ * and row-stamp always land together, so each posts all-or-nothing — which is
+ * what lets the guard skip an attendee already carrying legs, so a booking the
+ * live path recorded is never double-posted. Legs use `INSERT OR IGNORE` on the
+ * unique reference, so a re-run is a no-op, and currency needs no guard at all:
+ * a site has one, fixed at setup.
  */
 
 /* jscpd:ignore-start */

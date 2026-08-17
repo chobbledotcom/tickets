@@ -107,6 +107,16 @@ GitHub.
   competent reader be surprised or misled without this?" — if not, delete it.
   This applies to prose in commit messages and PR descriptions too: say what
   changed and why, then stop.
+
+  `deno task check:comments` enforces the size half of this, since Biome never
+  reflows comment text and so has never held a comment to any width. It caps the
+  lines in one comment and the columns in one comment line, exempting only the
+  machine-read directives, the `deno doc` barrels, and shipped migrations, which
+  are history. **Both numbers ratchet downward** — lower the one in
+  `scripts/check-comments/run.ts`, bring the tree to it, repeat — so no file is
+  ever grandfathered. `docs/comment-policy.md` measures what the comments cost
+  and prices each remaining step. The judgement half is still yours: no checker
+  can tell whether a comment earns its place.
 - **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix
   duplication with a helper or currying — see
   [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import

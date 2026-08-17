@@ -223,25 +223,22 @@ const rebrandIcuNodes = (
 /**
  * Build a replacer from an `I18N_REPLACEMENTS` spec like `"foo|bar,baz|bee"`.
  *
- * It rewrites the *translatable copy* of a message: matching is case-insensitive
- * and by substring (`"foo|bar"` turns `"foobar"` into `"barbar"`), and the
- * output copies the source's capitalisation — only all-lowercase (`"foo"` →
- * `"bar"`) or title-case (`"Foo"` → `"Bar"`) occur in real copy, so the first
- * character decides which.
+ * It rewrites the translatable copy of a message: matching is case-insensitive
+ * and by substring, and the output copies the source's capitalisation. Only
+ * lowercase and title-case occur in real copy, so the first character decides.
  *
- * It deliberately leaves four things alone: HTML tags/attributes (so link
- * hrefs survive), `<code>` examples (literal route/CLI text), the ICU syntax
- * of a message — argument names, `plural`/`select` keywords and selectors —
- * because the handler supplies values under those exact names, and — since it
- * runs on the message template before ICU formatting (see `resolveMessage`) —
- * interpolated values such as a stored listing name. An ICU template is parsed
- * and only its literal copy rebranded, so `listing|event` still turns
- * `one {# listing}` into `one {# event}` without ever touching the
- * `{listings, plural, …}` argument that names it.
+ * Four things are deliberately left alone: HTML tags and attributes, so link
+ * hrefs survive; `<code>` examples, which are literal route or CLI text; ICU
+ * syntax — argument names, `plural`/`select` keywords and selectors — since the
+ * handler supplies values under those exact names; and interpolated values such
+ * as a stored listing name, because this runs on the template before ICU
+ * formatting. Only a template's literal copy is rebranded, so `listing|event`
+ * turns `one {# listing}` into `one {# event}` without touching the
+ * `{listings, plural, …}` argument naming it.
  *
- * Parsing and regex compilation happen once here, and `resolveMessage` compiles and
- * caches the rebranded template, so rendering stays a plain ICU format with no
- * extra per-call work — important on a cold-booting edge runtime.
+ * Parsing and regex compilation happen once here, and `resolveMessage` caches
+ * the rebranded template, so rendering stays a plain ICU format — which matters
+ * on a cold-booting edge runtime.
  */
 export const buildReplacer = (raw: string | undefined): Replacer => {
   if (!raw) return identity;

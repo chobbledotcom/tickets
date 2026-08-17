@@ -110,7 +110,8 @@ export type AttendeeMergeDecisionAnswers = Record<string, MergeAnswerChoice>;
 /** Per-booking decision (keyed by "listingId:startAt:parentListingId:packageGroupId") */
 export type AttendeeMergeDecisionBookings = Record<string, MergeBookingChoice>;
 
-/** Per-conflict money decision (keyed by "listingId:startAt:parentListingId:packageGroupId"), required when the
+/** One money decision per conflict, keyed by
+ *  "listingId:startAt:parentListingId:packageGroupId". Required when the
  *  booking the operator discards carries money (decision 17). */
 export type AttendeeMergeDecisionMoney = Record<string, MergeMoneyChoice>;
 

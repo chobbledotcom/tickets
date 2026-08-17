@@ -75,8 +75,8 @@ export const CONTACT_FIELDS = ContactFieldSchema.options;
 export const isContactField = guardFor(ContactFieldSchema);
 
 /**
- * Contact fields setting for an listing (comma-separated ContactField names, or empty for name-only).
- * Alias kept for documentation; runtime enforcement happens in parseListingFields.
+ * A listing's contact fields, as comma-separated ContactField names, or empty
+ * for name only. `parseListingFields` is what enforces it at runtime.
  */
 export type ListingFields = string;
 
@@ -658,7 +658,8 @@ export type AdminSession = {
 export interface User {
   admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent" or "editor"
   id: number;
-  invite_code_hash: EnvKeyEncrypted | null; // encrypted SHA-256 of invite token, null after password set
+  // Encrypted SHA-256 of the invite token, null once the password is set.
+  invite_code_hash: EnvKeyEncrypted | null;
   invite_expiry: EnvKeyEncrypted | null; // encrypted ISO 8601, null after password set
   // DATA_KEY wrapped under the invite code, set at invite time so the user can
   // self-activate at /join; null once activated (see users.acceptInvite).

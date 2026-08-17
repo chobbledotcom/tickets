@@ -3,6 +3,7 @@
  * the pure rules in `rules.ts` flag. Kept thin so the logic stays testable.
  */
 
+import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { type CopyEntry, findIssues, formatIssue } from "./rules.ts";
 
 export const CATALOG_DIR = "src/locales/en";
@@ -28,20 +29,11 @@ export const readCatalog = (dir: string): CopyEntry[] => {
  * Check every copy string in a locale folder. Logs a line per issue (or a
  * success line) and returns the process exit code: 0 when clean, 1 otherwise.
  */
-export const runCopyCheck = (
-  dir: string,
-  log: (line: string) => void,
-  logError: (line: string) => void,
-): number => {
-  const issues = findIssues(readCatalog(dir));
-  if (issues.length === 0) {
-    log(`All user-facing copy in ${dir} passes the simple-language checks.`);
-    return 0;
-  }
-  for (const issue of issues) logError(formatIssue(issue));
-  logError(
-    `\n${issues.length} simple-language issue(s) found. ` +
-      'See the "Simple Language" section of AGENTS.md.',
-  );
-  return 1;
-};
+export const runCopyCheck = (dir: string, output: CheckOutput): number =>
+  reportCheck({
+    ...output,
+    found: findIssues(readCatalog(dir)).map(formatIssue),
+    guide: 'the "Simple Language" section of AGENTS.md',
+    noun: "simple-language",
+    success: `All user-facing copy in ${dir} passes the simple-language checks.`,
+  });

@@ -50,15 +50,13 @@ import {
  *   view of one item (one attendee, one listing, the add-note form). The nav
  *   highlights the section's top-level link but never opens its sub-nav.
  *
- * The `{ section }` form is the *only* way to highlight a section without also
- * surfacing its sub-nav. It exists because a single-item page is not the
- * section's landing page, so the section's "Add" create link has no business
- * appearing beside it — and the sub-nav resolves purely from the active route,
- * so a detail page that reuses the section's landing route as a bare `active`
- *   string (to get the top link highlighted) would silently re-trigger that "Add"
- *   affordance. Naming the section explicitly makes that impossible to do by
- *   accident: a section a page is *in* can never be mistaken for the section's
- *   landing route the page is *on*.
+ * The `{ section }` form is the only way to highlight a section without also
+ * surfacing its sub-nav. A single-item page is not the section's landing page,
+ * so the section's "Add" link has no business appearing beside it — yet the
+ * sub-nav resolves purely from the active route, so a detail page reusing the
+ * landing route as a bare string would silently re-trigger that link. Naming
+ * the section makes the mistake impossible: the section a page is in can never
+ * be read as the landing route it is on.
  */
 export type NavActive = string | { readonly section: string };
 

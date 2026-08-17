@@ -2,32 +2,21 @@
  * Tamper-evident signature over a checkout's agreed price and the metadata it
  * was agreed under.
  *
- * The public checkout computes the total the buyer agrees to and signs it,
- * bound to the booking fields stored in provider metadata, with an HMAC keyed
- * on the server's encryption key. The payment provider only ever sees the
- * resulting digest, which it cannot forge without the key, so the webhook can
- * trust both the agreed total and the surrounding fields as its oracle instead
- * of re-deriving them and hoping the two computations agree.
+ * The public checkout signs the total the buyer agreed, bound to the booking
+ * fields in provider metadata, with an HMAC keyed on the server's encryption
+ * key. The provider only sees the digest, which it cannot forge, so the webhook
+ * trusts the total and its surrounding fields rather than re-deriving them.
  *
- * The signature binds the *whole* logical metadata — every field except the two
- * excluded below — rather than only the obviously price-determining subset. That
- * way a field which feeds pricing indirectly (e.g. email/phone via visit-gated
- * modifiers) or feeds fulfilment (e.g. site_token_index via site renewals)
- * cannot be altered while leaving the proof valid: any change invalidates it and
- * is rejected as tampered metadata rather than quietly re-derived.
+ * It binds the whole logical metadata, not just the price-determining subset,
+ * so a field feeding pricing indirectly — email or phone, via visit-gated
+ * modifiers — or feeding fulfilment cannot change while the proof stays valid.
  *
- * Two keys are deliberately excluded from the payload:
- *  - `_origin`: left unsigned so the webhook's foreign-session detection can
- *    read its plaintext value. Binding it would push a tampered-origin *ours*
- *    session down the no-refund foreign path and strand a paying customer.
- *  - `price_proof`: the signature itself (it cannot sign itself).
- * `b` (the wire-only packed entry) never reaches this layer — signing and
- * verification both run on the unpacked logical shape — but is excluded
- * defensively in case a caller ever passes raw wire metadata.
- *
- * `canonicalPricePayload` is the single place both sides derive the signed bytes
- * from, so signing (checkout) and verification (webhook) can never drift apart —
- * the failure mode this whole module exists to remove.
+ * Three keys are excluded: `price_proof`, which cannot sign itself; `b`, the
+ * wire-only packed entry, since both sides work on the unpacked shape; and
+ * `_origin`, left unsigned so the webhook's foreign-session detection can read
+ * it — binding it would push a tampered-origin session down the no-refund
+ * foreign path and strand a paying customer. `canonicalPricePayload` is the one
+ * place both sides derive the signed bytes, so they cannot drift apart.
  */
 
 import {

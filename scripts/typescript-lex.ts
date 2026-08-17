@@ -87,29 +87,163 @@ export const skipCommentOrString = (content: string, start: number): number => {
   return isQuoteAt(content, start) ? skipString(content, start) : start;
 };
 
-/** Replace comments and optionally strings with spaces while keeping offsets. */
-export const blankSpans = (content: string, blankStrings: boolean): string => {
-  const output = content.split("");
-  const blank = (from: number, to: number): void => {
-    for (let index = from; index < to; index += 1) {
-      if (output[index] !== "\n") output[index] = " ";
+/**
+ * Punctuation that cannot end an expression, so a `/` straight after it opens
+ * a regular expression rather than dividing.
+ */
+const BEFORE_REGEX = new Set("(,=:[!&|?{};+-*%~^<>".split(""));
+
+/** Words that cannot end an expression either. */
+const KEYWORD_BEFORE_REGEX = new Set([
+  "await",
+  "case",
+  "delete",
+  "do",
+  "else",
+  "in",
+  "instanceof",
+  "new",
+  "of",
+  "return",
+  "typeof",
+  "void",
+  "yield",
+]);
+
+/**
+ * Whether the `/` at a position opens a regular expression rather than
+ * dividing, decided by what precedes it. `consumed` holds the comments already
+ * passed, which the scan steps over: a comment is invisible to the code after
+ * it, so `x = // note` then `/re/` must read the `=`.
+ */
+const regexTester = (
+  content: string,
+  consumed: readonly LexicalSpan[],
+): ((start: number) => boolean) => {
+  // Membership rather than a lookup by final character, so a comment ending in
+  // spaces or a `\r` is still recognised once that whitespace is skipped.
+  const commentAround = (index: number): LexicalSpan | undefined => {
+    for (let at = consumed.length - 1; at >= 0; at -= 1) {
+      const span = consumed[at];
+      if (!span || span.end <= index) return;
+      if (span.start <= index) return span;
+    }
+    return;
+  };
+  const codeCharBefore = (start: number): number => {
+    let index = start - 1;
+    for (;;) {
+      while (index >= 0 && /\s/.test(content.charAt(index))) index -= 1;
+      const comment = commentAround(index);
+      if (comment === undefined) return index;
+      index = comment.start - 1;
     }
   };
+  return (start) => {
+    const index = codeCharBefore(start);
+    if (index < 0) return true;
+    const char = content.charAt(index);
+    if (BEFORE_REGEX.has(char)) return true;
+    if (!isIdentifierChar(char)) return false;
+    let wordStart = index;
+    while (wordStart >= 0 && isIdentifierChar(content[wordStart])) {
+      wordStart -= 1;
+    }
+    return KEYWORD_BEFORE_REGEX.has(content.slice(wordStart + 1, index + 1));
+  };
+};
+
+/**
+ * The index just past a regex body's closing slash. A `/` inside a `[…]` class
+ * is literal, so the scan tracks whether it is inside one. A newline means the
+ * `/` was division after all, so the caller gets back just past it.
+ */
+const regexBodyEnd = (content: string, start: number): number => {
+  let index = start + 1;
+  let inClass = false;
+  while (index < content.length) {
+    const char = content[index];
+    if (char === "\\") {
+      index += 2;
+      continue;
+    }
+    if (char === "\n") return start + 1;
+    if (char === "/" && !inClass) return index + 1;
+    if (char === "[") inClass = true;
+    if (char === "]") inClass = false;
+    index += 1;
+  }
+  return index;
+};
+
+/** Skip a regular expression literal at `start`, including its flags. */
+const skipRegex = (content: string, start: number): number => {
+  let index = regexBodyEnd(content, start);
+  while (index < content.length && /[a-z]/.test(content.charAt(index))) {
+    index += 1;
+  }
+  return index;
+};
+
+/** One stretch of non-executable text, and where it sits in the source. */
+export interface LexicalSpan {
+  end: number;
+  kind: "comment" | "string";
+  start: number;
+}
+
+/**
+ * Every comment and quoted string, in source order. Walking once from the top
+ * is what keeps a `//` inside a string from reading as a comment, and vice
+ * versa — so callers that care about only one kind still have to walk both.
+ */
+export function* lexicalSpans(content: string): Generator<LexicalSpan> {
+  // The comments passed so far, which the regex test steps back over.
+  const consumed: LexicalSpan[] = [];
+  const startsRegex = regexTester(content, consumed);
   let index = 0;
   while (index < content.length) {
     const pastComment = skipComment(content, index);
     if (pastComment !== index) {
-      blank(index, pastComment);
+      const span: LexicalSpan = {
+        end: pastComment,
+        kind: "comment",
+        start: index,
+      };
+      consumed.push(span);
+      yield span;
       index = pastComment;
       continue;
     }
     if (isQuoteAt(content, index)) {
       const end = skipString(content, index);
-      if (blankStrings) blank(index, end);
+      yield { end, kind: "string", start: index };
       index = end;
       continue;
     }
+    if (content[index] === "/" && startsRegex(index)) {
+      index = skipRegex(content, index);
+      continue;
+    }
     index += 1;
+  }
+}
+
+/** Just the comments, in source order — the strings are walked but not yielded. */
+export function* commentSpans(content: string): Generator<LexicalSpan> {
+  for (const span of lexicalSpans(content)) {
+    if (span.kind === "comment") yield span;
+  }
+}
+
+/** Replace comments and optionally strings with spaces while keeping offsets. */
+export const blankSpans = (content: string, blankStrings: boolean): string => {
+  const output = content.split("");
+  for (const span of lexicalSpans(content)) {
+    if (span.kind === "string" && !blankStrings) continue;
+    for (let index = span.start; index < span.end; index += 1) {
+      if (output[index] !== "\n") output[index] = " ";
+    }
   }
   return output.join("");
 };

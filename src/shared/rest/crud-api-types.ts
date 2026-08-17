@@ -73,7 +73,7 @@ export interface CrudApiConfig<
   afterWrite?: AfterWriteHook<Input, State>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
-  /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
+  /** Every row, from cache. May carry more than the table, such as counts. */
   getAll: () => Promise<FullRow[]>;
   /** Optionally hydrate response rows in one batched call, keyed by row id. A
    *  single-row response passes an array of one through this same path. */
@@ -84,7 +84,7 @@ export interface CrudApiConfig<
   linkActivityToRow?: boolean;
   /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
   listExtras?: (session: AdminSession) => Record<string, unknown>;
-  /** Custom single-row lookup (e.g. to include joined counts). Defaults to reading the row by its key. */
+  /** Custom single-row lookup. Defaults to reading the row by its key. */
   lookup?: (id: number) => Promise<FullRow | null>;
   /** Custom single-row lookup used ONLY to read a row back right after committing
    *  its own write, which must be pinned to the primary (read-your-writes): the

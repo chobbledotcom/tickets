@@ -1,29 +1,22 @@
 /**
  * Reconcile an older backup's dump with the current schema before replaying it.
  *
- * A restore rebuilds the database at the CURRENT schema and then replays the
- * backup's INSERT statements; the backup's own schema_migrations rows make the
- * next boot replay whichever migrations the backup predates. That round-trips
- * cleanly for tables and columns that were ADDED since the backup — but a
- * column a later migration DROPPED breaks the replay, because the dump's
- * INSERTs still write to it. Re-adding those columns before the replay
- * reconstructs the backup-era table faithfully, and the pending migration then
- * reshapes the data exactly as a live upgrade would (e.g.
- * 2026-07-05_first_class_images backfills images from the re-added
- * listings.image_url and drops the column again).
+ * A restore rebuilds the database at the current schema then replays the
+ * backup's INSERTs, and its schema_migrations rows make the next boot replay
+ * whatever it predates. Columns added since round-trip fine; one a later
+ * migration dropped breaks the replay, because the dump still writes to it.
+ * Re-adding those first rebuilds the backup-era table, and the pending
+ * migration then reshapes the data as a live upgrade would.
  *
- * Direction matters. Re-adding is only legitimate for a dump that is OLDER
- * than this build — one whose recorded migrations are missing at least one of
- * ours, so a pending migration exists to consume the re-added columns. A dump
- * that records migrations dated after this build's newest is from a NEWER
- * build: replaying it would silently discard newer-schema data
- * (restoreFromZip skips tables the current schema lacks), so the restore must
- * refuse it up front instead of making the rollback look successful. And when
- * the recorded migrations leave nothing pending, an unknown column is
- * corruption, not history — nothing may be re-added, and the INSERT fails
- * loudly. dumpMigrationState answers both questions from the dump itself.
- *
- * This module is pure: dump statements in, ALTER statements / analysis out.
+ * Direction matters. Re-adding is only legitimate for a dump older than this
+ * build, where a pending migration exists to consume the re-added columns. A
+ * dump recording migrations newer than ours would silently lose data on replay,
+ * since restoreFromZip skips tables the current schema lacks, so the restore
+ * refuses it rather than making the rollback look successful. And with nothing
+ * pending, an unknown column is corruption rather than history: nothing is
+ * re-added and the INSERT fails loudly. `dumpMigrationState` answers both
+ * questions from the dump itself. This module is pure: dump statements in,
+ * ALTER statements and analysis out.
  */
 
 import { mapNotNullish } from "#fp";

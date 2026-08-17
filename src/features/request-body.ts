@@ -12,21 +12,16 @@ export type RequestTransform = (request: Request) => Promise<Request>;
  * `request.formData()` reads from the buffer rather than the live edge body
  * resource.
  *
- * The Bunny Edge Scripting runtime can garbage-collect the underlying request
- * body resource during the awaits between a request arriving and its body being
- * read — loading listings, building the page context, signing a CSRF token —
- * after which reading the body throws
- * "BadResource: Cannot read body as underlying resource unavailable" (surfaced
- * in the log as a generic `E_CDN_REQUEST` "CDN request failed" error). The
- * booking/quote flow is the most exposed: `/calculate/:slug` and
- * `/ticket/:slug` parse their form body only after all of that async work, and
- * the running-total enhancement (`src/ui/client/admin/running-total.ts`) fires a
- * `POST /calculate` on every form change. Buffering the bytes before any of that
- * async work closes the window. This mirrors the same guard in
- * `src/features/api/webhooks.ts`, which reads its raw payload bytes first for the
- * identical reason.
+ * The Bunny Edge runtime can garbage-collect the body resource during the
+ * awaits between a request arriving and its body being read, after which
+ * reading throws "BadResource: Cannot read body as underlying resource
+ * unavailable" (logged as a generic `E_CDN_REQUEST`). The booking and quote
+ * flow is the most exposed: `/calculate/:slug` and `/ticket/:slug` read their
+ * body only after that work, and the running total posts to `/calculate` on
+ * every form change. Buffering first closes the window, as `api/webhooks.ts`
+ * does for the same reason.
  *
- * GET/HEAD requests carry no body and are returned unchanged.
+ * GET and HEAD carry no body and are returned unchanged.
  */
 export const bufferRequestBody: RequestTransform = async (request) => {
   if (request.method === "GET" || request.method === "HEAD") return request;

@@ -2,28 +2,20 @@
  * Atomic attendee update — apply a desired set of listing-registration lines
  * to an existing attendee, all-or-nothing.
  *
- * Computes the diff between the attendee's current `listing_attendees` rows
- * and the desired final state, then applies the writes as one ACID batch:
+ * It diffs the attendee's current `listing_attendees` rows against the desired
+ * state, then writes the PII update, the removed lines, the changed lines and
+ * the new lines as one ACID batch.
  *
- *   1. UPDATE attendees (PII)              — unconditional
- *   2. DELETE removed listing_attendees    — one per removed line
- *   3. UPDATE existing listing_attendees   — capacity-checked per line
- *   4. INSERT new listing_attendees        — capacity-checked per line
- *
- * Capacity is enforced twice. A read-only preflight (`allLinesFit`) rejects an
- * over-capacity edit before any write, which handles the common case and
- * keeps the failure cheap. The write batch then pairs every capacity-checked
- * statement with `CAPACITY_GUARD`: if a concurrent booking consumes the
- * capacity between the preflight and the commit, the guard trips a constraint
- * violation that aborts and rolls back the *whole* batch — so the unconditional
- * PII update and DELETEs can never commit while a line silently fails. A plain
- * `batch()` is required (not an interactive transaction, which the edge runtime
- * does not support reliably), and a zero-row capacity statement is not itself
- * an error, which is exactly why the guard is needed.
- *
- * The attendee is never left without at least one listing link — a guard
- * clause rejects "remove every line" up front so the DELETE step never
- * strips the attendee down to an orphan row.
+ * Capacity is enforced twice. A read-only preflight rejects an over-capacity
+ * edit before any write, keeping the common failure cheap. Every
+ * capacity-checked statement in the batch then carries `CAPACITY_GUARD`, so a
+ * concurrent booking that takes the capacity in between trips a constraint
+ * violation and rolls the whole batch back — the unconditional PII update and
+ * the deletes can never commit while a line silently fails. A zero-row capacity
+ * statement is not itself an error, which is exactly why the guard is needed,
+ * and a plain batch is required because the edge runtime does not support
+ * interactive transactions reliably. A guard clause rejects "remove every line"
+ * up front, so the deletes can never leave the attendee an orphan row.
  */
 
 import type { InValue } from "@libsql/client";

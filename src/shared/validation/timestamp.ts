@@ -14,12 +14,10 @@ import { Temporal } from "temporal-polyfill";
  * from `temporal-polyfill` (as `shared/timezone.ts` does) since the edge runtime
  * exposes no stable global.
  *
- * Transfers store time as INTEGER epoch-millis: the indexed `occurred_at` column
- * then sorts and ranges chronologically with integer comparisons at high row
- * counts, instead of relying on a fixed-width canonical string. The value read
- * back is always the canonical `YYYY-MM-DDTHH:mm:ss.sssZ` form, so a
- * non-canonical input (an offset, or no milliseconds) is normalised on the
- * round-trip.
+ * Transfers store time as integer epoch-millis, so the indexed `occurred_at`
+ * column sorts and ranges by integer comparison rather than a fixed-width
+ * string. Reads always return the canonical `YYYY-MM-DDTHH:mm:ss.sssZ` form, so
+ * an offset or a missing millisecond is normalised on the round-trip.
  */
 
 /**

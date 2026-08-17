@@ -1,32 +1,21 @@
 /**
  * SumUp checkout metadata store — encrypted staging for booking intent.
  *
- * SumUp checkouts expose only a single `checkout_reference` string and cannot
- * carry the arbitrary booking metadata that Stripe sessions and Square orders
- * round-trip for us. We therefore persist the metadata locally at checkout
- * creation, keyed by a reference we generate, and read it back when the
- * payment completes (via webhook or redirect).
+ * A SumUp checkout carries only a `checkout_reference` string, not the booking
+ * metadata Stripe sessions and Square orders round-trip for us, so we persist
+ * it locally at checkout creation and read it back when the payment completes.
  *
- * The metadata contains PII (name, email, phone, address), so nothing in the
- * stored row can decrypt it on its own:
- * - the row is keyed by `hmacHash(reference)` (not the reference itself)
- * - the blob is encrypted with a fresh per-row data key
- * - that data key is stored wrapped with a key derived from the reference
- *   (the same `wrapKeyWithToken` scheme sessions use for the user data key)
+ * That metadata holds PII, so nothing in the stored row can decrypt it alone:
+ * the row is keyed by `hmacHash(reference)`, the blob is encrypted with a fresh
+ * per-row data key, and that key is stored wrapped with a key derived from the
+ * reference. The plaintext reference never rests here — it arrives from the
+ * success redirect or from SumUp's API — so a database dump cannot decrypt
+ * these rows even combined with the env encryption key.
  *
- * The plaintext reference never rests in this database — it arrives at
- * runtime from the success-redirect URL or from SumUp's API (the fetched
- * checkout's `checkout_reference`). A DB dump alone, even combined with the
- * env encryption key, cannot decrypt these rows directly.
- *
- * The row also records the SumUp-side checkout id (set right after creation).
- * It is not sensitive — an attacker with the SumUp API key can list checkout
- * ids anyway — and it lets the webhook handler reject listings for checkouts we
- * never created without spending an outbound API call.
- *
- * Rows are short-lived: pruned after PRUNE_SUMUP_RETENTION_HOURS (see
- * prune.ts) since nothing legitimate reads them once SumUp's checkout expiry
- * (30 min) and webhook retry window (2 h) have passed.
+ * The row also records the SumUp-side checkout id, which is not sensitive and
+ * lets the webhook reject checkouts we never created without an API call. Rows
+ * are pruned after PRUNE_SUMUP_RETENTION_HOURS, once SumUp's checkout expiry
+ * and webhook retry window have both passed.
  */
 
 import * as v from "valibot";

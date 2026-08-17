@@ -6,10 +6,7 @@ import { withEntity } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 
-/**
- * Curried factory: creates a wrapper that takes load params, then a handler.
- * Eliminates the boilerplate of writing `(params, handler) => withEntity(handler)(() => loadFn(params))`.
- */
+/** Wraps a loader so a route can pass its params first, then its handler. */
 export const withEntityLoader =
   <T, P extends unknown[]>(load: (...args: P) => Promise<T | null>) =>
   (...args: P) =>

@@ -8,16 +8,12 @@
  * field, e.g. an access token into the webhook signature key box, which
  * surfaces later as an E_SQUARE_SIGNATURE webhook rejection.
  *
- * Design notes (why these checks are shaped the way they are):
- * - Access token: Square has used several formats — legacy personal access
- *   tokens (`sq0atp-`), the current `EAAA…` style, and opt-in JWT tokens
- *   (`eyJ…`, via use_jwt). Square advises against validating by format, so the
- *   regex below is a deliberately permissive allowlist of every known prefix
- *   with no length bound; it only rejects values that match none of them.
- * - Location ID / webhook signature key: these are only checked against the
- *   application ID/secret namespace, which they can never legitimately occupy.
- *   We do NOT try to positively assert their shape (locations and signature
- *   keys are opaque), so valid values are never blocked.
+ * Square has used several access-token formats and advises against validating
+ * by format, so the regex below is a deliberately permissive allowlist of every
+ * known prefix with no length bound, rejecting only values matching none.
+ * Location ids and webhook signature keys are opaque, so they are checked only
+ * against the application id namespace they can never occupy — their own shape
+ * is never asserted, and a valid value is never blocked.
  *
  * All functions return a human-readable error string, or null when the value
  * passes the format check.

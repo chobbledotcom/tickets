@@ -7,26 +7,17 @@ import { parseOrNull } from "./parse.ts";
 /* jscpd:ignore-end */
 
 /**
- * Currency-aware money validation — the single source of truth for parsing a
- * money amount typed in MAJOR units (e.g. `"90.00"`) into safe-integer MINOR
- * units (pence/cents), rejecting anything the active currency can't represent.
+ * Currency-aware money validation — the one place a major-unit amount like
+ * `"90.00"` becomes safe-integer minor units.
  *
- * The key property the ad-hoc parsers lacked is that the accepted number of
- * decimal places is derived from `settings.currency` at parse time: GBP accepts
- * `1.00` but rejects `1.005` (3 dp) rather than silently rounding it to `101`
- * pence, and a zero-decimal currency (JPY) rejects `1.23` rather than truncating
- * to `1`. The ledger's `ledgerAmountSchema` first demonstrated this shape; this
- * module lifts it out so every money field can share one currency-aware
- * validator instead of re-deriving the rule (and its rounding bug) per field.
+ * The decimal places come from `settings.currency` at parse time: GBP rejects
+ * `1.005` rather than rounding it to 101 pence, and JPY rejects `1.23` rather
+ * than truncating to 1. Since that depends on the currency, the pattern is
+ * rebuilt inside the callbacks on every parse, so the schemas stay constants.
  *
- * Because the decimal places depend on the currency, the pattern is rebuilt
- * inside the `check`/`transform` callbacks on every parse (they read
- * `settings.currency` when they run), so the schemas can stay module constants —
- * exactly as `ledgerAmountPattern` does.
- *
- * The family spans two axes — **bound** (positive / non-negative / signed) and
- * **blank handling** (required vs optional, where blank ≠ zero for an optional
- * field). Pick the parser that matches the field:
+ * Pick the parser matching the field's bound and its treatment of a blank —
+ * where a blank is `null`, never a real `0`, so the QR override and day-price
+ * fields can tell "no value" from a genuine £0:
  *
  * | Parser | Bound | Blank |
  * | --- | --- | --- |
@@ -34,12 +25,6 @@ import { parseOrNull } from "./parse.ts";
  * | `parseNonNegativeMinorUnits` | `>= 0` | `0`               |
  * | `parseOptionalMinorUnits`    | `>= 0` | unset (`null`)    |
  * | `parseSignedMinorUnits`      | any    | invalid (`null`)  |
- *
- * "Unset" (optional blank) is `null`, never a real `0` — the QR override and
- * day-price fields distinguish "no value" from a genuine £0.
- *
- * Mirrors the schema + `parseXxx` (null-on-invalid) convention of
- * validation/number.ts and validation/date.ts.
  */
 
 /** Decimal-string pattern for the active currency: `\d+` with up to
