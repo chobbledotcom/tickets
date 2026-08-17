@@ -6,6 +6,8 @@ import {
   fromTx,
   insertStatement,
   type RowReader,
+  selectByEventGroup,
+  selectById,
   selectTransfers,
   selectTransfersMany,
 } from "#shared/accounting/rows.ts";
@@ -107,24 +109,27 @@ const recordingReader = (): {
   return { asked, reader };
 };
 
+const STORED_AT = "2026-06-21T12:00:00.000Z";
+
+const leg = (reference: string, eventGroup: string): TransferInput => ({
+  amount: 5000,
+  destination: account("revenue", 7),
+  eventGroup,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+  reference,
+  source: account("attendee", 3),
+});
+
+/** Two legs under different events, so a reader that ignores its filter and
+ *  returns everything is visible. */
+const storeTwoLegs = (): Promise<void> =>
+  executeBatch([
+    insertStatement(leg("ref-a", "evt-a"), STORED_AT),
+    insertStatement(leg("ref-b", "evt-b"), STORED_AT),
+  ]);
+
 describe("accounting > rows > selectTransfersMany", () => {
   useTransactionalDb();
-  const recordedAt = "2026-06-21T12:00:00.000Z";
-
-  const leg = (reference: string, eventGroup: string): TransferInput => ({
-    amount: 5000,
-    destination: account("revenue", 7),
-    eventGroup,
-    occurredAt: "2026-06-21T00:00:00.000Z",
-    reference,
-    source: account("attendee", 3),
-  });
-
-  const storeTwoLegs = (): Promise<void> =>
-    executeBatch([
-      insertStatement(leg("ref-a", "evt-a"), recordedAt),
-      insertStatement(leg("ref-b", "evt-b"), recordedAt),
-    ]);
 
   test("gives each set of rows back to the query that asked for it", async () => {
     await storeTwoLegs();
@@ -135,8 +140,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     ]);
 
     // Swapped answers would read as a stored collision that is not there.
-    expect(byGroup?.map((row) => row.reference)).toEqual(["ref-b"]);
-    expect(byReference?.map((row) => row.reference)).toEqual(["ref-a"]);
+    expect(byGroup.map((row) => row.reference)).toEqual(["ref-b"]);
+    expect(byReference.map((row) => row.reference)).toEqual(["ref-a"]);
   });
 
   test("answers a query nothing can match without asking for it", async () => {
@@ -193,6 +198,34 @@ describe("accounting > rows > selectTransfersMany", () => {
       ["ref-a"],
       ["ref-b"],
     ]);
+  });
+});
+
+describe("accounting > rows > readers for one event and one row", () => {
+  useTransactionalDb();
+
+  test("selectByEventGroup reads that event's legs and not its neighbour's", async () => {
+    await storeTwoLegs();
+
+    const legs = await selectByEventGroup(fromDb, "evt-a");
+
+    expect(legs.map((row) => row.reference)).toEqual(["ref-a"]);
+  });
+
+  test("selectById reads the transfer stored under that id", async () => {
+    await storeTwoLegs();
+    const [wanted] = await selectByEventGroup(fromDb, "evt-b");
+    if (wanted === undefined) throw new Error("The stored leg was not read");
+
+    const found = await selectById(fromDb, wanted.id);
+
+    expect(found).toEqual(wanted);
+  });
+
+  test("selectById answers null when no transfer has that id", async () => {
+    await storeTwoLegs();
+
+    expect(await selectById(fromDb, 999_999)).toBeNull();
   });
 });
 
