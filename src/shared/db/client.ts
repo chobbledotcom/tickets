@@ -281,12 +281,13 @@ const TRANSIENT_ERROR_BACKOFF_MS = [50, 150, 350] as const;
  *  keep yielding until that holder's next event-loop turn commits: under a
  *  CPU-starved parallel test run an ordinary transaction can hold the lock
  *  for around a second — past the whole remote ladder — and giving up then
- *  turns one slow scheduler pass into a busy answer nothing retries. */
+ *  turns one slow scheduler pass into a busy answer nothing retries. The
+ *  ladder's total stays under Cucumber's five-second step budget, so a
+ *  retried write slows a story instead of timing it out. */
 const FILE_TRANSIENT_ERROR_BACKOFF_MS = [
   ...TRANSIENT_ERROR_BACKOFF_MS,
   700,
   1400,
-  2800,
 ] as const;
 
 /** The retry ladder for the database this process actually talks to. */

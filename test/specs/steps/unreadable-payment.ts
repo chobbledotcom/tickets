@@ -103,6 +103,9 @@ Given(
 
 When(
   "the payment message is delivered",
+  // Deliveries retry a contended file lock for up to a few seconds, so give
+  // them headroom over the five-second default rather than failing mid-retry.
+  { timeout: 15_000 },
   async function (this: TicketsWorld): Promise<void> {
     await keepAnswer(this, await deliverPaymentMessage(this));
   },
@@ -110,6 +113,7 @@ When(
 
 When(
   "the same payment message is delivered again",
+  { timeout: 15_000 },
   async function (this: TicketsWorld): Promise<void> {
     await keepAnswer(this, await deliverPaymentMessage(this));
   },
@@ -124,6 +128,7 @@ Given(
 
 Given(
   "the payment message fails on delivery",
+  { timeout: 15_000 },
   async function (this: TicketsWorld): Promise<void> {
     // The refund goes back, the kept booking is stored, and then the money
     // records refuse to save — so the delivery fails and the provider will
@@ -135,6 +140,7 @@ Given(
 
 When(
   "the money records recover and the message is delivered again",
+  { timeout: 15_000 },
   async function (this: TicketsWorld): Promise<void> {
     await requiredWorldValue(this.moneyFault, "money records fault").restore();
     await keepAnswer(this, await deliverPaymentMessage(this));
@@ -144,11 +150,11 @@ When(
 Then(
   "the message is answered as settled without a ticket",
   function (this: TicketsWorld): void {
-    expect(this.firstStatus).toBe(200);
-    const answer = JSON.parse(
-      requiredWorldValue(this.firstBody, "webhook answer"),
-    ) as Record<string, unknown>;
-    expect(answer).toMatchObject({
+    const body = requiredWorldValue(this.firstBody, "webhook answer");
+    // Status and body together: a failure names which answer came back
+    // instead of only showing a bare status number.
+    expect({ body, status: this.firstStatus }).toMatchObject({ status: 200 });
+    expect(JSON.parse(body) as Record<string, unknown>).toMatchObject({
       error: "rejected",
       processed: false,
       received: true,

@@ -129,9 +129,6 @@ describe("db > client write-lock retry", () => {
     void env;
   });
 
-  test("a file database waits 700/1400/2800ms after the short ladder, then gives up", () =>
-    expectGivesUpAfter(
-      "file:/tmp/busy-ladder.db",
-      [50, 150, 350, 700, 1400, 2800],
-    ));
+  test("a file database waits 700/1400ms after the short ladder, then gives up", () =>
+    expectGivesUpAfter("file:/tmp/busy-ladder.db", [50, 150, 350, 700, 1400]));
 });
