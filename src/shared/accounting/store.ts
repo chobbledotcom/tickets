@@ -340,6 +340,15 @@ type ResultPerBatch<Batches extends readonly TransferInput[][][]> = {
   [Index in keyof Batches]: PostTransferBatchResult;
 };
 
+/** The outcome for a set with no legs in it. Annotated rather than written
+ *  inline, so the shape is still checked despite the tuple cast at the return. */
+const nothingToPost = (
+  batch: readonly TransferInput[][],
+): PostTransferBatchResult => ({
+  kind: "posted",
+  results: batch.map(() => EMPTY_RESULT),
+});
+
 /**
  * Post several independent sets of event groups from one ledger snapshot and
  * one write. A stored-data conflict rejects only its own set; malformed input
@@ -354,10 +363,7 @@ export const postTransferGroupBatches = async <
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
   if (nonEmpty.length === 0) {
     // Mapped from the sets given, so it is one outcome per set by construction.
-    return batches.map((batch) => ({
-      kind: "posted",
-      results: batch.map(() => EMPTY_RESULT),
-    })) as ResultPerBatch<Batches>;
+    return batches.map(nothingToPost) as ResultPerBatch<Batches>;
   }
   assertUniqueGroups(groups);
   const snapshot = await loadBatchSnapshot(nonEmpty, fromDb);
