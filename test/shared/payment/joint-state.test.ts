@@ -108,11 +108,7 @@ describe("payment joint state", () => {
 
   test("the assertion names the flow, the facts, and the broken invariant", () => {
     expect(() =>
-      assertJointStateLegal(
-        "settled",
-        ["completed_recorded", "send_armed"],
-        "resume",
-      ),
+      assertJointStateLegal("settled", ["completed", "send_armed"], "resume"),
     ).toThrow(
       /resume: row settled cannot carry a send_armed charge — A provider send/,
     );

@@ -7,7 +7,6 @@
  * every step held: one pair of legs, one note, one activity line, and an
  * authority that stays recorded. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
@@ -29,6 +28,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
+/* jscpd:ignore-start -- imports */
+import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
   expectOnePairOfLegs,
@@ -101,6 +102,10 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     if (state.claim === undefined || state.unrecorded === undefined) {
       throw new Error("held anchor row lost its claim or return time");
     }
+    await expectLegalJointStates(
+      rejection.sessionId,
+      "after a crashed rejected store",
+    );
     return {
       attendeeId: held.attendee_id,
       claim: state.claim,
