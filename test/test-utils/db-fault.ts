@@ -37,6 +37,24 @@ export const withAuthorityRetirementFault = <T>(
     body,
   );
 
+const SESSION_FAILURE_FAULT = "test_session_failure_fault";
+
+/** The write that records a session's terminal failure refuses, so a test
+ * can die exactly between a refund going out and the answer landing. */
+export const withSessionFailureFault = <T>(
+  body: () => Promise<T>,
+): Promise<T> =>
+  withDbFault(
+    `CREATE TRIGGER ${SESSION_FAILURE_FAULT}
+      BEFORE UPDATE OF failure_data ON processed_payments
+      WHEN NEW.failure_data != ''
+      BEGIN
+        SELECT RAISE(ABORT, 'session failure write refused');
+      END`,
+    SESSION_FAILURE_FAULT,
+    body,
+  );
+
 const CONFIRMATION_FAULT = "test_refund_confirmation_fault";
 
 /** The once-only confirmation latch refuses, so the note and activity line

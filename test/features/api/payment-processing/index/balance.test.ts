@@ -5,6 +5,8 @@ import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withSessionFailureFault } from "#test-utils/db-fault.ts";
+import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 import {
   expectSessionFailed,
   getProcessedPayment,
@@ -97,5 +99,55 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       stripeRefundRequestShape(`pi_${id}`, 900),
     ]);
     await expectSessionFailed(id);
+  });
+
+  test("finishes the balance-changed answer after a crash swallowed it", async () => {
+    await setupStripe();
+    const { attendeeId, listingId } = await createReservedAttendee(1500);
+    const id = "cs_direct_balance_crash";
+    // Signed for a balance the owner has since changed, so the settle refuses
+    // and the money must go back.
+    const data = balanceData(id, attendeeId, listingId, 900);
+    using refund = stubRefundPayment("re_balance_crash", 900);
+
+    // First delivery: the refund goes out, then the answer's write dies.
+    await expect(
+      withSessionFailureFault(() => processPaymentSession(id, data)),
+    ).rejects.toThrow("session failure write refused");
+    expect(refund.calls).toHaveLength(1);
+    await expectLegalJointStates(id, "after a crashed balance refund");
+
+    // While the reservation is fresh, the crash looks like live work.
+    expect(await processPaymentSession(id, data)).toMatchObject({
+      error: "Payment is being processed. Please wait a moment and refresh.",
+      success: false,
+    });
+
+    // Gone stale, the redelivery reclaims the row and finishes the tail. The
+    // durable authority answers from its completed row, so nothing is sent
+    // to the provider twice.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2020-01-01T00:00:00.000Z", id],
+    );
+    expect(await processPaymentSession(id, data)).toMatchObject({
+      error:
+        "The outstanding balance for this booking changed while you were paying.",
+      refunded: true,
+      status: 409,
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
+    expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
+      1500,
+    );
+    await expectSessionFailed(id);
+
+    // A later delivery replays the stored answer with no new work.
+    expect(await processPaymentSession(id, data)).toMatchObject({
+      refunded: true,
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
   });
 });

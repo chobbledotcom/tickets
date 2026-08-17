@@ -27,14 +27,23 @@ import type { PaymentRowState } from "#shared/payment/row-state.ts";
  * references have no charge at all. */
 export type AuthorityFact = "absent" | RefundAuthorityStateName;
 
-const AUTHORITY_NAMES: readonly RefundAuthorityStateName[] = [
-  "ready",
-  "send_armed",
-  "observing",
-  "completed",
-  "needs_owner_choice",
-  "needs_provider_check",
-];
+/** One entry per stored authority name, keyed by the machine's own name
+ * type: the machine growing, renaming, or losing a state stops this record
+ * compiling until the seam learns the change. */
+const STORED_AUTHORITY_FACTS: {
+  readonly [Name in RefundAuthorityStateName]: Name;
+} = {
+  completed: "completed",
+  needs_owner_choice: "needs_owner_choice",
+  needs_provider_check: "needs_provider_check",
+  observing: "observing",
+  ready: "ready",
+  send_armed: "send_armed",
+};
+
+const AUTHORITY_NAMES: readonly RefundAuthorityStateName[] = Object.values(
+  STORED_AUTHORITY_FACTS,
+);
 
 /** The authority fact for one stored state name — null means the reference
  * carries no charge. An unknown name throws: it would mean the authority

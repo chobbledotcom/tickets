@@ -35,20 +35,23 @@ const ROW_FACTS: readonly JointRowFact[] = [
   ...ROW_NODES.flatMap((node) => (node.id === "free" ? [] : [node.id])),
 ];
 
-// The authority machine's own stored names plus the one fact it does not
-// name — a reference with no charge. `satisfies` pins every member to the
-// production vocabulary, so a renamed or removed authority state stops
-// compiling here; a brand-new one is caught by authorityFactOf's throw the
-// moment a witness meets it.
-const AUTHORITY_FACTS = [
-  "absent",
-  "ready",
-  "send_armed",
-  "observing",
-  "completed",
-  "needs_owner_choice",
-  "needs_provider_check",
-] as const satisfies readonly AuthorityFact[];
+// One entry per fact the seam can name — the machine's own stored names
+// plus "absent" for a reference with no charge. The record's key type
+// demands every member of the production AuthorityFact union, so an
+// authority state this test does not enumerate stops the file compiling.
+const AUTHORITY_FACT_ENTRIES: { readonly [Fact in AuthorityFact]: Fact } = {
+  absent: "absent",
+  completed: "completed",
+  needs_owner_choice: "needs_owner_choice",
+  needs_provider_check: "needs_provider_check",
+  observing: "observing",
+  ready: "ready",
+  send_armed: "send_armed",
+};
+
+const AUTHORITY_FACTS: readonly AuthorityFact[] = Object.values(
+  AUTHORITY_FACT_ENTRIES,
+);
 
 describe("payment joint state", () => {
   test("every declared entry names known facts with a real reason", () => {
