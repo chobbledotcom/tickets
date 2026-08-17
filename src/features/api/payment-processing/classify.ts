@@ -7,7 +7,7 @@
 /* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import { answerRejectedSession } from "#routes/api/payment-processing/refunds.ts";
+import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
 import type {
   SessionValidation,
   SignedVerdict,

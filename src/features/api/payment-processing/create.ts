@@ -215,15 +215,25 @@ export const saveSessionAnswers = async (
   await saveAttendeeAnswers(grouped);
 };
 
+/** The identity fields every stored attendee starts from: who the buyer said
+ * they are, the payment that proves it, and the status the row begins in. */
+export type AttendeeBaseFields = Pick<
+  BookingIntent,
+  "address" | "email" | "name" | "phone" | "special_instructions"
+> & {
+  paymentId: string;
+  statusId: number;
+};
+
 export const attendeeBaseFields = (
-  session: ValidatedPaymentSession,
+  paymentId: string,
   intent: BookingIntent,
   publicStatusId: number,
-) => ({
+): AttendeeBaseFields => ({
   address: intent.address,
   email: intent.email,
   name: intent.name,
-  paymentId: session.paymentReference,
+  paymentId,
   phone: intent.phone,
   special_instructions: intent.special_instructions,
   statusId: publicStatusId,
@@ -312,7 +322,7 @@ export const createAttendeeForSession = async (
     );
     prepared = {
       attendeeInput: {
-        ...attendeeBaseFields(session, intent, publicStatusId),
+        ...attendeeBaseFields(session.paymentReference, intent, publicStatusId),
         bookings,
         parentIdsByChild,
         remainingBalance,

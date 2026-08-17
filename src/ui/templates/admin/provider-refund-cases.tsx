@@ -10,6 +10,10 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { RefundOwnerChoiceName } from "#shared/payment/refund-authority-choice.ts";
 import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority-state.ts";
+import {
+  refundChoiceTarget,
+  refundNodeSendsMoney,
+} from "#shared/payment/refund-machine-spec.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
@@ -162,7 +166,11 @@ const ownerChoiceForm = (
   choices: readonly RefundOwnerChoiceName[],
 ): RefundCaseFormSchema => ({
   choices: choices.map((choice) => OWNER_CHOICE_OPTIONS[choice]),
-  danger: true,
+  // An answer is a money action when it puts the record back on a node the
+  // machine may send from — "not sent" re-queues the refund for sending.
+  danger: choices.some((choice) =>
+    refundNodeSendsMoney(refundChoiceTarget(choice)),
+  ),
   id: "refund-recovery",
   kind: "choices",
   legend: "privacy.refunds.choice_legend",
@@ -193,7 +201,13 @@ const AUTOMATIC_CASE_FORMS = {
     "privacy.refunds.check_again",
     false,
   ),
-  ready: checkForm("refund-send-ready", "privacy.refunds.send_ready", true),
+  // The ready button runs the engine in "send" mode, so its danger is the
+  // machine's own answer; every other check reads evidence only.
+  ready: checkForm(
+    "refund-send-ready",
+    "privacy.refunds.send_ready",
+    refundNodeSendsMoney("ready"),
+  ),
   send_armed: checkForm(
     "refund-check-armed",
     "privacy.refunds.check_again",

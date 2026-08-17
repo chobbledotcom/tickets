@@ -1,7 +1,5 @@
 # TODO — remaining follow-ups
 
-## Anchor the booking-page site menu to its listing/group (from PR #2051)
-
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
 when the public site is off). It builds the menu with `publicNavProps(null)`
 (`renderCtx` in `src/features/public/ticket-submit.ts`), which takes
@@ -1861,6 +1859,11 @@ be created from invented facts. A later callback or browser return is the only
 current recovery for that case. A blank reference has no usable identity and is
 terminally treated as settled elsewhere.
 
+One sliver moved here from the since-fixed "parked authority" entry: a refunded
+rejection whose metadata cannot be read as a booking still stores no Money
+target (`settleRejectedCharge` keeps the old behavior for it), so its authority
+stays in completed/due until this whole-checkout work lands.
+
 What is still absent is the checkout-completion half. No processed-payment
 terminal result links durable refund authority to "this session was refused",
 and the unavailable-read case has no durable owner row, so the booking
@@ -2505,45 +2508,6 @@ refund.
 Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
 `missing` read under a `paidPaymentId` should throw like the malformed case.
 
-## A refunded rejection leaves its authority parked with only an owner attestation
-
-_Origin: Codex review on PR #2065 (thread on
-`src/features/api/payment-processing/refunds.ts`)._
-
-When a malformed paid session is refunded through `refundRejectedCharge`, the
-provider money came back but the path converts the result to booleans and never
-records or retires the authority's local-money obligation. A rejected session
-created no attendee and no ledger entry, so there is no Money target to repair —
-yet the canonical authority sits in `completed/due` in Refund recovery, offering
-only the "recorded in Money" attestation, which is untrue for money that has no
-Money target.
-
-Either complete these no-local-ledger authorities as locally settled when the
-provider return is confirmed, or persist a recordable local target. Related:
-"Bind a rejected session's refund authority to checkout completion" above — the
-whole-checkout outcome work is the natural home for the terminal result; this
-narrower retirement may land first.
-
-## The final placeholder refund outcome is never retried
-
-_Origin: Codex review on PR #2065 (thread on
-`src/features/api/payment-processing/store-refund.ts`)._
-
-`storeRefundedBooking` completes the provider refund, ledger posting, note, and
-claim release, then replaces the session's pending failure with the final
-"refunded" outcome. If that last `sessionFailure.replace` fails transiently, the
-row still carries the conservative pending failure written when the placeholder
-was created — and because `handleReservationConflict` replays any non-empty
-`failure_data`, every retry re-enters through the placeholder path and never
-reaches this replacement. The buyer is permanently told the refund "is being
-arranged" although it completed.
-
-The final outcome needs to be idempotent on replay: derive it from state the
-retry can observe (the authority/ledger legs the earlier steps already wrote)
-rather than from a one-shot write that a later replay cannot find. Starting
-point: the final update in `store-refund.ts` and what
-`handleReservationConflict` replays.
-
 ## Harden the live payment harness so green means what it claims
 
 _Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all
@@ -2601,3 +2565,43 @@ recorded beside the list, and the pure helpers stay covered. The durable fix is
 the one Codex names — push the env/config parsing behind injectable seams so
 those branches get direct in-process tests — which is worth doing when the
 harness is next open.
+
+## Deleting your own contact record also deletes your promotions opt-out
+
+_Origin: found while writing the `attendees.asking-to-be-left-alone` story (the
+reader-side unsubscribe journey)._
+
+The "Delete my data" press on `/unsubscribe` calls `forgetContact`
+(`src/shared/db/contact-preferences.ts`), which deletes the whole
+`contact_preferences` row — including the `unsubscribed` flag. The bookings that
+carry the person's (encrypted) address survive, so someone who first
+unsubscribed and then asked to be forgotten becomes reachable by the next
+promotion again: the send path (`getUnsubscribedHashSet`) no longer finds their
+hash.
+
+The story states what the product does today — "the site keeps no record under
+that code at all — including the choices they had made on this page" — rather
+than softening it. Whether that is the right product behaviour is a real
+question with pull in both directions: erasure means erasure, but suppression
+lists exist precisely because a marketing opt-out has to survive other
+deletions. Settling it means choosing between (a) keeping a bare
+`{hash, unsubscribed}` row behind on forget, (b) wording the page's
+`unsubscribe.forget_explainer` to say promotions may resume, or (c) leaving it
+as is, deliberately. Starting points: `forgetContact`, the forget branch in
+`src/features/public/unsubscribe.ts`, and the story's
+`@rule:attendees.the-record-under-their-code-can-be-deleted`.
+
+## Move the unsubscribe flash wording into the message catalog
+
+_Origin: the same story migration._
+
+The four flash messages the `/unsubscribe` POST sends back ("You've unsubscribed
+from our marketing emails.", "You've resubscribed to our marketing emails.",
+"Your contact record has been deleted.", plus "That link is invalid.") are
+string literals in `src/features/public/unsubscribe.ts`. The `i18n-coverage`
+gate only scans templates, so nothing flags them, but they are user-facing copy
+and belong in `src/locales/en/unsubscribe.json` like the rest of the page's
+words — then the story steps and the direct pins in
+`test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
+instead of pinning copied wording. Out of scope for the migration, which does
+not touch `src/`.

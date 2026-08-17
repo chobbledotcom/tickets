@@ -19,6 +19,7 @@ import type {
 import {
   execute,
   executeBatchWithResults,
+  queryBatchPrimary,
   resultRows,
   type SqlStatement,
   withTransaction,
@@ -31,10 +32,16 @@ import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 import {
+  EMPTY_ROW_STATE,
   readRowState,
   type StoredPaymentFailure,
   writeRowState,
 } from "#shared/payment/row-state.ts";
+import {
+  hasLiveRowWork,
+  withOutcome,
+} from "#shared/payment/row-transitions.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 export { STALE_RESERVATION_MS };
 
@@ -221,47 +228,112 @@ export const finalizeSessionIfUnresolved = async (
 };
 
 const storedSessionFailure = (failure: StoredPaymentFailure): string =>
-  writeRowState({ outcome: failure }, FAILURE_DATA_CONTEXT);
+  // The SQL fence already guarantees the slot is empty; the pure guard makes
+  // the same law hold for every future caller.
+  writeRowState(withOutcome(EMPTY_ROW_STATE, failure), FAILURE_DATA_CONTEXT);
 
 /**
  * One terminal-failure transition that can join an existing transaction.
- * `statement` establishes the conservative outcome; `replace` may only advance
- * that exact write, so a racing or unrelated outcome is never overwritten.
+ * `statement` establishes the conservative outcome; once follow-up money work
+ * finishes, {@link advanceSessionFailure} moves it to its final shape.
  */
 export interface PreparedSessionFailure {
-  readonly replace: (failure: StoredPaymentFailure) => Promise<void>;
   readonly statement: SqlStatement;
 }
 
 export const prepareSessionFailure = async (
   sessionId: string,
   failure: StoredPaymentFailure,
-): Promise<PreparedSessionFailure> => {
-  const initialState = storedSessionFailure(failure);
-  const initialData = await encrypt(initialState);
-  return {
-    replace: async (replacement) => {
-      const replacementState = storedSessionFailure(replacement);
-      if (replacementState === initialState) return;
-      const changed = await execute(
-        `UPDATE processed_payments
-            SET failure_data = ?
-          WHERE payment_session_id = ?
-            AND attendee_id IS NULL
-            AND failure_data = ?`,
-        [await encrypt(replacementState), sessionId, initialData],
-      );
-      if (changed.rowsAffected !== 1) {
-        throw new Error(
-          `Payment session failure changed before completion: ${sessionId}`,
-        );
-      }
+): Promise<PreparedSessionFailure> => ({
+  statement: {
+    args: [await encrypt(storedSessionFailure(failure)), sessionId],
+    sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+  },
+});
+
+/** The stored outcome bytes a session row currently holds, read from the
+ * primary so an advance never fences against a lagging replica's copy. */
+const readStoredOutcome = async (
+  sessionId: string,
+): Promise<EnvKeyEncrypted | "" | null> => {
+  const [read] = await queryBatchPrimary([
+    {
+      args: [sessionId],
+      sql: "SELECT failure_data FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
     },
-    statement: {
-      args: [initialData, sessionId],
-      sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    },
-  };
+  ]);
+  const row = resultRows<{ failure_data: EnvKeyEncrypted | "" }>(read!)[0];
+  return row === undefined ? null : row.failure_data;
+};
+
+const unexpectedOutcomeMove = (sessionId: string): Error =>
+  new Error(`Payment session outcome advanced unexpectedly: ${sessionId}`);
+
+/** The current outcome's canonical form, for comparing against a move's
+ * endpoints. A resolved row whose slot will not parse is corruption. */
+const canonicalStoredOutcome = async (
+  sessionId: string,
+  stored: EnvKeyEncrypted,
+): Promise<string> =>
+  storedSessionFailure(
+    requireValue(
+      await parseSessionFailure(stored),
+      `Payment session outcome is missing: ${sessionId}`,
+    ),
+  );
+
+/**
+ * One fenced attempt to move a session's stored outcome to `to`: the write
+ * lands only while the row still holds the exact `fence` bytes. When the
+ * fence misses, the row must have converged to `to` (a racing advance won) or
+ * vanished (pruned) — anything else is a real conflict and throws. Exported
+ * for that race arm: a test can hand it a stale fence deterministically,
+ * where a live race cannot be scripted.
+ */
+export const advanceStoredOutcomeOnce = async (
+  sessionId: string,
+  fence: EnvKeyEncrypted,
+  to: StoredPaymentFailure,
+): Promise<void> => {
+  const toState = storedSessionFailure(to);
+  const changed = await execute(
+    `UPDATE processed_payments
+        SET failure_data = ?
+      WHERE payment_session_id = ?
+        AND attendee_id IS NULL
+        AND failure_data = ?`,
+    [await encrypt(toState), sessionId, fence],
+  );
+  if (changed.rowsAffected === 1) return;
+  const after = await readStoredOutcome(sessionId);
+  if (after === null || after === "") return;
+  if ((await canonicalStoredOutcome(sessionId, after)) !== toState) {
+    throw unexpectedOutcomeMove(sessionId);
+  }
+};
+
+/**
+ * Advance a stored terminal outcome from its conservative shape to its final
+ * one, once the follow-up money work has finished. Reads the row fresh, so
+ * ANY later process — not just the one that stored it — can finish the move.
+ * The write is fenced on the exact bytes just read; a racing advance makes
+ * this one converge instead of clobbering. A missing or re-reserved row means
+ * the idempotency record was pruned mid-move: the durable money records are
+ * already correct, so there is nothing left to advance.
+ */
+export const advanceSessionFailure = async (
+  sessionId: string,
+  from: StoredPaymentFailure,
+  to: StoredPaymentFailure,
+): Promise<void> => {
+  const fromState = storedSessionFailure(from);
+  if (fromState === storedSessionFailure(to)) return;
+  const stored = await readStoredOutcome(sessionId);
+  if (stored === null || stored === "") return;
+  const current = await canonicalStoredOutcome(sessionId, stored);
+  if (current === storedSessionFailure(to)) return;
+  if (current !== fromState) throw unexpectedOutcomeMove(sessionId);
+  await advanceStoredOutcomeOnce(sessionId, stored, to);
 };
 
 /**
@@ -291,12 +363,7 @@ export const parseSessionFailure = async (
 ): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
   const state = readRowState(await decrypt(failureData), FAILURE_DATA_CONTEXT);
-  if (
-    state.outcome === undefined ||
-    state.claim !== undefined ||
-    state.review !== undefined ||
-    state.unrecorded !== undefined
-  ) {
+  if (state.outcome === undefined || hasLiveRowWork(state)) {
     throw new Error(`${FAILURE_DATA_CONTEXT}: invalid terminal session state`);
   }
   return state.outcome;

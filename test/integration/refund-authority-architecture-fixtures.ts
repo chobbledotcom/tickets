@@ -1,6 +1,9 @@
 export const REFUND_AUTHORITY_ARCHITECTURE_FILES = new Set([
   "integration/refund-authority-architecture-fixtures.ts",
   "integration/refund-authority-architecture.test.ts",
+  // Names the clearers as lifecycle data for the binding property, without
+  // touching the authority entry points themselves.
+  "shared/payment/refund-machine-spec/graph.test.ts",
 ]);
 
 const AUTHORITY_BUILDING_MARKERS = [
@@ -88,7 +91,6 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "features/api/payment-processing/index/refunds.test.ts",
   "features/api/payment-processing/refunds.test.ts",
   "features/api/payment-processing/refunds/provider-result.test.ts",
-  "features/api/payment-processing/refunds/rejected-charge.test.ts",
   "features/api/webhooks/helpers.ts",
   "features/api/webhooks/provider.test.ts",
   "integration/server/payments-success-refunds.test.ts",
@@ -124,6 +126,7 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "shared/sumup/provider-money.test.ts",
   "specs/support/refund-safety/provider-script.ts",
   "test-utils/refund-routes.ts",
+  "test-utils/rejected-charge.ts",
   "test-utils/webhooks/stripe.ts",
 ];
 

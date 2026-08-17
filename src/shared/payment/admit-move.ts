@@ -132,6 +132,17 @@ export type PaymentWork = {
  *  that have to ask without decrypting the record. */
 export const CLAIM_MIRROR: string = PAYMENT_ROW_LIFECYCLE.claim.mirror;
 
+export type PaymentLiveWorkField = keyof typeof PAYMENT_ROW_LIFECYCLE;
+
+/** The one SQL form of "this row carries this work", derived from the same
+ *  table that decides the stored word, so a renamed mirror can never leave a
+ *  query matching nothing. */
+export const rowWorkMirrorSql = (
+  prefix: "" | "payment.",
+  field: PaymentLiveWorkField,
+): string =>
+  `${prefix}protected_state = '${PAYMENT_ROW_LIFECYCLE[field].mirror}'`;
+
 /** Every kind of live work, most urgent first. Built once from the table's own
  *  `saidFirst`, so both readers below agree and neither depends on the order
  *  the fields happen to be written in. */

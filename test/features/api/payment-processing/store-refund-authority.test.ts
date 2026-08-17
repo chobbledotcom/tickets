@@ -11,10 +11,7 @@ import {
 import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  makeClaimsStale,
-  protectedStateOf,
-} from "#test-utils/payment-claim.ts";
+import { protectedStateOf } from "#test-utils/payment-claim.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -116,7 +113,11 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
 
     const attendee = (await getAttendeesRaw(placeholder.listing.id))[0];
     if (attendee === undefined) throw new Error("placeholder was not stored");
+    // The redelivery resumes the crashed tail: the refund attempt runs and
+    // does not return here, so the honest pending answer comes back with the
+    // resumed marker, and the ready authority stays with its recovery routes.
     expect(await processPaymentSession(sessionId, placeholder.data)).toEqual({
+      detail: `Resumed after a crashed delivery of session ${sessionId}`,
       error:
         "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
       status: 200,
@@ -135,7 +136,9 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
       [attendee.id],
     );
     if (anchor === null) throw new Error("placeholder anchor was not stored");
-    await makeClaimsStale([anchor.payment_session_id]);
+    // The resume already let go of the crashed run's claim; the durable
+    // ready authority, not the row fence, is what keeps the work alive.
+    expect(await protectedStateOf(anchor.payment_session_id)).toBe("");
 
     await withRefreshPaymentProbe(
       () => Promise.resolve(false),

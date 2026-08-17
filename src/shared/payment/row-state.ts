@@ -10,6 +10,7 @@
  */
 
 import * as v from "valibot";
+import { RefundCodeSchema } from "#shared/payment/placeholder-refund.ts";
 import { PaymentReviewCaseSchema } from "#shared/payment/review.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
@@ -48,6 +49,11 @@ export type RefundClaimPhase = RefundClaim["phase"];
  *  encrypted-at-rest listing name, so the whole record is stored encrypted;
  *  keep it free of anything that must not round-trip through that key. */
 export const StoredPaymentFailureSchema = v.strictObject({
+  /** Set when a stored placeholder still owes follow-up money records, so a
+   * replayed delivery knows to check them — never part of the answer. The
+   * code lets a resume rebuild the exact refund reason for the note and the
+   * ledger label, without guessing it back out of the message text. */
+  completion: v.optional(v.strictObject({ code: RefundCodeSchema })),
   error: v.string(),
   refunded: v.optional(v.boolean()),
   status: v.optional(v.pipe(v.number(), v.safeInteger())),
@@ -55,6 +61,16 @@ export const StoredPaymentFailureSchema = v.strictObject({
 export type StoredPaymentFailure = v.InferOutput<
   typeof StoredPaymentFailureSchema
 >;
+
+/** The answer a replayed session gives its caller: the stored failure
+ * without the completion marker, which is bookkeeping, not a message. */
+export const sessionAnswerOf = (
+  failure: StoredPaymentFailure,
+): Omit<StoredPaymentFailure, "completion"> => ({
+  error: failure.error,
+  ...(failure.refunded === undefined ? {} : { refunded: failure.refunded }),
+  ...(failure.status === undefined ? {} : { status: failure.status }),
+});
 
 /**
  * Money the provider sent back that our books do not have.

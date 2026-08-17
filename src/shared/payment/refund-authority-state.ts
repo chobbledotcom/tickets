@@ -211,6 +211,12 @@ export type ProviderConflictOwnerChoiceRefundState = Extract<
   { reason: "provider_conflict" }
 >;
 
+/** When the provider finished returning this money, or null before then.
+ * Total over every state, so callers that know the money came back can take
+ * the instant through `requireValue` without an unreachable branch. */
+export const completedAtOf = (state: RefundAuthorityState): number | null =>
+  state.kind === "completed" ? state.completedAt : null;
+
 const storedState = defineStoredJson(RefundAuthorityStateSchema);
 
 export const readRefundAuthorityState = (

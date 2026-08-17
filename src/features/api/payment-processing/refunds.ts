@@ -12,13 +12,11 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import {
   type PreparedRefundAuthority,
   prepareRefundAuthority,
 } from "#shared/db/provider-refund-authority.ts";
-import { t } from "#shared/i18n.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -30,6 +28,7 @@ import type { TaggedPaymentReference } from "#shared/payment/provider-reference.
 import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
 import {
   paidPaymentReferenceOf,
+  rejectedChargeReference,
   type SessionRejection,
 } from "#shared/payment/validated-session.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
@@ -39,6 +38,7 @@ import { addPendingWork } from "#shared/pending-work.ts";
 import { initialRefundState } from "#shared/provider-refunds/state.ts";
 import {
   type ProviderRefundResult,
+  type RefundAuthorityReceipt,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 
@@ -50,14 +50,29 @@ const PRICE_CHANGED_MESSAGE =
 export const failureDetail = (result: PaymentFailureResult): string =>
   result.detail ?? result.error;
 
+/** The receipt a returned rejection refund carries, so the caller can post
+ *  the money into the books and finish the authority's local recording. */
+export type ReturnedRejectionReceipt = {
+  readonly authority: RefundAuthorityReceipt;
+  readonly local: "due" | "recorded";
+};
+
 /** What became of a rejected session's charge. `settled` means nothing is left
  *  owing; `refunded` means money actually moved. They are kept apart because
  *  "nothing to refund" and "refunded" must never read alike in a log or on a
  *  page — one leaves the buyer out of pocket, the other does not. */
-type RejectionOutcome = { settled: boolean; refunded: boolean };
+export type RejectionOutcome = {
+  settled: boolean;
+  refunded: boolean;
+  returned: ReturnedRejectionReceipt | null;
+};
 
 /** Nothing of ours was captured, so there is nothing to return. */
-const NOTHING_TO_REFUND: RejectionOutcome = { refunded: false, settled: true };
+const NOTHING_TO_REFUND: RejectionOutcome = {
+  refunded: false,
+  returned: null,
+  settled: true,
+};
 
 /**
  * Refund a paid charge the provider boundary could not read, when its
@@ -86,35 +101,17 @@ export const refundRejectedCharge = async (
     callbackSessionId: rejection.sessionId,
     evidence: { kind: "read_provider" },
     mode: "send",
-    reference: {
-      kind: "tagged",
-      provider: rejection.provider,
-      reference: rejection.paymentReference,
-    },
+    reference: rejectedChargeReference(rejection),
   });
   const refunded = providerRefundReturned(result);
-  return { refunded, settled: refunded };
-};
-
-/**
- * The answer a buyer-facing callback gives for a rejected session. A charge
- * left unsettled answers 503, so the caller comes back for it rather than
- * acknowledging money that is still out there.
- */
-export const answerRejectedSession = async (
-  rejection: SessionRejection,
-  log: (detail: string) => void,
-): Promise<Response> => {
-  const { refunded, settled } = await refundRejectedCharge(rejection);
-  log(
-    `Session rejected as ${rejection.reason} (session=${rejection.sessionId}, refunded: ${refunded})`,
-  );
-  return paymentErrorResponse(
-    refunded
-      ? t("payment.error.refunded")
-      : t("payment.error.session_not_found"),
-    settled ? 400 : 503,
-  );
+  return {
+    refunded,
+    returned:
+      result.kind === "returned"
+        ? { authority: result.authority, local: result.local }
+        : null,
+    settled: refunded,
+  };
 };
 
 type RefundLogContext = {

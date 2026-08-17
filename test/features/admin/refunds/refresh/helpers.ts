@@ -9,10 +9,10 @@ import {
   type RefreshPaymentResult,
   refreshClaimedPayment,
 } from "#routes/admin/refunds/refresh.ts";
-import type { PaymentReviewChange } from "#shared/db/payment-claim.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
+import type { PaymentReviewChange } from "#shared/payment/row-transitions.ts";
 import {
   type ProviderRefundTarget,
   type RefundAuthorityReceipt,

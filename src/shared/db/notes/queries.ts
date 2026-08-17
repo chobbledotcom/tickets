@@ -10,6 +10,7 @@ import {
   execute,
   executeBatch,
   insert,
+  orIgnore,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
@@ -32,14 +33,6 @@ import type {
 const NOTE_COLUMNS =
   "id, entity_type, entity_id, type, note, system_name, created";
 
-/** Build a "record a note" function for one kind of note: it seals the text the
- *  way that kind is sealed, then stores it against the record it is about. */
-type NoteWriter = (
-  target: NoteTarget,
-  note: string,
-  transaction?: TxScope,
-) => Promise<void>;
-
 const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
   `system-note:1:${JSON.stringify([purpose, key])}`;
 
@@ -51,7 +44,7 @@ const writeNote = async (
   transaction?: TxScope,
 ): Promise<void> => {
   if (name?.key === "") throw new Error("A named system note needs a key");
-  const { sql, args } = insert("system_notes", {
+  const inserted = insert("system_notes", {
     created: nowIso(),
     entity_id: target.id,
     entity_type: target.kind,
@@ -59,36 +52,37 @@ const writeNote = async (
     system_name: name === null ? null : storedSystemNoteName(name),
     type,
   });
+  // A named note is unique by its name: a replayed write is a no-op, so a
+  // resumable flow can re-run its note step without a second copy landing.
+  const statement = name === null ? inserted : orIgnore(inserted);
   if (transaction === undefined) {
-    await execute(sql, args);
+    await execute(statement.sql, statement.args);
   } else {
-    await transaction.execute({ args, sql });
+    await transaction.execute(statement);
   }
 };
-
-const noteWriterOf =
-  (type: SystemNoteType): NoteWriter =>
-  (target, note, transaction) =>
-    writeNote(type, target, note, null, transaction);
 
 /**
  * Record a note the app wrote itself. The text MUST be free of personal
  * details: it is sealed with the symmetric DB key (readable from a database
- * dump plus that key), and exists so a path with no owner session can write it.
+ * dump plus that key), and exists so a path with no owner session can write
+ * it. Give the note an indexed name to make it once-only: its lifecycle can
+ * then be managed — and replays dropped — without opening any note text.
  */
-export const createSystemNote = noteWriterOf("system");
-
-/** Record an app-written note with an indexed purpose and opaque identity.
- * Its lifecycle can then be managed without opening any note text. */
-export const createNamedSystemNote = (
+export const createSystemNote = (
   target: NoteTarget,
   note: string,
-  name: SystemNoteName,
+  name?: SystemNoteName,
   transaction?: TxScope,
-): Promise<void> => writeNote("system", target, note, name, transaction);
+): Promise<void> =>
+  writeNote("system", target, note, name ?? null, transaction);
 
 /** Record an operator's note, sealed with the owner public key. */
-export const createOwnerNote = noteWriterOf("owner");
+export const createOwnerNote = (
+  target: NoteTarget,
+  note: string,
+  transaction?: TxScope,
+): Promise<void> => writeNote("owner", target, note, null, transaction);
 
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */

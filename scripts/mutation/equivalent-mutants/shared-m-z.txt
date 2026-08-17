@@ -1,6 +1,5 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
 
@@ -256,11 +255,9 @@ src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0 
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
 
-# Schema-atlas derivation: refusal text is thrown to refuse and never read, the
-# seen-at stamp only separates defined from undefined, a node's representative
-# states share one lifecycle rule by design, and arrays are always truthy.
-src/shared/schema-atlas/payment-review.ts::SEEN_AT~1rcm9v2 2026-08-16T00:00:00.000Z → ""   # nodeIdOf only distinguishes acknowledgedAt undefined vs defined; no atlas output reads the value
-src/shared/schema-atlas/payment-review.ts::opensFor~0joorcc A row with a review cannot open another → ""   # refusal message is thrown to refuse a transition; the derived map reads only throw-vs-return
-src/shared/schema-atlas/payment-review.ts::TRIGGERS.run~1ysp6bm Only an unseen case can be acknowledged → ""   # same: refusal text, never surfaced by the map
-src/shared/schema-atlas/refund-authority.ts::node.facts~0lxafd7 0 → 1   # every representative state behind a node shares the node's lifecycle rule, so facts from states[0] and states[1] are identical; the per-node facts assertions would fail if that invariant ever broke
 src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
+# row-state.ts: the sorted-ids check's message. Both stored-JSON surfaces
+# discard valibot issue text on purpose (a stored value could carry private
+# data), so no caller, page, or log can ever see this string — no input
+# distinguishes it from "".
+src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → ""   # issue text is discarded by the stored-JSON wrapper; unobservable through any surface

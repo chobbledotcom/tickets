@@ -20,7 +20,7 @@ export type SystemNoteType = "system" | "owner";
 
 /** App-written note purposes whose lifecycle is decided from stored facts,
  * never by opening the note text. */
-export type SystemNotePurpose = "refund_confirmation";
+export type SystemNotePurpose = "refund_confirmation" | "refund_unreturned";
 
 /** The indexed name of one app-written note. The key is an opaque identity,
  * such as a payment-reference blind index or refund-confirmation identity. */

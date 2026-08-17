@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
-  createNamedSystemNote,
   createOwnerNote,
   createSystemNote,
   deleteNotes,
@@ -13,6 +12,7 @@ import {
   getNotesFor,
   loadNotesForAttendees,
   loadNotesForListing,
+  noteDeleteStatement,
 } from "#shared/db/notes/queries.ts";
 import { openNotes } from "#shared/db/notes/sealing.ts";
 import {
@@ -140,24 +140,28 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(ownerStored?.note).not.toContain("owner secret");
   });
 
-  test("refuses a second app-written note with the same indexed name", async () => {
+  test("keeps only the first app-written note for one indexed name", async () => {
     const target = attendeeNotes(await makeAttendee());
     const name = {
       key: "one-confirmation",
       purpose: "refund_confirmation",
     } as const;
-    await createNamedSystemNote(target, "first", name);
+    await createSystemNote(target, "first", name);
 
-    await expect(
-      createNamedSystemNote(target, "duplicate", name),
-    ).rejects.toThrow();
+    // A replayed named write is a no-op, so a resumed flow can re-run its
+    // note step without a second copy landing.
+    await createSystemNote(target, "duplicate", name);
+
+    const notes = await getNotesFor(target, await getTestPrivateKey());
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.note).toBe("first");
   });
 
   test("refuses an app-written note whose indexed name is empty", async () => {
     const target = attendeeNotes(await makeAttendee());
 
     await expect(
-      createNamedSystemNote(target, "unreachable", {
+      createSystemNote(target, "unreachable", {
         key: "",
         purpose: "refund_confirmation",
       }),
@@ -249,6 +253,22 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(await getNoteRows("attendee", [owner])).toEqual([]);
     // The other attendee's note is untouched.
     expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(otherRow!.id);
+  });
+
+  test("noteDeleteStatement clears only the chosen records' notes", async () => {
+    const keep = await makeAttendee("Keep Notes");
+    const drop = await makeAttendee("Drop Notes");
+    await createSystemNote(attendeeNotes(keep), "kept");
+    await createSystemNote(attendeeNotes(drop), "dropped");
+
+    const statement = noteDeleteStatement("attendee", {
+      args: [drop],
+      sql: "SELECT id FROM attendees WHERE id = ?",
+    });
+    await execute(statement.sql, statement.args);
+
+    expect(await getNoteRows("attendee", [drop])).toEqual([]);
+    expect(await getNoteRows("attendee", [keep])).toHaveLength(1);
   });
 
   test("deletes nothing, and asks the database nothing, for an empty list", async () => {

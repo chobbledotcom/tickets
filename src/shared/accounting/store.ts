@@ -28,12 +28,12 @@ import {
   fromDb,
   fromTx,
   insertStatement,
-  orIgnore,
   type RowReader,
   selectTransfers,
 } from "#shared/accounting/rows.ts";
 import {
   executeBatch,
+  orIgnore,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";

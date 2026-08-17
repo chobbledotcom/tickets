@@ -4,13 +4,19 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { DatabaseBusyError, execute, setDb } from "#shared/db/client.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 /**
  * The write-lock retry: a statement that loses SQLite's single write lock
- * (SQLITE_BUSY) is retried on the documented 50/150/350ms backoff schedule,
- * and a lock that outlasts the retries surfaces as DatabaseBusyError — the
- * shape the request layer turns into the friendly auto-reloading busy page.
- * A stubbed client makes contention deterministic; FakeTime pins the backoff.
+ * (SQLITE_BUSY) is retried on a backoff ladder, and a lock that outlasts the
+ * retries surfaces as DatabaseBusyError — the shape the request layer turns
+ * into the friendly auto-reloading busy page. The ladder depends on where the
+ * database lives: a remote server keeps the short 50/150/350ms ladder so an
+ * edge request answers fast, while a file database (tests, local dev) keeps
+ * yielding through three longer waits, because its lock is held by another
+ * connection in this same process and one starved scheduler pass can keep an
+ * ordinary transaction on the lock for around a second. A stubbed client
+ * makes contention deterministic; FakeTime pins the backoff.
  */
 describe("db > client write-lock retry", () => {
   const busyError = (): Error => new Error("SQLITE_BUSY: database is locked");
@@ -18,6 +24,20 @@ describe("db > client write-lock retry", () => {
     ({ execute: run }) as unknown as Client;
 
   afterEach(() => setDb(null));
+
+  /** Walk one backoff wait: the attempt count holds until the wait's final
+   * millisecond, when exactly the next attempt fires. */
+  const expectNextAttemptAfter = async (
+    time: FakeTime,
+    waitMs: number,
+    countAttempts: () => number,
+  ): Promise<void> => {
+    const before = countAttempts();
+    await time.tickAsync(waitMs - 1);
+    expect(countAttempts()).toBe(before);
+    await time.tickAsync(1);
+    expect(countAttempts()).toBe(before + 1);
+  };
 
   test("DatabaseBusyError carries its name and friendly message", () => {
     const error = new DatabaseBusyError();
@@ -45,7 +65,16 @@ describe("db > client write-lock retry", () => {
     expect(attempts).toBe(2);
   });
 
-  test("waits 50/150/350ms between attempts, then gives up as DatabaseBusyError", async () => {
+  /** Run one database shape's give-up scenario: every attempt stays busy,
+   * each of the ladder's waits passes in full before the next attempt, and
+   * the write dies as DatabaseBusyError after one initial attempt plus one
+   * per backoff entry. The rejection expectation is attached up front so the
+   * eventual failure is handled while the fake clock ticks. */
+  const expectGivesUpAfter = async (
+    dbUrl: string,
+    waits: readonly number[],
+  ): Promise<void> => {
+    using env = withEnv({ DB_URL: dbUrl });
     using time = new FakeTime();
     let attempts = 0;
     setDb(
@@ -54,26 +83,52 @@ describe("db > client write-lock retry", () => {
         return Promise.reject(busyError());
       }),
     );
-    // Attach the rejection expectation up front so the eventual failure is
-    // handled while the fake clock ticks (an unhandled rejection would blow
-    // up the test run before the final await).
     const outcome = expect(
       execute("INSERT INTO t (x) VALUES (1)"),
     ).rejects.toThrow(DatabaseBusyError);
     await time.tickAsync(0);
     expect(attempts).toBe(1);
-    await time.tickAsync(49);
-    expect(attempts).toBe(1); // first retry waits the full 50ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(2);
-    await time.tickAsync(149);
-    expect(attempts).toBe(2); // second retry waits the full 150ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(3);
-    await time.tickAsync(349);
-    expect(attempts).toBe(3); // third retry waits the full 350ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(4); // one initial attempt + one per backoff entry
+    for (const wait of waits) {
+      await expectNextAttemptAfter(time, wait, () => attempts);
+    }
+    expect(attempts).toBe(waits.length + 1);
     await outcome;
+    void env;
+  };
+
+  test("a remote database waits 50/150/350ms, then gives up as DatabaseBusyError", () =>
+    expectGivesUpAfter(
+      "libsql://busy-ladder.example.turso.io",
+      [50, 150, 350],
+    ));
+
+  test("a file database outwaits a lock the remote ladder would give up on", async () => {
+    using env = withEnv({ DB_URL: "file:/tmp/busy-ladder.db" });
+    using time = new FakeTime();
+    let attempts = 0;
+    // The lock clears only on the fifth attempt — one past the remote
+    // ladder's four. Before the file ladder existed this write died as
+    // DatabaseBusyError, which is how a CPU-starved parallel test run turned
+    // one slow transaction elsewhere in the process into a busy answer.
+    setDb(
+      clientWith(() => {
+        attempts++;
+        return attempts <= 4
+          ? Promise.reject(busyError())
+          : Promise.resolve(emptyResultSet());
+      }),
+    );
+    const promise = execute("INSERT INTO t (x) VALUES (1)");
+    await time.tickAsync(50);
+    await time.tickAsync(150);
+    await time.tickAsync(350);
+    await time.tickAsync(700);
+    const result = await promise;
+    expect(result.rowsAffected).toBe(0);
+    expect(attempts).toBe(5);
+    void env;
   });
+
+  test("a file database waits 700/1400ms after the short ladder, then gives up", () =>
+    expectGivesUpAfter("file:/tmp/busy-ladder.db", [50, 150, 350, 700, 1400]));
 });

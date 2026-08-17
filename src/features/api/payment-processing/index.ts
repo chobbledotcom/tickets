@@ -14,6 +14,7 @@ import {
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
+import { resumePlaceholderSession } from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
   checkoutIntentForSession,
   paidPricingRefund,
@@ -38,7 +39,6 @@ import type {
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
-import type { BookingIntent } from "#shared/booking-intent.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
@@ -52,6 +52,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { sessionAnswerOf } from "#shared/payment/row-state.ts";
 import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
@@ -65,11 +66,11 @@ type SessionProcessor = (
 
 /** Handle the "already reserved" branch of reserveSession */
 const handleReservationConflict = async (
-  intent: BookingIntent,
+  data: ValidatedSession,
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
-    return alreadyProcessedResult(intent.items[0]!.e, {
+    return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
     });
@@ -78,7 +79,14 @@ const handleReservationConflict = async (
   // already issued, sold out, price changed) without re-validating or
   // re-refunding. failure_data is encrypted, so this read is async.
   const failure = await parseSessionFailure(existing.failure_data);
-  if (failure) return { ...failure, success: false };
+  if (failure) {
+    // A completion marker says the placeholder may still owe money records:
+    // finish them before answering, so a crashed first delivery cannot park
+    // the books. Unmarked failures replay with no extra reads.
+    const resumed = await resumePlaceholderSession(data, failure);
+    if (resumed) return resumed;
+    return { ...sessionAnswerOf(failure), success: false };
+  }
   // Otherwise reserved but not finalized — another request is mid-flight.
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
@@ -329,7 +337,7 @@ export const processPaymentSession: SessionProcessor = async (
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
   if (!reservation.reserved) {
-    return handleReservationConflict(data.intent, reservation.existing);
+    return handleReservationConflict(data, reservation.existing);
   }
 
   const result = await processReservedSession(sessionId, data);

@@ -15,10 +15,7 @@ import {
   type ClaimResult,
   claimAttendeeRows,
 } from "#shared/db/payment-claim/take.ts";
-import {
-  type PaymentRowSettlement,
-  settleAttendeeRows,
-} from "#shared/db/payment-claim.ts";
+import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { mirrorFor } from "#shared/payment/admit-move.ts";
@@ -31,6 +28,7 @@ import type {
   RefundClaim,
 } from "#shared/payment/row-state.ts";
 import { readRowState, writeRowState } from "#shared/payment/row-state.ts";
+import type { PaymentRowSettlement } from "#shared/payment/row-transitions.ts";
 import { getCompleteRefundPaymentReferences } from "#test-utils/payment-references.ts";
 
 const SLOT = "processed_payments.failure_data";

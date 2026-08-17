@@ -7,10 +7,7 @@ import {
   type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
-import {
-  checkingClaimFor,
-  claimRequestFor,
-} from "#shared/db/payment-claim/scope.ts";
+import { claimRequestFor } from "#shared/db/payment-claim/scope.ts";
 import {
   asPaymentRowRecord,
   type PaymentRowRecord,
@@ -33,6 +30,10 @@ import {
 } from "#shared/payment/claim.ts";
 import type { PaymentReviewReason } from "#shared/payment/review.ts";
 import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
+import {
+  checkingClaimFor,
+  grantClaim,
+} from "#shared/payment/row-transitions.ts";
 
 /* jscpd:ignore-end */
 
@@ -296,7 +297,7 @@ export const claimAttendeeRows = async (
     await tx.batch(
       await Promise.all(
         judged.map(({ nextClaim, row }) =>
-          paymentRowStateStatement(row, { ...row.state, claim: nextClaim }),
+          paymentRowStateStatement(row, grantClaim(row.state, nextClaim)),
         ),
       ),
     );

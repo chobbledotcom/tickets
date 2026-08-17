@@ -3,7 +3,7 @@ import { requiredMapValue, sortStrings, unique } from "#fp";
 import { t } from "#i18n";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { withTransaction } from "#shared/db/client.ts";
-import { createNamedSystemNote } from "#shared/db/notes/queries.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { assertRefundRowsHeld } from "#shared/db/payment-claim.ts";
 import { insertRefundConfirmation } from "#shared/db/refund-confirmations.ts";
@@ -76,7 +76,7 @@ export const confirmRefund = async (
       tx,
     );
     if (refund.paymentOnly) {
-      await createNamedSystemNote(
+      await createSystemNote(
         target,
         confirmation,
         { key: written.identity, purpose: "refund_confirmation" },

@@ -259,6 +259,27 @@ describe("provider refund recovery templates", () => {
     expect(html).not.toContain("Check the provider again");
   });
 
+  test("marks a choice as a money action only when it can re-queue a send", () => {
+    const withNotSent = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
+    expect(withNotSent).toContain('<button class="danger" type="submit">');
+
+    // Confirming money that already came back sends nothing, so the machine
+    // says this settled-return decision is not a money action.
+    const returnedOnly = adminProviderRefundCasePage(
+      OWNER_SESSION,
+      {
+        ...detail,
+        choices: ["provider_confirmed_returned"],
+        decision: { captured, kind: "returned", refunded: captured },
+        reason: "provider_conflict",
+        refunded: captured,
+      },
+      {},
+    );
+    expect(returnedOnly).toContain('<button type="submit">');
+    expect(returnedOnly).not.toContain('<button class="danger" type="submit">');
+  });
+
   test("requires a specific Money-recorded confirmation for returned cash", () => {
     const html = adminProviderRefundCasePage(
       OWNER_SESSION,

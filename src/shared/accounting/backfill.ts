@@ -30,10 +30,11 @@ import {
   mapRefund,
 } from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
-import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
+import { insertStatement } from "#shared/accounting/rows.ts";
 import {
   executeBatch,
   inPlaceholders,
+  orIgnore,
   queryAll,
   queryIdColumn,
   type SqlStatement,

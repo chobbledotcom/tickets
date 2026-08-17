@@ -200,7 +200,13 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       expect(refund.send.calls).toHaveLength(1);
 
       returned = true;
-      expect((await postSumupWebhook()).status).toBe(200);
+      // Assert body and status together: on a failure the body says which
+      // 503 came back (busy page, refund failed, verification refused).
+      const settled = await postSumupWebhook();
+      expect({
+        body: await settled.text(),
+        status: settled.status,
+      }).toMatchObject({ status: 200 });
       expect(refund.send.calls).toHaveLength(1);
     } finally {
       refund.send.restore();
@@ -293,7 +299,11 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
         expect(providerCalls).toBe(providerCallLanded ? 1 : 0);
 
         returned = true;
-        expect((await postSumupWebhook()).status).toBe(200);
+        const settled = await postSumupWebhook();
+        expect({
+          body: await settled.text(),
+          status: settled.status,
+        }).toMatchObject({ status: 200 });
         expect(attempts).toBe(1);
       } finally {
         refund.restore();

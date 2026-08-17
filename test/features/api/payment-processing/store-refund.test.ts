@@ -2,7 +2,6 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import {
   placeholderBookings,
@@ -12,7 +11,6 @@ import {
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { execute, queryOne, withTransaction } from "#shared/db/client.ts";
 import {
@@ -32,10 +30,12 @@ import {
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
+  crashedPlaceholderStore,
   placeholderSpec,
   reservedPlaceholder,
   storedPlaceholder,
@@ -104,28 +104,70 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       });
     });
 
-    test("replays a pending refund when the committed create loses its reply", async () => {
-      const sessionId = "cs_pending_refund_replay";
-      const placeholder = await reservedPlaceholder(sessionId);
-      const createAttendee = attendeesApi.createAttendeeAtomic;
-      using _createReply = stub(
-        attendeesApi,
-        "createAttendeeAtomic",
-        async (...args: Parameters<typeof createAttendee>) => {
-          await createAttendee(...args);
-          throw new Error("placeholder create reply was lost");
-        },
+    test("keeps the row saying unrecorded when Money misses the return", async () => {
+      await withRefundLedgerFault(() =>
+        withRefundMock(refundCompletes, async () => {
+          const { result } = await storedPlaceholder("cs_ledger_miss");
+          // The buyer's answer stays the handled 200 — money DID come back;
+          // catching the books up is operator work, not the buyer's problem.
+          expect(result.refunded).toBe(true);
+        }),
       );
+      // The row keeps the truth the refresh route clears — money returned,
+      // books not caught up — and the authority stays due and visible.
+      const row = await queryOne<{ protected_state: string }>(
+        `SELECT protected_state FROM processed_payments
+          WHERE payment_reference_index != ''`,
+      );
+      expect(row?.protected_state).toBe("unrecorded");
+      const charge = await queryOne<{ refund_local_state: string }>(
+        "SELECT refund_local_state FROM payment_charges",
+      );
+      expect(charge?.refund_local_state).toBe("due");
+    });
 
-      await expect(storePlaceholder(placeholder)).rejects.toThrow(
-        "placeholder create reply was lost",
-      );
+    test("a redelivery finishes the tail a crashed create left open", async () => {
+      const sessionId = "cs_pending_refund_replay";
+      const placeholder = await crashedPlaceholderStore(sessionId);
+
+      // The redelivery resumes the tail from durable rows: the refund does
+      // not come back here, so the payment leg lands, the operator note is
+      // written, and the claim is released — the honest pending answer.
+      const pendingError =
+        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.";
       expect(await processPaymentSession(sessionId, placeholder.data)).toEqual({
-        error:
-          "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
+        detail: `Resumed after a crashed delivery of session ${sessionId}`,
+        error: pendingError,
         status: 200,
         success: false,
       });
+      const anchor = await queryOne<{ protected_state: string }>(
+        "SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''",
+      );
+      expect(anchor?.protected_state).toBe("");
+      const note = await queryOne<{ system_name: string; total: number }>(
+        `SELECT system_name, COUNT(*) OVER () AS total
+           FROM system_notes WHERE entity_type = 'attendee'`,
+      );
+      expect(note?.total).toBe(1);
+      expect(note?.system_name).toContain("refund_unreturned");
+
+      // With the claim free, the next delivery replays the stored words and
+      // writes nothing new.
+      expect(await processPaymentSession(sessionId, placeholder.data)).toEqual({
+        error: pendingError,
+        status: 200,
+        success: false,
+      });
+      expect(
+        Number(
+          (
+            await queryOne<{ total: number }>(
+              "SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'",
+            )
+          )?.total,
+        ),
+      ).toBe(1);
     });
   });
 
@@ -159,7 +201,10 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       if (row === null) {
         throw new Error("the refund explanation was not stored");
       }
-      expect(row.system_name).toBeNull();
+      // The note's name is the once-only latch a resumed delivery checks; it
+      // carries only the blind reference index, never the real reference.
+      expect(row.system_name).toContain("refund_unreturned");
+      expect(row.system_name).not.toContain("pi_cs_plain_explanation");
       expect(await decrypt(row.note)).not.toContain("pi_cs_plain_explanation");
     });
 

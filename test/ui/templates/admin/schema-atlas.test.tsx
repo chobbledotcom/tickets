@@ -64,8 +64,10 @@ describe("the system map page", () => {
     expect(page).toContain("Ready to send · where every record starts");
     expect(page).toContain('id="refund"');
     expect(page).toContain('id="review"');
+    expect(page).toContain('id="row"');
     expect(page).toContain("A refund at the payment provider");
     expect(page).toContain("A payment row kept for review");
+    expect(page).toContain("One payment row's held work");
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {

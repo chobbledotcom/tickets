@@ -14,6 +14,7 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
         "<h1>System map</h1>",
         'data-schema-atlas-machine="refund"',
         'data-schema-atlas-machine="review"',
+        'data-schema-atlas-machine="row"',
         'id="schema-atlas-data"',
       );
     });

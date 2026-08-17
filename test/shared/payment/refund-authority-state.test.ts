@@ -9,6 +9,7 @@ import {
   markRefundProviderConflict,
 } from "#shared/payment/refund-authority-choice.ts";
 import {
+  completedAtOf,
   readRefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
@@ -49,6 +50,14 @@ describe("payment > stored refund authority state", () => {
         request: { ...keyless.request, generation: 0 },
       }),
     ).toThrow();
+  });
+
+  test("completedAtOf answers the return instant only once money came back", () => {
+    const ready = readyRefundForTest("keyed");
+    expect(completedAtOf(ready)).toBeNull();
+    expect(completedAtOf(markRefundCompleted(ready, 140, "provider"))).toBe(
+      140,
+    );
   });
 
   test("active evidence revisions start at one", () => {

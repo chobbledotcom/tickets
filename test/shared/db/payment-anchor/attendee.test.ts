@@ -3,12 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryAll, queryOne } from "#shared/db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
+import {
+  type ClaimedAttendeePaymentAnchor,
+  prepareClaimedAttendeePaymentAnchor,
+} from "#shared/db/payment-anchor/attendee.ts";
 import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
 import {
   loadPaymentReference,
   paymentReferenceIndex,
 } from "#shared/db/payment-reference-store.ts";
+import { rowNodeOf } from "#shared/payment/row-machine-spec.ts";
 import { readRowState } from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -44,6 +48,34 @@ const anchorRows = (attendeeId: number): Promise<StoredAnchor[]> =>
       ORDER BY payment_session_id`,
     [attendeeId],
   );
+
+/** Book an attendee, store a claimed anchor for it, and read the held row. */
+const storeHeldAnchor = async (
+  reference: string,
+  returnedAt?: string,
+): Promise<{
+  anchor: ClaimedAttendeePaymentAnchor;
+  attendeeId: number;
+  held: StoredAnchor & { failure_data: EnvKeyEncrypted };
+}> => {
+  const attendeeId = await makeAttendee();
+  const prepared = await prepareClaimedAttendeePaymentAnchor(
+    taggedPaymentReference(reference),
+    returnedAt,
+  );
+  const anchor = await prepared.forAttendee(attendeeId);
+  await execute(anchor.statement.sql, anchor.statement.args);
+
+  const [held] = await anchorRows(attendeeId);
+  if (held === undefined || held.failure_data === "") {
+    throw new Error("claimed anchor was not stored");
+  }
+  return {
+    anchor,
+    attendeeId,
+    held: { ...held, failure_data: held.failure_data },
+  };
+};
 
 describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
   describe("a prepared tagged anchor", () => {
@@ -90,17 +122,8 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
     });
 
     test("stores and retires the canonical claim with its mirror", async () => {
-      const attendeeId = await makeAttendee();
-      const prepared = await prepareClaimedAttendeePaymentAnchor(
-        taggedPaymentReference("pi_claimed_anchor"),
-      );
-      const anchor = await prepared.forAttendee(attendeeId);
-      await execute(anchor.statement.sql, anchor.statement.args);
-
-      const [held] = await anchorRows(attendeeId);
-      if (held === undefined || held.failure_data === "") {
-        throw new Error("claimed anchor was not stored");
-      }
+      const { anchor, attendeeId, held } =
+        await storeHeldAnchor("pi_claimed_anchor");
       expect(held.protected_state).toBe("claim");
       expect(
         readRowState(await decrypt(held.failure_data), "claimed anchor test")
@@ -114,6 +137,37 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       });
 
       await settleAttendeeRows(anchor.settlement);
+      expect(await anchorRows(attendeeId)).toMatchObject([
+        { failure_data: "", protected_state: "" },
+      ]);
+    });
+
+    test("born with returned money, the row holds claim and unrecorded work", async () => {
+      const returnedAt = "2026-08-16T09:00:00.000Z";
+      const { anchor, attendeeId, held } = await storeHeldAnchor(
+        "pi_born_unrecorded",
+        returnedAt,
+      );
+      const state = readRowState(
+        await decrypt(held.failure_data),
+        "born unrecorded test",
+      );
+      expect(rowNodeOf(state)).toBe("claim_unrecorded");
+      expect(state.unrecorded).toEqual({ returnedAt });
+      // The claim outranks the money marker in the one-word mirror.
+      expect(held.protected_state).toBe("claim");
+
+      // Settling with the books recorded clears both pieces of work.
+      await settleAttendeeRows({
+        commandId: anchor.settlement.commandId,
+        heldSince: anchor.settlement.heldSince,
+        rows: new Map([
+          [
+            anchor.sessionId,
+            { books: "recorded", claim: "release", phase: "checking" },
+          ],
+        ]),
+      });
       expect(await anchorRows(attendeeId)).toMatchObject([
         { failure_data: "", protected_state: "" },
       ]);

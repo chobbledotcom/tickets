@@ -65,6 +65,7 @@ describe("Cucumber story catalog", () => {
       "payments.refunding-from-two-windows",
       "payments.repeated-money-actions",
       "payments.resolving-uncertain-refunds",
+      "payments.unreadable-payment-kept",
       "payments.waiting-for-a-refund",
       "payments.what-a-paid-booking-earned",
       "records.backup-and-restore",
