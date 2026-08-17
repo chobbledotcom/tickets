@@ -259,8 +259,8 @@ export const deleteGroup = async (id: InValue) => {
 };
 
 /** Shared CRUD handler config. `renderEdit` is omitted because the edit page
- * needs the group's listings and package prices — those are loaded by the custom
- * {@link handleGroupEditGet} route (the edit POST stays generic). After
+ * needs the group's listings and package prices — the entity page's Edit tab
+ * loads those (`loadGroupEditPanel`), and the edit POST stays generic. After
  * create/edit, staff land on the group detail page; editors can't open it (it
  * decrypts attendee PII), so they return to the group edit form instead — a
  * successful save never bounces them to a forbidden page. */

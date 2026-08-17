@@ -4,7 +4,9 @@ import {
   type CommentIssue,
   type CommentLimits,
   findCommentIssues,
+  findDeadLinks,
   formatIssue,
+  namesMentioned,
   readComments,
 } from "#scripts/check-comments/rules.ts";
 
@@ -35,6 +37,14 @@ describe("readComments", () => {
   test("reports the line a comment opens on, not the file start", () => {
     const found = readComments("const a = 1;\n\n\n// here\n");
     expect(found).toEqual([{ column: 0, line: 4, text: "// here" }]);
+  });
+
+  test("counts a newline the file opens with", () => {
+    // The scan starts at the very first character, so a file beginning with a
+    // blank line still puts its first comment on line 2.
+    expect(readComments("\n// here\n")).toEqual([
+      { column: 0, line: 2, text: "// here" },
+    ]);
   });
 
   test("ignores a comment marker inside a string", () => {
@@ -123,6 +133,12 @@ describe("comment-width rule", () => {
     expect(rules(`        ${comment}\n`)).toEqual(["comment-width"]);
   });
 
+  test("tells the reader to shorten the wording, not rewrap it", () => {
+    expect(onlyIssue(`// ${"a".repeat(38)}\n`).fix).toBe(
+      "Shorten the wording rather than rewrapping it.",
+    );
+  });
+
   test("reports the widest line inside a block, not the first", () => {
     const source = `/**\n * short\n * ${"b".repeat(45)}\n */\n`;
     const issue = onlyIssue(source, { maxColumns: 40, maxLines: 10 });
@@ -161,6 +177,76 @@ describe("findCommentIssues", () => {
     expect(findCommentIssues(source, LIMITS).map((i) => i.line)).toEqual([
       1, 3,
     ]);
+  });
+});
+
+describe("namesMentioned", () => {
+  test("collects the names a file uses", () => {
+    const found = namesMentioned("export const helper = other;\n");
+    expect(found.has("helper")).toBe(true);
+    expect(found.has("other")).toBe(true);
+  });
+
+  test("never counts a name that appears only as a link target", () => {
+    // The whole mechanism rests on this: if a link vouched for its own target,
+    // no dead link could ever be spotted.
+    expect(namesMentioned("/** {@link gone} */\n").has("gone")).toBe(false);
+  });
+
+  test("still counts a name that is linked and also used", () => {
+    const source = "/** {@link helper} */\nexport const helper = 1;\n";
+    expect(namesMentioned(source).has("helper")).toBe(true);
+  });
+
+  test("keeps the names either side of a link", () => {
+    expect(namesMentioned("before{@link gone}after")).toEqual(
+      new Set(["before", "after"]),
+    );
+  });
+});
+
+describe("comment-dead-link rule", () => {
+  const known = new Set(["helper"]);
+  const links = (source: string): CommentIssue[] =>
+    findDeadLinks(source, known);
+
+  test("flags a link to a name nothing defines", () => {
+    const [issue] = links("/** See {@link gone}. */\n");
+    expect(issue?.rule).toBe("comment-dead-link");
+    expect(issue?.problem).toBe("{@link gone} names nothing in the tree");
+    expect(issue?.fix).toBe(
+      "Point it at the name the code uses now, or drop the link.",
+    );
+  });
+
+  test("passes a link to a known name", () => {
+    expect(links("/** See {@link helper}. */\n")).toEqual([]);
+  });
+
+  test("judges a member link on the name before the dot", () => {
+    expect(links("/** {@link helper.total} */\n")).toEqual([]);
+    expect(links("/** {@link gone.total} */\n")).toHaveLength(1);
+  });
+
+  test("reports the link's own line, not the comment's first", () => {
+    const [issue] = links("/**\n * a\n * b\n * {@link gone}\n */\n");
+    expect(issue?.line).toBe(4);
+  });
+
+  test("flags every dead link in one comment", () => {
+    const found = links("/** {@link gone} and {@link missing} */\n");
+    expect(found.map((issue) => issue.problem)).toEqual([
+      "{@link gone} names nothing in the tree",
+      "{@link missing} names nothing in the tree",
+    ]);
+  });
+
+  test("tolerates a newline between the tag and its target", () => {
+    expect(links("/**\n * {@link\n * gone}\n */\n")).toHaveLength(1);
+  });
+
+  test("ignores a comment with no links at all", () => {
+    expect(links("// just prose\n")).toEqual([]);
   });
 });
 

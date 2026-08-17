@@ -5,7 +5,13 @@
 
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { collectFiles } from "#scripts/walk-files.ts";
-import { type CommentLimits, findCommentIssues, formatIssue } from "./rules.ts";
+import {
+  type CommentLimits,
+  findCommentIssues,
+  findDeadLinks,
+  formatIssue,
+  namesMentioned,
+} from "./rules.ts";
 
 /**
  * Today's limits. Both numbers ratchet downward: lower one, bring the tree to
@@ -17,9 +23,10 @@ export const LIMITS: CommentLimits = { maxColumns: 100, maxLines: 20 };
 export const SOURCE_DIR = "src";
 
 /**
- * Paths under the scanned root that no limit applies to, as `deno doc` renders
- * the barrels' `@module` prose as our published API documentation, and the
- * static bundles are build output rather than authored source.
+ * Paths under the scanned root that no length limit applies to, as `deno doc`
+ * renders the barrels' `@module` prose as our published API documentation, and
+ * the static bundles are build output rather than authored source. The dead-link
+ * check still covers them — a broken link in published docs is worse, not better.
  */
 const EXEMPT = ["doc.ts", "docs/", "ui/static/"];
 
@@ -53,22 +60,34 @@ export const runCommentCheck = async (
   limits: CommentLimits,
   output: CheckOutput,
 ): Promise<number> => {
-  const files = await collectFiles(
-    root,
-    (path) => /\.tsx?$/.test(path) && !isExempt(relativeTo(root, path)),
+  const files = await collectFiles(root, (path) => /\.tsx?$/.test(path));
+  const sources = await Promise.all(
+    files.map(async (file) => ({
+      content: await Deno.readTextFile(file),
+      file,
+    })),
   );
+  // Which names exist is a whole-tree fact, so every file — exempt ones included
+  // — is read before any link is judged.
+  const known = new Set<string>();
+  for (const { content } of sources) {
+    for (const name of namesMentioned(content)) known.add(name);
+  }
   const found: string[] = [];
-  for (const file of files) {
-    const content = await Deno.readTextFile(file);
-    for (const issue of findCommentIssues(content, limits)) {
-      found.push(formatIssue(file, issue));
-    }
+  for (const { content, file } of sources) {
+    const issues = [
+      ...(isExempt(relativeTo(root, file))
+        ? []
+        : findCommentIssues(content, limits)),
+      ...findDeadLinks(content, known),
+    ].sort((left, right) => left.line - right.line);
+    for (const issue of issues) found.push(formatIssue(file, issue));
   }
   return reportCheck({
     ...output,
     found,
     guide: '"Comments are short" in AGENTS.md',
     noun: "comment",
-    success: `Every comment in ${root} is at most ${limits.maxLines} lines and ${limits.maxColumns} columns.`,
+    success: `Every comment in ${root} is at most ${limits.maxLines} lines and ${limits.maxColumns} columns, and every {@link} names something that exists.`,
   });
 };

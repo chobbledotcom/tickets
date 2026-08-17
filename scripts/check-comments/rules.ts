@@ -4,7 +4,9 @@
  *
  * This module is pure: source text in, issues out. Both limits exist because
  * neither alone bounds a comment — a one-line comment can still run to 200
- * columns, and eighty short lines still make an essay.
+ * columns, and eighty short lines still make an essay. Alongside them sits the
+ * one correctness check a machine can make here: a `{@link}` naming something
+ * that no longer exists.
  */
 
 import { commentSpans } from "#scripts/typescript-lex.ts";
@@ -119,6 +121,44 @@ const tooWide = (
     rule: "comment-width",
   };
 };
+
+/** A `{@link Target}` reference, capturing the leading name only, so
+ *  `{@link Money.total}` is judged on `Money`. The optional `*` lets a link that
+ *  wrapped onto the next line of a block still be seen, rather than escaping the
+ *  check by being hard to spot. */
+const DOC_LINK_RE = /\{@link\s+(?:\*\s*)?([A-Za-z_][A-Za-z0-9_]*)/g;
+
+const NAME_RE = /[A-Za-z_][A-Za-z0-9_]*/g;
+
+/**
+ * Every name a file mentions outside a doc link. The links are cut out first, so
+ * a name that appears only as a link target never vouches for itself — which is
+ * what lets a link to a deleted function be spotted.
+ */
+export const namesMentioned = (content: string): Set<string> =>
+  new Set(content.replace(DOC_LINK_RE, " ").match(NAME_RE) ?? []);
+
+/**
+ * Doc links pointing at a name that appears nowhere in the scanned tree, which
+ * means a rename or delete left the comment behind. Deliberately permissive: a
+ * name still mentioned anywhere counts, so only a target with no home at all is
+ * reported.
+ */
+export const findDeadLinks = (
+  content: string,
+  known: ReadonlySet<string>,
+): CommentIssue[] =>
+  readComments(content).flatMap((comment) =>
+    [...comment.text.matchAll(DOC_LINK_RE)]
+      .filter((match) => !known.has(match[1]!))
+      .map((match) => ({
+        fix: "Point it at the name the code uses now, or drop the link.",
+        // A link deep in a block reports its own line, as a wide line does.
+        line: comment.line + newlinesBetween(comment.text, 0, match.index),
+        problem: `{@link ${match[1]}} names nothing in the tree`,
+        rule: "comment-dead-link",
+      })),
+  );
 
 /** Every limit one file's comments break, ordered by where they appear. */
 export const findCommentIssues = (

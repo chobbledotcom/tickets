@@ -54,9 +54,9 @@ export type PreparedListingJoins = {
  *   listing id (e.g. a JSON client sending `["7"]`). Both are reported as a 400
  *   with the edges left intact — failing closed, so a typo can never silently
  *   wipe a gated parent's edges down to an empty replacement;
- * - `{ childIds }` — a real array of positive integer ids, ready for
- *   {@link writeChildEdges} (self-edges and unknown ids are still dropped
- *   downstream by {@link validateChildEdges}).
+ * - `{ childIds }` — a real array of positive integer ids, for
+ *   {@link validateChildEdges} to strip self-edges and unknown ids from before
+ *   {@link persistListingJoins} writes what survives.
  */
 type SubmittedChildIds =
   | { skip: true }
