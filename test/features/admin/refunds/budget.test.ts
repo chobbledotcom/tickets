@@ -91,9 +91,9 @@ describe("admin refund subrequest budget", () => {
       total: 8,
     });
     expect(REFUND_LEDGER_SUBREQUEST_RESERVE).toEqual({
-      database: 4,
+      database: 3,
       external: 0,
-      total: 4,
+      total: 3,
     });
   });
 
@@ -112,9 +112,9 @@ describe("admin refund subrequest budget", () => {
           }),
       ),
     ).toEqual([
-      { database: 18, external: 3, total: 21 },
-      { database: 14, external: 1, total: 15 },
-      { database: 12, external: 1, total: 13 },
+      { database: 17, external: 3, total: 20 },
+      { database: 13, external: 1, total: 14 },
+      { database: 11, external: 1, total: 12 },
     ]);
     const prepared = {
       activeAuthorityCount: 1,
@@ -125,9 +125,9 @@ describe("admin refund subrequest budget", () => {
       ],
     };
     expect(refundPreparedSubrequestCost(prepared)).toEqual({
-      database: 12,
+      database: 11,
       external: 2,
-      total: 14,
+      total: 13,
     });
   });
 
@@ -144,7 +144,7 @@ describe("admin refund subrequest budget", () => {
         checkpoint: "before_claim",
         returned: new Set(),
       }),
-    ).toEqual({ database: 23, external: 6, total: 29 });
+    ).toEqual({ database: 22, external: 6, total: 28 });
   });
 
   test("reserves canonical lookup and ledger work for returned money", () => {
@@ -155,7 +155,7 @@ describe("admin refund subrequest budget", () => {
         returnedAuthorityCount: 1,
         sendReferences: [],
       }),
-    ).toEqual({ database: 8, external: 0, total: 8 });
+    ).toEqual({ database: 7, external: 0, total: 7 });
     expect(
       refundPreparedSubrequestCost({
         activeAuthorityCount: 0,
@@ -163,7 +163,7 @@ describe("admin refund subrequest budget", () => {
         returnedAuthorityCount: 2,
         sendReferences: [],
       }),
-    ).toEqual({ database: 9, external: 0, total: 9 });
+    ).toEqual({ database: 8, external: 0, total: 8 });
   });
 
   test("reserves completed-only refresh persistence with no provider reads", () => {
@@ -178,7 +178,7 @@ describe("admin refund subrequest budget", () => {
         checkpoint: "before_claim",
         returned: new Set(),
       }),
-    ).toEqual({ database: 14, external: 0, total: 14 });
+    ).toEqual({ database: 13, external: 0, total: 13 });
     expect(
       refundReadinessSubrequestCost({
         action: "refresh",
@@ -193,7 +193,7 @@ describe("admin refund subrequest budget", () => {
         checkpoint: "before_claim",
         returned: new Set(),
       }),
-    ).toEqual({ database: 15, external: 0, total: 15 });
+    ).toEqual({ database: 14, external: 0, total: 14 });
   });
 
   test("does not reserve returned-money recording twice before a refresh read", () => {
@@ -204,7 +204,7 @@ describe("admin refund subrequest budget", () => {
         checkpoint: "before_provider_read",
         returned: new Set(),
       }),
-    ).toEqual({ database: 11, external: 1, total: 12 });
+    ).toEqual({ database: 10, external: 1, total: 11 });
   });
 
   test("prices no late work when preparation can neither send nor return money", () => {
@@ -226,7 +226,7 @@ describe("admin refund subrequest budget", () => {
         returnedAuthorityCount: 0,
         sendReferences: [{ index: "index_live", provider: "stripe" }],
       }),
-    ).toEqual({ database: 12, external: 2, total: 14 });
+    ).toEqual({ database: 11, external: 2, total: 13 });
   });
 
   test("multiplies logical provider work by every physical attempt", () => {

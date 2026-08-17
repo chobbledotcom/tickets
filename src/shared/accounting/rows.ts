@@ -227,22 +227,30 @@ export type TransferRead = Omit<Read, "columns" | "from">;
 const transferStatement = (query: TransferRead): SqlStatement =>
   readStatement({ ...query, columns: COLUMNS, from: "transfers" });
 
+/** One set of rows for each query, in the order the queries were given, so a
+ *  caller can name them by destructuring rather than counting positions. */
+type TransfersPerQuery<Queries extends readonly TransferRead[]> = {
+  [Index in keyof Queries]: Transfer[];
+};
+
 /** Select several sets of transfers at once, each saying which rows it wants
  * and in what order rather than writing the query. `read` decides where the
  * rows come from — the client, or an open transaction — and answers them all in
  * one round trip. A query that can match no row is answered as empty without
  * being asked, so wanting none of something still costs nothing. */
-export const selectTransfersMany = async (
+export const selectTransfersMany = async <
+  const Queries extends readonly TransferRead[],
+>(
   read: RowReader,
-  queries: readonly TransferRead[],
-): Promise<Transfer[][]> => {
+  queries: Queries,
+): Promise<TransfersPerQuery<Queries>> => {
   const asked = queries
     .map((query, index) => ({ index, query }))
     .filter(({ query }) => !matchesNoRows(query.where ?? []));
-  if (asked.length === 0) return queries.map(() => []);
-  const answers = await read(
-    asked.map(({ query }) => transferStatement(query)),
-  );
+  const answers =
+    asked.length === 0
+      ? []
+      : await read(asked.map(({ query }) => transferStatement(query)));
   const rowsByQuery = new Map(
     asked.map(({ index }, position) => [
       index,
@@ -252,8 +260,11 @@ export const selectTransfersMany = async (
       ).map(rowToTransfer),
     ]),
   );
-  // A query left out of the bundle was one nothing could match.
-  return queries.map((_, index) => rowsByQuery.get(index) ?? []);
+  // Built by mapping the queries, so it is one set per query by construction —
+  // and a query left out of the bundle was one nothing could match.
+  return queries.map(
+    (_, index) => rowsByQuery.get(index) ?? [],
+  ) as TransfersPerQuery<Queries>;
 };
 
 /** Select transfers, saying which rows and in what order rather than writing
@@ -261,11 +272,10 @@ export const selectTransfersMany = async (
 export const selectTransfers = async (
   read: RowReader,
   query: TransferRead = {},
-): Promise<Transfer[]> =>
-  requireValue(
-    (await selectTransfersMany(read, [query]))[0],
-    "The ledger read went unanswered",
-  );
+): Promise<Transfer[]> => {
+  const [rows] = await selectTransfersMany(read, [query]);
+  return rows;
+};
 
 /** Every leg of one business event (booking, refund, …). */
 export const selectByEventGroup = (

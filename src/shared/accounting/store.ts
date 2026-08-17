@@ -170,26 +170,6 @@ const byColumnIn = (
   where: inList(column, values),
 });
 
-/** The three checks a snapshot is built from, named the moment they come back,
- *  so no later code has to know which position meant what. */
-type SnapshotReads = {
-  readonly existing: Transfer[];
-  readonly originals: Transfer[];
-  readonly stored: Transfer[];
-};
-
-const namedSnapshotReads = (rows: readonly Transfer[][]): SnapshotReads => {
-  const [existing, stored, originals] = rows;
-  if (
-    existing === undefined ||
-    stored === undefined ||
-    originals === undefined
-  ) {
-    throw new Error(`Ledger snapshot answered ${rows.length} of 3 reads`);
-  }
-  return { existing, originals, stored };
-};
-
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
  *  selects that travel as one round trip — independent of the number of groups.
  *  `read` picks where the snapshot comes from: the global client for the batch
@@ -204,13 +184,11 @@ const loadBatchSnapshot = async (
   const reversesIds = unique(
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
-  const { existing, stored, originals } = namedSnapshotReads(
-    await selectTransfersMany(read, [
-      byColumnIn("event_group", eventGroups),
-      byColumnIn("reference", references),
-      byColumnIn("id", reversesIds),
-    ]),
-  );
+  const [existing, stored, originals] = await selectTransfersMany(read, [
+    byColumnIn("event_group", eventGroups),
+    byColumnIn("reference", references),
+    byColumnIn("id", reversesIds),
+  ]);
   return {
     existingByGroup: Map.groupBy(existing, (leg) => leg.eventGroup),
     originalsById: mapById(identity<Transfer>)(originals),
