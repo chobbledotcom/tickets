@@ -13,6 +13,7 @@ import {
 } from "#shared/accounting/rows.ts";
 import {
   executeBatch,
+  queryOne,
   type SqlStatement,
   type TxScope,
   withTransaction,
@@ -128,6 +129,17 @@ const storeTwoLegs = (): Promise<void> =>
     insertStatement(leg("ref-b", "evt-b"), STORED_AT),
   ]);
 
+/** The id a reference was stored under, read straight from the table: a test of
+ *  one reader must not lean on another to set itself up. */
+const storedIdFor = async (reference: string): Promise<number> => {
+  const row = await queryOne<{ id: number | bigint }>(
+    "SELECT id FROM transfers WHERE reference = ?",
+    [reference],
+  );
+  if (row === null) throw new Error(`Nothing was stored for ${reference}`);
+  return Number(row.id);
+};
+
 describe("accounting > rows > selectTransfersMany", () => {
   useTransactionalDb();
 
@@ -214,12 +226,12 @@ describe("accounting > rows > readers for one event and one row", () => {
 
   test("selectById reads the transfer stored under that id", async () => {
     await storeTwoLegs();
-    const [wanted] = await selectByEventGroup(fromDb, "evt-b");
-    if (wanted === undefined) throw new Error("The stored leg was not read");
+    const id = await storedIdFor("ref-b");
 
-    const found = await selectById(fromDb, wanted.id);
+    const found = await selectById(fromDb, id);
 
-    expect(found).toEqual(wanted);
+    expect(found?.id).toBe(id);
+    expect(found?.reference).toBe("ref-b");
   });
 
   test("selectById answers null when no transfer has that id", async () => {
