@@ -38,6 +38,13 @@ describe("the whole-run deadline report", () => {
       "before it had a mutant to test",
     );
   });
+
+  test("counts the mutant that was still running when the guard fired", () => {
+    // The boundary against the case above: a mutant was planned and was
+    // mid-flight, so it is the one that hung. Reporting "before it had a
+    // mutant to test" here would hide the very thing the report points at.
+    expect(deadlineReport(50, 0, 1)[0]).toContain("0 of 1 mutants tested");
+  });
 });
 
 describe("how a run ended", () => {

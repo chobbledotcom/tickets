@@ -67,8 +67,6 @@ export interface MutationOptions extends MutationTargets {
   batchJobs?: number;
 }
 
-const BASELINE_TIMEOUT = 120_000;
-
 const parsePositiveInt = (value: string | undefined): number | null => {
   if (!value) return null;
   const parsed = Number(value);
@@ -141,10 +139,11 @@ const establishBaseline = async (
   // for it even when some target feeds that state.
   const baseline = await runTests(
     { batchJobs, env: testEnv(), testFiles },
-    AbortSignal.any([abortSignal, AbortSignal.timeout(BASELINE_TIMEOUT)]),
+    abortSignal,
   );
   // The guard can fire here too, and a run it stopped is a failure to report
-  // rather than an operator changing their mind.
+  // rather than an operator changing their mind. Nothing else can cancel a
+  // baseline, so the message below only ever reports tests that really failed.
   const stopped = unfinishedRunExit(opts, 0, plans);
   if (stopped !== null) return { code: stopped };
   if (baseline.outcome !== "passed") {
@@ -379,7 +378,7 @@ const mutate = async (
   onTerminationSignals(onSignal);
   // The only clock left in the run, and it never judges a mutant: it exists so
   // a mutant that hangs the tests cannot wedge the run forever. When it fires
-  // the whole run fails and reports nothing, rather than scoring anything.
+  // the run fails with no score and no summary, printing only how far it got.
   const deadlineTimer = setTimeout(() => {
     hitDeadline = true;
     aborted = true;
