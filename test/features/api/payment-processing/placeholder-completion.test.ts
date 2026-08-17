@@ -67,6 +67,65 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     return Number(row?.total ?? 0);
   };
 
+  /** Crash the rejected-charge store at the ledger, then read back the
+   * durable facts a resume rebuilds from: the held anchor row, its claim,
+   * and the moment the money came back. */
+  const crashedRejectedStore = async (reference: string, listingId: number) => {
+    const rejection = ourRejection(reference, {
+      items: singleItem(listingId, 1, 500),
+    });
+    await withRefundLedgerFault(() =>
+      expect(
+        withSucceedingRefundFor(CAPTURED)(() =>
+          settleRejectedCharge(rejection),
+        ),
+      ).rejects.toThrow("could not be recorded"),
+    );
+    const referenceIndex = await paymentReferenceIndex(
+      rejectedChargeReference(rejection),
+    );
+    const held = await queryOne<{
+      attendee_id: number;
+      failure_data: EnvKeyEncrypted | "";
+    }>(
+      "SELECT attendee_id, failure_data FROM processed_payments WHERE payment_reference_index = ?",
+      [referenceIndex],
+    );
+    if (held === null || held.failure_data === "") {
+      throw new Error("crashed delivery left no held anchor row");
+    }
+    const state = readRowState(
+      await decrypt(held.failure_data),
+      "crashed rejected store",
+    );
+    if (state.claim === undefined || state.unrecorded === undefined) {
+      throw new Error("held anchor row lost its claim or return time");
+    }
+    return {
+      attendeeId: held.attendee_id,
+      claim: state.claim,
+      referenceIndex,
+      rejection,
+      returnedAt: state.unrecorded.returnedAt,
+    };
+  };
+
+  /** The release settlement the crashed run's own claim would use. */
+  const releaseSettlement = (
+    attendeeId: number,
+    referenceIndex: string,
+    claim: { commandId: string; writtenAt: string },
+  ) => ({
+    commandId: claim.commandId,
+    heldSince: claim.writtenAt,
+    rows: new Map([
+      [
+        anchorSessionId(attendeeId, referenceIndex),
+        { claim: "release" as const, phase: "checking" as const },
+      ],
+    ]),
+  });
+
   it("running the whole completion again changes nothing", async () => {
     const listing = await createTestListing({});
     const rejection = ourRejection("pi_run_again", {
@@ -139,37 +198,8 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
 
   it("a ledger miss settles the row saying the books are behind", async () => {
     const listing = await createTestListing({});
-    const rejection = ourRejection("pi_unrecorded_settle", {
-      items: singleItem(listing.id, 1, 500),
-    });
-    // The store crashes at the ledger, leaving the ghost with its held claim.
-    await withRefundLedgerFault(() =>
-      expect(
-        withSucceedingRefundFor(CAPTURED)(() =>
-          settleRejectedCharge(rejection),
-        ),
-      ).rejects.toThrow("could not be recorded"),
-    );
-    const referenceIndex = await paymentReferenceIndex(
-      rejectedChargeReference(rejection),
-    );
-    const held = await queryOne<{
-      attendee_id: number;
-      failure_data: EnvKeyEncrypted | "";
-    }>(
-      "SELECT attendee_id, failure_data FROM processed_payments WHERE payment_reference_index = ?",
-      [referenceIndex],
-    );
-    if (held === null || held.failure_data === "") {
-      throw new Error("crashed delivery left no held anchor row");
-    }
-    const state = readRowState(
-      await decrypt(held.failure_data),
-      "unrecorded settle test",
-    );
-    if (state.claim === undefined || state.unrecorded === undefined) {
-      throw new Error("held anchor row lost its claim or return time");
-    }
+    const { attendeeId, claim, referenceIndex, rejection, returnedAt } =
+      await crashedRejectedStore("pi_unrecorded_settle", listing.id);
 
     // With the fault still in place, a mark_unrecorded completion must not
     // fail — it lets go of the claim while the row keeps saying the books
@@ -179,23 +209,14 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
         activityMessage:
           "Automatic refund (malformed_charge); rejected payment kept at quantity 0",
         amount: CAPTURED,
-        attendeeId: held.attendee_id,
+        attendeeId,
         dueAuthority: null,
         listingId: listing.id,
-        occurredAt: state.unrecorded!.returnedAt,
+        occurredAt: returnedAt,
         onLedgerMiss: "mark_unrecorded",
         referenceIndexes: [referenceIndex],
         sessionId: rejection.sessionId,
-        settlement: {
-          commandId: state.claim!.commandId,
-          heldSince: state.claim!.writtenAt,
-          rows: new Map([
-            [
-              anchorSessionId(held.attendee_id, referenceIndex),
-              { claim: "release", phase: "checking" },
-            ],
-          ]),
-        },
+        settlement: releaseSettlement(attendeeId, referenceIndex, claim),
         spec: placeholderRefund("malformed_charge")("books behind"),
       }),
     );
@@ -214,44 +235,16 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
 
   it("finishes a crashed delivery's remaining tail exactly once", async () => {
     const listing = await createTestListing({});
-    const rejection = ourRejection("pi_partial_tail", {
-      items: singleItem(listing.id, 1, 500),
-    });
     // The first delivery crashes at the ledger: the ghost and its held claim
     // are stored and the money is back, but no legs, note, or activity exist.
-    await withRefundLedgerFault(() =>
-      expect(
-        withSucceedingRefundFor(CAPTURED)(() =>
-          settleRejectedCharge(rejection),
-        ),
-      ).rejects.toThrow("could not be recorded"),
-    );
+    const { attendeeId, claim, referenceIndex, rejection, returnedAt } =
+      await crashedRejectedStore("pi_partial_tail", listing.id);
     expect(await storedNote()).toBeNull();
     expect(await activityCount()).toBe(0);
 
     // The resume rebuilds its command from durable rows alone: the anchor
     // row still holds the claim and the return time, and the authority row
     // still owes its local recording.
-    const referenceIndex = await paymentReferenceIndex(
-      rejectedChargeReference(rejection),
-    );
-    const held = await queryOne<{
-      attendee_id: number;
-      failure_data: EnvKeyEncrypted | "";
-    }>(
-      "SELECT attendee_id, failure_data FROM processed_payments WHERE payment_reference_index = ?",
-      [referenceIndex],
-    );
-    if (held === null || held.failure_data === "") {
-      throw new Error("crashed delivery left no held anchor row");
-    }
-    const state = readRowState(
-      await decrypt(held.failure_data),
-      "partial-tail resume test",
-    );
-    if (state.claim === undefined || state.unrecorded === undefined) {
-      throw new Error("held anchor row lost its claim or return time");
-    }
     const authority = await loadRefundAuthorityByReference(referenceIndex);
     expect(authority?.state.local.kind).toBe("due");
 
@@ -261,23 +254,14 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     await completePlaceholderMoney({
       activityMessage: `Automatic refund (${spec.code}); rejected payment kept at quantity 0`,
       amount: CAPTURED,
-      attendeeId: held.attendee_id,
+      attendeeId,
       dueAuthority: authority!,
       listingId: listing.id,
-      occurredAt: state.unrecorded.returnedAt,
+      occurredAt: returnedAt,
       onLedgerMiss: "throw",
       referenceIndexes: [referenceIndex],
       sessionId: rejection.sessionId,
-      settlement: {
-        commandId: state.claim.commandId,
-        heldSince: state.claim.writtenAt,
-        rows: new Map([
-          [
-            anchorSessionId(held.attendee_id, referenceIndex),
-            { claim: "release", phase: "checking" },
-          ],
-        ]),
-      },
+      settlement: releaseSettlement(attendeeId, referenceIndex, claim),
       spec,
     });
 

@@ -25,6 +25,20 @@ describe("db > client write-lock retry", () => {
 
   afterEach(() => setDb(null));
 
+  /** Walk one backoff wait: the attempt count holds until the wait's final
+   * millisecond, when exactly the next attempt fires. */
+  const expectNextAttemptAfter = async (
+    time: FakeTime,
+    waitMs: number,
+    countAttempts: () => number,
+  ): Promise<void> => {
+    const before = countAttempts();
+    await time.tickAsync(waitMs - 1);
+    expect(countAttempts()).toBe(before);
+    await time.tickAsync(1);
+    expect(countAttempts()).toBe(before + 1);
+  };
+
   test("DatabaseBusyError carries its name and friendly message", () => {
     const error = new DatabaseBusyError();
     expect(error.name).toBe("DatabaseBusyError");
@@ -51,8 +65,16 @@ describe("db > client write-lock retry", () => {
     expect(attempts).toBe(2);
   });
 
-  test("a remote database waits 50/150/350ms, then gives up as DatabaseBusyError", async () => {
-    using env = withEnv({ DB_URL: "libsql://busy-ladder.example.turso.io" });
+  /** Run one database shape's give-up scenario: every attempt stays busy,
+   * each of the ladder's waits passes in full before the next attempt, and
+   * the write dies as DatabaseBusyError after one initial attempt plus one
+   * per backoff entry. The rejection expectation is attached up front so the
+   * eventual failure is handled while the fake clock ticks. */
+  const expectGivesUpAfter = async (
+    dbUrl: string,
+    waits: readonly number[],
+  ): Promise<void> => {
+    using env = withEnv({ DB_URL: dbUrl });
     using time = new FakeTime();
     let attempts = 0;
     setDb(
@@ -61,29 +83,24 @@ describe("db > client write-lock retry", () => {
         return Promise.reject(busyError());
       }),
     );
-    // Attach the rejection expectation up front so the eventual failure is
-    // handled while the fake clock ticks (an unhandled rejection would blow
-    // up the test run before the final await).
     const outcome = expect(
       execute("INSERT INTO t (x) VALUES (1)"),
     ).rejects.toThrow(DatabaseBusyError);
     await time.tickAsync(0);
     expect(attempts).toBe(1);
-    await time.tickAsync(49);
-    expect(attempts).toBe(1); // first retry waits the full 50ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(2);
-    await time.tickAsync(149);
-    expect(attempts).toBe(2); // second retry waits the full 150ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(3);
-    await time.tickAsync(349);
-    expect(attempts).toBe(3); // third retry waits the full 350ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(4); // one initial attempt + one per backoff entry
+    for (const wait of waits) {
+      await expectNextAttemptAfter(time, wait, () => attempts);
+    }
+    expect(attempts).toBe(waits.length + 1);
     await outcome;
     void env;
-  });
+  };
+
+  test("a remote database waits 50/150/350ms, then gives up as DatabaseBusyError", () =>
+    expectGivesUpAfter(
+      "libsql://busy-ladder.example.turso.io",
+      [50, 150, 350],
+    ));
 
   test("a file database outwaits a lock the remote ladder would give up on", async () => {
     using env = withEnv({ DB_URL: "file:/tmp/busy-ladder.db" });
@@ -112,32 +129,9 @@ describe("db > client write-lock retry", () => {
     void env;
   });
 
-  test("a file database waits 700/1400/2800ms after the short ladder, then gives up", async () => {
-    using env = withEnv({ DB_URL: "file:/tmp/busy-ladder.db" });
-    using time = new FakeTime();
-    let attempts = 0;
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return Promise.reject(busyError());
-      }),
-    );
-    const outcome = expect(
-      execute("INSERT INTO t (x) VALUES (1)"),
-    ).rejects.toThrow(DatabaseBusyError);
-    await time.tickAsync(50);
-    await time.tickAsync(150);
-    await time.tickAsync(350);
-    expect(attempts).toBe(4); // the whole remote ladder has run
-    await time.tickAsync(699);
-    expect(attempts).toBe(4); // fourth retry waits the full 700ms
-    await time.tickAsync(1);
-    expect(attempts).toBe(5);
-    await time.tickAsync(1400);
-    expect(attempts).toBe(6);
-    await time.tickAsync(2800);
-    expect(attempts).toBe(7); // one initial attempt + one per backoff entry
-    await outcome;
-    void env;
-  });
+  test("a file database waits 700/1400/2800ms after the short ladder, then gives up", () =>
+    expectGivesUpAfter(
+      "file:/tmp/busy-ladder.db",
+      [50, 150, 350, 700, 1400, 2800],
+    ));
 });

@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
-import * as v from "valibot";
 import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
   type PaymentRowState,
-  RefundClaimSchema,
   readRowState,
   sessionAnswerOf,
   writeRowState,
@@ -81,21 +79,17 @@ describe("readRowState", () => {
     );
   });
 
-  test("names the sorted-ids rule when a claim's ids are out of order", () => {
-    // The stored-JSON wrapper deliberately hides issue text (a stored value
-    // could carry private data), so the declared message is pinned on the
-    // schema itself — it is what a developer sees in the issue list.
-    const result = v.safeParse(RefundClaimSchema, {
-      attendeeIds: [9, 7],
-      commandId: "unsorted-command",
-      phase: "checking",
-      scope: "attendee_set",
-      writtenAt: "2026-08-10T12:00:00.000Z",
-    });
-    expect(result.success).toBe(false);
-    expect(result.issues?.[0]?.message).toBe(
-      "Refund claim attendee ids must be sorted and unique",
-    );
+  test("refuses a claim naming attendee id zero", () => {
+    const zero: PaymentRowState = {
+      claim: {
+        attendeeIds: [0],
+        commandId: "zero-command",
+        phase: "checking",
+        scope: "attendee_set",
+        writtenAt: "2026-08-10T12:00:00.000Z",
+      },
+    };
+    expect(() => writeRowState(zero, CONTEXT)).toThrow(CONTEXT);
   });
 
   test("refuses a record whose claim names an unknown scope", () => {

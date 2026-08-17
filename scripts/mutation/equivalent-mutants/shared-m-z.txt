@@ -256,3 +256,8 @@ src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppe
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
 
 src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
+# row-state.ts: the sorted-ids check's message. Both stored-JSON surfaces
+# discard valibot issue text on purpose (a stored value could carry private
+# data), so no caller, page, or log can ever see this string — no input
+# distinguishes it from "".
+src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → ""   # issue text is discarded by the stored-JSON wrapper; unobservable through any surface
