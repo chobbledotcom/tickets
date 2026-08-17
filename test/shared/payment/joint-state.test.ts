@@ -10,6 +10,7 @@ import {
   jointRowFactOf,
 } from "#shared/payment/joint-state.ts";
 import { openPaymentReview } from "#shared/payment/review.ts";
+import { ROW_NODES } from "#shared/payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
 const HELD: PaymentRowState = {
@@ -24,20 +25,22 @@ const HELD: PaymentRowState = {
 
 const SETTLED: PaymentRowState = { outcome: { error: "kept" } };
 
+const review = openPaymentReview({ kind: "shared_reference" });
+
+// Derived from the production node list, so a row machine that grows a node
+// grows these checks with it.
 const ROW_FACTS: readonly JointRowFact[] = [
   "free_reserved",
   "free_finalized",
-  "claim",
-  "review",
-  "unrecorded",
-  "claim_review",
-  "claim_unrecorded",
-  "review_unrecorded",
-  "claim_review_unrecorded",
-  "settled",
+  ...ROW_NODES.flatMap((node) => (node.id === "free" ? [] : [node.id])),
 ];
 
-const AUTHORITY_FACTS: readonly AuthorityFact[] = [
+// The authority machine's own stored names plus the one fact it does not
+// name — a reference with no charge. `satisfies` pins every member to the
+// production vocabulary, so a renamed or removed authority state stops
+// compiling here; a brand-new one is caught by authorityFactOf's throw the
+// moment a witness meets it.
+const AUTHORITY_FACTS = [
   "absent",
   "ready",
   "send_armed",
@@ -45,33 +48,40 @@ const AUTHORITY_FACTS: readonly AuthorityFact[] = [
   "completed",
   "needs_owner_choice",
   "needs_provider_check",
-];
+] as const satisfies readonly AuthorityFact[];
 
 describe("payment joint state", () => {
-  test("every declared entry names known facts, once each", () => {
-    const seen = new Set<string>();
+  test("every declared entry names known facts with a real reason", () => {
     for (const entry of ILLEGAL_JOINT_STATES) {
       expect(AUTHORITY_FACTS).toContain(entry.authority);
       expect(entry.reason.length).toBeGreaterThan(0);
-      for (const row of entry.rows) {
-        expect(ROW_FACTS).toContain(row);
-        const key = `${row}×${entry.authority}`;
-        expect(seen.has(key), key).toBe(false);
-        seen.add(key);
-      }
+      for (const row of entry.rows) expect(ROW_FACTS).toContain(row);
     }
   });
 
-  test("splits a free row by phase and maps stored states to their node", () => {
+  test("no combination is declared twice", () => {
+    const combinations = ILLEGAL_JOINT_STATES.flatMap((entry) =>
+      entry.rows.map((row) => `${row}×${entry.authority}`),
+    );
+    expect(new Set(combinations).size).toBe(combinations.length);
+  });
+
+  test("splits a free row by phase", () => {
     expect(jointRowFactOf({}, false)).toBe("free_reserved");
     expect(jointRowFactOf({}, true)).toBe("free_finalized");
+  });
+
+  test("names a stored row by its live work", () => {
     expect(jointRowFactOf(HELD, false)).toBe("claim");
     expect(jointRowFactOf(SETTLED, true)).toBe("settled");
+    expect(jointRowFactOf({ ...HELD, review }, false)).toBe("claim_review");
+  });
+
+  test("a pending outcome rides beside live work without changing the fact", () => {
     // A stored row keeps its pending outcome beside its live work through
     // the whole crash window — the live work names the fact, whichever kind
     // it is, and the outcome rides along.
     expect(jointRowFactOf({ ...HELD, ...SETTLED }, false)).toBe("claim");
-    const review = openPaymentReview({ kind: "shared_reference" });
     expect(jointRowFactOf({ review, ...SETTLED }, false)).toBe("review");
     expect(
       jointRowFactOf(
@@ -79,7 +89,6 @@ describe("payment joint state", () => {
         false,
       ),
     ).toBe("unrecorded");
-    expect(jointRowFactOf({ ...HELD, review }, false)).toBe("claim_review");
   });
 
   test("an armed send is illegal on every row without a held claim", () => {
@@ -108,10 +117,13 @@ describe("payment joint state", () => {
     }
   });
 
-  test("maps stored authority names, and refuses one it has never heard of", () => {
+  test("maps stored authority names", () => {
     expect(authorityFactOf(null)).toBe("absent");
     expect(authorityFactOf("completed")).toBe("completed");
     expect(authorityFactOf("send_armed")).toBe("send_armed");
+  });
+
+  test("refuses an authority name it has never heard of", () => {
     expect(() => authorityFactOf("half_done")).toThrow(
       "Unknown refund authority state name: half_done",
     );
@@ -123,9 +135,12 @@ describe("payment joint state", () => {
     ).toThrow(
       /resume: row settled cannot carry a send_armed charge — A provider send/,
     );
+  });
+
+  test("legal combinations pass the assertion", () => {
     assertJointStateLegal(
       "claim",
-      AUTHORITY_FACTS.filter((f) => f !== "absent"),
+      AUTHORITY_FACTS.filter((fact) => fact !== "absent"),
       "dispatch",
     );
     assertJointStateLegal("free_finalized", [], "empty");

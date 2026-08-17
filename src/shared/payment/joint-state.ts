@@ -17,23 +17,17 @@
  * (reserved in flight, finalized booked).
  */
 
+import type { RefundAuthorityStateName } from "#shared/payment/refund-authority-state.ts";
 import { type ROW_NODES, rowNodeOf } from "#shared/payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
 
-/** One charge's refund authority as this seam sees it: the stored state
- * name (whether its local recording is done is a separate column and a
- * separate concern), or "absent" when the row's references have no charge
- * at all. */
-export type AuthorityFact =
-  | "absent"
-  | "ready"
-  | "send_armed"
-  | "observing"
-  | "completed"
-  | "needs_owner_choice"
-  | "needs_provider_check";
+/** One charge's refund authority as this seam sees it: the authority
+ * machine's own stored state name (whether its local recording is done is a
+ * separate column and a separate concern), or "absent" when the row's
+ * references have no charge at all. */
+export type AuthorityFact = "absent" | RefundAuthorityStateName;
 
-const AUTHORITY_NAMES: readonly AuthorityFact[] = [
+const AUTHORITY_NAMES: readonly RefundAuthorityStateName[] = [
   "ready",
   "send_armed",
   "observing",
