@@ -18,6 +18,8 @@ import {
   queryOne,
 } from "#shared/db/client.ts";
 import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
+import type { UserAuthFields } from "#shared/db/users.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 import type { Session } from "#shared/types.ts";
 
@@ -94,7 +96,19 @@ export const createSession = async (
 };
 
 /** The sessions columns selected by the by-token and list reads. */
-const SESSION_COLUMNS = "token, csrf_token, expires, wrapped_data_key, user_id";
+const SESSION_COLUMN_NAMES = [
+  "token",
+  "csrf_token",
+  "expires",
+  "wrapped_data_key",
+  "user_id",
+] as const;
+
+const SESSION_COLUMNS = SESSION_COLUMN_NAMES.join(", ");
+
+/** The same columns read through a join, where the table carries an alias. */
+const sessionColumnsOn = (alias: string): string =>
+  SESSION_COLUMN_NAMES.map((column) => `${alias}.${column}`).join(", ");
 
 /**
  * Get a session by token (with 10s TTL cache)
@@ -116,6 +130,66 @@ export const getSession = async (token: string): Promise<Session | null> => {
   );
   cacheSession(tokenHash, session);
   return session;
+};
+
+/** A session and the user it belongs to. `user` is null when the session
+ * outlived its user, which the caller reports and clears — never mistake it for
+ * a token nobody ever had. */
+export type SessionWithUser = {
+  readonly session: Session;
+  readonly user: UserAuthFields | null;
+};
+
+/** The joined row: session columns, plus the user's if one still exists. */
+type SessionUserRow = Session & {
+  user_row_id: number | null;
+  admin_level: UserAuthFields["admin_level"] | null;
+};
+
+const joinedUser = (row: SessionUserRow): UserAuthFields | null =>
+  row.user_row_id === null
+    ? null
+    : {
+        admin_level: requireValue(
+          row.admin_level,
+          `Session user ${row.user_row_id} has no admin level`,
+        ),
+        id: row.user_row_id,
+      };
+
+/**
+ * Read a session and the user it belongs to together.
+ *
+ * Authenticating needs both, and the user id is only known once the session has
+ * been read, so as two reads they can never overlap — on a cold edge server
+ * that is two waits before the page can start. A session whose user has since
+ * been deleted still comes back, so the caller can tell that apart from an
+ * unknown token and clear the stale row.
+ *
+ * The user's admin level decides what the viewer may do, so it is read afresh
+ * every time and never served from the session cache.
+ */
+export const getSessionWithUser = async (
+  token: string,
+): Promise<SessionWithUser | null> => {
+  const tokenHash = await hashSessionToken(token);
+  const row = await primaryRefill.fetch(() =>
+    queryOne<SessionUserRow>(
+      `SELECT ${sessionColumnsOn("session")},
+              adminUser.id AS user_row_id, adminUser.admin_level
+         FROM sessions AS session
+         LEFT JOIN users AS adminUser ON adminUser.id = session.user_id
+        WHERE session.token = ?`,
+      [tokenHash],
+    ),
+  );
+  if (row === null) {
+    cacheSession(tokenHash, null);
+    return null;
+  }
+  const { admin_level: _level, user_row_id: _userRowId, ...session } = row;
+  cacheSession(tokenHash, session);
+  return { session, user: joinedUser(row) };
 };
 
 /**
