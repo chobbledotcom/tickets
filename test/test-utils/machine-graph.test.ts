@@ -19,28 +19,40 @@ const graph = machineGraph({
 });
 
 describe("machine graph walks", () => {
-  test("finds nodes and events by id", () => {
+  test("finds a node by id", () => {
     expect(graph.nodeById("b")).toEqual({ id: "b" });
+  });
+
+  test("finds an event by id", () => {
     expect(graph.eventById("reset")).toEqual({ actor: "owner", id: "reset" });
   });
 
-  test("refuses an id the machine does not declare", () => {
+  test("refuses a node id the machine does not declare", () => {
     expect(() => graph.nodeById("z" as "a")).toThrow("Unknown toy node z");
+  });
+
+  test("refuses an event id the machine does not declare", () => {
     expect(() => graph.eventById("skip" as "reset")).toThrow(
       "Unknown toy event skip",
     );
   });
 
-  test("lists one-step successors, honouring the event filter", () => {
+  test("lists one-step successors", () => {
     expect(graph.successors("b")).toEqual(["c"]);
     expect(graph.successors("c")).toEqual(["a"]);
+  });
+
+  test("drops moves whose event the filter rejects", () => {
     expect(graph.successors("c", (event) => event.actor === "system")).toEqual(
       [],
     );
   });
 
-  test("collects everything reachable, honouring the event filter", () => {
+  test("collects everything reachable", () => {
     expect([...graph.reachableFrom("a")].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  test("walks only the moves the filter keeps", () => {
     expect([
       ...graph.reachableFrom("c", (event) => event.actor === "system"),
     ]).toEqual(["c"]);
