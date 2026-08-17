@@ -1,44 +1,5 @@
 # TODO — remaining follow-ups
 
-## Find the stuck write-lock holder behind the rare grouped busy-page flake (from PR #2079)
-
-_Origin: the sumup webhook suite failing once on CI
-(`does not repeat a
-keyless refund after crashing before its provider call`,
-delivery three answering the Database Busy page instead of 200) and
-intermittently in grouped local runs under heavy CPU oversubscription._
-
-What is established, with the diagnostics that proved it:
-
-- The failing answer is always `DatabaseBusyError` → the busy page:
-  `handleRoutingError` converts it before the test-mode rethrow, so a delivery
-  pinned to 503 absorbs it silently and only a 200-pinned delivery exposes it.
-  The SumUp suite's settled-delivery asserts now include the body, so any
-  recurrence names itself.
-- Under CPU starvation an ordinary `withTransaction` commit was measured holding
-  the MEMORY-journal write lock for 268–943ms — longer than the old 50/150/350ms
-  retry ladder waits in total. `file:` databases now retry through three extra
-  waits (700/1400/2800ms, `src/shared/db/client.ts`), which covers that
-  starved-holder class with an order of magnitude to spare.
-- One local failure then still occurred with the extended ladder: the victim
-  write stayed locked out for over 5 seconds of yielded waiting, so that run's
-  holder was not merely starved — it never released, which points at an
-  abandoned open transaction (only GC frees its leaked connection) or an
-  equivalent never-settling holder.
-- A fully instrumented green run (every `client.transaction` begin traced, any
-  transaction open longer than 3s reported with its begin-site stack) recorded
-  zero long holds, so the stuck holder exists only on failing runs. Failures
-  were only ever reproduced with more test workers than cores (`DENO_JOBS=8` on
-  4 cores); tests pass alone and in exact-CI group composition run sequentially.
-
-Starting points for the hunt: re-apply the begin-site/stuck-timer
-instrumentation to `test/test-utils/db-client.ts` (see PR #2079's session
-notes), loop `deno task test` oversubscribed until a sumup failure lands, and
-read the stuck transaction's stack; suspect any path whose `withTransaction`
-work can await a promise that a rejected `Promise.all` sibling orphaned, since
-the write queue would then hold the lock forever while plain writes burn their
-ladder and fail.
-
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
 when the public site is off). It builds the menu with `publicNavProps(null)`
 (`renderCtx` in `src/features/public/ticket-submit.ts`), which takes
