@@ -17,7 +17,7 @@ import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
-import { deleteSession, getSession } from "#shared/db/sessions.ts";
+import { deleteSession, getSessionWithUser } from "#shared/db/sessions.ts";
 import {
   decryptAdminLevel,
   getUserAuthFieldsById,
@@ -55,18 +55,20 @@ export type AuthSession = {
   settingsNagItems?: readonly NagItem[];
 };
 
-/** Load the user's auth fields for a session or API key. When the id points at
- * no user, log an invalid-session error and give back null so the caller can
- * clear its own state and bail. */
-const loadAuthUserFields = async (
-  userId: number,
-  missingDetail: string,
-): Promise<UserAuthFields | null> => {
-  const user = await getUserAuthFieldsById(userId);
-  if (user) return user;
+/** Report a session or API key whose user has since been deleted. Always gives
+ * back null so a caller can `return reportMissingAuthUser(...)`. */
+const reportMissingAuthUser = (missingDetail: string): null => {
   logError({ code: ErrorCode.AUTH_INVALID_SESSION, detail: missingDetail });
   return null;
 };
+
+/** Load the user's auth fields for an API key. When the id points at no user,
+ * log an invalid-session error and give back null so the caller can bail. */
+const loadAuthUserFields = async (
+  userId: number,
+  missingDetail: string,
+): Promise<UserAuthFields | null> =>
+  (await getUserAuthFieldsById(userId)) ?? reportMissingAuthUser(missingDetail);
 
 /** Drop the cached session (and, when the caller has a token, the stored
  *  session row) — the one "this session is no longer valid" step every bail-out
@@ -96,17 +98,16 @@ export const getAuthenticatedSession = async (
   const token = cookies.get(getSessionCookieName());
   if (!token) return invalidateSession();
 
-  const session = await getSession(token);
-  if (!session) return invalidateSession();
+  const found = await getSessionWithUser(token);
+  if (!found) return invalidateSession();
+  const { session, user } = found;
 
   if (session.expires < nowMs()) return invalidateSession(token);
 
-  // Load user and decrypt admin level
-  const user = await loadAuthUserFields(
-    session.user_id,
-    "Session references non-existent user, invalidating",
-  );
-  if (!user) return invalidateSession(token);
+  if (!user) {
+    reportMissingAuthUser("Session references non-existent user, invalidating");
+    return invalidateSession(token);
+  }
 
   const adminLevel = await decryptAdminLevel(user);
   await signCsrfToken();
