@@ -24,6 +24,7 @@ import {
   type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
+import { paymentRowStateValues } from "#shared/db/payment-claim.ts";
 import {
   storePaymentReference,
   unclaimedPaymentReference,
@@ -131,16 +132,26 @@ export const reserveSession = async (
 ): Promise<ReserveSessionResult> => {
   const claimedAt = nowIso();
   const staleBefore = isoBefore(STALE_RESERVATION_MS);
+  // The blank pair comes from the row-state builder, so a reclaimed row is
+  // reset to exactly the state every other writer calls empty.
+  const blank = await paymentRowStateValues(EMPTY_ROW_STATE);
   const [claimResult, lookupResult] = await executeBatchWithResults([
     {
-      args: [sessionId, claimedAt, staleBefore],
+      args: [
+        sessionId,
+        claimedAt,
+        blank.failureData,
+        blank.protectedState,
+        staleBefore,
+      ],
       sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
             VALUES (?, NULL, ?)
             ON CONFLICT(payment_session_id) DO UPDATE SET
               attendee_id = NULL,
               processed_at = excluded.processed_at,
               ticket_tokens = '',
-              failure_data = '',
+              failure_data = ?,
+              protected_state = ?,
               payment_reference = '',
               payment_reference_index = ''
             WHERE ${UNRESOLVED_RESERVATION}
