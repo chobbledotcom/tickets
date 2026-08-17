@@ -2095,9 +2095,7 @@ words — then the story steps and the direct pins in
 `test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
 instead of pinning copied wording. Out of scope for the migration, which does
 not touch `src/`.
-## Cap the whole run's provider calls, not just how many run at once
-## The whole run's provider calls have no ceiling, only its concurrency
-## ~~The whole run's provider calls have no ceiling~~ — done in M4 Part A
+
 ## Make Refund All a durable, resumable intention
 
 M4 Part A made one interactive request safe and bounded. `getRefundAllSummary`
