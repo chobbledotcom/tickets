@@ -1030,68 +1030,6 @@ they were left out of that PR's scope.
   endpoint — a paid response for the priced package bundle, or document both
   free and paid shapes — so the sample response matches the sample request.
 
-## Placeholder refund — replay marker gap when the atomic ledger batch fails
-
-_Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger)._
-
-`recordPlaceholderRefund` (`src/shared/refund-ledger/placeholder.ts`) posts the
-payment and completed-refund legs as one atomic `postTransferGroups` batch, so a
-refund-leg conflict rolls the payment back too (the PR's core requirement). When
-that batch fails outright, NO ledger legs land for the booking event group. The
-payment flow's durable replay guard is the ledger preflight
-(`replaySessionFromLedger` reads `snapshot.ledger`, produced by
-`classifyBookingLedger`: `unrecorded` when no legs exist), and the primary guard
-(`markSessionFailed`'s `failure_data` row) is pruned by `paymentStatement`
-inside `runDatabasePruning` once it ages past retention. So after pruning, a
-late webhook/redirect for the same already-refunded session re-enters
-`processReservedSession`, sees `unrecorded`, and re-creates a placeholder
-attendee before asking the canonical refund authority about the same callback.
-The globally unique charge and callback identities prevent a second provider
-send, but they do not prevent the duplicate quantity-zero attendee: checkout
-completion still lacks a durable handled marker of its own.
-
-M4 Part A now prepares the provider-tagged reference before refund I/O.
-`prepareClaimedAttendeePaymentAnchor` uses the one `checkingClaimFor`
-constructor to put an owner-public-key-encrypted, blind-indexed synthetic
-`legacy:` anchor and its canonical `PaymentRowState` claim in the same
-`createAttendeeAtomic` transaction as the quantity-zero attendee and booking
-rows. It releases that exact claim only after the provider result, ledger post,
-canonical-authority update, activity, and note have finished; a throw leaves the
-attendee fenced instead of exposing a destructive-cleanup gap. An anchor or
-claim failure rolls the whole placeholder back.
-
-The validated callback also creates or binds its canonical `payment_charges`
-authority before a fresh provider read. Missing or invalid evidence moves a
-ready authority immediately to the required
-`needs_owner_choice/provider_unreadable` exit; persistent unavailability gets
-one five-minute grace and then the same exit, with zero refund sends. Those rows
-prove identity and refund work only. They do not finalize the original checkout
-reservation, prove checkout success, or tell `replaySessionFromLedger` that the
-real session was handled. On the ordinary return path, `processPaymentSession`
-still writes the original reservation's terminal failure. A process death after
-placeholder/refund work but before that write, and the later pruning case
-described here, therefore remain open.
-
-This is NOT fully new: on main before PR #1822 the same gap existed for a
-payment-post failure (the first `postTransfers` threw → no legs). PR #1822
-widens the failure surface from "payment-post failure only" to "payment-post OR
-refund-post failure" (because both are now one atomic batch). Closing it
-properly needs a durable handled marker that survives idempotency-row pruning
-without breaking the atomic rollback — e.g. a ledger leg that survives even when
-the refund leg conflicts (which would violate #1822's acceptance criterion: "a
-refund-reference collision proves neither transfer group is committed"), or a
-separate replay-state row outside the prunable `processed_payments` table. The
-atomic aggregate cutover's M7 work extends the same canonical refund lifecycle
-with the original checkout's durable handled marker; M8 supplies terminal
-completion where appropriate. Starting point: the preflight in
-`src/features/api/payment-processing/index.ts` (`replaySessionFromLedger`), the
-pruner in `src/shared/db/prune.ts` (`paymentStatement` and
-`runDatabasePruning`), the placeholder vocabulary in
-`src/shared/payment/placeholder-refund.ts`, the canonical authority in
-`src/shared/provider-refunds.ts`, and the classification in
-`src/shared/session-ledger.ts`. Extend the existing callback identity; do not
-create a second refund or replay state machine.
-
 ## Bunny subrequest budget follow-ups
 
 _Origin: request-fan-out audit for PR #1820._
