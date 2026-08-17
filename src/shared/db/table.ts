@@ -566,6 +566,7 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
 }): {
   getAll: () => Promise<Cached[]>;
   invalidate: () => void;
+  prime: (rows: Cached[]) => void;
   table: Table<Row, Input>;
 } => {
   const cache = requestCache(config.fetchAll);
@@ -578,6 +579,7 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   return {
     getAll: () => cache.getAll(),
     invalidate: () => cache.invalidate(),
+    prime: (rows) => cache.prime(rows),
     table: config.table,
   };
 };

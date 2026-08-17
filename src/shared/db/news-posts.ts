@@ -21,6 +21,7 @@ import {
   insertedRowId,
   queryAll,
   resultRows,
+  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#shared/db/client.ts";
@@ -32,6 +33,7 @@ import {
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
+import type { FillableRead } from "#shared/db/fill-together.ts";
 import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
@@ -117,10 +119,20 @@ export const newsSlugBase = (created: string, name: string): string =>
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.
+const existenceStatement: SqlStatement = {
+  args: [],
+  sql: "SELECT id FROM news_posts LIMIT 1",
+};
 const existenceCache = requestCache(() =>
-  queryAll<{ id: number }>("SELECT id FROM news_posts LIMIT 1"),
+  queryAll<{ id: number }>(existenceStatement.sql),
 );
 registerTableInvalidation(["news_posts"], existenceCache.invalidate);
+
+/** The existence probe as a read the nav can batch with its other small ones. */
+export const newsExistenceRead: FillableRead = {
+  fill: (result) => existenceCache.prime(resultRows<{ id: number }>(result)),
+  statement: existenceStatement,
+};
 
 /** Does at least one news post exist? (Drives the public News nav link.) */
 export const hasNewsPosts = async (): Promise<boolean> =>

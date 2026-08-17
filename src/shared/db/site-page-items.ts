@@ -19,6 +19,7 @@ import {
   type TxScope,
   useTransaction,
 } from "#shared/db/client.ts";
+import type { FillableRead } from "#shared/db/fill-together.ts";
 import {
   clearImageUsesForItemStatement,
   imageUseTargets,
@@ -68,10 +69,13 @@ export const sitePageItemOrder = defineOrderedCollection({
   table: "site_page_items",
 });
 
+const allItemsStatement: SqlStatement = {
+  args: [],
+  sql: `SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`,
+};
+
 const fetchAllItems = (): Promise<SitePageItem[]> =>
-  queryAll<SitePageItem>(
-    `SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`,
-  );
+  queryAll<SitePageItem>(allItemsStatement.sql);
 
 // Request-scoped: one query per request feeds the whole nav forest, fresh next
 // request, and cleared on any write to site_page_items.
@@ -81,6 +85,12 @@ registerTableInvalidation(["site_page_items"], itemsCache.invalidate);
 /** Every edge, ordered — the single read the public nav's forest is built from. */
 export const getAllPageItems = (): Promise<SitePageItem[]> =>
   itemsCache.getAll();
+
+/** The same read, as one the nav can batch with its other small ones. */
+export const allPageItemsRead: FillableRead = {
+  fill: (result) => itemsCache.prime(resultRows<SitePageItem>(result)),
+  statement: allItemsStatement,
+};
 
 /** Invalidate the edge cache (writes do this automatically). */
 export const invalidatePageItemsCache = (): void => itemsCache.invalidate();

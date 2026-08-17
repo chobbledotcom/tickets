@@ -13,7 +13,9 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
+  resultRows,
   type SqlStatement,
   type TxScope,
   useTransaction,
@@ -21,6 +23,7 @@ import {
 import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import type { FillableRead } from "#shared/db/fill-together.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import {
   unclaimedSiteSlugCondition,
@@ -58,8 +61,10 @@ const sitePageNavColumns = rawSitePagesTable.read.pick([
 /** Load the nav columns: only id/slug/name/sort_order, decrypting just slug
  * and name (never content/meta). Ordered by (sort_order, id). The raw row
  * carries name and slug still sealed; the map below opens them. */
+const NAV_ROW_ORDER = { order: "sort_order ASC, id ASC" } as const;
+
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavColumns.many({}, { order: "sort_order ASC, id ASC" });
+  sitePageNavColumns.many({}, NAV_ROW_ORDER);
 
 // Request-scoped cache over those columns: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write
@@ -69,6 +74,21 @@ export const sitePages = cachedTable({
   name: "site_pages_nav",
   table: rawSitePagesTable,
 });
+
+/** The nav rows as a read the nav can batch with its other small ones. The
+ * batch hands back stored rows, so slug and name are still sealed until the
+ * same column readers open them. */
+export const sitePagesNavRead: FillableRead = {
+  fill: async (result) =>
+    sitePages.prime(
+      await sitePageNavColumns.readAll(
+        resultRows<StoredRowOf<SitePage, typeof sitePageNavColumns.columns>>(
+          result,
+        ),
+      ),
+    ),
+  statement: sitePageNavColumns.statement({}, NAV_ROW_ORDER),
+};
 
 export const sitePageOrder = defineOrderedCollection({
   key: "id",
