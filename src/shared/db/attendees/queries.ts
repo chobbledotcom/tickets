@@ -42,14 +42,20 @@ import { guardFor } from "#shared/validation/guard.ts";
  */
 export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
   const column = columnFrom(sourceName);
-  return `${column("listing_id")}, ${column("start_at")}, ${column("end_at")}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
+  return `${column("listing_id")}, ${column("start_at")}, ${column(
+    "end_at",
+  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
     column("attendee_id"),
+    column("listing_id"),
+    `${column("quantity")} = 0`,
   )}, ${pricePaidFromLedger(
     column("attendee_id"),
     column("listing_id"),
     column("ledger_event_group"),
     column("id"),
-  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column("order_token")}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
+    "order_token",
+  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =
@@ -353,6 +359,32 @@ export const hasActiveBookingLine = (
      WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
     [attendeeId, listingId],
   );
+
+export type FirstBooking = {
+  readonly active: boolean;
+  readonly listingId: number;
+};
+
+/** The first real booking, or a no-quantity placeholder when no real one
+ * remains. The returned row itself proves whether the action has a live
+ * booking; callers do not need a second existence query. */
+export const getFirstBooking = async (
+  attendeeId: number,
+): Promise<FirstBooking | null> => {
+  const row = await queryOne<{ listing_id: number; quantity: number }>(
+    `SELECT listingAttendee.listing_id
+              , listingAttendee.quantity
+         FROM listing_attendees AS listingAttendee
+        WHERE listingAttendee.attendee_id = ?
+        ORDER BY (listingAttendee.quantity > 0) DESC,
+                 listingAttendee.start_at, listingAttendee.listing_id
+        LIMIT 1`,
+    [attendeeId],
+  );
+  return row === null
+    ? null
+    : { active: Number(row.quantity) > 0, listingId: Number(row.listing_id) };
+};
 
 /**
  * True when any of the listings has a paid line for this attendee — a gross

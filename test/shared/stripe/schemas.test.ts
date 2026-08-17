@@ -23,6 +23,26 @@ const checkout = () => ({
   url: "https://checkout.stripe.com/c/pay/cs_1",
 });
 
+const refund = () => ({
+  amount: 1000,
+  currency: "gbp",
+  id: "re_1",
+  payment_intent: "pi_1",
+  status: "succeeded" as const,
+});
+
+const expandedIntent = () => ({
+  id: "pi_1",
+  latest_charge: {
+    amount_captured: 1000,
+    amount_refunded: 0,
+    captured: true,
+    currency: "gbp",
+    paid: true,
+    status: "succeeded" as const,
+  },
+});
+
 describe("Stripe schemas", () => {
   test("keeps only checkout fields used by the application", () => {
     expect(
@@ -115,6 +135,47 @@ describe("Stripe schemas", () => {
     ).toThrow();
   });
 
+  for (const field of [
+    "amount_captured",
+    "amount_refunded",
+    "captured",
+    "currency",
+    "paid",
+    "status",
+  ]) {
+    test(`requires latest charge field ${field}`, () => {
+      const intent = expandedIntent();
+      const latestCharge: Record<string, unknown> = intent.latest_charge;
+      delete latestCharge[field];
+      expect(() =>
+        v.parse(StripeExpandedPaymentIntentSchema, intent),
+      ).toThrow();
+    });
+  }
+
+  for (const status of ["failed", "pending", "succeeded"] as const) {
+    test(`accepts documented charge status ${status}`, () => {
+      expect(
+        v.parse(StripeExpandedPaymentIntentSchema, {
+          ...expandedIntent(),
+          latest_charge: { ...expandedIntent().latest_charge, status },
+        }).latest_charge?.status,
+      ).toBe(status);
+    });
+  }
+
+  test("rejects an unknown charge status", () => {
+    expect(() =>
+      v.parse(StripeExpandedPaymentIntentSchema, {
+        ...expandedIntent(),
+        latest_charge: {
+          ...expandedIntent().latest_charge,
+          status: "settled_some_new_way",
+        },
+      }),
+    ).toThrow();
+  });
+
   test("requires a webhook secret from endpoint creation", () => {
     expect(() =>
       v.parse(StripeCreatedWebhookEndpointSchema, { id: "we_1" }),
@@ -123,13 +184,18 @@ describe("Stripe schemas", () => {
 
   for (const [schema, value] of [
     [StripeExpandedPaymentIntentSchema, { id: "", latest_charge: null }],
-    [StripeRefundSchema, { id: "", status: null }],
+    [StripeRefundSchema, { ...refund(), id: "" }],
     [StripeCreatedWebhookEndpointSchema, { id: "", secret: "secret" }],
     [StripeCreatedWebhookEndpointSchema, { id: "we_1", secret: "" }],
     [StripeDeletedWebhookEndpointSchema, { deleted: true, id: "" }],
     [
       StripeWebhookEndpointSchema,
-      { enabled_events: [], id: "", status: "enabled", url: "https://x.test" },
+      {
+        enabled_events: [],
+        id: "",
+        status: "enabled",
+        url: "https://x.test",
+      },
     ],
     [
       StripeWebhookEndpointSchema,
@@ -152,16 +218,30 @@ describe("Stripe schemas", () => {
     ] as const;
     expect(
       statuses.map(
-        (status) => v.parse(StripeRefundSchema, { id: "re_1", status }).status,
+        (status) => v.parse(StripeRefundSchema, { ...refund(), status }).status,
       ),
     ).toEqual(statuses);
   });
 
   test("rejects an unknown refund status", () => {
     expect(() =>
-      v.parse(StripeRefundSchema, { id: "re_1", status: "complete" }),
+      v.parse(StripeRefundSchema, { ...refund(), status: "complete" }),
     ).toThrow();
   });
+
+  for (const field of [
+    "amount",
+    "currency",
+    "id",
+    "payment_intent",
+    "status",
+  ]) {
+    test(`requires refund field ${field}`, () => {
+      const answer: Record<string, unknown> = refund();
+      delete answer[field];
+      expect(() => v.parse(StripeRefundSchema, answer)).toThrow();
+    });
+  }
 
   // The two states Stripe reports an endpoint in. A missing one would make the
   // setup page throw on a real endpoint instead of showing whether it is live.

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -78,7 +79,13 @@ describe("sumup-provider", () => {
 
     test("asSession refuses a null or rejected result", () => {
       expect(() => asSession(null)).toThrow();
-      expect(() => asSession({ reason: "blank_reference" })).toThrow();
+      expect(() =>
+        asSession({
+          provider: "sumup",
+          reason: "blank_reference",
+          sessionId: "ref_blank",
+        }),
+      ).toThrow();
     });
 
     test("fetches by the stored SumUp id and returns the paid session", async () => {
@@ -91,6 +98,7 @@ describe("sumup-provider", () => {
             id: "ref",
             paymentReference: "txn",
             paymentStatus: "paid",
+            provider: "sumup",
           }),
         );
         expect(asSession(result).metadata.email).toBe("alice@example.com");
@@ -141,38 +149,6 @@ describe("sumup-provider", () => {
         },
       );
     });
-  });
-
-  describe("isPaymentRefunded", () => {
-    for (const [status, refunded] of [
-      ["REFUNDED", true],
-      ["SUCCESSFUL", false],
-      [null, false],
-    ] as const) {
-      test(`returns ${refunded} when transaction status is ${status}`, () =>
-        withMocks(
-          () =>
-            stub(sumupApi, "getTransactionStatus", () =>
-              Promise.resolve(status),
-            ),
-          async () => {
-            expect(await sumupPaymentProvider.isPaymentRefunded("txn")).toBe(
-              refunded,
-            );
-          },
-        ));
-    }
-  });
-
-  describe("refundPayment", () => {
-    test("delegates to refundTransaction with the payment reference", () =>
-      withMocks(
-        () => stub(sumupApi, "refundTransaction", () => Promise.resolve(true)),
-        async (mock) => {
-          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(true);
-          expect(mock.calls[0]!.args).toEqual(["txn_9"]);
-        },
-      ));
   });
 
   describe("createCheckoutSession", () => {
@@ -228,6 +204,37 @@ describe("sumup-provider", () => {
           ).toBeNull();
         },
       ));
+
+    test("returns an expected checkout message at the adapter boundary", () =>
+      withMocks(
+        () =>
+          stub(sumupApi, "createCheckout", () =>
+            Promise.reject(new PaymentUserError("Phone number is invalid")),
+          ),
+        async () => {
+          expect(
+            await sumupPaymentProvider.createCheckoutSession(
+              intent,
+              "http://localhost",
+            ),
+          ).toEqual({ error: "Phone number is invalid" });
+        },
+      ));
+
+    test("propagates an unexpected checkout failure through the adapter", () => {
+      const failure = new TypeError("SumUp connection failed");
+      return withMocks(
+        () => stub(sumupApi, "createCheckout", () => Promise.reject(failure)),
+        async () => {
+          await expect(
+            sumupPaymentProvider.createCheckoutSession(
+              intent,
+              "http://localhost",
+            ),
+          ).rejects.toBe(failure);
+        },
+      );
+    });
   });
 
   test("setupWebhookEndpoint is a no-op (webhooks are per-checkout)", async () => {

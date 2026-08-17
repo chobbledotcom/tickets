@@ -253,6 +253,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/scanner.ts"),
     ["attendees", "check-in", "listing-qr"],
   ),
+  schemaAtlas: area(
+    () => import("#routes/admin/schema-atlas.ts"),
+    ["schema-atlas", "settings"],
+  ),
   seeds: area(
     () => import("#routes/admin/seeds.ts"),
     ["seed-data", "validation"],

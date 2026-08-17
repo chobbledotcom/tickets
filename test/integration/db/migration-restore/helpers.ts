@@ -21,7 +21,10 @@ import { getDb, insert } from "#shared/db/client.ts";
 import { loadMigrations } from "#shared/db/migrations/context.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import type { Trigger } from "#shared/db/migrations/schema/types.ts";
-import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
+import {
+  schemaSqlIdentifiers,
+  verifyCurrentAppSchema,
+} from "#shared/db/migrations/schema-sync.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -69,27 +72,20 @@ export const triggerExists = async (name: string): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
-// Explicitly-created indexes (sql IS NOT NULL excludes the auto-indexes backing
-// UNIQUE/PK constraints) on `table` that include `column` — possibly declared
-// by a LATER migration than the one that added the column. SQLite refuses
-// DROP COLUMN while any index references it, so the restore drops these first.
+// Explicit indexes whose indexed list or partial predicate reads `column`.
+// Later migrations may add them; SQLite refuses the drop until they are gone.
 const indexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<string[]> => {
   const indexes = await getDb().execute({
     args: [table],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
+    sql: "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
   });
-  const names: string[] = [];
-  for (const row of indexes.rows) {
-    const name = String(row.name);
-    const cols = await getDb().execute(
-      `SELECT name FROM pragma_index_info('${name}')`,
-    );
-    if (cols.rows.some((c) => String(c.name) === column)) names.push(name);
-  }
-  return names;
+  const wanted = column.toLowerCase();
+  return indexes.rows
+    .filter((row) => schemaSqlIdentifiers(String(row.sql)).has(wanted))
+    .map((row) => String(row.name));
 };
 
 const triggerIsOwnedBy =

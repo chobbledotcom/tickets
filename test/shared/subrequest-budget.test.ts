@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  BULK_REFUND_LIMIT,
   BUNNY_SUBREQUEST_LIMIT,
   countSubrequest,
   getSubrequestRemaining,
   getSubrequestUsage,
   runWithSubrequestBudget,
   withSubrequestAllowance,
+  withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
 
 describe("combined subrequest budget", () => {
@@ -112,8 +112,48 @@ describe("combined subrequest budget", () => {
     });
   });
 
-  test("reserves five provider calls for bounded bulk refunds", () => {
-    expect(BULK_REFUND_LIMIT).toBe(5);
+  test("a refused call leaves its reserved tail untouched", async () => {
+    await runWithSubrequestBudget(async () => {
+      await withSubrequestReserve(
+        { database: 1, external: 0, total: 1 },
+        async () => {
+          for (let call = 0; call < BUNNY_SUBREQUEST_LIMIT - 1; call++) {
+            countSubrequest("database", "bounded work");
+          }
+          expect(() => countSubrequest("database", "blocked work")).toThrow(
+            "Subrequest allowance exceeded",
+          );
+        },
+      );
+
+      expect(getSubrequestRemaining()).toEqual({
+        database: 1,
+        external: BUNNY_SUBREQUEST_LIMIT,
+        total: 1,
+      });
+      countSubrequest("database", "reserved cleanup");
+    });
+  });
+
+  test("refuses to start when the promised tail no longer fits", async () => {
+    await runWithSubrequestBudget(async () => {
+      for (let call = 0; call < BUNNY_SUBREQUEST_LIMIT - 1; call++) {
+        countSubrequest("database", "earlier work");
+      }
+      let ran = false;
+
+      expect(() =>
+        withSubrequestReserve({ database: 2, external: 0, total: 2 }, () => {
+          ran = true;
+        }),
+      ).toThrow("Subrequest reserve unavailable");
+      expect(ran).toBe(false);
+      expect(getSubrequestRemaining()).toEqual({
+        database: 1,
+        external: BUNNY_SUBREQUEST_LIMIT,
+        total: 1,
+      });
+    });
   });
 
   test("does not count startup work outside a request scope", () => {

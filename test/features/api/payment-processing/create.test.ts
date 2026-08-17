@@ -185,6 +185,7 @@ const preparationResult = (options: PreparationOptions) => {
     metadata: webhookMeta({ name: "Buyer" }),
     paymentReference: "pi_preparation_failure",
     paymentStatus: "paid",
+    provider: "stripe",
   };
 
   return createAttendeeForSession(

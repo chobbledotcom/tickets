@@ -8,7 +8,7 @@
 import { renderFilterBar } from "#shared/filter-bar.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
 /** Filter value: "all", "none" (no agent assigned), or a specific agent id. */
 export type AgentFilter = "all" | "none" | number;

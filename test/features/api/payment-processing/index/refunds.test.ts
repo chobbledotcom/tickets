@@ -4,6 +4,8 @@ import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -13,7 +15,8 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   bookingIntent,
   expectStoredRefund,
@@ -22,7 +25,7 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("payment processing refund outcomes", { db: true }, () => {
-  test("releases the reservation when refunding an inactive listing fails", async () => {
+  test("releases the reservation without repeating a rejected refund", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 5,
@@ -35,15 +38,11 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       bookingIntent([{ e: listing.id, p: 800, q: 1 }]),
       800,
     );
-    using refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve(null),
+    using refund = stub(stripeApi, "refundCharge", () =>
+      Promise.resolve({ kind: "rejected", reason: "rejected" } as const),
     );
-    using refundState = stub(stripeApi, "retrievePaymentIntent", () =>
-      Promise.resolve({
-        latest_charge: { refunded: false },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrievePaymentIntent>
-      >),
+    using refundState = stub(stripeApi, "readPaymentIntent", () =>
+      Promise.resolve(foundStripeIntent(data.session.paymentReference, 800)),
     );
 
     expect(await processPaymentSession(id, data)).toEqual({
@@ -58,7 +57,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       refunded: false,
       success: false,
     });
-    expect(refund.calls).toHaveLength(2);
+    expect(refund.calls).toHaveLength(1);
     expect(refundState.calls).toHaveLength(2);
   });
 
@@ -66,7 +65,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     await setupStripe();
     const id = "cs_direct_price_changed";
     const { data, listing } = await singleListingPayment(id, 1000, 800);
-    using refund = stubRefundPayment("re_price_changed");
+    using refund = stubRefundPayment("re_price_changed", 800);
 
     const result = await processPaymentSession(id, data);
     await expectStoredRefund(
@@ -78,6 +77,65 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       },
       refund,
     );
+  });
+
+  test("replays the same placeholder after its committed create loses the reply", async () => {
+    await setupStripe();
+    const id = "cs_placeholder_create_reply_lost";
+    const { data, listing } = await singleListingPayment(id, 1000, 800);
+    const createAttendee = attendeesApi.createAttendeeAtomic;
+    let completedCreates = 0;
+    using createReply = stub(
+      attendeesApi,
+      "createAttendeeAtomic",
+      async (...args: Parameters<typeof createAttendee>) => {
+        const stored = await createAttendee(...args);
+        completedCreates += 1;
+        if (completedCreates === 1) {
+          throw new Error("placeholder create reply was lost");
+        }
+        return stored;
+      },
+    );
+    using refund = stubRefundPayment("re_placeholder_create_reply_lost", 800);
+
+    await expect(processPaymentSession(id, data)).rejects.toThrow(
+      "placeholder create reply was lost",
+    );
+    const placeholder = (await getAttendeesRaw(listing.id))[0];
+    if (placeholder === undefined) {
+      throw new Error("Placeholder was not stored");
+    }
+    const anchor = await queryOne<{
+      failure_data: string;
+      payment_reference_index: string;
+    }>(
+      `SELECT failure_data, payment_reference_index
+         FROM processed_payments
+        WHERE attendee_id = ?
+          AND payment_session_id LIKE 'legacy:%'`,
+      [placeholder.id],
+    );
+    expect(anchor).toEqual({
+      failure_data: expect.stringMatching(/.+/),
+      payment_reference_index: await paymentReferenceIndex({
+        kind: "tagged",
+        provider: "stripe",
+        reference: `pi_${id}`,
+      }),
+    });
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", id],
+    );
+
+    expect(await processPaymentSession(id, data)).toMatchObject({
+      status: 200,
+      success: false,
+    });
+    expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
+    expect(createReply.calls).toHaveLength(1);
+    expect(refund.calls).toHaveLength(0);
   });
 
   test("keeps and refunds a booking that loses the capacity race", async () => {
@@ -94,7 +152,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     });
     if (!booked.success) throw new Error("Failed to fill listing");
     const id = "cs_direct_capacity";
-    using refund = stubRefundPayment("re_capacity");
+    using refund = stubRefundPayment("re_capacity", 600);
 
     const result = await processPaymentSession(
       id,
@@ -121,7 +179,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
     using uncertain = stub(attendeesApi, "createBookingAtomic", () =>
       Promise.reject(new Error("write result unknown")),
     );
-    using refund = stubRefundPayment("re_uncertain");
+    using refund = stubRefundPayment("re_uncertain", 500);
 
     const result = await processPaymentSession(
       id,

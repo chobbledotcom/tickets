@@ -4,6 +4,7 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { executeBatch, getDb, insert } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
+import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
 
 export const insertFinalizedPayment = async (
   sessionId: string,
@@ -44,6 +45,24 @@ export const insertFailedPayment = async (
       failure_data: '{"error":"sold out","status":409,"refunded":true}',
       payment_session_id: sessionId,
       processed_at: processedAtIso,
+    }),
+  );
+};
+
+/** An old row a refund run is holding: its work shows in the plaintext mirror
+ *  the prune reads. */
+export const insertClaimedPayment = async (
+  sessionId: string,
+  processedAtIso: string,
+  attendeeId: number | null = null,
+): Promise<void> => {
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: attendeeId,
+      failure_data: '{"error":"sold out","status":409,"refunded":true}',
+      payment_session_id: sessionId,
+      processed_at: processedAtIso,
+      protected_state: CLAIM_MIRROR,
     }),
   );
 };

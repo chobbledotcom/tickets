@@ -54,6 +54,34 @@ export const getSubrequestRemaining = (): SubrequestCounts => {
   };
 };
 
+/** Leave a fixed tail for work that must still run after `fn` finishes. */
+export const withSubrequestReserve = <T>(
+  reserve: SubrequestCounts,
+  fn: () => T,
+): T => {
+  const remaining = getSubrequestRemaining();
+  if (
+    reserve.database > remaining.database ||
+    reserve.external > remaining.external ||
+    reserve.total > remaining.total
+  ) {
+    throw new Error(
+      `Subrequest reserve unavailable: need ${reserve.database} database + ` +
+        `${reserve.external} external calls (${reserve.total} total), but ` +
+        `${remaining.database} database + ${remaining.external} external ` +
+        `calls (${remaining.total} total) remain`,
+    );
+  }
+  return withSubrequestAllowance(
+    {
+      database: remaining.database - reserve.database,
+      external: remaining.external - reserve.external,
+      total: remaining.total - reserve.total,
+    },
+    fn,
+  );
+};
+
 export const runWithSubrequestBudget = <T>(fn: () => T): T =>
   budgetScope.run(freshBudget(), fn);
 
@@ -62,10 +90,11 @@ export const withSubrequestAllowance = <T>(
   fn: () => T,
 ): T => {
   const parent = budgetScope.current();
-  if (!parent)
+  if (!parent) {
     return runWithSubrequestBudget(() =>
       withSubrequestAllowance(allowance, fn),
     );
+  }
   const usage = usageOf(parent.counts);
   return budgetScope.run(
     {
@@ -102,22 +131,19 @@ export const countSubrequest = (
 ): void => {
   const state = budgetScope.current();
   if (!state) return;
-  state.counts[kind] += 1;
-  if (!enforce) return;
-  const usage = usageOf(state.counts);
+  const nextCounts = { ...state.counts, [kind]: state.counts[kind] + 1 };
+  const usage = usageOf(nextCounts);
   if (
-    state.counts[kind] > state.limits[kind] ||
-    usage.total > state.limits.total
+    enforce &&
+    (nextCounts[kind] > state.limits[kind] || usage.total > state.limits.total)
   ) {
     throw new Error(
       `Subrequest allowance exceeded: ${usage.database} database + ` +
         `${usage.external} external calls. Blocked ${kind} operation: ${operation}`,
     );
   }
+  state.counts[kind] += 1;
 };
 
 export const countExternalSubrequest = (operation: string): void =>
   countSubrequest("external", operation);
-
-/** A refund uses several database calls plus one payment-provider request. */
-export const BULK_REFUND_LIMIT = 5;

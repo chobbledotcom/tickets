@@ -15,31 +15,43 @@
 
 /* jscpd:ignore-start */
 import { type BrowserSession, hrefOf } from "./browser.ts";
-import { config } from "./config.ts";
+import {
+  type BookerIdentity,
+  config,
+  type OwnerCredentials,
+} from "./config.ts";
 import {
   createListing,
   incomeLedgerText,
   setSelectOrInput,
   waitForAppReturn,
+  waitForHostedCheckout,
 } from "./flow.ts";
 import { log, step } from "./log.ts";
 
 /* jscpd:ignore-end */
 
-/** The one catalog this journey builds and orders. Prices are minor units;
- * the free leg zeroes them all. */
-const KIT = "Order Kit";
-const MEMBER_A = "Order Tent"; // in the kit AND sold on its own row
-const MEMBER_B = "Order Stove";
-const PLAIN = "Order Hamper";
+/** Prices in minor units; the free leg zeroes them all. */
 const PRICES = {
   kitMemberA: 400,
   kitMemberB: 600,
   memberAOwn: 500,
   plain: 1500,
-};
+} as const;
 
-const BUYER_NAME = "Order Journey Buyer";
+/** The one catalog this journey builds and orders, named for this scenario. */
+export interface OrderCatalog {
+  kit: string;
+  memberA: string;
+  memberB: string;
+  plain: string;
+}
+
+export interface OrderJourneyIdentity {
+  booker: BookerIdentity;
+  catalog: OrderCatalog;
+  owner: OwnerCredentials;
+}
 
 /** The numeric id in the current admin URL (/admin/<kind>/<id>…). */
 const idFromUrl = (session: BrowserSession, kind: string): number => {
@@ -65,15 +77,16 @@ const createOrderListing = async (
  * edit forms, and set each member's in-package price. Returns the group id. */
 const createPackage = async (
   session: BrowserSession,
+  catalog: OrderCatalog,
   members: { id: number; priceMinor: number }[],
 ): Promise<number> => {
-  step(`Creating package "${KIT}"`);
+  step(`Creating package "${catalog.kit}"`);
   await session.goto("/admin/groups/new");
-  await session.fill("name", KIT);
+  await session.fill("name", catalog.kit);
   await session.check("is_package");
   await session.clickButton("Create Group");
   await session.goto("/admin/groups");
-  await session.clickLink(KIT);
+  await session.clickLink(catalog.kit);
   const groupId = idFromUrl(session, "groups");
 
   for (const member of members) {
@@ -112,14 +125,17 @@ const enableOrderGallery = async (session: BrowserSession): Promise<void> => {
 };
 
 /** Tick the gallery cards like a visitor and continue to the booking page. */
-const selectOnGallery = async (session: BrowserSession): Promise<void> => {
+const selectOnGallery = async (
+  session: BrowserSession,
+  catalog: OrderCatalog,
+): Promise<void> => {
   step("Selecting the package and listings on /order");
   await session.goto("/order");
-  for (const name of [KIT, MEMBER_A, PLAIN]) {
+  for (const name of [catalog.kit, catalog.memberA, catalog.plain]) {
     await session.page
       .locator("label.order-card", { hasText: name })
       .first()
-      .click({ force: true, timeout: config.actionTimeoutMs });
+      .click({ timeout: config.actionTimeoutMs });
   }
   await session.submitLocator(
     session.page.locator("button.order-continue").first(),
@@ -134,14 +150,17 @@ const selectOnGallery = async (session: BrowserSession): Promise<void> => {
 
 /** Fill the combined booking page: one package, one extra unit of member A on
  * its own row, two of the plain listing — then submit. */
-const fillBookingPage = async (session: BrowserSession): Promise<void> => {
+const fillBookingPage = async (
+  session: BrowserSession,
+  identity: OrderJourneyIdentity,
+): Promise<void> => {
   step("Booking every path in one order");
   const { page } = session;
   // The package count is a <select>; per-listing quantities are inputs.
   await page
     .locator('select[name^="package_quantity_"]')
     .first()
-    .selectOption("1", { force: true, timeout: config.actionTimeoutMs });
+    .selectOption("1", { timeout: config.actionTimeoutMs });
   // A listing's quantity control renders as a <select> for small caps and an
   // <input> for large ones — set whichever the row carries.
   const setRowQty = (name: string, value: string): Promise<void> =>
@@ -150,12 +169,11 @@ const fillBookingPage = async (session: BrowserSession): Promise<void> => {
         .locator(`.ticket-row:has-text("${name}") [name^="quantity_"]`)
         .first(),
       value,
-      { force: true, timeout: config.actionTimeoutMs },
     );
-  await setRowQty(MEMBER_A, "1");
-  await setRowQty(PLAIN, "2");
-  await session.fill("name", BUYER_NAME);
-  await session.fill("email", config.bookerEmail);
+  await setRowQty(identity.catalog.memberA, "1");
+  await setRowQty(identity.catalog.plain, "2");
+  await session.fill("name", identity.booker.name);
+  await session.fill("email", identity.booker.email);
   await session.clickButton("Continue");
   log(`  booking submitted; now at ${page.url()}`);
 };
@@ -181,31 +199,36 @@ const assertListingIncome = async (
 ): Promise<void> => {
   await session.goto(`/admin/listing/${listingId}`);
   const text = await incomeLedgerText(session);
-  if (text === null) {
-    await session.dumpPage(`order-no-income-ledger-${listingId}`);
-    throw new Error(`no income ledger rendered for ${name}`);
+  const problem =
+    text === null
+      ? `no income ledger rendered for ${name}`
+      : rendered(minor).some((form) => text.includes(form))
+        ? null
+        : `${name}: expected recognised income ${(minor / 100).toFixed(
+            2,
+          )}, ledger says:\n${text.slice(0, 400)}`;
+  if (problem === null) {
+    log(`  ✔ ${name} recognised ${(minor / 100).toFixed(2)}`);
+    return;
   }
-  if (!rendered(minor).some((form) => text.includes(form))) {
-    await session.dumpPage(`order-wrong-income-${listingId}`);
-    throw new Error(
-      `${name}: expected recognised income ${(minor / 100).toFixed(2)}, ledger says:\n${text.slice(0, 400)}`,
-    );
-  }
-  log(`  ✔ ${name} recognised ${(minor / 100).toFixed(2)}`);
+  await session.dumpPage(`order-income-problem-${listingId}`);
+  throw new Error(problem);
 };
 
 /** Assert the admin sees the order one line per path: member A twice (via the
  * kit and on its own row), labelled with the package's name. */
 const assertPerPathEditor = async (
   session: BrowserSession,
+  identity: OrderJourneyIdentity,
   memberAId: number,
 ): Promise<void> => {
+  const { booker, catalog } = identity;
   step("Verifying the order path-by-path in the admin editor");
   await session.goto(`/admin/listing/${memberAId}/attendees`);
   const body = await session.bodyText();
-  if (!body.includes(BUYER_NAME)) {
+  if (!body.includes(booker.name)) {
     await session.dumpPage("order-buyer-missing-from-roster");
-    throw new Error(`${BUYER_NAME} not on the ${MEMBER_A} roster`);
+    throw new Error(`${booker.name} not on the ${catalog.memberA} roster`);
   }
   // A numeric attendee id specifically — the admin nav's own "Add Attendee"
   // link (/admin/attendees/new) also matches a bare substring.
@@ -221,9 +244,11 @@ const assertPerPathEditor = async (
   );
 
   const editor = await session.page.content();
-  if (!editor.includes(`via ${KIT}`)) {
+  if (!editor.includes(`via ${catalog.kit}`)) {
     await session.dumpPage("order-editor-missing-path-label");
-    throw new Error(`the editor does not label the package path "via ${KIT}"`);
+    throw new Error(
+      `the editor does not label the package path "via ${catalog.kit}"`,
+    );
   }
   const memberLines = [
     ...editor.matchAll(/name="line_listing_\d+"[^>]*value="(\d+)"/g),
@@ -231,64 +256,98 @@ const assertPerPathEditor = async (
   if (memberLines !== 2) {
     await session.dumpPage("order-editor-wrong-line-count");
     throw new Error(
-      `${MEMBER_A} should book through 2 paths (via the kit + its own row); the editor shows ${memberLines}`,
+      `${catalog.memberA} should book through 2 paths (via the kit + its own row); the editor shows ${memberLines}`,
     );
   }
-  log(`  ✔ editor shows "via ${KIT}" and both ${MEMBER_A} paths`);
+  log(
+    `  ✔ editor shows "via ${catalog.kit}" and both ${catalog.memberA} paths`,
+  );
 };
 
-/** Run the whole complex-order journey. `paid` legs price the catalog and pay
- * on the hosted checkout the caller settles; the free leg books at once. */
-export const runComplexOrderJourney = async (
+/** What the catalog builder created, for the booking step to assert against. */
+export interface BuiltOrderCatalog {
+  memberAId: number;
+  plainId: number;
+}
+
+/**
+ * Build the complex-order catalog — the two-member package (member A also on
+ * its own row), the plain listing, and the published /order gallery — leaving
+ * the visitor's booking to `bookComplexOrder`. `paid` prices the catalog; the
+ * free leg zeroes it.
+ */
+export const buildOrderCatalog = async (
   session: BrowserSession,
-  opts: {
-    paid: boolean;
-    /** Settle the hosted checkout (the provider's card entry). */
-    payHostedCheckout?: () => Promise<void>;
-  },
-): Promise<void> => {
-  step(`Complex order journey (${opts.paid ? "paid" : "free"})`);
+  identity: OrderJourneyIdentity,
+  opts: { paid: boolean },
+): Promise<BuiltOrderCatalog> => {
+  const { catalog } = identity;
   const zeroed = (minor: number): number => (opts.paid ? minor : 0);
   const memberAId = await createOrderListing(
     session,
-    MEMBER_A,
+    catalog.memberA,
     zeroed(PRICES.memberAOwn),
   );
-  const memberBId = await createOrderListing(session, MEMBER_B, 0);
+  const memberBId = await createOrderListing(session, catalog.memberB, 0);
   const plainId = await createOrderListing(
     session,
-    PLAIN,
+    catalog.plain,
     zeroed(PRICES.plain),
   );
-  await createPackage(session, [
+  await createPackage(session, catalog, [
     { id: memberAId, priceMinor: zeroed(PRICES.kitMemberA) },
     { id: memberBId, priceMinor: zeroed(PRICES.kitMemberB) },
   ]);
   await enableOrderGallery(session);
+  return { memberAId, plainId };
+};
 
-  await selectOnGallery(session);
-  await fillBookingPage(session);
-
+/** The visitor's half: select on the gallery, book every path in one order,
+ * and settle the hosted checkout (paid legs). */
+export const bookComplexOrder = async (
+  session: BrowserSession,
+  identity: OrderJourneyIdentity,
+  opts: {
+    paid: boolean;
+    payHostedCheckout?: () => Promise<void>;
+  },
+): Promise<void> => {
+  await selectOnGallery(session, identity.catalog);
+  await fillBookingPage(session, identity);
   if (opts.paid) {
     if (!opts.payHostedCheckout) {
       throw new Error("paid journey needs payHostedCheckout");
     }
+    // The booking POST lands on an app reserved page first; only once the
+    // browser has actually left for the provider's hosted checkout does the
+    // payment session exist for the provider driver to settle.
+    await waitForHostedCheckout(session);
     await opts.payHostedCheckout();
   }
   // Paid: back from the hosted checkout. Free: already on the reserved page.
   await waitForReturn(session);
+};
 
-  await assertPerPathEditor(session, memberAId);
-  if (opts.paid) {
-    // Each listing recognises its own paths' income: member A one kit unit +
-    // one unit on its own row; the plain listing two units.
-    await assertListingIncome(
-      session,
-      memberAId,
-      MEMBER_A,
-      PRICES.kitMemberA + PRICES.memberAOwn,
-    );
-    await assertListingIncome(session, plainId, PLAIN, PRICES.plain * 2);
+/** The admin verification of a completed complex order: one line per path
+ * (member A twice — via the kit and on its own row, labelled with the
+ * package's name), and — when `expectIncome` — each listing recognising its
+ * own paths' income (member A one kit unit plus one own-row unit; the plain
+ * listing two units). */
+export const verifyComplexOrder = async (
+  session: BrowserSession,
+  identity: OrderJourneyIdentity,
+  built: BuiltOrderCatalog,
+  { expectIncome }: { expectIncome: boolean },
+): Promise<void> => {
+  await assertPerPathEditor(session, identity, built.memberAId);
+  if (!expectIncome) return;
+  const { catalog } = identity;
+  const expected: [number, string, number][] = [
+    [built.memberAId, catalog.memberA, PRICES.kitMemberA + PRICES.memberAOwn],
+    [built.plainId, catalog.plain, PRICES.plain * 2],
+  ];
+  for (const [listingId, name, minor] of expected) {
+    await assertListingIncome(session, listingId, name, minor);
   }
-  step(`PASS — complex order journey (${opts.paid ? "paid" : "free"})`);
+  step("PASS — complex order journey");
 };

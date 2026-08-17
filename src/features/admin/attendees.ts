@@ -11,7 +11,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
   getAttendeePackageRowsRaw,
@@ -37,14 +36,16 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
-import {
-  adminAttendeeDeletePage,
-  adminResendNotificationPage,
-} from "#templates/admin/attendees.tsx";
+import { adminResendNotificationPage } from "#templates/admin/attendees.tsx";
 import {
   type AddAttendeeFormValues,
   getAddAttendeeFields,
 } from "#templates/fields/add-attendee.ts";
+import {
+  deleteAttendeeAndRedirect,
+  handleAdminAttendeeDeleteGet,
+  handleAttendeeDelete,
+} from "./attendee-delete.ts";
 import {
   handleAttendeeEditPost,
   handleAttendeeNewGet,
@@ -52,6 +53,7 @@ import {
 } from "./attendee-form-routes.ts";
 import { handleAttendeeLogisticsPost } from "./attendee-logistics-routes.ts";
 import { attendeePage } from "./attendee-page.ts";
+import { paymentReviewHandlers } from "./attendee-payment-review.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
 import {
   handleAttendeesCsvExport,
@@ -61,49 +63,11 @@ import { handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
   attendeeActionPage,
+  attendeeActions,
   attendeeFormAction,
-  verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
-
-/** Handle GET /admin/attendees/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeeActionPage(
-  adminAttendeeDeletePage,
-);
-
-/** Delete an attendee, log the activity, and redirect. */
-const deleteAttendeeAndRedirect = async (
-  attendeeId: number,
-  listingId: number,
-  redirectTo: string,
-  activityMessage: string,
-  flashMessage: string,
-  opts?: Parameters<typeof redirect>[3],
-  releaseBookings = true,
-): Promise<Response> => {
-  await deleteAttendee(attendeeId, { releaseBookings });
-  await logActivity(activityMessage, listingId, attendeeId);
-  return redirect(redirectTo, flashMessage, true, opts);
-};
-
-/** Handle POST /admin/attendees/:attendeeId/delete. The deleted attendee's
- * pages are gone, so the fallback landing is the attendees roster (a
- * submitted return_url still wins via the redirect's form option). */
-const handleAttendeeDelete = verifiedAttendeeAction(
-  "delete",
-  "deletion",
-  (data, form) =>
-    deleteAttendeeAndRedirect(
-      data.attendee.id,
-      data.listing.id,
-      "/admin/attendees",
-      `Attendee deleted from '${data.listing.name}'`,
-      t("success.attendee_deleted"),
-      { form },
-      form.getFlag("release_bookings"),
-    ),
-);
 
 /**
  * Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete
@@ -285,9 +249,9 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
   });
 
 /** Handle GET /admin/attendees/:attendeeId/resend-notification */
-const handleAdminResendNotificationGet = attendeeActionPage(
-  adminResendNotificationPage,
-);
+const handleAdminResendNotificationGet = attendeeActions[
+  "resend-notification"
+].page(attendeeActionPage(adminResendNotificationPage));
 
 /** The entries a resend notifies. A standalone line notifies alone; a line
  * belonging to a package rehydrates EVERY line of that attendee's package, so
@@ -345,11 +309,9 @@ const resendNotification = async (
 };
 
 /** Handle POST /admin/attendees/:attendeeId/resend-notification */
-const handleResendNotification = verifiedAttendeeAction(
-  "resend-notification",
-  undefined,
-  resendNotification,
-);
+const handleResendNotification = attendeeActions[
+  "resend-notification"
+].verified(undefined, resendNotification);
 
 /**
  * Attendee routes
@@ -358,10 +320,12 @@ const handleResendNotification = verifiedAttendeeAction(
  * Paginated attendees browser: attendees-list.ts
  * Refresh payment: attendees-edit.ts
  * Merge: attendees-merge.ts
+ * Payment review: attendee-payment-review.ts
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineRoutes({
   ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
+  ...paymentReviewHandlers,
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
   "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,

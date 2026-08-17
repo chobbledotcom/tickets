@@ -44,6 +44,7 @@ export const paymentSession = (
   }),
   paymentReference: `pi_${id}`,
   paymentStatus: "paid",
+  provider: "stripe",
 });
 
 export const trustedPayment = (

@@ -40,7 +40,7 @@ import {
   sendEncryptedMessage,
 } from "#shared/sms/gateway.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import { type SmsHistoryItem, smsPage } from "#templates/admin/sms.tsx";
 import { withAttendee } from "./attendees-route-helpers.ts";
 

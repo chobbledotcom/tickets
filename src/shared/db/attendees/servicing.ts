@@ -14,6 +14,7 @@ import type {
   DesiredListingLine,
   ListingAttendeeRow,
   ListingBooking,
+  UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
@@ -23,11 +24,7 @@ import {
 import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import {
-  buildPiiBlob,
-  decryptAttendeeFields,
-  encryptPiiBlob,
-} from "#shared/db/attendees/pii.ts";
+import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
 import { loadAttendeeRows } from "#shared/db/attendees/queries.ts";
 import {
   type AttendeeRowFor,
@@ -49,7 +46,6 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#shared/db/questions/attendee-answers/save.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 import { type Attendee, clampDurationDays } from "#shared/types.ts";
@@ -413,21 +409,20 @@ const desiredLinesFromExisting = (
 /** The encrypted PII blob a service event stores: its name only, every
  *  customer-only field empty. The single source of the "servicing owns no
  *  contact PII" invariant shared by the edit and its compensating restore. */
-const servicingPiiBlob = (name: string, ticketToken: string): Promise<string> =>
-  encryptPiiBlob(
-    buildPiiBlob({
-      address: "",
-      email: "",
-      lat: "",
-      lng: "",
-      name,
-      payment_id: "",
-      phone: "",
-      special_instructions: "",
-      ticket_token: ticketToken,
-    }),
-    settings.publicKey,
-  );
+const servicingPii = (
+  name: string,
+  ticketToken: string,
+): UpdateAttendeePIIInput => ({
+  address: "",
+  email: "",
+  lat: "",
+  lng: "",
+  name,
+  payment_id: "",
+  phone: "",
+  special_instructions: "",
+  ticket_token: ticketToken,
+});
 
 /** Restore a service event's name, bookings, and answers to their pre-edit
  *  state after a post-edit side effect fails. `existingBefore` is the pre-edit
@@ -440,13 +435,9 @@ const restoreServicingState = async (
   existingBefore: ExistingLine[],
   answersBefore: AttendeeAnswerSet,
 ): Promise<void> => {
-  const restoredPiiBlob = await servicingPiiBlob(
-    before.name,
-    before.ticketToken,
-  );
   await attendeesApi.applyAttendeeAtomicEdit(
     id,
-    restoredPiiBlob,
+    servicingPii(before.name, before.ticketToken),
     desiredLinesFromExisting(existingBefore),
     true,
   );
@@ -486,10 +477,9 @@ export const updateServicingEvent = async (
     }),
   ]);
   const answersBefore = snapshotAnswerSet(id, answersBeforeBatch);
-  const encryptedPiiBlob = await servicingPiiBlob(name, current.ticketToken);
   const editResult = await attendeesApi.applyAttendeeAtomicEdit(
     id,
-    encryptedPiiBlob,
+    servicingPii(name, current.ticketToken),
     desiredLines(input, existingBefore),
     input.allowOverbook ?? false,
   );

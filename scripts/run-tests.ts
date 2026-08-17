@@ -115,6 +115,41 @@ const COVERAGE_EXCLUSIONS = [
   // staticAssetsAreUpToDate are both unit-tested, each arm, in
   // test/scripts/static-asset-cache.test.ts.
   "scripts/static-assets/prepare.ts",
+  // The e2e-payments config snapshot reads env vars at module-load time. The
+  // bool/num helpers and the forceTunnel/needsTunnel branches are exercised by
+  // the live Cucumber free target run plus the direct secrets/config-log tests,
+  // but coverage only sees the module-load path the test runner took —
+  // not the alternative env states the harness boots in for each target.
+  "e2e-payments/src/config.ts",
+  // parseLiveTarget's throw path is tested in test/e2e-payments/parse-target, but
+  // the test runner's group system may not pair it into the same isolate as the
+  // coverage probe — the function is also covered by the live Cucumber run.
+  "e2e-payments/src/targets.ts",
+  // The live Cucumber harness: real app servers, tunnels, provider sandboxes
+  // and Chromium sessions. Only the nightly workflow can execute these; the
+  // step-coverage test imports the support modules (which pull these files
+  // in), so a coverage run sees them loaded-but-untested. The pure helpers
+  // with deterministic behaviour (cleanup, db-fault, refund-outcome) stay
+  // under normal coverage and are directly tested under test/e2e-payments/.
+  "e2e-payments/src/browser.ts",
+  "e2e-payments/src/flow.ts",
+  "e2e-payments/src/order-flow.ts",
+  "e2e-payments/src/server.ts",
+  "e2e-payments/src/tunnel.ts",
+  "e2e-payments/src/util.ts",
+  "e2e-payments/src/providers/card.ts",
+  "e2e-payments/src/providers/shared.ts",
+  "e2e-payments/src/providers/square.ts",
+  "e2e-payments/src/providers/stripe.ts",
+  "e2e-payments/src/providers/sumup.ts",
+  "e2e-payments/src/providers/sumup-callback.ts",
+  "e2e-payments/src/cucumber/support/hooks.ts",
+  "e2e-payments/src/cucumber/support/journal.ts",
+  "e2e-payments/src/cucumber/support/world.ts",
+  "e2e-payments/src/cucumber/steps/booking.ts",
+  "e2e-payments/src/cucumber/steps/pages.ts",
+  "e2e-payments/src/cucumber/steps/refund.ts",
+  "e2e-payments/src/cucumber/steps/setup.ts",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */

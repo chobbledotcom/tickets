@@ -15,6 +15,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 
 /** Perform the full two-phase reserve+finalize as production code does */
@@ -42,7 +43,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "cs_processed_123",
         ctx.attendeeId,
         "tok-test",
-        "pi_cs_processed_123",
+        taggedPaymentReference("pi_cs_processed_123"),
       );
 
       const result = await getProcessedPayment("cs_processed_123");
@@ -82,7 +83,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "cs_finalized",
         ctx.attendeeId,
         "tok-test",
-        "pi_cs_finalized",
+        taggedPaymentReference("pi_cs_finalized"),
       );
 
       const result = await reserveSession("cs_finalized");
@@ -191,7 +192,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "cs_to_finalize",
         ctx.attendeeId,
         "tok-test",
-        "pi_cs_to_finalize",
+        taggedPaymentReference("pi_cs_to_finalize"),
       );
 
       const record = await getProcessedPayment("cs_to_finalize");
@@ -204,7 +205,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "cs_with_tokens",
         ctx.attendeeId,
         "tok_abc",
-        "pi_cs_with_tokens",
+        taggedPaymentReference("pi_cs_with_tokens"),
       );
 
       const record = await getProcessedPayment("cs_with_tokens");
@@ -220,7 +221,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "cs_clear_test",
         ctx.attendeeId,
         "tok_xyz",
-        "pi_cs_clear_test",
+        taggedPaymentReference("pi_cs_clear_test"),
       );
       await clearSessionTokens("cs_clear_test");
 
@@ -235,7 +236,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "cs_clear_noop",
         ctx.attendeeId,
         "tok-test",
-        "pi_cs_clear_noop",
+        taggedPaymentReference("pi_cs_clear_noop"),
       );
       await clearSessionTokens("cs_clear_noop");
 

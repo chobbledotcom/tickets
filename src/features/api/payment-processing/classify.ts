@@ -96,6 +96,14 @@ const evaluatePriceProof = async (
  */
 type SessionClass = SignedVerdict | { verdict: "ignore" };
 
+/** The complete answer after checking both ownership and the signed booking.
+ * A session we cannot prove is ours may be acknowledged. A session we can
+ * prove is ours but cannot read must remain retryable. */
+export type SessionIntentResult =
+  | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
+  | { kind: "unverifiable" }
+  | { kind: "unreadable" };
+
 export const classifySession = async (
   session: ValidatedPaymentSession,
 ): Promise<SessionClass> => {
@@ -112,23 +120,18 @@ export const classifySession = async (
     : { agreed: evaluation.total, verdict: "mismatch" };
 };
 
-/** The booking a paid session carries, or null when we cannot act on it.
- *  Both nulls stop the session, but only one is quiet: a proof that does not
- *  verify may not be ours, while one that does means the buyer was charged,
- *  so a booking nothing can read is raised for the owner. */
+/** Classify both ownership and the booking carried by a paid session. */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
-): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
+): Promise<SessionIntentResult> => {
   const verdict = await classifySession(session);
-  if (verdict.verdict === "ignore") return null;
+  if (verdict.verdict === "ignore") return { kind: "unverifiable" };
   const intent = extractIntent(session);
   if (intent === null) {
-    logUnreadableBooking(
-      `Signed session's booking could not be read (session=${session.id})`,
-    );
-    return null;
+    logUnreadableBooking("Signed payment's booking could not be read");
+    return { kind: "unreadable" };
   }
-  return { intent, verdict };
+  return { intent, kind: "ready", verdict };
 };
 
 export const validatePaidSession = async (
@@ -150,11 +153,7 @@ export const validatePaidSession = async (
   if (isSessionRejection(session)) {
     return {
       ok: false,
-      response: await answerRejectedSession(
-        session,
-        sessionId,
-        logRedirectError,
-      ),
+      response: await answerRejectedSession(session, logRedirectError),
     };
   }
   if (!session) {
@@ -188,12 +187,28 @@ export const validatePaidSession = async (
   // corrupt data), so we neither process nor refund it — refunding an
   // unverifiable session could refund another instance's payment.
   const classified = await classifySessionIntent(session);
-  if (classified === null) {
+  if (classified.kind === "unverifiable") {
     logRedirectError(`Unrecognized payment session (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not recognized"),
     };
   }
-  return { data: { session, ...classified }, ok: true };
+  if (classified.kind === "unreadable") {
+    return {
+      ok: false,
+      response: paymentErrorResponse(
+        "Payment verification failed. Please contact support.",
+        503,
+      ),
+    };
+  }
+  return {
+    data: {
+      intent: classified.intent,
+      session,
+      verdict: classified.verdict,
+    },
+    ok: true,
+  };
 };

@@ -5,62 +5,22 @@ import {
   buildEditFormFromAttendee,
   buildTemplateData,
   getRenderListings,
-  loadAttendeeForEdit,
   type PackagePath,
   packagesByListingIdFrom,
 } from "#routes/admin/attendee-page-data.ts";
 import type { ExistingLine } from "#shared/db/attendees/atomic-update.ts";
-import {
-  createPaidListing,
-  markAsRefunded,
-  setBookingLineQuantity,
-  setupRefundTest,
-} from "#test/features/admin/refunds-helpers.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  createPaidTestAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createDailyTestListing,
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
-import { adminGet, withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin refund UI)", { db: true }, () => {
   describe("listing page UI", () => {
-    const getListingPageHtml = async (listingId: number): Promise<string> => {
-      const response = await adminGet(`/admin/listing/${listingId}`);
-      expect(response.status).toBe(200);
-      return response.text();
-    };
-
-    test("shows the listing-level Refund All on a paid listing", async () => {
-      const listing = await createPaidListing();
-      await createPaidTestAttendee(
-        listing.id,
-        "Paid User",
-        "paid@example.com",
-        "pi_ui_1",
-      );
-
-      const response = await adminGet(`/admin/listing/${listing.id}/actions`);
-      await expectHtmlResponse(response, 200, "Refund All");
-    });
-
-    const createAttendeeAndGetHtml = async (
-      listing: Awaited<ReturnType<typeof createTestListing>>,
-      name: string,
-      email: string,
-    ) => {
-      await createTestAttendee(listing.id, listing.slug, name, email);
-      return getListingPageHtml(listing.id);
-    };
-
     const existingLine = (
       listingId: number,
       overrides: Partial<ExistingLine["booking"]> = {},
@@ -82,77 +42,6 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
       };
       return { booking, key: `${booking.listing_id}||0|0` };
     };
-
-    const expectCannotRefund = async (
-      attendeeId: number,
-      refunded: boolean,
-    ): Promise<void> => {
-      const loaded = await withTestSession(() =>
-        loadAttendeeForEdit(attendeeId),
-      );
-      expect(loaded).toMatchObject({
-        attendee: { id: attendeeId, refunded },
-        canRefund: false,
-      });
-    };
-
-    test("does not show Refund All for free listings", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const html = await createAttendeeAndGetHtml(
-        listing,
-        "Free User",
-        "free@example.com",
-      );
-      expect(html).not.toContain("Refund All");
-    });
-
-    test("shows the per-attendee Refund action on a paid attendee's edit page", async () => {
-      const listing = await createPaidListing();
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Paid User",
-        "paid@example.com",
-        "pi_edit_1",
-      );
-      const response = await adminGet(
-        `/admin/attendees/${attendee.id}/actions`,
-      );
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(`/admin/attendees/${attendee.id}/refund`);
-    });
-
-    test("hides the Refund action but keeps delete/resend when the attendee has no payment", async () => {
-      const listing = await createPaidListing();
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "No Payment User",
-        "nopay@example.com",
-      );
-      const response = await adminGet(
-        `/admin/attendees/${attendee.id}/actions`,
-      );
-      const html = await expectHtmlResponse(response, 200);
-      expect(html).not.toContain(`/admin/attendees/${attendee.id}/refund`);
-      expect(html).toContain(`/admin/attendees/${attendee.id}/delete`);
-      expect(html).toContain(
-        `/admin/attendees/${attendee.id}/resend-notification`,
-      );
-    });
-
-    test("loads canRefund as false when a paid attendee has no active booking line", async () => {
-      const ctx = await setupRefundTest("pi_no_quantity_action");
-      await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
-
-      await expectCannotRefund(ctx.attendee.id, false);
-    });
-
-    test("loads canRefund as false when the attendee is already refunded", async () => {
-      const ctx = await setupRefundTest("pi_already_refunded_action");
-      await markAsRefunded(ctx.attendee.id);
-
-      await expectCannotRefund(ctx.attendee.id, true);
-    });
 
     test("groups package paths by listing and keeps zero-price overrides", () => {
       const paths: PackagePath[] = [

@@ -4,30 +4,112 @@
  * whose customers may pay more than it asks.
  */
 
+import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { execute } from "#shared/db/client.ts";
+import {
+  browserSeenBy,
+  ORGANISER,
+  openAdminPage,
+} from "#test/specs/support/browser.ts";
+import { usableInputsOfKind } from "#test/specs/support/form-controls/reading.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   refundByTyping,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
+import { openListedRefundCase } from "#test/specs/support/refund-safety/journeys.ts";
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
   type TicketsWorld,
   theListing,
 } from "#test/specs/support/world.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { chargeMoney, refundObservation } from "#test-utils/payment-state.ts";
+import {
+  finalizeProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
+import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
+import {
+  refundCompletes,
+  refundIsRejected,
+  withRefundMock,
+} from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-/** The payment the provider will turn down — the middle one, so the story
- * proves the refunds after it still run. */
-const DECLINED_PAYMENT = "pi_bulk_2";
+const FIRST_PAYMENT = "pi_bulk_1";
+
+type RefundAnswer = Parameters<typeof refundByTyping>[2];
+type RefundFormTarget = "attendee" | "listing";
+
+const REFUND_FORM_BY_TARGET = {
+  attendee: {
+    buttonText: "Refund Attendee",
+    page: (id: number) => `/admin/attendees/${id}/refund`,
+  },
+  listing: {
+    buttonText: "Refund All Attendees",
+    page: (id: number) => `/admin/listing/${id}/refund-all`,
+  },
+} satisfies Record<
+  RefundFormTarget,
+  { buttonText: string; page: (id: number) => string }
+>;
+
+const sendRefundForm = (
+  world: TicketsWorld,
+  target: RefundFormTarget,
+  id: number,
+  typed: string,
+  answer: RefundAnswer,
+) => {
+  const form = REFUND_FORM_BY_TARGET[target];
+  return refundByTyping(
+    world,
+    { buttonText: form.buttonText, page: form.page(id), typed },
+    answer,
+  );
+};
+
+const firstAttendeeId = (world: TicketsWorld): number => {
+  const first = requiredWorldValue(world.attendeeIds, "the people who paid")[0];
+  if (first === undefined) throw new Error("No first paid attendee");
+  return first;
+};
+
+/** Reproduce an old PII-only deposit followed by one modern balance payment. */
+export const leaveOnlyLaterIndexedPayment = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const attendeeId = firstAttendeeId(world);
+  await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
+    attendeeId,
+  ]);
+  await execute(
+    "UPDATE attendees SET pii_payment_session_id = NULL WHERE id = ?",
+    [attendeeId],
+  );
+  await finalizeProcessedPayment(
+    `later-balance-${attendeeId}`,
+    attendeeId,
+    "",
+    taggedPaymentReference("pi_later_indexed_balance"),
+  );
+};
+
+const firstProviderCharge = (world: TicketsWorld) => {
+  const charge = world.providerCharges.get(FIRST_PAYMENT);
+  if (charge === undefined) {
+    throw new Error(`The provider has no charge ${FIRST_PAYMENT}`);
+  }
+  return charge;
+};
 
 /** One listing, one paid place each for the named people. */
 export const paidPlaceEach = async (
@@ -41,42 +123,134 @@ export const paidPlaceEach = async (
   world.confirmName = name;
   world.attendeeIds = [];
   for (const [index, who] of people.entries()) {
-    const attendee = await createPaidTestAttendee(
-      listing.id,
-      who,
-      `${who.toLowerCase()}@example.com`,
-      `pi_bulk_${index + 1}`,
-      minorUnits(price),
+    const number = index + 1;
+    const paid = minorUnits(price);
+    world.attendeeIds.push(
+      await runStripeSuccess(world, {
+        email: `${who.toLowerCase()}@example.com`,
+        items: singleItem(listing.id, 1, paid),
+        name: who,
+        paymentIntent: `pi_bulk_${number}`,
+        sessionId: `cs_bulk_${number}`,
+        total: paid,
+      }),
     );
-    world.attendeeIds.push(attendee.id);
   }
 };
 
-/** The organiser refunds everyone from the listing's own refund-everyone page,
- * typing the listing name it asks for. The provider turns one payment down. */
-export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
-  const browser = await refundByTyping(
+/** Submit the listing's served Refund All form with one provider behaviour. */
+const refundEveryone = async (
+  world: TicketsWorld,
+  answer: RefundAnswer,
+): Promise<void> => {
+  const browser = await sendRefundForm(
     world,
-    {
-      buttonText: "Refund All Attendees",
-      page: `/admin/listing/${theListing(world)}/refund-all`,
-      typed: requiredWorldValue(world.confirmName, "the listing name to type"),
-    },
-    (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
+    "listing",
+    theListing(world),
+    requiredWorldValue(world.confirmName, "the listing name to type"),
+    answer,
   );
   world.bulkRefundMessage = browser.pageText;
 };
 
-/** Who got their money back, and who the provider turned down. */
-export const refundedPeople = (
+/** Submit one bounded Refund All step that the provider refuses. */
+export const refuseNextRefund = (world: TicketsWorld): Promise<void> =>
+  refundEveryone(world, refundIsRejected);
+
+/** Try Refund All with a provider that would return every payment it receives. */
+export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
+  refundEveryone(world, refundCompletes);
+
+/** Open the listing-wide refund page without reaching around a missing form. */
+export const openRefundEveryone = async (
   world: TicketsWorld,
-): { refunded: number[]; turnedDown: number } => {
-  const paid = requiredWorldValue(world.attendeeIds, "the people who paid");
-  if (paid.length !== 3) {
-    throw new Error(`Expected three people to have paid, found ${paid.length}`);
-  }
-  const [first, second, third] = paid as [number, number, number];
-  return { refunded: [first, third], turnedDown: second };
+): Promise<void> => {
+  await withRefundMock(refundCompletes, async (mockRefund) => {
+    const browser = await openAdminPage(
+      world,
+      REFUND_FORM_BY_TARGET.listing.page(theListing(world)),
+    );
+    world.bulkRefundMessage = browser.pageText;
+    world.refundCalls = () => mockRefund.calls.length;
+  });
+};
+
+/** The blocked page explains the state but cannot submit a refund. */
+export const expectRefundEveryoneUnavailable = (world: TicketsWorld): void => {
+  const html = browserSeenBy(world, ORGANISER).currentHtml;
+  expect(html).not.toContain("Refund All Attendees");
+  expect(html).not.toContain(
+    `action="${REFUND_FORM_BY_TARGET.listing.page(theListing(world))}"`,
+  );
+};
+
+/** Prove the reviewed payment is the final member of the complete command. */
+export const firstPaymentIsLastRefundCandidate = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const candidates = await getCompleteRefundCandidatesForListing(
+    theListing(world),
+  );
+  expect(candidates).toHaveLength(
+    requiredWorldValue(world.attendeeIds, "the people who paid").length,
+  );
+  expect(candidates.at(-1)?.attendee.id).toBe(firstAttendeeId(world));
+};
+
+/** Give the first charge a provider report that cannot be true. */
+export const contradictFirstPayment = (world: TicketsWorld): void => {
+  const charge = firstProviderCharge(world);
+  const returned = {
+    amount: charge.captured.amount + 1,
+    currency: charge.captured.currency,
+  };
+  world.providerCharges.set(FIRST_PAYMENT, {
+    ...charge,
+    confirmedRefunded: returned,
+    refunds: [
+      refundObservation({
+        amount: returned,
+        refund: {
+          id: "re_bulk_contradiction",
+          kind: "stripe_refund",
+          parentId: FIRST_PAYMENT,
+          provider: "stripe",
+        },
+      }),
+    ],
+  });
+};
+
+/** Use the real single-refund form and leave its canonical owner case open. */
+export const leaveFirstRefundCaseForOwner = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const browser = await sendRefundForm(
+    world,
+    "attendee",
+    firstAttendeeId(world),
+    "One",
+    refundCompletes,
+  );
+  expect(requiredWorldValue(world.refundCalls, "first refund calls")()).toBe(0);
+  await browser.clickLink("Settings");
+  await browser.clickLink("Privacy");
+  expect(browser.containsText("Refunds needing attention")).toBe(true);
+  await openListedRefundCase(browser);
+  expect(browser.pageText).toContain("Check the provider again");
+  expect(browser.currentHtml).toContain(
+    'name="choice" type="hidden" value="check_again"',
+  );
+  expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([]);
+};
+
+/** Replace the contradictory report with an untouched charge. */
+export const correctFirstPayment = (world: TicketsWorld): void => {
+  const charge = firstProviderCharge(world);
+  world.providerCharges.set(
+    FIRST_PAYMENT,
+    chargeMoney(charge.captured.amount, 0, charge.captured.currency),
+  );
 };
 
 /** A listing that asks one price but lets a customer pay more. */
@@ -93,7 +267,7 @@ export const payMoreListing = async (
 export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
   const listingId = theListing(world);
   const paid = minorUnits(chosen);
-  await runStripeSuccess({
+  world.attendeeId = await runStripeSuccess(world, {
     email: "generous@example.com",
     items: singleItem(listingId, 1, paid),
     name: "Generous",
@@ -101,7 +275,6 @@ export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
     sessionId: "cs_pay_more",
     total: paid,
   });
-  world.attendeeId = (await getAttendeesRaw(listingId))[0]!.id;
   // The statement that has to show what they chose rather than what was asked.
   leaveEvidencePage(
     world,

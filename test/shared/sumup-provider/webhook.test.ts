@@ -50,8 +50,10 @@ describe("sumup-provider resolveWebhookSession", () => {
   const REFUNDABLE_REJECTION = {
     metadata: { ...BLANK_SESSION_METADATA, ...SUMUP_META },
     paymentReference: "txn",
+    provider: "sumup",
     reason: "malformed_charge",
     refundable: true,
+    sessionId: "ref",
   };
 
   // Blank, or longer than any id SumUp mints: the same fixed refusal as

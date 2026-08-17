@@ -64,7 +64,7 @@ Then(
   "the site says {int} record is left behind",
   async function (this: TicketsWorld, count: number): Promise<void> {
     expect(await whatThePrivacyPageSays(this)).toContain(
-      t("privacy.orphans.count", { count }),
+      t("privacy.orphans.purgeable_count", { count }),
     );
   },
 );
@@ -73,7 +73,7 @@ Then(
   "the site says no records are left behind",
   async function (this: TicketsWorld): Promise<void> {
     expect(await whatThePrivacyPageSays(this)).toContain(
-      t("privacy.orphans.count", { count: 0 }),
+      t("privacy.orphans.purgeable_count", { count: 0 }),
     );
   },
 );

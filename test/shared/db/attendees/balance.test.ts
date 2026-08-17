@@ -24,7 +24,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   createNonReservationAttendee,
@@ -33,9 +33,14 @@ import {
 } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { expectRefundReferences } from "#test-utils/payment-references.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import {
+  getProcessedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
+import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
@@ -91,7 +96,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
         "balance-ref-ok",
         attendeeId,
         1500,
-        "pi_balance_ok",
+        taggedPaymentReference("pi_balance_ok"),
       ),
     );
 
@@ -99,6 +104,79 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(row?.attendee_id).toBe(attendeeId);
     expect(row?.payment_reference).not.toContain("pi_balance_ok");
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
+  });
+
+  // The fault this closes: a refund run compares the attendee's whole set of
+  // charges once and then works from that snapshot. A balance landing
+  // underneath it is refunded by nobody, and the run reports success. The
+  // callback must stand down and retry rather than write.
+  test("refuses to finalize a balance while a refund run holds the attendee", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    // Their deposit charge, with a refund run holding it.
+    await reserveSession("deposit-held");
+    await getDb().execute(
+      `UPDATE processed_payments SET attendee_id = ?, protected_state = 'claim'
+        WHERE payment_session_id = ?`,
+      [attendeeId, "deposit-held"],
+    );
+    await reserveSession("balance-held");
+
+    await expect(
+      settleAttendeeBalance(
+        attendeeId,
+        1500,
+        settle("balance-held"),
+        await balanceFinalizeStatements(
+          "balance-held",
+          attendeeId,
+          1500,
+          taggedPaymentReference("pi_balance_held"),
+        ),
+      ),
+    ).rejects.toThrow();
+
+    const row = await getProcessedPayment("balance-held");
+    expect(row?.attendee_id).toBe(null);
+    await expectRefundReferences(attendeeId, []);
+  });
+
+  test("refuses a tagged balance while another attendee holds its old raw identity", async () => {
+    const holder = await createReservedAttendee(1);
+    const target = await createReservedAttendee(1500);
+    const reference = "pi_alias_held_elsewhere";
+    const stored = await historicalPaymentReferenceStorage(reference);
+    await reserveSession("legacy-alias-held");
+    await getDb().execute({
+      args: [
+        holder.attendeeId,
+        stored.encrypted,
+        stored.index,
+        "legacy-alias-held",
+      ],
+      sql: `UPDATE processed_payments
+               SET attendee_id = ?, payment_reference = ?,
+                   payment_reference_index = ?, protected_state = 'claim'
+             WHERE payment_session_id = ?`,
+    });
+    await reserveSession("balance-alias-refused");
+
+    await expect(
+      settleAttendeeBalance(
+        target.attendeeId,
+        1500,
+        settle("balance-alias-refused"),
+        await balanceFinalizeStatements(
+          "balance-alias-refused",
+          target.attendeeId,
+          1500,
+          taggedPaymentReference(reference),
+        ),
+      ),
+    ).rejects.toThrow();
+
+    expect(
+      (await getProcessedPayment("balance-alias-refused"))?.attendee_id,
+    ).toBe(null);
   });
 
   test("does not finalize a balance session reference on amount mismatch", async () => {
@@ -113,7 +191,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
         "balance-ref-mismatch",
         attendeeId,
         1000,
-        "pi_balance_mismatch",
+        taggedPaymentReference("pi_balance_mismatch"),
       ),
     );
 
@@ -260,13 +338,13 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("order summary preserves the original order price after a full refund", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(0);
-    const result = await recordAttendeeRefund(attendeeId, [
-      {
-        sessionIds: [`sale-${listingId}-${attendeeId}`],
-      },
-    ]);
+    const reference = {
+      index: `sale-${listingId}-${attendeeId}`,
+      sessionIds: [`sale-${listingId}-${attendeeId}`],
+    };
+    const result = await recordAttendeeRefund(attendeeId, [reference]);
 
-    expect(result).toEqual({ posted: true });
+    expect(result).toEqual(refundLedgerResult([reference]));
     const summary = await getAttendeeOrderSummary(attendeeId);
     expect(summary.depositPaid).toBe(0);
     expect(summary.fullPrice).toBe(100);

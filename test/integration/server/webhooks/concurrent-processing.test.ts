@@ -219,14 +219,14 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     if (!result.success) throw new Error("Failed to create test attendee");
     const attendee = result.attendees[0]!;
 
-    const { finalizeProcessedPayment } = await import(
+    const { finalizeProcessedPayment, taggedPaymentReference } = await import(
       "#test-utils/processed-payments.ts"
     );
     await finalizeProcessedPayment(
       "cs_multi_already_done",
       attendee.id,
       attendee.ticket_token,
-      "pi_multi_already_done",
+      taggedPaymentReference("pi_multi_already_done"),
     );
 
     await expectWebhookProcessed(

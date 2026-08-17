@@ -55,7 +55,7 @@ import {
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
 const createPrefillFromRequest = (request: Request): ServicingPrefill => {
   const params = new URL(request.url).searchParams;
@@ -255,8 +255,9 @@ const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost
           false,
         );
       }
-      if (!(await costBelongsToServicing(costId, id)))
+      if (!(await costBelongsToServicing(costId, id))) {
         return notFoundResponse();
+      }
       await editServiceCost(costId, { amount }, id);
       return redirect(
         `/admin/servicing/${id}`,

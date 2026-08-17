@@ -29,6 +29,7 @@ import {
   tabPath,
 } from "#shared/entity-pages/core.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { isOwnerRole } from "#shared/types.ts";
 import {
   entityPageView,
   type LoadedSection,
@@ -56,6 +57,16 @@ export interface PageCtx {
    * Activity tab). The only sanctioned way to build a tab URL. */
   tabHref: (slug: string) => string;
 }
+
+/** Add Actions-tab fields only owners need to load. */
+export const prepareOwnerFields =
+  <E>(
+    load: (entity: E) => Promise<Partial<E>>,
+  ): ((entity: E, ctx: PageCtx) => Promise<E>) =>
+  async (entity, ctx) =>
+    isOwnerRole(ctx.session.adminLevel)
+      ? { ...entity, ...(await load(entity)) }
+      : entity;
 
 /** A loader for one of a page's optional element slots (banner, guide footer,
  * prose extra) or a custom section: it turns the entity into markup, or null

@@ -1,12 +1,16 @@
 import * as v from "valibot";
-import { namedError } from "#shared/named-error.ts";
+import {
+  isAbortOrTimeoutError,
+  isTimeoutError,
+  namedError,
+} from "#shared/named-error.ts";
 import { delay } from "#shared/now.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
 import { parseStripeErrorBody } from "./schemas.ts";
 
 export const STRIPE_API_VERSION = "2026-04-22.dahlia";
-export const STRIPE_TIMEOUT_MS = 20_000;
 export const STRIPE_MAX_NETWORK_RETRIES = 2;
 
 const STRIPE_API_URL = "https://api.stripe.com";
@@ -24,12 +28,14 @@ type ResponseSchema<T> = v.BaseSchema<unknown, T, v.BaseIssue<unknown>>;
 
 /**
  * Per-request options. `idempotencyKey` overrides the default per-POST retry
- * key so a caller can supply a stable, provider-and-payment-scoped key that
- * survives webhook redelivery (see `refundIdempotencyKey` in
- * `#shared/payment-idempotency.ts`).
+ * key so a caller can supply the durable refund generation's stable key across
+ * process retries (see `refundIdempotencyKey` in
+ * `#shared/payment-idempotency.ts`). `maxNetworkRetries` narrows one bounded
+ * workflow without weakening retries for unrelated Stripe calls.
  */
 export interface StripeRequestOptions {
   idempotencyKey?: string | undefined;
+  maxNetworkRetries?: 0 | undefined;
 }
 
 export interface StripeClientConfig {
@@ -75,11 +81,25 @@ export class StripeApiError extends Error {
   }
 }
 
-export class StripeConnectionError extends namedError(
-  "StripeConnectionError",
-) {}
+export type StripeConnectionFailure = "network_error" | "timeout";
 
-export class StripeProtocolError extends namedError("StripeProtocolError") {}
+export class StripeConnectionError extends namedError("StripeConnectionError") {
+  readonly reason: StripeConnectionFailure;
+
+  constructor(reason: StripeConnectionFailure, message: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
+
+export class StripeProtocolError extends namedError("StripeProtocolError") {
+  readonly statusCode: number | undefined;
+
+  constructor(message: string, statusCode?: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 class StripeBodyReadError extends Error {
   readonly source: unknown;
@@ -144,15 +164,21 @@ const connectionError = (
   error: unknown,
   retry: number,
   timeout: number,
-): StripeConnectionError =>
-  new StripeConnectionError(
-    error instanceof DOMException && error.name === "TimeoutError"
+): StripeConnectionError => {
+  const timedOut = isTimeoutError(error);
+  return new StripeConnectionError(
+    timedOut ? "timeout" : "network_error",
+    timedOut
       ? `Request aborted due to timeout being reached (${timeout}ms)`
       : `An error occurred with our connection to Stripe. Request was retried ${retry} times.`,
   );
+};
 
 const retriesRemain = (retry: number, maximum: number): boolean =>
   retry < maximum;
+
+const isTransportFailure = (error: unknown): boolean =>
+  error instanceof TypeError || isAbortOrTimeoutError(error);
 
 const headerOrUndefined = (
   headers: Headers,
@@ -193,6 +219,7 @@ const stripeError = async (response: Response): Promise<StripeApiError> => {
       error instanceof SyntaxError
         ? "Invalid JSON received from the Stripe API"
         : "Invalid response received from the Stripe API",
+      response.status,
     );
   }
   return responseError(
@@ -240,7 +267,7 @@ const fullConfig = (
     maxNetworkRetries = STRIPE_MAX_NETWORK_RETRIES,
     random = Math.random,
     sleep: sleepImpl = delay,
-    timeout = STRIPE_TIMEOUT_MS,
+    timeout = PROVIDER_TIMEOUT_MS,
   }: StripeClientConfig,
 ): RequestConfig => ({
   apiBase,
@@ -265,11 +292,15 @@ export const createStripeRequest = (
     schema: ResponseSchema<T>,
     options: StripeRequestOptions = {},
   ): Promise<T> => {
+    const maxNetworkRetries =
+      options.maxNetworkRetries ?? config.maxNetworkRetries;
     const encoded = encodeStripeForm(params);
-    const url = `${config.apiBase}${path}${method === "GET" && encoded ? `?${encoded}` : ""}`;
+    const url = `${config.apiBase}${path}${
+      method === "GET" && encoded ? `?${encoded}` : ""
+    }`;
     const idempotencyKey =
       options.idempotencyKey ??
-      (method === "POST" && config.maxNetworkRetries > 0
+      (method === "POST" && maxNetworkRetries > 0
         ? `tickets-stripe-retry-${crypto.randomUUID()}`
         : undefined);
     const headers = new Headers({
@@ -281,7 +312,8 @@ export const createStripeRequest = (
     if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
 
     async function retryConnection(error: unknown, retry: number): Promise<T> {
-      if (!retriesRemain(retry, config.maxNetworkRetries)) {
+      if (!isTransportFailure(error)) throw error;
+      if (!retriesRemain(retry, maxNetworkRetries)) {
         throw connectionError(error, retry, config.timeout);
       }
       await config.sleep(retryDelay(retry, null, config.random));
@@ -313,7 +345,7 @@ export const createStripeRequest = (
         return retryConnection(error, retry);
       }
       if (
-        retriesRemain(retry, config.maxNetworkRetries) &&
+        retriesRemain(retry, maxNetworkRetries) &&
         (shouldRetry(response) || (await isLockTimeoutResponse(response)))
       ) {
         await cancelResponseBody(response);

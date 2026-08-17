@@ -34,6 +34,8 @@ export type EncryptedAttendeeData = {
   ticketToken: string;
   ticketTokenIndex: BlindIndex;
   encryptedPiiBlob: OwnerKeyEncrypted;
+  /** NULL is unqualified history; empty proves the PII has no payment id. */
+  piiPaymentSessionId: string | null;
 };
 
 /** Input for encrypting attendee fields */

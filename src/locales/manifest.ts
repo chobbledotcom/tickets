@@ -64,6 +64,7 @@ export const MESSAGE_GROUPS = [
   "seed-data",
   "servicing",
   "settings",
+  "schema-atlas",
   "setup",
   "site",
   "site-pages",
@@ -262,6 +263,9 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   ),
   renewal: messagesFrom(
     () => import("./en/renewal.json", { with: { type: "json" } }),
+  ),
+  "schema-atlas": messagesFrom(
+    () => import("./en/schema-atlas.json", { with: { type: "json" } }),
   ),
   "seed-data": messagesFrom(
     () => import("./en/seed-data.json", { with: { type: "json" } }),

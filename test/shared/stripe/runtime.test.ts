@@ -3,10 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import {
-  STRIPE_MAX_NETWORK_RETRIES,
-  STRIPE_TIMEOUT_MS,
-} from "#shared/stripe/request.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
+import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripeClient } from "#test/test-utils/stripe/fixtures.ts";
@@ -45,7 +43,7 @@ describeStripe("Stripe client configuration", () => {
   };
 
   test("uses an edge-sized timeout and two network retries", () => {
-    expect(STRIPE_TIMEOUT_MS).toBe(20_000);
+    expect(PROVIDER_TIMEOUT_MS).toBe(20_000);
     expect(STRIPE_MAX_NETWORK_RETRIES).toBe(2);
   });
 
@@ -172,9 +170,11 @@ describeStripe("Stripe client configuration", () => {
           Promise.reject(stripeError),
         ),
       async () => {
-        expect(
-          await stripeApi.retrieveCheckoutSession("cs_test_123"),
-        ).toBeNull();
+        await expect(
+          stripeApi.retrieveCheckoutSession("cs_test_123"),
+        ).rejects.toThrow(
+          "Stripe checkout could not be read (unexpected_failure)",
+        );
       },
     );
 

@@ -38,6 +38,7 @@ import { withEnv } from "#test-utils/env.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
@@ -95,7 +96,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "sess_listing_delete",
         attendee.id,
         "tok-test",
-        "pi_listing_delete",
+        taggedPaymentReference("pi_listing_delete"),
       );
 
       await deleteListing(listing.id);
@@ -228,7 +229,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "sess_multi_listing",
         attendeeId,
         "tok-test",
-        "pi_multi_listing",
+        taggedPaymentReference("pi_multi_listing"),
       );
 
       await deleteListing(listing1.id);

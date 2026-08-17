@@ -30,11 +30,11 @@ const setupWhileFetchThrows = (thrown: unknown, url: string) =>
 const expectFetchFailure = async (
   thrown: unknown,
   url: string,
+  expected: string,
 ): Promise<void> => {
   const result = await setupWhileFetchThrows(thrown, url);
   expect(result).toEqual({
-    error:
-      "An error occurred with our connection to Stripe. Request was retried 2 times.",
+    error: expected,
     success: false,
   });
 };
@@ -304,15 +304,17 @@ describeStripe("Stripe webhook setup", () => {
 
     test("returns an error when Stripe requests fail", async () => {
       await expectFetchFailure(
-        new Error("Network unavailable"),
+        new TypeError("Network unavailable"),
         "https://example.com/webhook/error-test",
+        "An error occurred with our connection to Stripe. Request was retried 2 times.",
       );
     });
 
-    test("normalizes a non-Error connection failure", async () => {
+    test("preserves a non-Error implementation failure", async () => {
       await expectFetchFailure(
         "string_error",
         "https://example.com/webhook/non-error-throw",
+        "string_error",
       );
     });
 

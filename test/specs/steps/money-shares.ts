@@ -45,7 +45,7 @@ When(
   "a customer pays 50.00 for one place on each",
   async function (this: TicketsWorld): Promise<void> {
     const first = listingIdNamed(this, "Part One");
-    await runStripeSuccess({
+    this.attendeeId = await runStripeSuccess(this, {
       email: "both@example.com",
       items: JSON.stringify([
         { e: first, p: 3000, q: 1 },
@@ -56,7 +56,6 @@ When(
       sessionId: "cs_multi",
       total: 5000,
     });
-    this.attendeeId = await soleBookingOn(first);
     this.attendeeName = "Both Buyer";
   },
 );

@@ -1,8 +1,10 @@
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { foundCharge } from "#test-utils/payment-state.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 
 type VerifyEvent = Parameters<typeof stubWebhookVerify>[0];
@@ -30,11 +32,14 @@ export const setupMismatchWithFailingRefund = async (
   await setupStripe();
   const l = await createTestListing({ maxAttendees: 50, unitPrice: price });
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  const refundStub = stub(stripePaymentProvider, "refundPayment", () =>
-    Promise.resolve(false),
+  const refundStub = stub(
+    stripePaymentProvider,
+    "refundCharge",
+    (_request: RefundRequest) =>
+      Promise.resolve({ kind: "rejected", reason: "failed" } as const),
   );
-  const refundedStub = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-    Promise.resolve(false),
+  const refundedStub = stub(stripePaymentProvider, "readCharge", () =>
+    Promise.resolve(foundCharge()),
   );
   return { l, refundedStub, refundStub };
 };

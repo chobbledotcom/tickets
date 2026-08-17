@@ -331,18 +331,18 @@ generalized passes: render, fold, price, capacity, revalidate.
   granularity blurs, and only when per-path prices differ. Fixing it needs a
   SQL-queryable per-path discriminator on sale legs (a transfers schema addition
   — `reference` is a hash, `kind`/`dest_id` feed reports) or re-storing the
-  per-row amount, plus a fallback for pre-upgrade rows whose legs are untagged.
-  Do it when per-row money display matters more than the schema stability of the
-  append-only ledger.
+  per-row amount. Activation must first migrate and verify old rows in bounded
+  pages. Any row that cannot be migrated keeps an explicit reduced-functionality
+  state; runtime display and accounting must never fall back to the untagged
+  shape. Do it when per-row money display matters more than the schema stability
+  of the append-only ledger.
 
-- **Confirm the v1 drain bridge is genuinely unnecessary.** The original plan
-  called for a bounded-window read-only parser for pre-cutover (v1) signed
-  metadata plus a regression test for an old-shape session paid during the
-  cutover window. No dedicated bridge was built. In practice the v2 schema added
-  `k`/`r` as _optional_ fields to the existing `e/q/p` line shape, so old
-  sessions still parse (as standalone lines). Verify this covers every
-  in-flight-session case and, if so, close this out; otherwise add the bridge +
-  drain-window test.
+- **Prove every v1 in-flight session is drained before a cutover.** The v2
+  schema added `k`/`r` as optional fields to the existing `e/q/p` line shape, so
+  old sessions appear to parse as standalone lines. Verify every old-shape
+  in-flight case. If any does not qualify, migrate or terminally drain it in a
+  bounded, verified pre-activation ceremony. Do not add a runtime parser,
+  compatibility bridge, read-through, or old-record branch.
 
 ---
 
@@ -542,49 +542,37 @@ logic and should stay as they are. Nothing further planned here.
 
 ---
 
-## Payment-processing review follow-ups (from PR #1692)
-
-Both items describe behaviour that predates the payment-processing split (the
-code was moved verbatim from the old `payment-processing.ts` monolith). They are
-recorded here because the split PR was a pure reorganisation — changing this
-behaviour there would be out of scope — and CodeRabbit flagged them as worth a
-look.
-
-- **Per-item DB reads not batched**
-  (`src/features/api/payment-processing/items.ts` `validateAllItems`, and
-  `package-pricing.ts` `loadPackagePricingByGroup`). `validateAllItems` calls
-  `getListingWithCount` once per item in a loop, and `loadPackagePricingByGroup`
-  makes two sequential round-trips per group. Under the edge subrequest budget
-  these accumulate for larger orders. Fix direction: add/use a batched
-  `getListingsWithCount(ids)` for all order listing ids at once and group the
-  package-pricing loads, preserving the existing validation and fail-closed
-  behaviour. See the "Respect the subrequest budget" guidance in AGENTS.md.
-
 ## Payment aggregate — safety behaviour (PR 1)
 
 New sales and existing payments are now resolved by different questions:
 `getActivePaymentProvider()` / `isPaymentsEnabled()` gate new checkouts;
-`getPaymentProviderForExistingPayments()` resolves refunds, replayed callbacks,
-and completion. When sales are off, the existing-payment path falls back to the
-last activated provider. A site already on `none` recovers when exactly one
-provider has stored credentials; when multiple do, the operator must choose the
-provider in a recovery form that keeps new sales off. `setPaymentProviderNone`
-reads the current provider via an atomic INSERT ... SELECT subquery so a
-concurrent activation cannot land between the read and the write.
+`getPaymentProviderForExistingPayments()` resolves older untagged callback and
+completion entry points. When sales are off, that existing-payment path falls
+back to the last activated provider. Actual provider refund sends no longer use
+that ambient choice: M4's canonical authority carries a tagged provider identity
+and passes the complete reference to `loadRefundProvider`, which loads exactly
+that adapter and verifies that it matches the tag. That older whole-checkout
+resolver must not be called, copied, or consulted as a refund fallback,
+including for old rows; an untagged refund reference is a typed permanent
+reduced-functionality refusal. The owner handles it directly in the provider
+dashboard. No migration, re-save, current/last configuration, credential order,
+identifier spelling, or guessed dashboard link may qualify it for the current
+refund engine. A site already on `none` recovers when exactly one provider has
+stored credentials; when multiple do, the operator must choose the provider in a
+recovery form that keeps new sales off. That is a settings activation decision
+only; it is not historical payment ownership and cannot be reused by refunds.
+`setPaymentProviderNone` reads the current provider via an atomic INSERT ...
+SELECT subquery so a concurrent activation cannot land between the read and the
+write.
+
+The same no-parallel-path rule binds the future aggregate cutover: either extend
+the canonical refund authority in place or fence requests, migrate and verify
+all retained rows, switch one epoch, and delete every displaced reader and
+writer in the same release. Record age may select migration-only decoding, never
+a live legacy engine, read-through, dual write, or fallback authority.
 
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
-
-- **Track the provider each charge was captured with.** `main` stores only the
-  opaque `payment_reference` per processed payment, not which provider captured
-  it. So after an operator switches providers (Stripe → Square) and then selects
-  "none", the last-active fallback resolves every payment through Square, and an
-  older Stripe charge cannot be refunded or reconciled against the provider that
-  captured it. This predates PR 1 and is future aggregate work. Fix direction:
-  store the provider type on each `processed_payments` row at capture time and
-  dispatch existing-payment work from that per-charge provider instead of one
-  global fallback. Referenced from `docs/payment-aggregate-acceptance.md`
-  rule 2.
 
 - **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
   Review of PR 1 correctly noted that the settings assembly is already over the
@@ -730,13 +718,6 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
   ~line 69) — both checkboxes render side by side. Fix: mutually disable the
   paired controls client-side with a one-line "why", turning a save-time error
   into an obvious affordance.
-
-- **"Refund processed but not recorded" reads like a failure.**
-  `src/shared/refund-ledger.ts` only auto-reverses a fully-paid clean account;
-  on a partial/credit/mixed account the provider refund fires but the operator
-  sees `error.refund_not_recorded` ("do not re-refund") with no next step. Fix:
-  link the manual-adjustment page straight from that flash and frame it as "one
-  more step", not an error.
 
 - ~~**A multi-item cart with no shared date/length dies silently.**~~ **Done.**
   `src/shared/booking/cart-conflicts.ts` names the clashing items on the ticket
@@ -1055,18 +1036,43 @@ they were left out of that PR's scope.
 
 _Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger)._
 
-`recordPlaceholderRefund` (`src/shared/refund-ledger.ts`) posts the payment and
-completed-refund legs as one atomic `postTransferGroups` batch, so a refund-leg
-conflict rolls the payment back too (the PR's core requirement). When that batch
-fails outright, NO ledger legs land for the booking event group. The payment
-flow's durable replay guard is the ledger preflight (`replaySessionFromLedger` →
-`bookingLedgerDisposition`: `unrecorded` when no legs exist), and the primary
-guard (`markSessionFailed`'s `failure_data` row) is pruned by `prunePayments`
-once it ages past retention. So after pruning, a late webhook/redirect for the
-same already-refunded session re-enters `processReservedSession`, sees
-`unrecorded`, and re-creates a placeholder attendee + re-calls `tryRefund`
-(idempotent, so no double payout) instead of acknowledging the session as
-already handled.
+`recordPlaceholderRefund` (`src/shared/refund-ledger/placeholder.ts`) posts the
+payment and completed-refund legs as one atomic `postTransferGroups` batch, so a
+refund-leg conflict rolls the payment back too (the PR's core requirement). When
+that batch fails outright, NO ledger legs land for the booking event group. The
+payment flow's durable replay guard is the ledger preflight
+(`replaySessionFromLedger` reads `snapshot.ledger`, produced by
+`classifyBookingLedger`: `unrecorded` when no legs exist), and the primary guard
+(`markSessionFailed`'s `failure_data` row) is pruned by `paymentStatement`
+inside `runDatabasePruning` once it ages past retention. So after pruning, a
+late webhook/redirect for the same already-refunded session re-enters
+`processReservedSession`, sees `unrecorded`, and re-creates a placeholder
+attendee before asking the canonical refund authority about the same callback.
+The globally unique charge and callback identities prevent a second provider
+send, but they do not prevent the duplicate quantity-zero attendee: checkout
+completion still lacks a durable handled marker of its own.
+
+M4 Part A now prepares the provider-tagged reference before refund I/O.
+`prepareClaimedAttendeePaymentAnchor` uses the one `checkingClaimFor`
+constructor to put an owner-public-key-encrypted, blind-indexed synthetic
+`legacy:` anchor and its canonical `PaymentRowState` claim in the same
+`createAttendeeAtomic` transaction as the quantity-zero attendee and booking
+rows. It releases that exact claim only after the provider result, ledger post,
+canonical-authority update, activity, and note have finished; a throw leaves the
+attendee fenced instead of exposing a destructive-cleanup gap. An anchor or
+claim failure rolls the whole placeholder back.
+
+The validated callback also creates or binds its canonical `payment_charges`
+authority before a fresh provider read. Missing or invalid evidence moves a
+ready authority immediately to the required
+`needs_owner_choice/provider_unreadable` exit; persistent unavailability gets
+one five-minute grace and then the same exit, with zero refund sends. Those rows
+prove identity and refund work only. They do not finalize the original checkout
+reservation, prove checkout success, or tell `replaySessionFromLedger` that the
+real session was handled. On the ordinary return path, `processPaymentSession`
+still writes the original reservation's terminal failure. A process death after
+placeholder/refund work but before that write, and the later pruning case
+described here, therefore remain open.
 
 This is NOT fully new: on main before PR #1822 the same gap existed for a
 payment-post failure (the first `postTransfers` threw → no legs). PR #1822
@@ -1077,21 +1083,39 @@ without breaking the atomic rollback — e.g. a ledger leg that survives even wh
 the refund leg conflicts (which would violate #1822's acceptance criterion: "a
 refund-reference collision proves neither transfer group is committed"), or a
 separate replay-state row outside the prunable `processed_payments` table. The
-staged-checkout runtime (deferred foundations item 6 in `PR_SPLIT_PLAN.md`)
-carries the proper replay/activation machinery to resolve this. Starting point:
-the preflight in `src/features/api/payment-processing/index.ts`
-(`replaySessionFromLedger`), the pruner in `src/shared/db/prune.ts`
-(`prunePayments`), and the classification in `src/shared/session-ledger.ts`.
+atomic aggregate cutover's M7 work extends the same canonical refund lifecycle
+with the original checkout's durable handled marker; M8 supplies terminal
+completion where appropriate. Starting point: the preflight in
+`src/features/api/payment-processing/index.ts` (`replaySessionFromLedger`), the
+pruner in `src/shared/db/prune.ts` (`paymentStatement` and
+`runDatabasePruning`), the placeholder vocabulary in
+`src/shared/payment/placeholder-refund.ts`, the canonical authority in
+`src/shared/provider-refunds.ts`, and the classification in
+`src/shared/session-ledger.ts`. Extend the existing callback identity; do not
+create a second refund or replay state machine.
 
 ## Bunny subrequest budget follow-ups
 
 _Origin: request-fan-out audit for PR #1820._
 
-Bunny stops an edge request after 50 subrequests. PR #1820 adds a request-scoped
-database guard that blocks libsql call 51 and fixes the concrete failures found
-in fresh setup, group duplication, ordinary backups, reset/restore, and bulk
-refunds. The paths below still have data-dependent fan-out. The guard makes the
-database-only cases fail loudly, but it cannot count provider or storage calls.
+Bunny stops an edge request after 50 subrequests. The request-scoped guard now
+counts database calls and external fetch/storage calls separately and together;
+nested allowances reserve mandatory cleanup, and each interactive transaction
+keeps one rollback call outside its working allowance. M4 Part A also prices the
+EXACT selected admin refund attendee over physical provider retries, database
+work, rollback, settlement, and the caller tail before fresh provider I/O. The
+cost comes from each stored provider-tagged identity, takes no list of
+configured providers, and never becomes zero because credentials are absent;
+ambient configuration therefore cannot change refund admission. Refund All uses
+a PII-free whole-listing safety summary, then selects one person; its GET
+decrypts zero attendee PII, and its POST decrypts zero when blocked/empty or
+exactly one when admitted. It does not pretend one request can finish an
+arbitrary listing. Blind-index claim expansion separately accepts at most 100
+sharing rows outside the selected attendee set and retrieves row 101 only as an
+overflow sentinel. Overflow refuses before decrypting shared row state, writing
+a claim, or calling a provider. The paths below still have data-dependent
+fan-out or need resumable work; counting them makes an overrun loud, but does
+not itself make a large operation finish.
 
 - ~~**Package carts and payment completion.**~~ Done. `resolveCartSlugs` now
   resolves every package slug through `loadCartPackagesBySlugs`
@@ -1323,74 +1347,6 @@ does not make a second provider request. Keep each run within the edge request
 budget and request a follow-up run when a full page remains. Add a regression
 test that runs webhook, redirect, and maintenance attempts concurrently and
 proves they create the attendee and ledger rows exactly once.
-
----
-
-## Square PENDING refunds — propagate a pending result, not a plain false
-
-_Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread on
-`squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately does
-NOT address it; recorded so the follow-on work can pick it up._
-
-`squareApi.refundPayment` returns `false` for a Square refund that is still
-`PENDING` (an accepted-but-unsettled refund). That is the honest current-main
-boolean contract this PR ships, but it has a real downstream cost the reviewer
-flagged: the webhook/admin refund flow reads `refunded === false` as a failed
-refund, so a pending Square refund releases the reservation, returns 503, and —
-because each call mints a fresh `crypto.randomUUID()` idempotency key — a
-redelivery posts another full-refund attempt instead of waiting on the existing
-refund id. A PENDING Square refund is documented as a normal accepted
-`RefundPayment` response, so collapsing it into `false` loses the "accepted, not
-yet settled" signal.
-
-Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
-landed on `main`; the Square refund idempotency key is now the stable
-`refundIdempotencyKey("square", paymentId)` rather than a fresh
-`crypto.randomUUID()`, so a redelivery re-posts with the SAME key and Square
-dedupes it — the double-pay half of the risk above is now mitigated. The
-PENDING-still-returns-false behaviour itself (a retryable re-attempt that waits
-on `isPaymentRefunded` rather than holding the refund id) remains, so the
-pending-result union below is still the real fix; the stale-key concern is
-resolved.
-
-The fix is the staged-checkout pending-result union / callback resolution this
-PR was explicitly told not to introduce: surface a pending outcome (carrying the
-refund id) separately from a plain false, and have the webhook/admin refund
-paths hold/redeliver against that id instead of re-posting. That is the same
-machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
-recover paid checkouts safely") and overlaps #1905
-(`split/authoritative-payment-callbacks` — provider-neutral webhook retry
-resolution), so it must be designed with those branches, not duplicated here.
-Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
-boolean contract lives), the idempotency key in its `withClient` callback, and
-the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
-plus `refundReferenceAtProvider` in `src/features/admin/refunds/provider.ts`
-(both treat `false` as failed and fall back to `isPaymentRefunded`, which a
-still-pending refund also fails).
-
----
-
-## Validate Square orders/payments responses with Valibot schemas
-
-_Origin: CodeRabbit review of PR #1911. The refund response validation is done
-(`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
-splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`, and
-the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is 240
-lines and `rest-transport.test.ts` is 372). What remains is extending the same
-boundary-validation pattern to the orders and payments client methods._
-
-The Square REST client still maps order and payment responses with type casts
-(`get<T>` for orders and payments). `squareFetch` returns
-`JSON.parse(response.text)` cast as `<T>`, so a malformed order or payment
-object — wrong field types, an unexpected shape — passes through unvalidated.
-The refund path now has a Valibot schema (`SquareRefundSchema` /
-`SquareRefundResponseSchema`) parsed with `v.parse` OUTSIDE `withClient`, so a
-malformed refund response fails loudly. Doing the same for orders and payments
-means defining `SquareOrderSchema` and `SquarePaymentSchema` and parsing in
-their respective `squareApi` methods, so a malformed response throws rather than
-being silently cast. Starting point: `squareFetch` and the `SquareOrderResponse`
-/ `SquarePaymentResponse` types in `src/shared/square.ts`; mirror the refund
-schema shape that already exists.
 
 ---
 
@@ -1872,10 +1828,9 @@ currency down the existing mismatch-and-refund path._
 
 The money history holds one currency — the site's. When a charge arrives in a
 different one, `classify.ts` sends it through the ordinary mismatch flow, and
-`storeRefundPlaceholder` in
-`src/features/api/payment-processing/store-refund.ts` writes
-`session.amountTotal` straight into that history. The number is right but the
-currency is not, so a 1,000 yen charge on a pounds site is filed as £10. The
+`storeRefundedBooking` in `src/features/api/payment-processing/store-refund.ts`
+writes `session.amountTotal` straight into that history. The number is right but
+the currency is not, so a 1,000 yen charge on a pounds site is filed as £10. The
 refund itself is unaffected — that goes back through the provider in the
 currency it was taken — but the operator's cash history reads wrong, and if the
 refund fails it names the wrong amount as still held.
@@ -1890,38 +1845,45 @@ assumes one currency. That is a change to the accounting store, well past a PR
 about reading provider money safely, and the wrong thing to bolt on without
 deciding which of the two shapes we want.
 
-## Record a rejected-and-refunded payment session as finished
+## Bind a rejected session's refund authority to checkout completion
 
 _Origin: Codex review on PR #2021, which added the automatic refund for a paid
 charge the payment boundary cannot read._
 
-When a provider callback meets a `malformed_charge` rejection and refunds it,
-nothing durable is written down. No reservation, no processed-payment row, no
-ledger entry says "this session was refused and the money went back". The
-webhook simply acknowledges and moves on (`refundRejectedCharge` in
-`src/features/api/payment-processing/refunds.ts`, and its callers in
-`src/features/api/webhooks.ts` and
-`src/features/api/payment-processing/classify.ts`).
+M4 Part A closes the actual-send half when fresh evidence is sufficient:
+`refundRejectedCharge` carries the callback session id into
+`requestProviderRefund`, and the canonical `payment_charges` authority exists
+before a provider send. Its unique callback and charge identities prevent a
+duplicate send. A malformed or rejected charge whose fresh read is unavailable
+cannot supply trustworthy captured Money, so it returns
+`withheld`/`read_failed`; no money is sent, but no owner authority row can yet
+be created from invented facts. A later callback or browser return is the only
+current recovery for that case. A blank reference has no usable identity and is
+terminally treated as settled elsewhere.
+
+What is still absent is the checkout-completion half. No processed-payment
+terminal result links durable refund authority to "this session was refused",
+and the unavailable-read case has no durable owner row, so the booking
+classifier cannot consult either outcome.
 
 The reviewer's concern is that a later delivery of the same session — a webhook
 redelivery, or the buyer opening the success page — could read it in a
 well-formed shape, still see it as paid, find no record of it, and make a real
 ticket for money that was already returned.
 
-Why it is not being fixed in that PR: every rejection reason is a fixed property
-of the provider's own stored record (an amount that is not a whole number of
-minor units, a missing or malformed currency, a SumUp amount more precise than
-its currency allows). None of those can turn well-formed on a later read, so the
-double-book needs a provider changing a completed session's money — which no
-provider does. The refund itself is already safe to repeat: `tryRefund` treats a
-provider's "already fully refunded" answer as success.
+The concrete double-book still requires a provider changing a completed
+session's malformed money into a well-formed answer, which is why this is not a
+current send-safety fault. The authority already makes refund redelivery safe.
+The missing relationship belongs in the atomic M6–M11 cutover's whole-checkout
+result and durable completion, so one engine, rather than that provider
+assumption, proves the booking cannot later complete.
 
-If it is taken on: carry the session id in `SessionRejection`
-(`src/shared/payment/validated-session.ts`), and finish the session through the
-same state machine a normal payment uses — `reserveSession` /
-`processed-payments` in `src/shared/db/processed-payments.ts` — with a terminal
-"refused and refunded" outcome, so a later delivery of that session id short
-circuits the way an already-processed payment does.
+Starting point: `SessionRejection` already carries the session id;
+`refundRejectedCharge` writes the callback identity; M6 must join that identity
+to its whole-checkout observation, and M8 must persist the terminal "refused and
+refunded" completion result. A later delivery then short-circuits through the
+same current engine as an already-processed payment. Do not add a second
+processed-payment refund marker.
 
 ## Tell a buyer when their money was taken and not (yet) given back
 
@@ -1938,14 +1900,17 @@ buyer really was charged:
 - A `malformed_charge` rejection that is paid but whose reference is unusable —
   the same situation, reached a different way (`refundable` is
   `paid && isResourceId(...)`, and the `paid` half is discarded today).
-- A refund the provider refused (`settled: false`, answered 503). Careful here:
-  a 503 only asks the _webhook_ to be delivered again. The redirect and cancel
-  paths have no retry behind them — they re-attempt only if that person happens
-  to reload the page. So this outcome must not be described to the buyer as
-  being in hand until an unresolved refund is actually written down somewhere
-  and owned by something that will retry it. Recording that state is part of
-  this job, not a follow-up to it, and it overlaps with the durable terminal
-  outcome described in the section above.
+- A refund that has not completed. M4 now persists this in `payment_charges`
+  before a validated callback sends and gives it an owner recovery route, so it
+  really is in hand. The buyer-facing `RejectionOutcome` still collapses
+  `ready`, `pending`, `needs_owner_choice`, and `needs_provider_check` into
+  `settled: false` and generic copy instead of saying whether the refund awaits
+  the provider or a real owner decision.
+- A `withheld`/`read_failed` refund, where the fresh provider read could not
+  prove captured Money. No send occurred and, because an authority row cannot be
+  populated with guessed money, this case may have no durable owner route today.
+  The buyer was reported paid by the rejected checkout observation but has not
+  been proved returned.
 
 A fourth case should keep the generic message: a rejection whose price proof
 does not verify may belong to another site sharing the provider account, and we
@@ -1953,14 +1918,15 @@ must not tell someone else's buyer anything about their payment.
 
 What it needs: `SessionRejection` carries whether the charge was paid (see
 `malformedChargeRejection` in `src/shared/payment/validated-session.ts`, which
-computes `refundable` from it and drops it), `RejectionOutcome` in
-`src/features/api/payment-processing/refunds.ts` grows a third state for
-"captured, not returned", and `answerRejectedSession` picks between two new
-catalog entries beside `payment.error.refunded` in
-`src/locales/en/payment.json`.
+computes `refundable` from it and drops it), and `answerRejectedSession` maps
+the full `ProviderRefundResult` rather than reducing it to two booleans. Add
+catalog copy beside `payment.error.refunded` for captured-with-no-reference and
+for durable refund recovery. Foreign price-proof failures keep the generic
+answer.
 
-Not done in that PR only because it was at its agreed `src/` line budget; there
-is nothing hard about it.
+This belongs to the atomic whole-checkout outcome work. Add the copy only from
+that engine's exhaustive buyer outcome; do not bolt a parallel response state
+onto the legacy rejection path.
 
 ## Split the form-control rules into files about one thing each
 
@@ -2129,3 +2095,509 @@ words — then the story steps and the direct pins in
 `test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
 instead of pinning copied wording. Out of scope for the migration, which does
 not touch `src/`.
+
+## Make Refund All a durable, resumable intention
+
+M4 Part A made one interactive request safe and bounded. `getRefundAllSummary`
+(`src/shared/db/refund-all-candidates.ts`) checks the whole listing through
+indexed, PII-free facts and refuses a visible review, unrecorded-money marker,
+or canonical `provider_refund` blocker on any attendee who is still part of the
+refundable set, and also refuses a non-empty processed reference whose blind
+index is blank. The blocker check runs before selection, so an unsafe candidate
+anywhere in the refundable set still closes the command. A settled
+non-candidate's independently protected work does not strand an unrelated
+refund. `loadRefundAllBatch` then selects one person, with claimed work first;
+the exact claim decision later distinguishes a live run from recoverable stale
+work. Opening Refund All decrypts zero attendee PII. Posting it decrypts zero
+when the summary is blocked or empty and exactly that one selected blob
+otherwise; no route decrypts a candidate array and slices it afterwards. Typed
+admission also refuses a selected person's current PII payment id when no
+indexed row carries it. The exact selected attendee goes through the same claim
+and physical provider/database budget as a single refund. It either refuses
+before fresh provider I/O or processes that person and reports how many
+candidates remain. Another form submission takes the next person. This
+one-attendee size follows the proved Bunny envelope for the maximum accepted
+reference set; up to five provider calls may overlap within that attendee.
+
+What remains is durability of the WHOLE-LISTING intention. A crash after page
+one leaves every untouched attendee discoverable, but no stored job says that
+the owner asked to continue, and nothing resumes it automatically. M7 must
+persist the immutable provider-qualified payment identities and a cursor before
+the first send. Each bounded request records every item result and advances only
+past terminal items; transient failures stay due, permanent refusals become
+owner work, and a visible job always names the unprocessed remainder. Reuse M4's
+summary, exact attendee claim, budget checkpoints, and settlement; do not add a
+second bulk engine or a generic clear that discards money facts.
+
+## Historical refund references deliberately remain manual
+
+_Product decision recorded during PR #2065 review._
+
+There is no migration task to restore current in-app refund controls for old
+PII-only, blank-index, or provider-untagged references. The small installed base
+does not justify a second refund path, a whole-table decrypt, or code that will
+outlive the events those bookings belonged to. The owner refunds one of these
+payments directly in Stripe, Square, SumUp, or the relevant provider.
+
+`attendees.pii_payment_session_id` makes completeness visible without opening
+PII: `NULL` means historical or otherwise unqualified, `''` proves the PII had
+no payment id, and a non-empty value names the exact indexed processed-payment
+session that proves it. Normal paid booking and automatic-placeholder creation
+write that proof in their existing all-or-nothing transactions. A later balance
+does not replace it. Merge propagates a source `NULL` to the target in the merge
+transaction, while a qualified source preserves the target marker; deleting the
+source therefore cannot hide older unknown history. Pruning retains the exact
+processed row named by a non-empty marker.
+
+Single Refund, Refresh, and Refund All fail before provider I/O when the history
+is unqualified. Refund All proves this from indexed SQL and ledger facts before
+selecting or decrypting a person, including the mixed case where a PII-only
+deposit sits beside a newer indexed balance. Re-saving an attendee does not
+qualify the row. Do not add a runtime fallback, background backfill,
+migration-only attendee-PII reader, guessed provider binding, warning-note
+authority, or parallel legacy refund engine.
+
+The future aggregate copy may preserve SQL-visible accounting facts from these
+rows as terminal unsupported history. It must not search attendee PII or old
+free-text notes for another payment reference, and it must not turn an
+unsupported record into an actionable canonical charge. Historical plaintext
+references and old DB-key-encrypted notes remain retirement/redaction concerns,
+not inputs to current refund admission.
+
+## A merge can delete the source before the answers and PII are saved
+
+`applyAttendeeMerge` (`src/shared/merge/attendee-merge.ts`) commits the source
+delete, the payment-row move, and the ledger repoint in one transaction — but
+`saveAttendeeAnswers` runs after that transaction commits, and
+`updateTargetPiiFromDecision` runs later still, back in the route
+(`src/features/admin/attendees-merge.ts`). A failure in either leaves the source
+attendee already deleted with the merged answers or PII never written. The
+answers are recoverable only from the deleted source, so they are gone.
+
+The fix is the one CodeRabbit names: open one `TxScope` for the whole merge and
+thread it through the payment-row batch, `saveAttendeeAnswers`, and
+`updateTargetPiiFromDecision`, committing only once every write has succeeded.
+The transaction handle now exists — the merge became an interactive transaction
+when the payment-row admission landed — so this is threading it outward rather
+than introducing one. The awkward parts are `saveAttendeeAnswers`, whose
+delete-then-insert re-encrypts free-text answers, and the PII update, which
+needs the request private key and currently sits in the route.
+
+Out of scope where it was found: that slice was the merge/delete payment
+admissions, and this ordering predates it — the old code committed the same rows
+in one `executeBatch`, which is the same boundary. Worth doing on its own, with
+regression coverage that fails each post-batch write and checks the source
+attendee, payment rows, ledger rows, answers, and PII are all still as they
+were.
+
+## Give shared and merged charges authoritative bookkeeping
+
+`claimAttendeeRows` expands a claim to every row carrying the reference, and
+`runRefundReadiness` writes an exact `shared_reference` review marker and stops
+before provider or ledger I/O. One payout cannot be reversed once per holder.
+The current owner action is only an acknowledgement: it stamps `acknowledgedAt`
+on the exact review case while preserving the marker and its safety hold. It
+records no allocation, so an unchanged shared representation stays blocked; the
+marker retires only when a later indexed claim proves the representation is
+unique.
+
+That expansion is bounded in the current path. A claim accepts at most
+`MAX_SHARED_PAYMENT_ROWS_PER_CLAIM` (100) rows outside the selected attendee
+set; its SQL reads at most 101 and treats the extra row only as proof of
+overflow. The typed `too_many_reference_holders` result reaches Refund and
+Refresh as finite operator copy before any sharing row's encrypted
+`failure_data` is opened, before any claim is written, and before provider or
+ledger I/O. Never replace that refusal with truncation: an incomplete holder set
+would make the one-payout guarantee false.
+
+The application has never intentionally assigned one provider payment id to two
+independent historical attendees, so do not add a whole-table holder scan or
+decrypt old attendee PII for a hypothetical legacy sharing case. The real case
+to model is a MERGE or booking obligation that gives one captured charge more
+than one local representation or obligation.
+
+Build stable booking obligations plus a revision-fenced allocation. Every part
+is positive Money in the captured currency, the parts sum exactly to the
+capture, and the owner may explicitly reject the allocation. There is no equal,
+proportional, first-attendee, or current-row default. The stored allocation is
+the one authority for later cash and ledger effects. Merge preserves that
+authority and cannot turn source and target representations into two payouts or
+two reversals.
+
+Returning cash and cancelling a booking obligation are separate effects. When
+one payment returns while another payment for the obligation remains captured,
+require a revision-fenced owner choice with no default: keep the booking and
+make the return due, return all remaining cash then cancel, or cancel now while
+retained cash remains visible refund work. Until that choice exists, the
+returned row carries exact `unrecorded` work plus a
+`partially_returned_obligation` review reason; the review reason is not an
+`unrecorded` kind. It never cancels a sale it did not fully fund.
+
+Do not lose the anchor-only version of this fault. A synthetic `legacy:` anchor
+has no real payment-session id, so `refund-ledger/plan.ts` cannot place it onto
+a specific booking or balance event group. If that attendee's account also
+contains operator money (`manual_*` or `adjustment`) or a partly paid
+obligation, the ledger can prove that an automatic reversal is unsafe but cannot
+attach `partially_returned_obligation` to the anchor through its empty
+placement. Treating that as generic unrecorded cash would expose the wrong
+"Money is recorded" exit without the required booking decision. The stable
+allocation must map the charge to its obligation, or preserve an explicit
+unallocated conflict; never infer the mapping from row order, the attendee's
+whole account, or the number of unnamed groups.
+
+Start at `sharedRepresentations` in `src/shared/db/payment-claim/take.ts`,
+`runRefundReadiness` in `src/features/admin/refunds/readiness-run.ts`, the
+payment-row repoint in `src/shared/merge/attendee-merge.ts`, and the exact
+result sets in `src/shared/refund-ledger/{plan,result}.ts`. Test an anchor-only
+return beside manual money and beside a partly paid booking, a shared charge
+across two attendees, a merge that creates two representations on one attendee,
+rejection, an exact multi-obligation allocation, and every partial-obligation
+owner choice.
+
+## Build whole-checkout diagnosis with the reader that can feed it
+
+M4 Part A intentionally judges only `ChargeMoney`: one charge's captured,
+returned, and in-flight refund facts. It does not carry the signed expected
+total, session ownership, all captured charges, or provider-specific child
+resources, so it cannot honestly diagnose wrong parents, duplicate charges,
+money on a free checkout, or allocation across booking obligations.
+
+M6 must introduce the whole-reading cluster together with its production reader:
+
+- a normalized payment observation with signed/staged ownership proof and the
+  complete provider read;
+- session, charge, charge-leg, and whole-resource schemas, including every
+  provider-specific sibling read that the declared evidence shape requires;
+- one whole-payment `outcomeOf` that validates ownership, resource uniqueness,
+  parentage, currency, expected Money, capture total, and free/paid state; and
+- the stored conflict kinds that this real reading can produce, with their owner
+  action and retirement in the same slice.
+
+Preserve the current Square boundary nuance in that reader: a non-empty
+`_origin` is an application marker for distinguishing a damaged app checkout
+from an unrelated order, even after the site's hostname changes. It is not site
+ownership proof and must not be compared with the current hostname; the signed
+`price_proof` remains the ownership fact. Reintroducing host equality would
+terminally misclassify an older damaged checkout as foreign.
+
+Preserve the other live Square boundary too: payment webhook status is exactly
+`APPROVED | PENDING | COMPLETED | CANCELED | FAILED`. Missing, non-text, empty,
+or unknown values throw; only a known non-completed status may be acknowledged
+without processing, and `COMPLETED` requires an Order id. M6 must reuse or
+replace that declaration atomically, never leave a permissive legacy webhook
+parser beside its observer.
+
+Reads must be bounded and fenced on an evidence revision or fingerprint. A
+provider-controlled sibling list cannot cause an unbounded request; evidence
+beyond the declared cap becomes an explicit owner case. Do not restore a
+speculative module set wholesale or put a second refund classifier beside
+`refundOutcomeOf`: design the vocabulary from the reader inward.
+
+`PaymentConflict` is only a TypeScript type, not persisted schema authority. The
+stored `PaymentReviewReasonSchema` currently contains only `shared_reference`
+and `partially_returned_obligation`; provider disagreements that already have
+trustworthy refund authority live instead in the canonical `payment_charges`
+union. Exact zero or full return may live in `needs_owner_choice`, whose schema
+guarantees at least one evidence-supported answer. Partial, invalid, backward,
+wrong-currency, excessive, or pending evidence lives in `needs_provider_check`,
+which offers only another provider observation. Fresh partial evidence replaces
+an ordinary ambiguous choice and advances the revision, so a stale not-sent form
+cannot erase it; a conclusive conflict choice is not rewritten by a later read.
+The current exact decision comes from `payment/refund-conflict-decision.ts`;
+stored schemas and mirrors live in `payment/refund-authority-state.ts`;
+automatic transitions in `payment/refund-authority.ts`; conflict and owner
+transitions in `payment/refund-authority-choice.ts`; lifecycle exits in
+`payment/refund-authority-lifecycle.ts`; identity writes and Money/state writes
+are the one logical authority split across `db/provider-refund-authority.ts` and
+`db/provider-refund-authority-change.ts`; and
+`db/provider-refund-case-resolution.ts` commits a decision with its activity
+audit. Every rendered action carries the authority id and revision: a stale Send
+loses before provider I/O, a money choice loses inside its transaction, and
+Check again is observe-only with a stale-form precheck plus transition CAS. Any
+newly reachable M6 conflict kind must extend those canonical mechanisms with its
+schema, required owner action, and tested retirement path in the same atomic
+cutover. Do not revive the deleted module cluster or create a second refund
+classifier/state machine.
+
+That cutover is an atomic replacement, not a runtime selector. Every checkout
+caller moves to the new observer and completion authority in the same activation
+that deletes the displaced readers and writers. No fallback, read-through, dual
+write, second refund authority, or old-record branch may remain in request code;
+old-format decoding exists only inside the fenced migration ceremony. This rule
+also governs every later refund-authority evolution: extend the one authority in
+place or make the same fenced migrate/verify/epoch-switch/delete cutover. Never
+ship an intermediate compatibility path, even temporarily.
+
+## The stale-claim touch test is timing-flaky on CI
+
+`test/scripts/stale-claim/touching.test.ts` — "touches the claim on time, so it
+never reads as walked away" — failed once on a loaded CI runner (PR #2065, run
+31448224401) and passes reliably locally. It is the file lock that stops two
+mutation runs sharing `.mutation-runs/`, not the payment claim, despite the
+shared word.
+
+It is fragile because it mixes three clocks: a `FakeTime` it ticks with
+`time.tickAsync(5)`, a real `Date.now() - 40` written into the record, and real
+disk writes it then polls for with `eventually()`. The fake clock does not move
+`Date.now()` in the record, so the margin between "aged 40ms" and the 25ms
+freshness window is real wall-clock time, and a runner that stalls between the
+write and the poll can miss it.
+
+The fix is to take the wall clock out of it: have the test age the record
+against the same fake clock it ticks, rather than against `Date.now()`, so the
+margin is deterministic. Out of scope where it was found — that session was
+closing the M4 coverage gaps and this file is mutation-run tooling.
+
+## Refunded status cannot tell two orders on ONE listing apart
+
+_Origin: Codex and CodeRabbit, both on PR #2065 (partial ledger reversal)._
+
+`refundedForBooking` (`src/shared/db/attendees/select.ts`) answers "did THIS
+booking come back" per (attendee, listing): a sold booking that came back has a
+`refund_sale` leg running revenue → attendee. That fixed the severe case — one
+returned charge used to mark every booking the person held, so the scanner and
+check-in turned them away from events they had paid for.
+
+What is left is narrower: one attendee holding TWO orders for the SAME listing
+(a merge of two people who both booked it, or two dates). Reversing either makes
+both rows read refunded. This is not new — before the per-listing fix the whole
+account read refunded — but it is now the only remaining case.
+
+Both reviewers proposed scoping the predicate by
+`listing_attendees.
+ledger_event_group`. That does not work as suggested: a
+reversal leg's `event_group` is `refundEventGroup(bookingGroup)` and its
+`reference` is `legReference([REFUND, bookingGroup, ...])` — both HASHES, so SQL
+cannot join a reversal back to the booking group it reversed. The sale side
+could be scoped; the reversal side could not, which leaves both rows reading the
+same answer.
+
+Two ways out, both real work:
+
+- Populate `reverses_id` on refund legs in `mapRefund`, giving a joinable link
+  from each reversal to the leg it reverses. This contradicts decision 8 ("a
+  refund posts many rows and repeat/partial refunds are scoped by event group
+  instead"), and existing plus backfilled refund legs carry no `reverses_id`, so
+  activation requires a bounded, verified backfill. Any unmigratable historical
+  row must remain explicitly unsupported; no runtime fallback is permitted.
+- Add a column naming the reversed booking group, with the same bounded,
+  verified migration and explicit unsupported state for unmigratable history.
+
+Start by reading `mapRefund` in `src/shared/accounting/mappers.ts` and the
+`reverses_id` note above it.
+
+### A free member of a paid package is never marked refunded
+
+_Origin: Codex on PR #2065, `select.ts:86`. Same root cause, worth doing in the
+same pass._
+
+`mapBooking` drops zero-value legs
+(`facts.lines.filter((line) => line.gross >
+0)` in `bookingLegSpecs`), so an
+explicitly-free member of a PAID package has no sale leg of its own.
+`refundedForBooking` then falls through to `ELSE 0` and the row stays live after
+the whole package order — including its paid member's sale — has been reversed.
+The scanner and check-in keep accepting that ticket.
+
+The obvious fix — "did any booking sharing my order group come back" — is NOT
+safe on the data as it stands, and this is the trap to avoid:
+`ledger_event_group` is stamped per ATTENDEE, not per order. Both
+`postBookingLegsTx` (`src/shared/checkout-complete.ts`) and the backfill's
+`stampStatement` (`src/shared/accounting/backfill.ts`) write it with
+`WHERE attendee_id = ?`, so an attendee's second order overwrites the first
+order's rows. Correlating on it would let one order's refund mark a DIFFERENT
+order's booking as refunded — turning someone away from an event they paid for,
+which is the bug the per-listing fix just closed.
+
+So this needs the order key made per-order first. That is the same dependency
+the two options above have, which is why it belongs with them: fix the key, and
+the free-package-member arm and the two-orders-on-one-listing case both become
+expressible. Note the same weakness applies to `pricePaidFromLedger`, which
+already keys on this column.
+
+Do not conflate that deferred booking-order identity with payment retention.
+PR4-A closed the sibling-pruning fault independently: an old referenced row may
+age out only when its exact blind reference index matches a completed,
+locally-recorded canonical charge. An attendee-wide `refund_cash` leg or a
+returned sibling charge is never deletion authority. Keep that exact-charge rule
+when the stable obligation model replaces the current booking projection.
+
+## The stripe-mock start-count test races its own subprocesses
+
+`test/scripts/stripe-mock/lifecycle.test.ts` — "stops trying once the mock has
+been started as many times as asked" — failed once on CI (PR #2065, run
+31501332067, 22,419 of 22,420 passing) on a commit that changed only Markdown
+and a test comment, and passes reliably locally.
+
+The counting mock is a shell script whose whole body is `echo x >> <countPath>`
+(`writeCountingFailingMock` in `test/scripts/stripe-mock/fixtures.ts`).
+`triesBeforeGivingUp` spawns it three times, then reads the file ONCE with
+`startCount` and asserts exactly 3.
+
+Nothing makes the children's writes happen-before that read. Each attempt gives
+up on `waitForOwnedStripeMock` returning false, which happens either when the
+child's `status` promise resolves OR when the per-attempt budget (50ms in this
+test) elapses — so the parent can move on, and finally reject and be read, while
+the last `/bin/sh` has been spawned but has not yet appended its line. On a
+loaded runner that gap is easily wide enough, and the count reads 2.
+
+Two ways to fix it. Wait for the count to REACH the expected number with a
+deadline instead of reading once — the property is "three starts happened", not
+"three starts had happened by the instant the promise rejected". Or make
+`startStripeMock` await each child's exit before the next attempt, which is
+tidier anyway: the CI run's cleanup reported an orphan process, and a start path
+that leaves children behind is worth a look on its own.
+
+The two sibling cases (`toBe(1)`) are not exposed, since one attempt gives the
+single child far longer to write before the read.
+
+## A schema migration between the two payment-record migrations can stop an upgrade
+
+_Origin: Codex review on PR #2065 (thread on
+`src/shared/db/migrations/registry.ts`)._
+
+`2026-08-10_refund_authority_records` drops the dormant payment tables before
+its own apply, because `applySchemaChanges`
+(`src/shared/db/migrations/schema-sync.ts`) reconciles the WHOLE current schema
+and can only `ADD COLUMN` — and SQLite refuses to add a `PRIMARY KEY` column.
+That guard protects only `2026-08-10` itself.
+
+A site that ran an intermediate build of this branch (one carrying
+`2026-07-26_payment_records` but not `2026-08-10`) holds a `payment_charges`
+without the `id` primary key. On upgrade, `2026-08-04_login_attempt_stamp` — a
+`schemaMigration` registered BETWEEN the two — runs `applySchemaChanges` first,
+which scans the whole schema and emits
+`ALTER TABLE payment_charges ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT`.
+SQLite rejects that, and the upgrade stops before `2026-08-10` can drop the
+table. Every migration between the two payments migrations has the same shape of
+risk; only the site's own position in the chain decides whether it bites.
+
+The migration chain tests cannot see this: replaying historical migrations uses
+the CURRENT schema at every step, so a test "from 2026-07-26" creates
+`payment_charges` in its final shape and never reproduces a deployed
+intermediate shape.
+
+Fix options: move the dormant-table drop into the earliest migration that would
+otherwise ALTER them (or into `2026-07-26` itself, dropping its own tables when
+they exist in a foreign shape), or give `schemaMigration` a per-migration table
+scope so intermediate applies never touch tables the migration does not declare.
+The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
+keep the loud refusal on non-empty tables.
+
+## A completed Square webhook whose order reads as missing is acked, not retried
+
+_Origin: Codex review on PR #2065 (thread on `src/shared/square-provider.ts`)._
+
+In `resolveWebhookSession`, a completed payment webhook calls
+`retrieveSession(orderId, paymentId)`. `readSessionOrder` maps a `missing` order
+read to `null` (a debug log), `resolveWebhookSession` turns `null` into
+`"skip"`, and the webhook handler acknowledges 200 — so Square stops
+redelivering. The codebase already treats the adjacent lag windows as retryable:
+malformed metadata for a completed payment throws
+(`UNUSABLE_METADATA.
+retryCompletedWebhook`), and a payment that does not read
+back COMPLETED throws (`readOrderPayment`). A missing order is the same
+eventual-consistency window — the webhook can genuinely arrive before the order
+is readable — and should fail the boundary the same way instead of skipping, so
+Square redelivers and the buyer does not stay charged with no booking and no
+refund.
+
+Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
+`missing` read under a `paidPaymentId` should throw like the malformed case.
+
+## A refunded rejection leaves its authority parked with only an owner attestation
+
+_Origin: Codex review on PR #2065 (thread on
+`src/features/api/payment-processing/refunds.ts`)._
+
+When a malformed paid session is refunded through `refundRejectedCharge`, the
+provider money came back but the path converts the result to booleans and never
+records or retires the authority's local-money obligation. A rejected session
+created no attendee and no ledger entry, so there is no Money target to repair —
+yet the canonical authority sits in `completed/due` in Refund recovery, offering
+only the "recorded in Money" attestation, which is untrue for money that has no
+Money target.
+
+Either complete these no-local-ledger authorities as locally settled when the
+provider return is confirmed, or persist a recordable local target. Related:
+"Bind a rejected session's refund authority to checkout completion" above — the
+whole-checkout outcome work is the natural home for the terminal result; this
+narrower retirement may land first.
+
+## The final placeholder refund outcome is never retried
+
+_Origin: Codex review on PR #2065 (thread on
+`src/features/api/payment-processing/store-refund.ts`)._
+
+`storeRefundedBooking` completes the provider refund, ledger posting, note, and
+claim release, then replaces the session's pending failure with the final
+"refunded" outcome. If that last `sessionFailure.replace` fails transiently, the
+row still carries the conservative pending failure written when the placeholder
+was created — and because `handleReservationConflict` replays any non-empty
+`failure_data`, every retry re-enters through the placeholder path and never
+reaches this replacement. The buyer is permanently told the refund "is being
+arranged" although it completed.
+
+The final outcome needs to be idempotent on replay: derive it from state the
+retry can observe (the authority/ledger legs the earlier steps already wrote)
+rather than from a one-shot write that a later replay cannot find. Starting
+point: the final update in `store-refund.ts` and what
+`handleReservationConflict` replays.
+
+## Harden the live payment harness so green means what it claims
+
+_Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all
+verified against the code and none blocking the merge — the nightly run passes,
+but each item is a way it could pass while proving less than its steps claim._
+
+- **Partial-startup leak** (`cucumber/support/hooks.ts`): the `Before` hook
+  acquires server → tunnel → browser → sessions with no unwind; a rejection
+  after the first acquire leaks the app-server child into later scenarios.
+  Attach each resource as it is acquired or unwind in `finally`.
+- **No failure notification before the summary** (`main.ts`): the terminal
+  `run().catch` reports but never calls `notifyFailure`, so missing credentials
+  and other pre-summary failures ping nothing.
+- **Ambiguous click replay** (`browser.ts` `actOnControl`): when `ordinary()`
+  dispatched a submission but its navigation wait failed, the still-interactable
+  control is submitted again through the DOM fallback — a second POST on live
+  refund forms. Only fall back for failures proven to predate dispatch.
+- **Chromium surviving teardown** (`browser.ts` `stop`): when both close paths
+  fail, the hook logs and resolves; the leaked browser keeps consuming runner
+  resources. Reject or kill the process.
+- **Provider fetches without a bound** (`providers/shared.ts`): the harness's
+  own fetches carry no abort signal (the production transports now share
+  `PROVIDER_TIMEOUT_MS`); a hung sandbox read outlives its hook.
+- **Malformed Stripe list answers** (`providers/stripe.ts`): both the
+  endpoint-list and refund-list reads default a missing `data` field to `[]`, so
+  a malformed 2xx can silently pass as "nothing there". Validate the documented
+  fields at the boundary.
+- **Partial final refund passes** (`cucumber/steps/refund.ts`): the final
+  non-growth check only rejects amounts GREATER than the capture; a completed
+  400-of-2500 observation after the first check passes. Require exactness for
+  every completed final observation.
+- **Broad refresh assertion** (`cucumber/steps/refund.ts`): the second,
+  observation-only refresh matches `/payment status/i`, which the rendered
+  button satisfies — an erroring refresh still passes. Assert the specific
+  outcome (the exact-amount first refresh is the model).
+- **Protection not rechecked after refresh** (`cucumber/steps/refund.ts`): the
+  Refund/Delete-unavailable assertions run before the final refresh; a refresh
+  that re-enabled them would pass. Re-read the actions after it.
+- **Vacuous webhook coverage** (`cucumber/steps/booking.ts`):
+  `holdFirstAppReturn` captures the return URL but holds nothing (interception
+  proved unreliable), so the browser return can book before "Stripe's signed
+  webhook confirms the payment" — the step then only polls the roster and passes
+  with the webhook broken. Assert independent webhook evidence (or rename the
+  claim).
+- **memberB never verified** (`order-flow.ts`): `verifyComplexOrder` asserts
+  member A's two paths and the plain listing; member B's booking line and its £6
+  kit income are never checked in either the free or paid scenario.
+- **Configured artifact directory ignored** (`main.ts`): cleanup, reports, and
+  the step summary use the hard-coded `e2e-payments/artifacts` while scenarios
+  write under `E2E_ARTIFACTS_DIR`; derive the root from config.
+
+The coverage-exclusion thread from the same round (`scripts/run-tests.ts`) is
+the same theme: the harness modules are excluded wholesale with the reasoning
+recorded beside the list, and the pure helpers stay covered. The durable fix is
+the one Codex names — push the env/config parsing behind injectable seams so
+those branches get direct in-process tests — which is worth doing when the
+harness is next open.

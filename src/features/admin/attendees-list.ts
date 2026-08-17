@@ -37,10 +37,7 @@ import {
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import {
-  parsePositiveInt,
-  parsePositiveIntId,
-} from "#shared/validation/number.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 
 /** Parse the ?sort= param, defaulting to newest-first. Validates against the
@@ -64,7 +61,7 @@ const parseListingId = (
   request: Request,
   listings: ListingWithCount[],
 ): number | null => {
-  const raw = parsePositiveIntId(getSearchParam(request, "listing"));
+  const raw = parsePositiveInt(getSearchParam(request, "listing"));
   if (raw === null) return null;
   return listings.some((e) => e.id === raw) ? raw : null;
 };

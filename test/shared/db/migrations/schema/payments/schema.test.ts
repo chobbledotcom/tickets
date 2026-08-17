@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "7bdc4cfcfa73b6d61729f66e768278c46c0c64daf3f92e1efa0fcc5d90a7d07e",
+    "fcdb22e47c04f915ec4aed1b9be31c898ecd8f67167d90a607fe24d52cbc7aa6",
   );
 });
 
@@ -18,7 +18,8 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
         WHERE type = 'index'
           AND tbl_name IN ('payment_sessions', 'payment_charges', 'payment_cases',
                             'payment_case_decisions', 'payment_completion_effects',
-                            'payment_completion_deliveries')
+                            'payment_completion_deliveries', 'refund_confirmations',
+                            'refund_confirmation_references')
           AND name NOT LIKE 'sqlite_autoindex%'
         ORDER BY name`,
     );
@@ -29,10 +30,10 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
       "idx_payment_cases_payment_resource",
       "idx_payment_cases_reconcile",
       "idx_payment_cases_redaction",
-      "idx_payment_charges_legacy_source",
-      "idx_payment_charges_payment_reference",
-      "idx_payment_charges_pending_refund",
+      "idx_payment_charges_callback_replay",
+      "idx_payment_charges_next_action",
       "idx_payment_charges_reference",
+      "idx_payment_charges_refund_state",
       "idx_payment_completion_deliveries_pending",
       "idx_payment_completion_deliveries_unique",
       "idx_payment_completion_effects_unique",
@@ -40,6 +41,8 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
       "idx_payment_sessions_reconcile",
       "idx_payment_sessions_redaction",
       "idx_payment_sessions_reference",
+      "idx_refund_confirmation_references_unique",
+      "idx_refund_confirmations_attendee",
     ]);
   });
 });

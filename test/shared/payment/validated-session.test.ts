@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
   isSessionRejection,
+  paidPaymentReferenceOf,
+  paymentReferenceOf,
   validatedPaymentSession,
 } from "#shared/payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -34,6 +36,7 @@ const basePaid = {
   metadata: meta,
   paymentReference: "pi_123",
   paymentStatus: "paid" as const,
+  provider: "stripe" as const,
 };
 
 describe("validatedPaymentSession", () => {
@@ -42,7 +45,24 @@ describe("validatedPaymentSession", () => {
   const errorSpy = setupErrorSpy();
 
   it("recognises a session rejection and nothing else", () => {
-    expect(isSessionRejection({ reason: "blank_reference" })).toBe(true);
+    expect(
+      isSessionRejection({
+        provider: "stripe",
+        reason: "blank_reference",
+        sessionId: "cs_blank",
+      }),
+    ).toBe(true);
+    expect(
+      isSessionRejection({ provider: "stripe", reason: "blank_reference" }),
+    ).toBe(false);
+    expect(
+      isSessionRejection({
+        provider: "stripe",
+        reason: "blank_reference",
+        sessionId: "",
+      }),
+    ).toBe(false);
+    expect(isSessionRejection({ reason: "blank_reference" })).toBe(false);
     expect(isSessionRejection({ reason: "unknown" })).toBe(false);
     // A malformed_charge without its metadata is an invented partial shape.
     expect(
@@ -56,8 +76,10 @@ describe("validatedPaymentSession", () => {
       isSessionRejection({
         metadata: meta,
         paymentReference: "pi_1",
+        provider: "stripe",
         reason: "malformed_charge",
         refundable: true,
+        sessionId: "cs_malformed",
       }),
     ).toBe(true);
     expect(isSessionRejection(null)).toBe(false);
@@ -76,6 +98,12 @@ describe("validatedPaymentSession", () => {
     expect(build.amountTotal).toBe(1000);
     expect(build.id).toBe("sess-1");
     expect(build.paymentReference).toBe("pi_123");
+    expect(build.provider).toBe("stripe");
+    expect(paymentReferenceOf(build)).toEqual({
+      kind: "tagged",
+      provider: "stripe",
+      reference: "pi_123",
+    });
   });
 
   it("keeps a supplied creation time", () => {
@@ -102,10 +130,36 @@ describe("validatedPaymentSession", () => {
       metadata: meta,
       paymentReference: "",
       paymentStatus: "no_payment_required",
+      provider: "stripe",
     });
     expect(isSessionRejection(build)).toBe(false);
     if (isSessionRejection(build)) return;
     expect(build.amountTotal).toBe(0);
+    expect(paymentReferenceOf(build)).toBeNull();
+    expect(() => paidPaymentReferenceOf(build)).toThrow(
+      /^Paid session has no provider resource id$/u,
+    );
+  });
+
+  it("fails if downstream code invents an invalid validated reference", () => {
+    expect(() =>
+      paymentReferenceOf({
+        id: "invented",
+        paymentReference: "   ",
+        provider: "stripe",
+      }),
+    ).toThrow(/^Validated session has an invalid provider resource id$/u);
+  });
+
+  it("refuses to construct a session without a provider callback identity", () => {
+    expect(() =>
+      validatedPaymentSession({
+        ...basePaid,
+        amountTotal: 1000,
+        currency: "GBP",
+        id: "",
+      }),
+    ).toThrow(/^Payment session has an invalid provider resource id$/u);
   });
 
   // --- The refusals a live callback must make, at the one boundary they share ---
@@ -122,8 +176,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
     expect(errorSpy.contains("malformed charge")).toBe(true);
   });
@@ -156,8 +212,10 @@ describe("validatedPaymentSession", () => {
         price_proof: "500.sig",
       },
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -171,8 +229,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -186,8 +246,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -201,8 +263,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
     expect(
       validatedPaymentSession({
@@ -213,8 +277,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -230,8 +296,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -247,8 +315,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "pi_123",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "sess-1",
     });
   });
 
@@ -265,8 +335,10 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       metadata: unpackedMeta,
       paymentReference: "",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: false,
+      sessionId: "sess-1",
     });
   });
 
@@ -295,7 +367,11 @@ describe("validatedPaymentSession", () => {
         currency: "GBP",
         paymentReference: "",
       }),
-    ).toEqual({ reason: "blank_reference" });
+    ).toEqual({
+      provider: "stripe",
+      reason: "blank_reference",
+      sessionId: "sess-1",
+    });
     expect(
       validatedPaymentSession({
         ...basePaid,
@@ -303,7 +379,11 @@ describe("validatedPaymentSession", () => {
         currency: "GBP",
         paymentReference: "   ",
       }),
-    ).toEqual({ reason: "blank_reference" });
+    ).toEqual({
+      provider: "stripe",
+      reason: "blank_reference",
+      sessionId: "sess-1",
+    });
     expect(errorSpy.contains("provider resource id")).toBe(true);
   });
 });

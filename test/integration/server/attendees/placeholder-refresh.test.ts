@@ -4,17 +4,26 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { execute } from "#shared/db/client.ts";
-import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { queryOne } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  protectedStateOf,
+  putRowState,
+  rowStateSlot,
+  UNRECORDED_MIRROR,
+} from "#test-utils/payment-claim.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -67,7 +76,7 @@ const setupPlaceholderForRefresh = async (
     sessionId,
     attendee.id,
     "tok-placeholder",
-    paymentReference,
+    taggedPaymentReference(paymentReference),
   );
   if (beforeRefresh) await beforeRefresh(listing.id);
   return attendee;
@@ -98,40 +107,29 @@ describeWithEnv(
         await refreshAndVerifyRefundCash(attendee);
       });
 
-      test("deletes the stale manual-refund note and adds a confirmation", async () => {
+      test("a current payment refresh creates no refund work or delete blocker", async () => {
+        const sessionId = "current-placeholder-session";
         const attendee = await setupPlaceholderForRefresh(
-          "Stale Note",
-          "stale-note@example.com",
-          "placeholder-stale-note-session",
-          "pi_stale_note",
-        );
-        const privateKey = await getTestPrivateKey();
-        await createSystemNote(
-          attendeeNotes(attendee.id),
-          "This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: pi_stale_note (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/" +
-            attendee.id +
-            ").",
-        );
-        // A second system note about something else entirely. The cleanup is
-        // for the stale manual-refund instruction only — it must not sweep
-        // away the rest of the record's history.
-        await createSystemNote(
-          attendeeNotes(attendee.id),
-          "Moved to another date at the guest's request.",
+          "Current Placeholder",
+          "current-placeholder@example.com",
+          sessionId,
+          "pi_current_placeholder",
         );
 
-        await submitRefreshPayment(attendee, () => Promise.resolve(true));
+        await submitRefreshPayment(
+          attendee,
+          () => Promise.resolve(false),
+          expect.stringContaining("up to date"),
+        );
 
-        const notes = await getNotesFor(attendeeNotes(attendee.id), privateKey);
         expect(
-          notes.some((note) => note.note.includes("could NOT be refunded")),
-        ).toBe(false);
-        expect(
-          notes.some((note) => note.note.includes("Moved to another date")),
-        ).toBe(true);
-        expect(
-          notes.some((note) => note.note.includes("Refund confirmed")),
-        ).toBe(true);
+          await queryOne<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM payment_charges",
+          ),
+        ).toEqual({ count: 0 });
+        expect((await listProviderRefundCases()).cases).toEqual([]);
+        expect(await protectedStateOf(sessionId)).toBe("");
+        await expect(deleteAttendee(attendee.id)).resolves.toBeUndefined();
       });
 
       test("reconciles a placeholder whose listing was since deleted", async () => {
@@ -140,42 +138,75 @@ describeWithEnv(
           "deleted-listing@example.com",
           "placeholder-deleted-listing-session",
           "pi_placeholder_deleted",
-          async (listingId) => {
-            await execute("DELETE FROM listings WHERE id = ?", [listingId]);
-          },
+          deleteListing,
         );
         await refreshAndVerifyRefundCash(attendee);
       });
 
-      test("cleans up a stale note on retry even when the ledger is already posted", async () => {
-        // First refresh: posts the refund_cash leg + deletes the stale note.
-        const attendee = await setupPlaceholderForRefresh(
-          "Retry Cleanup",
-          "retry@example.com",
-          "placeholder-retry-session",
-          "pi_placeholder_retry",
-        );
-        const privateKey = await getTestPrivateKey();
-        // Simulate the initial refresh that posted the ledger but whose
-        // note cleanup failed — re-create the stale note afterward.
-        await refreshAndVerifyRefundCash(attendee);
-        await createSystemNote(
-          attendeeNotes(attendee.id),
-          "This booking was kept at quantity 0 but its payment could NOT be refunded.",
+      // The fault this closes: refresh found the money already back at the
+      // provider and marked the charge, but a ledger post that did not land
+      // left the row saying nothing at all. Delete then had nothing to refuse,
+      // so the record of the refund — and the correction's target — could be
+      // destroyed while the books still said the person had paid.
+      test("marks the row when a found refund cannot be recorded", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 50,
+          unitPrice: 800,
+        });
+        const created = await attendeesApi.createAttendeeAtomic({
+          bookings: [{ listingId: listing.id, pricePaid: 800, quantity: 1 }],
+          email: "unrecorded@example.com",
+          name: "Unrecorded",
+          paymentId: "pi_unrecorded_refresh",
+        });
+        if (!created.success) {
+          throw new Error(`setup failed: ${created.reason}`);
+        }
+        const attendee = created.attendees[0]!;
+        await reserveSession("unrecorded-refresh-session");
+        await finalizeReservedPayment(
+          "unrecorded-refresh-session",
+          attendee.id,
+          "tok-unrecorded",
+          taggedPaymentReference("pi_unrecorded_refresh"),
         );
 
-        // Second refresh: attendee.refunded is now true (the ledger has the
-        // refund_cash leg), but the stale note must still be cleaned up.
-        await submitRefreshPayment(
-          attendee,
+        // The account carries no ledgered order, so the reversal has nothing
+        // to mirror and the post cannot land.
+        await withRefreshPaymentProbe(
           () => Promise.resolve(true),
-          expect.stringContaining("up to date"),
+          async () => {
+            await adminFormPost(
+              `/admin/attendees/${attendee.id}/refresh-payment`,
+            );
+          },
         );
 
-        const notes = await getNotesFor(attendeeNotes(attendee.id), privateKey);
-        expect(
-          notes.some((note) => note.note.includes("could NOT be refunded")),
-        ).toBe(false);
+        expect(await protectedStateOf("unrecorded-refresh-session")).toBe(
+          UNRECORDED_MIRROR,
+        );
+      });
+
+      // The fault this closes: the marker had no way off this path. A
+      // placeholder has no ticket quantity, so the refund route that clears
+      // one never picks it up — the row would have refused deletion for good,
+      // long after the books had caught up.
+      test("takes the mark off once the ledger catches up", async () => {
+        const attendee = await setupPlaceholderForRefresh(
+          "Caught Up",
+          "caught-up@example.com",
+          "caught-up-session",
+          "pi_caught_up",
+        );
+        await putRowState(
+          "caught-up-session",
+          await rowStateSlot({ unrecorded: { returnedAt: "2026-08-01" } }),
+          UNRECORDED_MIRROR,
+        );
+
+        await refreshAndVerifyRefundCash(attendee);
+
+        expect(await protectedStateOf("caught-up-session")).toBe("");
       });
     });
   },

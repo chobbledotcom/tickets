@@ -133,9 +133,31 @@ const fromAttendeeColumns = stepUsing(() => getExistingColumns("attendees"));
 /** Build the idempotent CREATE INDEX statement for a declared index. */
 const createIndexSql = (tableName: string, idx: Index): string => {
   const unique = idx.unique ? "UNIQUE " : "";
+  const where = idx.where === undefined ? "" : ` WHERE ${idx.where}`;
   return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
     ", ",
-  )})`;
+  )})${where}`;
+};
+
+/** SQL identifiers, normalised the same way SQLite matches their case. */
+export const schemaSqlIdentifiers = (sql: string): Set<string> =>
+  new Set(
+    (sql.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []).map((name) =>
+      name.toLowerCase(),
+    ),
+  );
+
+/** Every table column an index definition reads, including its predicate. */
+const columnsUsedByIndex = (index: Index, table: Table): string[] => {
+  const predicateNames = schemaSqlIdentifiers(index.where ?? "");
+  return [
+    ...new Set([
+      ...index.columns,
+      ...table.columns
+        .map(([column]) => column)
+        .filter((column) => predicateNames.has(column.toLowerCase())),
+    ]),
+  ];
 };
 
 const currentSchemaTable = (tableName: string): Table => {
@@ -458,8 +480,8 @@ export const applySchemaChanges: () => Promise<void> = fromLiveSchema(
 export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
   const declared = SCHEMA.flatMap(([tableName, table]) =>
     (table.indexes ?? []).map((idx) => ({
-      columns: idx.columns,
       name: idx.name,
+      requiredColumns: columnsUsedByIndex(idx, table),
       sql: createIndexSql(tableName, idx),
       tableName,
     })),
@@ -480,7 +502,7 @@ export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
       const columns = live.tables.get(d.tableName);
       return (
         columns !== undefined &&
-        d.columns.every((column) => columns.has(column)) &&
+        d.requiredColumns.every((column) => columns.has(column)) &&
         !live.indexes.has(d.name)
       );
     })

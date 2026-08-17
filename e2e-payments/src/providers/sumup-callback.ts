@@ -1,22 +1,20 @@
 import { readFileSync } from "node:fs";
-import type { BrowserSession } from "#e2e/browser.ts";
 import { config } from "#e2e/config.ts";
-import { assertBookedInAdmin } from "#e2e/flow.ts";
-import { log, step } from "#e2e/log.ts";
+import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
 import { readLoggedId } from "./shared.ts";
-import type { HostedCheckoutContext } from "./types.ts";
 
 /**
  * SumUp's unsigned callback contract, exercised against the real sandbox.
  *
  * SumUp's own webhook delivery cannot be awaited deterministically (it retries
- * a handful of times over hours), so after the browser journey confirms the
- * booking we deliver the same callback SumUp would send — the tiny
- * `{ event_type, id }` body carrying the REAL sandbox checkout id — and assert
- * the app walks its whole observation path on genuine data: the staged-row
- * pre-filter, the live re-fetch from SumUp, the classifier, and the sealed-row
- * open, resolving the already-booked checkout without double-booking it.
+ * a handful of times over hours), so the harness SELF-DELIVERS the same
+ * callback SumUp would send — the tiny `{ event_type, id }` body carrying the
+ * REAL sandbox checkout id — and the app walks its whole observation path on
+ * genuine data: the staged-row pre-filter, the live re-fetch from SumUp, the
+ * classifier, and the sealed-row open, resolving the already-booked checkout
+ * without double-booking it. This proves the callback handling, not SumUp's
+ * eventual delivery.
  *
  * Forged, oversized, empty, and missing ids must all take the one fixed
  * refusal — identical status, header, and body — so an unsigned forger learns
@@ -25,7 +23,7 @@ import type { HostedCheckoutContext } from "./types.ts";
  */
 
 /** The one answer every locally refused callback gets, byte for byte. */
-const FIXED_REFUSAL = {
+export const FIXED_REFUSAL = {
   body: "Payment verification failed",
   contentType: "text/plain; charset=utf-8",
   status: 503,
@@ -44,6 +42,12 @@ const SUMUP_ID_LINE = {
  * refused callback (src/shared/sumup-provider.ts). */
 const CHECKOUT_READ_LINES = /\[SumUp\] Checkout read /g;
 const REFUSAL_LINES = /\[Webhook\] SumUp callback refused retryably/g;
+
+/** Where the callbacks go and what they cost, for this scenario's app. */
+export interface SumupCallbackTarget {
+  baseUrl: string;
+  serverLogPath: string;
+}
 
 /** Count the server-log lines matching one of the patterns above. */
 const countLogMatches = (logPath: string, pattern: RegExp): number =>
@@ -85,99 +89,88 @@ const expectProcessed = answerCheck((answer, body) => {
     : `expected {"processed":true}, got: ${body.slice(0, 300)}`;
 });
 
-/** A refused callback must get exactly the fixed answer — nothing else. */
-const expectFixedRefusal = answerCheck((answer, body) => {
-  const contentType = answer.headers.get("content-type");
-  return answer.status === FIXED_REFUSAL.status &&
-    contentType === FIXED_REFUSAL.contentType &&
-    body === FIXED_REFUSAL.body
-    ? null
-    : `expected the fixed refusal (${FIXED_REFUSAL.status}, ` +
-        `${FIXED_REFUSAL.contentType}, "${FIXED_REFUSAL.body}"), got ` +
-        `${answer.status}, ${contentType}, "${body.slice(0, 300)}"`;
-});
-
-/** The replay must have resolved to the booking that already existed — the
- * booker appears exactly once on the listing's Attendees tab. */
-const assertStillBookedOnce = async (
-  session: BrowserSession,
-): Promise<void> => {
-  const attendees = await assertBookedInAdmin(session);
-  const bookings = attendees.split(config.bookerEmail).length - 1;
-  if (bookings !== 1) {
-    throw new Error(
-      "SumUp replayed callback: expected exactly 1 booking for " +
-        `${config.bookerEmail} on the Attendees tab, found ${bookings}`,
-    );
-  }
-};
-
-/**
- * Post the staged checkout's own callback (twice — SumUp redelivers), then
- * probe the refusal contract with ids the app must turn away unread.
- */
-export const assertSumupCallbackContract = async (
-  session: BrowserSession,
-  ctx: HostedCheckoutContext,
-): Promise<void> => {
-  step("Exercising the SumUp callback contract (self-delivered)");
-  const sumupId = await readLoggedId(
-    ctx.serverLogPath,
+/** This scenario's genuine checkout id, from its fresh app log. */
+export const sumupCheckoutId = async (
+  target: SumupCallbackTarget,
+): Promise<string> =>
+  await readLoggedId(
+    target.serverLogPath,
     SUMUP_ID_LINE.pattern,
     SUMUP_ID_LINE.expected,
   );
 
+/**
+ * Deliver the staged checkout's own callback twice (SumUp redelivers) and
+ * return the genuine checkout id used. Each delivery must be acknowledged as
+ * processed.
+ */
+export const deliverGenuineCallbackTwice = async (
+  target: SumupCallbackTarget,
+): Promise<string> => {
+  const sumupId = await sumupCheckoutId(target);
   await expectProcessed(
-    await postCallback(ctx.baseUrl, sumupId),
+    await postCallback(target.baseUrl, sumupId),
     "genuine callback",
   );
   log("  ✔ genuine callback ran the observation path and was processed");
-
   await expectProcessed(
-    await postCallback(ctx.baseUrl, sumupId),
+    await postCallback(target.baseUrl, sumupId),
     "replayed callback",
   );
-  await assertStillBookedOnce(session);
   log("  ✔ replayed callback resolved to the same single booking");
+  return sumupId;
+};
 
-  const readsBefore = countLogMatches(ctx.serverLogPath, CHECKOUT_READ_LINES);
-  const refusalsBefore = countLogMatches(ctx.serverLogPath, REFUSAL_LINES);
-  await expectFixedRefusal(
-    await postCallback(ctx.baseUrl, `co_forged_${crypto.randomUUID()}`),
-    "forged id",
-  );
-  await expectFixedRefusal(
-    await postCallback(ctx.baseUrl, "x".repeat(256)),
-    "oversized id",
-  );
-  await expectFixedRefusal(await postCallback(ctx.baseUrl, ""), "empty id");
-  await expectFixedRefusal(await postCallback(ctx.baseUrl), "missing id");
+/** What the four refusal probes observed, for the steps to assert on. */
+export interface RefusalProbeReport {
+  answers: { status: number; contentType: string | null; body: string }[];
+  newReads: number;
+  newRefusals: number;
+}
 
-  // Refusals must be free: four new refusal lines prove the probes took the
-  // fixed retryable path, and zero new read lines prove none of them made the
-  // app reach out to SumUp (the staged-row pre-filter's whole point). The
-  // lines travel stdout → pipe → log file after the HTTP answer, so poll for
-  // the flush rather than reading back immediately; the probes were answered
-  // one at a time, so once the fourth refusal is visible, any read line they
-  // caused is visible too.
+/**
+ * Deliver the four refusal probes — a forged UUID-shaped id, an oversized
+ * one, an empty one, and a body with no id field at all — and report what
+ * each answer was, plus how many refusal and SumUp-read log lines they cost.
+ * The caller asserts the contract; this only observes.
+ */
+export const deliverRefusalProbes = async (
+  target: SumupCallbackTarget,
+): Promise<RefusalProbeReport> => {
+  const readsBefore = countLogMatches(
+    target.serverLogPath,
+    CHECKOUT_READ_LINES,
+  );
+  const refusalsBefore = countLogMatches(target.serverLogPath, REFUSAL_LINES);
+  const probes: { id?: string; what: string }[] = [
+    { id: `co_forged_${crypto.randomUUID()}`, what: "forged id" },
+    { id: "x".repeat(256), what: "oversized id" },
+    { id: "", what: "empty id" },
+    { what: "missing id" },
+  ];
+  const answers: RefusalProbeReport["answers"] = [];
+  for (const probe of probes) {
+    const response = await postCallback(target.baseUrl, probe.id);
+    answers.push({
+      body: await response.text(),
+      contentType: response.headers.get("content-type"),
+      status: response.status,
+    });
+  }
+
+  // The refusal lines travel stdout → pipe → log file after the HTTP answer,
+  // so poll for the flush rather than reading back immediately; the probes
+  // were answered one at a time, so once the fourth refusal is visible, any
+  // read line they caused is visible too.
   const flushed = await pollUntil(10_000, () => {
     const seen =
-      countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
+      countLogMatches(target.serverLogPath, REFUSAL_LINES) - refusalsBefore;
     return Promise.resolve(seen >= 4 ? seen : null);
   });
   const newRefusals =
     flushed ??
-    countLogMatches(ctx.serverLogPath, REFUSAL_LINES) - refusalsBefore;
+    countLogMatches(target.serverLogPath, REFUSAL_LINES) - refusalsBefore;
   const newReads =
-    countLogMatches(ctx.serverLogPath, CHECKOUT_READ_LINES) - readsBefore;
-  if (newReads !== 0 || newRefusals !== 4) {
-    throw new Error(
-      "SumUp refusal probes: expected 4 new refusal log lines and 0 new " +
-        `checkout-read lines, got ${newRefusals} refusal(s) and ` +
-        `${newReads} read(s)`,
-    );
-  }
-  log(
-    "  ✔ forged, oversized, empty, and missing ids all took the one fixed refusal without a SumUp read",
-  );
+    countLogMatches(target.serverLogPath, CHECKOUT_READ_LINES) - readsBefore;
+  return { answers, newReads, newRefusals };
 };

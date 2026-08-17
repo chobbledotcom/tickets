@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
+import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -22,7 +23,9 @@ import { insertModifierUsage } from "#test-utils/modifiers.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -61,7 +64,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "sess_attendee_delete",
       attendee.id,
       "tok-test",
-      "pi_attendee_delete",
+      taggedPaymentReference("pi_attendee_delete"),
     );
 
     await deleteAttendee(attendee.id);
@@ -87,6 +90,33 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       [attendee.id],
     );
     expect(stage?.count).toBe(0);
+  });
+
+  test("detaches a built site before removing its attendee", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Built Site Owner",
+      "built-site-owner@example.com",
+    );
+    const site = await insertBuiltSite(
+      "Attendee site",
+      "attendee-site.example.test",
+      "",
+      "",
+      true,
+    );
+    await assignBuiltSite(site.id, attendee.id, listing.id);
+
+    await deleteAttendee(attendee.id);
+
+    expect(
+      await queryOne<{ assigned_attendee_id: number | null }>(
+        "SELECT assigned_attendee_id FROM built_sites WHERE id = ?",
+        [site.id],
+      ),
+    ).toEqual({ assigned_attendee_id: null });
   });
 
   test("releases listing aggregate totals by default", async () => {
@@ -234,6 +264,34 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     await deleteAttendee(attendee.id);
 
     expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
+  });
+
+  test("removes the attendee's refund confirmations", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Confirmed Attendee",
+      "confirmed@example.com",
+    );
+    const confirmation = await insertRefundConfirmationFixture(attendee.id);
+
+    await deleteAttendee(attendee.id);
+
+    const remaining = await queryOne<{ count: number }>(
+      `SELECT COUNT(*) AS count
+         FROM refund_confirmations AS confirmation
+        WHERE confirmation.attendee_id = ?`,
+      [attendee.id],
+    );
+    expect(remaining?.count).toBe(0);
+    const remainingReferences = await queryOne<{ count: number }>(
+      `SELECT COUNT(*) AS count
+         FROM refund_confirmation_references AS reference
+        WHERE reference.confirmation_identity = ?`,
+      [confirmation.identity],
+    );
+    expect(remainingReferences?.count).toBe(0);
   });
 
   test("succeeds when the attendee has no modifier usage", async () => {

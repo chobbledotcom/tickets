@@ -19,7 +19,7 @@ import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  countOrphanedAttendees,
+  countPurgeableOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso } from "#shared/now.ts";
@@ -53,7 +53,9 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
   test("orphan purge sweeps a servicing event with no bookings past the cutoff", async () => {
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
-    expect(await countOrphanedAttendees(nowIso())).toBeGreaterThanOrEqual(1);
+    expect(
+      await countPurgeableOrphanedAttendees(nowIso()),
+    ).toBeGreaterThanOrEqual(1);
     await purgeOrphanedAttendees(nowIso());
     expect(await attendeeExists(id)).toBe(false);
   });
@@ -70,7 +72,9 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
     expect(await kindOf(id)).toBe(SERVICING_KIND);
-    expect(await countOrphanedAttendees(nowIso())).toBeGreaterThanOrEqual(1);
+    expect(
+      await countPurgeableOrphanedAttendees(nowIso()),
+    ).toBeGreaterThanOrEqual(1);
   });
 
   test("deleting a servicing event also clears its service_costs rows", async () => {

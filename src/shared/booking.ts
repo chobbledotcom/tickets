@@ -12,7 +12,7 @@ import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import type { LedgerPoster } from "#shared/db/attendees/create.ts";
+import type { AttendeeCreationWork } from "#shared/db/attendees/create.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
@@ -20,7 +20,7 @@ import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 
 /**
- * A {@link LedgerPoster} for a provider-less owed booking: inside the create
+ * Creation work for a provider-less owed booking: inside the create
  * transaction, post the booking's gross `sale` leg with nothing paid, so the
  * attendee owes exactly `gross` in the ledger, and stamp the booking row's
  * `ledger_event_group` so its per-row amount-paid projection resolves the sale.
@@ -28,7 +28,7 @@ import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
  * directly — the same legs `mapBooking` would produce from one gross line.
  */
 const owedBookingLedgerPoster =
-  (listingId: number, gross: number): LedgerPoster =>
+  (listingId: number, gross: number): AttendeeCreationWork =>
   async (tx, attendeeId) => {
     const legs = await mapBooking({
       amountPaid: 0,

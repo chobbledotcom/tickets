@@ -5,8 +5,13 @@ import {
   PaymentUserError,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { CreatePaymentLinkInput } from "#shared/square.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
+import {
+  SquareApiError,
+  SquareConnectionError,
+  SquareProtocolError,
+} from "#shared/square/transport.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -14,6 +19,10 @@ import {
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import {
+  expectClosedCheckoutFailure,
+  expectSameThrown,
+} from "#test-utils/checkout-failure.ts";
 
 describeSquare(() => {
   describe("createPaymentLink request handling", () => {
@@ -45,7 +54,7 @@ describeSquare(() => {
       );
     });
 
-    test("returns null when SDK response missing orderId", async () => {
+    test("rejects a successful response missing orderId", async () => {
       await configureSquare({ locationId: "L_multi_loc" });
       await withSquareClient(
         {
@@ -55,15 +64,17 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result = await squareApi.createPaymentLink(
-            checkoutIntent({
-              email: "bob@example.com",
-              items: [checkoutItem({ name: "Listing 1" })],
-              name: "Bob Missing",
-            }),
-            "http://localhost",
+          await expectClosedCheckoutFailure(
+            squareApi.createPaymentLink(
+              checkoutIntent({
+                email: "bob@example.com",
+                items: [checkoutItem({ name: "Listing 1" })],
+                name: "Bob Missing",
+              }),
+              "http://localhost",
+            ),
+            { provider: "square", reason: "invalid_response" },
           );
-          expect(result).toBeNull();
         },
       );
     });
@@ -187,8 +198,8 @@ describeSquare(() => {
       phone: "bad-phone",
     });
 
-    const squareError = (errors: string) =>
-      new Error(`Status code: 400 Body: { "errors": [ ${errors} ] }`);
+    const squareError = (invalidField: "email" | "phone") =>
+      new SquareApiError(400, invalidField);
 
     /** Configure credentials, then fail the checkout with the given error. */
     const failingCheckout = async (
@@ -220,54 +231,80 @@ describeSquare(() => {
         }
       });
 
-    /** The SDK error should be swallowed, leaving a null payment link. */
-    const expectNullLink = (sdkError: Error) =>
+    /** An application error keeps its identity at the checkout boundary. */
+    const expectCheckoutFailure = (sdkError: Error) =>
       failingCheckout(sdkError, async () => {
-        expect(await makeLink()).toBeNull();
+        await expectSameThrown(makeLink(), sdkError);
+      });
+
+    /** A recognised provider error crosses only as closed facts. */
+    const expectProviderFailure = (
+      providerError: Error,
+      reason: "network_error" | "provider_error",
+      statusCode?: number,
+    ) =>
+      failingCheckout(providerError, async () => {
+        await expectClosedCheckoutFailure(
+          makeLink(),
+          { provider: "square", reason, statusCode },
+          [],
+          providerError,
+        );
       });
 
     test("throws PaymentUserError for invalid phone number", async () => {
-      await expectUserError(
-        squareError(
-          '{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_PHONE_NUMBER", "detail": "Invalid phone number.", "field": "pre_populated_data.buyer_phone_number" }',
-        ),
-        "phone number",
-      );
+      await expectUserError(squareError("phone"), "phone number");
     });
 
     test("throws PaymentUserError for invalid email address", async () => {
-      await expectUserError(
-        squareError(
-          '{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_EMAIL_ADDRESS", "detail": "Invalid email.", "field": "pre_populated_data.buyer_email" }',
+      await expectUserError(squareError("email"), "email address");
+    });
+
+    test("propagates non-user-facing API errors", async () => {
+      await expectCheckoutFailure(new Error("Square server failure"));
+    });
+
+    test("propagates validation errors for unknown fields", async () => {
+      await expectCheckoutFailure(new Error("Square rejected another field"));
+    });
+
+    test("propagates ordinary network errors", async () => {
+      await expectCheckoutFailure(new Error("Network timeout"));
+    });
+
+    test("does not trust body-shaped messages from another error type", async () => {
+      await expectCheckoutFailure(
+        new Error(
+          'Status code: 400 Body: { "errors": [{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_PHONE_NUMBER", "field": "pre_populated_data.buyer_phone_number" }] }',
         ),
-        "email address",
       );
     });
 
-    test("returns null for non-user-facing API errors", async () => {
-      await expectNullLink(
-        squareError(
-          '{ "category": "API_ERROR", "code": "INTERNAL_SERVER_ERROR" }',
-        ),
+    test("closes a Square API error without a user-facing field", async () => {
+      await expectProviderFailure(
+        new SquareApiError(400),
+        "provider_error",
+        400,
       );
     });
 
-    test("returns null for validation error on unknown field", async () => {
-      await expectNullLink(
-        squareError(
-          '{ "category": "INVALID_REQUEST_ERROR", "code": "MISSING_REQUIRED_PARAMETER", "field": "order.location_id" }',
-        ),
+    test("closes a Square connection error", async () => {
+      await expectProviderFailure(
+        new SquareConnectionError("network_error"),
+        "network_error",
       );
     });
 
-    test("returns null for non-Body error messages", async () => {
-      await expectNullLink(new Error("Network timeout"));
-    });
-
-    test("returns null for malformed JSON in error body", async () => {
-      await expectNullLink(
-        new Error("Status code: 400 Body: { invalid json content }"),
-      );
+    test("closes a malformed Square provider response", async () => {
+      const providerError = new SquareProtocolError();
+      await failingCheckout(providerError, async () => {
+        await expectClosedCheckoutFailure(
+          makeLink(),
+          { provider: "square", reason: "invalid_response" },
+          [],
+          providerError,
+        );
+      });
     });
   });
 });

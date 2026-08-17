@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { queryAll } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
@@ -13,10 +14,19 @@ import {
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import {
+  chargeMoney,
+  foundCharge,
+  fullyRefundedMoney,
+} from "#test-utils/payment-state.ts";
 
 // jscpd:ignore-end
 
@@ -74,12 +84,13 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     reference: string,
     status: "FAILED" | "PAID",
     transactionId: string,
+    currency = "GBP",
   ) =>
     stub(sumupApi, "readCheckoutById", () =>
       Promise.resolve({
         resource: {
           amountMinor: 1000,
-          currency: "GBP",
+          currency,
           reference,
           status,
           transactionId,
@@ -152,4 +163,143 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       restore.restore();
     }
   });
+
+  /** Keep the provider's charge observation stale until the test makes the
+   * returned money visible. The real SumUp adapter still performs the send. */
+  const installRefundObservation = (returned: () => boolean) => ({
+    read: stub(sumupPaymentProvider, "readCharge", () =>
+      Promise.resolve(
+        foundCharge(returned() ? fullyRefundedMoney() : chargeMoney()),
+      ),
+    ),
+    send: stub(sumupApi, "refundTransaction", () =>
+      Promise.resolve({ kind: "sent" as const }),
+    ),
+  });
+
+  /** A callback for a staged checkout. */
+  const postSumupWebhook = (): Promise<Response> =>
+    handleRequest(mockWebhookRequest(sumupWebhookEvent));
+
+  const expectOneRefundAcrossRetries = async (
+    reference: string,
+    transactionId: string,
+    currency = "GBP",
+  ): Promise<void> => {
+    const checkout = stubRetrieveCheckoutById(
+      reference,
+      "PAID",
+      transactionId,
+      currency,
+    );
+    let returned = false;
+    const refund = installRefundObservation(() => returned);
+    try {
+      expect((await postSumupWebhook()).status).toBe(503);
+      expect((await postSumupWebhook()).status).toBe(503);
+      expect(refund.send.calls).toHaveLength(1);
+
+      returned = true;
+      expect((await postSumupWebhook()).status).toBe(200);
+      expect(refund.send.calls).toHaveLength(1);
+    } finally {
+      refund.send.restore();
+      refund.read.restore();
+      checkout.restore();
+    }
+  };
+
+  test("does not send a rejected SumUp charge twice while its first refund is not yet visible", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    await expectOneRefundAcrossRetries(reference, "txn_rejected_once", "GB");
+  });
+
+  test("does not release a reserved failed booking into a second SumUp refund", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    await deactivateTestListing(listing.id);
+    const reference = await stageSumupCheckout(listing);
+    await expectOneRefundAcrossRetries(reference, "txn_reserved_once");
+  });
+
+  test("shares one SumUp refund between a browser return and webhook", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const checkout = stubRetrieveCheckoutById(
+      reference,
+      "PAID",
+      "txn_callback_race",
+      "GB",
+    );
+    const refund = installRefundObservation(() => false);
+    try {
+      const [browser, webhook] = await Promise.all([
+        handleRequest(mockRequest(`/payment/success?session_id=${reference}`)),
+        postSumupWebhook(),
+      ]);
+      expect([browser.status, webhook.status]).toEqual([503, 503]);
+      expect(refund.send.calls).toHaveLength(1);
+      expect(
+        await queryAll<{
+          refund_revision: number;
+          refund_state_name: string;
+        }>("SELECT refund_revision, refund_state_name FROM payment_charges"),
+      ).toEqual([{ refund_revision: 3, refund_state_name: "observing" }]);
+    } finally {
+      refund.send.restore();
+      refund.read.restore();
+      checkout.restore();
+    }
+  });
+
+  for (const [name, providerCallLanded] of [
+    ["before its provider call", false],
+    ["after its provider call", true],
+  ] as const) {
+    test(`does not repeat a keyless refund after crashing ${name}`, async () => {
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const reference = await stageSumupCheckout(listing);
+      const checkout = stubRetrieveCheckoutById(
+        reference,
+        "PAID",
+        `txn_crash_${providerCallLanded}`,
+        "GB",
+      );
+      let returned = false;
+      let attempts = 0;
+      let providerCalls = 0;
+      const read = stub(sumupPaymentProvider, "readCharge", () =>
+        Promise.resolve(
+          foundCharge(returned ? fullyRefundedMoney() : chargeMoney()),
+        ),
+      );
+      const refund = stub(sumupPaymentProvider, "refundCharge", () => {
+        attempts += 1;
+        if (providerCallLanded) providerCalls += 1;
+        if (attempts === 1) {
+          throw new Error(`simulated crash ${name}`);
+        }
+        return Promise.resolve({
+          kind: "uncertain" as const,
+          reason: "network_error" as const,
+        });
+      });
+      try {
+        await expect(postSumupWebhook()).rejects.toThrow(
+          `simulated crash ${name}`,
+        );
+        expect((await postSumupWebhook()).status).toBe(503);
+        expect(attempts).toBe(1);
+        expect(providerCalls).toBe(providerCallLanded ? 1 : 0);
+
+        returned = true;
+        expect((await postSumupWebhook()).status).toBe(200);
+        expect(attempts).toBe(1);
+      } finally {
+        refund.restore();
+        read.restore();
+        checkout.restore();
+      }
+    });
+  }
 });

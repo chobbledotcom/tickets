@@ -11,10 +11,9 @@ import {
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
-import {
-  checkoutSessionEvent,
-  stubRefundPayment,
-} from "#test-utils/webhooks.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -33,7 +32,7 @@ const findRefundActivityEntry = async (listingId: number) => {
 };
 
 describeWithEnv("server webhooks > refund logging", { db: true }, () => {
-  test("tryRefund logs success message when refund succeeds", async () => {
+  test("logs success when the durable refund completes", async () => {
     await setupStripe();
 
     const listing = await createTestListing({
@@ -73,10 +72,14 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
         mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
       );
       expect(response.status).toBe(200);
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
+      expect(mockRefund.calls[0]!.args).toEqual([
+        stripeRefundRequestShape("pi_refund_log"),
+      ]);
 
       // Verify refund success was logged to console
-      const refundLog = debugLogs.find((log) => log.includes("Refund issued"));
+      const refundLog = debugLogs.find((log) =>
+        log.includes("Refund completed"),
+      );
       expect(refundLog).toBeDefined();
 
       // Verify refund was logged to activity log tagged to listing
@@ -117,7 +120,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       }),
     );
 
-    const mockRefund = stubRefundPayment("re_activity");
+    const mockRefund = stubRefundPayment("re_activity", 500);
 
     try {
       const response = await handleRequest(

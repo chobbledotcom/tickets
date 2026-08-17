@@ -4,7 +4,6 @@ import {
   clampInteger,
   parseNonNegativeInt,
   parsePositiveInt,
-  parsePositiveIntId,
 } from "#shared/validation/number.ts";
 
 describe("clampInteger", () => {
@@ -28,31 +27,6 @@ describe("clampInteger", () => {
     ]) {
       expect(() => clampDays(value)).toThrow();
     }
-  });
-});
-
-describe("parsePositiveIntId", () => {
-  test("parses plain positive integers, dropping leading zeros", () => {
-    expect(parsePositiveIntId("5")).toBe(5);
-    expect(parsePositiveIntId("12")).toBe(12);
-    expect(parsePositiveIntId("007")).toBe(7);
-  });
-
-  test("rejects zero, blanks and non-digit junk", () => {
-    expect(parsePositiveIntId("0")).toBeNull();
-    expect(parsePositiveIntId("")).toBeNull();
-    expect(parsePositiveIntId("5abc")).toBeNull();
-    expect(parsePositiveIntId("abc")).toBeNull();
-  });
-
-  test("trims surrounding whitespace", () => {
-    expect(parsePositiveIntId(" 5")).toBe(5);
-    expect(parsePositiveIntId("5 ")).toBe(5);
-  });
-
-  test("rejects signs", () => {
-    expect(parsePositiveIntId("-2")).toBeNull();
-    expect(parsePositiveIntId("+5")).toBeNull();
   });
 });
 

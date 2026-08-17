@@ -16,9 +16,17 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { checkoutStageDeleteStatement } from "#shared/db/attendees/delete.ts";
-import { executeBatch, insert, type SqlStatement } from "#shared/db/client.ts";
-import { legacyMergePaymentReferenceStatement } from "#shared/db/payment-references.ts";
+import {
+  attendeeRemovalStatements,
+  checkoutStageDeleteStatements,
+  repointAttendeeDependents,
+} from "#shared/db/attendees/delete.ts";
+import {
+  insert,
+  type SqlStatement,
+  withTransaction,
+} from "#shared/db/client.ts";
+import { assertRowsFreeToMove } from "#shared/db/payment-admit-move.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -745,7 +753,6 @@ export const applyAttendeeMerge = async (
   const {
     targetId,
     sourceId,
-    sourcePaymentId,
     targetPii,
     sourcePii,
     diff,
@@ -794,12 +801,6 @@ export const applyAttendeeMerge = async (
     credited: bookingsCredited,
     writtenOff: bookingsWrittenOff,
   } = moneyReversalLegs(targetId, diff, decision);
-  const sourceLegacyPaymentStatement =
-    await legacyMergePaymentReferenceStatement(
-      targetId,
-      sourceId,
-      sourcePaymentId,
-    );
 
   // --- 5. Execute all DB changes atomically ---
   // One ACID batch so the row changes, the ledger repoint, and the decision-17
@@ -813,11 +814,21 @@ export const applyAttendeeMerge = async (
     ...deleteTargetBookingStatements,
     // Insert moved/replaced source bookings
     ...insertStatements,
-    ...(sourceLegacyPaymentStatement ? [sourceLegacyPaymentStatement] : []),
-    checkoutStageDeleteStatement({
+    ...checkoutStageDeleteStatements({ args: [targetId], sql: "?" }),
+    // An old source without payment provenance makes the merged history
+    // unqualified too; carry that fact before deleting its attendee row.
+    {
       args: [targetId, sourceId],
-      sql: "?, ?",
-    }),
+      sql: `UPDATE attendees
+               SET pii_payment_session_id = NULL
+             WHERE id = ?
+               AND EXISTS (
+                 SELECT 1
+                   FROM attendees AS sourceAttendee
+                  WHERE sourceAttendee.id = ?
+                    AND sourceAttendee.pii_payment_session_id IS NULL
+               )`,
+    },
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
@@ -825,14 +836,11 @@ export const applyAttendeeMerge = async (
       args: [targetId, sourceId],
       sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
     },
-    {
-      args: [sourceId],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-    },
-    {
-      args: [sourceId],
-      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    },
+    ...repointAttendeeDependents(sourceId, targetId),
+    // The source is going away, so clear every row whose identity belongs to
+    // it through the same schema as ordinary deletion. Payment rows survive:
+    // the statement above has already moved them to the target.
+    ...attendeeRemovalStatements({ args: [sourceId], sql: "?" }),
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person
@@ -846,7 +854,14 @@ export const applyAttendeeMerge = async (
     moneyLegs,
     nowIso(),
   );
-  await executeBatch([...rowStatements, ...adjustmentInserts]);
+  // Both people's payment rows are read for live work inside the transaction
+  // that moves them: the source's rows change hands, and the target's set grows
+  // by everything the source brings, so a refund run judging either one would be
+  // working from a world that no longer exists.
+  await withTransaction(async (tx) => {
+    await assertRowsFreeToMove(tx, [targetId, sourceId], "merge");
+    await tx.batch([...rowStatements, ...adjustmentInserts]);
+  });
 
   // Save merged answers for target. The choice decisions reduce to one answer
   // per question; re-supplying the merged free-text plaintext lets

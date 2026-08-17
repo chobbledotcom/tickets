@@ -22,7 +22,7 @@ import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, LogisticsAgent } from "#shared/types.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 /* jscpd:ignore-end */
 
 /** Checkbox field: when "1", each logistics listing carries its own agents. */

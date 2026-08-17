@@ -2,13 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   alsoAbout,
-  anyOf,
   encryptedPaymentColumn,
   encryptedPaymentColumnOrNull,
   keyWords,
   madeAndTouched,
+  ownerEncryptedPaymentColumn,
   paymentRecord,
-  sealedEitherWay,
   wholeNumber,
   wholeNumberOrNull,
   words,
@@ -53,17 +52,12 @@ describe("the kinds of column a payment record is built from", () => {
     );
   });
 
-  test("a provider's own name may be hidden either way", () => {
-    const rule = sealedEitherWay("provider_reference");
+  test("an owner-only value must carry the public-key envelope", () => {
+    const rule = ownerEncryptedPaymentColumn("provider_reference");
 
-    expect(rule).toContain("provider_reference GLOB 'enc:1:?*:?*'");
     expect(rule).toContain("provider_reference GLOB 'hyb:1:?*:?*:?*'");
     expect(rule).toContain("provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
     expect(rule).toContain("typeof(provider_reference) = 'text'");
-  });
-
-  test("joins rules of which one must hold", () => {
-    expect(anyOf(["a = 1", "b = 2"])).toBe("(a = 1 OR b = 2)");
   });
 
   test("every record says when it was made and last touched", () => {

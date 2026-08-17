@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
+import { stripeRefundRequestShape } from "#test/test-utils/stripe/fixtures.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -21,6 +22,8 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeIntentWithCharge } from "#test-utils/stripe/responses.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -45,7 +48,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      const mockRefund = spy(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundCharge");
 
       try {
         const response = await handleRequest(
@@ -100,12 +103,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({
-          id: "re_stale_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-      );
+      const mockRefund = stubRefundPayment("re_stale_refund", 1000);
       try {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
@@ -163,12 +161,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({
-          id: "re_stale_pkg_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-      );
+      const mockRefund = stubRefundPayment("re_stale_pkg_refund", 1000);
       try {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_pkg_group"),
@@ -177,7 +170,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const body = await response.text();
         expect(body).toContain("no longer accepting registrations");
         expect(body).not.toContain("Vanished Member XYZ");
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_stale_pkg_group"]);
+        expect(mockRefund.calls[0]!.args).toEqual([
+          stripeRefundRequestShape("pi_stale_pkg_group", 1000),
+        ]);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -214,12 +209,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({
-          id: "re_inactive_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-      );
+      const mockRefund = stubRefundPayment("re_inactive_refund", 500);
 
       try {
         const response = await handleRequest(
@@ -264,15 +254,17 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       // Mock refund to fail, and the payment is not already refunded, so the
       // refund genuinely failed (→ contact-support, not an idempotent success).
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(null),
+      const mockRefund = stub(stripeApi, "refundCharge", () =>
+        Promise.resolve({ kind: "rejected", reason: "rejected" }),
       );
-      const mockIntent = stub(stripeApi, "retrievePaymentIntent", () =>
+      const mockIntent = stub(stripeApi, "readPaymentIntent", () =>
         Promise.resolve({
-          latest_charge: { refunded: false },
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrievePaymentIntent>
-        >),
+          resource: {
+            ...stripeIntentWithCharge(),
+            id: "pi_refund_fail",
+          },
+          status: "found",
+        }),
       );
 
       try {
@@ -347,12 +339,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({
-          id: "re_rollback_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-      );
+      const mockRefund = stubRefundPayment("re_rollback_refund", 1500);
 
       try {
         const response = await handleRequest(

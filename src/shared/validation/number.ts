@@ -43,10 +43,6 @@ type IntSchema = v.GenericSchema<string, number>;
 const parseIntWithSchema = (schema: IntSchema, value: string): number | null =>
   parseOrNull(schema, value.trim());
 
-/** Parse a strict positive-integer id from a string, or null when it isn't one. */
-export const parsePositiveIntId = (value: string): number | null =>
-  parseIntWithSchema(PositiveIntSchema, value);
-
 /** Parse a strict non-negative decimal integer, or null when it isn't one. */
 export const parseNonNegativeInt = (value: string): number | null =>
   parseIntWithSchema(NonNegativeIntSchema, value);
@@ -54,3 +50,7 @@ export const parseNonNegativeInt = (value: string): number | null =>
 /** Parse a strict positive decimal integer, or null when it isn't one. */
 export const parsePositiveInt = (value: string): number | null =>
   parseIntWithSchema(PositiveIntSchema, value);
+
+/** Whether a number can be stored safely as a positive database id. */
+export const isPositiveSafeInteger = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 1;

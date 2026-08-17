@@ -2,7 +2,7 @@
   "name": "tickets-e2e-payments",
   "version": "0.0.0",
   "exports": "./src/main.ts",
-  "description": "Browser-driven end-to-end payment tests against real provider sandboxes (Stripe/Square/SumUp). Not part of the normal test suite.",
+  "description": "Browser-driven end-to-end payment tests against real provider sandboxes (Stripe/Square/SumUp), orchestrated by Cucumber. Not part of the normal test suite.",
   "tasks": {
     "e2e": "deno run -A src/main.ts"
   },
@@ -13,7 +13,15 @@
     "lineWidth": 80
   },
   "imports": {
+    "@cucumber/cucumber": "npm:@cucumber/cucumber@13.2.0",
+    "@cucumber/cucumber/api": "npm:@cucumber/cucumber@13.2.0/api",
+    "@cucumber/gherkin": "npm:@cucumber/gherkin@41.0.0",
+    "@cucumber/messages": "npm:@cucumber/messages@34.0.1",
+    "@cucumber/tag-expressions": "npm:@cucumber/tag-expressions@10.0.0",
+    "@libsql/client": "npm:@libsql/client@^0.17.2",
     "playwright": "npm:playwright@1.61.1",
+    "valibot": "npm:valibot@^1.4.1",
+    "#fp": "../src/fp.ts",
     "#scripts/": "../scripts/",
     "#src/": "../src/",
     "#e2e/": "./src/"

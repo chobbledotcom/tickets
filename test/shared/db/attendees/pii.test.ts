@@ -181,6 +181,11 @@ describeWithEnv("PII crypto", { db: true }, () => {
     expect(pii.lat).toBe("");
     expect(pii.lng).toBe("");
     expect(pii.payment_id).toBe("pay_pii");
+    expect(result.piiPaymentSessionId).toBeNull();
+    expect(
+      (await encryptAttendeeFields({ ...encInput, paymentId: "" }))
+        .piiPaymentSessionId,
+    ).toBe("");
   });
 
   test("decryptAttendeeFields defaults to paid, surfacing payment id and refunded", async () => {

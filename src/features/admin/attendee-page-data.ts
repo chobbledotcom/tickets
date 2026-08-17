@@ -18,6 +18,7 @@ import {
 } from "#routes/admin/attendee-form-model.ts";
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
+import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { getAttendeeActivityLog } from "#shared/db/activity-log.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import {
@@ -44,7 +45,10 @@ import {
   listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
-import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
+import {
+  getRefundPaymentReferencesForAttendee,
+  type RefundPaymentReferenceSet,
+} from "#shared/db/payment-references.ts";
 import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
@@ -69,14 +73,32 @@ export type LoadedAttendee = {
   attendee: Attendee;
   canRefund: boolean;
   existing: ExistingLine[];
+  paymentReferences: RefundPaymentReferenceSet;
 };
 
-const canRefundAttendee = async (attendee: Attendee): Promise<boolean> => {
-  if (attendee.refunded) return false;
-  if (!(await hasActiveBookingLine(attendee.id, attendee.listing_id))) {
-    return false;
-  }
-  return hasRefundPaymentReference(attendee, await requireRequestPrivateKey());
+type AttendeePaymentFacts = Pick<
+  LoadedAttendee,
+  "canRefund" | "paymentReferences"
+>;
+
+/** Load one bounded, typed payment set for both display and refund admission. */
+const attendeePaymentFacts = async (
+  attendee: Attendee,
+): Promise<AttendeePaymentFacts> => {
+  const paymentReferences = await getRefundPaymentReferencesForAttendee(
+    { currentPaymentId: attendee.payment_id, id: attendee.id },
+    await requireRequestPrivateKey(),
+  );
+  const hasAutomaticPayment =
+    paymentReferences.kind === "complete" &&
+    paymentReferences.references.length > 0;
+  return {
+    canRefund:
+      hasAutomaticPayment &&
+      refundWorkRemains(attendee, paymentReferences.references) &&
+      (await hasActiveBookingLine(attendee.id, attendee.listing_id)),
+    paymentReferences,
+  };
 };
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
@@ -84,11 +106,11 @@ export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
   async (attendee) => {
-    const [canRefund, existing] = await Promise.all([
-      canRefundAttendee(attendee),
+    const [payment, existing] = await Promise.all([
+      attendeePaymentFacts(attendee),
       loadExistingLines(attendee.id),
     ]);
-    return { attendee, canRefund, existing };
+    return { attendee, existing, ...payment };
   },
 );
 

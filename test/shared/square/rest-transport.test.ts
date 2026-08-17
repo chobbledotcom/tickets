@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 import {
   type FetchCall,
   installMockFetch,
@@ -289,34 +289,12 @@ describeSquare(() => {
       expect(result.payment!.refundedMoney).toBeUndefined();
     });
 
-    test("payments.get returns null payment when API returns none", async () => {
+    test("payments.get preserves a success response with no payment", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await squareApi.getSquareClient();
       const result = await client!.payments.get({ paymentId: "missing" });
       expect(result.payment).toBeNull();
-    });
-
-    test("throws error with status code and body for HTTP errors", async () => {
-      mockFetch = installMockFetch(() =>
-        Promise.resolve({
-          ok: false,
-          status: 400,
-          text: () => Promise.resolve('{"errors":[{"code":"BAD_REQUEST"}]}'),
-        }),
-      );
-
-      const client = await squareApi.getSquareClient();
-      let err: Error | undefined;
-      try {
-        await client!.orders.get({ orderId: "bad" });
-      } catch (e) {
-        err = e as Error;
-      }
-      // Assert outside the try so a missing rejection can't be swallowed.
-      expect(err).toBeInstanceOf(Error);
-      expect(err!.message).toContain("Status code: 400");
-      expect(err!.message).toContain("BAD_REQUEST");
     });
 
     test("locations.list sends GET to /v2/locations", async () => {

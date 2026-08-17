@@ -36,6 +36,7 @@
     "jsr:@std/path@^1.1.5": "1.1.5",
     "jsr:@std/streams@^1.0.9": "1.1.1",
     "jsr:@std/streams@^1.1.1": "1.1.1",
+    "jsr:@std/testing@*": "1.0.17",
     "jsr:@std/testing@^1.0.17": "1.0.17",
     "jsr:@std/yaml@1": "1.1.1",
     "npm:@biomejs/biome@*": "2.4.16",
@@ -2474,7 +2475,13 @@
     "members": {
       "e2e-payments": {
         "dependencies": [
-          "npm:playwright@1.61.1"
+          "npm:@cucumber/cucumber@13.2.0",
+          "npm:@cucumber/gherkin@41.0.0",
+          "npm:@cucumber/messages@34.0.1",
+          "npm:@cucumber/tag-expressions@10.0.0",
+          "npm:@libsql/client@~0.17.2",
+          "npm:playwright@1.61.1",
+          "npm:valibot@^1.4.1"
         ]
       }
     }

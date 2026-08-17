@@ -1,16 +1,30 @@
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ErrorCode } from "#shared/logger.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import type { Money } from "#shared/payment/money.ts";
+import {
+  type ProviderFailure,
+  providerFailure,
+  withExactRefundMoney,
+} from "#shared/payment/provider-failures.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import {
+  type RefundAttemptResult,
+  type RefundRequest,
+  uncertainRefund,
+} from "#shared/payment/refund-attempt.ts";
+import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
 } from "#shared/payment-helpers.ts";
-import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {
   StripeCheckoutLineItemParams,
   StripeCheckoutSessionCreateParams,
+  StripeClient,
 } from "#shared/stripe/client.ts";
 import {
   cleanupOldWebhookEndpoints,
@@ -18,7 +32,15 @@ import {
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
-import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
+import {
+  StripeApiError,
+  StripeConnectionError,
+  StripeProtocolError,
+} from "#shared/stripe/request.ts";
+import {
+  sanitizeStripeError,
+  stripeClientRuntime,
+} from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
@@ -81,7 +103,7 @@ const createCheckoutSession = async (
     ...(intent.email ? { customer_email: intent.email } : {}),
     metadata: await assembleCheckoutMetadata("stripe", intent, order.total),
   };
-  const session = await stripeClientRuntime.run(
+  const session = await stripeClientRuntime.runCheckout(
     (client) => client.checkout.sessions.create(params),
     ErrorCode.STRIPE_CHECKOUT,
   );
@@ -91,38 +113,178 @@ const createCheckoutSession = async (
 export interface StripeApi {
   cleanupOldWebhookEndpoints: typeof cleanupOldWebhookEndpoints;
   createCheckoutSession: typeof createCheckoutSession;
-  refundPayment: (intentId: string) => Promise<StripeRefund | null>;
+  readPaymentIntent: (
+    id: string,
+  ) => Promise<ProviderRead<StripeExpandedPaymentIntent>>;
+  refundCharge: (
+    request: AuthorizedRefundRequest<"stripe">,
+  ) => Promise<RefundAttemptResult>;
   retrieveCheckoutSession: (
     id: string,
   ) => Promise<StripeCheckoutSession | null>;
-  retrievePaymentIntent: (
-    id: string,
-  ) => Promise<StripeExpandedPaymentIntent | null>;
   setupWebhookEndpoint: SetupWebhookEndpoint;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 }
 
+const stripeFailure = (error: unknown): ProviderFailure | undefined =>
+  providerFailure({
+    connectionReason:
+      error instanceof StripeConnectionError ? error.reason : undefined,
+    malformed:
+      error instanceof StripeProtocolError && error.statusCode === undefined,
+    statusCode:
+      error instanceof StripeApiError || error instanceof StripeProtocolError
+        ? error.statusCode
+        : undefined,
+  });
+
+const withStripeClient = async <Result>(
+  notConfigured: Result,
+  useClient: (client: StripeClient) => Promise<Result>,
+  useError: (error: unknown, failure: ProviderFailure | undefined) => Result,
+): Promise<Result> => {
+  const client = await stripeClientRuntime.get();
+  if (client === null) return notConfigured;
+  try {
+    return await useClient(client);
+  } catch (error) {
+    return useError(error, stripeFailure(error));
+  }
+};
+
+const requireStripeFailure =
+  <Result>(
+    useFailure: (failure: ProviderFailure) => Result,
+  ): ((error: unknown, failure: ProviderFailure | undefined) => Result) =>
+  (error, failure) => {
+    if (failure !== undefined) return useFailure(failure);
+    throw error;
+  };
+
+const readPaymentIntent = (
+  id: string,
+): Promise<ProviderRead<StripeExpandedPaymentIntent>> =>
+  withStripeClient<ProviderRead<StripeExpandedPaymentIntent>>(
+    { reason: "not_configured", status: "unavailable" },
+    async (client) => {
+      const resource = await client.paymentIntents.retrieveWithLatestCharge(
+        id,
+        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
+      );
+      return resource.id === id
+        ? { resource, status: "found" }
+        : { reason: "mismatched_id", status: "invalid" };
+    },
+    requireStripeFailure((failure) => failure.read),
+  );
+
+type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
+type StripeRefundAnswer = (
+  amount: Money,
+  refund: StripeRefund,
+) => RefundAttemptResult;
+
+const movedStripeRefund =
+  (kind: "accepted" | "completed"): StripeRefundAnswer =>
+  (amount, refund) => ({
+    amount,
+    kind,
+    proof: {
+      kind: "named_refund",
+      refund: {
+        id: refund.id,
+        kind: "stripe_refund",
+        parentId: refund.payment_intent,
+        provider: "stripe",
+      },
+    },
+  });
+
+const rejectedStripeRefund =
+  (reason: "canceled" | "failed"): StripeRefundAnswer =>
+  () => ({
+    kind: "rejected",
+    reason,
+  });
+
+const STRIPE_REFUND_ANSWERS = {
+  canceled: rejectedStripeRefund("canceled"),
+  failed: rejectedStripeRefund("failed"),
+  pending: movedStripeRefund("accepted"),
+  requires_action: movedStripeRefund("accepted"),
+  succeeded: movedStripeRefund("completed"),
+} as const satisfies Record<StripeRefundStatus, StripeRefundAnswer>;
+
+const stripeRefundResult = (
+  request: RefundRequest,
+  refund: StripeRefund,
+): RefundAttemptResult =>
+  withExactRefundMoney(
+    request,
+    refund.payment_intent,
+    refund.amount,
+    refund.currency,
+    (amount) => {
+      if (refund.status === null) {
+        return uncertainRefund("unsupported_status");
+      }
+      return STRIPE_REFUND_ANSWERS[refund.status](amount, refund);
+    },
+  );
+
+const refundCharge = (
+  request: AuthorizedRefundRequest<"stripe">,
+): Promise<RefundAttemptResult> =>
+  withStripeClient<RefundAttemptResult>(
+    { kind: "not_sent", reason: "not_configured" },
+    async (client) => {
+      const refund = await client.refunds.create(
+        {
+          amount: request.charge.captured.amount,
+          payment_intent: request.paymentReference,
+        },
+        request.authorization.idempotencyKey,
+        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
+      );
+      return stripeRefundResult(request, refund);
+    },
+    requireStripeFailure((failure) => failure.refund),
+  );
+
+class StripeCheckoutReadError extends Error {
+  constructor(reason: string) {
+    super(`Stripe checkout could not be read (${reason})`);
+    this.name = "StripeCheckoutReadError";
+  }
+}
+
+const retrieveCheckoutSession = async (
+  id: string,
+): Promise<StripeCheckoutSession | null> =>
+  withStripeClient<StripeCheckoutSession | null>(
+    null,
+    (client) => client.checkout.sessions.retrieve(id),
+    (error, failure) => {
+      if (failure?.read.status === "missing") return null;
+      logError({
+        code: ErrorCode.STRIPE_SESSION,
+        detail: sanitizeStripeError(error),
+      });
+      if (failure === undefined) {
+        throw new StripeCheckoutReadError("unexpected_failure");
+      }
+      throw new StripeCheckoutReadError(
+        `${failure.read.status}:${failure.read.reason}`,
+      );
+    },
+  );
+
 export const stripeApi: StripeApi = {
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
-  refundPayment: async (intentId) => {
-    const idempotencyKey = await refundIdempotencyKey("stripe", intentId);
-    return stripeClientRuntime.run(
-      (client) =>
-        client.refunds.create({ payment_intent: intentId }, idempotencyKey),
-      ErrorCode.STRIPE_REFUND,
-    );
-  },
-  retrieveCheckoutSession: (id) =>
-    stripeClientRuntime.run(
-      (client) => client.checkout.sessions.retrieve(id),
-      ErrorCode.STRIPE_SESSION,
-    ),
-  retrievePaymentIntent: (id) =>
-    stripeClientRuntime.run(
-      (client) => client.paymentIntents.retrieveWithLatestCharge(id),
-      ErrorCode.STRIPE_SESSION,
-    ),
+  readPaymentIntent,
+  refundCharge,
+  retrieveCheckoutSession,
   setupWebhookEndpoint,
   testStripeConnection,
 };

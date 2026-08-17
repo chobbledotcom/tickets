@@ -4,12 +4,17 @@
 
 import {
   deleteByFieldStatement,
-  executeBatch,
   queryAll,
   type SqlStatement,
+  withTransaction,
 } from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#shared/db/notes/queries.ts";
+import { assertRowsFreeToMove } from "#shared/db/payment-admit-move.ts";
+import {
+  ATTENDEE_DATA_RULES,
+  type AttendeeDataRule,
+} from "./dependent-data.ts";
 
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
 type ListingContribution = {
@@ -17,8 +22,6 @@ type ListingContribution = {
   listing_id: number;
   tickets_count: number;
 };
-
-type DependentRowTarget = { field: string; table: string };
 
 /**
  * Per-listing aggregate contributions of an attendee's lines, summed so the
@@ -52,63 +55,114 @@ const restoreListingContributions = (
            WHERE id = ?`,
   }));
 
-/** The tables holding an attendee's dependent rows, each with the column that
- * links it to the attendee. Deleted (in this order) before the attendee row. */
-const CHECKOUT_STAGE_ROWS = {
-  field: "attendee_id",
-  table: "checkout_stages",
-} as const;
-
-const DEPENDENT_ROW_TARGETS = [
-  CHECKOUT_STAGE_ROWS,
-  { field: "attendee_id", table: "processed_payments" },
-  { field: "attendee_id", table: "attendee_answers" },
-  { field: "attendee_id", table: "listing_attendees" },
-  { field: "servicing_attendee_id", table: "service_costs" },
-] as const;
-
 const dependentDeleteStatement = (
-  { field, table }: DependentRowTarget,
+  rule: Extract<AttendeeDataRule, { action: "delete" }>,
+  attendeeIds: SqlStatement,
+): SqlStatement => {
+  if (rule.kind === "notes") {
+    return noteDeleteStatement("attendee", attendeeIds);
+  }
+  if (rule.kind === "through") {
+    return {
+      args: attendeeIds.args,
+      sql: `DELETE FROM ${rule.table}
+         WHERE ${rule.tableField} IN (
+           SELECT joined.${rule.joinedField}
+             FROM ${rule.joinedTable} AS joined
+            WHERE joined.${rule.attendeeField} IN (${attendeeIds.sql})
+         )`,
+    };
+  }
+  return {
+    args: attendeeIds.args,
+    sql: `DELETE FROM ${rule.table} WHERE ${rule.field} IN (${attendeeIds.sql})`,
+  };
+};
+
+type DeleteRule = Extract<AttendeeDataRule, { action: "delete" }>;
+type RepointRule = Extract<AttendeeDataRule, { action: "repoint" }>;
+
+const deleteRules = (): DeleteRule[] =>
+  ATTENDEE_DATA_RULES.filter(
+    (rule): rule is DeleteRule => rule.action === "delete",
+  );
+
+const clearAssignmentStatement = (
+  rule: RepointRule,
   attendeeIds: SqlStatement,
 ): SqlStatement => ({
   args: attendeeIds.args,
-  sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
+  sql: `UPDATE ${rule.table} SET ${rule.field} = NULL WHERE ${rule.field} IN (${attendeeIds.sql})`,
 });
 
-/** Delete checkout stages for one or many attendee ids. */
-export const checkoutStageDeleteStatement = (
+/** Remove or detach every dependent row for one or many attendee ids. */
+export const attendeeRemovalStatements = (
   attendeeIds: SqlStatement,
-): SqlStatement => dependentDeleteStatement(CHECKOUT_STAGE_ROWS, attendeeIds);
+): SqlStatement[] =>
+  ATTENDEE_DATA_RULES.flatMap((rule) => {
+    if (rule.action === "delete") {
+      return [dependentDeleteStatement(rule, attendeeIds)];
+    }
+    return rule.action === "repoint"
+      ? [clearAssignmentStatement(rule, attendeeIds)]
+      : [];
+  });
 
-/** Build the common dependent-row deletes for one or many attendee ids. */
-export const attendeeDependentDeleteStatements = (
+/** Clear the one booking-stage relationship a merge must replace early. */
+export const checkoutStageDeleteStatements = (
   attendeeIds: SqlStatement,
-): SqlStatement[] => [
-  ...DEPENDENT_ROW_TARGETS.map((target) =>
-    dependentDeleteStatement(target, attendeeIds),
-  ),
-  // Notes are named by the kind of record they are about, so the notes module
-  // builds this one rather than the plain "column = id" shape above.
-  noteDeleteStatement("attendee", attendeeIds),
-];
+): SqlStatement[] =>
+  deleteRules()
+    .filter((rule) => rule.table === "checkout_stages")
+    .map((rule) => dependentDeleteStatement(rule, attendeeIds));
 
-/** Delete an attendee and all dependent data tied to the attendee record. */
+/** Move live attendee assignments while keeping their records. */
+export const repointAttendeeDependents = (
+  sourceId: number,
+  targetId: number,
+): SqlStatement[] =>
+  ATTENDEE_DATA_RULES.flatMap((rule) =>
+    rule.action === "repoint"
+      ? [
+          {
+            args: [targetId, sourceId],
+            sql: `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
+          },
+        ]
+      : [],
+  );
+
+/**
+ * Delete an attendee and all dependent data tied to the attendee record.
+ *
+ * The payment rows this destroys are read for live work first, inside the same
+ * transaction that removes them, so a refund the operator has not finished — or
+ * a payment the owner still has to look at — stops the delete instead of
+ * disappearing with it. One batch inside the transaction keeps the write lock
+ * held for a single round trip however many dependent tables there are.
+ */
 const purgeAttendee = (
   attendeeId: number,
   contributions: ListingContribution[],
 ): Promise<void> =>
-  executeBatch([
-    ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
-    ...restoreListingContributions(contributions),
-    deleteByFieldStatement({
-      field: "id",
-      table: "attendees",
-      value: attendeeId,
-    }),
-  ]);
+  withTransaction(async (tx) => {
+    await assertRowsFreeToMove(tx, [attendeeId], "delete");
+    await tx.batch([
+      ...attendeeRemovalStatements({ args: [attendeeId], sql: "?" }),
+      ...restoreListingContributions(contributions),
+      deleteByFieldStatement({
+        field: "id",
+        table: "attendees",
+        value: attendeeId,
+      }),
+    ]);
+  });
 
 /**
  * Delete an attendee and all its listing links, payments, and answers.
+ *
+ * Refuses with {@link PaymentRowsBusyError} while one of the attendee's
+ * payments is mid-refund or waiting on the owner.
  */
 export const deleteAttendee = async (
   attendeeId: number,

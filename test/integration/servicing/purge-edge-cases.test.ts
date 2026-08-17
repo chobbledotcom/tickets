@@ -18,7 +18,7 @@ import { getDb } from "#shared/db/client.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
-  countOrphanedAttendees,
+  countPurgeableOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso } from "#shared/now.ts";
@@ -55,7 +55,9 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
       args: [cutoff, edgeId],
       sql: "UPDATE attendees SET created = ? WHERE id = ?",
     });
-    expect(await countOrphanedAttendees(cutoff)).toBeGreaterThanOrEqual(1);
+    expect(
+      await countPurgeableOrphanedAttendees(cutoff),
+    ).toBeGreaterThanOrEqual(1);
     await purgeOrphanedAttendees(cutoff);
     expect(await attendeeExists(oldId)).toBe(false);
     // The boundary row survives — the purge predicate is `created < cutoff`.
@@ -100,7 +102,9 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
       args: [daysAgoIso(30), real.id],
       sql: "UPDATE attendees SET created = ? WHERE id = ?",
     });
-    expect(await countOrphanedAttendees(nowIso())).toBeGreaterThanOrEqual(2);
+    expect(
+      await countPurgeableOrphanedAttendees(nowIso()),
+    ).toBeGreaterThanOrEqual(2);
     await purgeOrphanedAttendees(nowIso());
     expect(await attendeeExists(servicingId)).toBe(false);
     expect(await attendeeExists(real.id)).toBe(false);
@@ -145,6 +149,6 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     // The listing still exists (just inactive); the attendee is not an orphan.
     expect(await attendeeExists(id)).toBe(true);
     expect(await childRowCount("listing_attendees", id)).toBe(1);
-    expect(await countOrphanedAttendees(nowIso())).toBe(0);
+    expect(await countPurgeableOrphanedAttendees(nowIso())).toBe(0);
   });
 });

@@ -4,6 +4,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getNoteRows } from "#shared/db/notes/queries.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -12,12 +14,13 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
-} from "#test-utils/webhooks.ts";
+} from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
 
@@ -35,7 +38,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       metadata: { email: string; items: string; name: string },
       amountTotal: number,
     ) => ({
-      mockRefund: stubRefundPayment(),
+      mockRefund: stubRefundPayment("re_test", amountTotal),
       mockRetrieve: stubRetrieveCheckoutSession({
         amountTotal,
         email: metadata.email,
@@ -167,7 +170,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("a failed refund releases the reservation so the next retry re-attempts it", async () => {
+    test("a rejected refund needs an owner before another send", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
@@ -184,11 +187,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         () => ({
           // The provider's refund call fails (e.g. transiently down) and the
           // payment is not already refunded, so the refund genuinely failed.
-          mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
-            Promise.resolve(false),
+          mockRefund: stub(stripePaymentProvider, "refundCharge", () =>
+            Promise.resolve({ kind: "rejected", reason: "failed" } as const),
           ),
-          mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
-            Promise.resolve(false),
+          mockRefunded: stub(stripePaymentProvider, "readCharge", () =>
+            Promise.resolve(foundCharge(chargeMoney())),
           ),
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 1000,
@@ -205,17 +208,28 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(mockRefund.calls.length).toBe(1);
           expect(await response.text()).toContain("contact support");
-          // The failure is NOT frozen as terminal AND the reservation is not
-          // left held: the row is released (deleted) so the next delivery
-          // re-claims and re-attempts the refund immediately, rather than
-          // colliding with the lock until the row goes stale.
+          // The callback reservation is released, while the one durable charge
+          // authority preserves the provider's rejection for its owner.
           expect(await getProcessedPayment("cs_refund_failed")).toBeNull();
+          const referenceIndex = await paymentReferenceIndex({
+            kind: "tagged",
+            provider: "stripe",
+            reference: "pi_refund_failed",
+          });
+          expect(
+            (await loadRefundAuthorityByReference(referenceIndex))?.state,
+          ).toMatchObject({
+            kind: "needs_owner_choice",
+            reason: "provider_rejected",
+          });
 
-          // The next retry re-attempts the refund (proof the lock was released).
-          await handleRequest(
+          // Re-delivery returns the same owner-required outcome. It cannot
+          // create a parallel retry path around that decision.
+          const retry = await handleRequest(
             mockRequest("/payment/success?session_id=cs_refund_failed"),
           );
-          expect(mockRefund.calls.length).toBe(2);
+          expect(await retry.text()).toContain("contact support");
+          expect(mockRefund.calls.length).toBe(1);
         },
       );
     });

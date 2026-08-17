@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  assertReversesAgainst,
   LedgerConflictError,
+  reversalConflict,
 } from "#shared/accounting/conflicts.ts";
 import {
   allTransfers,
@@ -136,9 +136,7 @@ describe("db > accounting > conflicts", () => {
       // The absent-link short-circuit must return before the "refers to no
       // transfer" guard, regardless of the original passed (a `||` instead of the
       // `||`-less guard would fall through and wrongly throw here).
-      expect(() =>
-        assertReversesAgainst(tx({ reference: "plain" }), null),
-      ).not.toThrow();
+      expect(reversalConflict(tx({ reference: "plain" }), null)).toBeNull();
     });
 
     test("accepts a leg that is the exact inverse of the original", async () => {

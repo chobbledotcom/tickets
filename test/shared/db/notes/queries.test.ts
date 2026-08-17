@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { queryOne } from "#shared/db/client.ts";
 import {
+  createNamedSystemNote,
   createOwnerNote,
   createSystemNote,
   deleteNotes,
@@ -139,6 +140,31 @@ describeWithEnv("db > notes", { db: true }, () => {
     expect(ownerStored?.note).not.toContain("owner secret");
   });
 
+  test("refuses a second app-written note with the same indexed name", async () => {
+    const target = attendeeNotes(await makeAttendee());
+    const name = {
+      key: "one-confirmation",
+      purpose: "refund_confirmation",
+    } as const;
+    await createNamedSystemNote(target, "first", name);
+
+    await expect(
+      createNamedSystemNote(target, "duplicate", name),
+    ).rejects.toThrow();
+  });
+
+  test("refuses an app-written note whose indexed name is empty", async () => {
+    const target = attendeeNotes(await makeAttendee());
+
+    await expect(
+      createNamedSystemNote(target, "unreachable", {
+        key: "",
+        purpose: "refund_confirmation",
+      }),
+    ).rejects.toThrow("A named system note needs a key");
+    expect(await getNoteRows("attendee", [target.id])).toEqual([]);
+  });
+
   test("returns an attendee's notes oldest first", async () => {
     const attendeeId = await makeAttendee();
     await createSystemNote(attendeeNotes(attendeeId), "first");
@@ -229,8 +255,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     const owner = await makeAttendee("Nothing To Delete");
     await createSystemNote(attendeeNotes(owner), "kept");
 
-    // The stale-note cleanup runs on every refresh, almost always with nothing
-    // to remove, so this path must not cost a round trip.
+    // Empty deletes must not cost a round trip.
     const { roundTrips } = await runAndCountRoundTrips(() =>
       deleteNotes(attendeeNotes(owner), []),
     );

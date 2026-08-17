@@ -1,6 +1,5 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { SumUp } from "@sumup/sdk";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -15,6 +14,8 @@ import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
+type SumupClient = NonNullable<ReturnType<typeof sumupApi.getSumupClient>>;
+
 /** Methods a fake SumUp client may implement for a given test. */
 export type FakeSumupParts = {
   create?: (body: unknown) => Promise<unknown>;
@@ -25,16 +26,18 @@ export type FakeSumupParts = {
 };
 
 /** Build a minimal fake SumUp client exposing only the methods under test. */
-export const makeSumupClient = (p: FakeSumupParts): SumUp =>
+export const makeSumupClient = (p: FakeSumupParts): SumupClient =>
   ({
-    checkouts: { create: p.create, get: p.get },
-    merchants: { get: p.merchantGet },
-    transactions: { get: p.txnGet, refund: p.refund },
-  }) as unknown as SumUp;
+    createCheckout: p.create,
+    getMerchant: p.merchantGet,
+    readCheckout: p.get,
+    readTransaction: p.txnGet,
+    refundTransaction: p.refund,
+  }) as unknown as SumupClient;
 
 /** Run `body` with the SumUp client replaced by `client` (or made absent). */
 export const withSumupClient = (
-  client: SumUp | null,
+  client: SumupClient | null,
   body: () => Promise<void>,
 ): Promise<void> =>
   withMocks(() => stub(sumupApi, "getSumupClient", () => client), body);

@@ -1,10 +1,4 @@
-/**
- * Payment provider abstraction layer
- *
- * Defines a provider-agnostic interface for payment operations.
- * Admins choose a provider (e.g. Stripe) in settings; routes use
- * this interface so they never depend on a specific provider.
- */
+/** Provider-neutral checkout, callback, and refund contracts. */
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
@@ -14,6 +8,13 @@ import { settings } from "#shared/db/settings.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type {
+  AuthorizedRefundRequest,
+  RefundProviderCapability,
+} from "#shared/payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -79,19 +80,13 @@ export type ModifierSpec = {
 /** Fields shared between BookingIntent and CheckoutIntent that carry
  * deposit, redirect, and child-allocation metadata through the checkout. */
 type CheckoutMetaFields = {
-  /** When set, this session settles a reserved attendee's outstanding balance
-   * (rather than creating a new attendee). */
+  /** Reserved attendee whose outstanding balance this session settles. */
   balanceAttendeeId?: number | undefined;
-  /** Reservation amount string (e.g. "10%") — present when the items are
-   * deposit-priced so the webhook can re-derive the deposit and the balance. */
+  /** Pricing rule used to re-derive a deposit and its balance. */
   reservationAmount?: string | undefined;
-  /** Explicit thank-you redirect carried through the paid round-trip, so a
-   * single parent's configured `thank_you_url` survives folding a child (which
-   * makes the booking multi-listing and would otherwise drop it). */
+  /** Explicit redirect that survives the paid round-trip. */
   thankYouUrl?: string | undefined;
-  /** Per-(child, parent) allocation map from the fold, carried through the
-   * signed metadata so the webhook can expand child bookings into per-parent
-   * rows. Absent for legacy/no-parent orders. */
+  /** Child bookings assigned to their parent rows. */
   allocations?: ChildAllocation[] | undefined;
 };
 
@@ -124,7 +119,8 @@ export type CheckoutIntent = CheckoutIntentBase & {
 /** Result of creating a checkout session.
  * - Success: { sessionId, checkoutUrl }
  * - User-facing error (e.g. invalid phone): { error }
- * - Internal/unknown failure: null */
+ * - Provider not configured: null
+ * Unexpected failures throw. */
 export type CheckoutSessionResult =
   | {
       sessionId: string;
@@ -135,22 +131,8 @@ export type CheckoutSessionResult =
     }
   | null;
 
-/**
- * Metadata attached to a validated payment session.
- *
- * All fields are guaranteed to be strings after extraction.
- * Empty string ("") is the canonical representation for "not provided" —
- * payment providers store metadata as string key-value pairs, so null/undefined
- * are normalized to "" by extractSessionMetadata. Domain types (e.g.
- * RegistrationIntent.date) may use null for "not provided"; conversion
- * between "" and null happens at the extraction boundary.
- *
- * This is the *logical* shape. On the Square wire, several small fields are
- * collapsed into a single packed entry to fit its 10-entry metadata cap (see
- * packMetadata); Stripe/SumUp store the fields top-level. extractSessionMetadata
- * unpacks the Square form back to this shape, so no consumer beyond that boundary
- * needs to know which form was used.
- */
+/** Validated logical metadata. Missing wire values are represented by `""`;
+ * provider-specific packing is removed at extraction. */
 export type SessionMetadata = ContactInfo & {
   _origin: string;
   items: string;
@@ -197,6 +179,9 @@ export type ValidatedPaymentSession = {
   id: string;
   paymentStatus: PaymentStatus;
   paymentReference: string;
+  /** Provider that authenticated and read this session. This is evidence about
+   *  the charge, unlike the site's currently selected provider. */
+  provider: PaymentProviderType;
   /** Total amount charged in smallest currency unit (cents), from the payment provider.
    *  Validated at the provider boundary alongside its currency, so a malformed
    *  amount never reaches a callback. */
@@ -264,39 +249,36 @@ export type SetupWebhookEndpoint = (
   existingEndpointId?: string | null,
 ) => Promise<WebhookSetupResult>;
 
-/**
- * Payment provider interface.
- *
- * Each provider (Stripe, Square, etc.) implements this interface.
- * Routes call these methods without knowing which provider is active.
- */
+/** Operations every configured payment provider supplies. */
 export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
 
-  /**
-   * Create a checkout session for one or more listings.
-   * Returns a session ID and hosted checkout URL, or null on failure.
-   */
+  /** Create a checkout for one or more listings. */
   createCheckoutSession(
     intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;
 
   /**
-   * Check if a payment has been refunded via the provider API.
-   * Used to refresh refund status from the edit attendee page.
+   * Read what the provider says about the money on one charge: what it took,
+   * and what has gone back. Every refund route asks this before it sends money,
+   * and the edit-attendee page asks it to refresh a booking's refund state.
+   *
    * @param paymentReference - provider-specific payment reference
-   * @returns true if the payment has been refunded
+   * Missing, unavailable, and invalid answers remain distinct.
    */
-  isPaymentRefunded(paymentReference: string): Promise<boolean>;
+  readCharge(paymentReference: string): Promise<ProviderRead<ChargeMoney>>;
 
-  /**
-   * Refund a completed payment.
-   * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
-   * @returns true if refund succeeded, false otherwise
-   */
-  refundPayment(paymentReference: string): Promise<boolean>;
+  /** Whether a refund this provider accepted can safely be asked for twice.
+   *  An idempotency key lands a repeat call on the original refund; SumUp has
+   *  no such key, so asking twice pays twice. Every adapter says which kind it
+   *  is rather than being assumed. */
+  readonly refundCapability: RefundProviderCapability;
+
+  /** Ask for the observed charge to be refunded and preserve the provider's
+   * exact completed, accepted, rejected, unsent, or uncertain answer. */
+  refundCharge(request: AuthorizedRefundRequest): Promise<RefundAttemptResult>;
 
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
@@ -333,10 +315,7 @@ export interface PaymentProvider {
     paidPaymentId?: string,
   ): Promise<RetrieveSessionResult>;
 
-  /**
-   * Set up a webhook endpoint for this provider.
-   * Some providers (e.g. Stripe) support programmatic creation.
-   */
+  /** Set up the provider's webhook endpoint where supported. */
   setupWebhookEndpoint: SetupWebhookEndpoint;
   /** Provider identifier */
   readonly type: PaymentProviderType;
@@ -372,6 +351,11 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
+/** Load one explicitly named provider implementation. */
+export const loadPaymentProvider = (
+  provider: PaymentProviderType,
+): Promise<PaymentProvider> => providerLoaders[provider]();
+
 /** Resolve a provider type and lazy-load its implementation. */
 const resolveProvider = async (
   resolveType: () => PaymentProviderType | null,
@@ -384,7 +368,7 @@ const resolveProvider = async (
     return null;
   }
   logDebug("Payment", `Resolving payment provider${label}: ${providerType}`);
-  return providerLoaders[providerType]();
+  return loadPaymentProvider(providerType);
 };
 
 export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
@@ -396,8 +380,8 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
 export type ExistingPaymentProvider = PaymentProvider | null;
 
 /**
- * Resolve the provider for refunds, callbacks, and completion of payments that
- * already exist. New sales use {@link getActivePaymentProvider}.
+ * Resolve the provider for callbacks and completion of payments that already
+ * exist. New sales use {@link getActivePaymentProvider}.
  */
 export const getPaymentProviderForExistingPayments =
   (): Promise<ExistingPaymentProvider> =>

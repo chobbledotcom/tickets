@@ -1,6 +1,10 @@
 import type Stripe from "stripe";
 import type { StripeFormValue } from "./form.ts";
-import { createStripeRequest, type StripeClientConfig } from "./request.ts";
+import {
+  createStripeRequest,
+  type StripeClientConfig,
+  type StripeRequestOptions,
+} from "./request.ts";
 import {
   type StripeBalance,
   StripeBalanceSchema,
@@ -21,6 +25,7 @@ import {
 type OfficialCheckoutParams = NonNullable<
   Parameters<Stripe["checkout"]["sessions"]["create"]>[0]
 >;
+type StripeRetryOptions = Pick<StripeRequestOptions, "maxNetworkRetries">;
 type OfficialLineItem = NonNullable<
   OfficialCheckoutParams["line_items"]
 >[number];
@@ -68,6 +73,12 @@ export interface StripeWebhookEndpointCreateParams {
   url: Stripe.WebhookEndpointCreateParams["url"];
 }
 
+interface StripeRefundCreateParams
+  extends Readonly<Record<string, StripeFormValue>> {
+  amount: NonNullable<Stripe.RefundCreateParams["amount"]>;
+  payment_intent: NonNullable<Stripe.RefundCreateParams["payment_intent"]>;
+}
+
 export interface StripeClient {
   balance: { retrieve: () => Promise<StripeBalance> };
   checkout: {
@@ -83,12 +94,14 @@ export interface StripeClient {
   paymentIntents: {
     retrieveWithLatestCharge: (
       id: Stripe.PaymentIntent["id"],
+      options?: StripeRetryOptions,
     ) => Promise<StripeExpandedPaymentIntent>;
   };
   refunds: {
     create: (
-      params: Pick<Stripe.RefundCreateParams, "payment_intent">,
+      params: StripeRefundCreateParams,
       idempotencyKey?: string,
+      options?: StripeRetryOptions,
     ) => Promise<StripeRefund>;
   };
   webhookEndpoints: {
@@ -134,17 +147,19 @@ export const createStripeClient = (
       },
     },
     paymentIntents: {
-      retrieveWithLatestCharge: (id) =>
+      retrieveWithLatestCharge: (id, options) =>
         call(
           "GET",
           idPath("payment_intents", id),
           { expand: ["latest_charge"] },
           StripeExpandedPaymentIntentSchema,
+          options,
         ),
     },
     refunds: {
-      create: (params, idempotencyKey) =>
+      create: (params, idempotencyKey, options) =>
         call("POST", "/v1/refunds", params, StripeRefundSchema, {
+          ...options,
           idempotencyKey,
         }),
     },

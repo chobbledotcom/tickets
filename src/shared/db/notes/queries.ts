@@ -11,6 +11,7 @@ import {
   executeBatch,
   insert,
   type SqlStatement,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
@@ -21,24 +22,54 @@ import {
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
-import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
+import type {
+  SystemNote,
+  SystemNoteName,
+  SystemNoteRow,
+  SystemNoteType,
+} from "./types.ts";
 
-const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
+const NOTE_COLUMNS =
+  "id, entity_type, entity_id, type, note, system_name, created";
 
 /** Build a "record a note" function for one kind of note: it seals the text the
  *  way that kind is sealed, then stores it against the record it is about. */
-const noteWriterOf =
-  (type: SystemNoteType) =>
-  async (target: NoteTarget, note: string): Promise<void> => {
-    const { sql, args } = insert("system_notes", {
-      created: nowIso(),
-      entity_id: target.id,
-      entity_type: target.kind,
-      note: await sealNote(type, note),
-      type,
-    });
+type NoteWriter = (
+  target: NoteTarget,
+  note: string,
+  transaction?: TxScope,
+) => Promise<void>;
+
+const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
+  `system-note:1:${JSON.stringify([purpose, key])}`;
+
+const writeNote = async (
+  type: SystemNoteType,
+  target: NoteTarget,
+  note: string,
+  name: SystemNoteName | null,
+  transaction?: TxScope,
+): Promise<void> => {
+  if (name?.key === "") throw new Error("A named system note needs a key");
+  const { sql, args } = insert("system_notes", {
+    created: nowIso(),
+    entity_id: target.id,
+    entity_type: target.kind,
+    note: await sealNote(type, note),
+    system_name: name === null ? null : storedSystemNoteName(name),
+    type,
+  });
+  if (transaction === undefined) {
     await execute(sql, args);
-  };
+  } else {
+    await transaction.execute({ args, sql });
+  }
+};
+
+const noteWriterOf =
+  (type: SystemNoteType): NoteWriter =>
+  (target, note, transaction) =>
+    writeNote(type, target, note, null, transaction);
 
 /**
  * Record a note the app wrote itself. The text MUST be free of personal
@@ -46,6 +77,15 @@ const noteWriterOf =
  * dump plus that key), and exists so a path with no owner session can write it.
  */
 export const createSystemNote = noteWriterOf("system");
+
+/** Record an app-written note with an indexed purpose and opaque identity.
+ * Its lifecycle can then be managed without opening any note text. */
+export const createNamedSystemNote = (
+  target: NoteTarget,
+  note: string,
+  name: SystemNoteName,
+  transaction?: TxScope,
+): Promise<void> => writeNote("system", target, note, name, transaction);
 
 /** Record an operator's note, sealed with the owner public key. */
 export const createOwnerNote = noteWriterOf("owner");
@@ -162,14 +202,15 @@ export const getNote = async (
  * Delete notes, tied to their record so a stray id can't reach another's. They
  * go in one batch: several stale notes cost one round trip, not one each.
  */
-export const deleteNotes = (
+export const deleteNotes = async (
   target: NoteTarget,
   noteIds: number[],
 ): Promise<void> => {
-  if (noteIds.length === 0) return Promise.resolve();
-  return executeBatch(
-    noteIds.map((noteId) => deleteNotesWhere(noteOfTarget(target, noteId))),
+  if (noteIds.length === 0) return;
+  const statements = noteIds.map((noteId) =>
+    deleteNotesWhere(noteOfTarget(target, noteId)),
   );
+  await executeBatch(statements);
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that

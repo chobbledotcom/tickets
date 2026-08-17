@@ -14,14 +14,14 @@ import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
+  type AttendeeCreationWork,
   type BookingBatchPlan,
   bookingBatchCondition,
-  type LedgerPoster,
   type PreparedWrite,
   type WriteOutcome,
   writeAsBatch,
   writeAsLedgerBatch,
-  writeWithLedger,
+  writeWithCreationWork,
 } from "#shared/db/attendees/create-batch.ts";
 import { ATTENDEE_KIND, type AttendeeKind } from "#shared/db/attendees/kind.ts";
 import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
@@ -48,11 +48,13 @@ type AttendeeOrderFields = {
 export const buildAttendeeInsert = (
   enc: EncryptedAttendeeData,
   order: AttendeeOrderFields,
+  piiPaymentSessionId = enc.piiPaymentSessionId,
 ): SqlStatement =>
   insert("attendees", {
     created: enc.created,
     kind: order.kind ?? ATTENDEE_KIND,
     pii_blob: enc.encryptedPiiBlob,
+    pii_payment_session_id: piiPaymentSessionId,
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
   });
@@ -95,6 +97,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
 const prepareAttendeeWrite = async (
   input: AttendeeInput,
   extraCondition?: SqlStatement,
+  piiPaymentSessionId?: string,
 ): Promise<
   | { ok: true; prepared: PreparedWrite }
   | { ok: false; failure: Extract<CreateAttendeeResult, { success: false }> }
@@ -164,10 +167,14 @@ const prepareAttendeeWrite = async (
     ok: true,
     prepared: {
       activityStatements,
-      attendeeInsert: buildAttendeeInsert(enc, {
-        kind: input.kind,
-        statusId,
-      }),
+      attendeeInsert: buildAttendeeInsert(
+        enc,
+        {
+          kind: input.kind,
+          statusId,
+        },
+        piiPaymentSessionId,
+      ),
       bookingStatements,
       enc,
     },
@@ -209,13 +216,18 @@ const finishAttendeeWrite = (
 type CreateStrategy<R extends CreateAttendeeResult | "sold-out"> = {
   condition?: SqlStatement;
   noBooking: () => R | Promise<R>;
+  piiPaymentSessionId?: string | undefined;
   write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>;
 };
 
 const createWith =
   <R extends CreateAttendeeResult | "sold-out">(strategy: CreateStrategy<R>) =>
   async (input: AttendeeInput): Promise<CreateAttendeeResult | R> => {
-    const prepared = await prepareAttendeeWrite(input, strategy.condition);
+    const prepared = await prepareAttendeeWrite(
+      input,
+      strategy.condition,
+      strategy.piiPaymentSessionId,
+    );
     if (!prepared.ok) return prepared.failure;
     const written = await strategy.write(prepared.prepared);
     return written
@@ -230,17 +242,33 @@ const capacityFailure = (): CreateAttendeeResult => ({
 
 export const createAttendeeAtomicImpl = (
   input: AttendeeInput,
-  postLedger?: LedgerPoster,
+  creationWork?: AttendeeCreationWork,
 ): Promise<CreateAttendeeResult> =>
   createWith<CreateAttendeeResult>({
     noBooking: capacityFailure,
     write: (prepared) =>
-      postLedger
-        ? writeWithLedger(prepared, postLedger)
+      creationWork
+        ? writeWithCreationWork(prepared, creationWork)
         : writeAsBatch(prepared),
   })(input);
 
-export type { BookingBatchPlan, LedgerPoster };
+export type { AttendeeCreationWork, BookingBatchPlan };
+
+const provenPiiPaymentSession = (
+  input: AttendeeInput,
+  plan: BookingBatchPlan,
+): string | undefined => {
+  const source = plan.finalize;
+  if (source === undefined || source.paymentReference === null) {
+    return;
+  }
+  if ((input.paymentId ?? "") !== source.paymentReference.reference) {
+    throw new Error(
+      `Payment session ${source.sessionId} does not match the attendee payment id`,
+    );
+  }
+  return source.sessionId;
+};
 
 export const createBookingAtomic = (
   input: AttendeeInput,
@@ -250,5 +278,6 @@ export const createBookingAtomic = (
     condition: bookingBatchCondition(plan),
     noBooking: async () =>
       (await anyModifierSoldOut(plan.usages)) ? "sold-out" : capacityFailure(),
+    piiPaymentSessionId: provenPiiPaymentSession(input, plan),
     write: (prepared) => writeAsLedgerBatch(prepared, plan),
   })(input);

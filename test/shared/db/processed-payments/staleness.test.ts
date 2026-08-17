@@ -9,6 +9,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { referenceIndexOf } from "#test-utils/payment-claim.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
@@ -86,6 +87,30 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
     test("returns 0 when no stale reservations exist", async () => {
       expect(await deleteAllStaleReservations()).toBe(0);
+    });
+  });
+
+  describe("reusing a stale reservation row", () => {
+    test("clears the old charge's index along with its reference", async () => {
+      await getDb().execute(
+        insert("processed_payments", {
+          payment_reference: "old-ciphertext",
+          payment_reference_index: "index-of-the-old-charge",
+          payment_session_id: "cs_reused",
+          processed_at: new Date(
+            Date.now() - STALE_RESERVATION_MS - 1000,
+          ).toISOString(),
+        }),
+      );
+
+      expect(await reserveSession("cs_reused")).toEqual({ reserved: true });
+
+      // The row now stands for a different checkout. An index left behind
+      // still names the old charge, and the marker that says "this money came
+      // back" finds rows by exactly that column — so it would stamp this row
+      // as refunded, and the refund for whatever it goes on to carry would be
+      // skipped as already done.
+      expect(await referenceIndexOf("cs_reused")).toBe("");
     });
   });
 });

@@ -4,6 +4,9 @@ import { stub } from "@std/testing/mock";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
+import { createTableSql } from "#shared/db/migrations/schema-sync.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -13,18 +16,27 @@ import {
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
-  type StoredPaymentFailure,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
+import {
+  type StoredPaymentFailure,
+  writeRowState,
+} from "#shared/payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
+  claimCurrentAttendeeRows,
+  referenceIndexOf,
+} from "#test-utils/payment-claim.ts";
+import {
+  bookedWithPayment,
   expectProcessedPaymentReference,
   finalizeReservedPayment,
   getProcessedPayment,
+  taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -181,25 +193,54 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(await parseSessionFailure("")).toBeNull();
     });
 
-    test("parseSessionFailure degrades undecryptable data to a terminal failure instead of throwing", async () => {
-      // Deliberately corrupt stored value — test fixture cast.
-      const result = await parseSessionFailure(
-        "not valid ciphertext{" as EnvKeyEncrypted,
-      );
-      // A value that won't decrypt/parse must not crash the replay path; it
-      // resolves to a generic terminal failure (non-empty message, 500 status).
-      expect(result?.status).toBe(500);
-      expect((result?.error.length ?? 0) > 0).toBe(true);
+    test("parseSessionFailure rejects undecryptable stored data", async () => {
+      await expect(
+        parseSessionFailure("not valid ciphertext{" as EnvKeyEncrypted),
+      ).rejects.toThrow();
     });
 
-    test("parseSessionFailure degrades invalid JSON fields to a terminal failure", async () => {
-      const result = await parseSessionFailure(
-        await encrypt('{"error":42,"refunded":"yes"}'),
+    test("parseSessionFailure rejects invalid stored fields at their boundary", async () => {
+      await expect(
+        parseSessionFailure(await encrypt('{"error":42,"refunded":"yes"}')),
+      ).rejects.toThrow("processed_payments.failure_data");
+    });
+
+    test("parseSessionFailure rejects the obsolete bare failure shape", async () => {
+      await expect(
+        parseSessionFailure(await encrypt('{"error":"Gone"}')),
+      ).rejects.toThrow("processed_payments.failure_data");
+    });
+
+    test("parseSessionFailure rejects terminal outcomes mixed with live work", async () => {
+      const mixed = writeRowState(
+        {
+          outcome: { error: "Gone" },
+          unrecorded: { returnedAt: "2026-08-13T12:00:00.000Z" },
+        },
+        "processed_payments.failure_data",
       );
-      expect(result).toEqual({
-        error: "This payment could not be completed. Please contact support.",
-        status: 500,
-      });
+      await expect(parseSessionFailure(await encrypt(mixed))).rejects.toThrow(
+        "processed_payments.failure_data: invalid terminal session state",
+      );
+    });
+
+    test("parseSessionFailure rejects a terminal outcome with a live claim", async () => {
+      const mixed = writeRowState(
+        {
+          claim: {
+            attendeeIds: [1],
+            commandId: "still-checking",
+            phase: "checking",
+            scope: "attendee_set",
+            writtenAt: "2026-08-14T08:00:00.000Z",
+          },
+          outcome: { error: "Gone" },
+        },
+        "processed_payments.failure_data",
+      );
+      await expect(parseSessionFailure(await encrypt(mixed))).rejects.toThrow(
+        "processed_payments.failure_data: invalid terminal session state",
+      );
     });
 
     test("markSessionFailed throws a labelled error for an invalid failure", async () => {
@@ -221,19 +262,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         expect(String(e)).not.toContain("UNIQUE constraint");
       }
 
-      // Recreate the table for subsequent tests
-      await getDb().execute(`
-        CREATE TABLE IF NOT EXISTS processed_payments (
-          payment_session_id TEXT PRIMARY KEY,
-          attendee_id INTEGER,
-          processed_at TEXT NOT NULL,
-          ticket_tokens TEXT NOT NULL DEFAULT '',
-          failure_data TEXT NOT NULL DEFAULT '',
-          payment_reference TEXT NOT NULL DEFAULT '',
-          provider_refunded_at TEXT NOT NULL DEFAULT '',
-          FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-        )
-      `);
+      // Rebuild it from the real schema rather than a copy of it. A
+      // hand-written CREATE TABLE here silently falls behind every column the
+      // app adds, and the next test to use one fails on a missing column.
+      const table = SCHEMA.find(([name]) => name === "processed_payments");
+      if (table === undefined) {
+        throw new Error("Missing processed_payments schema definition");
+      }
+      await getDb().execute(createTableSql(table));
     });
   });
 
@@ -270,7 +306,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("stamps attendee_id on an unresolved reservation, leaving tokens untouched", async () => {
       await reserveSession("sess_heal");
 
-      await finalizeSessionIfUnresolved("sess_heal", 42);
+      await finalizeSessionIfUnresolved("sess_heal", 42, null);
 
       const row = (await getProcessedPayment("sess_heal"))!;
       expect(row.attendee_id).toBe(42);
@@ -281,13 +317,48 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("stores a supplied payment reference while healing", async () => {
       await reserveSession("sess_heal_reference");
-      await finalizeSessionIfUnresolved("sess_heal_reference", 42, "pi_healed");
+      const paymentReference = taggedPaymentReference("pi_healed", "square");
+      const calls = await countDatabaseCalls(5, () =>
+        finalizeSessionIfUnresolved(
+          "sess_heal_reference",
+          42,
+          paymentReference,
+        ),
+      );
+      expect(calls).toBe(3);
+      // Read the stored column before anything else looks at this attendee:
+      // the refund read repairs a missing index, so asserting through it would
+      // pass whether or not this write put one there.
+      expect(await referenceIndexOf("sess_heal_reference")).toBe(
+        await paymentReferenceIndex(paymentReference),
+      );
       await expectProcessedPaymentReference(
         42,
         "sess_heal_reference",
-        "pi_healed",
+        paymentReference,
         await getTestPrivateKey(),
       );
+    });
+
+    test("refuses to heal an equivalent reference under a refund claim", async () => {
+      const reference = "pi_heal_held";
+      const attendeeId = await bookedWithPayment("sess_heal_holder", reference);
+      const held = await claimCurrentAttendeeRows([attendeeId]);
+      if (held.kind !== "claimed") throw new Error("the claim was refused");
+      await reserveSession("sess_heal_blocked");
+
+      await expect(
+        finalizeSessionIfUnresolved(
+          "sess_heal_blocked",
+          42,
+          taggedPaymentReference(reference),
+        ),
+      ).rejects.toThrow(
+        /^Payment cannot finalize while its reference is held$/u,
+      );
+      expect(
+        (await getProcessedPayment("sess_heal_blocked"))?.attendee_id,
+      ).toBe(null);
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {
@@ -298,7 +369,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // The replaying delivery tries to heal it to a different attendee; the
       // unresolved guard must make it a no-op so it never clobbers the winner's
       // ticket_tokens (which would render the success page without the ticket).
-      await finalizeSessionIfUnresolved("sess_raced", 99);
+      await finalizeSessionIfUnresolved("sess_raced", 99, null);
 
       const row = (await getProcessedPayment("sess_raced"))!;
       expect(row.attendee_id).toBe(7);
@@ -306,7 +377,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("is a no-op if the session was pruned", async () => {
-      await finalizeSessionIfUnresolved("sess_gone", 1);
+      await finalizeSessionIfUnresolved("sess_gone", 1, null);
     });
 
     test("clears stored ticket tokens", async () => {

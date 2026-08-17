@@ -6,7 +6,6 @@ tickets.db
 *.sqlite-wal
 .db-key
 .env
-.db-key
 
 # Generated build output
 dist/
