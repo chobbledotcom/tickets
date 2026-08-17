@@ -35,11 +35,11 @@ import { type FileRunOptions, runFileMutants } from "./run-file.ts";
 import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
-  deadlineReport,
   formatSummaryLines,
   type MutantResult,
   type Status,
   summarize,
+  unfinishedRun,
   writeStepSummary,
 } from "./summary.ts";
 import {
@@ -101,14 +101,36 @@ interface RunMutantsOptions extends MutationTargets, FileRunOptions {
 }
 
 /**
+ * The exit code for a run that stopped before answering every mutant, or null
+ * when it can carry on. `plans` is empty before any file has been planned.
+ */
+const unfinishedRunExit = (
+  opts: RunMutantsOptions,
+  tested: number,
+  plans: readonly FileMutationPlan[],
+): number | null => {
+  const ended = unfinishedRun(
+    { aborted: opts.isAborted(), hitDeadline: opts.hitDeadline() },
+    {
+      deadline: opts.deadline,
+      tested,
+      total: plans.reduce((sum, plan) => sum + plan.mutants.length, 0),
+    },
+  );
+  if (ended === null) return null;
+  for (const line of ended.lines) console.error(line);
+  return ended.code;
+};
+
+/**
  * Run the baseline (unmutated) tests. Returns `{ code }` when the run should
- * stop early (interrupted, or a non-green baseline), or `null` when the
- * baseline passed and mutation can proceed.
+ * stop early (the guard stopped it, an interrupt, or a non-green baseline), or
+ * `null` when the baseline passed and mutation can proceed.
  */
 const establishBaseline = async (
   opts: RunMutantsOptions,
 ): Promise<{ code: number } | null> => {
-  const { abortSignal, batchJobs, isAborted, testFiles } = opts;
+  const { abortSignal, batchJobs, testFiles } = opts;
   console.log(dim("Running baseline (unmutated) tests…"));
   // The baseline runs unmutated code, so the prebuilt state snapshot is valid
   // for it even when some target feeds that state.
@@ -116,7 +138,10 @@ const establishBaseline = async (
     { batchJobs, env: testEnv(), testFiles },
     AbortSignal.any([abortSignal, AbortSignal.timeout(BASELINE_TIMEOUT)]),
   );
-  if (isAborted()) return { code: 130 };
+  // The guard can fire here too, and a run it stopped is a failure to report
+  // rather than an operator changing their mind.
+  const stopped = unfinishedRunExit(opts, 0, []);
+  if (stopped !== null) return { code: stopped };
   if (baseline.outcome !== "passed") {
     console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
     console.error(
@@ -204,29 +229,6 @@ const reportIgnoreListStaleness = (
     dim("  Update or remove these so the list stays in sync with reality."),
   );
   return exitCode === 0 ? 1 : exitCode;
-};
-
-/**
- * The exit code for a run that stopped before answering every mutant, or null
- * when it ran to the end and a score can be published.
- */
-const unfinishedRunExit = (
-  opts: RunMutantsOptions,
-  tested: number,
-  plans: readonly FileMutationPlan[],
-): number | null => {
-  if (opts.hitDeadline()) {
-    const total = plans.reduce((sum, plan) => sum + plan.mutants.length, 0);
-    for (const line of deadlineReport(opts.deadline, tested, total)) {
-      console.error(line);
-    }
-    return 1;
-  }
-  if (opts.isAborted()) {
-    console.log(yellow("Interrupted — restored sources and built assets."));
-    return 130;
-  }
-  return null;
 };
 
 /** Baseline check, then the per-file/per-mutant loop, then the report. */

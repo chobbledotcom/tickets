@@ -121,13 +121,40 @@ export const deadlineReport = (
   total: number,
 ): string[] => [
   red(
-    `\nMutation run passed its ${deadline}ms deadline with ` +
-      `${tested} of ${total} mutants tested.`,
+    total === 0
+      ? `\nMutation run passed its ${deadline}ms deadline before it had a mutant to test.`
+      : `\nMutation run passed its ${deadline}ms deadline with ` +
+          `${tested} of ${total} mutants tested.`,
   ),
   "Nothing is scored from a run that stopped early. The usual cause is a",
   "mutant that makes a test loop forever — the mutants after the last one",
   "reported are where to look. Raise --deadline if the run is merely long.",
 ];
+
+/**
+ * How a run ended when it did not finish, or null when it ran to the end and a
+ * score can be published. The deadline is checked first: a run the guard
+ * stopped is a failure to report, not the operator changing their mind, and the
+ * two must not be confused wherever a run can end early.
+ */
+export const unfinishedRun = (
+  state: { aborted: boolean; hitDeadline: boolean },
+  run: { deadline: number; tested: number; total: number },
+): { code: number; lines: string[] } | null => {
+  if (state.hitDeadline) {
+    return {
+      code: 1,
+      lines: deadlineReport(run.deadline, run.tested, run.total),
+    };
+  }
+  if (state.aborted) {
+    return {
+      code: 130,
+      lines: [yellow("Interrupted — restored sources and built assets.")],
+    };
+  }
+  return null;
+};
 
 // --- Terminal formatting -------------------------------------------------
 
