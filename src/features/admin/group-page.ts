@@ -43,10 +43,10 @@ import {
 const staffOnly = (_group: Group, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
-/** The Actions tab entries. Each `visible` mirrors the gate its old detail-nav
- * link used, so no dead or forbidden link renders. The tab itself is open to
- * content roles (staff + editor), so Bulk actions and Delete now carry an
- * explicit `staffOnly` check — Export is the only button an editor may use. */
+/** The Actions tab entries. Each `visible` repeats the gate its target route
+ * enforces, so no dead or forbidden link renders. The tab itself is open to
+ * content roles (staff + editor), so Bulk actions and Delete carry an explicit
+ * `staffOnly` check — Export is the only button an editor may use. */
 const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   {
     // A JSON export download (see catalog-transfer). A read, so — unlike bulk

@@ -77,11 +77,11 @@ const subAction =
   (entity: LoadedListing): string =>
     actionUrl(entity, action);
 
-/** The Actions tab entries. Each `visible` mirrors the gate its old
- * {@link ListingActionNav} entry used, so no dead or forbidden link renders.
- * The tab itself is open to content roles (staff + editor), so every
- * mutation-risk entry below now carries its own explicit role check — only
- * Duplicate and Export are safe for an editor to use unrestricted. */
+/** The Actions tab entries. Each `visible` repeats the gate its target route
+ * enforces, so no dead or forbidden link renders. The tab itself is open to
+ * content roles (staff + editor), so every mutation-risk entry below carries its
+ * own explicit role check — only Duplicate and Export are safe for an editor to
+ * use unrestricted. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: subAction("duplicate"),

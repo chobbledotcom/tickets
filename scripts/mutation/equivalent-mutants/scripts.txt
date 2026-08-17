@@ -104,3 +104,11 @@ scripts/specs/run.ts::cucumberConfiguration.provided.strict~1w2j4s2  true → fa
 src/shared/crypto/encryption.ts::importKey~1usmfin  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
 src/features/admin/attendees-list.ts::parsePage~1s9wpeb  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+
+# Comment checks: initial values that the first pass always overwrites, and a
+# scan starting on a character no comment can begin with.
+scripts/check-comments/rules.ts::widestLine.offset~0a4sfpt  0 → 1   # a comment's first line is always at least "//" (2 chars), so it exceeds the starting width and assigns offset on the first pass — the initial value is never the one returned
+scripts/check-comments/rules.ts::widestLine.width~1myoetc  0 → 1   # same first pass: no comment's widest line can be 1 column, so a start of 0 and a start of 1 are both replaced by the real width before it is read
+scripts/check-comments/rules.ts::namesMentioned~1nnu9xx  ?? → ||   # String.match with a global regex returns null or a non-empty array, and every array is truthy, so only null reaches the fallback and both operators yield the same []
+scripts/check-comments/rules.ts::findDeadLinks.line~1my9h0w  0 → 1   # the count runs from the comment's own start, and a comment always begins with "/", so skipping character 0 can never miss a newline
+scripts/check-comments/rules.ts::namesMentioned~1ugmzzy  %20 → ""   # the link pattern captures identifier characters greedily, so the character after every match is always a non-identifier that already separates the tokens — replacing a link with a space and with nothing give the same names for every input

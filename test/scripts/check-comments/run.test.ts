@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { LIMITS, runCommentCheck } from "#scripts/check-comments/run.ts";
+import {
+  LIMITS,
+  runCommentCheck,
+  SOURCE_DIR,
+} from "#scripts/check-comments/run.ts";
 
 const write = async (dir: string, path: string, body: string) => {
   const full = `${dir}/${path}`;
@@ -29,7 +33,7 @@ describe("runCommentCheck", () => {
     await write(dir, "src/a.ts", "// short\nexport const a = 1;\n");
     expect(await runCommentCheck(dir, tight, output)).toBe(0);
     expect(logs).toEqual([
-      `Every comment in ${dir} is at most 2 lines and 40 columns.`,
+      `Every comment in ${dir} is at most 2 lines and 40 columns, and every {@link} names something that exists.`,
     ]);
     expect(errors).toEqual([]);
   });
@@ -40,6 +44,7 @@ describe("runCommentCheck", () => {
     expect(errors[0]).toContain(`${dir}/src/a.ts:1`);
     expect(errors[0]).toContain("comment runs 4 lines (limit 2)");
     expect(errors.at(-1)).toContain("1 comment issue(s) found");
+    expect(errors.at(-1)).toContain('"Comments are short" in AGENTS.md');
   });
 
   test("counts every issue across several files", async () => {
@@ -76,6 +81,13 @@ describe("runCommentCheck", () => {
     expect(await runCommentCheck(dir, tight, output)).toBe(1);
   });
 
+  test("exempts the barrel by its whole name, not as a prefix", async () => {
+    // Only `doc.ts` itself is published API prose. A file whose name merely
+    // begins with it is ordinary source and stays under the limits.
+    await write(dir, "doc.tsx", "/**\n * a\n * b\n */\n");
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
+  });
+
   test("skips a shipped migration, which is history and never changes", async () => {
     await write(
       dir,
@@ -100,12 +112,51 @@ describe("runCommentCheck", () => {
     expect(errors.at(-1)).toContain("2 comment issue(s) found");
   });
 
+  test("fails a link naming something no file defines", async () => {
+    await write(dir, "src/a.ts", "/** See {@link vanished}. */\n");
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
+    expect(errors[0]).toContain(`${dir}/src/a.ts:1`);
+    expect(errors[0]).toContain("{@link vanished} names nothing in the tree");
+  });
+
+  test("passes a link whose target lives in another file", async () => {
+    await write(dir, "src/a.ts", "/** See {@link helper}. */\n");
+    await write(dir, "src/b.ts", "export const helper = 1;\n");
+    expect(await runCommentCheck(dir, tight, output)).toBe(0);
+  });
+
+  test("checks links in a file that no length limit applies to", async () => {
+    // A dead link in the published docs is worse than one in ordinary source,
+    // so the length exemption must not carry the link check with it.
+    await write(dir, "doc.ts", "/**\n * a\n * b\n * {@link vanished}\n */\n");
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
+    expect(errors[0]).toContain("{@link vanished} names nothing in the tree");
+    expect(errors[0]).not.toContain("comment runs");
+  });
+
+  test("reports a file's issues in line order", async () => {
+    await write(
+      dir,
+      "src/a.ts",
+      `// {@link gone}\nconst a = 1;\n// ${"w".repeat(50)}\n`,
+    );
+    expect(await runCommentCheck(dir, tight, output)).toBe(1);
+    expect(errors[0]).toContain("src/a.ts:1");
+    expect(errors[1]).toContain("src/a.ts:3");
+  });
+
   test("reports files in a stable order", async () => {
     await write(dir, "src/b.ts", "/**\n * a\n * b\n */\n");
     await write(dir, "src/a.ts", "/**\n * a\n * b\n */\n");
     await runCommentCheck(dir, tight, output);
     expect(errors[0]).toContain("/a.ts");
     expect(errors[1]).toContain("/b.ts");
+  });
+});
+
+describe("SOURCE_DIR", () => {
+  test("scans the source tree", () => {
+    expect(SOURCE_DIR).toBe("src");
   });
 });
 

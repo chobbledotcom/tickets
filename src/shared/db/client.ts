@@ -1,9 +1,8 @@
 /**
- * Database client setup and core utilities
+ * Database client setup and core utilities.
  *
- * When query logging is enabled (admin debug footer), the core query
- * functions (queryOne, queryAll, queryBatch, deleteByField) time each
- * call and record the SQL via the query-log module.
+ * The low-level runners here record every statement for the query log, so a
+ * helper built on them is timed and counted without asking.
  */
 
 import {
@@ -43,22 +42,17 @@ import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
 
-/** A CTE-led statement's mutating (or read) tail, without its leading
- *  `WITH ... AS (...)` read expression — so a `WITH x AS (...) INSERT INTO ...`
- *  or `WITH ... DELETE FROM ...` is classified by its real verb, not misread
- *  as a bare SELECT and (for writes) silently skipped by the write gates.
- *  Every CTE statement closes with `) <verb> ...`, so the alternation captures
- *  the tail regardless of which write verb (or SELECT) follows. */
+/** A CTE-led statement's tail, without its leading `WITH ... AS (...)`. Every
+ *  CTE closes with `) <verb> ...`, so the alternation catches the tail whichever
+ *  verb follows. See {@link writeSqlOf} for what depends on this. */
 const CTE_PREFIX_RE =
   /^\s*WITH\b[\s\S]*?\)\s*((?:INSERT|UPDATE|DELETE|REPLACE|SELECT)[\s\S]*)$/i;
 
 /**
- * Parse the column names assigned by an UPDATE SET clause.
- * Returns a lower-cased Set, or null if the SET clause cannot be found.
- * Each `col = expr` left-hand side is extracted; commas inside parentheses
- * are skipped so subexpressions don't split assignments. If extraction yields
- * no columns the caller falls back to unconditional invalidation.
- * Exported for unit testing; not part of the public db-client API.
+ * The lower-cased column names an UPDATE's SET clause assigns, or null when none
+ * can be read. Commas inside parentheses are skipped, so a `coalesce(x, 0)` does
+ * not split one assignment into two. Null means the caller invalidates
+ * unconditionally — safe over stale.
  */
 export const extractUpdateColumns = (
   sql: string,
@@ -95,13 +89,10 @@ export const extractUpdateColumns = (
 };
 
 /**
- * The statement at the heart of a (possibly CTE-led) SQL string: a
- * `WITH ... AS (...) <verb> ...` is stripped to its `<verb> ...` tail so the
- * write regexes can anchor on the real verb — a CTE-led INSERT/UPDATE/DELETE/
- * REPLACE is a write, a CTE-led SELECT stays a read. Shared by
- * {@link isReadSql} (the read/write split the upstream retry hinges on) and
- * {@link invalidateForSql} (table/verb classification) so the two never drift
- * on what counts as a write.
+ * The real statement inside a possibly CTE-led string, so the write regexes
+ * anchor on the true verb: a `WITH ... INSERT` is a write, not a bare SELECT
+ * that the write gates would skip. {@link isReadSql} and {@link invalidateForSql}
+ * share it, so retry and cache invalidation cannot disagree on what is a write.
  */
 const writeSqlOf = (sql: string): string => CTE_PREFIX_RE.exec(sql)?.[1] ?? sql;
 
@@ -112,13 +103,11 @@ const sqlOf = (stmt: InStatement): string =>
   typeof stmt === "string" ? stmt : stmt.sql;
 
 /**
- * After a successful write, invalidate every cache that declared a dependency
- * on the mutated table. A no-op for reads (the regex doesn't match) and for
- * tables no cache depends on. For UPDATEs, the SET-clause columns are
- * extracted so column-gated dependencies (e.g. listings ← listing_attendees
- * only when quantity / price_paid / listing_id are written) can skip the
- * invalidation when only unrelated columns are touched. If column extraction
- * fails the write is treated as unconditional — safe over stale.
+ * After a successful write, invalidate every cache that declared a dependency on
+ * the mutated table; a no-op for reads and for tables nothing depends on. An
+ * UPDATE is narrowed by its SET columns, so a dependency gated on
+ * `quantity`/`price_paid`/`listing_id` survives a write that touches none of
+ * them. Columns that cannot be read mean invalidating anyway — safe over stale.
  */
 const invalidateForSql = (sql: string): void => {
   const writeSql = writeSqlOf(sql);
@@ -276,14 +265,11 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
  *  so four attempts in total. */
 const TRANSIENT_ERROR_BACKOFF_MS = [50, 150, 350] as const;
 
-/** Backoff for a file database (tests and local dev). Its write lock is held
- *  by another connection inside this same process, so the winning move is to
- *  keep yielding until that holder's next event-loop turn commits: under a
- *  CPU-starved parallel test run an ordinary transaction can hold the lock
- *  for around a second — past the whole remote ladder — and giving up then
- *  turns one slow scheduler pass into a busy answer nothing retries. The
- *  ladder's total stays under Cucumber's five-second step budget, so a
- *  retried write slows a story instead of timing it out. */
+/** Backoff for a file database (tests and local dev), longer because the lock
+ *  holder is another connection in this same process: under a CPU-starved
+ *  parallel run it can hold for about a second, past the whole remote ladder, and
+ *  giving up there turns a slow scheduler pass into a busy answer nothing
+ *  retries. The total stays inside Cucumber's five-second step budget. */
 const FILE_TRANSIENT_ERROR_BACKOFF_MS = [
   ...TRANSIENT_ERROR_BACKOFF_MS,
   700,
@@ -329,28 +315,21 @@ const isTransientUpstreamError = (error: unknown): boolean =>
  *  fails closed: only a positively recognized read retries. */
 const READ_SQL_RE = /^\s*select\b/i;
 
-/**
- * Whether a statement is a read the upstream retry may replay — the CTE prefix
- * stripped first so a `WITH ... SELECT` is detected as a read, not misread as
- * an unknown statement. Shares the strip with {@link invalidateForSql} so the
- * read/write split the upstream retry hinges on stays in lockstep with cache
- * invalidation.
- */
+/** Whether a statement is a read the upstream retry may replay, the CTE prefix
+ *  stripped first so a `WITH ... SELECT` still reads as a SELECT. */
 const isReadSql = (sql: string): boolean => READ_SQL_RE.test(writeSqlOf(sql));
 
 /**
- * Retry `run` while it hits a transient failure, backing off between attempts
- * so a brief overlap or gateway hiccup resolves itself rather than failing the
- * request:
- *   - a contended write lock (SQLITE_BUSY) is always retried — the lock was
- *     never taken, so nothing ran; a lock that outlasts the retries surfaces as
- *     {@link DatabaseBusyError} (the request layer's friendly busy page);
- *   - a fleeting upstream HTTP 421/502/503/504 is retried only on reads
- *     (`retryUpstream`): the same response on a write may arrive after the write
- *     landed server-side, and replaying it would double-apply, so writes and the
- *     transactions that hold them never retry upstream errors. A hiccup that
- *     outlasts the retries rethrows its original error, so a sustained outage
- *     still reaches the error log as itself.
+ * Retry `run` through a transient failure, backing off between attempts. This is
+ * the one place these two rules are spelled out:
+ *   - a contended write lock (SQLITE_BUSY) always retries, the lock never having
+ *     been taken, so nothing ran. One that outlasts the retries becomes
+ *     {@link DatabaseBusyError}, the request layer's friendly busy page.
+ *   - a fleeting upstream 421/502/503/504 retries on reads only. On a write the
+ *     same response may arrive after the write landed, so a replay would
+ *     double-apply — writes, and the transactions holding them, never retry
+ *     upstream. One that outlasts the retries rethrows itself, so a real outage
+ *     reaches the log as what it is.
  *
  * Every other error propagates at once.
  */
@@ -390,13 +369,9 @@ export const execute: StatementRunner<ResultSet> = async (sql, args) => {
   return result;
 };
 
-/**
- * Run a single statement without table-scoped cache invalidation.
- *
- * This is intentionally narrow: callers that maintain their own cache state
- * during a write can avoid a broad invalidation/reset while still preserving
- * query tracking. Other writes should use `execute`.
- */
+/** A single statement with no table-scoped invalidation, for a caller keeping its
+ *  own cache state through a write. Query tracking still happens. Every other
+ *  write wants {@link execute}. */
 export const executeWithoutCacheInvalidation = (
   ...[sql, args]: SqlArgs
 ): Promise<ResultSet> => executeTrackedStatement(sql, args);
@@ -441,13 +416,10 @@ export const requireOne = <T>(...[sql, args]: SqlArgs): Promise<T> =>
   requireQueryRow(queryOne<T>(sql, args), sql, "Required");
 
 /**
- * Query an optional row on the primary (read-your-writes). Use this to read a
- * row back immediately after committing its own write:
- * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
- * replica lagging the just-committed write and so miss the row (returning null);
- * routing through {@link queryBatchPrimary} ("write" mode) always hits the
- * primary. Mirrors the same guard on {@link syncListingPrices}. `args` is
- * required — every read-back keys on the written row's id.
+ * Query an optional row on the primary, for reading a row back immediately after
+ * committing its own write — a plain {@link queryOne} can be served by a lagging
+ * replica and miss it. See {@link queryBatchPrimary}. `args` is required, every
+ * read-back keying on the written row's id.
  */
 export const queryOnePrimary = async <T>(
   sql: string,
@@ -461,12 +433,8 @@ export const queryOnePrimary = async <T>(
 export const requireOnePrimary = <T>(...[sql, args]: SqlWithArgs): Promise<T> =>
   requireQueryRow(queryOnePrimary<T>(sql, args), sql, "Required primary");
 
-/**
- * True when the query returns at least one row. `sql` should be an existence
- * probe (e.g. `SELECT 1 ... LIMIT 1`); the selected columns are ignored. Shared
- * by the per-(attendee, listing) and built-site assignment checks so the
- * row-presence boilerplate lives in one place.
- */
+/** True when the query returns a row. `sql` should be an existence probe such as
+ *  `SELECT 1 ... LIMIT 1`; which columns it selects is ignored. */
 export const rowExists = async (
   sql: string,
   args: InValue[],
@@ -474,11 +442,9 @@ export const rowExists = async (
 
 /**
  * Build an existence check for "one leading id, matched against a list of ids".
- * The returned checker binds `leadingId` to the first `?` and expands `ids` into
- * the `IN (...)` your `buildSql` embeds via the placeholder string it receives.
- * Shared by the per-attendee "across these listings" probes so their signature
- * and args boilerplate live in one place. Empty `ids` still runs the query with
- * an empty `IN ()`, which matches nothing — callers pass a non-empty list.
+ * The checker binds `leadingId` to the first `?` and expands `ids` into the
+ * `IN (...)` that `buildSql` embeds through the placeholder string it is handed.
+ * Empty `ids` runs an empty `IN ()`, which matches nothing.
  */
 export const rowExistsForIdList =
   (buildSql: (idsPlaceholders: string) => string) =>
@@ -624,9 +590,8 @@ export const executeBatchWithoutCacheInvalidation = async (
 /** A read/write batch with a fixed mode, or one chosen when it runs. */
 type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
 
-/** The read batch executors retry a fleeting upstream HTTP failure because
- *  every statement being a side-effect-free SELECT, so a write smuggled into
- *  one is rejected loudly here rather than risk a double-apply on a retry. */
+/** What makes a read batch safe to retry: a write smuggled into one is rejected
+ *  loudly here, so every statement really is a side-effect-free SELECT. */
 const requireReadStatements = (statements: SqlStatement[]): void => {
   for (const { sql } of statements) {
     if (!isReadSql(sql)) {
@@ -637,11 +602,10 @@ const requireReadStatements = (statements: SqlStatement[]): void => {
   }
 };
 
-/** Create a batch executor for a fixed or per-call transaction mode. `retryUpstream`
- *  is a property of the executor, not re-derived from each statement: the read
- *  executors ({@link queryBatch}, {@link queryBatchPrimary}) always retry a
- *  fleeting recognized upstream failure (their statements are validated SELECTs — no side
- *  effects to double-apply); the write executors never do. */
+/** Create a batch executor for a fixed or per-call transaction mode.
+ *  `retryUpstream` belongs to the executor rather than being re-derived per
+ *  statement: the read executors always retry, the write ones never do — see
+ *  {@link retryOnTransientDatabaseError} for why. */
 const batchFor =
   (
     mode: TransactionMode | (() => TransactionMode),
@@ -670,21 +634,16 @@ export const queryBatch = batchFor(
 );
 
 /**
- * Run read queries pinned to the primary in a single round-trip.
- *
- * libsql routes "read"-mode batches to a replica that can lag behind a
- * just-committed write, so a caller that must read its own writes (the
- * migrator verifying DDL it just applied) uses "write" mode, which Turso
- * always serves from the primary. A write-mode transaction may contain only
- * SELECTs — it just guarantees the primary, read-your-writes connection.
+ * Read queries pinned to the primary in one round-trip, for a caller that must
+ * read its own writes — the migrator verifying DDL it just applied. "read" mode
+ * can be served by a lagging replica, so this asks for "write" mode, which Turso
+ * always serves from the primary. Holding only SELECTs is fine: the mode buys the
+ * connection, not permission to write.
  */
 export const queryBatchPrimary = batchFor("write", true);
 
-/**
- * Execute multiple write statements and return their ResultSets.
- * Statements run in order within a single transaction (Turso batch API).
- * Ideal for cascading deletes and multi-step writes.
- */
+/** Write statements in order in one transaction, returning every ResultSet —
+ *  suited to cascading deletes and multi-step writes. */
 export const executeBatchWithResults = batchFor("write", false);
 
 /** Execute multiple write statements, discarding results. */
@@ -715,11 +674,10 @@ type TransactionWork<T> = (tx: TxScope) => Promise<T>;
 /**
  * Run `work` in one freshly-begun interactive write transaction, committing on
  * success and rolling back on any error. Cache invalidations fire once after a
- * successful commit (a rollback fires none). A write lock lost while beginning or
- * committing throws SQLITE_BUSY, which {@link withTransaction} treats as
- * retryable; a fleeting upstream error is not retried here (one at begin or
- * commit may arrive after the writes landed, and replaying them would double-apply),
- * so every such error propagates.
+ * successful commit, and none after a rollback. A lock lost while beginning or
+ * committing throws SQLITE_BUSY, which {@link withTransaction} retries; an
+ * upstream error is never retried here, per
+ * {@link retryOnTransientDatabaseError}.
  */
 const runWriteTransactionOnce = async <T>(
   work: TransactionWork<T>,
@@ -738,13 +696,12 @@ const runWriteTransactionOnce = async <T>(
     execute: (stmt) => {
       const sql = sqlOf(stmt);
       writtenSql.push(sql);
-      // Guard against a transaction that holds the write lock open for too many
-      // sequential round-trips (the "Transaction timed-out" shape); chatty writes
-      // belong in a batch, not an interactive transaction.
+      // Holding the write lock across many sequential round-trips is the
+      // "Transaction timed-out" shape; chatty writes belong in a batch.
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sql);
-      // Track transactional statements too, so reads inside the callback still
-      // show in the debug footer and count toward the N+1 guard.
+      // Tracked too, so reads inside the callback reach the debug footer and the
+      // N+1 guard.
       return trackSql(sql, () => tx.execute(stmt));
     },
   };
@@ -761,13 +718,11 @@ const runWriteTransactionOnce = async <T>(
   }
 };
 
-/** Every interactive write transaction shares the one libsql connection, so two
- *  that overlap can leave a statement in progress at the other's commit ("cannot
- *  commit transaction - SQL statements in progress") or lose the write lock.
- *  Chaining each transaction through this promise serialises them — one runs
- *  begin-to-commit before the next begins — the in-process realisation of
- *  SQLite's single writer, turning would-be contention into an orderly wait.
- *  A `const` holder (not a module-level `let`) carries the mutable tail. */
+/** Interactive write transactions share the one libsql connection, so two that
+ *  overlap can lose the write lock or leave a statement in progress at the
+ *  other's commit ("cannot commit transaction - SQL statements in progress").
+ *  Chaining them through this promise runs each begin-to-commit before the next
+ *  begins. */
 const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
 
 /** A write transaction never starts without room to close itself on failure. */
@@ -784,15 +739,12 @@ const TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE = {
  * capacity → finalize, where a zero-row guard must abort and undo everything.
  *
  * Concurrent calls serialise: each waits for the previous transaction to settle,
- * so two never overlap on the shared connection. A genuinely contended lock is
- * retried a few times with backoff, each retry re-running `work` on a fresh
- * transaction, and a database that stays locked surfaces as
- * {@link DatabaseBusyError}. A fleeting upstream gateway error is not retried
- * here — see {@link runWriteTransactionOnce} — so it surfaces as itself.
+ * so two never overlap on the shared connection. A contended lock is retried with
+ * backoff, each retry re-running `work` on a fresh transaction.
  *
  * Statements run through the provided `execute` are tracked, and their
- * table-scoped cache invalidations fire once the commit succeeds, so callers
- * get the same automatic invalidation as a single-statement `execute`.
+ * table-scoped cache invalidations fire once the commit succeeds, so callers get
+ * the same automatic invalidation as a single-statement `execute`.
  */
 export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   // The async body runs synchronously up to its first await — reading the prior
@@ -893,11 +845,11 @@ type RawSql = { [RAW_SQL]: string };
 export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
 
 /**
- * Rewrite a built INSERT as `INSERT OR IGNORE`, so a row whose unique key is
- * already stored is dropped instead of raising a constraint error. This is
- * the once-only latch resumable flows lean on: a replayed write re-derives
- * the same key and lands nowhere. It silences every conflict on the
- * statement, so use it only where the unique key IS the idempotency rule.
+ * Rewrite a built INSERT as `INSERT OR IGNORE`, dropping a row whose unique key
+ * is already stored instead of raising a constraint error. This is the once-only
+ * latch resumable flows lean on: a replayed write re-derives the same key and
+ * lands nowhere. It silences every conflict on the statement, so use it only
+ * where the unique key IS the idempotency rule.
  */
 export const orIgnore = (statement: SqlStatement): SqlStatement => ({
   args: [...statement.args],
@@ -905,24 +857,17 @@ export const orIgnore = (statement: SqlStatement): SqlStatement => ({
 });
 
 /**
- * Build an INSERT statement from a table name and column→value record.
+ * Build an INSERT statement from a table name and column→value record. A
+ * {@link rawSql} value goes into the SQL as written rather than becoming a bound
+ * placeholder, which is how a column takes an expression:
  *
  * ```ts
- * insert("users", { name: "Alice", admin_level: encLevel })
- * // → { sql: "INSERT INTO users (name, admin_level) VALUES (?, ?)",
- * //     args: ["Alice", encLevel] }
- *
- * insert("listing_attendees", {
- *   listing_id: 1,
- *   attendee_id: rawSql("last_insert_rowid()"),
- *   quantity: 2,
- * })
- * // → { sql: "INSERT INTO listing_attendees (...) VALUES (?, last_insert_rowid(), ?)",
- * //     args: [1, 2] }
+ * insert("listing_attendees", { attendee_id: rawSql("last_insert_rowid()") })
+ * // → VALUES (last_insert_rowid())   with no arg bound
  * ```
  *
- * Pass `returningColumns` when the caller needs the written row to report
- * something back — a generated key, say, read with {@link insertedRowId}.
+ * Pass `returningColumns` when the caller needs something back from the written
+ * row — a generated key, say, read with {@link insertedRowId}.
  */
 export const insert = (
   table: string,
@@ -967,16 +912,10 @@ const equalityClauses = (
   });
 
 /**
- * Build an UPDATE statement from a table name, a column→value record for the
- * SET clause, and one for the WHERE clause, ANDed as equality checks. The
- * counterpart of {@link insert}; a write needing a richer guard (`IS NULL`, an
- * inequality, a subquery) keeps its own SQL. SET values may be {@link rawSql}
- * expressions, such as a counter increment.
- *
- * ```ts
- * update("attendees", { pii_blob: encrypted }, { id: 4 })
- * // → UPDATE attendees SET pii_blob = ? WHERE id = ?  args [encrypted, 4]
- * ```
+ * Build an UPDATE statement, the WHERE record ANDed as equality checks. SET
+ * values may be {@link rawSql} expressions, such as a counter increment. A write
+ * needing a richer guard — `IS NULL`, an inequality, a subquery — keeps its own
+ * SQL rather than bending this one.
  */
 export const update = (
   table: string,
