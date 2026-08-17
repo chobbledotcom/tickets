@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { blankSpans, lexicalSpans } from "#scripts/typescript-lex.ts";
+import {
+  blankSpans,
+  commentSpans,
+  lexicalSpans,
+} from "#scripts/typescript-lex.ts";
 
 const spans = (source: string) =>
   [...lexicalSpans(source)].map((span) => ({
@@ -141,6 +145,18 @@ describe("lexicalSpans over regular expressions", () => {
     ]);
   });
 
+  test("looks past a comment that ends in spaces", () => {
+    expect(spans('const a = 1; // see x   \n/a"b/.test(s)')).toEqual([
+      { kind: "comment", text: "// see x   " },
+    ]);
+  });
+
+  test("looks past a comment ended by a carriage return", () => {
+    expect(spans('const a = 1; // see x\r\n/a"b/.test(s)')).toEqual([
+      { kind: "comment", text: "// see x\r" },
+    ]);
+  });
+
   test("looks past a run of comments, not just the nearest", () => {
     expect(spans('// one\n// two\n/a"b/.test(s); const s = "after";')).toEqual([
       { kind: "comment", text: "// one" },
@@ -159,6 +175,25 @@ describe("lexicalSpans over regular expressions", () => {
     expect(spans('x = (a) ? /b\nconst s = "after";')).toEqual([
       { kind: "string", text: '"after"' },
     ]);
+  });
+});
+
+describe("commentSpans", () => {
+  test("yields the comments and leaves the strings out", () => {
+    const source = '// a\nconst b = "c"; /* d */';
+    expect(
+      [...commentSpans(source)].map((span) =>
+        source.slice(span.start, span.end),
+      ),
+    ).toEqual(["// a", "/* d */"]);
+  });
+
+  test("yields nothing for a file with no comments", () => {
+    expect([...commentSpans('const a = "x";')]).toEqual([]);
+  });
+
+  test("still walks strings, so a marker inside one is not a comment", () => {
+    expect([...commentSpans('const u = "http://x";')]).toEqual([]);
   });
 });
 

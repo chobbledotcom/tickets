@@ -16,13 +16,8 @@ import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
 const fail = (stderr = ""): CapturedOutput => capturedFail(1, stderr);
 
-/**
- * A fake git modelling base-ref resolution: `base` is the only
- * `rev-parse --verify` ref that exists (null = none), `diff` is served for the
- * `git diff` call, and `show` for the two revisions each changed source is
- * compared across. Mirrors how `changedFiles` resolves a base ref, diffs
- * `base...HEAD`, then reads both sides to spot a comment-only change.
- */
+/** A fake git: `base` is the only ref that resolves (null = none), `diff`
+ *  answers `git diff`, and `show` the two revisions of each changed source. */
 const fakeGit =
   (opts: {
     base?: string | null;
@@ -422,6 +417,18 @@ describe("codeShape", () => {
     const trailing = "const a = 1; // note\n";
     const above = "// note\nconst a = 1;\n";
     expect(codeShape(trailing)).toBe(codeShape(above));
+  });
+
+  test("reads the same when a mid-line comment changes length", () => {
+    const short = "const a = /* x */ 1;";
+    const long = "const a = /* a much longer note */ 1;";
+    expect(codeShape(long)).toBe(codeShape(short));
+  });
+
+  test("still sees whitespace changed inside a string literal", () => {
+    expect(codeShape('const a = "p  q";')).not.toBe(
+      codeShape('const a = "p q";'),
+    );
   });
 
   test("still sees a changed string literal", () => {

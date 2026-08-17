@@ -53,7 +53,7 @@
  */
 
 import { selectMutationTests } from "#scripts/mutation/test-map.ts";
-import { blankSpans } from "#scripts/typescript-lex.ts";
+import { commentSpans } from "#scripts/typescript-lex.ts";
 import { nonBlankLines } from "#shared/split.ts";
 import type { RunCommand } from "./git.ts";
 
@@ -103,23 +103,29 @@ export const partitionChanged = (paths: string[]): ChangedFiles => ({
 });
 
 /**
- * A file's code with its comments and blank lines gone. Comparing two revisions
- * this way says whether anything a mutant could act on actually changed —
- * every operator mutates code, never a comment. Strings are left alone, so a
- * changed string literal still reads as a real change.
+ * A file's code, with comments and blank lines gone, for comparing revisions.
+ * Comment text is cut out rather than blanked, or a shortened mid-line comment
+ * would leave a different width behind and read as a code change.
  */
-export const codeShape = (content: string): string =>
-  blankSpans(content, false)
+export const codeShape = (content: string): string => {
+  const kept: string[] = [];
+  let at = 0;
+  for (const span of commentSpans(content)) {
+    kept.push(content.slice(at, span.start));
+    at = span.end;
+  }
+  kept.push(content.slice(at));
+  return kept
+    .join("")
     .split("\n")
     .map((line) => line.trimEnd())
     .filter((line) => line.length > 0)
     .join("\n");
+};
 
 /**
- * The sources whose change is more than comments. A comment-only diff can
- * produce no mutant, so mutating the file would demand a kill rate for code
- * this branch never touched — which is exactly what a pass that shortens
- * docstrings does across dozens of files.
+ * The sources whose change is more than comments — a comment cannot produce a
+ * mutant, so mutating one would demand a kill rate for untouched code.
  */
 const withCodeChanges = async (
   run: RunCommand,

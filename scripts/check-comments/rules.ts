@@ -7,7 +7,7 @@
  * columns, and eighty short lines still make an essay.
  */
 
-import { lexicalSpans } from "#scripts/typescript-lex.ts";
+import { commentSpans } from "#scripts/typescript-lex.ts";
 
 /** How much comment a file is allowed to carry in one place. */
 export interface CommentLimits {
@@ -63,8 +63,7 @@ export const readComments = (content: string): SourceComment[] => {
   const comments: SourceComment[] = [];
   let scanned = 0;
   let line = 1;
-  for (const span of lexicalSpans(content)) {
-    if (span.kind !== "comment") continue;
+  for (const span of commentSpans(content)) {
     line += newlinesBetween(content, scanned, span.start);
     scanned = span.start;
     const text = content.slice(span.start, span.end);
