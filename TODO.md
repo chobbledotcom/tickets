@@ -2565,3 +2565,43 @@ recorded beside the list, and the pure helpers stay covered. The durable fix is
 the one Codex names — push the env/config parsing behind injectable seams so
 those branches get direct in-process tests — which is worth doing when the
 harness is next open.
+
+## Deleting your own contact record also deletes your promotions opt-out
+
+_Origin: found while writing the `attendees.asking-to-be-left-alone` story (the
+reader-side unsubscribe journey)._
+
+The "Delete my data" press on `/unsubscribe` calls `forgetContact`
+(`src/shared/db/contact-preferences.ts`), which deletes the whole
+`contact_preferences` row — including the `unsubscribed` flag. The bookings that
+carry the person's (encrypted) address survive, so someone who first
+unsubscribed and then asked to be forgotten becomes reachable by the next
+promotion again: the send path (`getUnsubscribedHashSet`) no longer finds their
+hash.
+
+The story states what the product does today — "the site keeps no record under
+that code at all — including the choices they had made on this page" — rather
+than softening it. Whether that is the right product behaviour is a real
+question with pull in both directions: erasure means erasure, but suppression
+lists exist precisely because a marketing opt-out has to survive other
+deletions. Settling it means choosing between (a) keeping a bare
+`{hash, unsubscribed}` row behind on forget, (b) wording the page's
+`unsubscribe.forget_explainer` to say promotions may resume, or (c) leaving it
+as is, deliberately. Starting points: `forgetContact`, the forget branch in
+`src/features/public/unsubscribe.ts`, and the story's
+`@rule:attendees.the-record-under-their-code-can-be-deleted`.
+
+## Move the unsubscribe flash wording into the message catalog
+
+_Origin: the same story migration._
+
+The four flash messages the `/unsubscribe` POST sends back ("You've unsubscribed
+from our marketing emails.", "You've resubscribed to our marketing emails.",
+"Your contact record has been deleted.", plus "That link is invalid.") are
+string literals in `src/features/public/unsubscribe.ts`. The `i18n-coverage`
+gate only scans templates, so nothing flags them, but they are user-facing copy
+and belong in `src/locales/en/unsubscribe.json` like the rest of the page's
+words — then the story steps and the direct pins in
+`test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
+instead of pinning copied wording. Out of scope for the migration, which does
+not touch `src/`.
