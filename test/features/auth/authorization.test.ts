@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import type { AuthSession } from "#routes/auth.ts";
 import {
   anyUserPage,
+  requireAdminApiOr,
   requireContentOr,
   requireDeliveryOr,
   requireOwnerOr,
@@ -40,6 +41,16 @@ const roleCookies = async (): Promise<Record<string, string>> => ({
   manager: await createTestManagerSession(),
   owner: await testCookie(),
 });
+
+/** Run the JSON admin API gate. Its handler answers with the admitted role, so
+ *  a refusal and an admission can never be mistaken for each other. */
+const runAdminApi = (cookie?: string): Promise<Response | null> =>
+  requireAdminApiOr(
+    new Request("http://localhost/api/admin/x", {
+      headers: cookie ? { cookie } : {},
+    }),
+    (session) => new Response(session.adminLevel),
+  );
 
 /** Run a guard and return its response. The handler only fires when the guard
  *  admits the request, and returns 200 only when handed a real session (so a
@@ -128,6 +139,28 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
     }
+  });
+
+  // The JSON API has its own role gate, separate from the page guards above.
+  // Without these, swapping that gate's two outcomes — letting the refused
+  // role in and turning the admitted one away — passed every test.
+  test("the admin API admits a staff role and runs the handler", async () => {
+    const response = await runAdminApi(await createTestManagerSession());
+
+    expect(response?.status).toBe(200);
+    expect(await response?.text()).toBe("manager");
+  });
+
+  test("the admin API refuses a delivery agent, who is not staff", async () => {
+    const response = await runAdminApi((await createTestAgentSession()).cookie);
+
+    expect(response?.status).toBe(403);
+  });
+
+  test("the admin API refuses a request with no session at all", async () => {
+    const response = await runAdminApi();
+
+    expect(response?.status).toBe(401);
   });
 
   test("withSession runs the handler with the session, or the fallback when absent", async () => {
