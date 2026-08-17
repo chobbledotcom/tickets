@@ -212,11 +212,11 @@ describe("mutant evaluation", () => {
 
   test("stops when mutant state creation uses the whole deadline", async () => {
     const state = setup();
-    state.deps.createState = () => Promise.resolve({ status: "timed-out" });
+    state.deps.createState = () => Promise.resolve({ status: "cancelled" });
     const result = await evaluateIntegration(state);
     expect(result).toEqual({
       detectedBy: null,
-      status: "timed-out",
+      status: "cancelled",
       timings: [
         { durationMs: 1, phase: "direct-tests" },
         { durationMs: expect.any(Number), phase: "test-state" },
@@ -232,10 +232,10 @@ describe("mutant evaluation", () => {
       Promise.resolve(
         builds++ === 0
           ? { message: "mutant failed", status: "failed" }
-          : { status: "timed-out" },
+          : { status: "cancelled" },
       );
     const result = await evaluateIntegration(state);
-    expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
+    expect(result).toMatchObject({ detectedBy: null, status: "cancelled" });
     expect(builds).toBe(2);
   });
 
@@ -260,7 +260,7 @@ describe("mutant evaluation", () => {
       [],
       state.deps,
     );
-    expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
+    expect(result).toMatchObject({ detectedBy: null, status: "cancelled" });
   });
 
   test("runs tests after a successful browser rebuild", async () => {
@@ -332,7 +332,7 @@ describe("mutant evaluation", () => {
 
     expect(result).toEqual({
       detectedBy: null,
-      status: "timed-out",
+      status: "cancelled",
       timings: [{ durationMs: 3, phase: "lint" }],
     });
     expect(state.writes).toEqual([" false ", "true"]);

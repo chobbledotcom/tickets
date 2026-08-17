@@ -207,9 +207,9 @@ describe("parallel mutation static cleanup", () => {
       work.deps,
     );
     expect(results.map(({ status }) => status)).toEqual([
-      "timed-out",
-      "timed-out",
-      "timed-out",
+      "cancelled",
+      "cancelled",
+      "cancelled",
     ]);
     expect(work.removed).toEqual(work.copied);
   });

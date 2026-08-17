@@ -271,7 +271,7 @@ describe("mutation test execution", () => {
         runBatch: () =>
           Promise.reject(new DOMException("Stopped", "AbortError")),
       }),
-    ).toEqual({ durationMs: expect.any(Number), outcome: "timed-out" });
+    ).toEqual({ durationMs: expect.any(Number), outcome: "cancelled" });
   });
 
   test("classifies a subprocess error after its deadline aborts", async () => {
@@ -282,7 +282,7 @@ describe("mutation test execution", () => {
         return Promise.reject(new DOMException("Stopped", "AbortError"));
       },
     });
-    expect(result.outcome).toBe("timed-out");
+    expect(result.outcome).toBe("cancelled");
   });
 
   test("stops before another batch when the deadline expires", async () => {
@@ -299,7 +299,7 @@ describe("mutation test execution", () => {
         },
       },
     );
-    expect(result.outcome).toBe("timed-out");
+    expect(result.outcome).toBe("cancelled");
     expect(calls).toBe(1);
   });
 
@@ -348,7 +348,7 @@ describe("mutation test execution", () => {
     expect([
       toStatus("passed"),
       toStatus("failed"),
-      toStatus("timed-out"),
-    ]).toEqual(["survived", "killed", "timed-out"]);
+      toStatus("cancelled"),
+    ]).toEqual(["survived", "killed", "cancelled"]);
   });
 });

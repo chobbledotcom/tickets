@@ -34,7 +34,6 @@ export const config = (
 ): StaticRunConfig => ({
   abortSignal: new AbortController().signal,
   jobs: 4,
-  perMutantTimeout: 1_000,
   root: "/root",
   workerParent: "/run",
   ...changes,

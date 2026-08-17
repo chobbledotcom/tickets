@@ -16,14 +16,12 @@ const MAX_STATIC_JOBS = 4;
 const PARALLEL_STATIC_MIN_MUTANTS = 3;
 
 export interface StaticEvaluation extends MutantEvaluation {
-  deadlineAt: number;
   mutant: Mutant;
 }
 
 interface StaticRunConfig {
   abortSignal: AbortSignal;
   jobs: number;
-  perMutantTimeout: number;
   root: string;
   workerParent: string;
 }
@@ -59,19 +57,11 @@ const mappedFile = (root: string, workspace: string, file: string): string => {
 };
 
 const staticEvaluation = (
-  context: StaticContext,
   mutant: Mutant,
   status: MutantEvaluation["status"],
   detectedBy: MutationPhase | null,
   timings: PhaseTiming[],
-  startedAt: number,
-): StaticEvaluation => ({
-  deadlineAt: startedAt + context.config.perMutantTimeout,
-  detectedBy,
-  mutant,
-  status,
-  timings,
-});
+): StaticEvaluation => ({ detectedBy, mutant, status, timings });
 
 const evaluateOne = async (
   context: StaticContext,
@@ -79,12 +69,10 @@ const evaluateOne = async (
   workspace: string,
 ): Promise<StaticEvaluation> => {
   const { config, deps, gates, plan } = context;
-  const startedAt = deps.now();
   const timings: PhaseTiming[] = [];
-  const signal = AbortSignal.any([
-    config.abortSignal,
-    AbortSignal.timeout(config.perMutantTimeout),
-  ]);
+  // No clock of its own: a gate runs to completion, so a mutant is only ever
+  // decided by what a gate actually said. The one abort left is cancellation.
+  const signal = config.abortSignal;
   const file = mappedFile(config.root, workspace, plan.file);
   try {
     await deps.write(file, applyMutant(plan.original, mutant));
@@ -96,34 +84,13 @@ const evaluateOne = async (
       );
       timings.push(measured.timing);
       if (measured.value !== 0) {
-        return staticEvaluation(
-          context,
-          mutant,
-          "killed",
-          gate.phase,
-          timings,
-          startedAt,
-        );
+        return staticEvaluation(mutant, "killed", gate.phase, timings);
       }
     }
-    return staticEvaluation(
-      context,
-      mutant,
-      "survived",
-      null,
-      timings,
-      startedAt,
-    );
+    return staticEvaluation(mutant, "survived", null, timings);
   } catch (error) {
     if (signal.aborted) {
-      return staticEvaluation(
-        context,
-        mutant,
-        "timed-out",
-        null,
-        timings,
-        startedAt,
-      );
+      return staticEvaluation(mutant, "cancelled", null, timings);
     }
     throw error;
   }

@@ -22,17 +22,12 @@ import { projectRoot } from "./project-root.ts";
 import { collectFeaturePaths } from "./specs/catalog.ts";
 import { collectTestFiles } from "./test-groups.ts";
 
-/** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
-const MUTANT_TIMEOUT_MS = 10_000;
-
 const flaggedPaths = (flag: "--source" | "--test", paths: string[]): string[] =>
   paths.flatMap((path) => [flag, path]);
 
 const mutationArgs = (sources: string[], tests: string[]): string[] => [
   ...flaggedPaths("--source", sources),
   ...flaggedPaths("--test", tests),
-  "--timeout",
-  String(MUTANT_TIMEOUT_MS),
   "--harness",
 ];
 

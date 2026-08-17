@@ -1,4 +1,4 @@
-import type { Status } from "./summary.ts";
+import type { EvaluationStatus } from "./summary.ts";
 
 export type MutationPhase =
   | "lint"
@@ -35,7 +35,7 @@ export type TestDetectionPhase =
 
 export interface TestStageResult {
   detectedBy: TestDetectionPhase | null;
-  status: Status;
+  status: EvaluationStatus;
   timings: PhaseTiming[];
 }
 

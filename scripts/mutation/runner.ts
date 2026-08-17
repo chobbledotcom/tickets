@@ -6,10 +6,10 @@
  * afterwards. In-place test mutation is what makes this project's `#…`
  * import-map aliases bind to the mutant.
  *
- * A mutant is "killed" when a static gate rejects it or the tests fail,
+ * A mutant is "killed" when a static gate rejects it or the tests fail, and
  * "survived" when it clears every gate and the tests still pass (a gap in the
- * tests), or "timed-out" when the mutation caused a hang (which counts as
- * detected).
+ * tests). There is no third answer: every mutant is decided by what a gate or a
+ * test actually said, never by how long it took to say it.
  */
 
 import { dim, red, yellow } from "#scripts/precommit/colors.ts";
@@ -35,6 +35,7 @@ import { type FileRunOptions, runFileMutants } from "./run-file.ts";
 import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
+  deadlineReport,
   formatSummaryLines,
   type MutantResult,
   type Status,
@@ -51,10 +52,10 @@ import {
  * public {@link MutationOptions} and the internal {@link RunMutantsOptions} so
  * the common fields are stated once. */
 interface MutationTargets {
+  deadline: number;
   exhaustive: boolean;
   sourceFiles: string[];
   testFiles: string[];
-  timeout: number;
   useHarness: boolean;
 }
 
@@ -63,7 +64,6 @@ export interface MutationOptions extends MutationTargets {
 }
 
 const BASELINE_TIMEOUT = 120_000;
-const TIMEOUT_MULTIPLIER = 3;
 
 const parsePositiveInt = (value: string | undefined): number | null => {
   if (!value) return null;
@@ -94,6 +94,7 @@ const report = (results: MutantResult[]): number => {
 };
 
 interface RunMutantsOptions extends MutationTargets, FileRunOptions {
+  hitDeadline(): boolean;
   restoreAll: () => void;
   staticAssets: StaticAssetBuild | null;
   testMap: MutationTestMap;
@@ -101,13 +102,13 @@ interface RunMutantsOptions extends MutationTargets, FileRunOptions {
 
 /**
  * Run the baseline (unmutated) tests. Returns `{ code }` when the run should
- * stop early (interrupted, or a non-green baseline), or the derived
- * `{ perMutantTimeout }` when the baseline passed and mutation can proceed.
+ * stop early (interrupted, or a non-green baseline), or `null` when the
+ * baseline passed and mutation can proceed.
  */
 const establishBaseline = async (
   opts: RunMutantsOptions,
-): Promise<{ code: number } | { perMutantTimeout: number }> => {
-  const { abortSignal, batchJobs, isAborted, testFiles, timeout } = opts;
+): Promise<{ code: number } | null> => {
+  const { abortSignal, batchJobs, isAborted, testFiles } = opts;
   console.log(dim("Running baseline (unmutated) tests…"));
   // The baseline runs unmutated code, so the prebuilt state snapshot is valid
   // for it even when some target feeds that state.
@@ -126,17 +127,11 @@ const establishBaseline = async (
     );
     return { code: 1 };
   }
-  const perMutantTimeout = Math.max(
-    timeout,
-    Math.ceil(baseline.durationMs * TIMEOUT_MULTIPLIER),
-  );
   console.log(
-    dim(
-      `Baseline passed in ${Math.round(baseline.durationMs)}ms; per-mutant timeout ${perMutantTimeout}ms.\n`,
-    ),
+    dim(`Baseline passed in ${Math.round(baseline.durationMs)}ms.\n`),
   );
   console.log(dim(`Using up to ${batchJobs} concurrent test batch(es).`));
-  return { perMutantTimeout };
+  return null;
 };
 
 /**
@@ -211,6 +206,29 @@ const reportIgnoreListStaleness = (
   return exitCode === 0 ? 1 : exitCode;
 };
 
+/**
+ * The exit code for a run that stopped before answering every mutant, or null
+ * when it ran to the end and a score can be published.
+ */
+const unfinishedRunExit = (
+  opts: RunMutantsOptions,
+  tested: number,
+  plans: readonly FileMutationPlan[],
+): number | null => {
+  if (opts.hitDeadline()) {
+    const total = plans.reduce((sum, plan) => sum + plan.mutants.length, 0);
+    for (const line of deadlineReport(opts.deadline, tested, total)) {
+      console.error(line);
+    }
+    return 1;
+  }
+  if (opts.isAborted()) {
+    console.log(yellow("Interrupted — restored sources and built assets."));
+    return 130;
+  }
+  return null;
+};
+
 /** Baseline check, then the per-file/per-mutant loop, then the report. */
 const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const {
@@ -252,8 +270,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   }
 
   const baseline = await establishBaseline(opts);
-  if ("code" in baseline) return baseline.code;
-  const { perMutantTimeout } = baseline;
+  if (baseline !== null) return baseline.code;
   const gates = await createStaticGates();
   console.log(
     dim(`Using up to ${opts.staticJobs} concurrent static gate job(s).`),
@@ -268,7 +285,6 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       ignored: 0,
       killed: 0,
       survived: 0,
-      "timed-out": 0,
     };
 
     for (const plan of plans) {
@@ -278,22 +294,15 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
         AbortSignal.timeout(BASELINE_TIMEOUT),
       ]);
       if (await isUnmutatedTargetDirty(plan, gates, gateSignal)) return 1;
-      await runFileMutants(plan, opts, {
-        counts,
-        gates,
-        perMutantTimeout,
-        totalMutants,
-      });
+      await runFileMutants(plan, opts, { counts, gates, totalMutants });
     }
   } finally {
     restoreAll();
   }
   write("\n");
 
-  if (isAborted()) {
-    console.log(yellow("Interrupted — restored sources and built assets."));
-    return 130;
-  }
+  const early = unfinishedRunExit(opts, results.length, plans);
+  if (early !== null) return early;
 
   return reportIgnoreListStaleness(opts, plans, report(results));
 };
@@ -303,7 +312,7 @@ const mutate = async (
   staticAssets: StaticAssetBuild | null,
   testMap: MutationTestMap,
 ): Promise<number> => {
-  const { exhaustive, sourceFiles, testFiles, timeout } = options;
+  const { deadline, exhaustive, sourceFiles, testFiles } = options;
   const batchJobs = options.batchJobs ?? defaultBatchJobs();
   const ignoreList = await loadIgnoreList();
   const results: MutantResult[] = [];
@@ -323,6 +332,7 @@ const mutate = async (
   // default exit (see runMutationTesting).
   const abortController = new AbortController();
   let aborted = false;
+  let hitDeadline = false;
   const onSignal = (): void => {
     if (aborted) {
       restoreAll();
@@ -332,12 +342,22 @@ const mutate = async (
     abortController.abort();
   };
   onTerminationSignals(onSignal);
+  // The only clock left in the run, and it never judges a mutant: it exists so
+  // a mutant that hangs the tests cannot wedge the run forever. When it fires
+  // the whole run fails and reports nothing, rather than scoring anything.
+  const deadlineTimer = setTimeout(() => {
+    hitDeadline = true;
+    aborted = true;
+    abortController.abort();
+  }, deadline);
 
   try {
     return await runMutants({
       abortSignal: abortController.signal,
       batchJobs,
+      deadline,
       exhaustive,
+      hitDeadline: () => hitDeadline,
       ignoreList,
       integrationTestFiles: testMap.integrationTestFiles,
       isAborted: () => aborted,
@@ -350,10 +370,10 @@ const mutate = async (
       staticWorkerParent: staticWorkerParent(),
       testFiles,
       testMap,
-      timeout,
       useHarness: options.useHarness,
     });
   } finally {
+    clearTimeout(deadlineTimer);
     offTerminationSignals(onSignal);
   }
 };

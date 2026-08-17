@@ -15,7 +15,12 @@ import type { Mutant } from "./generate.ts";
 import { mutantKey } from "./ignore.ts";
 import type { MutationPhase, PhaseTiming } from "./phases.ts";
 
-export type Status = "killed" | "survived" | "timed-out" | "ignored";
+export type Status = "killed" | "survived" | "ignored";
+
+/** What one mutant concluded, plus the run being cancelled part-way through.
+ *  Cancelling is not a verdict on the mutant, so it never becomes a scored
+ *  {@link MutantResult} — the runner stops instead of recording one. */
+export type EvaluationStatus = Status | "cancelled";
 
 export interface MutantResult {
   detectedBy: MutationPhase | null;
@@ -40,7 +45,6 @@ export interface Summary {
   score: number;
   survived: number;
   survivors: MutantResult[];
-  timedOut: number;
   total: number;
 }
 
@@ -50,7 +54,6 @@ export interface ProgressSnapshot {
   killed: number;
   last: MutantResult;
   survived: number;
-  timedOut: number;
   total: number;
 }
 
@@ -61,7 +64,7 @@ export const summarize = (results: MutantResult[]): Summary => {
   const total = results.length;
   const ignored = count("ignored");
   const effective = total - ignored;
-  const detected = count("killed") + count("timed-out");
+  const detected = count("killed");
   const timings = results.flatMap((result) => result.timings);
   const timingsByPhase = Object.groupBy(timings, (timing) => timing.phase);
   const phaseTimings = Object.entries(timingsByPhase).map(
@@ -85,7 +88,6 @@ export const summarize = (results: MutantResult[]): Summary => {
     score: effective === 0 ? 100 : (detected / effective) * 100,
     survived: count("survived"),
     survivors: byStatus.survived ?? [],
-    timedOut: count("timed-out"),
     total,
   };
 };
@@ -103,11 +105,29 @@ export const formatProgressLine = (p: ProgressSnapshot): string => {
     `Mutation progress: ${p.completed}/${p.total} (${percent.toFixed(1)}%)`,
     `killed ${p.killed}`,
     `survived ${p.survived}`,
-    `timed out ${p.timedOut}`,
     `ignored ${p.ignored}`,
     `last ${p.last.status} ${survivorLocation(p.last)} ${mutationLabel(p.last)}`,
   ].join("; ");
 };
+
+/**
+ * What to say when the whole-run deadline stopped a run part-way. A partial run
+ * has no score to give, so this reports the shortfall and says where to look
+ * instead of publishing a number built from the mutants that did finish.
+ */
+export const deadlineReport = (
+  deadline: number,
+  tested: number,
+  total: number,
+): string[] => [
+  red(
+    `\nMutation run passed its ${deadline}ms deadline with ` +
+      `${tested} of ${total} mutants tested.`,
+  ),
+  "Nothing is scored from a run that stopped early. The usual cause is a",
+  "mutant that makes a test loop forever — the mutants after the last one",
+  "reported are where to look. Raise --deadline if the run is merely long.",
+];
 
 // --- Terminal formatting -------------------------------------------------
 
@@ -120,7 +140,6 @@ const countRows = (
 ): Array<{ color: (s: string) => string; label: string; value: string }> => [
   { color: identity, label: "mutants:", value: String(s.total) },
   { color: green, label: "killed:", value: String(s.killed) },
-  { color: yellow, label: "timed out:", value: String(s.timedOut) },
   { color: red, label: "survived:", value: String(s.survived) },
   ...(s.ignored > 0
     ? [{ color: dim, label: "ignored:", value: String(s.ignored) }]
@@ -293,7 +312,6 @@ const markdownSummary = (s: Summary): string => {
     "| --- | --- |",
     `| mutants | ${s.total} |`,
     `| killed | ${s.killed} |`,
-    `| timed out | ${s.timedOut} |`,
     `| survived | ${s.survived} |`,
     ...(s.ignored > 0 ? [`| ignored (suppressed) | ${s.ignored} |`] : []),
     ...timingLines(s, "markdown"),

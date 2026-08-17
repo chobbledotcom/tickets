@@ -1627,23 +1627,28 @@ Before it runs the mapped tests, the runner puts every mutant through two cheap
 copies, with a CPU-aware limit capped at four (`MUTATION_STATIC_JOBS` can lower
 it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
 keep their separate `--jobs` limit and still run only after static results are
-reported in mutant order. A mutant's timeout starts when its static work leaves
-the queue. Static work and any wait for earlier tests both use that time. Keep
-the Biome calls one-shot unless a new benchmark proves otherwise: with pinned
-Biome 2.4.16, 20 warm one-file runs measured a 17.3 ms standalone median and a
-51.2 ms `--use-server` median. Either gate exiting non-zero kills the mutant
-without spending a full `deno test` on it — both a forbidden lint diagnostic and
-a type error are build failures, so the mutant could never ship, and static
-checks are far faster than the suite. The type-check gate catches the mutants
-that turn valid code into a type error — e.g. a `+ → *` swap on a string
-concatenation (`"a" * "b"` doesn't type-check), or any operator change that
-violates a parameter/return type. Each gate is only trusted after the runner
-confirms the _unmutated_ target passes it (the baseline probe): a standalone
-`deno task mutation` doesn't run `lint:ci`/`typecheck` first, so if the target
-isn't already clean the run aborts loudly rather than scoring a bogus 100%. This
-means a mutant recorded in `equivalent-mutants/` must be one that survives
-_both_ gates _and_ the tests; a mutation that produces a type error never
-reaches the ignore-list because the type-check gate kills it first.
+reported in mutant order. **No mutant is ever judged by a clock**: gates and
+tests run to completion, so a mutant is killed only when a gate rejects it or a
+test fails, and survives otherwise. A slow type-check or a long queue wait can
+no longer be mistaken for a mutant being caught. The one clock left is
+`--deadline`, a whole-run guard (default one hour) against a mutant that hangs
+the tests: when it fires the run fails and reports nothing at all, rather than
+scoring anything. Keep the Biome calls one-shot unless a new benchmark proves
+otherwise: with pinned Biome 2.4.16, 20 warm one-file runs measured a 17.3 ms
+standalone median and a 51.2 ms `--use-server` median. Either gate exiting
+non-zero kills the mutant without spending a full `deno test` on it — both a
+forbidden lint diagnostic and a type error are build failures, so the mutant
+could never ship, and static checks are far faster than the suite. The
+type-check gate catches the mutants that turn valid code into a type error —
+e.g. a `+ → *` swap on a string concatenation (`"a" * "b"` doesn't type-check),
+or any operator change that violates a parameter/return type. Each gate is only
+trusted after the runner confirms the _unmutated_ target passes it (the baseline
+probe): a standalone `deno task mutation` doesn't run `lint:ci`/`typecheck`
+first, so if the target isn't already clean the run aborts loudly rather than
+scoring a bogus 100%. This means a mutant recorded in `equivalent-mutants/` must
+be one that survives _both_ gates _and_ the tests; a mutation that produces a
+type error never reaches the ignore-list because the type-check gate kills it
+first.
 
 When a manual mutation run (or the precommit gate) surfaces survivors on a file
 you are touching — even on lines you did not change in this PR — they are yours

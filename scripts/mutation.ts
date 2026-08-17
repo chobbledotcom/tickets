@@ -17,7 +17,7 @@
  * Usage: deno task mutation <source-glob> <test-glob> [options]
  */
 
-import { DEFAULT_TIMEOUT, parseArgs } from "./mutation/args.ts";
+import { DEFAULT_DEADLINE, parseArgs } from "./mutation/args.ts";
 import { expand } from "./mutation/expand.ts";
 import { runIsolatedMutationCommand } from "./mutation/isolation.ts";
 import {
@@ -40,7 +40,9 @@ Options:
                    or MUTATION_JOBS when set).
                    Static gates use separate CPU-aware workers, capped at 4;
                    set MUTATION_STATIC_JOBS to lower that cap.
-  --timeout <ms>   Per-mutant timeout floor (default ${DEFAULT_TIMEOUT}).
+  --deadline <ms>  Fail the whole run if it is still going after this
+                   long (default ${DEFAULT_DEADLINE}). A guard against a mutant
+                   that hangs the tests; it never decides a mutant.
   -h, --help       Show this help.
 
 Examples:
@@ -74,10 +76,10 @@ const main = async (): Promise<number> => {
   const { runMutationTesting } = await import("./mutation/runner.ts");
   return await runMutationTesting({
     ...(args.batchJobs === undefined ? {} : { batchJobs: args.batchJobs }),
+    deadline: args.deadline,
     exhaustive: args.exhaustive,
     sourceFiles,
     testFiles,
-    timeout: args.timeout,
     useHarness: args.useHarness,
   });
 };
