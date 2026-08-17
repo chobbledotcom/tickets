@@ -112,9 +112,9 @@ describe("admin refund subrequest budget", () => {
           }),
       ),
     ).toEqual([
-      { database: 30, external: 3, total: 33 },
-      { database: 26, external: 1, total: 27 },
-      { database: 24, external: 1, total: 25 },
+      { database: 18, external: 3, total: 21 },
+      { database: 14, external: 1, total: 15 },
+      { database: 12, external: 1, total: 13 },
     ]);
     const prepared = {
       activeAuthorityCount: 1,
@@ -125,9 +125,9 @@ describe("admin refund subrequest budget", () => {
       ],
     };
     expect(refundPreparedSubrequestCost(prepared)).toEqual({
-      database: 24,
+      database: 12,
       external: 2,
-      total: 26,
+      total: 14,
     });
   });
 
@@ -136,6 +136,7 @@ describe("admin refund subrequest budget", () => {
       taggedReference("stripe", "stripe_deposit"),
       taggedReference("stripe", "stripe_balance"),
     ];
+    // A deposit-and-balance pair must fit a fresh request's 50-call budget.
     expect(
       refundReadinessSubrequestCost({
         action: "refund",
@@ -143,7 +144,7 @@ describe("admin refund subrequest budget", () => {
         checkpoint: "before_claim",
         returned: new Set(),
       }),
-    ).toEqual({ database: 50, external: 6, total: 56 });
+    ).toEqual({ database: 23, external: 6, total: 29 });
   });
 
   test("reserves canonical lookup and ledger work for returned money", () => {
@@ -155,21 +156,44 @@ describe("admin refund subrequest budget", () => {
         sendReferences: [],
       }),
     ).toEqual({ database: 8, external: 0, total: 8 });
+    expect(
+      refundPreparedSubrequestCost({
+        activeAuthorityCount: 0,
+        mayRecordReturns: true,
+        returnedAuthorityCount: 2,
+        sendReferences: [],
+      }),
+    ).toEqual({ database: 9, external: 0, total: 9 });
   });
 
   test("reserves completed-only refresh persistence with no provider reads", () => {
-    const completed = {
-      ...taggedReference("stripe"),
+    const completedReference = (label: string) => ({
+      ...taggedReference("stripe", label),
       refundState: "completed" as const,
-    };
+    });
     expect(
       refundReadinessSubrequestCost({
         action: "refresh",
-        candidates: [{ references: [completed] }],
+        candidates: [{ references: [completedReference("stripe")] }],
         checkpoint: "before_claim",
         returned: new Set(),
       }),
     ).toEqual({ database: 14, external: 0, total: 14 });
+    expect(
+      refundReadinessSubrequestCost({
+        action: "refresh",
+        candidates: [
+          {
+            references: [
+              completedReference("stripe_deposit"),
+              completedReference("stripe_balance"),
+            ],
+          },
+        ],
+        checkpoint: "before_claim",
+        returned: new Set(),
+      }),
+    ).toEqual({ database: 15, external: 0, total: 15 });
   });
 
   test("does not reserve returned-money recording twice before a refresh read", () => {
@@ -180,7 +204,7 @@ describe("admin refund subrequest budget", () => {
         checkpoint: "before_provider_read",
         returned: new Set(),
       }),
-    ).toEqual({ database: 20, external: 1, total: 21 });
+    ).toEqual({ database: 11, external: 1, total: 12 });
   });
 
   test("prices no late work when preparation can neither send nor return money", () => {
@@ -202,7 +226,7 @@ describe("admin refund subrequest budget", () => {
         returnedAuthorityCount: 0,
         sendReferences: [{ index: "index_live", provider: "stripe" }],
       }),
-    ).toEqual({ database: 24, external: 2, total: 26 });
+    ).toEqual({ database: 12, external: 2, total: 14 });
   });
 
   test("multiplies logical provider work by every physical attempt", () => {
