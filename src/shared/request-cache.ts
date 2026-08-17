@@ -28,6 +28,11 @@ type RequestStore = Map<symbol, unknown>;
 
 interface RequestCollectionCache<T> extends CollectionCache<T> {
   invalidate: (cause?: CacheInvalidation) => void;
+  /** Hand this request's cache an answer that has already been read — by a
+   * batch that asked several small reads at once — so `getAll` serves it
+   * instead of querying. Outside a request there is nowhere to keep it, so the
+   * next `getAll` reads for itself. */
+  prime: (items: T[]) => void;
 }
 
 const cacheScope = createScope<RequestStore>();
@@ -111,6 +116,8 @@ export const requestCache = <T>(
     },
 
     invalidate: slot.invalidate,
+
+    prime: (items: T[]): void => slot.write(items),
 
     size: (): number => {
       const cached = slot.read();

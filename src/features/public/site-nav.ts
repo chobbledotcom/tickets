@@ -20,9 +20,12 @@
  */
 
 import { compact, filter, map, pipe, unique } from "#fp";
+import { fillTogether } from "#shared/db/fill-together.ts";
 import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
-import { hasNewsPosts } from "#shared/db/news-posts.ts";
+import { hasNewsPosts, newsExistenceRead } from "#shared/db/news-posts.ts";
+import { allPageItemsRead } from "#shared/db/site-page-items.ts";
+import { sitePagesNavRead } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import { buildNavModel } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
@@ -130,14 +133,24 @@ export const publicNavModel = async (
   return buildNavModel(forest, targets, current);
 };
 
+/** The three small reads behind every public page's nav: is there any news, the
+ * pages, and what sits on them. None depends on the others, so one round trip
+ * answers all three — which on a cold edge server is one wait instead of
+ * three. Each read still fills its own request cache, so anything else on the
+ * page that wants the same rows reads them from there. */
+const fillNavReads = (): Promise<void> =>
+  fillTogether([newsExistenceRead, sitePagesNavRead, allPageItemsRead]);
+
 /** The full prop set {@link PublicNav} renders: the settings-driven page
- * flags, the news flag (one cached indexed existence read — see
- * {@link hasNewsPosts}), and the site-pages tree — built once per request by
- * each public handler. */
+ * flags, the news flag (see {@link hasNewsPosts}), and the site-pages tree —
+ * built once per request by each public handler. */
 export const publicNavProps = async (
   current: TargetKey | null,
-): Promise<PublicNavProps> => ({
-  ...navFlags(),
-  hasNews: await hasNewsPosts(),
-  pages: await publicNavModel(current),
-});
+): Promise<PublicNavProps> => {
+  await fillNavReads();
+  return {
+    ...navFlags(),
+    hasNews: await hasNewsPosts(),
+    pages: await publicNavModel(current),
+  };
+};
