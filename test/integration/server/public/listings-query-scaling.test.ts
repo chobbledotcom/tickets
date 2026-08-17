@@ -83,10 +83,13 @@ describeWithEnv(
       const first = await recordListingsPage(firstNames);
       const seen = await recordGroupPageQueries("group", 1, 3);
 
-      const childLinkBatches = seen.filter((sql) =>
+      const edgeReads = seen.filter((sql) =>
         sql.startsWith(
-          "SELECT child_listing_id AS key_id, parent_listing_id AS value_id",
+          "SELECT parent_listing_id AS key_id, child_listing_id AS value_id",
         ),
+      );
+      const reverseEdgeReads = seen.filter((sql) =>
+        sql.startsWith("SELECT child_listing_id AS key_id"),
       );
       const batchedMembers = batchedMemberQueries(seen);
       const singleGroupMembers = seen.filter((sql) =>
@@ -97,9 +100,11 @@ describeWithEnv(
 
       // One classification decides regular-group liveness; the other decides
       // the individual listing cards. Adding groups must not add either query.
-      // Both classifications ask for the same child links, and a request reads
-      // each listing's links once, so the two share a single query.
-      expect(childLinkBatches.length).toBe(1);
+      // Both classifications ask about the same listings, and one read answers
+      // a listing's children and its parents together, so the whole page reads
+      // the edge table once and never separately for the other direction.
+      expect(edgeReads.length).toBe(1);
+      expect(reverseEdgeReads).toEqual([]);
       expect(batchedMembers.length).toBe(1);
       expect(singleGroupMembers.length).toBe(0);
       expect(seen.length).toBe(first.length);

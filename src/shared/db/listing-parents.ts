@@ -19,7 +19,10 @@ import {
   resultRows,
   type TxScope,
 } from "#shared/db/client.ts";
-import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
+import {
+  type LinkTableSide,
+  selfLinkTableSides,
+} from "#shared/db/link-table.ts";
 import { guardEdgeWriteTx } from "#shared/db/listing-edge-write.ts";
 import { relationshipErrorTx } from "#shared/db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
@@ -34,26 +37,27 @@ import {
 } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
-/** A parent's chooseable children, keyed by parent id (relationship only):
- * `getIds` reads them ascending; `setIds`/`setIdsTx` replace the set (the
- * admin edit-on-parent save — the Tx form runs on the caller's transaction so
- * the edges commit atomically with the listing row write). */
-export const listingChildren = linkTableSide(
+/** Both directions of the edge table. Parents and children are both listings,
+ * so one read answers "who are my children" and "whose child am I" together —
+ * the discovery, feed, and listing-save paths ask for both. */
+const listingEdges = selfLinkTableSides(
   "listing_parents",
   "parent_listing_id",
   "child_listing_id",
 );
+
+/** A parent's chooseable children, keyed by parent id (relationship only):
+ * `getIds` reads them ascending; `setIds`/`setIdsTx` replace the set (the
+ * admin edit-on-parent save — the Tx form runs on the caller's transaction so
+ * the edges commit atomically with the listing row write). */
+export const listingChildren = listingEdges.pointsAt;
 
 /** The parents a child is offered under, keyed by child id — the reverse
  * side. `addIdsTx` is the catalog-import writer for a freshly-created listing
  * that is a child of already-existing parents: additive (never a group-wide
  * delete), so it can't disturb a parent's other children the way a
  * `listingChildren.setIdsTx` replace would. */
-export const listingParents = linkTableSide(
-  "listing_parents",
-  "child_listing_id",
-  "parent_listing_id",
-);
+export const listingParents = listingEdges.pointedAtBy;
 
 const requireCurrentRelationshipRules = async (
   tx: TxScope,
@@ -259,8 +263,9 @@ export const hydrateListingLinks = async (
   };
 };
 
-/** Load both directions in three bounded queries and return named maps, so a
- * caller cannot swap parent and child results. */
+/** Load both directions and return named maps, so a caller cannot swap parent
+ * and child results. The two sides share one read (see `selfLinkTableSides`),
+ * so this costs one round trip for the edges plus one for the linked rows. */
 export const loadParentAndChildLinks = async (
   keyIds: readonly number[],
 ): Promise<ParentAndChildLinkMaps> => {
