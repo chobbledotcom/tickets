@@ -269,12 +269,35 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
   }
 }
 
-/** Backoff before each retry of a transient database failure — a contended
- *  write lock on any statement, or a fleeting upstream gateway error on a read;
- *  its length is the number of retries, so four attempts in total. */
+/** Backoff before each retry of a transient remote-database failure — a
+ *  contended write lock on any statement, or a fleeting upstream gateway error
+ *  on a read. The ladder stays short: an edge request must answer fast when
+ *  the database server is genuinely busy. Its length is the number of retries,
+ *  so four attempts in total. */
 const TRANSIENT_ERROR_BACKOFF_MS = [50, 150, 350] as const;
 
-/** Most physical database attempts made for one retryable operation. */
+/** Backoff for a file database (tests and local dev). Its write lock is held
+ *  by another connection inside this same process, so the winning move is to
+ *  keep yielding until that holder's next event-loop turn commits: under a
+ *  CPU-starved parallel test run an ordinary transaction can hold the lock
+ *  for around a second — past the whole remote ladder — and giving up then
+ *  turns one slow scheduler pass into a busy answer nothing retries. */
+const FILE_TRANSIENT_ERROR_BACKOFF_MS = [
+  ...TRANSIENT_ERROR_BACKOFF_MS,
+  700,
+  1400,
+  2800,
+] as const;
+
+/** The retry ladder for the database this process actually talks to. */
+const transientErrorBackoffMs = (): readonly number[] =>
+  getEnv("DB_URL")?.startsWith("file:")
+    ? FILE_TRANSIENT_ERROR_BACKOFF_MS
+    : TRANSIENT_ERROR_BACKOFF_MS;
+
+/** Most physical database attempts made for one retryable operation on the
+ *  remote database — the number the edge subrequest budgets are sized from. A
+ *  file database retries longer, where no subrequest budget binds. */
 export const DATABASE_MAX_ATTEMPTS = TRANSIENT_ERROR_BACKOFF_MS.length + 1;
 
 /** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
@@ -334,7 +357,7 @@ const retryOnTransientDatabaseError = <T>(
   run: () => Promise<T>,
   { retryUpstream }: { retryUpstream: boolean },
 ): Promise<T> =>
-  retryWithBackoff(run, TRANSIENT_ERROR_BACKOFF_MS, (error, { willRetry }) => {
+  retryWithBackoff(run, transientErrorBackoffMs(), (error, { willRetry }) => {
     if (retryUpstream && isTransientUpstreamError(error)) return;
     if (!isDatabaseLocked(error)) throw error;
     if (!willRetry) throw new DatabaseBusyError();
