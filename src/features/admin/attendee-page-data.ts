@@ -27,7 +27,6 @@ import {
 } from "#shared/db/attendees/atomic-update.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { checkLinesCapacity } from "#shared/db/attendees/capacity/checks.ts";
-import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getContactRecordOrRepair,
   hashEmail,
@@ -76,41 +75,54 @@ export type LoadedAttendee = {
   paymentReferences: RefundPaymentReferenceSet;
 };
 
-type AttendeePaymentFacts = Pick<
-  LoadedAttendee,
-  "canRefund" | "paymentReferences"
->;
-
 /** Load one bounded, typed payment set for both display and refund admission. */
-const attendeePaymentFacts = async (
+const attendeePaymentReferences = async (
   attendee: Attendee,
-): Promise<AttendeePaymentFacts> => {
-  const paymentReferences = await getRefundPaymentReferencesForAttendee(
+): Promise<RefundPaymentReferenceSet> =>
+  getRefundPaymentReferencesForAttendee(
     { currentPaymentId: attendee.payment_id, id: attendee.id },
     await requireRequestPrivateKey(),
   );
-  const hasAutomaticPayment =
-    paymentReferences.kind === "complete" &&
-    paymentReferences.references.length > 0;
-  return {
-    canRefund:
-      hasAutomaticPayment &&
-      refundWorkRemains(attendee, paymentReferences.references) &&
-      (await hasActiveBookingLine(attendee.id, attendee.listing_id)),
-    paymentReferences,
-  };
-};
+
+/** Whether the attendee still holds a real (quantity > 0) booking on this exact
+ * listing. Read from the lines the page has already loaded: asking the database
+ * again would answer the same question the same way. A no-quantity line does
+ * not count, so a line marked no-quantity stops offering the refund. */
+const holdsRealLineOn = (
+  existing: readonly ExistingLine[],
+  listingId: number,
+): boolean =>
+  existing.some(
+    ({ booking }) => booking.listing_id === listingId && booking.quantity > 0,
+  );
+
+/** Whether the page may offer a refund: automatic payment money that still has
+ * work left, against a booking the attendee really holds. */
+const refundIsOffered = (
+  attendee: Attendee,
+  paymentReferences: RefundPaymentReferenceSet,
+  existing: readonly ExistingLine[],
+): boolean =>
+  paymentReferences.kind === "complete" &&
+  paymentReferences.references.length > 0 &&
+  refundWorkRemains(attendee, paymentReferences.references) &&
+  holdsRealLineOn(existing, attendee.listing_id);
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */
 export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
   async (attendee) => {
-    const [payment, existing] = await Promise.all([
-      attendeePaymentFacts(attendee),
+    const [paymentReferences, existing] = await Promise.all([
+      attendeePaymentReferences(attendee),
       loadExistingLines(attendee.id),
     ]);
-    return { attendee, existing, ...payment };
+    return {
+      attendee,
+      canRefund: refundIsOffered(attendee, paymentReferences, existing),
+      existing,
+      paymentReferences,
+    };
   },
 );
 
