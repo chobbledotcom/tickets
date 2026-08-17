@@ -19,50 +19,19 @@ import {
   type RefundNodeId,
   refundNodeOf,
 } from "#shared/payment/refund-machine-spec.ts";
-import type { AtlasActor } from "#shared/schema-atlas/types.ts";
+import { machineGraph } from "#test-utils/machine-graph.ts";
 
-const ALL_ACTORS: readonly AtlasActor[] = ["owner", "provider", "system"];
-const WITHOUT_PROVIDER: readonly AtlasActor[] = ["owner", "system"];
+const graph = machineGraph({
+  events: REFUND_EVENTS,
+  label: "refund",
+  nodes: REFUND_NODES,
+  targets: (from: RefundNodeId, event: RefundEventId) =>
+    REFUND_MOVES.targets(from, event),
+});
 
-const eventById = (id: RefundEventId): RefundMachineEvent => {
-  const event = REFUND_EVENTS.find((candidate) => candidate.id === id);
-  if (event === undefined) throw new Error(`Unknown refund event ${id}`);
-  return event;
-};
-
-const nodeById = (id: RefundNodeId): RefundNode => {
-  const node = REFUND_NODES.find((candidate) => candidate.id === id);
-  if (node === undefined) throw new Error(`Unknown refund node ${id}`);
-  return node;
-};
-
-/** Every node one declared step away from `from`, for the given actors. */
-const successors = (
-  from: RefundNodeId,
-  actors: readonly AtlasActor[],
-): readonly RefundNodeId[] =>
-  REFUND_EVENTS.filter((event) => actors.includes(event.actor)).flatMap(
-    (event) => REFUND_MOVES.targets(from, event.id),
-  );
-
-/** Every node the table lets a record reach from `start`, for the given
- * actors. */
-const reachableFrom = (
-  start: RefundNodeId,
-  actors: readonly AtlasActor[],
-): Set<RefundNodeId> => {
-  const seen = new Set<RefundNodeId>([start]);
-  const queue: RefundNodeId[] = [start];
-  for (let index = 0; index < queue.length; index++) {
-    for (const next of successors(queue[index]!, actors)) {
-      if (!seen.has(next)) {
-        seen.add(next);
-        queue.push(next);
-      }
-    }
-  }
-  return seen;
-};
+/** The walk with the provider's own moves taken away. */
+const withoutProvider = (event: RefundMachineEvent): boolean =>
+  event.actor !== "provider";
 
 /** Whether deleting the attendee row is blocked while a record sits here.
  * Guarded by a test below: all of a node's shapes must agree on this. */
@@ -123,7 +92,7 @@ const expectConditionChanged = (
   if (landed === "returned") {
     for (const enter of ENTERING_EVENTS[attentionId]) {
       expect(
-        () => eventById(enter).run(result),
+        () => graph.eventById(enter).run(result),
         `${cell} then ${enter} must refuse`,
       ).toThrow();
     }
@@ -140,7 +109,7 @@ const expectConditionChanged = (
 
 describe("the refund machine graph", () => {
   test("every node is reachable from ready", () => {
-    expect([...reachableFrom("ready", ALL_ACTORS)].sort()).toEqual(
+    expect([...graph.reachableFrom("ready")].sort()).toEqual(
       REFUND_NODES.map(({ id }) => id).sort(),
     );
   });
@@ -159,7 +128,7 @@ describe("the refund machine graph", () => {
     // could ever fire; this is the check that makes that impossible now.
     for (const node of REFUND_NODES.filter(blocksDelete)) {
       expect(
-        reachableFrom(node.id, ALL_ACTORS).has("recorded"),
+        graph.reachableFrom(node.id).has("recorded"),
         `${node.id} cannot end`,
       ).toBe(true);
     }
@@ -167,7 +136,7 @@ describe("the refund machine graph", () => {
 
   test("only the declared provider-wait cannot end without the provider", () => {
     const stuckWithoutProvider = REFUND_NODES.filter(
-      ({ id }) => !reachableFrom(id, WITHOUT_PROVIDER).has("recorded"),
+      ({ id }) => !graph.reachableFrom(id, withoutProvider).has("recorded"),
     ).map(({ id }) => id);
     const declaredWaits = REFUND_NODES.filter(
       ({ awaits }) => awaits === "provider",
@@ -201,7 +170,7 @@ describe("the refund machine graph", () => {
     let checkedExits = 0;
     for (const attentionId of ATTENTION_NODES) {
       for (const { event, source, tag } of declaredExits(
-        nodeById(attentionId),
+        graph.nodeById(attentionId),
       )) {
         checkedExits++;
         expectConditionChanged(

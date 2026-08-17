@@ -18,35 +18,20 @@ import {
   ROW_EVENTS,
   ROW_MOVES,
   ROW_NODES,
+  type RowEventId,
   type RowNode,
   type RowNodeId,
 } from "#shared/payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#shared/payment/row-state.ts";
+import { machineGraph } from "#test-utils/machine-graph.ts";
 
-const nodeById = (id: RowNodeId): RowNode => {
-  const node = ROW_NODES.find((candidate) => candidate.id === id);
-  if (node === undefined) throw new Error(`Unknown row node ${id}`);
-  return node;
-};
-
-/** Every node one declared step away from `from`. */
-const successors = (from: RowNodeId): readonly RowNodeId[] =>
-  ROW_EVENTS.flatMap((event) => ROW_MOVES.targets(from, event.id));
-
-/** Every node the table lets a row reach from `start`. */
-const reachableFrom = (start: RowNodeId): Set<RowNodeId> => {
-  const seen = new Set<RowNodeId>([start]);
-  const queue: RowNodeId[] = [start];
-  for (let index = 0; index < queue.length; index++) {
-    for (const next of successors(queue[index]!)) {
-      if (!seen.has(next)) {
-        seen.add(next);
-        queue.push(next);
-      }
-    }
-  }
-  return seen;
-};
+const graph = machineGraph({
+  events: ROW_EVENTS,
+  label: "row",
+  nodes: ROW_NODES,
+  targets: (from: RowNodeId, event: RowEventId) =>
+    ROW_MOVES.targets(from, event),
+});
 
 const LIVE_NODES = ROW_NODES.filter(
   ({ id }) => id !== "free" && id !== "settled",
@@ -148,7 +133,7 @@ const settleDrops = (
       node.reps.some(({ tag }) => {
         const target = ROW_MOVES.expected(node.id, event.id, tag);
         if (target === "refused") return false;
-        return nodeById(target).reps.every(({ state }) => !found(state));
+        return graph.nodeById(target).reps.every(({ state }) => !found(state));
       }),
   );
 
@@ -169,7 +154,7 @@ const expectClearerReaches = (
   }
   const target = ROW_MOVES.plain(node.id, "claim_granted");
   expect(
-    nodeById(target).reps.some(({ state }) => found(state)),
+    graph.nodeById(target).reps.some(({ state }) => found(state)),
     `${field} is lost taking the hold on ${node.id}`,
   ).toBe(true);
 };
@@ -188,16 +173,17 @@ const cellsLandingOnSettled = (): readonly string[] =>
 
 describe("the payment row graph", () => {
   test("every node is reachable from free", () => {
-    expect([...reachableFrom("free")].sort()).toEqual(
+    expect([...graph.reachableFrom("free")].sort()).toEqual(
       ROW_NODES.map(({ id }) => id).sort(),
     );
   });
 
   test("every live node can come free", () => {
     for (const node of LIVE_NODES) {
-      expect(reachableFrom(node.id).has("free"), `${node.id} cannot end`).toBe(
-        true,
-      );
+      expect(
+        graph.reachableFrom(node.id).has("free"),
+        `${node.id} cannot end`,
+      ).toBe(true);
     }
   });
 

@@ -529,5 +529,6 @@ export const refundChoiceTarget = (
  * move real money; pure evidence checks ("observe only") never can. */
 export const refundNodeSendsMoney = (node: RefundNodeId): boolean =>
   REFUND_EVENTS.some(
-    (event) => event.movesMoney && EXPECTED_MOVES[node][event.id] !== undefined,
+    (event) =>
+      event.movesMoney && REFUND_MOVES.targets(node, event.id).length > 0,
   );

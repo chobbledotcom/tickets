@@ -204,7 +204,10 @@ export const storeClaimedPlaceholder = async (config: {
     config.paymentReference,
     config.unrecordedAt,
   );
-  const anchorWritten = Promise.withResolvers<ClaimedPlaceholderAnchor>();
+  const anchorWritten = Promise.withResolvers<{
+    readonly attendeeId: number;
+    readonly claimedAnchor: ClaimedPlaceholderAnchor;
+  }>();
   const stored = await attendeesApi.createAttendeeAtomic(
     { ...config.fields, allowOverbook: true, bookings: config.bookings },
     async (tx, attendeeId) => {
@@ -241,12 +244,17 @@ export const storeClaimedPlaceholder = async (config: {
           `Payment session lost its reservation before placeholder creation: ${config.sessionId}`,
         );
       }
-      anchorWritten.resolve(claimedAnchor);
+      anchorWritten.resolve({ attendeeId, claimedAnchor });
     },
   );
-  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
-    .attendees[0]!.id;
-  return { attendeeId, claimedAnchor: await anchorWritten.promise };
+  // The overbook-tolerant store must not refuse; a refusal here means the
+  // atomic callback never ran, so waiting on it would hang forever.
+  if (!stored.success) {
+    throw new Error(
+      `Placeholder store was refused (${stored.reason}) for session ${config.sessionId}`,
+    );
+  }
+  return await anchorWritten.promise;
 };
 
 export const storeRefundedBooking = async (
