@@ -31,7 +31,11 @@ import {
 } from "./execution.ts";
 import { generateMutants } from "./generate.ts";
 import { ignoreListProblems, loadIgnoreList, mutantKey } from "./ignore.ts";
-import { type FileRunOptions, runFileMutants } from "./run-file.ts";
+import {
+  type FileRunOptions,
+  type MutantLoopContext,
+  runFileMutants,
+} from "./run-file.ts";
 import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
@@ -180,7 +184,12 @@ const isUnmutatedTargetDirty = async (
 ): Promise<boolean> => {
   if (plan.mutants.length === 0) return false;
   for (const gate of gates) {
-    if ((await gate.exit(plan.file, projectRoot, signal)) === 0) continue;
+    const exit = await gate.exit(plan.file, projectRoot, signal);
+    // A gate the guard or an interrupt killed exited non-zero because it was
+    // stopped, which says nothing about the file. Calling that a dirty target
+    // would send someone off to fix a file that was never the problem.
+    if (signal.aborted) return false;
+    if (exit === 0) continue;
     console.error(
       red(
         `\nThe unmutated ${rel(plan.file)} does not pass the ${gate.label} gate.`,
@@ -229,6 +238,29 @@ const reportIgnoreListStaleness = (
     dim("  Update or remove these so the list stays in sync with reality."),
   );
   return exitCode === 0 ? 1 : exitCode;
+};
+
+/**
+ * Probe one file's gates, then run its mutants. Returns an exit code when the
+ * run should stop here, or null to carry on to the next file.
+ */
+const runOnePlan = async (
+  opts: RunMutantsOptions,
+  plan: FileMutationPlan,
+  ctx: MutantLoopContext,
+  plans: readonly FileMutationPlan[],
+): Promise<number | null> => {
+  const gateSignal = AbortSignal.any([
+    opts.abortSignal,
+    AbortSignal.timeout(BASELINE_TIMEOUT),
+  ]);
+  const dirty = await isUnmutatedTargetDirty(plan, ctx.gates, gateSignal);
+  // How the run ended outranks what a probe made of it.
+  const stopped = unfinishedRunExit(opts, opts.results.length, plans);
+  if (stopped !== null) return stopped;
+  if (dirty) return 1;
+  await runFileMutants(plan, opts, ctx);
+  return null;
 };
 
 /** Baseline check, then the per-file/per-mutant loop, then the report. */
@@ -291,12 +323,13 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
     for (const plan of plans) {
       if (isAborted()) break;
-      const gateSignal = AbortSignal.any([
-        opts.abortSignal,
-        AbortSignal.timeout(BASELINE_TIMEOUT),
-      ]);
-      if (await isUnmutatedTargetDirty(plan, gates, gateSignal)) return 1;
-      await runFileMutants(plan, opts, { counts, gates, totalMutants });
+      const stop = await runOnePlan(
+        opts,
+        plan,
+        { counts, gates, totalMutants },
+        plans,
+      );
+      if (stop !== null) return stop;
     }
   } finally {
     restoreAll();

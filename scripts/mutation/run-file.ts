@@ -53,7 +53,7 @@ export interface FileRunOptions {
   testFiles: string[];
 }
 
-interface MutantLoopContext {
+export interface MutantLoopContext {
   counts: Record<Status, number>;
   gates: StaticGate[];
   totalMutants: number;
