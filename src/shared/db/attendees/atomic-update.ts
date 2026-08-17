@@ -32,6 +32,7 @@ import {
   checkLinesCapacity,
 } from "#shared/db/attendees/capacity/checks.ts";
 import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
+import { attendeePiiWriteStatements } from "#shared/db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
@@ -135,7 +136,9 @@ export const loadExistingLines = async (
  * package_group_id the rows produced when the same listing is booked through
  * two packages (or a package plus its own standalone row) in one order. */
 export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
-  `${booking.listing_id}|${booking.start_at ?? ""}|${booking.parent_listing_id}|${booking.package_group_id}`;
+  `${booking.listing_id}|${
+    booking.start_at ?? ""
+  }|${booking.parent_listing_id}|${booking.package_group_id}`;
 
 /**
  * Read-only preflight: the listing ids among `desired` that do NOT fit, using
@@ -243,7 +246,9 @@ const updateStatementFor = (
     oldPin.packageGroupId,
   ];
   const setClause =
-    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}` +
+    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(
+      line.quantity,
+    )}` +
     " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?";
   if (skipCapacityGuard) {
     return { args: [line.quantity, startAt, endAt, ...pin], sql: setClause };
@@ -259,13 +264,12 @@ const updateStatementFor = (
  * Apply a desired final-state line set to an existing attendee atomically.
  *
  * - `attendeeId` — the attendee being edited.
- * - `encryptedPiiBlob` — already-encrypted PII blob to write into the
- *   attendees row. The caller encrypts so this function stays IO focused.
+ * - `pii` — all PII facts, encrypted inside the same transaction.
  * - `desired` — the desired final-state line set.
  */
 export const applyAttendeeAtomicEdit = async (
   attendeeId: number,
-  encryptedPiiBlob: string,
+  pii: UpdateAttendeePIIInput,
   desired: AtomicDesiredLine[],
   allowOverbook = false,
 ): Promise<UpdateAttendeeAtomicResult> => {
@@ -304,13 +308,9 @@ export const applyAttendeeAtomicEdit = async (
   // Build one batch that runs as a single ACID transaction. Each
   // capacity-checked write is immediately followed by CAPACITY_GUARD, which
   // aborts (and rolls back) the whole batch if that write affected no rows.
-  const statements: Array<{ args: InValue[]; sql: string }> = [];
-
-  // Step 1: Update PII (unconditional).
-  statements.push({
-    args: [encryptedPiiBlob, attendeeId],
-    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
-  });
+  const statements: Array<{ args: InValue[]; sql: string }> = [
+    ...(await attendeePiiWriteStatements(attendeeId, pii)),
+  ];
 
   // Step 2: Delete removed lines (identified by the full slot: listing_id +
   // start_at + parent_listing_id + package_group_id).

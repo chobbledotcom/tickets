@@ -1,6 +1,10 @@
 import type Stripe from "stripe";
 import * as v from "valibot";
-import { NonEmptyTextSchema } from "#shared/validation/string.ts";
+import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
+import {
+  NonEmptyTextSchema,
+  OptionalNullableStringSchema,
+} from "#shared/validation/string.ts";
 
 const NonEmptyNullableStringSchema = v.nullable(NonEmptyTextSchema);
 const MetadataSchema = v.nullable(v.record(v.string(), v.string()));
@@ -29,7 +33,7 @@ type StripeCheckoutSessionFields = {
 export const StripeCheckoutSessionSchema = v.object({
   amount_total: v.nullable(v.number()),
   created: v.number(),
-  currency: v.optional(v.nullable(v.string())),
+  currency: OptionalNullableStringSchema,
   id: NonEmptyTextSchema,
   metadata: MetadataSchema,
   payment_intent: NonEmptyNullableStringSchema,
@@ -40,15 +44,41 @@ export const StripeCheckoutSessionSchema = v.object({
 export type StripeCheckoutSession = StripeCheckoutSessionFields;
 
 type StripeExpandedPaymentIntentFields = Pick<Stripe.PaymentIntent, "id"> & {
-  latest_charge: null | Pick<Stripe.Charge, "refunded">;
+  latest_charge: null | Pick<
+    Stripe.Charge,
+    | "amount_captured"
+    | "amount_refunded"
+    | "captured"
+    | "currency"
+    | "paid"
+    | "status"
+  >;
 };
 
+const StripeChargeStatusSchema = v.picklist([
+  "failed",
+  "pending",
+  "succeeded",
+] as const satisfies readonly Stripe.Charge.Status[]);
+
+/** The latest charge is expanded with its captured money and settled state.
+ * The intended amount may exceed a partial capture, so it is not evidence of
+ * how much can safely go back. */
 export const StripeExpandedPaymentIntentSchema: v.GenericSchema<
   unknown,
   StripeExpandedPaymentIntentFields
 > = v.object({
   id: NonEmptyTextSchema,
-  latest_charge: v.nullable(v.object({ refunded: v.boolean() })),
+  latest_charge: v.nullable(
+    v.object({
+      amount_captured: v.number(),
+      amount_refunded: v.number(),
+      captured: v.boolean(),
+      currency: NonEmptyTextSchema,
+      paid: v.boolean(),
+      status: StripeChargeStatusSchema,
+    }),
+  ),
 });
 
 export type StripeExpandedPaymentIntent = StripeExpandedPaymentIntentFields;
@@ -61,13 +91,17 @@ const StripeRefundStatuses = [
   "succeeded",
 ] as const satisfies readonly NonNullable<Stripe.Refund["status"]>[];
 
-type StripeRefundFields = Pick<Stripe.Refund, "id"> & {
+type StripeRefundFields = Pick<Stripe.Refund, "amount" | "currency" | "id"> & {
+  payment_intent: string;
   status: (typeof StripeRefundStatuses)[number] | null;
 };
 
 export const StripeRefundSchema: v.GenericSchema<unknown, StripeRefundFields> =
   v.object({
-    id: NonEmptyTextSchema,
+    amount: v.number(),
+    currency: NonEmptyTextSchema,
+    id: ResourceIdSchema,
+    payment_intent: ResourceIdSchema,
     status: v.nullable(v.picklist(StripeRefundStatuses)),
   });
 

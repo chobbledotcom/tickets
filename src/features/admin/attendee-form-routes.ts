@@ -54,7 +54,6 @@ import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { hasPaidLine } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
@@ -412,26 +411,23 @@ const applyEdit = async (
   // the address clears the now-stale pin (a fresh one is set on the
   // Logistics tab).
   const addressUnchanged = parsed.address === attendee.address;
-  const encryptedPiiBlob = (await encryptPiiBlob(
-    buildPiiBlob({
-      address: parsed.address,
-      email: parsed.email,
-      lat: addressUnchanged ? attendee.lat : "",
-      lng: addressUnchanged ? attendee.lng : "",
-      name: parsed.name,
-      payment_id: attendee.payment_id,
-      phone: parsed.phone,
-      special_instructions: parsed.special_instructions,
-      ticket_token: attendee.ticket_token,
-    }),
-    settings.publicKey,
-  ))!;
+  const pii = {
+    address: parsed.address,
+    email: parsed.email,
+    lat: addressUnchanged ? attendee.lat : "",
+    lng: addressUnchanged ? attendee.lng : "",
+    name: parsed.name,
+    payment_id: attendee.payment_id,
+    phone: parsed.phone,
+    special_instructions: parsed.special_instructions,
+    ticket_token: attendee.ticket_token,
+  };
 
   const desired = toDesiredLines(parsed);
   // Admin manual edit may deliberately overbook (warned, not blocked).
   const editResult = await attendeesApi.applyAttendeeAtomicEdit(
     attendeeId,
-    encryptedPiiBlob,
+    pii,
     desired,
     true,
   );

@@ -88,80 +88,6 @@ describeStripe("stripe-provider", () => {
     });
   });
 
-  describe("refundPayment delegation", () => {
-    for (const [status, completed] of [
-      ["succeeded", true],
-      ["pending", false],
-      ["requires_action", false],
-      ["failed", false],
-      ["canceled", false],
-    ] as const) {
-      test(`returns ${completed} when Stripe reports ${status}`, async () => {
-        const client = await stripeClient();
-        await withMocks(
-          () =>
-            stub(client.refunds, "create", () =>
-              Promise.resolve({ id: `re_${status}`, status }),
-            ),
-          async () => {
-            expect(
-              await stripePaymentProvider.refundPayment(`pi_${status}`),
-            ).toBe(completed);
-          },
-        );
-      });
-    }
-
-    test("returns false when Stripe returns null (no refund created)", async () => {
-      await withMocks(
-        () => stub(stripeApi, "refundPayment", () => Promise.resolve(null)),
-        async () => {
-          const result = await stripePaymentProvider.refundPayment("pi_null");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when refund fails", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.refunds, "create", () =>
-            Promise.reject(new Error("Refund failed")),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.refundPayment("pi_fail");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("passes a stable SHA-256 idempotency key derived from the payment intent", async () => {
-      // A webhook redelivery of the same refund must reach Stripe with the
-      // same Idempotency-Key so the second call is deduplicated, not charged
-      // again. The key is a pure function of (provider, payment reference),
-      // so it is reproducible here without re-running the hash.
-      const client = await stripeClient();
-      const createStub = stub(client.refunds, "create", () =>
-        Promise.resolve({ id: "re_stable", status: "succeeded" }),
-      );
-      await withMocks(
-        () => createStub,
-        async () => {
-          expect(await stripePaymentProvider.refundPayment("pi_stable")).toBe(
-            true,
-          );
-        },
-      );
-
-      const [params, idempotencyKey] = createStub.calls[0]!.args;
-      expect(params).toEqual({ payment_intent: "pi_stable" });
-      expect(idempotencyKey).toBe(
-        "zMXoB60J9cW7f7GxpMobuLm6VM5BATENKpD_jsjvf4g",
-      );
-    });
-  });
-
   describe("sanitizeStripeError edge cases", () => {
     test("returns err.name when no statusCode/code/type and name is set", () => {
       const err = new TypeError("something went wrong");
@@ -182,85 +108,8 @@ describeStripe("stripe-provider", () => {
     });
   });
 
-  describe("retrievePaymentIntent", () => {
-    test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.retrievePaymentIntent("pi_test_123");
-      expect(result).toBeNull();
-    });
-
-    test("returns null when Stripe API throws error", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
-            Promise.reject(new Error("Network error")),
-          ),
-        async (retrieveSpy) => {
-          const result = await stripeApi.retrievePaymentIntent("pi_test_123");
-          expect(result).toBeNull();
-          expect(retrieveSpy.calls[0]?.args).toEqual(["pi_test_123"]);
-        },
-      );
-    });
-  });
-
-  describe("isPaymentRefunded", () => {
-    /** isPaymentRefunded should return `expected` for the given intent lookup. */
-    const expectRefunded = (
-      client: Awaited<ReturnType<typeof stripeClient>>,
-      retrieveImpl: Awaited<
-        ReturnType<typeof stripeClient>
-      >["paymentIntents"]["retrieveWithLatestCharge"],
-      expected: boolean,
-    ) =>
-      withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", retrieveImpl),
-        async () => {
-          const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_check");
-          expect(result).toBe(expected);
-        },
-      );
-
-    test("returns true when latest_charge is refunded", async () => {
-      const client = await stripeClient();
-      await expectRefunded(
-        client,
-        () =>
-          Promise.resolve({
-            id: "pi_refunded",
-            latest_charge: { refunded: true },
-          }),
-        true,
-      );
-    });
-
-    test("returns false when latest_charge is not refunded", async () => {
-      const client = await stripeClient();
-      await expectRefunded(
-        client,
-        () =>
-          Promise.resolve({
-            id: "pi_not_refunded",
-            latest_charge: { refunded: false },
-          }),
-        false,
-      );
-    });
-
-    test("returns false when payment intent not found", async () => {
-      const client = await stripeClient();
-      await expectRefunded(
-        client,
-        () => Promise.reject(new Error("Not found")),
-        false,
-      );
-    });
-  });
-
   describe("createCheckoutSession - via provider", () => {
-    test("returns null when session has no URL", async () => {
+    test("throws when a created session has no URL", async () => {
       const client = await stripeClient();
       await withMocks(
         () =>
@@ -273,11 +122,12 @@ describeStripe("stripe-provider", () => {
             ),
           ),
         async () => {
-          const result = await stripePaymentProvider.createCheckoutSession(
-            checkoutIntent({ email: "jane@example.com", name: "Jane" }),
-            "http://localhost:3000",
-          );
-          expect(result).toBeNull();
+          await expect(
+            stripePaymentProvider.createCheckoutSession(
+              checkoutIntent({ email: "jane@example.com", name: "Jane" }),
+              "http://localhost:3000",
+            ),
+          ).rejects.toThrow("Stripe checkout response is missing its URL");
         },
       );
     });
@@ -303,18 +153,36 @@ describeStripe("stripe-provider", () => {
       expect((result as { error: string }).error).toMatch(/too many listings/i);
     });
 
-    test("returns null for non-PaymentUserError exceptions", async () => {
+    test("propagates non-PaymentUserError exceptions", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
-      // Stub stripeApi.createCheckoutSession to throw a generic error
-      // that propagates through to withUserError's catch
       using _mockCreate = stub(stripeApi, "createCheckoutSession", () =>
         Promise.reject(new TypeError("unexpected")),
       );
-      const result = await stripePaymentProvider.createCheckoutSession(
-        checkoutIntent({ email: "john@example.com", name: "John" }),
-        "http://localhost:3000",
+      await expect(
+        stripePaymentProvider.createCheckoutSession(
+          checkoutIntent({ email: "john@example.com", name: "John" }),
+          "http://localhost:3000",
+        ),
+      ).rejects.toThrow("unexpected");
+    });
+
+    test("propagates checkout client failures from the production path", async () => {
+      const client = await stripeClient();
+      const failure = new TypeError("Stripe connection failed");
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "create", () =>
+            Promise.reject(failure),
+          ),
+        async () => {
+          await expect(
+            stripePaymentProvider.createCheckoutSession(
+              checkoutIntent({ email: "john@example.com", name: "John" }),
+              "http://localhost:3000",
+            ),
+          ).rejects.toBe(failure);
+        },
       );
-      expect(result).toBeNull();
     });
   });
 
@@ -339,6 +207,7 @@ describeStripe("stripe-provider", () => {
         expect(asSession(result).id).toBe("cs_resolve_1");
         expect(asSession(result).paymentStatus).toBe("paid");
         expect(asSession(result).paymentReference).toBe("pi_resolve_1");
+        expect(asSession(result).provider).toBe("stripe");
         expect(asSession(result).amountTotal).toBe(2000);
       }
     });

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { squareRequestInit } from "#shared/square.ts";
+import { squareRequestInit } from "#shared/square/transport.ts";
 
 describe("squareRequestInit", () => {
   test("builds the exact default GET request", () => {

@@ -25,7 +25,10 @@ import {
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(
@@ -201,7 +204,7 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
       "overview_balance_paid",
       attendee.id,
       "",
-      "pi_overview_balance_paid",
+      taggedPaymentReference("pi_overview_balance_paid"),
     );
 
     const stats = await getListingOverviewStats(listing);

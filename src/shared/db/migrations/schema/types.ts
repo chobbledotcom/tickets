@@ -6,6 +6,8 @@ export type Index = {
   name: string;
   columns: string[];
   unique?: boolean;
+  /** A fixed schema predicate for a partial index. */
+  where?: string;
 };
 
 export type Table = {

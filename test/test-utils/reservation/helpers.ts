@@ -10,6 +10,7 @@ import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
@@ -18,7 +19,7 @@ import {
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 /** Turn the seeded public-default status into a reservation charging `amount`. */
 export const setPublicReservation = async (amount: string): Promise<number> => {
@@ -226,7 +227,7 @@ export const setupReservationListing = async (
 export const expectRefundedPlaceholder = async (
   listing: { id: number },
   addOnId: number,
-  refund: { calls: Array<{ args: unknown[] }> },
+  refund: { calls: Array<{ args: [RefundRequest] }> },
   paymentIntentId: string,
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
@@ -237,7 +238,7 @@ export const expectRefundedPlaceholder = async (
   // The placeholder posts no sale leg, so the still-sold-out add-on is not
   // consumed.
   expect(await modifierUsageCount(addOnId)).toBe(0);
-  expect(refund.calls[0]!.args).toEqual([paymentIntentId]);
+  expect(refund.calls[0]!.args[0].paymentReference).toBe(paymentIntentId);
   expect(refund.calls.length).toBe(1);
   const { getNoteRows } = await import("#shared/db/notes/queries.ts");
   expect((await getNoteRows("attendee", [attendees[0]!.id])).length).toBe(1);

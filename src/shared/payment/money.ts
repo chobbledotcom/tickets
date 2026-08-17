@@ -11,7 +11,7 @@ import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** An ISO 4217 currency code, upper-cased. Providers return mixed case
  *  ("gbp", "GBP"); {@link money} canonicalises before this runs. */
-const CurrencySchema = v.pipe(
+export const CurrencySchema = v.pipe(
   v.string(),
   v.regex(/^[A-Z]{3}$/u, "Currency must be three uppercase letters"),
 );
@@ -26,22 +26,28 @@ export const isCurrency = (value: unknown): value is Currency =>
 /** Money: a non-negative minor-unit amount paired with its currency. The
  *  amount is already in the smallest unit the currency uses, so two amounts in
  *  the same currency can be compared or summed with no conversion. */
-const MoneySchema = v.strictObject({
+export const MoneySchema = v.strictObject({
   amount: integerAtLeast(0),
   currency: CurrencySchema,
 });
-type Money = v.InferOutput<typeof MoneySchema>;
+export type Money = v.InferOutput<typeof MoneySchema>;
 
 /**
  * Build a {@link Money}, or `null` if the amount or currency is malformed.
  * Upper-cases first, so a provider's "gbp" is the canonical "GBP" rather than a
- * rejection. The only producer of a `Money`, so malformed charges are refused
- * once, here, instead of leaking into the callbacks half-parsed.
+ * rejection, and takes the whole numbers some providers send as `bigint` — one
+ * too large to hold exactly is refused by the safe-integer rule rather than
+ * silently rounded. The only producer of a `Money`, so malformed charges are
+ * refused once, here, instead of leaking into the callbacks half-parsed.
  */
 export const money = (amount: unknown, currency: unknown): Money | null => {
   const result = v.safeParse(MoneySchema, {
-    amount,
+    amount: typeof amount === "bigint" ? Number(amount) : amount,
     currency: typeof currency === "string" ? currency.toUpperCase() : currency,
   });
   return result.success ? result.output : null;
 };
+
+/** Whether two amounts name exactly the same money. */
+export const sameMoney = (left: Money, right: Money): boolean =>
+  left.amount === right.amount && left.currency === right.currency;

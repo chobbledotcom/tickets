@@ -19,6 +19,7 @@ import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 
 export type PreparedWrite = {
   enc: EncryptedAttendeeData;
@@ -29,12 +30,18 @@ export type PreparedWrite = {
 
 export type WriteOutcome = { insertId: number };
 
-export type LedgerPoster = (tx: TxScope, attendeeId: number) => Promise<void>;
+export type AttendeeCreationWork = (
+  tx: TxScope,
+  attendeeId: number,
+) => Promise<void>;
 
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
-  finalize?: { paymentReference: string; sessionId: string };
+  finalize?: {
+    paymentReference: TaggedPaymentReference | null;
+    sessionId: string;
+  };
 };
 
 /** The newly inserted attendee is always found by its unique stable token. */
@@ -91,9 +98,9 @@ class IncompleteBooking extends namedError("IncompleteBooking") {}
 
 /** Create an attendee, all bookings, caller work, and contact activity in one
  * interactive transaction. */
-export const writeWithLedger = (
+export const writeWithCreationWork = (
   prepared: PreparedWrite,
-  postLedger: LedgerPoster,
+  creationWork: AttendeeCreationWork,
 ): Promise<WriteOutcome | null> =>
   withTransaction<WriteOutcome>(async (tx) => {
     await tx.execute(prepared.attendeeInsert);
@@ -106,7 +113,7 @@ export const writeWithLedger = (
       await tx.execute(attendeeIdStatement(prepared.enc.ticketTokenIndex)),
     );
     const attendeeId = Number(attendeeRows[0]!.id);
-    await postLedger(tx, attendeeId);
+    await creationWork(tx, attendeeId);
     for (const statement of prepared.activityStatements) {
       await tx.execute(statement);
     }

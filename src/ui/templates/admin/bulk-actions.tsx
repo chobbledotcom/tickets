@@ -17,12 +17,12 @@ import {
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
 import { settings } from "#shared/db/settings.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { JsonScript } from "#templates/components/json-script.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
@@ -39,10 +39,6 @@ type BulkActionPage = (
   session: AdminSession,
   error?: string,
 ) => string;
-
-/** Embed JSON safely inside a <script type="application/json"> tag */
-const safeJson = (value: unknown): string =>
-  JSON.stringify(value).replace(/</g, "\\u003c");
 
 /** The "← Bulk actions" back-link rendered at the top of the
  *  deactivate/reactivate confirmation pages. */
@@ -220,9 +216,11 @@ export const adminDuplicateGroupPage: BulkActionPage = (
     ),
     { dateFind: "", dateReplace: "", nameFind: "", nameReplace: "" },
   );
-  const listingsJson = safeJson(
-    listings.map((e) => ({ date: e.date, id: e.id, name: e.name })),
-  );
+  const listingsData = listings.map((e) => ({
+    date: e.date,
+    id: e.id,
+    name: e.name,
+  }));
 
   return errorAdminPage(
     t("bulk_actions.title_duplicate", { name: group.name }),
@@ -307,9 +305,7 @@ export const adminDuplicateGroupPage: BulkActionPage = (
           })
         )}
 
-        <script id="duplicate-preview-listings" type="application/json">
-          <Raw html={listingsJson} />
-        </script>
+        <JsonScript id="duplicate-preview-listings" value={listingsData} />
       </SaveForm>
     </>,
   );
@@ -424,7 +420,7 @@ export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
       <strong>{t("bulk_actions.deactivate_warning")}</strong>{" "}
     </>
   ),
-  impactTrail: <> {t("bulk_actions.deactivate_consequences_intro")}</>,
+  impactTrail: <>{t("bulk_actions.deactivate_consequences_intro")}</>,
   titleKey: "bulk_actions.title_deactivate",
 });
 

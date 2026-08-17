@@ -14,7 +14,7 @@ import type {
   TextAnswer,
 } from "#shared/db/question-types.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
 export const findAnswerById = (
   question: QuestionWithAnswers,

@@ -10,7 +10,7 @@ import {
 import { dateToRange } from "#shared/db/capacity.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   BULK_COMPOSE_COPY,
   fixedControl,

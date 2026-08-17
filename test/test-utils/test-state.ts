@@ -122,9 +122,10 @@ const createTableSql = ([name, table]: SchemaEntry): string =>
 
 const createIndexSql = (tableName: string, idx: SchemaIndex): string => {
   const unique = idx.unique ? "UNIQUE " : "";
+  const where = idx.where === undefined ? "" : ` WHERE ${idx.where}`;
   return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
     ", ",
-  )})`;
+  )})${where}`;
 };
 
 const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;

@@ -2,12 +2,13 @@
 
 import { decrypt } from "#shared/crypto/encryption.ts";
 import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
-import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
+import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
 import {
   executeBatchWithResults,
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { orphanIdsBatch } from "#shared/db/orphan-attendees.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
@@ -22,7 +23,12 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
+import {
+  refundAuthorityPrunableSql,
+  refundAuthorityWorkSql,
+} from "#shared/payment/refund-authority-lifecycle.ts";
 import type { User } from "#shared/types.ts";
+import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
 type PruneStatement = SqlStatement;
 
@@ -54,6 +60,34 @@ const paymentStatement = (): PruneStatement => ({
            SELECT payment.rowid
              FROM processed_payments AS payment
             WHERE payment.processed_at < ?
+              -- A row with refund work on it is never pruned, however old it
+              -- is, and however long ago the claim was taken. The retention
+              -- window is measured from checkout, so a years-old booking
+              -- refunded this morning is already past it — and a claim that
+              -- outlives its run is exactly the case worth keeping: a keyless
+              -- refund whose answer was lost holds on deliberately, because
+              -- the row is the only record that money may already be on its
+              -- way back. Deleting it would take the reference index and the
+              -- returned-money marker with it, leaving a retry to send the
+              -- same payout again.
+              --
+              -- Keeping it strands nothing: a refund run's stale claim is
+              -- resumable by the next run for that attendee, and a stored
+              -- placeholder's held work is finished by webhook redelivery or
+              -- the attendee page's refresh route.
+              -- This reader cannot decrypt, so it routes on the mirrors.
+              AND payment.protected_state = ''
+              AND NOT EXISTS (
+                SELECT 1 FROM attendees AS attendee
+                 WHERE attendee.id = payment.attendee_id
+                   AND attendee.pii_payment_session_id = payment.payment_session_id
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM payment_charges AS charge
+                 WHERE charge.reference_index = payment.payment_reference_index
+                   AND ${refundAuthorityWorkSql("charge.")}
+              )
               AND (
                 payment.failure_data != ''
                 OR (
@@ -65,10 +99,9 @@ const paymentStatement = (): PruneStatement => ({
                        WHERE attendee.id = payment.attendee_id
                     )
                     OR EXISTS (
-                      SELECT 1 FROM transfers AS transfer
-                       WHERE transfer.kind = 'refund_cash'
-                         AND transfer.source_type = 'attendee'
-                         AND transfer.source_id = CAST(payment.attendee_id AS TEXT)
+                      SELECT 1 FROM payment_charges AS charge
+                       WHERE charge.reference_index = payment.payment_reference_index
+                         AND ${refundAuthorityPrunableSql("charge.")}
                     )
                   )
                 )
@@ -107,15 +140,6 @@ const pruneStatements = (): PruneStatement[] => [
   ),
 ];
 
-const ORPHAN_IDS = `SELECT attendee.id
-  FROM attendees AS attendee
- WHERE attendee.created < ?
-   AND NOT EXISTS (
-     SELECT 1 FROM listing_attendees AS booking
-      WHERE booking.attendee_id = attendee.id
-   )
- ORDER BY attendee.id LIMIT ?`;
-
 const orphanStatements = (): PruneStatement[] => {
   if (!settings.autoPurgeOrphans) return [];
   const args = [
@@ -123,10 +147,10 @@ const orphanStatements = (): PruneStatement[] => {
     MAINTENANCE_PRUNE_BATCH,
   ];
   return [
-    ...attendeeDependentDeleteStatements({ args, sql: ORPHAN_IDS }),
+    ...attendeeRemovalStatements({ args, sql: orphanIdsBatch() }),
     {
       args,
-      sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,
+      sql: `DELETE FROM attendees WHERE id IN (${orphanIdsBatch()})`,
     },
   ];
 };
@@ -142,7 +166,7 @@ type InvitePage = {
 const checkpointId = (checkpoint: string | null): number | null => {
   if (checkpoint === null) return null;
   const id = Number(checkpoint);
-  if (!Number.isSafeInteger(id) || id < 1) {
+  if (!isPositiveSafeInteger(id)) {
     throw new Error(`Invalid invite pruning checkpoint: ${checkpoint}`);
   }
   return id;

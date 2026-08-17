@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 import {
   type FetchCall,
   installMockFetch,
@@ -62,7 +62,7 @@ describeSquare(() => {
       );
 
       const client = await squareApi.getSquareClient();
-      // The client returns raw JSON — squareApi.refundPayment validates it
+      // The client returns raw JSON — squareApi.refundCharge validates it
       // with a Valibot schema at the boundary.
       const result = (await client!.refunds.refundPayment({
         amountMoney: { amount: BigInt(4250), currency: "GBP" },

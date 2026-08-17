@@ -13,8 +13,9 @@ import {
   getProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   expectStoredRefund,
   ledgeredPaymentWithoutReservation,
@@ -123,7 +124,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_deleted_listing";
     const { data, listing } = await singleListingPayment(id, 900);
     await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
-    using refund = stubRefundPayment("re_deleted");
+    using refund = stubRefundPayment("re_deleted", 900);
 
     const result = await processPaymentSession(id, data);
     expect(result).toEqual({
@@ -134,7 +135,9 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       status: 200,
       success: false,
     });
-    expect(refund.calls[0]?.args).toEqual([`pi_${id}`]);
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequestShape(`pi_${id}`, 900),
+    ]);
     expect(
       await queryOne<{ listing_id: number; quantity: number }>(
         "SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ?",

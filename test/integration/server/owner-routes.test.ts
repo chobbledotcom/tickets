@@ -13,6 +13,7 @@ describeWithEnv("server (owner-only route authorization)", { db: true }, () => {
     "/admin/api-keys",
     "/admin/backup",
     "/admin/debug",
+    "/admin/schema",
     "/admin/update",
     "/admin/questions",
     "/admin/sessions",

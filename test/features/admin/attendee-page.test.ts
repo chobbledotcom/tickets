@@ -7,49 +7,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
-import type { AuthSession } from "#routes/auth.ts";
+import { paymentRecoveryAction } from "#routes/admin/attendees-route-helpers.ts";
 import { setBookingLineQuantity } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-references.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
-
-const sessionAt = (adminLevel: AuthSession["adminLevel"]): AuthSession => ({
-  adminLevel,
-  token: "t",
-  userId: 1,
-  wrappedDataKey: null,
-});
-
-const OWNER = sessionAt("owner");
-const MANAGER = sessionAt("manager");
-
-/** One booked attendee to render the page against. */
-const bookAttendee = async (): Promise<number> => {
-  const listing = await createTestListing({});
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "Ada Lovelace",
-    "ada@example.com",
-  );
-  return attendee.id;
-};
-
-const renderTab = async (
-  id: number,
-  slug: string,
-  session: AuthSession = OWNER,
-): Promise<Response> =>
-  await withTestSession(() => attendeePage.renderPage(session, id, slug));
-
-const tabHtml = async (
-  id: number,
-  slug: string,
-  session: AuthSession = OWNER,
-): Promise<string> => await (await renderTab(id, slug, session)).text();
+import {
+  bookAttendee,
+  MANAGER,
+  OWNER,
+  renderTab,
+  tabHtml,
+} from "./attendee-page/helpers.ts";
 
 describeWithEnv("the attendee page", { db: true }, () => {
   describe("its URLs", () => {
@@ -59,6 +32,15 @@ describeWithEnv("the attendee page", { db: true }, () => {
       expect(attendeePage.path(7, "actions")).toBe(
         "/admin/attendees/7/actions",
       );
+    });
+
+    test("selects payment recovery URLs from the attendee action schema", () => {
+      const refresh = paymentRecoveryAction("refresh-payment");
+      const review = paymentRecoveryAction("payment-review");
+      expect(refresh.action).toBe("refresh-payment");
+      expect(refresh.url(7)).toBe("/admin/attendees/7/refresh-payment");
+      expect(review.action).toBe("payment-review");
+      expect(review.url(7)).toBe("/admin/attendees/7/payment-review");
     });
   });
 
@@ -78,8 +60,41 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("offers every tab the owner may open", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      for (const slug of ["edit", "logistics", "ledger", "activity", "actions"])
+      for (const slug of [
+        "edit",
+        "logistics",
+        "ledger",
+        "activity",
+        "actions",
+      ]) {
         expect(html).toContain(`/admin/attendees/${id}/${slug}`);
+      }
+    });
+
+    test("renders refresh for a complete provider-tagged payment", async () => {
+      const id = await bookAttendee();
+      await finalizeProcessedPayment("sess_page_refresh", id);
+
+      expect(await tabHtml(id, "")).toContain(
+        `action="/admin/attendees/${id}/refresh-payment"`,
+      );
+    });
+
+    test("explains provider-unknown history without rendering a dead refresh form", async () => {
+      const id = await bookAttendee();
+      await seedHistoricalProcessedPayment(
+        "sess_page_provider_unknown",
+        id,
+        "pi_page_provider_unknown",
+      );
+
+      const html = await tabHtml(id, "");
+      expect(html).toContain(
+        "This older payment does not record which provider took it",
+      );
+      expect(html).not.toContain(
+        `action="/admin/attendees/${id}/refresh-payment"`,
+      );
     });
   });
 
@@ -101,47 +116,6 @@ describeWithEnv("the attendee page", { db: true }, () => {
     });
   });
 
-  describe("the actions tab", () => {
-    test("sends the reader back to the tab they came from", async () => {
-      const id = await bookAttendee();
-      const html = await tabHtml(id, "actions");
-      // The return URL is threaded through as a query value, so the confirm
-      // page can come back to this exact tab.
-      expect(html).toContain(
-        `/admin/attendees/${id}/resend-notification?return_url=${encodeURIComponent(
-          `/admin/attendees/${id}/actions`,
-        )}`,
-      );
-    });
-
-    test("links a text message to this attendee on this listing", async () => {
-      const listing = await createTestListing({});
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Grace Hopper",
-        "grace@example.com",
-      );
-      const html = await tabHtml(attendee.id, "actions");
-      // The separator is escaped in the rendered attribute.
-      expect(html).toContain(
-        `/admin/sms?listing=${listing.id}&amp;attendee=${attendee.id}`,
-      );
-    });
-
-    test("offers deleting without a return URL, since there is nothing to come back to", async () => {
-      const id = await bookAttendee();
-      const html = await tabHtml(id, "actions");
-      expect(html).toContain(`/admin/attendees/${id}/delete"`);
-    });
-
-    test("does not offer a refund for an attendee who never paid", async () => {
-      const id = await bookAttendee();
-      const html = await tabHtml(id, "actions");
-      expect(html).not.toContain(`/admin/attendees/${id}/refund`);
-    });
-  });
-
   describe("the other tabs", () => {
     for (const slug of ["edit", "logistics", "activity"]) {
       test(`${slug} opens`, async () => {
@@ -153,34 +127,6 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("a tab that does not exist is not found", async () => {
       const response = await renderTab(await bookAttendee(), "nonsense");
       expect(response.status).toBe(404);
-    });
-  });
-
-  describe("a refund", () => {
-    test("is offered for an attendee who paid", async () => {
-      const listing = await createTestListing({});
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Paid Person",
-        "paid@example.com",
-        "pi_page_refund",
-      );
-      const html = await tabHtml(attendee.id, "actions");
-      expect(html).toContain(`/admin/attendees/${attendee.id}/refund`);
-      // Named, not just linked — the label is what the operator reads.
-      expect(html).toContain("Refund");
-    });
-  });
-
-  describe("deleting", () => {
-    test("is marked as the dangerous action it is", async () => {
-      const id = await bookAttendee();
-      const html = await tabHtml(id, "actions");
-      const deleteLink = html.slice(
-        0,
-        html.indexOf(`/admin/attendees/${id}/delete`),
-      );
-      expect(deleteLink.slice(-120)).toContain("danger");
     });
   });
 
@@ -287,24 +233,6 @@ describeWithEnv("the attendee page", { db: true }, () => {
       expect(html).toContain(
         `<a href="/admin/attendees/${id}/activity">See the full plain-English log on the Activity tab</a>`,
       );
-    });
-  });
-
-  describe("merging", () => {
-    test("looks up the ticket the caller named, and says when there is none", async () => {
-      const id = await bookAttendee();
-      const response = await withTestSession(() =>
-        attendeePage.renderPage(OWNER, id, "actions", {
-          query: new URLSearchParams({ token: "no-such-ticket" }),
-        }),
-      );
-      expect(await response.text()).toContain("Ticket token not found");
-    });
-
-    test("looks nothing up when the caller named no ticket", async () => {
-      const id = await bookAttendee();
-      const html = await tabHtml(id, "actions");
-      expect(html).not.toContain("Ticket token not found");
     });
   });
 });

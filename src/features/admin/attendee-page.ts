@@ -33,6 +33,10 @@ import {
 } from "#routes/admin/attendee-page-data.ts";
 import { loadMergePanel } from "#routes/admin/attendees-merge.ts";
 import {
+  attendeeActions,
+  paymentRecoveryAction,
+} from "#routes/admin/attendees-route-helpers.ts";
+import {
   type ActionDef,
   customSection,
   defineEntityPage,
@@ -42,13 +46,20 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
+import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import {
+  loadPaymentMoveSnapshot,
+  type PaymentMoveSnapshot,
+} from "#shared/db/payment-admit-move.ts";
+import type { RefundPaymentReferenceSet } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
+import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { isOwnerRole } from "#shared/types.ts";
 import {
@@ -62,41 +73,134 @@ import {
   attendeeSummaryRows,
   ContactHistory,
 } from "#templates/admin/attendee-page.tsx";
-import { PaymentDetails } from "#templates/admin/attendees.tsx";
+import {
+  PaymentDetails,
+  type PaymentRefreshControl,
+} from "#templates/admin/attendees.tsx";
+
+type AttendeePageEntity = LoadedAttendee & {
+  readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
+};
+
+const refreshPaymentAction = paymentRecoveryAction("refresh-payment");
+
+/** Turn the canonical reference set into one renderable recovery control. */
+const paymentRefreshControl = (
+  attendeeId: number,
+  references: RefundPaymentReferenceSet,
+): PaymentRefreshControl => {
+  if (references.kind !== "complete") {
+    return {
+      kind: "unavailable",
+      message: refundReferenceProblemMessage(references),
+    };
+  }
+  return references.references.length === 0
+    ? { kind: "none" }
+    : { kind: "available", url: refreshPaymentAction.url(attendeeId) };
+};
+
+/** Payment move state is loaded only for the Actions tab. */
+const loadAttendeePageEntity = async (
+  id: number,
+): Promise<AttendeePageEntity | null> => {
+  const entity = await loadAttendeeForEdit(id);
+  return entity === null ? null : { ...entity, paymentMove: "not_loaded" };
+};
 
 /** The attendee-scoped action routes live under the entity's own base. */
-const actionBase = ({ attendee }: LoadedAttendee): string =>
+const actionBase = ({ attendee }: AttendeePageEntity): string =>
   `/admin/attendees/${attendee.id}`;
 
 /** Thread the current tab back through a sub-action's confirm page. */
 const withReturn = (href: string, ctx: PageCtx): string =>
   `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
 
+type AttendeeActionName = keyof typeof attendeeActions;
+type ActionVisibility = NonNullable<ActionDef<AttendeePageEntity>["visible"]>;
+const alwaysAllow: ActionVisibility = (): boolean => true;
+
+/** Whether this attendee still has a real booking target. */
+const hasBooking = ({ existing }: AttendeePageEntity): boolean =>
+  existing.some(({ booking }) => booking.quantity > 0);
+
+/** Gate a rendered link with the same scope schema as its target route. */
+const actionWhen =
+  (
+    action: AttendeeActionName,
+    allowed: ActionVisibility = alwaysAllow,
+  ): ActionVisibility =>
+  (entity, session) =>
+    attendeeActions[action].isAvailable(hasBooking(entity)) &&
+    allowed(entity, session);
+
+/** Show an owner action for one named durable payment state. */
+const ownerPaymentStatusWhen =
+  (status: PaymentWorkStatus, allowed: ActionVisibility): ActionVisibility =>
+  (entity, session) =>
+    isOwnerRole(session.adminLevel) &&
+    entity.paymentMove !== "not_loaded" &&
+    entity.paymentMove.work.status === status &&
+    allowed(entity, session);
+
+/** Gate an attendee route on its action scope and durable payment state. */
+const ownerPaymentWhen = (
+  action: AttendeeActionName,
+  status: PaymentWorkStatus,
+  allowed: ActionVisibility = alwaysAllow,
+): ActionVisibility =>
+  actionWhen(action, ownerPaymentStatusWhen(status, allowed));
+
+/** Build one attendee-scoped confirmation action. */
+const attendeeAction = (
+  segment: string,
+  config: Omit<ActionDef<AttendeePageEntity>, "href">,
+): ActionDef<AttendeePageEntity> => ({
+  ...config,
+  href: (entity, ctx) => withReturn(`${actionBase(entity)}/${segment}`, ctx),
+});
+
 /** The Actions tab entries. Every `visible` mirrors its target's own gate. */
-const ATTENDEE_ACTIONS: readonly ActionDef<LoadedAttendee>[] = [
-  {
-    href: (entity, ctx) => withReturn(`${actionBase(entity)}/refund`, ctx),
+const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
+  attendeeAction("refund", {
     icon: "credit-card",
     labelKey: "attendee_form.action_refund",
-    visible: ({ canRefund }) => canRefund,
-  },
+    visible: ownerPaymentWhen("refund", "clear", ({ canRefund }) => canRefund),
+  }),
+  attendeeAction("payment-review", {
+    icon: "check",
+    labelKey: "attendee_form.action_payment_review",
+    visible: ownerPaymentWhen("payment-review", "needs_review"),
+  }),
   {
-    href: (entity, ctx) =>
-      withReturn(`${actionBase(entity)}/resend-notification`, ctx),
+    href: () => "/admin/privacy#refund-recovery",
+    icon: "rotate-ccw",
+    labelKey: "attendee_form.action_refund_recovery",
+    visible: ownerPaymentStatusWhen("needs_provider_recovery", alwaysAllow),
+  },
+  attendeeAction("resend-notification", {
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_resend",
-  },
+    visible: actionWhen("resend-notification"),
+  }),
   {
     href: ({ attendee }) =>
       `/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`,
     icon: "arrow-right",
     labelKey: "attendee_form.action_send_text",
+    visible: actionWhen("send-text"),
   },
   {
     danger: true,
     href: (entity) => `${actionBase(entity)}/delete`,
     icon: "trash-2",
     labelKey: "attendee_form.action_delete",
+    visible: actionWhen(
+      "delete",
+      ({ paymentMove }) =>
+        paymentMove !== "not_loaded" &&
+        paymentMove.admission.delete.kind === "available",
+    ),
   },
 ];
 
@@ -125,7 +229,7 @@ const loadEditPanel = async (
 };
 
 /** The Overview tab's sections. */
-const overviewTab: TabDef<LoadedAttendee> = {
+const overviewTab: TabDef<AttendeePageEntity> = {
   labelKey: "entity.tab.overview",
   sections: [
     {
@@ -162,10 +266,11 @@ const overviewTab: TabDef<LoadedAttendee> = {
     }),
     {
       kind: "custom",
-      load: ({ attendee }, ctx) =>
+      load: ({ attendee, paymentReferences }, ctx) =>
         Promise.resolve(
           PaymentDetails({
             attendee,
+            refresh: paymentRefreshControl(attendee.id, paymentReferences),
             // The balance link targets the owner-only Ledger tab, so it
             // must only render for owners (never render a forbidden link).
             showBalanceLink: ctx.session.adminLevel === "owner",
@@ -197,7 +302,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
 };
 
 /** The tabbed attendee page. */
-export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
+export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   banner: async ({ attendee }, ctx) =>
     attendeeBanner({
       attendee,
@@ -210,7 +315,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     }),
   basePath: (id) => `/admin/attendees/${id}`,
   guard: requireSessionOr,
-  load: (id) => loadAttendeeForEdit(id),
+  load: (id) => loadAttendeePageEntity(id),
   // A single attendee is a page *within* the Attendees section: highlight the
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
   navActive: { section: "/admin/attendees" },
@@ -220,8 +325,12 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     ),
   tabs: [
     overviewTab,
-    writeFormTab("edit", "entity.tab.edit", loadEditPanel),
-    writeFormTab("logistics", "entity.tab.logistics", loadLogisticsPanel),
+    writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),
+    writeFormTab<AttendeePageEntity>(
+      "logistics",
+      "entity.tab.logistics",
+      loadLogisticsPanel,
+    ),
     {
       labelKey: "entity.tab.ledger",
       sections: [
@@ -258,6 +367,10 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         {
           actions: ATTENDEE_ACTIONS,
           kind: "actions",
+          prepare: async (entity) => ({
+            ...entity,
+            paymentMove: await loadPaymentMoveSnapshot([entity.attendee.id]),
+          }),
           titleKey: "entity.tab.actions",
         },
         {

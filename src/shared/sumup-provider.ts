@@ -19,6 +19,14 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
+  type RefundAttemptResult,
+  refundOutcomeAfterReread,
+} from "#shared/payment/refund-attempt.ts";
+import {
+  type AuthorizedRefundRequest,
+  requireProviderRefundAuthorization,
+} from "#shared/payment/refund-provider-authorization.ts";
+import {
   isSessionRejection,
   type SessionRejection,
   validatedPaymentSession,
@@ -38,6 +46,7 @@ import type {
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { readSumupCharge, sumupRefundOutcome } from "#shared/sumup/money.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import type {
   SumupCheckout,
@@ -84,6 +93,7 @@ const buildValidatedSession = (
     metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
+    provider: "sumup",
   });
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
@@ -100,14 +110,31 @@ export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
   createCheckoutSession: createSumupCheckoutSession,
 
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    return (
-      (await sumupApi.getTransactionStatus(paymentReference)) === "REFUNDED"
-    );
-  },
+  readCharge: readSumupCharge,
+  refundCapability: "keyless",
 
-  refundPayment(paymentReference: string): Promise<boolean> {
-    return sumupApi.refundTransaction(paymentReference);
+  async refundCharge(
+    request: AuthorizedRefundRequest,
+  ): Promise<RefundAttemptResult> {
+    requireProviderRefundAuthorization(request, "sumup");
+    const submission = await sumupApi.refundTransaction(
+      request.paymentReference,
+    );
+    if (submission.kind === "not_sent") return submission;
+
+    // The immediate answer never outranks fresh money evidence: a rejected
+    // request can race a refund made in the dashboard, while a successful or
+    // uncertain call carries no conclusive refund facts of its own.
+    const freshRead = await sumupPaymentProvider.readCharge(
+      request.paymentReference,
+    );
+    return submission.kind === "rejected"
+      ? refundOutcomeAfterReread({
+          attempt: submission,
+          freshCharge: freshRead,
+          request,
+        })
+      : sumupRefundOutcome(submission, request, freshRead);
   },
   requiresWebhookSignature: false,
 

@@ -32,6 +32,7 @@ import { getEnv } from "#shared/env.ts";
 import { namedError } from "#shared/named-error.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
+import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
 
 /**
  * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
@@ -268,10 +269,37 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
   }
 }
 
-/** Backoff before each retry of a transient database failure — a contended
- *  write lock on any statement, or a fleeting upstream gateway error on a read;
- *  its length is the number of retries, so four attempts in total. */
+/** Backoff before each retry of a transient remote-database failure — a
+ *  contended write lock on any statement, or a fleeting upstream gateway error
+ *  on a read. The ladder stays short: an edge request must answer fast when
+ *  the database server is genuinely busy. Its length is the number of retries,
+ *  so four attempts in total. */
 const TRANSIENT_ERROR_BACKOFF_MS = [50, 150, 350] as const;
+
+/** Backoff for a file database (tests and local dev). Its write lock is held
+ *  by another connection inside this same process, so the winning move is to
+ *  keep yielding until that holder's next event-loop turn commits: under a
+ *  CPU-starved parallel test run an ordinary transaction can hold the lock
+ *  for around a second — past the whole remote ladder — and giving up then
+ *  turns one slow scheduler pass into a busy answer nothing retries. The
+ *  ladder's total stays under Cucumber's five-second step budget, so a
+ *  retried write slows a story instead of timing it out. */
+const FILE_TRANSIENT_ERROR_BACKOFF_MS = [
+  ...TRANSIENT_ERROR_BACKOFF_MS,
+  700,
+  1400,
+] as const;
+
+/** The retry ladder for the database this process actually talks to. */
+const transientErrorBackoffMs = (): readonly number[] =>
+  getEnv("DB_URL")?.startsWith("file:")
+    ? FILE_TRANSIENT_ERROR_BACKOFF_MS
+    : TRANSIENT_ERROR_BACKOFF_MS;
+
+/** Most physical database attempts made for one retryable operation on the
+ *  remote database — the number the edge subrequest budgets are sized from. A
+ *  file database retries longer, where no subrequest budget binds. */
+export const DATABASE_MAX_ATTEMPTS = TRANSIENT_ERROR_BACKOFF_MS.length + 1;
 
 /** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
  *  thrown immediately by the local driver as "database is locked" when a bare
@@ -330,7 +358,7 @@ const retryOnTransientDatabaseError = <T>(
   run: () => Promise<T>,
   { retryUpstream }: { retryUpstream: boolean },
 ): Promise<T> =>
-  retryWithBackoff(run, TRANSIENT_ERROR_BACKOFF_MS, (error, { willRetry }) => {
+  retryWithBackoff(run, transientErrorBackoffMs(), (error, { willRetry }) => {
     if (retryUpstream && isTransientUpstreamError(error)) return;
     if (!isDatabaseLocked(error)) throw error;
     if (!willRetry) throw new DatabaseBusyError();
@@ -402,8 +430,9 @@ const requireQueryRow = async <T>(
   label: string,
 ): Promise<T> => {
   const found = await row;
-  if (found === null)
+  if (found === null) {
     throw new Error(`${label} query returned no rows: ${sql}`);
+  }
   return found;
 };
 
@@ -741,6 +770,13 @@ const runWriteTransactionOnce = async <T>(
  *  A `const` holder (not a module-level `let`) carries the mutable tail. */
 const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
 
+/** A write transaction never starts without room to close itself on failure. */
+const TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE = {
+  database: 1,
+  external: 0,
+  total: 1,
+};
+
 /**
  * Run `work` inside one interactive write transaction, committing on success
  * and rolling back (then rethrowing) on any error. Use this rather than a plain
@@ -766,12 +802,18 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   // own caller's concern), then run, retrying a contended lock on a fresh tx.
   const run = (async (): Promise<T> => {
     await writeQueue.tail.catch(() => undefined);
-    return retryOnTransientDatabaseError(() => runWriteTransactionOnce(work), {
-      // A transaction holds writes: an upstream failure at begin or commit may
-      // arrive after they landed, so a retried transaction would replay them.
-      // Only retry lock contention, which never ran anything.
-      retryUpstream: false,
-    });
+    return retryOnTransientDatabaseError(
+      () =>
+        withSubrequestReserve(TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE, () =>
+          runWriteTransactionOnce(work),
+        ),
+      {
+        // A transaction holds writes: an upstream failure at begin or commit
+        // may arrive after they landed, so a retried transaction would replay
+        // them. Only retry lock contention, which never ran anything.
+        retryUpstream: false,
+      },
+    );
   })();
   writeQueue.tail = run;
   return run;
@@ -811,7 +853,9 @@ export const insertedRowId = (
   const id = resultRows<Record<string, unknown>>(result)[0]?.[primaryKey];
   if (typeof id === "number" && Number.isInteger(id) && id > 0) return id;
   throw new Error(
-    `INSERT did not return the ${primaryKey} of the row it wrote (got ${JSON.stringify(id)})`,
+    `INSERT did not return the ${primaryKey} of the row it wrote (got ${JSON.stringify(
+      id,
+    )})`,
   );
 };
 
@@ -847,6 +891,18 @@ type RawSql = { [RAW_SQL]: string };
 
 /** Embed a raw SQL expression (e.g. `last_insert_rowid()`) */
 export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
+
+/**
+ * Rewrite a built INSERT as `INSERT OR IGNORE`, so a row whose unique key is
+ * already stored is dropped instead of raising a constraint error. This is
+ * the once-only latch resumable flows lean on: a replayed write re-derives
+ * the same key and lands nowhere. It silences every conflict on the
+ * statement, so use it only where the unique key IS the idempotency rule.
+ */
+export const orIgnore = (statement: SqlStatement): SqlStatement => ({
+  args: [...statement.args],
+  sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
+});
 
 /**
  * Build an INSERT statement from a table name and column→value record.

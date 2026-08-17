@@ -2,7 +2,6 @@ import { committedEntries } from "#routes/api/payment-processing/committed-entri
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
-import { refundSpec } from "#routes/api/payment-processing/refunds.ts";
 import {
   type placeholderBookings,
   storeRefundedBooking,
@@ -16,6 +15,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
 import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
+import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
 
 type UnexpectedCreateRecovery = {
   complete: (
@@ -96,7 +96,7 @@ export const recoverOrRefundUnexpectedCreate = async ({
     session,
     intent,
     placeholders,
-    refundSpec("unexpected_error")(
+    placeholderRefund("unexpected_error")(
       `Unexpected error completing session ${session.id}: ${String(error)}`,
     ),
     publicStatusId,

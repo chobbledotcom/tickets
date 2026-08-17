@@ -136,6 +136,7 @@ describeWithEnv(
             }),
             paymentReference: "pi_no_listing_id",
             paymentStatus: "paid" as const,
+            provider: "stripe" as const,
           }),
       );
 

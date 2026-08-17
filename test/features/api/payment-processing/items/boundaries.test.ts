@@ -19,7 +19,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { nonStandalonePair, packageParentOrder } from "./helpers.ts";
 
 const pricesFor = async (
@@ -74,7 +74,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       unitPrice: 400,
     });
     const intent = bookingIntent([{ e: listing.id, p: 400, q: 1 }]);
-    using refund = stubRefundPayment("re_items_single_closed");
+    using refund = stubRefundPayment("re_items_single_closed", 400);
 
     expect(
       await validateAllItems(
@@ -94,7 +94,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
   test("names a closed member in a visible package", async () => {
     await setupStripe();
     const { intent } = await closedPackage("Visible", "Closed member");
-    using refund = stubRefundPayment("re_items_visible_closed");
+    using refund = stubRefundPayment("re_items_visible_closed", 800);
 
     expect(
       await validateAllItems(
@@ -129,7 +129,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
         ),
       },
     };
-    using refund = stubRefundPayment("re_items_missing_package");
+    using refund = stubRefundPayment("re_items_missing_package", 800);
 
     expect(
       await validateSnapshotItems(session, intent, snapshot),

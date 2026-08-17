@@ -7,7 +7,10 @@
  * note. A balance session settles the existing attendee instead of creating one.
  */
 
+import type { ResultSet } from "@libsql/client";
+/* jscpd:ignore-start -- imports */
 import {
+  type AttendeeBaseFields,
   attendeeBaseFields,
   bookingSlot,
   type HonourResult,
@@ -16,12 +19,12 @@ import {
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
-  type RefundCode,
-  type RefundSpec,
+  finishPlaceholderRefund,
+  storedPlaceholderOutcome,
+} from "#routes/api/payment-processing/placeholder-resume.ts";
+import {
+  prepareSessionRefundAuthority,
   refundAndFail,
-  refundedNoteText,
-  refundSpec,
-  tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
   PaymentFailureResult,
@@ -29,30 +32,39 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
+import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import type { PreparedSessionFailure } from "#shared/db/processed-payments.ts";
+import { prepareSessionFailure } from "#shared/db/processed-payments.ts";
+import { ErrorCode, type ErrorCodeType } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+  type RefundAlert,
+  type RefundCode,
+} from "#shared/payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { requireValue } from "#shared/required-value.ts";
+
+/* jscpd:ignore-end */
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
   "The outstanding balance for this booking changed while you were paying.";
 
-/**
- * User-facing message when a signed-by-us payment can't be honoured (price
- * changed, charge mismatch, sold out, or an unexpected error) so the booking is
- * kept and refunded. The refund clause is appended by formatPaymentError (or the
- * refund-pending suffix below), so this just covers "we saved your details".
- */
-const BOOKING_SAVED_MESSAGE =
-  "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
+const REFUND_ALERT_CODES: Record<RefundAlert, ErrorCodeType> = {
+  payment_session: ErrorCode.PAYMENT_SESSION,
+  webhook_price_signature: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+};
 
 /** The quantity-0, money-free booking lines for a stored-but-refunded placeholder
  *  — one per validated item, carrying the listing's current date range so the
@@ -118,7 +130,7 @@ export const settleBalanceSession = async (
       sessionId,
       attendeeId,
       expectedAmount,
-      session.paymentReference,
+      paidPaymentReferenceOf(session),
     ),
   );
   if (!settled.settled) {
@@ -144,75 +156,141 @@ export const settleBalanceSession = async (
  * payment, record the cash round-trip in the ledger (a `payment` + `refund_cash`
  * with NO `sale` leg, so the placeholder recognises no revenue and its projected
  * price_paid stays 0), and flag the attendee with a plain-language system note
- * carrying the reason and the provider's payment reference. The customer is told
- * their details were saved and the payment refunded; no ticket is issued.
+ * carrying a non-sensitive reason code. The provider reference stays in
+ * owner-key payment storage. The customer is told their details were saved and
+ * the payment refunded; no ticket is issued.
  *
  * We never report `refunded: false`. The booking now exists, so a retry must NOT
  * re-create it — an un-refunded payment is recorded as a terminal, operator-
  * resolved outcome (the note's manual-refund instruction stands) rather than
  * released for re-processing.
  */
+/** The claimed anchor a stored placeholder hands back for its follow-up
+ * money work. */
+type ClaimedPlaceholderAnchor = Awaited<
+  ReturnType<
+    Awaited<
+      ReturnType<typeof prepareClaimedAttendeePaymentAnchor>
+    >["forAttendee"]
+  >
+>;
+
+/**
+ * Store the quantity-0 ghost with its claimed anchor, provenance, terminal
+ * outcome, and any extra statement, in one transaction. A quantity-0
+ * overbook insert has no capacity gate and consumes no modifier stock, so
+ * it always writes the row — trust it. (If the PII can't encrypt the whole
+ * system is broken; we don't defend against that.) The caller does its
+ * money work afterwards and then settles the anchor's born claim.
+ */
+export const storeClaimedPlaceholder = async (config: {
+  readonly bookings: PlaceholderBookings;
+  readonly extra?: {
+    readonly require: (result: ResultSet) => void;
+    readonly statement: SqlStatement;
+  };
+  readonly fields: AttendeeBaseFields;
+  readonly paymentReference: TaggedPaymentReference;
+  readonly sessionFailure: PreparedSessionFailure;
+  readonly sessionId: string;
+  /** Set when the money already came back before this store, so the row is
+   * born saying the books have not caught up yet. */
+  readonly unrecordedAt?: string;
+}): Promise<{
+  readonly attendeeId: number;
+  readonly claimedAnchor: ClaimedPlaceholderAnchor;
+}> => {
+  const paymentAnchor = await prepareClaimedAttendeePaymentAnchor(
+    config.paymentReference,
+    config.unrecordedAt,
+  );
+  const anchorWritten = Promise.withResolvers<ClaimedPlaceholderAnchor>();
+  const stored = await attendeesApi.createAttendeeAtomic(
+    { ...config.fields, allowOverbook: true, bookings: config.bookings },
+    async (tx, attendeeId) => {
+      const claimedAnchor = await paymentAnchor.forAttendee(attendeeId);
+      const results = await tx.batch([
+        claimedAnchor.statement,
+        attendeePaymentProvenance.statement(claimedAnchor.sessionId),
+        ...(config.extra === undefined ? [] : [config.extra.statement]),
+        config.sessionFailure.statement,
+      ]);
+      // Positional results, named at the boundary: the anchor write comes
+      // first, then provenance, the optional extra, and the terminal last.
+      attendeePaymentProvenance.require(
+        requireValue(
+          results[1],
+          "Placeholder provenance write returned no result",
+        ),
+        claimedAnchor.sessionId,
+      );
+      if (config.extra !== undefined) {
+        config.extra.require(
+          requireValue(
+            results[2],
+            "Placeholder extra write returned no result",
+          ),
+        );
+      }
+      const terminalized = requireValue(
+        results[results.length - 1],
+        "Placeholder terminal write returned no result",
+      );
+      if (terminalized.rowsAffected !== 1) {
+        throw new Error(
+          `Payment session lost its reservation before placeholder creation: ${config.sessionId}`,
+        );
+      }
+      anchorWritten.resolve(claimedAnchor);
+    },
+  );
+  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
+    .attendees[0]!.id;
+  return { attendeeId, claimedAnchor: await anchorWritten.promise };
+};
+
 export const storeRefundedBooking = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   bookings: PlaceholderBookings,
-  spec: RefundSpec,
+  spec: PlaceholderRefund,
   publicStatusId: number,
 ): Promise<PaymentFailureResult> => {
-  if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
+  if (spec.alert) addPendingWork(sendNtfyError(REFUND_ALERT_CODES[spec.alert]));
   const listingId = bookings[0]!.listingId;
-  // A quantity-0 overbook insert has no capacity gate and consumes no modifier
-  // stock, so it always writes the row — trust it. (If the PII can't encrypt the
-  // whole system is broken; we don't defend against that.)
-  const stored = await attendeesApi.createAttendeeAtomic({
-    ...attendeeBaseFields(session, intent, publicStatusId),
-    allowOverbook: true,
+  const paymentReference = paidPaymentReferenceOf(session);
+  const [sessionFailure, refundAuthority] = await Promise.all([
+    prepareSessionFailure(session.id, storedPlaceholderOutcome(spec, false)),
+    prepareSessionRefundAuthority(session),
+  ]);
+  const { attendeeId, claimedAnchor } = await storeClaimedPlaceholder({
     bookings,
-  });
-  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
-    .attendees[0]!.id;
-  const refunded = await tryRefund(session.paymentReference, listingId);
-  await recordPlaceholderRefund(
-    {
-      amount: session.amountTotal,
-      attendeeId,
-      eventId: session.id,
-      listingId,
-      occurredAt: businessTime(session),
+    extra: {
+      require: (result) => refundAuthority.requireResult(result),
+      statement: refundAuthority.statement,
     },
-    spec.code,
-    refunded,
-  );
-  if (refunded) {
-    await logActivity(
-      `Automatic refund (${spec.code}); booking kept at quantity 0`,
-      listingId,
-      attendeeId,
-    );
-  } else {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
-      listingId,
-    });
-  }
-  await createSystemNote(
-    attendeeNotes(attendeeId),
-    refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
-  );
-  // Status 200: a fully-handled terminal outcome (booking kept, money returned or
-  // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
-  // refund retry — the booking exists, so a retry can't re-create it), and the
-  // customer sees an informational "saved your details" message.
-  return {
-    detail: spec.detail,
-    error: refunded
-      ? BOOKING_SAVED_MESSAGE
-      : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
-    ...(refunded ? { refunded: true } : {}),
-    status: 200,
-    success: false,
-  };
+    fields: attendeeBaseFields(
+      session.paymentReference,
+      intent,
+      publicStatusId,
+    ),
+    paymentReference,
+    sessionFailure,
+    sessionId: session.id,
+  });
+  // Status 200: a fully-handled terminal outcome (booking kept, money
+  // returned or flagged). The webhook acks it (never the 409 transient-lock
+  // retry nor a 503 refund retry — the booking exists, so a retry can't
+  // re-create it), and the customer sees a "saved your details" message.
+  return finishPlaceholderRefund(session, {
+    attendeeId,
+    listingId,
+    occurredAt: businessTime(session),
+    referenceIndexes: [await paymentReferenceIndex(paymentReference)],
+    sessionId: session.id,
+    settlement: claimedAnchor.settlement,
+    spec,
+  });
 };
 
 /** The refund reason code for each way a booking we tried can fail. */
@@ -228,5 +306,5 @@ const FAILURE_REFUND_CODES: Record<
 /** The placeholder refund reason for a booking we tried but couldn't honour. */
 export const specForFailure = (
   failure: Extract<HonourResult, { ok: false }>,
-): RefundSpec =>
-  refundSpec(FAILURE_REFUND_CODES[failure.reason])(failure.detail);
+): PlaceholderRefund =>
+  placeholderRefund(FAILURE_REFUND_CODES[failure.reason])(failure.detail);

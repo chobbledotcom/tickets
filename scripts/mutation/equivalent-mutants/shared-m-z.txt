@@ -1,26 +1,20 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
 
-# webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
+# payment-success.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
 # string|undefined; for "" both ?? "" and || "" yield "".
-src/features/api/webhooks.ts::singleListingThankYou~0cl1whb  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
-# webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
+# payment-success.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
-src/features/api/webhooks.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/payment-success.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
 src/features/api/webhooks.ts::getWebhookSignatureHeader~09vhuo6  ?? → ||   # find(Boolean) → undefined|truthy; never ""
 src/features/api/webhooks.ts::authenticateWebhook.signature~0pl7bfz  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
-
-# require-provider.ts: getPaymentProviderForExistingPayments() returns
-# Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
-# always truthy when present.
-src/features/admin/require-provider.ts::requirePaymentProvider~0y5apey  ?? → ||   # PaymentProvider|null; never falsy-but-non-null
 
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
@@ -39,6 +33,11 @@ src/shared/webhook/delivery.ts::sendRegistrationNotifications~166dat4  0 → 1  
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → ||   # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → &&   # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → ||   # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+
+# admit-move.ts declares every lifecycle rank in the closed 0/1/2 order.
+# Array.sort observes only the comparator's sign, so subtraction and division
+# give the same ordering for every pair the table can construct.
+src/shared/payment/admit-move.ts::WORST_FIRST~1pf7lh6  - → /   # closed positive ranks 0/1/2 preserve the same comparator sign
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -184,11 +183,6 @@ src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
 
-# Attendee merge service (attendee-merge.ts) — targetByKey lookup
-# `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
-# ListingAttendeeRow object (always truthy); ?? and || agree on both.
-src/shared/merge/attendee-merge.ts::buildBookingDiffItems.tb~0xvtq6y  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
-
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
 # caller and it destructures ONLY `piiFieldsFromSource` from the return,
@@ -235,6 +229,10 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this chang
 
 # SumUp client: values that are never falsy apart from null.
 
+# Square session retrieval returns either an object or null. Objects are
+# truthy, so null is the only value for which either operator takes "skip".
+src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
+
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished
@@ -256,3 +254,10 @@ src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true   # 
 src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0   # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
+
+src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.facts is an array when present, and arrays are always truthy
+# row-state.ts: the sorted-ids check's message. Both stored-JSON surfaces
+# discard valibot issue text on purpose (a stored value could carry private
+# data), so no caller, page, or log can ever see this string — no input
+# distinguishes it from "".
+src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → ""   # issue text is discarded by the stored-JSON wrapper; unobservable through any surface

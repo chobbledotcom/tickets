@@ -1,211 +1,263 @@
-import { chunk } from "#fp";
-import {
-  markPaymentReferencesProviderRefunded,
-  type RefundPaymentReference,
-} from "#shared/db/payment-references.ts";
+/* jscpd:ignore-start -- imports */
+import { requiredMapValue } from "#fp";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import type { getActivePaymentProvider } from "#shared/payments.ts";
-import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
-import type { RefundCandidate } from "./candidates.ts";
+import { withDeferredErrorReports } from "#shared/logger.ts";
 import {
-  combineRefundOutcomes,
-  packByReferenceCount,
-  type RefundOutcome,
-} from "./waves.ts";
+  type RefundAuthorityReceipt,
+  recordProviderRefunds,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
+import { recordAttendeeRefundsBatch } from "#shared/refund-ledger/record.ts";
+import type { CandidateRefund } from "./attempt.ts";
+import {
+  type AuthorityBearingReference,
+  recordedRefundAuthorities,
+} from "./authority.ts";
+import { REFUND_BUDGET_MESSAGES, type RefundBudgetAudience } from "./budget.ts";
+import type { RefundCandidate } from "./candidates.ts";
+import { durableRowClaim, type RowClaim, type RunFindings } from "./claim.ts";
+import { dispatchRefundBatch } from "./dispatch.ts";
+import {
+  applyRefundLedgerFindings,
+  rememberFailedRefundLedger,
+} from "./ledger-findings.ts";
+import {
+  prepareRefundReadiness,
+  type ReadyRefundCandidate,
+} from "./readiness.ts";
+import { runRefundReadiness } from "./readiness-run.ts";
+import { reportRefundProblem } from "./report.ts";
+import { rememberCandidateFindings } from "./result-findings.ts";
+import type { RefundOutcome } from "./waves.ts";
 
-type RefundProvider = Pick<
-  NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  "isPaymentRefunded" | "refundPayment"
->;
-type MarkReturnedReferences = (
-  references: readonly RefundPaymentReference[],
-) => Promise<void>;
+/* jscpd:ignore-end */
+
+type RecordRefunds = typeof recordAttendeeRefundsBatch;
+type TaggedRefundReference =
+  ReadyRefundCandidate["references"][number]["reference"];
 
 export type RefundCounts = {
   refundedCount: number;
+  /** The provider accepted the refund but has not proved it completed. */
+  pendingCount: number;
   failedCount: number;
-  errorCount: number;
+  /** The money went back and the ledger could not record it. */
+  notRecordedCount: number;
 };
 
-/** Max provider refund subrequests in flight at once. Bounds concurrency by
- * charge reference, not attendee: an attendee can carry several references (a
- * deposit plus a balance charge, or a merged attendee's combined charges), so
- * capping attendees alone could still fan a bulk refund out to far more
- * subrequests than an edge worker can safely hold open. Waves are packed by
- * reference count and each candidate's own references are chunked to this too.
- * The refresh-payment status check reuses it to bound its own fan-out. */
-export const PROVIDER_REFUND_CONCURRENCY = 5;
+/** A batch either ran and has per-attendee tallies, or never started because
+ *  another live refund owns part of its complete set. */
+export type RefundBatchResult =
+  | { kind: "blocked"; reason: "refund_in_progress" }
+  | { counts: RefundCounts; kind: "finished" }
+  | {
+      counts: RefundCounts;
+      kind: "not_ready";
+      message: string;
+      reason?: "subrequest_budget";
+    };
 
-const refundReferenceAtProvider = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
-  listingId: number,
-  reference: RefundPaymentReference,
-): Promise<RefundOutcome> => {
-  const attendeeId = candidate.attendee.id;
-  const paymentReference = reference.reference;
-  try {
-    if (reference.refundState === "completed") return "refunded";
-    if (await provider.refundPayment(paymentReference)) return "refunded";
-    if (await provider.isPaymentRefunded(paymentReference)) return "refunded";
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
-      listingId,
-    });
-    return "failed";
-  } catch (err) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund errored for attendee ${attendeeId}, payment ${paymentReference}: ${String(
-        err,
-      )}`,
-      listingId,
-    });
-    return "errored";
-  }
-};
+const noRefunds = (failedCount = 0): RefundCounts => ({
+  failedCount,
+  notRecordedCount: 0,
+  pendingCount: 0,
+  refundedCount: 0,
+});
 
-export const refundCandidateAtProvider = async (
-  provider: RefundProvider,
-  candidate: RefundCandidate,
-  listingId: number,
-  markReturnedReferences: MarkReturnedReferences = markPaymentReferencesProviderRefunded,
-): Promise<{ candidate: RefundCandidate; outcome: RefundOutcome }> => {
-  const results: {
-    outcome: RefundOutcome;
-    reference: RefundPaymentReference;
-  }[] = [];
-  // Chunk this attendee's own references so a merged attendee carrying many
-  // charges never fans out past the concurrency budget on its own.
-  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)(
-    candidate.references,
-  )) {
-    const groupResults = await Promise.all(
-      group.map(async (reference) => ({
-        outcome: await refundReferenceAtProvider(
-          provider,
-          candidate,
-          listingId,
-          reference,
-        ),
-        reference,
-      })),
-    );
-    results.push(...groupResults);
-  }
-  const outcome = combineRefundOutcomes(
-    results.map((result) => result.outcome),
-  );
-  const returnedReferences = results
-    .filter((result) => result.outcome === "refunded")
-    .map((result) => result.reference);
-  try {
-    await markReturnedReferences(returnedReferences);
-  } catch (error) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund could not record returned payments for attendee ${candidate.attendee.id}: ${String(
-        error,
-      )}`,
-      listingId,
-    });
-    if (outcome !== "refunded") return { candidate, outcome: "errored" };
-  }
-  if (outcome !== "refunded" && candidate.references.length > 1) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin refund did not complete every payment for attendee ${candidate.attendee.id}`,
-      listingId,
-    });
-  }
-  return { candidate, outcome };
-};
+const finished = (counts: RefundCounts): RefundBatchResult => ({
+  counts,
+  kind: "finished",
+});
+
+const notReady = (
+  counts: RefundCounts,
+  message: string,
+  reason?: "subrequest_budget",
+): RefundBatchResult => ({
+  counts,
+  kind: "not_ready",
+  message,
+  ...(reason === undefined ? {} : { reason }),
+});
 
 const logBulkRefundProblem = (
-  outcome: Exclude<RefundOutcome, "refunded">,
-  candidate: RefundCandidate,
+  outcome: Extract<RefundOutcome, "failed">,
+  candidate: ReadyRefundCandidate,
   listingId: number,
 ): void => {
-  const refs = candidate.references
-    .map((reference) => reference.reference)
-    .join(", ");
-  logError({
-    code: ErrorCode.PAYMENT_REFUND,
-    detail: `Admin bulk refund ${outcome} for attendee ${candidate.attendee.id}, payments ${refs}`,
+  reportRefundProblem(
+    {
+      attendeeId: candidate.attendee.id,
+      kind: "batch_outcome",
+      outcome,
+      paymentCount: candidate.references.length,
+    },
     listingId,
-  });
+  );
+};
+
+/** An attendee's charges that came back, and whether that was all of them. */
+type LedgerPosting = {
+  readonly authorities: readonly AuthorityBearingReference<TaggedRefundReference>[];
+  readonly attendeeId: number;
+  readonly references: readonly TaggedRefundReference[];
+  readonly whole: boolean;
 };
 
 const tallyProviderRefund = (
   counts: RefundCounts,
-  candidate: RefundCandidate,
-  outcome: RefundOutcome,
+  result: CandidateRefund,
   listingId: number,
-  refundedAttendees: {
-    attendeeId: number;
-    references: readonly RefundPaymentReference[];
-  }[],
+  postings: LedgerPosting[],
 ): void => {
-  if (outcome === "errored") {
-    counts.errorCount++;
-    logBulkRefundProblem(outcome, candidate, listingId);
-  } else if (outcome === "failed") {
+  const { candidate, outcome, returned } = result;
+  if (outcome === "failed") {
     counts.failedCount++;
     logBulkRefundProblem(outcome, candidate, listingId);
-  } else {
-    refundedAttendees.push({
+  } else if (outcome === "pending") {
+    counts.pendingCount++;
+  } else if (outcome === "withheld") {
+    counts.failedCount++;
+  }
+  // Record whatever came back, even when a sibling charge did not.
+  if (returned.length > 0) {
+    postings.push({
       attendeeId: candidate.attendee.id,
-      references: candidate.references,
+      authorities: returned,
+      references: returned.map(({ reference }) => reference),
+      whole: outcome === "refunded",
     });
   }
 };
 
-/** Refund one chunk of attendees at the provider, then record full successes in
- * the ledger before starting the next chunk. */
-export const processRefundBatch = async (
-  provider: RefundProvider,
-  batch: RefundCandidate[],
+/** Post whatever came back for one wave, and retain any missed ledger write. */
+const recordWave = async (
+  record: RecordRefunds,
+  counts: RefundCounts,
+  postings: readonly LedgerPosting[],
+  findings: RunFindings,
   listingId: number,
-): Promise<RefundCounts> => {
-  const counts: RefundCounts = {
-    errorCount: 0,
-    failedCount: 0,
-    refundedCount: 0,
-  };
-  for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(
-    batch,
-  )) {
-    const results = await Promise.all(
-      group.map((candidate) =>
-        refundCandidateAtProvider(provider, candidate, listingId),
-      ),
-    );
-    const chunkRefundedAttendees: {
-      attendeeId: number;
-      references: readonly RefundPaymentReference[];
-    }[] = [];
-    for (const { candidate, outcome } of results) {
-      tallyProviderRefund(
-        counts,
-        candidate,
-        outcome,
-        listingId,
-        chunkRefundedAttendees,
-      );
+  recordedAuthorities: RefundAuthorityReceipt[],
+): Promise<void> => {
+  let results: Awaited<ReturnType<RecordRefunds>>;
+  try {
+    results = await record(postings);
+  } catch (error) {
+    for (const { attendeeId, references } of postings) {
+      rememberFailedRefundLedger(findings, attendeeId, references);
     }
-    const posted = await recordAttendeeRefundsBatch(chunkRefundedAttendees);
-    for (const [attendeeId, ok] of posted) {
-      if (ok) {
-        counts.refundedCount++;
-      } else {
-        // The provider sent this refund but our ledger could not record it —
-        // report the broken promise per attendee, not just the aggregate count.
-        counts.errorCount++;
-        reportRefundNotRecorded({ attendeeId, listingId });
-      }
+    throw error;
+  }
+  for (const { attendeeId, authorities, references, whole } of postings) {
+    const result = requiredMapValue(
+      results,
+      attendeeId,
+      `Refund ledger omitted attendee ${attendeeId}`,
+    );
+    const applied = applyRefundLedgerFindings(
+      findings,
+      attendeeId,
+      references,
+      result,
+    );
+    recordedAuthorities.push(...recordedRefundAuthorities(authorities, result));
+    if (applied.hasUnrecorded) {
+      counts.notRecordedCount++;
+      reportRefundNotRecorded({ attendeeId, listingId });
+    } else if (applied.allRecorded && whole) {
+      counts.refundedCount++;
     }
   }
+};
+
+/** Boundaries a refund run crosses after its candidate list is loaded. */
+export type RefundRunDependencies = {
+  audience?: RefundBudgetAudience;
+  claim?: RowClaim;
+  prepare?: typeof prepareRefundReadiness;
+  record?: RecordRefunds;
+  recordAuthorities?: typeof recordProviderRefunds;
+  request?: typeof requestProviderRefund;
+};
+
+export const processRefundBatch = async (
+  candidates: RefundCandidate[],
+  listingId: number,
+  {
+    audience = "bulk",
+    claim: rowClaim = durableRowClaim,
+    prepare = prepareRefundReadiness,
+    record = recordAttendeeRefundsBatch,
+    recordAuthorities = recordProviderRefunds,
+    request = requestProviderRefund,
+  }: RefundRunDependencies = {},
+): Promise<RefundBatchResult> =>
+  await withDeferredErrorReports(() =>
+    runRefundReadiness<RefundBatchResult>({
+      action: "refund",
+      budgetAudience: audience,
+      candidates,
+      changedMessage:
+        "The attendee or payment set changed while this refund was starting. Try again.",
+      claim: rowClaim,
+      listingId,
+      notReady: (message, reason) =>
+        notReady(noRefunds(candidates.length), message, reason),
+      prepare,
+      ready: async (readyCandidates, held) => {
+        const dispatched = await dispatchRefundBatch(
+          readyCandidates,
+          listingId,
+          held,
+          request,
+        );
+        if (dispatched.kind === "budget_refused") {
+          return notReady(
+            noRefunds(candidates.length),
+            REFUND_BUDGET_MESSAGES[audience],
+            "subrequest_budget",
+          );
+        }
+        return finished(
+          await recordDispatchedBatch(
+            dispatched.waves,
+            listingId,
+            { record, recordAuthorities },
+            held.findings,
+          ),
+        );
+      },
+      request,
+    }),
+  );
+
+const recordDispatchedBatch = async (
+  waves: readonly (readonly CandidateRefund[])[],
+  listingId: number,
+  writes: {
+    record: RecordRefunds;
+    recordAuthorities: typeof recordProviderRefunds;
+  },
+  findings: RunFindings,
+): Promise<RefundCounts> => {
+  const counts = noRefunds();
+  const remember = (result: CandidateRefund): void =>
+    rememberCandidateFindings(findings, result);
+  const providerResults = waves.flat();
+  const postings: LedgerPosting[] = [];
+  for (const result of providerResults) {
+    remember(result);
+    tallyProviderRefund(counts, result, listingId, postings);
+  }
+  const recordedAuthorities: RefundAuthorityReceipt[] = [];
+  await recordWave(
+    writes.record,
+    counts,
+    postings,
+    findings,
+    listingId,
+    recordedAuthorities,
+  );
+  await writes.recordAuthorities(recordedAuthorities);
   return counts;
 };

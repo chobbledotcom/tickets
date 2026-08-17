@@ -2,35 +2,45 @@
  * The refund mechanics of the payment machine, plus the typed reasons a
  * signed-by-us payment must be refunded.
  *
- * `tryRefund` and friends issue the money-back call and turn it into a handled
- * {@link PaymentFailureResult}; {@link RefundSpec} names *why* a booking we
- * kept had to be refunded, stamped PII-free into the ledger reversal and the
- * attendee's system note.
+ * The durable provider-refund authority issues the money-back call. This module
+ * turns its answer into a handled {@link PaymentFailureResult};
+ * {@link PlaceholderRefund} names *why* a booking we kept had to be refunded,
+ * stamped PII-free into the ledger reversal and the attendee's system note.
  */
 
 import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
-import { t } from "#shared/i18n.ts";
 import {
-  ErrorCode,
-  type ErrorCodeType,
-  logDebug,
-  logError,
-} from "#shared/logger.ts";
+  type PreparedRefundAuthority,
+  prepareRefundAuthority,
+} from "#shared/db/provider-refund-authority.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
-import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
-  type ExistingPaymentProvider,
-  getPaymentProviderForExistingPayments,
-  type ValidatedPaymentSession,
-} from "#shared/payments.ts";
+  type PlaceholderRefund,
+  placeholderRefund,
+} from "#shared/payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
+import {
+  paidPaymentReferenceOf,
+  rejectedChargeReference,
+  type SessionRejection,
+} from "#shared/payment/validated-session.ts";
+import { reportWithheldRefund } from "#shared/payment-review.ts";
+import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { initialRefundState } from "#shared/provider-refunds/state.ts";
+import {
+  type ProviderRefundResult,
+  type RefundAuthorityReceipt,
+  requestProviderRefund,
+} from "#shared/provider-refunds.ts";
 
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
@@ -40,31 +50,29 @@ const PRICE_CHANGED_MESSAGE =
 export const failureDetail = (result: PaymentFailureResult): string =>
   result.detail ?? result.error;
 
-/**
- * Resolve the provider for refunding or reconciling an existing payment. Falls
- * back to the last activated provider when new sales are off, so refunds keep
- * working after the operator switches new sales off. When none is configured,
- * log a structured error with the caller's code/detail and return null, so each
- * caller can pick its own fallback (a false, a 400, ...).
- */
-export const getPaymentProviderOrLog = async (
-  code: ErrorCodeType,
-  detail: string,
-  listingId?: number,
-): Promise<ExistingPaymentProvider> => {
-  const provider = await getPaymentProviderForExistingPayments();
-  if (!provider) logError({ code, detail, listingId });
-  return provider;
+/** The receipt a returned rejection refund carries, so the caller can post
+ *  the money into the books and finish the authority's local recording. */
+export type ReturnedRejectionReceipt = {
+  readonly authority: RefundAuthorityReceipt;
+  readonly local: "due" | "recorded";
 };
 
 /** What became of a rejected session's charge. `settled` means nothing is left
  *  owing; `refunded` means money actually moved. They are kept apart because
  *  "nothing to refund" and "refunded" must never read alike in a log or on a
  *  page — one leaves the buyer out of pocket, the other does not. */
-type RejectionOutcome = { settled: boolean; refunded: boolean };
+export type RejectionOutcome = {
+  settled: boolean;
+  refunded: boolean;
+  returned: ReturnedRejectionReceipt | null;
+};
 
 /** Nothing of ours was captured, so there is nothing to return. */
-const NOTHING_TO_REFUND: RejectionOutcome = { refunded: false, settled: true };
+const NOTHING_TO_REFUND: RejectionOutcome = {
+  refunded: false,
+  returned: null,
+  settled: true,
+};
 
 /**
  * Refund a paid charge the provider boundary could not read, when its
@@ -87,77 +95,126 @@ export const refundRejectedCharge = async (
   ) {
     return NOTHING_TO_REFUND;
   }
-  const refunded = await tryRefund(rejection.paymentReference);
-  return { refunded, settled: refunded };
+  // The verified proof establishes ownership, but the refund amount comes from a
+  // fresh provider read: malformed charges may have captured a different sum.
+  const result = await requestProviderRefund({
+    callbackSessionId: rejection.sessionId,
+    evidence: { kind: "read_provider" },
+    mode: "send",
+    reference: rejectedChargeReference(rejection),
+  });
+  const refunded = providerRefundReturned(result);
+  return {
+    refunded,
+    returned:
+      result.kind === "returned"
+        ? { authority: result.authority, local: result.local }
+        : null,
+    settled: refunded,
+  };
 };
 
-/**
- * The answer a buyer-facing callback gives for a rejected session. A charge
- * left unsettled answers 503, so the caller comes back for it rather than
- * acknowledging money that is still out there.
- */
-export const answerRejectedSession = async (
-  rejection: SessionRejection,
-  sessionId: string,
-  log: (detail: string) => void,
-): Promise<Response> => {
-  const { refunded, settled } = await refundRejectedCharge(rejection);
-  log(
-    `Session rejected as ${rejection.reason} (session=${sessionId}, refunded: ${refunded})`,
-  );
-  return paymentErrorResponse(
-    refunded
-      ? t("payment.error.refunded")
-      : t("payment.error.session_not_found"),
-    settled ? 400 : 503,
-  );
+type RefundLogContext = {
+  listingId?: number | undefined;
+  provider: TaggedPaymentReference["provider"];
 };
 
-/**
- * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
- * Logs an error if refund fails.
- */
-export const tryRefund = async (
-  paymentReference: string,
-  listingId?: number,
-): Promise<boolean> => {
-  // A blank or whitespace-only provider resource id names no charge to refund,
-  // so the refund is refused before any provider call. The provider boundary
-  // already rejects a paid session with a blank id; this is the safety net for
-  // a reference that reaches here from a stored or legacy row.
-  if (!isResourceId(paymentReference)) return false;
-
-  const provider = await getPaymentProviderOrLog(
-    ErrorCode.PAYMENT_REFUND,
-    "No payment provider configured for refund",
-    listingId,
-  );
-  if (!provider) return false;
-
-  if (await provider.refundPayment(paymentReference)) {
-    logDebug("Payment", "Refund issued");
+/** Report the durable outcome without treating an armed request as returned. */
+export const providerRefundReturned = (
+  result: ProviderRefundResult,
+  { listingId, provider }: RefundLogContext = {
+    provider: result.reference.provider,
+  },
+): boolean => {
+  if (result.kind === "withheld") {
+    reportWithheldRefund(result.admission, { listingId, provider });
+    return false;
+  }
+  if (result.kind === "returned") {
+    logDebug("Payment", "Refund completed");
     return true;
   }
-
-  // A false return can simply mean the payment was ALREADY fully refunded: each
-  // provider rejects a second full refund (Stripe errors on an already-refunded
-  // intent; Square and SumUp reject a re-refund), and that rejection surfaces
-  // here as false. That is success, not failure — the money is back with the
-  // customer — so confirm via the provider's refund-status query before
-  // reporting failure. Without this, a redelivery after a recovered refund would
-  // loop on a 503 retry for money already returned.
-  if (await provider.isPaymentRefunded(paymentReference)) {
-    logDebug("Payment", "Payment already fully refunded");
-    return true;
+  if (result.kind === "pending") {
+    logDebug("Payment", "Refund sent and awaiting provider confirmation");
+    return false;
   }
-
+  if (result.kind === "changed") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Refund authority changed before money could be sent through ${provider}`,
+      listingId,
+    });
+    return false;
+  }
+  if (result.kind === "unchanged") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Refund was only observed for ${provider} payment`,
+      listingId,
+    });
+    return false;
+  }
+  if (result.kind === "needs_provider_check") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Refund needs another provider check for ${provider} payment`,
+      listingId,
+    });
+    return false;
+  }
   logError({
     code: ErrorCode.PAYMENT_REFUND,
-    detail: `Failed to refund payment ${paymentReference}`,
+    detail:
+      result.kind === "ready"
+        ? `Refund was not sent for ${provider} payment; its durable request remains ready`
+        : `Refund needs an owner decision for ${provider} payment (${result.reason})`,
     listingId,
   });
   return false;
 };
+
+const sessionRefundFacts = (session: ValidatedPaymentSession) => ({
+  callbackSessionId: session.id,
+  captured: { amount: session.amountTotal, currency: session.currency },
+  reference: paidPaymentReferenceOf(session),
+});
+
+const sessionRefundTarget = (session: ValidatedPaymentSession) => {
+  const facts = sessionRefundFacts(session);
+  return {
+    callbackSessionId: facts.callbackSessionId,
+    evidence: {
+      captured: facts.captured,
+      kind: "validated_callback",
+    },
+    mode: "send",
+    reference: facts.reference,
+  } as const;
+};
+
+/** Prepare the ready authority a callback must own before it becomes terminal. */
+export const prepareSessionRefundAuthority = async (
+  session: ValidatedPaymentSession,
+): Promise<PreparedRefundAuthority> => {
+  const facts = sessionRefundFacts(session);
+  const now = nowMs();
+  return await prepareRefundAuthority({
+    callbackReplayIndex: await refundCallbackReplayIndex(
+      facts.reference.provider,
+      facts.callbackSessionId,
+    ),
+    captured: facts.captured,
+    now,
+    reference: facts.reference,
+    state: await initialRefundState(facts.reference, now),
+  });
+};
+
+/** Ask the one durable authority to refund a validated callback session. */
+export const requestSessionRefund = (
+  session: ValidatedPaymentSession,
+): Promise<ProviderRefundResult> =>
+  requestProviderRefund(sessionRefundTarget(session));
 
 /** Attempt refund and log activity if successful */
 const refundAndLog = async (
@@ -165,7 +222,11 @@ const refundAndLog = async (
   error: string,
   listingId: number,
 ): Promise<boolean> => {
-  const refunded = await tryRefund(session.paymentReference, listingId);
+  const result = await requestSessionRefund(session);
+  const refunded = providerRefundReturned(result, {
+    listingId,
+    provider: session.provider,
+  });
   if (refunded) {
     await logActivity(`Automatic refund: ${error}`, listingId);
   }
@@ -249,95 +310,19 @@ export const refuseMismatch = (
   );
 };
 
-/**
- * Why a signed-by-us payment must be refunded even though we can't just drop it.
- * `code` is a PII-free reason stamped into the ledger reversal and the system
- * note; `reason` is the operator-facing phrase for the note; `detail` is the
- * internal log line (ids/prices, never PII); `notify` optionally pages an alert.
- */
-export type RefundSpec = {
-  code: string;
-  reason: string;
-  detail: string;
-  notify?: ErrorCodeType;
-};
-
-/**
- * Every reason we keep-and-refund a signed booking, as one table: the
- * operator-facing phrase for the system note, plus (where the failure means a
- * broken promise rather than plain bad luck) the alert to page. Unexpected
- * errors and removed listings page because someone should look; a full event
- * or a sold-out extra is normal operation.
- */
-const REFUND_REASONS = {
-  capacity_full: { reason: "the event filled up while they were paying" },
-  charge_mismatch: {
-    notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
-    reason: "the amount charged did not match the agreed total",
-  },
-  listing_removed: {
-    notify: ErrorCode.PAYMENT_SESSION,
-    reason: "the listing was removed while they were paying",
-  },
-  price_changed: {
-    reason: "the listing price changed while they were paying",
-  },
-  sold_out: {
-    reason: "an add-on or extra they chose sold out while they were paying",
-  },
-  unexpected_error: {
-    notify: ErrorCode.PAYMENT_SESSION,
-    reason: "an unexpected error stopped the booking being completed",
-  },
-} as const satisfies Record<string, { reason: string; notify?: ErrorCodeType }>;
-
-export type RefundCode = keyof typeof REFUND_REASONS;
-
-/** Build the RefundSpec for a reason code: the table supplies the note phrase
- *  and any alert, the caller supplies the internal log line (ids/prices, never
- *  PII). */
-export const refundSpec =
-  (code: RefundCode) =>
-  (detail: string): RefundSpec => ({
-    code,
-    detail,
-    ...REFUND_REASONS[code],
-  });
-
 /** A payment the provider charged for a different amount than our signed total. */
 export const chargeMismatchSpec = (
   session: ValidatedPaymentSession,
   agreed: number,
-): RefundSpec =>
-  refundSpec("charge_mismatch")(chargedVsSigned(session, agreed));
+): PlaceholderRefund =>
+  placeholderRefund("charge_mismatch")(chargedVsSigned(session, agreed));
 
 /** A signed booking whose listing was deleted between checkout and payment:
  *  nothing left to honour, but we keep a quantity-0 ghost so the customer (and
  *  their refund) is never lost. */
 export const deletedListingSpec = (
   session: ValidatedPaymentSession,
-): RefundSpec =>
-  refundSpec("listing_removed")(
+): PlaceholderRefund =>
+  placeholderRefund("listing_removed")(
     `Listing not found for a signed session (session=${session.id})`,
   );
-
-/**
- * The PII-free system note for a stored-but-refunded booking. Explains in plain
- * language what happened, carries the provider's payment reference and our reason
- * code so the charge/refund can be reconciled in the provider dashboard, and
- * links the operator to the attendee's ledger statement. No names or emails.
- */
-export const refundedNoteText = (
-  attendeeId: number,
-  spec: RefundSpec,
-  refunded: boolean,
-  paymentReference: string,
-): string => {
-  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
-  // PII-free: the provider's payment reference lets the operator reconcile the
-  // charge/refund in the provider dashboard; the reason code names why.
-  const ref = ` Payment reference: ${paymentReference} (code: ${spec.code}).`;
-  return refunded
-    ? `This booking was kept at quantity 0 but its payment was refunded because ${spec.reason}.${ref} Please check the ${ledger}.`
-    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${spec.reason}.${ref} Please refund it manually and check the ${ledger}.`;
-};

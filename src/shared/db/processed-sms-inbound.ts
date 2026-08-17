@@ -6,7 +6,7 @@
  * `sms:received` events cannot create duplicate activity-log entries.
  */
 
-import { execute, executeBatch, insert } from "#shared/db/client.ts";
+import { execute, executeBatch, insert, orIgnore } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Claim an inbound webhook id. Returns false when it was already processed. */
@@ -14,14 +14,13 @@ export const claimProcessedSmsInbound = async (
   webhookId: string,
 ): Promise<boolean> => {
   if (webhookId === "") return true;
-  const stmt = insert("processed_sms_inbound", {
-    created: nowIso(),
-    webhook_id: webhookId,
-  });
-  const result = await execute(
-    stmt.sql.replace("INSERT INTO", "INSERT OR IGNORE INTO"),
-    stmt.args,
+  const stmt = orIgnore(
+    insert("processed_sms_inbound", {
+      created: nowIso(),
+      webhook_id: webhookId,
+    }),
   );
+  const result = await execute(stmt.sql, stmt.args);
   return result.rowsAffected > 0;
 };
 

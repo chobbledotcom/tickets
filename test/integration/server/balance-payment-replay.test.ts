@@ -12,6 +12,7 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 const balanceSession = (
   sessionId: string,
@@ -48,12 +49,7 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     using _mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve(session),
     );
-    using mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({
-        id: "re_should_not_happen",
-        status: "succeeded",
-      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-    );
+    using mockRefund = stubRefundPayment("re_should_not_happen", 1500);
 
     const first = await handleRequest(
       mockRequest(`/payment/success?session_id=${sessionId}`),
@@ -85,12 +81,17 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
       "#shared/db/payment-references.ts"
     );
     const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
-    const references = (
-      await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        await getTestPrivateKey(),
-      )
-    ).get(attendeeId)!;
+    const { requireCompleteRefundReferences } = await import(
+      "#test-utils/payment-references.ts"
+    );
+    const references = requireCompleteRefundReferences(
+      (
+        await getRefundPaymentReferences(
+          [{ currentPaymentId: "", id: attendeeId }],
+          await getTestPrivateKey(),
+        )
+      ).get(attendeeId)!,
+    );
     expect(references.map((reference) => reference.reference)).toContain(
       `pi_${sessionId}`,
     );

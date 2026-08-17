@@ -10,10 +10,15 @@ const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
   sumup: () => settings.sumup.hasKey,
 };
 
+/** Whether this provider has the stored credentials needed for an API read. */
+export const paymentProviderHasCredentials = (
+  provider: PaymentProviderType,
+): boolean => providerHasCredentials[provider]();
+
 const configuredPaymentProviderTypes = (): PaymentProviderType[] =>
   pipe(
     map((provider: PaymentProviderType) =>
-      providerHasCredentials[provider]() ? provider : null,
+      paymentProviderHasCredentials(provider) ? provider : null,
     ),
     compact,
   )(PAYMENT_PROVIDER_IDS);
@@ -22,10 +27,6 @@ export type ExistingPaymentProviderState = {
   provider: PaymentProviderType | null;
   recoveryChoices: PaymentProviderType[];
 };
-
-/** Provider type for refunds, callbacks, and existing-payment UI. */
-export const existingPaymentProviderType = (): PaymentProviderType | null =>
-  existingPaymentProviderState().provider;
 
 /** Resolve the provider for existing payments and any required recovery choice. */
 export const existingPaymentProviderState = (

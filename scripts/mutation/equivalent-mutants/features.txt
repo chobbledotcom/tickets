@@ -30,21 +30,10 @@ src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
-src/features/admin/attendee-page-data.ts::loadPackagePaths.memberPrices~1xcdymp  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
-src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups~183l51m  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
-src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks~11c4q19  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/admin/attendee-page-data.ts::listingBookingFor.durationDays~1vg0u7m  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
-src/features/admin/attendee-page-data.ts::overbookedListingIds~11ijbqo  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
 src/features/admin/attendee-page-data.ts::computeWarnings.warns~1e9bm1v  ?? → ||   # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0gnct02  ?? → ||   # find returns a status object or undefined, and a status object is always truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → ||   # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0g9qz7c  ?? → ||   # fullPrice is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  ?? → ||   # depositPaid is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → ||   # hasMixedTimings is boolean|undefined, and false equals the fallback
-src/features/admin/attendee-page-data.ts::assembleTemplateData.questions~0wxrma2  ?? → ||   # questions is an array when present, and arrays are always truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedAnswerIds~1og9d80  ?? → ||   # selectedAnswerIds is an array when present, and arrays are always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedTextAnswers~0av0z2p  ?? → ||   # selectedTextAnswers is a Map when present, and Maps are always truthy
-src/features/admin/attendee-page-data.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # attendeeAnswerMap values are arrays, and arrays are always truthy
 src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified.realBookings~1jqkiac  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
@@ -62,9 +51,6 @@ src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? →
 src/features/admin/catalog-transfer/import.ts::importGroup.specs~0u7qcwn  ?? → ||   # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → ||   # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → ||   # formatTransferIssues flat.nested: object|undefined — an object is always truthy
-
-# attendee merge/refund route: mutants with no observable effect.
-src/features/admin/attendee-refunds.ts::handleAdminRefundAllGet~0mgteeu  ?? → ||   # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
 
 # middleware.ts's Content-Type fallback already equals the only falsy string.
 # Once a tracking key is found, continuing instead of breaking can only
@@ -112,13 +98,11 @@ src/shared/runtime.ts::buildRuntimeInfo.nodeCompatVersion~1m2e610  ?? → ||   #
 src/shared/runtime.ts::buildRuntimeInfo.os~05o6squ  ?? → ||   # os is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.typescriptVersion~14e4wx7  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.userAgent~17udaa2  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
-src/shared/square.ts::createSquareClient.checkout.paymentLinks.create.data.pre_populated_data~0evahy5  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
 src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
-src/features/api/payment-processing/index.ts::replaySuccess.paymentReference~12k7fdb   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
 src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts::validateAllItems.staleNonStandaloneChild~0bp0o7q  ?? → ||   # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
@@ -136,7 +120,7 @@ src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildF
 
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
-src/features/api/webhooks.ts::processSessionAndRedirect.thankYouUrl~1sbbxjk  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
+src/features/api/payment-success.ts::processSessionAndRedirect.thankYouUrl~1sbbxjk  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
 src/ui/templates/admin/settings/payment.tsx::shownPaymentProvider~1empuiw  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
@@ -175,7 +159,6 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 
 # Payment provider setup and the balance notice (main #2020): a paid amount that
 # cannot reach any branch, and a recovery count that is never exactly one.
-src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  0 → 1   # the fallback is used only in create mode, where fullPrice is 0; the amount paid cannot affect any balance-notice branch when no order exists
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity

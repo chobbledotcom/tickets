@@ -22,14 +22,16 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
+  expectWebhookKeptAndRefunded,
+  stubRefundPayment,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks/stripe.ts";
+import {
   checkoutSessionEvent,
   expectAttendeeCreatedWithPiiBlob,
   expectRefundedWithNote,
-  expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   findKeptPlaceholder,
-  stubRefundPayment,
-  stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -106,8 +108,9 @@ Then(
     const sessionId = requiredWorldValue(this.sessionId, "session id");
     const attendee = await expectAttendeeCreatedWithPiiBlob(listingId);
     const record = await getProcessedPayment(sessionId);
-    if (!record)
+    if (!record) {
       throw new Error(`Processed payment ${sessionId} was not stored`);
+    }
     expect(record.attendee_id).toBe(attendee.id);
     expect(record.ticket_tokens).not.toBe("");
   },
@@ -166,7 +169,8 @@ Then(
     expect(notes[0]?.note).toContain(
       "the event filled up while they were paying",
     );
-    expect(notes[0]?.note).toContain(lateSession.paymentIntent);
+    expect(notes[0]?.note).toContain("Refund code: capacity_full");
+    expect(notes[0]?.note).not.toContain(lateSession.paymentIntent);
     expect(notes[0]?.note).toContain(`/admin/ledger/attendee/${attendeeId}`);
     await expectSessionFailed(sessionId);
   },
@@ -201,8 +205,9 @@ Given(
     this.placeholderId = attendee.id;
     this.attendeeIds = (await getAttendeesRaw(listingId)).map(({ id }) => id);
     const record = await getProcessedPayment(sessionId);
-    if (!record?.failure_data)
+    if (!record?.failure_data) {
       throw new Error("terminal failure was not stored");
+    }
     this.firstFailureData = record.failure_data;
     await expectRefundedWithNote(attendee.id, refund);
   },
@@ -245,8 +250,9 @@ Then(
     expect(firstBody).not.toContain("being processed");
     const sessionId = requiredWorldValue(this.sessionId, "session id");
     const record = await getProcessedPayment(sessionId);
-    if (!record)
+    if (!record) {
       throw new Error(`Processed payment ${sessionId} was not stored`);
+    }
     expect(record.attendee_id).toBeNull();
     expect(record.failure_data).toBe(this.firstFailureData);
   },

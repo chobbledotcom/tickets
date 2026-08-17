@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { CreatePaymentLinkInput } from "#shared/square.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
+import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -12,6 +12,7 @@ import {
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
@@ -35,6 +36,18 @@ describeSquare(() => {
       expect(debugLog().calls.at(-1)?.args[0]).toBe(
         "[Square] No location ID configured",
       );
+    });
+
+    test("reports a configured link that has no available client", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.square.locationId("L_loc_456");
+
+      await expectNoLink(checkoutIntent());
+
+      expect(debugMessages(debugLog()).slice(-2)).toEqual([
+        "[Square] No access token configured, cannot create client",
+        "[Square] Payment link creation failed",
+      ]);
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -162,26 +175,20 @@ describeSquare(() => {
       );
     });
 
-    test("returns null when SDK response missing orderId", async () => {
+    test("rejects a successful response missing its URL", async () => {
       await configureSquare({ locationId: "L_loc_456" });
       await withSquareClient(
         {
           checkoutCreate: () =>
             Promise.resolve({
-              paymentLink: { url: "https://square.link/abc" },
+              paymentLink: { orderId: "order_abc" },
             }),
         },
         async () => {
-          const result = await squareApi.createPaymentLink(
-            checkoutIntent(),
-            "http://localhost",
+          await expectClosedCheckoutFailure(
+            squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
+            { provider: "square", reason: "invalid_response" },
           );
-          expect(result).toBeNull();
-          expect(debugMessages(debugLog()).slice(-3)).toEqual([
-            "[Square] Creating payment link for 1 listing(s)",
-            "[Square] Payment link response missing orderId or url",
-            "[Square] Payment link creation failed",
-          ]);
         },
       );
     });

@@ -15,7 +15,10 @@ import {
   createTestAttendee,
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -150,7 +153,7 @@ describeWithEnv(
           "balance_paid_delete_guard",
           attendee.id,
           "",
-          "pi_balance_paid",
+          taggedPaymentReference("pi_balance_paid"),
         );
 
         await expectDeleteRefused(await deleteIncomplete(), listing.id);

@@ -9,7 +9,7 @@
  *                add-attendee
  *   Scanner    — the check-in scanner (hidden for a "No Check-In" listing)
  *   Activity   — the full activity log
- *   Actions    — duplicate / export (open to editors too) / email /
+ *   Actions    — duplicate / export (open to editors too), owner-only email /
  *                refund-all, danger zone: deactivate|reactivate|delete
  *                (staff only)
  *
@@ -22,6 +22,7 @@ import {
   type ActionDef,
   defineEntityPage,
   type EntityPage,
+  prepareOwnerFields,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
@@ -79,8 +80,8 @@ const subAction =
 /** The Actions tab entries. Each `visible` mirrors the gate its old
  * {@link ListingActionNav} entry used, so no dead or forbidden link renders.
  * The tab itself is open to content roles (staff + editor), so every
- * mutation-risk entry below now carries its own explicit `staffOnly` check —
- * only Duplicate and Export are safe for an editor to use unrestricted. */
+ * mutation-risk entry below now carries its own explicit role check — only
+ * Duplicate and Export are safe for an editor to use unrestricted. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     href: subAction("duplicate"),
@@ -113,9 +114,9 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
     icon: "credit-card",
     intent: "write-form",
     labelKey: "listings_table.refund_all",
-    // Refunds only apply to a paid listing (the same gate the action bar used),
-    // and moving money is staff-only — an editor never sees this button.
-    visible: staffAnd((entity) => isPaidListing(entity.listing)),
+    // Moving money is owner-only, and only applies to a paid listing.
+    visible: (entity, session) =>
+      isOwnerRole(session.adminLevel) && isPaidListing(entity.listing),
   },
   {
     danger: true,
@@ -259,15 +260,11 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
           // and its recipient check decrypts PII — so resolve it here, when the
           // Actions tab renders, instead of on every tab's page load. Owner-only
           // (the sole role that sees Email); other staff skip the decrypt.
-          prepare: async (entity, ctx) =>
-            isOwnerRole(ctx.session.adminLevel)
-              ? {
-                  ...entity,
-                  hasEmailableAttendees: await listingHasEmailableAttendees(
-                    entity.listing.id,
-                  ),
-                }
-              : entity,
+          prepare: prepareOwnerFields<LoadedListing>(async (entity) => ({
+            hasEmailableAttendees: await listingHasEmailableAttendees(
+              entity.listing.id,
+            ),
+          })),
           titleKey: "entity.tab.actions",
         },
       ],

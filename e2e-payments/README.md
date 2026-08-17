@@ -1,7 +1,7 @@
 # Payment sandbox e2e
 
 Browser-driven, **real-money-shaped** end-to-end payment tests against the live
-provider **sandboxes** (Stripe, Square, SumUp).
+provider **sandboxes** (Stripe, Square, SumUp), orchestrated by Cucumber.
 
 The main test suite (`deno task test`) exercises payments against `stripe-mock`
 and stubbed Square/SumUp responses — fast, deterministic, and run on every PR.
@@ -17,134 +17,128 @@ It is intentionally **not** a PR gate (see
 `.github/workflows/payment-sandbox-e2e.yml` — nightly + manual). It needs
 third-party network access and is slower and flakier than mocked tests.
 
-## What it does
-
-For a target (`stripe` | `square` | `sumup` | `free`):
-
-1. Builds the static client assets and boots `src/index.ts` against a throwaway
-   local libsql file DB on a random port.
-2. Starts a `cloudflared` quick tunnel so the app has a public HTTPS origin
-   (required by Stripe to register its webhook; and because providers expect a
-   public HTTPS return URL). `free` skips the tunnel.
-3. Launches Chromium (Playwright) and, navigating as a human would:
-   - runs first-run setup and logs in as admin;
-   - selects and configures the payment provider from its secrets;
-   - creates a priced listing and opens its public `/ticket/<slug>` page;
-   - books, is redirected to the provider's hosted checkout, and pays with the
-     provider's sandbox test card;
-   - lands back on the app return URL and asserts the booking shows as paid
-     (customer success page, the captured amount in the listing's Overview
-     income ledger, **and** the booker on the listing's Attendees tab).
-
-The Stripe leg also saves the key twice to rotate the webhook endpoint through
-the app's own cleanup path, runs the connection test, holds the first browser
-return so the signed webhook must create the booking, refreshes the paid booking
-from its PaymentIntent, and issues a full refund through the admin UI. The later
-complex order uses the normal browser return, so both confirmation paths are
-exercised. Together these journeys exercise every Stripe HTTP operation the app
-uses against Stripe's real test API: balance retrieval, Checkout Session
-creation and retrieval, expanded PaymentIntent retrieval, refund creation, and
-webhook endpoint creation, listing, and deletion.
-
-### What is (and isn't) exercised per provider
-
-Confirmation is asserted via the **browser return URL** for every provider (the
-success handler validates the session with the provider's API and records the
-booking as paid — the harness then asserts the captured amount shows in the
-listing's income ledger, not merely that an attendee row exists). Webhook
-involvement differs by provider:
-
-| Provider | Confirmation asserted                                                              | Webhook involvement                                                                                                                                                                                                                                                                                                                     |
-| -------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stripe   | Signed webhook + captured amount + real refund; later complex order via return URL | Endpoint registration, rotation/deletion, connection status, and successful signed processing are asserted.                                                                                                                                                                                                                             |
-| SumUp    | Return URL + captured amount + self-delivered callback                             | Needs no signature. The harness posts the staged checkout's own callback and asserts it is processed and replays idempotently (the admin booking is re-checked after the replay); forged, oversized, empty, and missing ids must all get the one fixed refusal without costing a SumUp read. SumUp's own delivery is still not awaited. |
-| Square   | Return URL + captured amount                                                       | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel.                                                                                                                                                                                                          |
-
-For Stripe, each run leaves a webhook endpoint pointing at that run's tunnel;
-the harness deletes all `*.trycloudflare.com` webhook endpoints on teardown
-(sweeping up any orphans too) so they don't accumulate in the sandbox account.
-
-`free` runs the same journey with a £0 listing and no provider — a secrets-free
-self-test of the harness and the app booking flow.
-
-## Running locally
+## Running
 
 ```bash
 # From the repo root (builds static assets, boots the app):
-mise exec -- deno task e2e free
+nix develop -c deno task e2e free
 
 # A real provider sandbox (example: Stripe):
-STRIPE_SECRET_KEY=sk_test_... \
-  mise exec -- deno task e2e stripe
+STRIPE_SECRET_KEY=sk_test_... nix develop -c deno task e2e stripe
 ```
 
 Watch it happen in a real window with `HEADLESS=false`.
 
-### Secrets / env
+A missing paid secret **fails** instead of skipping — the nightly contract
+requires every provider.
 
-| Env var                                     | Provider | Notes                                                      |
-| ------------------------------------------- | -------- | ---------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`                         | Stripe   | `sk_test_…` (test mode).                                   |
-| `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID` | Square   | Sandbox token + location. `SQUARE_SANDBOX=true` (default). |
-| `SUMUP_API_KEY`, `SUMUP_MERCHANT_CODE`      | SumUp    | Sandbox secret key + matching merchant code.               |
+## What it does
 
-A target with missing secrets **skips** (exits 0) rather than failing.
+For a target (`free` | `stripe` | `square` | `sumup`), `main.ts` parses the
+target, validates its secrets (throwing before any browser call if missing),
+maps it to its exhaustive case selection, cleans the artifact root, builds
+static assets once, then hands everything to the repository's shared Cucumber
+runner (`runSpecs`). Each scenario in the Feature file gets:
 
-`NTFY_URL` (optional) — an ntfy topic URL (e.g. `https://ntfy.sh/your-topic`)
-pinged when a leg fails. Only the failed target is reported (no error detail,
-which can include booker emails or scraped page text) — full diagnostics stay in
-the CI job log/artifacts. Unset ⇒ no notification.
+1. a fresh file-backed app database;
+2. a new real `src/index.ts` child process;
+3. a new tunnel for paid providers (or the local URL for free);
+4. one browser process with separate authenticated owner and cookie-free visitor
+   browser contexts (a second owner context for the stale-form race);
+5. a unique run identity (booker email, listing names, owner credentials — never
+   the defaults); and
+6. a typed provider runtime holding only this scenario's exact ids.
 
-Other knobs (all optional): `DENO_BIN`, `CLOUDFLARED_BIN`, `CHROMIUM_EXECUTABLE`
-(unset in CI so Playwright uses its own build), `HEADLESS`, `SETUP_COUNTRY`
-(site currency; defaults per provider — GB/GBP for Stripe & SumUp, US/USD for
-Square; must be a 2-decimal currency such as GBP/USD/EUR — zero-decimal
-currencies like JPY are unsupported), `E2E_UNIT_PRICE` (minor units, default 137
-— a non-round amount so the ledger shows decimals), `E2E_TUNNEL` (`1`/`0` to
-force), and the `E2E_*_TIMEOUT_MS` values in `src/config.ts`. On failure (and
-always, in CI) a screenshot **and** the page HTML plus the server log land in
-`artifacts/` and are uploaded by the workflow.
+Hooks own infrastructure acquisition and disposal. Setup, sign-in, provider
+configuration, listing creation, booking, and refund actions belong in visible
+Given/When steps rather than disappearing into hooks.
 
-Every action is logged with the resulting URL/title, so the CI log reads as a
-breadcrumb trail of the journey. Form controls are driven with Playwright's
-`force` option and forms are submitted via `form.submit()` rather than clicking
-the button — the app styles/validates controls in ways that otherwise make
-Playwright's default actionability wait (visible/enabled/stable) hang in the CI
-Chromium build.
+### The Feature
 
-## Two things to confirm on the first live run
+`e2e-payments/specs/live-payment-providers.feature` is the human contract: each
+Rule names one safe-durable result, and every step states a visible outcome.
 
-Everything except the provider-owned pages and the tunnel is validated; these
-two depend on live third-party behaviour and cannot be verified without sandbox
-credentials + unrestricted egress:
+The six scenarios:
 
-1. **Hosted-checkout selectors.** `src/providers/*.ts` fill each provider's
-   hosted checkout using the documented sandbox test cards and best-known field
-   selectors, each with fallbacks. If a provider has changed its checkout DOM,
-   the run fails with a screenshot in `artifacts/` — update the selector list in
-   that provider's `payHostedCheckout`.
-2. **Tunnel Host passthrough (Stripe only).** The app derives its public domain
-   from the request `Host` header, and cloudflared quick tunnels forward the
-   original `Host` — so `getEffectiveDomain()` resolves to the
-   `*.trycloudflare.com` hostname and Stripe webhook registration gets a valid
-   public URL. If a future cloudflared rewrites `Host` to `127.0.0.1`, Stripe
-   webhook setup will reject it (Square/SumUp are unaffected — the browser
-   follows the return URL on the same machine). The fix if that ever happens is
-   to pin the origin Host header on the tunnel.
+- **free-booking-once** — the no-provider journey proves setup, the public form
+  and the admin assertions work before a third-party provider is involved.
+- **stripe-refund-recovers** — Stripe returns money while the local Money write
+  fails; the booking stays protected, a stale form cannot double-refund, and
+  Refresh completes the local record when Money recovers.
+- **square-refund-safe** — a Square payment is replayed and refunded; the refund
+  is either recorded or safely observing, with no second Refund.
+- **sumup-refund-safe** — a SumUp payment is replayed (genuine self-delivered
+  callback); forged ids receive the one fixed refusal without a read; the
+  keyless refund reaches a safe result.
+- **stripe-invalidated-checkout-refunded** — the owner changes the price while a
+  visitor is paying; the webhook processes the later charge, retains the booking
+  at quantity 0, and automatically refunds.
+- **complex-order-<provider>** — a package, member, and plain listing booked in
+  one order, with per-listing income verified.
+
+Square's sandbox has no hosted buyer card page, so its driver completes the
+payment through the Payments API before the browser follows the real app return
+URL. SumUp's callback is self-delivered by the harness with the genuine checkout
+id — the harness does not claim to prove SumUp's own webhook delivery.
+
+### Browser interaction
+
+The app is driven the way a person drives it: fill fields by their accessible
+name, click buttons and links by their visible text, and submit through the
+visible submit control (`requestSubmit`) — never force, never `form.submit()`.
+Some headless Chromium builds stop scheduling compositor frames after a form
+POST, which stalls Playwright's stability wait; the harness detects that and
+falls back to `requestSubmit` / a scripted click, which still runs browser
+validation and the app's own event handlers.
+
+### Cleanup
+
+Teardown runs every cleanup action (fault removal, browser, provider resources,
+tunnel, server), collecting failures. A cleanup failure on a passing scenario
+fails it, and on a failed scenario is reported alongside the original error
+without obscuring it.
+
+### Notes per provider
+
+| Provider | Country  | Webhook                                                                              | Refund                                                    |
+| -------- | -------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Stripe   | US (USD) | Signed webhook registration, rotation, and cleanup of only this scenario's exact URL | Real refund; Money fault scenario with persistent trigger |
+| Square   | GB (GBP) | None (return-URL only; Square has no browser card page)                              | Real sandbox refund API                                   |
+| SumUp    | GB (GBP) | Unsigned, self-delivered genuine callback; forged ids refused unread                 | Real keyless refund; delayed history may report pending   |
+
+Secrets / env: see `src/config.ts` for all knobs (all optional except
+`DB_URL`/`DB_ENCRYPTION_KEY` which the runner sets). Set provider secrets as
+environment variables before running the corresponding target.
 
 ## Layout
 
 ```
 src/
-  main.ts            orchestrator + CLI entry (target from argv/E2E_PROVIDER)
-  config.ts          env-driven config, secret resolution, skip logic
-  server.ts          boot/teardown the real Deno app server on a file DB
-  tunnel.ts          cloudflared quick tunnel (+ no-tunnel passthrough)
-  browser.ts         Chromium lifecycle + form/navigation helpers
-  flow.ts            setup → login → listing → book → confirm-paid journey
+  main.ts              thin target boundary → runSpecs
+  targets.ts           exhaustive target→case selection + catalog handshake
+  config.ts            env-driven config, required secrets, identity generation
+  server.ts            boot/teardown the real Deno app server on a file DB
+  tunnel.ts            cloudflared quick tunnel (+ no-tunnel passthrough)
+  browser.ts           Chromium lifecycle + honest form/navigation helpers
+  cleanup.ts           attemptEveryCleanup + cleanup error precedence
+  db-fault.ts          scoped Money-transfer refusal (persistent trigger)
+  refund-outcome.ts    classify submitted refund: recorded or observing
+  flow.ts              shared journey helpers (setup, login, listing, booking)
+  order-flow.ts         the complex-order journey (catalog build + verification)
   providers/
-    types.ts         PaymentProvider interface
-    shared.ts        provider selection + "configured" assertion
-    card.ts          resilient hosted-checkout field filling (frames + fallbacks)
-    stripe.ts / square.ts / sumup.ts   per-provider config + hosted checkout
+    types.ts           PaidSandboxCheckout / SandboxRefundObservation / driver
+    shared.ts          providerFetch, requiredField, observeViaRead, factories
+    stripe.ts          Stripe: pay, refund observation, exact-URL endpoint cleanup
+    square.ts          Square: sandbox API completion, payment read
+    sumup.ts           SumUp: hosted card fill, checkout/transaction ids
+    sumup-callback.ts  callback contract (genuine twice + refusal probes)
+    card.ts            resilient hosted-checkout field filling
+  cucumber/
+    support/world.ts   LiveWorld: scenario identity + phases + boundary methods
+    support/hooks.ts   Before (infra) + AfterStep (flag) + After (teardown)
+    support/journal.ts per-scenario non-secret phase journal
+    steps/setup.ts     Given steps: provider config, listing publication
+    steps/booking.ts   When/Then: visitor pays, return replay, admin assertions
+    steps/refund.ts    When/Then: refund flows, Money fault, recovery
+    steps/pages.ts     shared page-navigation and page-fact gathering helpers
 ```

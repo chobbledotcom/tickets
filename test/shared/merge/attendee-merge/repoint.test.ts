@@ -8,14 +8,23 @@ import {
 } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
+import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
+import { queryAll, queryOne, withTransaction } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import {
+  getRefundAllSummary,
+  loadRefundAllBatch,
+} from "#shared/db/refund-all-candidates.ts";
+import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  finalizeReservedPayment,
+  refundReferencesFor,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   createAttendee,
   getBookings,
@@ -31,6 +40,57 @@ const createMergePair = async () => {
     sourceListing,
     target: await createAttendee(targetListing.id, "Alice", "alice@test.com"),
   };
+};
+
+interface PiiPaymentBooking {
+  email: string;
+  listingId: number;
+  name: string;
+  paymentId: string;
+  pricePaid?: number;
+}
+
+const createAttendeeWithPiiPayment = async (
+  input: PiiPaymentBooking,
+): Promise<Attendee> => {
+  const result = await attendeesApi.createAttendeeAtomic({
+    bookings: [
+      {
+        listingId: input.listingId,
+        ...(input.pricePaid === undefined
+          ? {}
+          : { pricePaid: input.pricePaid }),
+      },
+    ],
+    email: input.email,
+    name: input.name,
+    paymentId: input.paymentId,
+  });
+  if (!result.success) throw new Error("paid attendee creation failed");
+  return result.attendees[0]!;
+};
+
+const qualifyAttendeePayment = async (
+  attendeeId: number,
+  sessionId: string,
+  paymentId: string,
+): Promise<void> => {
+  await reserveSession(sessionId);
+  await finalizeReservedPayment(
+    sessionId,
+    attendeeId,
+    "",
+    taggedPaymentReference(paymentId),
+  );
+  await withTransaction(async (tx) => {
+    const [provenance] = await tx.batch([
+      attendeePaymentProvenance.statement(sessionId),
+    ]);
+    if (provenance === undefined) {
+      throw new Error("payment provenance write returned no result");
+    }
+    attendeePaymentProvenance.require(provenance, sessionId);
+  });
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
@@ -87,7 +147,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       "source-paid-session",
       source.id,
       "",
-      "pi_source_paid",
+      taggedPaymentReference("pi_source_paid"),
     );
 
     const { result } = await runMerge({ source, target });
@@ -107,32 +167,114 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     ]);
   });
 
-  test("preserves the source's legacy payment ID on the target", async () => {
+  test("keeps the target's payment provenance when source payments move", async () => {
+    const targetListing = await createTestListing({ maxAttendees: 10 });
+    const sourceListing = await createTestListing({ maxAttendees: 10 });
+    const target = await createAttendeeWithPiiPayment({
+      email: "alice@test.com",
+      listingId: targetListing.id,
+      name: "Alice",
+      paymentId: "pi_target_payment",
+    });
+    const source = await createAttendee(
+      sourceListing.id,
+      "Bob",
+      "bob@test.com",
+    );
+    await qualifyAttendeePayment(
+      target.id,
+      "target-paid-session",
+      "pi_target_payment",
+    );
+    await reserveSession("source-payment-to-move");
+    await finalizeReservedPayment(
+      "source-payment-to-move",
+      source.id,
+      "",
+      taggedPaymentReference("pi_source_payment"),
+    );
+
+    const { result } = await runMerge({ source, target });
+
+    expect(result.success).toBe(true);
+    expect(
+      await queryOne<{ pii_payment_session_id: string }>(
+        "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
+        [target.id],
+      ),
+    ).toEqual({ pii_payment_session_id: "target-paid-session" });
+  });
+
+  test("keeps an old source PII payment unqualified after merging into a qualified target", async () => {
+    const targetListing = await createTestListing({ maxAttendees: 10 });
+    const sourceListing = await createTestListing({ maxAttendees: 10 });
+    const target = await createAttendeeWithPiiPayment({
+      email: "qualified-target@test.com",
+      listingId: targetListing.id,
+      name: "Qualified target",
+      paymentId: "pi_qualified_target",
+    });
+    const source = await createAttendeeWithPiiPayment({
+      email: "old-source@test.com",
+      listingId: sourceListing.id,
+      name: "Old source",
+      paymentId: "pi_old_hidden_deposit",
+      pricePaid: 500,
+    });
+    await qualifyAttendeePayment(
+      target.id,
+      "qualified-target-session",
+      "pi_qualified_target",
+    );
+    await reserveSession("later-source-balance");
+    await finalizeReservedPayment(
+      "later-source-balance",
+      source.id,
+      "",
+      taggedPaymentReference("pi_later_source_balance"),
+    );
+    await postPaidSale({
+      amount: 500,
+      attendeeId: source.id,
+      eventGroup: "old-source-booking",
+      listingId: sourceListing.id,
+    });
+
+    const { result } = await runMerge({ source, target });
+
+    expect(result.success).toBe(true);
+    expect(
+      await queryOne<{ pii_payment_session_id: string | null }>(
+        "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
+        [target.id],
+      ),
+    ).toEqual({ pii_payment_session_id: null });
+    expect(await getRefundAllSummary(sourceListing.id)).toEqual({
+      blockedBy: "legacy_unindexed",
+      total: 1,
+    });
+    expect(await loadRefundAllBatch(sourceListing.id)).toMatchObject({
+      blockedBy: "legacy_unindexed",
+      total: 1,
+    });
+  });
+
+  test("does not manufacture refund authority from a PII-only source payment", async () => {
     const { source, target } = await createMergePair();
-    const sourceWithLegacyPayment = {
+    const sourceWithPiiPayment = {
       ...source,
-      payment_id: "pi_source_legacy",
+      payment_id: "pi_source_pii_only",
     };
 
     const { result } = await runMerge({
-      source: sourceWithLegacyPayment,
+      source: sourceWithPiiPayment,
       target,
     });
 
     expect(result.success).toBe(true);
-    const references = await getRefundPaymentReferences(
-      [{ id: target.id, payment_id: "" }],
-      await getTestPrivateKey(),
-    );
-    expect(references.get(target.id)).toEqual([
-      {
-        // A legacy-merge charge (no live session) whose refund was never
-        // observed reads as "unknown", not a definite "none".
-        reference: "pi_source_legacy",
-        refundState: "unknown",
-        sessionIds: [],
-      },
-    ]);
+    expect(
+      await refundReferencesFor(target.id, await getTestPrivateKey()),
+    ).toEqual([]);
   });
 
   test("preserves package_group_id when moving a source package booking", async () => {

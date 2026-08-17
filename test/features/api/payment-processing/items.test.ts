@@ -15,7 +15,8 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
   listingPair,
@@ -95,7 +96,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     });
     await deactivateTestListing(listing.id);
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
-    using refund = stubRefundPayment("re_items_inactive");
+    using refund = stubRefundPayment("re_items_inactive", 500);
 
     expect(
       failureResult(
@@ -111,7 +112,9 @@ describeWithEnv("paid item validation", { db: true }, () => {
       status: 410,
       success: false,
     });
-    expect(refund.calls[0]?.args).toEqual(["pi_cs_items_inactive"]);
+    expect(refund.calls[0]?.args).toEqual([
+      stripeRefundRequestShape("pi_cs_items_inactive", 500),
+    ]);
   });
 
   test("names the listing that closed in a visible multi-listing order", async () => {
@@ -127,7 +130,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: open.id, p: 300, q: 1 },
       { e: closed.id, p: 400, q: 1 },
     ]);
-    using refund = stubRefundPayment("re_items_closed");
+    using refund = stubRefundPayment("re_items_closed", 700);
 
     expect(
       failureResult(
@@ -163,7 +166,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: first.id, k: "p", p: 300, q: 1, r: group.id },
       { e: second.id, k: "p", p: 400, q: 1, r: group.id },
     ]);
-    using refund = stubRefundPayment("re_hidden_package");
+    using refund = stubRefundPayment("re_hidden_package", 700);
 
     expect(
       failureResult(
@@ -204,7 +207,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     ).toEqual([null, null]);
 
     await deactivateTestListing(member.id);
-    using refund = stubRefundPayment("re_stale_hidden");
+    using refund = stubRefundPayment("re_stale_hidden", 700);
     expect(
       failureResult(
         await validateAllItems(

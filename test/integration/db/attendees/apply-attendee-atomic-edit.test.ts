@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
@@ -17,32 +18,23 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 
-/** Encrypt a minimal PII blob for the test attendee. Reuses the production
- * encryptPiiBlob path so the resulting blob decrypts correctly. */
-const encryptTestBlob = async (
+/** Minimal PII facts for an attendee edit. */
+const testPii = (
   name: string,
   email: string,
   ticketToken: string,
-): Promise<string> => {
-  const { buildPiiBlob, encryptPiiBlob } = await import(
-    "#shared/db/attendees/pii.ts"
-  );
-  const { settings } = await import("#shared/db/settings.ts");
-  const blob = buildPiiBlob({
-    address: "",
-    email,
-    lat: "",
-    lng: "",
-    name,
-    payment_id: "",
-    phone: "",
-    special_instructions: "",
-    ticket_token: ticketToken,
-  });
-  const encrypted = await encryptPiiBlob(blob, settings.publicKey);
-  if (!encrypted) throw new Error("Failed to encrypt test PII blob");
-  return encrypted;
-};
+  paymentId: string,
+): UpdateAttendeePIIInput => ({
+  address: "",
+  email,
+  lat: "",
+  lng: "",
+  name,
+  payment_id: paymentId,
+  phone: "",
+  special_instructions: "",
+  ticket_token: ticketToken,
+});
 
 type DesiredLine = Parameters<typeof applyAttendeeAtomicEdit>[2][number];
 type LineOpts = {
@@ -118,10 +110,11 @@ const bookForEdit = async (
   if (!result.success) throw new Error("setup");
   const attendee = result.attendees[0]!;
   const existing = await loadExistingLines(attendee.id);
-  const blob = await encryptTestBlob(
+  const blob = testPii(
     blobName,
     blobEmail,
     attendee.ticket_token,
+    attendee.payment_id,
   );
   return { attendee, blob, existing };
 };
@@ -162,10 +155,11 @@ const setupMulti = async (
   if (!result.success) throw new Error("setup");
   const attendee = result.attendees[0]!;
   const existing = await loadExistingLines(attendee.id);
-  const blob = await encryptTestBlob(
+  const blob = testPii(
     blobPii.name ?? createPii.name,
     blobPii.email ?? "",
     attendee.ticket_token,
+    attendee.payment_id,
   );
   return { attendee, blob, existing };
 };

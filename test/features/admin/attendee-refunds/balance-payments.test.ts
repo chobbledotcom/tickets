@@ -3,6 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
+import { execute } from "#shared/db/client.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -13,39 +15,26 @@ import {
 } from "#test-utils/assertions.ts";
 import { settle } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { attendeePiiOf } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  putRowState,
+  rowStateSlot,
+  UNRECORDED_MIRROR,
+} from "#test-utils/payment-claim.ts";
+import {
+  finalizeReservedPayment,
+  taggedPaymentReference,
+} from "#test-utils/processed-payments.ts";
 import {
   expectSingleRefundIssued,
   postRefundAll,
+  refundCompletes,
   submitRefund,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-
-const SETTLED_RESERVATION_REFERENCES = [
-  "pi_reservation_balance",
-  "pi_reservation_deposit",
-];
-
-const expectSettledReservationRefundFailure = async (
-  ctx: RefundCtx,
-  refundBehavior: Parameters<typeof withRefundMock>[0],
-) => {
-  await withRefundMock(refundBehavior, async (mockRefund) => {
-    const response = await submitRefund(ctx);
-    await expectFlashRedirect(
-      `/admin/attendees/${ctx.attendee.id}/refund`,
-      expect.stringContaining("Refund failed"),
-      false,
-    )(response);
-    expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
-      SETTLED_RESERVATION_REFERENCES,
-    );
-  });
-};
 
 const refundCtx = async (
   attendee: Attendee,
@@ -90,7 +79,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
       "balance_refund_session",
       attendee.id,
       1500,
-      "pi_balance_refund",
+      taggedPaymentReference("pi_balance_refund"),
     ),
   );
   return refundCtx(attendee, listing);
@@ -110,7 +99,6 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     bookings: [{ listingId: listing.id, pricePaid: 2000, quantity: 1 }],
     email: "reservation@example.com",
     name: "John Doe",
-    paymentId: "pi_reservation_deposit",
     remainingBalance: 8000,
     statusId: status.id,
   });
@@ -128,7 +116,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     "reservation_deposit_session",
     attendee.id,
     "",
-    "pi_reservation_deposit",
+    taggedPaymentReference("pi_reservation_deposit"),
   );
   await reserveSession("reservation_balance_session");
   await settleAttendeeBalance(
@@ -139,60 +127,75 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
       "reservation_balance_session",
       attendee.id,
       8000,
-      "pi_reservation_balance",
+      taggedPaymentReference("pi_reservation_balance"),
     ),
   );
   return refundCtx(attendee, listing);
 };
 
+const expectIncompleteReservationHistoryRefused = async (
+  changeHistory: (ctx: RefundCtx) => Promise<void>,
+): Promise<void> => {
+  const ctx = await setupSettledReservationRefundTest();
+  await changeHistory(ctx);
+
+  await withRefundMock(refundCompletes, async (mockRefund) => {
+    const response = await submitRefund(ctx);
+    await expectFlashRedirect(
+      `/admin/attendees/${ctx.attendee.id}/actions`,
+      expect.stringContaining("older payment history"),
+      false,
+    )(response);
+    expect(mockRefund.calls).toEqual([]);
+  });
+};
+
 describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
   describe("single attendee refund", () => {
-    const errors = setupErrorSpy();
-
     test("refunds a balance-paid attendee whose original row has no payment id", async () => {
       const ctx = await setupBalancePaidRefundTest();
 
       await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
-          "pi_balance_refund",
-        ]);
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference),
+        ).toEqual(["pi_balance_refund"]);
       });
     });
 
-    test("refunds both charges for a settled reservation", async () => {
+    test("refuses two charges before provider work exceeds the request budget", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0]).sort()).toEqual(
-          SETTLED_RESERVATION_REFERENCES,
+      await withRefundMock(refundCompletes, async (mockRefund) => {
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/refund`,
+          "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
+          false,
+        )(await submitRefund(ctx));
+        expect(mockRefund.calls).toEqual([]);
+      });
+    });
+
+    test("does not refund an indexed balance while an old deposit is unindexed", async () => {
+      await expectIncompleteReservationHistoryRefused(async () => {
+        await execute(
+          `UPDATE processed_payments
+              SET payment_reference_index = ''
+            WHERE payment_session_id = ?`,
+          ["reservation_deposit_session"],
         );
       });
     });
 
-    test("logs when a settled reservation refund misses one of its charges", async () => {
-      const ctx = await setupSettledReservationRefundTest();
-
-      await expectSettledReservationRefundFailure(ctx, false);
-      expect(
-        errors.calls
-          .map((call) => String(call.args[0]))
-          .some((message) =>
-            message.includes("did not complete every payment"),
-          ),
-      ).toBe(true);
-    });
-
-    test("records a returned charge when the other charge fails", async () => {
-      const ctx = await setupSettledReservationRefundTest();
-
-      await expectSettledReservationRefundFailure(ctx, (reference) =>
-        Promise.resolve(reference === "pi_reservation_deposit"),
-      );
-
-      await expectSingleRefundIssued(ctx, (mockRefund) => {
-        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
-          "pi_reservation_balance",
-        ]);
+    test("does not refund an indexed balance while its PII-only deposit is unindexed", async () => {
+      await expectIncompleteReservationHistoryRefused(async (ctx) => {
+        await updateAttendeePII(ctx.attendee.id, {
+          ...attendeePiiOf(ctx.attendee),
+          payment_id: "pi_reservation_deposit",
+        });
+        await execute(
+          "DELETE FROM processed_payments WHERE payment_session_id = ?",
+          ["reservation_deposit_session"],
+        );
       });
     });
   });
@@ -201,15 +204,15 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     test("bulk refund includes a balance-paid attendee with no legacy payment id", async () => {
       const ctx = await setupBalancePaidRefundTest();
 
-      await withRefundMock(true, async (mockRefund) => {
+      await withRefundMock(refundCompletes, async (mockRefund) => {
         const response = await postRefundAll(ctx.listing);
         await expectFlashRedirect(
           `/admin/listing/${ctx.listing.id}`,
           "All attendees refunded",
         )(response);
-        expect(mockRefund.calls.map((call) => call.args[0])).toEqual([
-          "pi_balance_refund",
-        ]);
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference),
+        ).toEqual(["pi_balance_refund"]);
       });
     });
 
@@ -220,6 +223,38 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       );
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain(`/admin/attendees/${ctx.attendee.id}/refund`);
+    });
+
+    test("keeps refresh reachable when a balance-only refund needs Money", async () => {
+      const ctx = await setupBalancePaidRefundTest();
+      expect(ctx.attendee.payment_id).toBe("");
+      await putRowState(
+        "balance_refund_session",
+        await rowStateSlot({
+          unrecorded: { returnedAt: "2026-08-12T10:00:00.000Z" },
+        }),
+        UNRECORDED_MIRROR,
+      );
+
+      const actions = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${ctx.attendee.id}/actions`),
+        200,
+      );
+      expect(actions).not.toContain(
+        `/admin/attendees/${ctx.attendee.id}/refund`,
+      );
+      expect(actions).not.toContain(
+        `/admin/attendees/${ctx.attendee.id}/payment-review`,
+      );
+
+      const overview = await expectHtmlResponse(
+        await adminGet(`/admin/attendees/${ctx.attendee.id}`),
+        200,
+      );
+      expect(overview).toContain(
+        `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
+      );
+      expect(overview).toContain("Refresh payment status");
     });
   });
 });

@@ -21,22 +21,24 @@ import {
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
 
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { readListingAggregates as aggregates } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 const MIGRATIONS = await loadMigrations();
-const refundPostedSale = (
+const refundPostedSale = async (
   listingId: number,
   attendeeId: number,
-): Promise<{ posted: boolean }> =>
-  recordAttendeeRefund(attendeeId, [
+): Promise<void> => {
+  await recordAttendeeRefund(attendeeId, [
     {
+      index: `sale-${listingId}-${attendeeId}`,
       sessionIds: [`sale-${listingId}-${attendeeId}`],
     },
   ]);
+};
 
 describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
   test("the UPDATE trigger fires on exactly the columns in LISTING_AGGREGATE_WRITE_COLUMNS", () => {

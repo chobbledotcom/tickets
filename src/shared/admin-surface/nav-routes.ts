@@ -363,6 +363,14 @@ export const ADMIN_NAV_ROUTES = [
     "nav.sub.debug",
   ),
   view(
+    "schemaAtlas",
+    "schemaAtlas",
+    "settings",
+    "/admin/schema",
+    OWNER_AUDIENCE,
+    "nav.sub.schema",
+  ),
+  view(
     "support",
     "support",
     "settings",

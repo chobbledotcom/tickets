@@ -11,10 +11,15 @@ import type {
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
+import {
+  answerCompletedStripeRefund,
+  stripeRefundRequestShape,
+} from "#test/test-utils/stripe/fixtures.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
@@ -51,6 +56,7 @@ const paidSession = (
   },
   paymentReference: "pi_classify",
   paymentStatus: "paid",
+  provider: "stripe",
 });
 
 describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
@@ -111,16 +117,18 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
 
     const classified = await classifySessionIntent(paidSession());
 
-    expect(classified?.verdict).toEqual({ agreed: 500, verdict: "trusted" });
-    expect(classified?.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
+    expect(classified.kind).toBe("ready");
+    if (classified.kind !== "ready") throw new Error("Expected ready booking");
+    expect(classified.verdict).toEqual({ agreed: 500, verdict: "trusted" });
+    expect(classified.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
   });
 
   test("says nothing about a checkout we cannot show is ours", async () => {
     await setupStripe();
 
-    expect(await classifySessionIntent(paidSession({ price_proof: "" }))).toBe(
-      null,
-    );
+    expect(
+      await classifySessionIntent(paidSession({ price_proof: "" })),
+    ).toEqual({ kind: "unverifiable" });
   });
 
   test("raises a checkout that is ours but whose booking will not read", async () => {
@@ -146,12 +154,12 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
       ),
     );
 
-    expect(classified).toBe(null);
+    expect(classified).toEqual({ kind: "unreadable" });
 
     expect(
       await loggedAbout(
         "booking",
-        "Signed session's booking could not be read (session=cs_classify)",
+        "Signed payment's booking could not be read",
       ),
     ).toBe(true);
   });
@@ -197,6 +205,34 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(await loggedAbout("redirect", "Session not found")).toBe(true);
   });
 
+  test("keeps a signed checkout retryable when its booking cannot be read", async () => {
+    await setupStripe();
+    using _provider = await providerAnswers(
+      paidSession(
+        signedMeta(
+          {
+            email: "buyer@example.com",
+            items: singleItem(1, 1, 500),
+            modifiers: "{}",
+            name: "Buyer",
+          },
+          500,
+        ),
+      ),
+    );
+
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_unreadable_booking"),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the unreadable booking to refuse");
+    expect(result.response.status).toBe(503);
+    expect(await result.response.text()).toContain(
+      "Payment verification failed. Please contact support.",
+    );
+  });
+
   test("tells a buyer whose unreadable charge was refunded", async () => {
     await setupStripe();
     const { stripeApi } = await import("#shared/stripe.ts");
@@ -207,13 +243,18 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
         500,
       ),
       paymentReference: "pi_refunded",
+      provider: "stripe",
       reason: "malformed_charge",
       refundable: true,
+      sessionId: "cs_refunded",
     });
-    using refundStub = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_1", status: "succeeded" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
+    using refundStub = stub(
+      stripeApi,
+      "refundCharge",
+      answerCompletedStripeRefund(),
+    );
+    using _read = stub(stripeApi, "readPaymentIntent", (reference) =>
+      Promise.resolve(foundStripeIntent(reference, 500)),
     );
 
     const result = await runWithPendingWork(() =>
@@ -227,7 +268,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     const page = await result.response.text();
     expect(page).toContain("We have sent your money back");
     expect(refundStub.calls.map((call) => call.args)).toEqual([
-      ["pi_refunded"],
+      [stripeRefundRequestShape("pi_refunded", 500)],
     ]);
     expect(page).not.toContain("We could not find this payment session.");
     expect(
@@ -253,6 +294,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       }),
       paymentReference: "",
       paymentStatus: "failed" as const,
+      provider: "stripe" as const,
     });
 
     const result = await validatePaidSession("cs_failed");
@@ -272,6 +314,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       metadata: webhookMeta({ name: "Still Going" }),
       paymentReference: "",
       paymentStatus: "unpaid" as const,
+      provider: "stripe" as const,
     });
 
     const result = await runWithPendingWork(() =>

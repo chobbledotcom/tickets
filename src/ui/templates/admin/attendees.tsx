@@ -13,14 +13,12 @@ import type {
 } from "#shared/db/question-types.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { paymentDashboardUrl } from "#shared/payment-dashboard.ts";
 import type {
   AdminSession,
   Attendee,
   ListingWithCount,
 } from "#shared/types.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import {
   type LabelledLine,
@@ -43,8 +41,8 @@ const amountPaidPara = (attendee: Attendee): JSX.Element | null =>
   ) : null;
 
 /**
- * The prose "attendee details" block shared by the delete/refund/resend
- * confirmation pages: name, email, quantity, (optionally) amount paid,
+ * The prose "attendee details" block shared by attendee confirmation pages:
+ * name, email, quantity, (optionally) amount paid,
  * registered timestamp, then any page-specific trailing children.
  */
 const AttendeeDetails = ({
@@ -84,29 +82,20 @@ const AttendeeDetails = ({
   );
 };
 
-/** Shared ConfirmPage shell for the delete/refund/resend attendee action
- *  pages: all three wrap an {@link AttendeeDetails} body in a ConfirmPage with
- *  the same active/label/name/returnUrl/warning structure. Only the action,
- *  title, button text, confirm message, and body children differ — those are
- *  passed via the config. The `warning` paragraph wraps a `<strong>` prefix
- *  (e.g. "Warning:") followed by the caller's text. */
-/** Config object passed to {@link attendeeConfirmPage} (and built by
- *  {@link attendeeRouteConfirm}). The caller supplies everything except the
- *  `action` URL — the route factory injects that from its `segment` arg. */
 type AttendeeConfirmConfig = {
   action: string;
   body?: JSX.Element;
   buttonText: string;
   confirmKey: string;
   danger?: boolean;
+  disabled?: boolean;
+  hiddenFields?: Record<string, string>;
   showAmountPaid?: boolean;
   titleAction: string;
   warningPrefix: string;
   warningText: string;
 };
 
-// Calls ConfirmPage directly: the extra returnUrl argument doesn't fit the
-// (entity, session, error?) shape entityDeletePage builds.
 const attendeeConfirmPage = (
   attendee: Attendee,
   session: AdminSession,
@@ -123,12 +112,16 @@ const attendeeConfirmPage = (
         attendee={attendee}
         {...(config.showAmountPaid ? { showAmountPaid: true } : {})}
       >
-        <p>{t(config.confirmKey, { name: attendee.name })}</p>
+        {!config.disabled && (
+          <p>{t(config.confirmKey, { name: attendee.name })}</p>
+        )}
         {config.body}
       </AttendeeDetails>
     ),
     danger: config.danger,
+    disabled: config.disabled,
     error,
+    hiddenFields: config.hiddenFields,
     label: t("admin.attendees.delete_label"),
     name: attendee.name,
     returnUrl,
@@ -140,54 +133,39 @@ const attendeeConfirmPage = (
       </p>
     ),
   });
-/** Build an attendee confirm-page renderer for a single action — the three
- *  admin delete/refund/resend pages share this signature, differing only in
- *  the route `segment` and the {@link attendeeConfirmPage} config. The
- *  wrapping `({ attendee }: {...}, session, returnUrl?, error?) => attendeeConfirmPage(...)`
- *  boilerplate was duplicated enough to trip jscpd; this factory keeps it in
- *  one place. */
-const attendeeRouteConfirm =
-  (segment: string, config: Omit<AttendeeConfirmConfig, "action">) =>
+type AttendeeConfirmData = { attendee: Attendee };
+
+type AttendeeConfirmChanges<Data extends AttendeeConfirmData> = (
+  data: Data,
+) => Partial<Omit<AttendeeConfirmConfig, "action">>;
+
+const noAttendeeConfirmChanges = (): Record<never, never> => ({});
+
+/** Build every attendee confirmation from its fixed facts and current data. */
+export const attendeeRouteConfirm =
+  <Data extends AttendeeConfirmData = AttendeeConfirmData>(
+    segment: string,
+    config: Omit<AttendeeConfirmConfig, "action">,
+    changes: AttendeeConfirmChanges<Data> = noAttendeeConfirmChanges,
+  ) =>
   (
-    { attendee }: { listing: ListingWithCount; attendee: Attendee },
+    data: Data,
     session: AdminSession,
     returnUrl?: string,
     error?: string,
-  ): string =>
-    attendeeConfirmPage(attendee, session, error, returnUrl, {
+  ): string => {
+    const { attendee } = data;
+    return attendeeConfirmPage(attendee, session, error, returnUrl, {
       ...config,
+      ...changes(data),
       action: `/admin/attendees/${attendee.id}/${segment}`,
     });
-
-/**
- * Admin delete attendee confirmation page
- */
-export const adminAttendeeDeletePage = attendeeRouteConfirm("delete", {
-  body: (
-    <>
-      <CheckboxLabel
-        checked={true}
-        label={` ${t("admin.attendees.release_bookings")}`}
-        name="release_bookings"
-        value="1"
-      />
-      <p>
-        <small>{t("admin.attendees.release_bookings_note")}</small>
-      </p>
-    </>
-  ),
-  buttonText: t("admin.attendees.delete_submit"),
-  confirmKey: "admin.attendees.delete_confirm",
-  titleAction: "Delete Attendee",
-  warningPrefix: "Warning",
-  warningText:
-    "This will permanently remove this attendee from the listing and delete any associated payment records.",
-});
+  };
 
 /**
  * Admin refund attendee confirmation page
  */
-export const adminRefundAttendeePage = attendeeRouteConfirm("refund", {
+const refundConfirm: Omit<AttendeeConfirmConfig, "action"> = {
   buttonText: t("admin.attendees.refund_submit"),
   confirmKey: "admin.attendees.refund_confirm",
   showAmountPaid: true,
@@ -195,7 +173,44 @@ export const adminRefundAttendeePage = attendeeRouteConfirm("refund", {
   warningPrefix: "Warning",
   warningText:
     "This will issue a full refund for this attendee's payment. The attendee will remain registered.",
+};
+
+export const adminRefundAttendeePage = attendeeRouteConfirm(
+  "refund",
+  refundConfirm,
+);
+
+/** Explain why a refund is blocked without leaving a send form on the page. */
+export const adminBlockedRefundAttendeePage = attendeeRouteConfirm("refund", {
+  ...refundConfirm,
+  disabled: true,
 });
+
+/** Record that the owner has handled an ambiguous payment outcome. */
+const paymentReviewConfirm = {
+  buttonText: t("admin.attendees.payment_review_submit"),
+  confirmKey: "admin.attendees.payment_review_confirm",
+  titleAction: t("admin.attendees.payment_review_title"),
+  warningPrefix: t("admin.attendees.payment_review_warning_prefix"),
+  warningText: t("admin.attendees.payment_review_warning"),
+} satisfies Omit<AttendeeConfirmConfig, "action">;
+
+type PaymentReviewConfirmData = AttendeeConfirmData & {
+  reviewIdentity: string | null;
+};
+
+/** Render the exact review case loaded with the attendee action. */
+export const adminPaymentReviewPage =
+  attendeeRouteConfirm<PaymentReviewConfirmData>(
+    "payment-review",
+    paymentReviewConfirm,
+    ({ reviewIdentity }) => ({
+      disabled: reviewIdentity === null,
+      ...(reviewIdentity === null
+        ? {}
+        : { hiddenFields: { review_identity: reviewIdentity } }),
+    }),
+  );
 
 /**
  * Admin re-send notification confirmation page
@@ -217,64 +232,93 @@ export const adminResendNotificationPage = attendeeRouteConfirm(
 /**
  * Admin refund all attendees confirmation page
  */
+type RefundAllPageState =
+  | {
+      readonly count: number;
+      readonly flash: string | undefined;
+      readonly kind: "available";
+    }
+  | {
+      readonly count: number;
+      readonly flash: string | undefined;
+      readonly kind: "unavailable";
+      readonly reason: string;
+    };
+
 export const adminRefundAllAttendeesPage = (
   listing: ListingWithCount,
-  refundableCount: number,
+  state: RefundAllPageState,
   session: AdminSession,
-  error?: string,
-): string =>
-  ConfirmPage({
+): string => {
+  const confirmation = (
+    <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
+  );
+  const blockedNotice =
+    state.kind === "unavailable" ? <p>{state.reason}</p> : null;
+  const warning = (
+    <p>
+      <Raw
+        html={t("admin.attendees.refund_all_warning", {
+          count: state.count,
+        })}
+      />
+    </p>
+  );
+  return ConfirmPage({
     action: `/admin/listing/${listing.id}/refund-all`,
     active: "/admin/",
     buttonText: t("admin.attendees.refund_all_submit"),
-    children: (
-      <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
-    ),
-    error,
+    children:
+      state.kind === "unavailable" ? (
+        <>
+          {warning}
+          {blockedNotice}
+          {confirmation}
+        </>
+      ) : (
+        confirmation
+      ),
+    disabled: state.kind === "unavailable",
+    error: state.flash,
     label: t("admin.attendees.refund_all_label"),
     name: listing.name,
     session,
     title: `Refund All: ${listing.name}`,
-    warning: (
-      <p>
-        <Raw
-          html={t("admin.attendees.refund_all_warning", {
-            count: refundableCount,
-          })}
-        />
-      </p>
-    ),
+    warning,
   });
+};
 
 /** Render payment details section (read-only). Shared by the unified
  * add/edit attendee form. */
+export type PaymentRefreshControl =
+  | { readonly kind: "available"; readonly url: string }
+  | { readonly kind: "none" }
+  | { readonly kind: "unavailable"; readonly message: string };
+
 export const PaymentDetails = ({
   attendee,
+  refresh,
   showBalanceLink,
 }: {
   attendee: Attendee;
+  refresh: PaymentRefreshControl;
   /** The balance link targets the owner-only Ledger tab, so callers gate it
    * on the viewer's role (never render a forbidden link). */
   showBalanceLink: boolean;
 }): JSX.Element | null => {
-  if (!attendee.payment_id) return null;
+  if (!attendee.payment_id && refresh.kind === "none") return null;
   const isRefunded = attendee.refunded;
-  const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
   return (
     <PageBlock>
       <div class="prose">
         <h3>{t("admin.attendees.payment_details")}</h3>
-        <p>
-          <strong>{t("admin.attendees.payment_id")}</strong>{" "}
-          {dashboardUrl ? (
-            <a href={dashboardUrl} rel="noopener" target="_blank">
-              {attendee.payment_id}
-            </a>
-          ) : (
-            attendee.payment_id
-          )}
-        </p>
+        {attendee.payment_id && (
+          <p>
+            <strong>{t("admin.attendees.payment_id")}</strong>{" "}
+            {attendee.payment_id}
+          </p>
+        )}
         {amountPaidPara(attendee)}
         <p>
           <strong>{t("admin.attendees.refund_status")}</strong>{" "}
@@ -299,12 +343,15 @@ export const PaymentDetails = ({
           </p>
         )}
       </div>
-      <SaveForm
-        action={`/admin/attendees/${attendee.id}/refresh-payment`}
-        class="inline"
-        submitIcon="rotate-ccw"
-        submitLabel={t("admin.attendees.refresh_payment")}
-      />
+      {refresh.kind === "unavailable" && <p>{refresh.message}</p>}
+      {refresh.kind === "available" && (
+        <SaveForm
+          action={refresh.url}
+          class="inline"
+          submitIcon="rotate-ccw"
+          submitLabel={t("admin.attendees.refresh_payment")}
+        />
+      )}
     </PageBlock>
   );
 };

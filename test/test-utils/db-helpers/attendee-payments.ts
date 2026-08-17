@@ -2,8 +2,10 @@ import { beforeEach } from "@std/testing/bdd";
 import type {
   CreateAttendeeResult,
   ListingBooking,
+  UpdateAttendeePIIInput,
 } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,
@@ -12,6 +14,39 @@ import type { Attendee, Listing } from "#shared/types.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 import { createTestAttendee } from "./attendees.ts";
 import { createTestListing } from "./listings.ts";
+
+/**
+ * The attendee a booking made, or a stop right here.
+ *
+ * Every fixture that books somebody needs the same narrowing, and a booking
+ * that failed is a broken fixture rather than a case under test — so it says
+ * so by name instead of each caller inventing its own guard or asserting the
+ * shape it hopes for.
+ */
+export const bookedAttendee = (result: CreateAttendeeResult): Attendee => {
+  if (!result.success) {
+    throw new Error(`Failed to create the attendee: ${result.reason}`);
+  }
+  return result.attendees[0]!;
+};
+
+/** The editable contact fields from a loaded attendee. */
+export const attendeePiiOf = (attendee: Attendee): UpdateAttendeePIIInput => ({
+  address: attendee.address,
+  email: attendee.email,
+  lat: attendee.lat,
+  lng: attendee.lng,
+  name: attendee.name,
+  payment_id: attendee.payment_id,
+  phone: attendee.phone,
+  special_instructions: attendee.special_instructions,
+  ticket_token: attendee.ticket_token,
+});
+
+/** Save the same contact details through the real attendee-edit write path. */
+export const resaveAttendee = async (attendee: Attendee): Promise<void> => {
+  await updateAttendeePII(attendee.id, attendeePiiOf(attendee));
+};
 
 /**
  * Create a paid attendee (a payment_id + booking) WITHOUT posting any ledger
@@ -33,7 +68,9 @@ export const createPaidAttendeeWithoutLedger = async (
     name,
     paymentId,
   });
-  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
+  const attendee = bookedAttendee(result);
+  await resaveAttendee(attendee);
+  return attendee;
 };
 
 export const createPaidTestAttendee = async (

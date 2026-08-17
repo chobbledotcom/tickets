@@ -60,18 +60,21 @@ src/shared/db/attendees/pii.ts::decryptPiiBlob.lng~1d5jjcf  ?? → ||   # decryp
 src/shared/db/attendees/select.ts::whereClauses.parts.clause~0zb4tlc  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
 src/shared/db/attendees/select.ts::attendees.join~02qy6z7  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
-# processed-payments read-path failure_data label: the
-# "processed_payments.failure_data" context string surfaces only in errors
-# thrown inside defineStoredJson.read. parseSessionFailure catches every read
-# error and substitutes CORRUPT_FAILURE, so the label never reaches an
-# observable assertion. The write-path label is killed by a direct test that
-# passes an invalid StoredPaymentFailure to markSessionFailed and asserts the
-# error message carries the label.
-src/shared/db/processed-payments.ts::parseSessionFailure~1rv3mep  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
-
 # The news card query names a single table, so its columns need no alias to
 # resolve.
 src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
 
 src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message
+
+# Refund-authority creation uses one SQLite INSERT ... ON CONFLICT DO UPDATE
+# ... RETURNING statement. SQLite either returns the inserted/existing row or
+# throws; successful execution cannot yield zero rows, so the last-resort error
+# label cannot be observed through any database state.
+src/shared/sumup/transaction.ts::readSumupTransaction.events~0aphohd  ?? → ||   # validated transaction_events is an array or undefined; every array is truthy, so both operators select the same events or empty fallback
+
+# settleAttendeeRows reads its rows with WHERE payment_session_id IN
+# ([...rows.keys()]), so every row the settle callback sees carries a
+# sessionId that is a key of that same map. requiredMapValue can never miss
+# there, and no input can observe the message on that unreachable throw.
+src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement lost a payment row→""   # unreachable: the IN-clause is built from the same map's keys

@@ -18,7 +18,7 @@ import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
 
@@ -41,7 +41,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await withMocks(
         () => ({
-          mockRefund: spy(stripeApi, "refundPayment"),
+          mockRefund: spy(stripeApi, "refundCharge"),
           // Unsigned metadata (no price_proof) for a non-existent listing.
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 0,

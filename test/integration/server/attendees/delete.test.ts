@@ -2,6 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { queryOne } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 // jscpd:ignore-end
 import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
@@ -16,6 +18,12 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  CLAIM_MIRROR,
+  freshClaimSlot,
+  putRowState,
+} from "#test-utils/payment-claim.ts";
+import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import {
   adminAttendeeAction,
   adminFormPost,
@@ -37,6 +45,13 @@ const setupDeleteListingAndAttendee = (): ReturnType<
       thankYouUrl: "https://example.com",
     },
   });
+
+/** Whether the attendee row is still there. */
+const attendeeExists = async (attendeeId: number): Promise<boolean> =>
+  (await queryOne<{ id: number }>(
+    "SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ?",
+    [attendeeId],
+  )) !== null;
 
 describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
   const deleteAction = adminAttendeeAction("delete");
@@ -63,9 +78,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 for an orphan attendee with no home listing", async () => {
-      // The attendee-scoped action loads the attendee's home listing; an
-      // attendee whose bookings are all gone has none, so the page 404s.
+    test("keeps delete reachable for an orphan attendee", async () => {
       const { attendee } = await setupListingAndAttendee({
         listing: {
           maxAttendees: 100,
@@ -80,7 +93,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       );
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);
-      expect(response.status).toBe(404);
+      await expectHtmlResponse(response, 200, "Delete Attendee", "John Doe");
     });
 
     test("shows delete confirmation page when authenticated", async () => {
@@ -96,6 +109,28 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         'checked name="release_bookings" type="checkbox" value="1"',
         "Release their bookings into the pool",
       );
+    });
+
+    test("renders no usable delete form while payment work blocks it", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess_del_get_held",
+        "pi_del_get_held",
+      );
+      await putRowState(
+        "sess_del_get_held",
+        await freshClaimSlot(attendeeId),
+        CLAIM_MIRROR,
+      );
+
+      const response = await adminGet(`/admin/attendees/${attendeeId}/delete`);
+      const html = await response.text();
+
+      expect(response.status).toBe(400);
+      expect(html).toContain(
+        "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
+      );
+      expect(html).not.toContain('name="confirm_identifier"');
+      expect(html).not.toContain("Delete Attendee</button>");
     });
 
     test("includes return_url as hidden field when provided", async () => {
@@ -237,6 +272,22 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         tickets_count: 1,
       });
     });
+
+    test("deletes an orphan after its final listing is gone", async () => {
+      const { attendee, listing } = await setupDeleteListingAndAttendee();
+      await deleteListing(listing.id);
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/delete`,
+        { confirm_identifier: "John Doe" },
+      );
+
+      await expectFlashRedirect(
+        "/admin/attendees",
+        "Attendee deleted",
+      )(response);
+      expect(await attendeeExists(attendee.id)).toBe(false);
+    });
   });
 
   describe("DELETE /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
@@ -329,6 +380,38 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       );
       // Should redirect after successful delete
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("deleting somebody whose money is still being worked on", () => {
+    // The row-level refusal is covered at the deleteAttendee layer; this is
+    // the operator's side of it — the delete must come back as a failure they
+    // can read, with the person still there, rather than a 500 or a silent
+    // success.
+    test("refuses, says why, and leaves the attendee where they were", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess_del_held",
+        "pi_del_held",
+      );
+      await putRowState(
+        "sess_del_held",
+        await freshClaimSlot(attendeeId),
+        CLAIM_MIRROR,
+      );
+
+      // The typed-name confirmation is answered, so the refusal below is the
+      // live refund work stopping the delete and nothing else.
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}/delete`,
+        { confirm_identifier: "Buyer" },
+      );
+
+      expectFlash(
+        response,
+        "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
+        false,
+      );
+      expect(await attendeeExists(attendeeId)).toBe(true);
     });
   });
 });

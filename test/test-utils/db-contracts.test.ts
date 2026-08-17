@@ -104,7 +104,7 @@ describe("test-utils — db-backed & settings contracts", () => {
       expect(listing!.name).toBe("Reserved Helper Listing");
       await expect(
         createReservedAttendee(1500, { quantity: 11 }),
-      ).rejects.toThrow("setup failed");
+      ).rejects.toThrow("Failed to create the attendee: capacity_exceeded");
     });
 
     test("test crypto helpers expose real data keys and fail on missing setup material", async () => {

@@ -1,11 +1,19 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
+  N_PLUS_ONE_THRESHOLD,
+  runWithQueryLogContext,
+  setN1GuardNotifyOnly,
+  trackSql,
+} from "#shared/db/query-log.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import {
   bestEffort,
   ErrorCode,
   errorCodeLabel,
   logError,
   logErrorLocal,
+  withDeferredErrorReports,
 } from "#shared/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -106,6 +114,39 @@ describe("log-error", () => {
       expect(fetchStub.calls.length).toBe(0);
     });
 
+    test("defers fan-out until critical work has unwound", async () => {
+      using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      using fetchStub = stubFetch(new Response());
+      const steps: string[] = [];
+
+      await runWithPendingWork(async () => {
+        await withDeferredErrorReports(async () => {
+          logError({ code: ErrorCode.PAYMENT_REFUND });
+          steps.push(`work:${fetchStub.calls.length}`);
+        });
+        steps.push(`unwound:${fetchStub.calls.length}`);
+        await flushPendingWork();
+      });
+
+      expect(steps).toEqual(["work:0", "unwound:1"]);
+    });
+
+    test("nested deferred scopes share the outer boundary", async () => {
+      using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      using fetchStub = stubFetch(new Response());
+
+      await runWithPendingWork(async () => {
+        await withDeferredErrorReports(async () => {
+          await withDeferredErrorReports(async () => {
+            logError({ code: ErrorCode.PAYMENT_REFUND });
+          });
+          expect(fetchStub.calls).toHaveLength(0);
+        });
+        expect(fetchStub.calls).toHaveLength(1);
+        await flushPendingWork();
+      });
+    });
+
     describe("activity log persistence", () => {
       beforeEach(async () => {
         await createTestDbWithSetup();
@@ -166,7 +207,7 @@ describe("log-error", () => {
         expect(match).toBeDefined();
       });
 
-      test("guards against recursive logError during persistence", async () => {
+      test("persists every independent error in one request", async () => {
         await runWithPendingWork(async () => {
           logError({ code: ErrorCode.DB_CONNECTION });
           logError({ code: ErrorCode.DB_QUERY });
@@ -181,7 +222,58 @@ describe("log-error", () => {
           (e) => e.message === "Error: Database query failed",
         );
         expect(connError).toBeDefined();
-        expect(queryError).toBeUndefined();
+        expect(queryError).toBeDefined();
+      });
+
+      test("does not persist an error raised by error persistence", async () => {
+        const settingsRead = "SELECT key, value FROM settings WHERE key IN (?)";
+        setN1GuardNotifyOnly(true);
+        try {
+          await runWithPendingWork(() =>
+            runWithQueryLogContext(async () => {
+              for (let count = 0; count < N_PLUS_ONE_THRESHOLD; count++) {
+                await trackSql(settingsRead, () => Promise.resolve());
+              }
+              settings.invalidateCache();
+              logError({ code: ErrorCode.DB_CONNECTION });
+              await flushPendingWork();
+            }),
+          );
+        } finally {
+          setN1GuardNotifyOnly(null);
+        }
+
+        await settings.loadKeys([CONFIG_KEYS.WRAPPED_PRIVATE_KEY]);
+        const messages = (await getAllActivityLog()).map(
+          ({ message }) => message,
+        );
+        expect(messages).toContain("Error: Database connection failed");
+        expect(messages.some((message) => message.includes("N+1 query"))).toBe(
+          false,
+        );
+      });
+
+      test("flushes every deferred error when critical work throws", async () => {
+        const failure = new Error("critical refund work failed");
+        let caught: unknown;
+        try {
+          await runWithPendingWork(() =>
+            withDeferredErrorReports(async () => {
+              logError({ code: ErrorCode.DB_CONNECTION });
+              logError({ code: ErrorCode.DB_QUERY });
+              throw failure;
+            }),
+          );
+        } catch (error) {
+          caught = error;
+        }
+
+        expect(caught).toBe(failure);
+        const messages = (await getAllActivityLog()).map(
+          ({ message }) => message,
+        );
+        expect(messages).toContain("Error: Database connection failed");
+        expect(messages).toContain("Error: Database query failed");
       });
     });
   });

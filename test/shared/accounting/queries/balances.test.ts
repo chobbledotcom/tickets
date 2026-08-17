@@ -6,9 +6,10 @@ import {
   accountBalancesForIds,
   accountBalancesOfType,
   transfersByAccount,
+  transfersByAccounts,
 } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { account } from "#shared/ledger/account.ts";
+import { account, accountKey } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
@@ -101,5 +102,32 @@ describe("db > accounting > balance queries", () => {
       const slice = await transfersByAccount(acct);
       expect(await accountBalance(acct)).toBe(balanceOf(acct)(slice));
     }
+  });
+
+  test("reads several account types once and returns empty requested accounts", async () => {
+    const attendee = account("attendee", 6);
+    const revenue = account("revenue", 6);
+    const untouched = account("attendee", 404);
+    await postTransfers([
+      tx({ destination: revenue, reference: "multi-sale", source: attendee }),
+      tx({
+        amount: 2000,
+        destination: attendee,
+        reference: "multi-pay",
+        source: world,
+      }),
+    ]);
+
+    const transfers = await transfersByAccounts([
+      attendee,
+      attendee,
+      revenue,
+      untouched,
+    ]);
+
+    expect(transfers.get(accountKey(attendee))).toHaveLength(2);
+    expect(transfers.get(accountKey(revenue))).toHaveLength(1);
+    expect(transfers.get(accountKey(untouched))).toEqual([]);
+    expect(await transfersByAccounts([])).toEqual(new Map());
   });
 });

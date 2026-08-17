@@ -7,6 +7,7 @@ import {
   createTestDbWithSetup,
   resetDb,
 } from "#test-utils/db.ts";
+import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
 import {
@@ -381,6 +382,16 @@ describe("test-utils — error paths & contracts", () => {
 
       sandbox.teardown();
       expect(sandbox.fetchStub).toBeUndefined();
+    });
+  });
+
+  describe("bookedAttendee", () => {
+    // A fixture whose booking was rejected would otherwise carry on and fail
+    // later somewhere confusing, so it stops here and names the reason.
+    test("stops a fixture whose booking was rejected, naming why", () => {
+      expect(() =>
+        bookedAttendee({ reason: "capacity_exceeded", success: false }),
+      ).toThrow("Failed to create the attendee: capacity_exceeded");
     });
   });
 });

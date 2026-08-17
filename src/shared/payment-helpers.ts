@@ -79,6 +79,7 @@ type GuardedAsync = <T>(
 
 interface AsyncErrorHandling {
   errorDetail?: ((err: unknown) => string) | undefined;
+  replaceError?: ((err: unknown) => Error) | undefined;
   shouldPropagate?: ((err: unknown) => boolean) | undefined;
 }
 
@@ -87,6 +88,7 @@ const guardedWithValue =
     getValue: () => Value | null | Promise<Value | null>,
     {
       errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
+      replaceError,
       shouldPropagate = () => false,
     }: AsyncErrorHandling = {},
   ) =>
@@ -99,6 +101,7 @@ const guardedWithValue =
     try {
       return await fn(value);
     } catch (err) {
+      if (replaceError !== undefined) throw replaceError(err);
       if (err instanceof PaymentUserError || shouldPropagate(err)) throw err;
       logError({ code: errorCode, detail: errorDetail(err) });
       return null;
@@ -176,8 +179,8 @@ export const buildProviderLineItems = <Item>(
 /** Run an operation with the lazily-resolved client. Returns null when the
  * client is unconfigured or the operation fails (unless the error should
  * propagate). The named type keeps the contract visible to callers of the
- * widely-used `stripeClientRuntime.run` so a signature drift fails at the
- * definition instead of leaking to callers. */
+ * widely-used provider runners so a signature drift fails at the definition
+ * instead of leaking to callers. */
 export type ClientRunner<Client> = <T>(
   fn: (value: Client) => Promise<T>,
   errorCode: ErrorCodeType,
@@ -433,33 +436,54 @@ export const buildMetadata = (
     : {}),
 });
 
+type SuccessfulCheckoutResult = Exclude<
+  CheckoutSessionResult,
+  null | { error: string }
+>;
+type CheckoutResultReader<Missing> = (
+  sessionId: string | undefined,
+  url: string | undefined | null,
+  label: LogCategory,
+) => Missing | SuccessfulCheckoutResult;
+type MissingCheckoutField = "id" | "URL";
+
+function checkoutResultReader<Missing>(
+  whenMissing: (label: LogCategory, field: MissingCheckoutField) => Missing,
+): CheckoutResultReader<Missing> {
+  return (sessionId, url, label) => {
+    if (!sessionId) return whenMissing(label, "id");
+    if (!url) return whenMissing(label, "URL");
+    return { checkoutUrl: url, sessionId };
+  };
+}
+
 /**
  * Convert a provider-specific checkout result to a CheckoutSessionResult.
  * Returns null if session ID or URL is missing.
  */
-export const toCheckoutResult = (
-  sessionId: string | undefined,
-  url: string | undefined | null,
-  label: LogCategory,
-): CheckoutSessionResult => {
-  if (!sessionId || !url) {
+export const toCheckoutResult: CheckoutResultReader<null> =
+  checkoutResultReader((label) => {
     logDebug(label, "Checkout result missing session ID or URL");
     return null;
-  }
-  return { checkoutUrl: url, sessionId };
-};
+  });
+
+const requiredCheckoutResult: CheckoutResultReader<never> =
+  checkoutResultReader((label, field) => {
+    throw new Error(`${label} checkout response is missing its ${field}`);
+  });
 
 /**
  * Build a provider's `createCheckoutSession`: call the provider's own create
  * function, read the session id and URL off whatever shape it returns, and map
  * that to a shared CheckoutSessionResult — all inside the standard checkout
  * error guard. Each provider only supplies its create call, how to read the
- * id/url, and its display label.
+ * id/url, and its display label. A null create answer means the provider is not
+ * configured; a non-null answer must contain both documented fields.
  */
 export const makeCreateCheckoutSession =
   <Result>(
     label: LogCategory,
-    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result>,
+    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
     readResult: (result: Result) => {
       id: string | undefined;
       url: string | undefined | null;
@@ -471,13 +495,14 @@ export const makeCreateCheckoutSession =
   (intent, baseUrl) =>
     withCheckoutError(async () => {
       const result = await create(intent, baseUrl);
+      if (result === null) return null;
       const { id, url } = readResult(result);
-      return toCheckoutResult(id, url, label);
+      return requiredCheckoutResult(id, url, label);
     });
 
 /**
- * Wrap a checkout operation, converting PaymentUserError to { error } result
- * and swallowing unexpected errors as null. Used by both provider adapters.
+ * Wrap a checkout operation, converting PaymentUserError to { error } and
+ * letting unexpected failures propagate. Used by both provider adapters.
  */
 export const withCheckoutError = async (
   op: () => Promise<CheckoutSessionResult>,
@@ -486,7 +511,7 @@ export const withCheckoutError = async (
     return await op();
   } catch (err) {
     if (err instanceof PaymentUserError) return { error: err.message };
-    return null;
+    throw err;
   }
 };
 
@@ -689,22 +714,6 @@ export const extractSessionMetadata = (
     text_answer_ids: get("text_answer_ids"),
     thank_you_url: get("thank_you_url"),
   };
-};
-
-/** The payload/signature pair a test POSTs to a provider webhook route. */
-export type SignedTestWebhook = { payload: string; signature: string };
-
-/**
- * Build a test webhook delivery: JSON-encode the event, sign it with the
- * provider's own signing rule, and return the payload/signature pair a test
- * can POST to the webhook route. Each provider supplies only `sign`.
- */
-export const signedTestWebhook = async (
-  listing: unknown,
-  sign: (payload: string) => Promise<string>,
-): Promise<SignedTestWebhook> => {
-  const payload = JSON.stringify(listing);
-  return { payload, signature: await sign(payload) };
 };
 
 export const parseWebhookPayload = (

@@ -7,13 +7,16 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
+import {
+  expectWebhookKeptAndRefunded,
+  stubRefundPayment,
+} from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
-  expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
-  stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -63,7 +66,7 @@ describeWithEnv(
         }),
       );
 
-      const mockRefund = stubRefundPayment("re_multi_cap");
+      const mockRefund = stubRefundPayment("re_multi_cap", 800);
 
       await postWebhookAndAssert(
         () => {
@@ -137,7 +140,9 @@ describeWithEnv(
 
       // Verify refund was attempted exactly once
       expect(mockRefund.calls.length).toBe(1);
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
+      expect(mockRefund.calls[0]!.args).toEqual([
+        stripeRefundRequestShape("pi_multi_mismatch", 1000),
+      ]);
     });
 
     test("multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing", async () => {

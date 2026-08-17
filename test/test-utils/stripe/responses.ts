@@ -1,3 +1,7 @@
+import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { StripeExpandedPaymentIntent } from "#shared/stripe/schemas.ts";
+import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
+
 const checkout = {
   amount_total: 1000,
   created: 123,
@@ -9,17 +13,53 @@ const checkout = {
   url: "https://checkout.stripe.com/c/pay/cs_1",
 };
 
+/** A Stripe payment intent whose charge states its money, as the refund guard
+ *  reads it. `returned` says how much has already gone back. */
+export const stripeIntentWithCharge = (
+  returned = 0,
+  captured = 1000,
+): {
+  id: string;
+  latest_charge: {
+    amount_captured: number;
+    amount_refunded: number;
+    captured: boolean;
+    currency: string;
+    paid: boolean;
+    status: "succeeded";
+  };
+} => ({
+  id: "pi_1",
+  latest_charge: {
+    amount_captured: captured,
+    amount_refunded: returned,
+    captured: true,
+    currency: "gbp",
+    paid: true,
+    status: "succeeded",
+  },
+});
+
+/** A provider read of one Stripe intent before any money has come back. */
+export const foundStripeIntent = (
+  paymentReference: string,
+  capturedAmount: number,
+): ProviderRead<StripeExpandedPaymentIntent> => ({
+  resource: {
+    ...stripeIntentWithCharge(0, capturedAmount),
+    id: paymentReference,
+  },
+  status: "found",
+});
+
 /** Return valid Stripe fixtures for every operation used by the application. */
 export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
   if (path === "/v1/refunds") {
-    return Response.json({ id: "re_1", status: "succeeded" });
+    return Response.json(stripeRefund());
   }
   if (path.startsWith("/v1/payment_intents/")) {
-    return Response.json({
-      id: "pi_1",
-      latest_charge: { refunded: false },
-    });
+    return Response.json(stripeIntentWithCharge());
   }
   if (
     path === "/v1/checkout/sessions" ||

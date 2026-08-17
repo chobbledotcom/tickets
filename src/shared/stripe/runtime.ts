@@ -2,6 +2,11 @@ import { mapNotNullish } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import {
+  checkoutFailure,
+  type ProviderCheckoutError,
+} from "#shared/payment/checkout-failure.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
+import {
   cachedClientFactory,
   createWithClient,
 } from "#shared/payment-helpers.ts";
@@ -9,15 +14,21 @@ import { createStripeClient, type StripeClient } from "./client.ts";
 import { stripeMock } from "./mock.ts";
 import {
   STRIPE_MAX_NETWORK_RETRIES,
-  STRIPE_TIMEOUT_MS,
+  StripeApiError,
   type StripeClientConfig,
+  StripeConnectionError,
   StripeProtocolError,
 } from "./request.ts";
 
+const ERROR_FIELD_TYPES = {
+  number: (value: unknown): boolean => typeof value === "number",
+  string: (value: unknown): boolean => typeof value === "string",
+} as const;
+
 const formatErrorField =
-  (label: string, type: "number" | "string") =>
+  (label: string, type: keyof typeof ERROR_FIELD_TYPES) =>
   (value: unknown): string | null =>
-    typeof value === type ? `${label}=${String(value)}` : null;
+    ERROR_FIELD_TYPES[type](value) ? `${label}=${String(value)}` : null;
 
 const STRIPE_ERROR_FIELDS = [
   { format: formatErrorField("status", "number"), key: "statusCode" },
@@ -38,7 +49,7 @@ export const sanitizeStripeError = (error: unknown): string => {
 
 const PRODUCTION_CONFIG = {
   maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
-  timeout: STRIPE_TIMEOUT_MS,
+  timeout: PROVIDER_TIMEOUT_MS,
 } satisfies StripeClientConfig;
 
 interface StripeRuntimeConfig {
@@ -96,10 +107,22 @@ const cache = cachedClientFactory({
 });
 
 const get = (): Promise<StripeClient | null> => cache.getClient();
-const run = createWithClient(get, {
-  errorDetail: sanitizeStripeError,
-  shouldPropagate: (error) => error instanceof StripeProtocolError,
+const closedCheckoutError = (error: unknown): ProviderCheckoutError => {
+  if (error instanceof StripeApiError) {
+    return checkoutFailure.provider("stripe", error.statusCode);
+  }
+  if (error instanceof StripeConnectionError) {
+    return checkoutFailure.connection("stripe", error.reason);
+  }
+  if (error instanceof StripeProtocolError) {
+    return checkoutFailure.invalidResponse("stripe", error.statusCode);
+  }
+  throw error;
+};
+
+const runCheckout = createWithClient(get, {
+  replaceError: closedCheckoutError,
 });
 
 /** Shared Stripe client lifecycle for payment and endpoint operations. */
-export const stripeClientRuntime = { create, get, run };
+export const stripeClientRuntime = { create, get, runCheckout };

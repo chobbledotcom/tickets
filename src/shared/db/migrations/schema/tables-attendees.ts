@@ -38,6 +38,10 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
+        // NULL means unqualified history and remains unavailable to bulk
+        // refunds. Empty proves PII has no payment id. Otherwise this names
+        // the canonical payment row that proves the PII payment id.
+        ["pii_payment_session_id", "TEXT"],
         ["status_id", "INTEGER DEFAULT NULL"],
         ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
         // HMAC blind-index of the attendee's phone, populated lazily the first
@@ -196,6 +200,15 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["failure_data", "TEXT NOT NULL DEFAULT ''"],
         ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
         ["provider_refunded_at", "TEXT NOT NULL DEFAULT ''"],
+        // Two payment-state columns a claim depends on:
+        // the plain-text mirror of live work that SQL-only consumers (pruning,
+        // orphan selection) can see without decrypting, and a blind one-way
+        // index of the reference's identity so a claim can spot another row
+        // holding the same provider money. Validated current writes store both
+        // with the reference. Historical blank rows make refunds fail closed
+        // until the bounded owner-authenticated M11 copy.
+        ["protected_state", "TEXT NOT NULL DEFAULT ''"],
+        ["payment_reference_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       // Admin rosters, exports, and refund-all candidate loading look up the
       // retained charge references for a listing's attendees
@@ -206,6 +219,19 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["attendee_id", "payment_reference"],
           name: "idx_processed_payments_attendee_id",
+        },
+        // Deliberately NOT unique: two real rows can carry one legacy
+        // reference (the F21 duplicates this column exposes), and anchor-row
+        // mints get their uniqueness from a primary key derived from this
+        // value instead.
+        {
+          columns: ["payment_reference_index"],
+          name: "idx_processed_payments_reference_index",
+        },
+        {
+          columns: ["attendee_id"],
+          name: "idx_processed_payments_protected_attendee",
+          where: "protected_state != ''",
         },
       ],
       // FK declarations removed — libsql's FK enforcement breaks table

@@ -59,8 +59,11 @@
                             # Throwaway defaults for a fresh checkout. ''${VAR-...} fills in
                             # only an unset variable, so the caller's own value wins — even a
                             # deliberately empty one, which must fail startup validation.
-                            export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
-                            export DB_URL="''${DB_URL-:memory:}"
+                            # The dev database is a gitignored file, so its encryption key must
+                            # survive the shell too: generate once into .db-key, reuse after.
+                            [ -f .db-key ] || openssl rand -base64 32 > .db-key
+                            export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(cat .db-key)}"
+                            export DB_URL="''${DB_URL-file:./local.db}"
                             export PORT="''${PORT-8080}"
                             ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                               export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"

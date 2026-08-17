@@ -81,7 +81,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import { ok } from "#shared/response.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   bulkEmailComposePage,
   bulkEmailPreviewPage,

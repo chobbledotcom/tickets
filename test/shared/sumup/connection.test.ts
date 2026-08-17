@@ -51,6 +51,14 @@ describe("sumup testSumupConnection", () => {
     });
   });
 
+  test("fails loudly when configured credentials cannot create a client", async () => {
+    await withSumupClient(null, async () => {
+      await expect(sumupApi.testSumupConnection()).rejects.toThrow(
+        "Configured SumUp API key did not create a client",
+      );
+    });
+  });
+
   const withMerchantClient = (fn: () => Promise<void>): Promise<void> => {
     const client = makeSumupClient({
       merchantGet: () => Promise.resolve({}),

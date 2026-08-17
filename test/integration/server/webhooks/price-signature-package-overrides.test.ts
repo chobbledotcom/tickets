@@ -28,9 +28,9 @@ describeWithEnv(
   () => {
     test("a mismatch whose refund reports failure but already settled is acknowledged", async () => {
       const listing = await setupWithListing();
-      // The refund call returns null (e.g. the provider rejected a second full
-      // refund), but the payment IS already fully refunded. That is success, not a
-      // 503 retry loop: acknowledge and record the terminal outcome.
+      // The payment IS already fully refunded, so no refund is sent at all —
+      // the money is back, which is success rather than a 503 retry loop:
+      // acknowledge and record the terminal outcome.
       await runFailedRefund(
         "cs_already_refunded",
         true,
@@ -39,7 +39,7 @@ describeWithEnv(
           await assertJson(webhookRequest(), 200, (json) => {
             expect(json.processed).toBe(false);
           });
-          expect(refund.calls.length).toBe(1);
+          expect(refund.calls.length).toBe(0);
           // Recorded as a terminal failure (refund settled), so a later delivery
           // replays it instead of retrying.
           const record = await getProcessedPayment("cs_already_refunded");

@@ -14,6 +14,7 @@ import {
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
+import { resumePlaceholderSession } from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
   checkoutIntentForSession,
   paidPricingRefund,
@@ -38,7 +39,6 @@ import type {
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
-import type { BookingIntent } from "#shared/booking-intent.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
@@ -51,6 +51,9 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import { sessionAnswerOf } from "#shared/payment/row-state.ts";
+import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
@@ -63,11 +66,11 @@ type SessionProcessor = (
 
 /** Handle the "already reserved" branch of reserveSession */
 const handleReservationConflict = async (
-  intent: BookingIntent,
+  data: ValidatedSession,
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
-    return alreadyProcessedResult(intent.items[0]!.e, {
+    return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
     });
@@ -76,7 +79,14 @@ const handleReservationConflict = async (
   // already issued, sold out, price changed) without re-validating or
   // re-refunding. failure_data is encrypted, so this read is async.
   const failure = await parseSessionFailure(existing.failure_data);
-  if (failure) return { ...failure, success: false };
+  if (failure) {
+    // A completion marker says the placeholder may still owe money records:
+    // finish them before answering, so a crashed first delivery cannot park
+    // the books. Unmarked failures replay with no extra reads.
+    const resumed = await resumePlaceholderSession(data, failure);
+    if (resumed) return resumed;
+    return { ...sessionAnswerOf(failure), success: false };
+  }
   // Otherwise reserved but not finalized — another request is mid-flight.
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
@@ -98,7 +108,7 @@ const replaySuccess = async (
   sessionId: string,
   attendeeId: number,
   listingId: number,
-  paymentReference = "",
+  paymentReference: TaggedPaymentReference | null,
 ): Promise<PaymentResult> => {
   await finalizeSessionIfUnresolved(sessionId, attendeeId, paymentReference);
   logDebug("Payment", `Replayed already-ledgered session ${sessionId}`);
@@ -137,7 +147,7 @@ const alreadyHandledSession = (
 const replaySessionFromLedger = async (
   sessionId: string,
   listingId: number,
-  paymentReference: string,
+  paymentReference: TaggedPaymentReference | null,
   disposition: BookingLedgerDisposition,
 ): Promise<PaymentResult | null> => {
   switch (disposition.status) {
@@ -155,23 +165,6 @@ const replaySessionFromLedger = async (
   }
 };
 
-/**
- * The balance-settlement counterpart of {@link replaySessionFromLedger}: replay a
- * balance session whose payment leg the ledger already records (its idempotency
- * row was pruned or lost), or null to settle it fresh. The attendee is known from
- * the proof-bound intent, so — unlike the booking path — there is no orphaned
- * case to resolve.
- */
-const replayBalanceFromLedger = async (
-  sessionId: string,
-  attendeeId: number,
-  listingId: number,
-  paymentReference: string,
-): Promise<PaymentResult | null> =>
-  (await eventGroupHasLegs(await balanceEventGroup(sessionId)))
-    ? replaySuccess(sessionId, attendeeId, listingId, paymentReference)
-    : null;
-
 const processNewBookingSession = async (
   sessionId: string,
   data: ValidatedSession,
@@ -188,7 +181,7 @@ const processNewBookingSession = async (
   const replay = await replaySessionFromLedger(
     sessionId,
     signedListingId,
-    session.paymentReference,
+    paymentReferenceOf(session),
     snapshot.ledger,
   );
   if (replay) return replay;
@@ -321,13 +314,14 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     // A balance session whose payment leg is already in the ledger is a replay
     // even if its idempotency row was pruned or lost. Settling it again would
     // find nothing owed and refund a balance that is already paid.
-    const replay = await replayBalanceFromLedger(
-      sessionId,
-      intent.balanceAttendeeId,
-      signedListingId,
-      session.paymentReference,
-    );
-    if (replay) return replay;
+    if (await eventGroupHasLegs(await balanceEventGroup(sessionId))) {
+      return replaySuccess(
+        sessionId,
+        intent.balanceAttendeeId,
+        signedListingId,
+        paymentReferenceOf(session),
+      );
+    }
     if (verdict.verdict === "mismatch") {
       return refuseMismatch(session, verdict.agreed, signedListingId);
     }
@@ -343,23 +337,14 @@ export const processPaymentSession: SessionProcessor = async (
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
   if (!reservation.reserved) {
-    return handleReservationConflict(data.intent, reservation.existing);
+    return handleReservationConflict(data, reservation.existing);
   }
 
   const result = await processReservedSession(sessionId, data);
 
-  // A refund of a real payment that FAILED must stay retryable, and the very
-  // next provider redelivery should re-attempt it. Releasing the reservation
-  // now (rather than leaving it held with no recorded outcome) is what makes
-  // that happen: a held reservation would make the redelivery collide with the
-  // lock and return 409 until the row goes stale (~5 min), gating refund
-  // recovery on a local timer instead of provider redelivery. Releasing lets
-  // the next delivery re-claim and re-refund immediately. This CANNOT
-  // double-pay: every provider refunds the full charge amount and rejects a
-  // refund that exceeds the already-refunded balance, and tryRefund treats an
-  // already-refunded payment as success — so a redelivery after a refund that
-  // actually went through (but reported failure) records success, not a second
-  // payout.
+  // Keep a failed refund callback retryable. The durable refund authority, not
+  // this short booking reservation, decides whether a later delivery may send,
+  // observe, or wait for the owner, so releasing cannot create a second send.
   if (!result.success && result.refunded === false) {
     await releaseReservation(sessionId);
     return result;

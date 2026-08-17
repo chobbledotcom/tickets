@@ -6,16 +6,16 @@ import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
-import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
+import { attendeePiiWriteStatements } from "#shared/db/attendees/pii-write.ts";
 import {
   execute,
+  executeBatch,
   executeUpdate,
   queryAll,
   rawSql,
   update,
   withTransaction,
 } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
 import { clampDurationDays, type ListingType } from "#shared/types.ts";
 
 /**
@@ -73,19 +73,7 @@ export const updateAttendeePII = async (
   attendeeId: number,
   input: UpdateAttendeePIIInput,
 ): Promise<void> => {
-  const encryptedPiiBlob = await encryptPiiBlob(
-    buildPiiBlob({
-      ...input,
-      payment_id: input.payment_id,
-      ticket_token: input.ticket_token,
-    }),
-    settings.publicKey,
-  );
-  await executeUpdate(
-    "attendees",
-    { pii_blob: encryptedPiiBlob },
-    { id: attendeeId },
-  );
+  await executeBatch(await attendeePiiWriteStatements(attendeeId, input));
 };
 
 /**

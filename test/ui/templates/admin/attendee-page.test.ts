@@ -133,8 +133,54 @@ describe("attendee page blocks", () => {
     expect(
       PaymentDetails({
         attendee: testAttendee({ payment_id: "" }),
+        refresh: { kind: "none" },
         showBalanceLink: true,
       }),
     ).toBeNull();
+  });
+
+  test("shows indexed payment recovery without a legacy payment id", () => {
+    const html = String(
+      PaymentDetails({
+        attendee: testAttendee({ id: 7, payment_id: "" }),
+        refresh: {
+          kind: "available",
+          url: "/admin/attendees/7/refresh-payment",
+        },
+        showBalanceLink: true,
+      }),
+    );
+
+    expect(html).toContain("Payment Details");
+    expect(html).toContain('action="/admin/attendees/7/refresh-payment"');
+    expect(html).not.toContain("Payment ID:");
+  });
+
+  test("does not promise refresh for an unindexed legacy payment", () => {
+    const html = String(
+      PaymentDetails({
+        attendee: testAttendee({ id: 8, payment_id: "pi_legacy" }),
+        refresh: { kind: "none" },
+        showBalanceLink: true,
+      }),
+    );
+
+    expect(html).toContain("pi_legacy");
+    expect(html).not.toContain("/refresh-payment");
+  });
+
+  test("explains an older provider-unknown payment without a dead form", () => {
+    const message = "This older payment needs manual recovery.";
+    const html = String(
+      PaymentDetails({
+        attendee: testAttendee({ id: 9, payment_id: "" }),
+        refresh: { kind: "unavailable", message },
+        showBalanceLink: true,
+      }),
+    );
+
+    expect(html).toContain("Payment Details");
+    expect(html).toContain(message);
+    expect(html).not.toContain("/refresh-payment");
   });
 });

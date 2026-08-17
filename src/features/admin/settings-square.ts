@@ -12,7 +12,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
-import { squareApi } from "#shared/square.ts";
+import { squareApi } from "#shared/square/api.ts";
 /* jscpd:ignore-end */
 import {
   validateSquareAccessToken,

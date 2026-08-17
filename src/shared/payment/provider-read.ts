@@ -5,27 +5,32 @@
  * "the answer contradicts our own facts" — three situations that need three
  * different responses (give up, retry, refuse).
  *
- * SumUp's reads use this today; M6 moves Stripe and Square behind the same
- * vocabulary.
+ * Every payment adapter uses this vocabulary at its provider boundary.
  */
 
 /** Why the provider could not answer at all. Retrying can help. */
-type ProviderUnavailableReason =
+export type ProviderUnavailableReason =
   | "network_error"
   | "not_configured"
-  | "provider_error";
+  | "provider_error"
+  | "rate_limited"
+  | "timeout";
 
 /**
- * Why an answer the provider did give was refused. The answer either broke
- * its own documented shape, or it disagreed with facts we hold independently
- * — the id we asked for, the account we are bound to, or the charges the
- * record itself names.
+ * Why an answer the provider did give was refused. The provider rejected the
+ * request, broke its documented shape, or disagreed with facts we hold
+ * independently.
  */
 export type ProviderInvalidReason =
+  | "malformed_money"
   | "malformed_response"
   | "mismatched_account"
   | "mismatched_id"
+  | "mismatched_money"
+  | "mismatched_parent"
   | "missing_documented_resource"
+  | "multiple_pending_refunds"
+  | "rejected_request"
   | "unrecorded_child"
   | "unsupported_status";
 
@@ -35,3 +40,20 @@ export type ProviderRead<Resource> =
   | { status: "missing" }
   | { status: "unavailable"; reason: ProviderUnavailableReason }
   | { status: "invalid"; reason: ProviderInvalidReason };
+
+export type ProviderReader<Resource> = (
+  reference: string,
+) => Promise<ProviderRead<Resource>>;
+
+/** Build a reader that turns provider resources into one shared domain shape.
+ * Missing, unavailable, and invalid remain exact; the source member is resolved
+ * inside the callback so test stubs and live credential changes stay visible. */
+export const mapProviderReader =
+  <Input, Output>(
+    read: ProviderReader<Input>,
+    mapFound: (resource: Input) => ProviderRead<Output>,
+  ): ProviderReader<Output> =>
+  async (reference) => {
+    const answer = await read(reference);
+    return answer.status === "found" ? mapFound(answer.resource) : answer;
+  };

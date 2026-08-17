@@ -140,7 +140,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
   test("multi-ticket webhook handles listing not found without refund", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     // Unsigned session (no valid price proof) for a listing we don't have:
     // ignored (200 ack) without processing — and crucially without a refund,

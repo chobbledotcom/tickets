@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PR4-A — the refund data model</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #071117;
+        --panel: #0d1b23;
+        --panel-2: #122630;
+        --ink: #eef8f7;
+        --muted: #a8bec1;
+        --line: #28424a;
+        --teal: #4ce0ca;
+        --teal-soft: #143b39;
+        --purple: #b8a2ff;
+        --purple-soft: #292347;
+        --amber: #ffd166;
+        --amber-soft: #423719;
+        --red: #ff8296;
+        --red-soft: #40222b;
+        --blue: #78b7ff;
+        --blue-soft: #172e49;
+        --grey-soft: #1a282e;
+        --radius: 18px;
+        --shadow: 0 22px 60px rgb(0 0 0 / 24%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(
+            circle at 15% 0%,
+            rgb(76 224 202 / 10%),
+            transparent 30rem
+          ),
+          radial-gradient(
+          circle at 95% 15%,
+          rgb(184 162 255 / 8%),
+          transparent 28rem
+        ),
+          var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+      }
+
+      a {
+        color: var(--teal);
+      }
+
+      a:focus-visible {
+        outline: 3px solid var(--teal);
+        outline-offset: 3px;
+      }
+
+      code {
+        color: #c9fff6;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.91em;
+      }
+
+      .skip-link {
+        position: fixed;
+        z-index: 20;
+        top: 0.5rem;
+        left: 0.5rem;
+        transform: translateY(-180%);
+        border-radius: 8px;
+        background: var(--ink);
+        color: var(--bg);
+        padding: 0.55rem 0.8rem;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      .topbar {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        border-bottom: 1px solid rgb(76 224 202 / 18%);
+        background: rgb(7 17 23 / 90%);
+        backdrop-filter: blur(14px);
+      }
+
+      nav {
+        display: flex;
+        width: min(1120px, calc(100% - 2rem));
+        margin: auto;
+        gap: 0.35rem;
+        overflow-x: auto;
+        padding: 0.65rem 0;
+        scrollbar-width: none;
+      }
+
+      nav a {
+        flex: 0 0 auto;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        color: var(--muted);
+        padding: 0.35rem 0.7rem;
+        text-decoration: none;
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+
+      nav a:hover {
+        border-color: var(--line);
+        color: var(--ink);
+      }
+
+      nav a:focus-visible {
+        border-color: var(--teal);
+        color: var(--ink);
+        outline: 3px solid var(--teal);
+        outline-offset: 2px;
+      }
+
+      main {
+        width: min(1120px, calc(100% - 2rem));
+        margin: auto;
+        padding: 3.5rem 0 5rem;
+      }
+
+      header,
+      section {
+        scroll-margin-top: 4.5rem;
+      }
+
+      section {
+        margin-top: 5.5rem;
+      }
+
+      .eyebrow,
+      .section-number {
+        color: var(--teal);
+        font-size: 0.72rem;
+        font-weight: 900;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 900px;
+        margin-bottom: 1.1rem;
+        font-size: clamp(2.65rem, 7vw, 5.7rem);
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+      }
+
+      h2 {
+        max-width: 880px;
+        margin-bottom: 0.75rem;
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        line-height: 1.04;
+        letter-spacing: -0.035em;
+      }
+
+      h3 {
+        margin-bottom: 0.45rem;
+        font-size: 1.03rem;
+        line-height: 1.25;
+      }
+
+      .lede,
+      .section-lede {
+        max-width: 760px;
+        color: var(--muted);
+        font-size: 1.08rem;
+      }
+
+      .hero-note {
+        display: inline-flex;
+        margin-bottom: 1rem;
+        border: 1px solid rgb(76 224 202 / 30%);
+        border-radius: 999px;
+        background: var(--teal-soft);
+        color: var(--teal);
+        padding: 0.3rem 0.72rem;
+        font-size: 0.78rem;
+        font-weight: 850;
+      }
+
+      .read-three {
+        display: grid;
+        margin-top: 2.2rem;
+        gap: 0.8rem;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .big-fact {
+        min-height: 165px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(145deg, var(--panel-2), var(--panel));
+        box-shadow: var(--shadow);
+        padding: 1.2rem;
+      }
+
+      .big-fact b {
+        display: block;
+        margin-bottom: 0.6rem;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 1.7rem;
+      }
+
+      .big-fact p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .big-fact h2 {
+        max-width: none;
+        margin-bottom: 0.45rem;
+        font-size: 1.03rem;
+        line-height: 1.25;
+        letter-spacing: normal;
+      }
+
+      .risk-strip {
+        display: grid;
+        margin-top: 1rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .risk {
+        padding: 0.9rem 1rem;
+        background: rgb(13 27 35 / 90%);
+      }
+
+      .risk + .risk {
+        border-left: 1px solid var(--line);
+      }
+
+      .risk strong {
+        display: block;
+        margin-bottom: 0.2rem;
+        color: var(--ink);
+        font-size: 0.82rem;
+      }
+
+      .risk span {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 0.58rem;
+        height: 0.58rem;
+        margin-right: 0.42rem;
+        border-radius: 50%;
+        background: var(--teal);
+        box-shadow: 0 0 0 4px rgb(76 224 202 / 10%);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 1.4rem 0 1rem;
+        gap: 0.45rem;
+      }
+
+      .chip,
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        gap: 0.35rem;
+        padding: 0.28rem 0.58rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .badge {
+        border: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .new {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+
+      .changed {
+        background: var(--purple-soft);
+        color: var(--purple);
+      }
+
+      .existing {
+        background: var(--grey-soft);
+        color: var(--muted);
+      }
+
+      .schema-map {
+        display: grid;
+        align-items: center;
+        margin-top: 1rem;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 0.88fr) 150px minmax(0, 1.25fr);
+      }
+
+      .schema-stack {
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .down-arrow {
+        color: var(--muted);
+        text-align: center;
+        font-size: 1.4rem;
+        line-height: 1;
+      }
+
+      .table-box {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 1rem;
+      }
+
+      .table-box.authority {
+        border-color: rgb(76 224 202 / 45%);
+        background: linear-gradient(
+          155deg,
+          rgb(20 59 57 / 72%),
+          var(--panel)
+        );
+        box-shadow: var(--shadow);
+      }
+
+      .table-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+        gap: 0.6rem;
+      }
+
+      .table-head code {
+        color: var(--ink);
+        font-size: 0.98rem;
+        font-weight: 850;
+      }
+
+      .field-group {
+        display: grid;
+        gap: 0.32rem;
+      }
+
+      .field {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        border-top: 1px solid rgb(40 66 74 / 60%);
+        gap: 1rem;
+        padding-top: 0.32rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .field code {
+        color: var(--ink);
+      }
+
+      .field em {
+        color: var(--muted);
+        font-style: normal;
+        text-align: right;
+      }
+
+      .logical-link {
+        position: relative;
+        color: var(--amber);
+        text-align: center;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.78rem;
+        font-weight: 850;
+      }
+
+      .logical-link::before {
+        display: block;
+        border-top: 2px dashed rgb(255 209 102 / 65%);
+        content: "";
+      }
+
+      .logical-link::after {
+        position: absolute;
+        top: -0.42rem;
+        right: -0.12rem;
+        content: "▶";
+      }
+
+      .logical-link span {
+        display: block;
+        margin-top: 0.45rem;
+      }
+
+      .schema-lower {
+        display: grid;
+        margin-top: 1rem;
+        gap: 1rem;
+        grid-template-columns: 1.35fr 0.65fr;
+      }
+
+      .confirmation-chain {
+        display: grid;
+        align-items: stretch;
+        gap: 0.55rem;
+        grid-template-columns: 1fr auto 1fr;
+      }
+
+      .chain-arrow {
+        display: grid;
+        color: var(--muted);
+        place-items: center;
+        font-size: 1.25rem;
+      }
+
+      .box-note {
+        margin: 0.7rem 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .constraint-bar {
+        display: grid;
+        margin-top: 1rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        overflow: hidden;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .constraint {
+        padding: 0.85rem;
+        font-size: 0.76rem;
+      }
+
+      .constraint + .constraint {
+        border-left: 1px solid var(--line);
+      }
+
+      .constraint strong {
+        display: block;
+        margin-bottom: 0.18rem;
+        color: var(--teal);
+      }
+
+      .pipeline {
+        display: grid;
+        margin: 1.6rem 0 1rem;
+        gap: 0.42rem;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        list-style: none;
+        padding: 0;
+      }
+
+      .pipe-step {
+        position: relative;
+        min-height: 126px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        padding: 0.75rem;
+      }
+
+      .pipe-step:not(:last-child)::after {
+        position: absolute;
+        z-index: 2;
+        top: 48%;
+        right: -0.68rem;
+        color: var(--teal);
+        content: "→";
+        font-size: 1rem;
+        font-weight: 900;
+      }
+
+      .pipe-step b {
+        display: block;
+        margin-bottom: 0.38rem;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.74rem;
+      }
+
+      .pipe-step strong {
+        display: block;
+        margin-bottom: 0.28rem;
+        font-size: 0.8rem;
+      }
+
+      .pipe-step span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.7rem;
+        line-height: 1.4;
+      }
+
+      .state-panel {
+        display: grid;
+        margin-top: 1rem;
+        gap: 1rem;
+        grid-template-columns: 1.3fr 0.7fr;
+      }
+
+      .state-card,
+      .failure-card,
+      .privacy-card,
+      .proof-card,
+      .limit-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        padding: 1rem;
+      }
+
+      .state-track {
+        display: flex;
+        align-items: stretch;
+        margin: 0.8rem 0;
+        gap: 0.32rem;
+        list-style: none;
+        padding: 0;
+      }
+
+      .state {
+        position: relative;
+        display: grid;
+        flex: 1;
+        min-height: 68px;
+        border: 1px solid rgb(76 224 202 / 28%);
+        border-radius: 10px;
+        background: var(--teal-soft);
+        color: #d8fff9;
+        padding: 0.48rem;
+        place-items: center;
+        text-align: center;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.68rem;
+        font-weight: 800;
+      }
+
+      .state:not(:last-child)::after {
+        position: absolute;
+        z-index: 2;
+        top: 50%;
+        right: -0.52rem;
+        transform: translateY(-50%);
+        color: var(--muted);
+        content: "→";
+      }
+
+      .side-states {
+        display: grid;
+        gap: 0.45rem;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .side-state {
+        border-radius: 10px;
+        background: var(--amber-soft);
+        color: var(--amber);
+        padding: 0.58rem;
+        text-align: center;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .axis-list {
+        display: grid;
+        margin-top: 0.8rem;
+        gap: 0.5rem;
+      }
+
+      .axis-item {
+        display: grid;
+        border-radius: 10px;
+        background: var(--purple-soft);
+        gap: 0.15rem;
+        padding: 0.58rem 0.7rem;
+        grid-template-columns: 88px 1fr;
+        color: var(--muted);
+        font-size: 0.74rem;
+      }
+
+      .axis-item code {
+        color: var(--purple);
+        font-weight: 850;
+      }
+
+      .failure-grid {
+        display: grid;
+        margin-top: 1rem;
+        gap: 0.55rem;
+        grid-template-columns: repeat(5, 1fr);
+      }
+
+      .failure-card {
+        padding: 0.82rem;
+      }
+
+      .failure-card strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--amber);
+        font-size: 0.76rem;
+      }
+
+      .failure-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      .provider-chips {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 0.8rem;
+        gap: 0.45rem;
+      }
+
+      .provider-chips .chip {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .bounds-grid {
+        display: grid;
+        margin: 1.4rem 0 1rem;
+        gap: 0.55rem;
+        grid-template-columns: repeat(7, 1fr);
+      }
+
+      .bound {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        padding: 0.82rem;
+      }
+
+      .bound b {
+        display: block;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 1.55rem;
+      }
+
+      .bound span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.7rem;
+        line-height: 1.35;
+      }
+
+      .privacy-grid {
+        display: grid;
+        gap: 0.7rem;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .privacy-card {
+        min-height: 174px;
+        padding: 0.9rem;
+      }
+
+      .privacy-card .level {
+        display: inline-block;
+        margin-bottom: 0.6rem;
+        border-radius: 999px;
+        padding: 0.2rem 0.48rem;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.68rem;
+        font-weight: 850;
+      }
+
+      .privacy-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+
+      .privacy-card.owner .level {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+
+      .privacy-card.blind .level {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .privacy-card.dbkey .level {
+        background: var(--purple-soft);
+        color: var(--purple);
+      }
+
+      .privacy-card.plain .level {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .plain-callout {
+        margin-top: 1rem;
+        border-left: 3px solid var(--amber);
+        border-radius: 0 12px 12px 0;
+        background: var(--amber-soft);
+        color: #f7e8ba;
+        padding: 0.8rem 1rem;
+        font-size: 0.78rem;
+      }
+
+      .proof-stats {
+        display: grid;
+        margin: 1.4rem 0 1rem;
+        border: 1px solid rgb(76 224 202 / 35%);
+        border-radius: var(--radius);
+        background: var(--teal-soft);
+        overflow: hidden;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .proof-stat {
+        padding: 0.9rem;
+        text-align: center;
+      }
+
+      .proof-stat + .proof-stat {
+        border-left: 1px solid rgb(76 224 202 / 22%);
+      }
+
+      .proof-stat b {
+        display: block;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 1.35rem;
+      }
+
+      .proof-stat span {
+        color: #bfddd8;
+        font-size: 0.7rem;
+      }
+
+      .proof-grid,
+      .limits-grid {
+        display: grid;
+        gap: 0.7rem;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .proof-card,
+      .limit-card {
+        padding: 0.9rem;
+      }
+
+      .proof-card strong,
+      .limit-card strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--ink);
+        font-size: 0.82rem;
+      }
+
+      .proof-card p,
+      .limit-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+
+      .proof-caveat {
+        margin: 0.9rem 0 0;
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+
+      .limits-grid {
+        margin-top: 1.2rem;
+      }
+
+      .limit-card {
+        border-color: rgb(255 209 102 / 24%);
+        background: linear-gradient(145deg, var(--amber-soft), var(--panel));
+      }
+
+      footer {
+        margin-top: 4rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        padding-top: 1.2rem;
+        font-size: 0.72rem;
+      }
+
+      .footer-grid {
+        display: grid;
+        gap: 0.5rem 1rem;
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .footer-grid > * {
+        min-width: 0;
+      }
+
+      footer code {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      footer p {
+        margin: 0.7rem 0 0;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .read-three,
+        .risk-strip,
+        .schema-lower,
+        .state-panel,
+        .privacy-grid,
+        .proof-grid,
+        .limits-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .risk:nth-child(3) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+          grid-column: 1 / -1;
+        }
+
+        .schema-map {
+          grid-template-columns: 1fr;
+        }
+
+        .logical-link {
+          padding: 0.25rem 0;
+        }
+
+        .logical-link::before {
+          width: 2px;
+          height: 32px;
+          margin: auto;
+          border-top: 0;
+          border-left: 2px dashed rgb(255 209 102 / 65%);
+        }
+
+        .logical-link::after {
+          top: 1.5rem;
+          right: calc(50% - 0.37rem);
+          transform: rotate(90deg);
+        }
+
+        .constraint-bar,
+        .bounds-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+
+        .constraint:nth-child(4) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .pipeline {
+          grid-template-columns: repeat(4, 1fr);
+        }
+
+        .pipe-step:nth-child(4)::after {
+          display: none;
+        }
+
+        .failure-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      @media (max-width: 620px) {
+        nav {
+          flex-wrap: wrap;
+          justify-content: center;
+          overflow-x: visible;
+          gap: 0.2rem;
+        }
+
+        nav a {
+          padding: 0.28rem 0.48rem;
+          font-size: 0.76rem;
+        }
+
+        main {
+          width: min(100% - 1.2rem, 1120px);
+          padding-top: 2rem;
+        }
+
+        header,
+        section {
+          scroll-margin-top: 7.5rem;
+        }
+
+        section {
+          margin-top: 4rem;
+        }
+
+        h1 {
+          font-size: clamp(2.45rem, 14vw, 4rem);
+        }
+
+        .read-three,
+        .risk-strip,
+        .schema-lower,
+        .privacy-grid,
+        .proof-grid,
+        .limits-grid,
+        .state-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .risk + .risk,
+        .risk:nth-child(3) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+          grid-column: auto;
+        }
+
+        .confirmation-chain {
+          grid-template-columns: 1fr;
+        }
+
+        .chain-arrow {
+          transform: rotate(90deg);
+        }
+
+        .constraint-bar,
+        .bounds-grid,
+        .proof-stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .constraint:nth-child(3),
+        .proof-stat:nth-child(3) {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .pipeline {
+          gap: 0.8rem;
+          grid-template-columns: 1fr;
+        }
+
+        .pipeline .pipe-step:not(:last-child)::after {
+          display: block;
+          top: auto;
+          right: calc(50% - 0.4rem);
+          bottom: -0.82rem;
+          transform: rotate(90deg);
+        }
+
+        .failure-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .state-track {
+          display: grid;
+          gap: 0.8rem;
+          grid-template-columns: 1fr;
+        }
+
+        .state:not(:last-child)::after {
+          top: auto;
+          right: calc(50% - 0.35rem);
+          bottom: -0.82rem;
+          transform: rotate(90deg);
+        }
+
+        .chip,
+        .pipe-step span,
+        .state,
+        .side-state,
+        .axis-item,
+        .failure-card strong,
+        .failure-card p,
+        .bound span,
+        .privacy-card .level,
+        .privacy-card p,
+        .proof-stat span,
+        .proof-card p,
+        .limit-card p,
+        .proof-caveat,
+        .field,
+        .box-note,
+        .constraint {
+          font-size: 0.8rem;
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media print {
+        @page {
+          size: A4;
+          margin: 12mm;
+        }
+
+        :root {
+          color-scheme: light;
+          --bg: #fff;
+          --panel: #f7faf9;
+          --panel-2: #edf5f3;
+          --ink: #102326;
+          --muted: #40585b;
+          --line: #bfd0ce;
+          --teal: #08776b;
+          --teal-soft: #e2f6f2;
+          --purple: #6549a8;
+          --purple-soft: #f0ecff;
+          --amber: #7a5400;
+          --amber-soft: #fff7db;
+          --red: #a43049;
+          --red-soft: #fcecf0;
+          --blue: #215f98;
+          --blue-soft: #eaf3ff;
+          --grey-soft: #edf1f1;
+        }
+
+        body {
+          background: #fff;
+          font-size: 10pt;
+        }
+
+        .topbar {
+          display: none;
+        }
+
+        .skip-link {
+          display: none;
+        }
+
+        main {
+          width: 100%;
+          padding: 0;
+        }
+
+        section {
+          margin-top: 2rem;
+        }
+
+        h1,
+        h2,
+        h3,
+        .section-number,
+        .section-lede {
+          break-after: avoid-page;
+        }
+
+        .big-fact,
+        .risk-strip,
+        .table-box,
+        .confirmation-chain,
+        .constraint-bar,
+        .pipe-step,
+        .state-panel,
+        .failure-card,
+        .provider-chips,
+        .bound,
+        .privacy-card,
+        .plain-callout,
+        .proof-stats,
+        .proof-card,
+        .limit-card {
+          break-inside: avoid-page;
+        }
+
+        footer {
+          display: none;
+        }
+
+        .big-fact,
+        .table-box {
+          box-shadow: none;
+        }
+
+        code {
+          color: #075e55;
+        }
+
+        .risk {
+          background: var(--panel);
+        }
+
+        .table-box.authority {
+          background: var(--panel-2);
+        }
+
+        .field {
+          border-color: var(--line);
+        }
+
+        .state,
+        .plain-callout {
+          color: var(--ink);
+        }
+
+        .proof-stat span {
+          color: var(--muted);
+        }
+
+        .chip,
+        .pipe-step span,
+        .state,
+        .side-state,
+        .axis-item,
+        .failure-card strong,
+        .failure-card p,
+        .bound span,
+        .privacy-card .level,
+        .privacy-card p,
+        .proof-stat span,
+        .proof-card p,
+        .limit-card p,
+        .proof-caveat,
+        .field,
+        .box-note,
+        .constraint {
+          font-size: 0.8rem;
+        }
+
+        a {
+          color: #075e55;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#summary">Skip to briefing</a>
+    <div class="topbar">
+      <nav aria-label="Document sections">
+        <a href="#summary">Summary</a>
+        <a href="#data-model">Data model</a>
+        <a href="#flow">Data flow</a>
+        <a href="#bounds">Bounds &amp; privacy</a>
+        <a href="#proof">Test signal</a>
+        <a href="#limits">Limits</a>
+      </nav>
+    </div>
+
+    <main>
+      <header id="summary">
+        <span class="hero-note">PR4-A · five-minute technical read</span>
+        <p class="eyebrow">The useful mental model</p>
+        <h1>A provider charge is now the unit of refund truth.</h1>
+        <p class="lede">
+          The large diff replaces route-local guesses with one durable,
+          revisioned charge record. Attendee rows coordinate work; the charge
+          record decides whether money may move.
+        </p>
+
+        <div
+          class="read-three"
+          role="group"
+          aria-label="If you read only three things"
+        >
+          <article class="big-fact">
+            <b>01 · one authority</b>
+            <h2><code>payment_charges</code> owns provider truth</h2>
+            <p>
+              Provider identity, exact Money, send generation, evidence, local
+              recording and recovery state live together.
+            </p>
+          </article>
+          <article class="big-fact">
+            <b>02 · persist first</b>
+            <h2>The send is armed before network I/O</h2>
+            <p>
+              A crash can leave uncertainty, but never an invisible permission
+              to send the same keyless refund again.
+            </p>
+          </article>
+          <article class="big-fact">
+            <b>03 · two facts</b>
+            <h2>Cash returned ≠ ledger recorded</h2>
+            <p>
+              Provider completion and local accounting retire separately, so a
+              failed ledger write cannot erase returned money.
+            </p>
+          </article>
+        </div>
+
+        <div
+          class="risk-strip"
+          role="group"
+          aria-label="The three merge concerns"
+        >
+          <div class="risk">
+            <strong><span class="dot"></span>Silent booking errors</strong>
+            <span>Recover only from matching stored facts; otherwise
+              rethrow.</span>
+          </div>
+          <div class="risk">
+            <strong><span class="dot"></span>Population decryption</strong>
+            <span>Refund All decrypts 0 on GET, ≤1 on POST; old PII is never
+              scanned.</span>
+          </div>
+          <div class="risk">
+            <strong><span class="dot"></span>DB-key privacy</strong>
+            <span>New PII and raw references require the owner key.</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="data-model">
+        <p class="section-number">01 · the schema is the design</p>
+        <h2>Two state owners, joined by a blind identity.</h2>
+        <p class="section-lede">
+          <code>processed_payments</code> coordinates attendee work.
+          <code>payment_charges</code> owns irreversible provider work. The join
+          is application identity—not a database foreign key.
+        </p>
+
+        <div class="legend" role="group" aria-label="Diagram legend">
+          <span class="chip">🔐 owner-key ciphertext</span>
+          <span class="chip"># blind HMAC identity</span>
+          <span class="chip">◇ queryable state mirror</span>
+          <span class="chip">↻ revision-fenced fact</span>
+        </div>
+
+        <div class="schema-map">
+          <div class="schema-stack">
+            <div class="table-box">
+              <div class="table-head">
+                <code>attendees</code><span class="badge changed">changed</span>
+              </div>
+              <div class="field-group">
+                <div class="field"><code>id</code><em>person identity</em></div>
+                <div class="field">
+                  <code>pii_blob</code><em>🔐 PII + opaque revision fence</em>
+                </div>
+                <div class="field">
+                  <code>pii_payment_session_id</code><em>◇ proof of payment-id
+                    completeness</em>
+                </div>
+              </div>
+            </div>
+            <div class="down-arrow" aria-hidden="true">↓ 1:N</div>
+            <div class="table-box">
+              <div class="table-head">
+                <code>processed_payments</code><span class="badge changed"
+                >changed</span>
+              </div>
+              <div class="field-group">
+                <div class="field">
+                  <code>payment_session_id</code><em>session anchor</em>
+                </div>
+                <div class="field">
+                  <code>attendee_id</code><em>attendee representation</em>
+                </div>
+                <div class="field">
+                  <code>payment_reference</code><em>🔐 new writes · legacy
+                    unqualified</em>
+                </div>
+                <div class="field">
+                  <code>payment_reference_index</code><em># deliberately
+                    non-unique</em>
+                </div>
+                <div class="field">
+                  <code>failure_data</code><em>encrypted row-work envelope</em>
+                </div>
+                <div class="field">
+                  <code>protected_state</code><em>◇ narrow SQL mirror</em>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="logical-link">
+            <span># reference identity<br>logical join · no FK</span>
+          </div>
+
+          <div class="table-box authority">
+            <div class="table-head">
+              <code>payment_charges</code><span class="badge new"
+              >rebuilt authority</span>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <code>provider</code><em>Stripe · Square · SumUp</em>
+              </div>
+              <div class="field">
+                <code>provider_reference</code><em>🔐 raw charge identity</em>
+              </div>
+              <div class="field">
+                <code>reference_index</code><em># globally unique</em>
+              </div>
+              <div class="field">
+                <code>callback_replay_index</code><em># optional unique
+                  replay</em>
+              </div>
+              <div class="field">
+                <code>capability</code><em>keyed · keyless</em>
+              </div>
+              <div class="field">
+                <code>captured/refunded + currency</code><em>exact Money</em>
+              </div>
+              <div class="field">
+                <code>refund_state</code><em>validated lifecycle JSON</em>
+              </div>
+              <div class="field">
+                <code>state/local/due mirrors</code><em>◇ indexed work
+                  queues</em>
+              </div>
+              <div class="field">
+                <code>refund_revision</code><em>↻ compare-and-swap</em>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="failure-grid" aria-label="Attendee payment provenance">
+          <div class="failure-card">
+            <strong><code>NULL</code> · old / unqualified</strong>
+            <p>In-app refund stops. The owner uses the provider dashboard.</p>
+          </div>
+          <div class="failure-card">
+            <strong><code>''</code> · proven empty</strong>
+            <p>The encrypted attendee PII had no hidden payment id.</p>
+          </div>
+          <div class="failure-card">
+            <strong><code>session id</code> · proven link</strong>
+            <p>Names the exact indexed payment row that proves the PII id.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Balance cannot mask deposit</strong>
+            <p>A later indexed payment never replaces earlier provenance.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Merge stays fail-closed</strong>
+            <p>
+              Source <code>NULL</code> propagates; qualified source keeps the
+              target proof.
+            </p>
+          </div>
+        </div>
+
+        <div class="schema-lower">
+          <div class="confirmation-chain">
+            <div class="table-box">
+              <div class="table-head">
+                <code>refund_confirmations</code><span class="badge new"
+                >new</span>
+              </div>
+              <p class="box-note">
+                One replay-safe identity for <code>HMAC(attendee + sorted exact
+                  reference set)</code>.
+              </p>
+            </div>
+            <div class="chain-arrow" aria-hidden="true">→</div>
+            <div class="table-box">
+              <div class="table-head">
+                <code>refund_confirmation_references</code><span
+                  class="badge new"
+                >new</span>
+              </div>
+              <p class="box-note">
+                Queryable member indexes make the confirmed set exact, not a
+                prose note.
+              </p>
+            </div>
+          </div>
+
+          <div class="table-box">
+            <div class="table-head">
+              <code>system_notes</code><span class="badge changed"
+              >changed</span>
+            </div>
+            <p class="box-note">
+              An opaque entity-unique <code>system_name</code> makes exact app
+              note creation idempotent without decrypting and scanning encrypted
+              note history.
+            </p>
+          </div>
+        </div>
+
+        <div class="constraint-bar" aria-label="Database-enforced invariants">
+          <div class="constraint">
+            <strong>Unique authority</strong>
+            One charge identity and one callback replay identity.
+          </div>
+          <div class="constraint">
+            <strong>Mirrors must agree</strong>
+            SQL checks correlate JSON kind, local state, due time and
+            capability.
+          </div>
+          <div class="constraint">
+            <strong>No legacy refund engine</strong>
+            No PII scan, re-save backfill, guessed provider or M11 rescue path.
+          </div>
+          <div class="constraint">
+            <strong>Work-only indexes</strong>
+            Partial indexes expose live/due work without decrypting everything.
+          </div>
+        </div>
+      </section>
+
+      <section id="flow">
+        <p class="section-number">02 · one fenced data flow</p>
+        <h2>Every entrance reaches the same decision boundary.</h2>
+        <p class="section-lede">
+          Single, Refund All, Refresh and callbacks prepare different evidence.
+          They do not own different refund engines.
+        </p>
+
+        <ol class="pipeline" aria-label="Refund pipeline">
+          <li class="pipe-step">
+            <b>01</b><strong>Enter</strong><span>single · bulk · refresh ·
+              callback</span>
+          </li>
+          <li class="pipe-step">
+            <b>02</b><strong>Name target</strong><span>tagged provider + exact
+              reference</span>
+          </li>
+          <li class="pipe-step">
+            <b>03</b><strong>Read</strong><span>found · missing · unavailable ·
+              invalid</span>
+          </li>
+          <li class="pipe-step">
+            <b>04</b><strong>Judge</strong><span>captured, returned, pending,
+              capability</span>
+          </li>
+          <li class="pipe-step">
+            <b>05</b><strong>Fence</strong><span>exact rows + attendee +
+              authority revision</span>
+          </li>
+          <li class="pipe-step">
+            <b>06</b><strong>Choose path</strong><span>refresh: observe · owner
+              permit: send path</span>
+          </li>
+          <li class="pipe-step">
+            <b>07</b><strong>Send path only</strong><span>persist arm → attempt
+              with typed result</span>
+          </li>
+          <li class="pipe-step">
+            <b>08</b><strong>Finish</strong><span>persist fact → ledger → settle
+              exact claim</span>
+          </li>
+        </ol>
+
+        <div class="plain-callout">
+          <strong>Automatic placeholder, one atomic bundle:</strong> attendee +
+          bookings · indexed anchor + claim · attendee provenance ·
+          <code>ready</code> charge authority · terminal session result. Only
+          after commit does the provider call advance that same authority.
+        </div>
+
+        <div class="state-panel">
+          <article class="state-card">
+            <h3>Charge authority: provider and ledger progress</h3>
+            <ol class="state-track" aria-label="Main refund authority states">
+              <li class="state">ready</li>
+              <li class="state">send_armed</li>
+              <li class="state">observing</li>
+              <li class="state">completed<br>local: due</li>
+              <li class="state">completed<br>local: recorded</li>
+            </ol>
+            <div class="side-states">
+              <div class="side-state">
+                needs_provider_check<br>partial / inconclusive
+              </div>
+              <div class="side-state">
+                needs_owner_choice<br>evidence-admitted decision
+              </div>
+            </div>
+          </article>
+
+          <article class="state-card">
+            <h3>Attendee row: short-lived coordination</h3>
+            <div class="axis-list">
+              <div class="axis-item">
+                <code>claim</code><span>blocks delete + merge; exact run owns
+                  it</span>
+              </div>
+              <div class="axis-item">
+                <code>review</code><span>blocks delete; owner acknowledges,
+                  evidence retires it</span>
+              </div>
+              <div class="axis-item">
+                <code>unrecorded</code><span>blocks delete; Money is ahead of
+                  books</span>
+              </div>
+              <div class="axis-item">
+                <code>outcome</code><span>terminal callback result; blocks
+                  nothing</span>
+              </div>
+              <div class="axis-item">
+                <code>provider</code><span>blocks delete; remains reachable
+                  after merge</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="plain-callout">
+          <strong>One move decision:</strong>
+          <code>PaymentMoveSnapshot</code> drives the Actions UI, the direct
+          Delete page and the transactional writer. Blocked Delete is absent for
+          owners and managers; a direct URL returns 400 with no form. Claims
+          block merge; review, unrecorded and provider work move safely.
+        </div>
+
+        <div
+          class="failure-grid"
+          role="group"
+          aria-label="Failure semantics"
+        >
+          <div class="failure-card">
+            <strong>Crash after arm</strong>
+            <p>Possibly sent. Observe before any replay.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Provider returned; ledger failed</strong>
+            <p>Charge stays completed/local due; repair remains reachable.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Concurrent writer</strong>
+            <p>CAS loser cannot overwrite; it rereads or returns changed.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Malformed success</strong>
+            <p><code>invalid</code>; never converted into send permission.</p>
+          </div>
+          <div class="failure-card">
+            <strong>Partial evidence</strong>
+            <p>Provider check—not a fake yes/no owner choice.</p>
+          </div>
+        </div>
+
+        <div class="provider-chips" aria-label="Provider retry capabilities">
+          <span class="chip"><strong>Stripe</strong> keyed · bounded
+            replay</span>
+          <span class="chip"><strong>Square</strong> keyed · arm is the replay
+            boundary</span>
+          <span class="chip"><strong>SumUp</strong> keyless · never automatic
+            replay</span>
+          <span class="chip"><strong>Roles</strong> manager observes · owner
+            sends/decides</span>
+        </div>
+      </section>
+
+      <section id="bounds">
+        <p class="section-number">03 · cost and disclosure are explicit</p>
+        <h2>Bound first. Decrypt second.</h2>
+        <p class="section-lede">
+          Large-set questions use indexes and state mirrors. Sensitive detail is
+          opened only after the request has selected one bounded target.
+        </p>
+
+        <div class="bounds-grid" role="group" aria-label="Operational bounds">
+          <div class="bound">
+            <b>0</b><span>attendee decryptions on Refund All GET</span>
+          </div>
+          <div class="bound">
+            <b>≤1</b><span>attendee decrypted per Refund All POST</span>
+          </div>
+          <div class="bound">
+            <b>10</b><span>references allowed per attendee</span>
+          </div>
+          <div class="bound">
+            <b>100</b><span>shared holders; row 101 refuses first</span>
+          </div>
+          <div class="bound">
+            <b>5</b><span>concurrent provider calls</span>
+          </div>
+          <div class="bound">
+            <b>20</b><span>IDs per keyset-paged recovery list</span>
+          </div>
+          <div class="bound">
+            <b>0</b><span>legacy PII scans, backfills or fallback paths</span>
+          </div>
+        </div>
+
+        <div
+          class="privacy-grid"
+          role="group"
+          aria-label="Storage privacy tiers"
+        >
+          <article class="privacy-card owner">
+            <span class="level">owner-key secret</span>
+            <h3>Raw personal/payment identity</h3>
+            <p>
+              Modern attendee PII and new raw provider references use owner
+              public-key ciphertext. DB + <code>DB_ENCRYPTION_KEY</code> is not
+              enough to open them.
+            </p>
+          </article>
+          <article class="privacy-card blind">
+            <span class="level">blind identity</span>
+            <h3>Searchable, not reversible</h3>
+            <p>
+              DB-keyed HMACs join references, callbacks and confirmations
+              without exposing the raw provider value.
+            </p>
+          </article>
+          <article class="privacy-card dbkey">
+            <span class="level">DB-key envelope</span>
+            <h3>Finite local coordination</h3>
+            <p>
+              Claim, outcome, review and unrecorded markers are encrypted local
+              state. They must contain no buyer PII or provider bodies.
+            </p>
+          </article>
+          <article class="privacy-card plain">
+            <span class="level">intentional plaintext</span>
+            <h3>Queryable operations</h3>
+            <p>
+              Provider, Money, lifecycle mirrors, due dates and narrow protected
+              words remain visible so SQL can find work safely.
+            </p>
+          </article>
+        </div>
+
+        <div class="plain-callout">
+          <strong>Caveat:</strong> provider credentials are DB-key encrypted and
+          can be used by someone holding the database and environment key.
+          Dormant v1 owner keys retain the older boundary until their existing
+          upgrade ceremony runs.
+        </div>
+      </section>
+
+      <section id="proof">
+        <p class="section-number">04 · test signal, not test theatre</p>
+        <h2>What the tests actually establish.</h2>
+
+        <div class="proof-stats" role="group" aria-label="Focused regressions">
+          <div class="proof-stat">
+            <b>atomic</b><span>terminal placeholder cannot commit without its
+              recovery authority</span>
+          </div>
+          <div class="proof-stat">
+            <b>mixed</b><span>old deposit + newer balance still refuses before
+              provider I/O</span>
+          </div>
+          <div class="proof-stat">
+            <b>same rule</b><span>Actions, direct Delete and transactional write
+              agree</span>
+          </div>
+          <div class="proof-stat">
+            <b>journey</b><span>Delete returns only after real money recovery
+              finishes</span>
+          </div>
+        </div>
+
+        <p class="proof-caveat">
+          These regressions exercise the exact failure seams at SQL,
+          transaction, HTTP and rendered-visitor level. This document does not
+          claim a final green count; the repository precommit gate is the
+          release authority.
+        </p>
+      </section>
+
+      <section id="limits">
+        <p class="section-number">05 · honest edges</p>
+        <h2>What this PR deliberately does not pretend.</h2>
+
+        <div class="limits-grid">
+          <div class="limit-card">
+            <strong>Old unqualified payments</strong>
+            <p>
+              Refund All sees ledger-proven payments and blocks safely. It does
+              not decrypt, backfill or guess. Refund manually in the provider;
+              this is a permanent boundary, not deferred migration work.
+            </p>
+          </div>
+          <div class="limit-card">
+            <strong>Refund All</strong>
+            <p>
+              One attendee per submission—not yet a durable, resumable
+              listing-wide intention.
+            </p>
+          </div>
+          <div class="limit-card">
+            <strong>Booking obligations</strong>
+            <p>
+              Stable order identity, shared-charge allocation and free
+              package-member cancellation remain later work.
+            </p>
+          </div>
+          <div class="limit-card">
+            <strong>Checkout cutover</strong>
+            <p>
+              A confined pre-cutover session selector cannot refund; its
+              replacement must delete it atomically.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer data-finalize="footer-checkpoint">
+        <div class="footer-grid">
+          <div>
+            <strong>Source:</strong> <code>claude/m4-pr-a</code> against
+            <code>main</code>
+          </div>
+          <div>
+            <strong>Status:</strong> final head, fingerprint and pass counts are
+            recorded by the release gate, not frozen into this briefing
+          </div>
+          <div>
+            <strong>Scope:</strong> behavioral shapes only; imports, comments,
+            file moves and mechanical splits are intentionally omitted
+          </div>
+          <div>
+            <strong>Deeper references:</strong>
+            <a href="src-diff-distilled.html"
+            >behavioural source distillation</a>
+            · <a href="PLAN.md">permanent plan</a> · <a href="TODO.md"
+            >named later work</a>
+          </div>
+        </div>
+        <p>
+          Final PR4-A developer briefing · generated 2026-08-14 · file-by-file
+          inventory intentionally omitted.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -18,7 +18,6 @@ import {
   buyPlaceWithExtra,
   expectMoneyHandedBack,
   sellPlacesAt,
-  soleBookingOn,
 } from "#test/specs/support/money.ts";
 import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
 import {
@@ -137,7 +136,7 @@ When(
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdNamed(this, TALK);
     const modifierId = requiredWorldValue(this.modifierId, "modifier id");
-    await runStripeSuccess({
+    this.attendeeId = await runStripeSuccess(this, {
       email: "svc@example.com",
       items: JSON.stringify([{ e: listingId, p: 5000, q: 1 }]),
       modifiers: [{ i: modifierId, q: 1 }],
@@ -146,7 +145,6 @@ When(
       sessionId: "cs_svc",
       total: 5500,
     });
-    this.attendeeId = await soleBookingOn(listingId);
     this.attendeeName = "Svc Buyer";
   },
 );

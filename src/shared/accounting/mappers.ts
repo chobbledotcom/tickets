@@ -38,6 +38,14 @@ export const bookingEventGroup = (eventId: string): Promise<string> =>
   eventGroup([BOOKING, eventId]);
 
 /**
+ * The event group a refund of one booking group is posted under. Derived from
+ * the booking's, so a reversal already in the ledger can be recognised without
+ * rebuilding the legs it would have written.
+ */
+export const refundEventGroup = (bookingGroup: string): Promise<string> =>
+  eventGroup([REFUND, bookingGroup]);
+
+/**
  * The refund-side `kind` for each reversible booking leg. The cash leg is
  * relabelled `refund_cash` so reports can sum refunded cash (decision 8) without
  * double-counting the reversed sale/fee/modifier legs; the rest carry a
@@ -261,7 +269,7 @@ export const mapRefund = async (
   if (legs.some((leg) => leg.eventGroup !== bookingGroup)) {
     throw new Error("mapRefund: order legs span more than one event group");
   }
-  const group = await eventGroup([REFUND, bookingGroup]);
+  const group = await refundEventGroup(bookingGroup);
   return Promise.all(
     legs.map(async (leg) => ({
       amount: leg.amount,

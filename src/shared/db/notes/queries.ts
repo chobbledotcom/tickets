@@ -10,7 +10,9 @@ import {
   execute,
   executeBatch,
   insert,
+  orIgnore,
   type SqlStatement,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
@@ -21,34 +23,66 @@ import {
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
-import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
+import type {
+  SystemNote,
+  SystemNoteName,
+  SystemNoteRow,
+  SystemNoteType,
+} from "./types.ts";
 
-const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
+const NOTE_COLUMNS =
+  "id, entity_type, entity_id, type, note, system_name, created";
 
-/** Build a "record a note" function for one kind of note: it seals the text the
- *  way that kind is sealed, then stores it against the record it is about. */
-const noteWriterOf =
-  (type: SystemNoteType) =>
-  async (target: NoteTarget, note: string): Promise<void> => {
-    const { sql, args } = insert("system_notes", {
-      created: nowIso(),
-      entity_id: target.id,
-      entity_type: target.kind,
-      note: await sealNote(type, note),
-      type,
-    });
-    await execute(sql, args);
-  };
+const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
+  `system-note:1:${JSON.stringify([purpose, key])}`;
+
+const writeNote = async (
+  type: SystemNoteType,
+  target: NoteTarget,
+  note: string,
+  name: SystemNoteName | null,
+  transaction?: TxScope,
+): Promise<void> => {
+  if (name?.key === "") throw new Error("A named system note needs a key");
+  const inserted = insert("system_notes", {
+    created: nowIso(),
+    entity_id: target.id,
+    entity_type: target.kind,
+    note: await sealNote(type, note),
+    system_name: name === null ? null : storedSystemNoteName(name),
+    type,
+  });
+  // A named note is unique by its name: a replayed write is a no-op, so a
+  // resumable flow can re-run its note step without a second copy landing.
+  const statement = name === null ? inserted : orIgnore(inserted);
+  if (transaction === undefined) {
+    await execute(statement.sql, statement.args);
+  } else {
+    await transaction.execute(statement);
+  }
+};
 
 /**
  * Record a note the app wrote itself. The text MUST be free of personal
  * details: it is sealed with the symmetric DB key (readable from a database
- * dump plus that key), and exists so a path with no owner session can write it.
+ * dump plus that key), and exists so a path with no owner session can write
+ * it. Give the note an indexed name to make it once-only: its lifecycle can
+ * then be managed — and replays dropped — without opening any note text.
  */
-export const createSystemNote = noteWriterOf("system");
+export const createSystemNote = (
+  target: NoteTarget,
+  note: string,
+  name?: SystemNoteName,
+  transaction?: TxScope,
+): Promise<void> =>
+  writeNote("system", target, note, name ?? null, transaction);
 
 /** Record an operator's note, sealed with the owner public key. */
-export const createOwnerNote = noteWriterOf("owner");
+export const createOwnerNote = (
+  target: NoteTarget,
+  note: string,
+  transaction?: TxScope,
+): Promise<void> => writeNote("owner", target, note, null, transaction);
 
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
@@ -162,14 +196,15 @@ export const getNote = async (
  * Delete notes, tied to their record so a stray id can't reach another's. They
  * go in one batch: several stale notes cost one round trip, not one each.
  */
-export const deleteNotes = (
+export const deleteNotes = async (
   target: NoteTarget,
   noteIds: number[],
 ): Promise<void> => {
-  if (noteIds.length === 0) return Promise.resolve();
-  return executeBatch(
-    noteIds.map((noteId) => deleteNotesWhere(noteOfTarget(target, noteId))),
+  if (noteIds.length === 0) return;
+  const statements = noteIds.map((noteId) =>
+    deleteNotesWhere(noteOfTarget(target, noteId)),
   );
+  await executeBatch(statements);
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that

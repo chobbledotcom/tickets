@@ -24,6 +24,10 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import {
+  refundCompletes,
+  refundIsRejected,
+} from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 // jscpd:ignore-end
 
@@ -53,6 +57,7 @@ export const buyOnePlace = async (
   await setupStripe();
   const { id: listingId } = await sellPlacesAt(world, name, pounds);
   const attendeeId = await completePaidOrder(
+    world,
     listingId,
     who,
     `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
@@ -102,11 +107,11 @@ export const buyPlaceWithExtra = async (
   await setupStripe();
   // The story may already have put this listing on sale (with its extra charge
   // attached), so reuse it rather than selling a second one of the same name.
-  const listingId =
-    world.things.recall("listing", name)?.id ??
-    (await sellPlacesAt(world, name, pounds)).id;
+  const remembered = world.things.recall("listing", name);
+  const listing = remembered ?? (await sellPlacesAt(world, name, pounds));
+  const listingId = listing.id;
   const price = minorUnits(pounds);
-  await runStripeSuccess({
+  world.attendeeId = await runStripeSuccess(world, {
     email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
     items: JSON.stringify([{ e: listingId, p: price, q: 1 }]),
     ...(modifierId === undefined
@@ -117,7 +122,6 @@ export const buyPlaceWithExtra = async (
     sessionId: `cs_${name.toLowerCase().replaceAll(" ", "_")}`,
     total: price + minorUnits(extraPounds),
   });
-  world.attendeeId = await soleBookingOn(listingId);
   world.attendeeName = who;
 };
 
@@ -139,7 +143,7 @@ export const askForRefund = async (
       page: bookingPagePath(world, "refund"),
       typed: requiredWorldValue(world.attendeeName, "attendee name"),
     },
-    succeeds,
+    succeeds ? refundCompletes : refundIsRejected,
   );
 };
 
@@ -193,11 +197,13 @@ export const expectMoneyHandedBack = async (
 export const expectRefundMessage = (
   world: TicketsWorld,
   path: string,
-  message: string,
+  ...messages: string[]
 ): void => {
   // Read the page the refund left behind — asking for an admin browser here
   // would navigate away from it first.
   const browser = scenarioBrowser(world);
   expect(browser.currentUrl).toBe(path);
-  expect(browser.containsText(message)).toBe(true);
+  for (const message of messages) {
+    expect(browser.containsText(message)).toBe(true);
+  }
 };

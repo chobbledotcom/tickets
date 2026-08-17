@@ -2,11 +2,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { mockWebhookRequest } from "#test-utils/mocks.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
@@ -18,7 +20,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with no _origin marker", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     // Returns 200 to prevent provider retries; should not attempt to process
     // or refund.
@@ -44,7 +46,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with wrong _origin marker", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     await expectWebhookIgnored(
       checkoutSessionEvent({
@@ -66,16 +68,16 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
     expect(mockRefund.calls.length).toBe(0);
   });
 
-  test("webhook ignores a signed session whose booking will not read back", async () => {
+  test("webhook retries a signed session whose booking will not read back", async () => {
     await setupStripe();
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     // The proof is ours, but the modifiers came back as an object instead of a
     // list. Booking cannot act on that, so nothing is booked with values
     // nobody has checked, and nothing is given back on a reading we cannot
     // trust — but the buyer HAS been charged, so the owner is told.
-    await expectWebhookIgnored(
+    const verify = await stubWebhookVerify(
       checkoutSessionEvent({
         amountTotal: 500,
         eventId: "evt_unreadable_booking",
@@ -91,21 +93,25 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         paymentIntent: "pi_unreadable_booking",
         sessionId: "cs_unreadable_booking",
       }),
-      () => {
-        mockRefund.restore();
-      },
     );
+    const response = await handleRequest(
+      mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+    );
+    verify.restore();
+    mockRefund.restore();
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("Payment verification failed");
     expect(mockRefund.calls.length).toBe(0);
     // Silence here would leave a charged buyer with nothing and nobody
     // looking, which is the whole difference from a checkout that is not ours.
     const log = await getAllActivityLog();
     expect(
       log.some((entry) =>
-        entry.message.includes(
-          "Signed session's booking could not be read (session=cs_unreadable_booking)",
-        ),
+        entry.message.includes("Signed payment's booking could not be read"),
       ),
     ).toBe(true);
+    expect(JSON.stringify(log)).not.toContain("cs_unreadable_booking");
+    expect(JSON.stringify(log)).not.toContain("unreadable@example.com");
   });
 
   test("webhook ignores unrecognized session via fallback retrieval path", async () => {
@@ -129,10 +135,11 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
           }),
           paymentReference: "pi_fallback_foreign",
           paymentStatus: "paid" as const,
+          provider: "stripe" as const,
         }),
     );
 
-    const mockRefund = spy(stripeApi, "refundPayment");
+    const mockRefund = spy(stripeApi, "refundCharge");
 
     await expectWebhookIgnored(
       checkoutSessionEvent({

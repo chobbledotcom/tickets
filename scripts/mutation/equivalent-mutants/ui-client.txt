@@ -88,3 +88,8 @@ src/ui/client/admin/bundle-loader.ts::loadBundleWhen.script%2esrc~0zshzaj  = →
 src/ui/client/admin/address-lookup.ts::panelText~0c82ro8  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
 src/ui/client/admin/address-lookup.ts::addressOption.option%2evalue~1886fui  = → +=   # a just-created <option>'s value is "", so append equals assign
 src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nflld  = → +=   # a just-created <option>'s textContent is "", so append equals assign
+
+# Schema-atlas SVG builder: both texts are set on freshly created elements,
+# whose empty initial value makes assign and append identical.
+src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → +=   # a just-created SVG <text> has empty textContent, so append equals assign
+src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → +=   # same: the <title> is fresh, so append equals assign

@@ -38,12 +38,15 @@ export type ConfirmPageProps = {
   label: string;
   /** The ConfirmForm identifier shown as the "type this to confirm" target. */
   name: string;
+  hiddenFields?: Record<string, string> | undefined;
   returnUrl?: string | undefined;
   /** Whether to render the form with `danger` styling. */
   danger?: boolean | undefined;
   /** Whether to skip the "type the name to confirm" input (just an
    *  are-you-sure button). Pass `false` to disable name confirmation. */
   confirmName?: boolean | undefined;
+  /** A blocked confirmation explains the state but offers no submit button. */
+  disabled?: boolean | undefined;
   /** Optional leading warning/note paragraph rendered before the body. */
   warning?: Child;
   /** Optional heading + confirm/prompt paragraph block rendered inside the
@@ -142,9 +145,11 @@ export const ConfirmPage = ({
   buttonText,
   label,
   name,
+  hiddenFields,
   returnUrl,
   danger,
   confirmName,
+  disabled,
   warning,
   heading,
   confirm,
@@ -159,25 +164,30 @@ export const ConfirmPage = ({
     <>
       {prefix}
       <Flash error={error} />
-      <ConfirmForm
-        action={action}
-        buttonText={buttonText}
-        {...(danger !== undefined ? { danger } : {})}
-        {...(confirmName !== undefined ? { confirmName } : {})}
-        label={label}
-        name={name}
-        returnUrl={returnUrl}
-      >
-        {warning}
-        {heading !== undefined && <h1>{heading}</h1>}
-        {confirm && (
-          <p>
-            <Raw html={t(confirm.key, confirm.args)} />
-          </p>
-        )}
-        {note && <p>{t(note.key, note.args)}</p>}
-        {prompt && <p>{t(prompt.key, prompt.args)}</p>}
-        {children}
-      </ConfirmForm>
+      {disabled ? (
+        children
+      ) : (
+        <ConfirmForm
+          action={action}
+          buttonText={buttonText}
+          {...(danger !== undefined ? { danger } : {})}
+          {...(confirmName !== undefined ? { confirmName } : {})}
+          {...(hiddenFields === undefined ? {} : { hiddenFields })}
+          label={label}
+          name={name}
+          returnUrl={returnUrl}
+        >
+          {warning}
+          {heading !== undefined && <h1>{heading}</h1>}
+          {confirm && (
+            <p>
+              <Raw html={t(confirm.key, confirm.args)} />
+            </p>
+          )}
+          {note && <p>{t(note.key, note.args)}</p>}
+          {prompt && <p>{t(prompt.key, prompt.args)}</p>}
+          {children}
+        </ConfirmForm>
+      )}
     </>,
   );

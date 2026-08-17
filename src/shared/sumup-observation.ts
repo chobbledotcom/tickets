@@ -25,6 +25,10 @@ import type {
   ProviderRead,
 } from "#shared/payment/provider-read.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
+import {
+  SumupWireTransactionSchema,
+  sumupPaymentFields,
+} from "#shared/sumup/wire.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 
 /** SumUp's documented checkout lifecycle (pinned @sumup/sdk 0.1.6). */
@@ -68,27 +72,16 @@ export type SumupReadFacts = {
   siteCurrency: string;
 };
 
-/** The wire fields a checkout and each of its transactions both carry:
- *  identity, money, merchant, and lifecycle status. */
-const wireSharedFields = {
-  amount: v.optional(v.number()),
-  currency: v.optional(v.string()),
-  id: v.optional(v.string()),
-  merchant_code: v.optional(v.string()),
-  status: v.optional(v.string()),
-};
-
-const WireTransactionSchema = v.object(wireSharedFields);
-type WireTransaction = v.InferOutput<typeof WireTransactionSchema>;
+type WireTransaction = v.InferOutput<typeof SumupWireTransactionSchema>;
 
 /** The wire fields the read uses; unknown fields are dropped, and which
  *  absences matter is decided by the rules below, not by the parse. */
 const WireCheckoutSchema = v.object({
-  ...wireSharedFields,
+  ...sumupPaymentFields,
   checkout_reference: v.optional(v.string()),
   date: v.optional(v.string()),
   transaction_id: v.optional(v.string()),
-  transactions: v.optional(v.array(WireTransactionSchema)),
+  transactions: v.optional(v.array(SumupWireTransactionSchema)),
 });
 type WireCheckout = v.InferOutput<typeof WireCheckoutSchema>;
 

@@ -1,4 +1,4 @@
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
 export type LedgerScopeOption = { id: number; name: string };
 

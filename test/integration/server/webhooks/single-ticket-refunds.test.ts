@@ -15,12 +15,15 @@ import {
 } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
+import {
+  expectWebhookKeptAndRefunded,
+  stubRefundPayment,
+} from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
-  expectWebhookKeptAndRefunded,
   expectWebhookRejected,
-  stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -66,7 +69,9 @@ describeWithEnv(
       );
 
       // Verify refund was attempted exactly once
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
+      expect(mockRefund.calls[0]!.args).toEqual([
+        stripeRefundRequestShape("pi_mismatch", 1200),
+      ]);
     });
 
     test("single-ticket redirect keeps the booking and shows the refund message when price changed", async () => {
@@ -99,7 +104,7 @@ describeWithEnv(
         >),
       );
 
-      const mockRefund = stubRefundPayment("re_redirect");
+      const mockRefund = stubRefundPayment("re_redirect", 800);
 
       try {
         const response = await handleRequest(
@@ -124,7 +129,9 @@ describeWithEnv(
         );
 
         // Verify refund was attempted exactly once
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
+        expect(mockRefund.calls[0]!.args).toEqual([
+          stripeRefundRequestShape("pi_redirect_mismatch", 800),
+        ]);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

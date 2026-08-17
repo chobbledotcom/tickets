@@ -26,7 +26,17 @@ import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
-const pruneReplayRowWithoutRefundReference = async (sessionId: string) => {
+const pruneLegacyReplayRow = async (sessionId: string) => {
+  await execute(
+    `UPDATE attendees
+        SET pii_payment_session_id = NULL
+      WHERE id = (
+        SELECT attendee_id
+          FROM processed_payments
+         WHERE payment_session_id = ?
+      )`,
+    [sessionId],
+  );
   await execute(
     `UPDATE processed_payments
         SET processed_at = ?, payment_reference = ''
@@ -84,12 +94,9 @@ describeWithEnv(
         attendeeAccount(original!.id),
       );
 
-      // The ledger legs are permanent, but the processed_payments idempotency row
-      // can still be missing after old data cleanup if it no longer carries a
-      // useful refund reference. Back-date it and clear that reference so the real
-      // pruner reproduces the reachable "legs exist, no idempotency row" replay
-      // state.
-      await pruneReplayRowWithoutRefundReference(session.id);
+      // An unqualified legacy idempotency row can be missing after old data
+      // cleanup. Demote this fixture to that shape before pruning it.
+      await pruneLegacyReplayRow(session.id);
 
       // Second delivery (the replay): the booking + ticket still exist, and there
       // are still 49 free seats, so capacity is not the blocker — only the existing
@@ -121,7 +128,7 @@ describeWithEnv(
       const [original] = await getAttendeesRaw(listing.id);
 
       // Prune the idempotency row; the permanent ledger legs remain.
-      await pruneReplayRowWithoutRefundReference(session.id);
+      await pruneLegacyReplayRow(session.id);
       // The listing price is edited after the booking — exactly the mid-checkout
       // change that makes a late replay re-price differently. Without the ledger
       // preflight this hit paidPricingRefund and refunded the live ticket (P1).
@@ -142,7 +149,7 @@ describeWithEnv(
       };
       await runWebhook(session, () => expectProcessed(listing.id));
 
-      await pruneReplayRowWithoutRefundReference(session.id);
+      await pruneLegacyReplayRow(session.id);
       // Deleting the listing removes the booking's listing_attendees row (and its
       // ledger_event_group stamp) but leaves the transfers: the event group is now
       // orphaned. Without the preflight this 404'd into a placeholder refund (P1);

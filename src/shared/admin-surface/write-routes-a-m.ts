@@ -69,6 +69,13 @@ export const ADMIN_WRITE_ROUTES_A_M = [
     "attendees",
   ),
   writeForm(
+    "attendeePaymentReview",
+    "attendees",
+    "/admin/attendees/:attendeeId/payment-review",
+    OWNER_AUDIENCE,
+    "attendees",
+  ),
+  writeForm(
     "attributeDelete",
     "attributes",
     "/admin/attributes/:id/delete",

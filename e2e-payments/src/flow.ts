@@ -2,48 +2,61 @@
  * App-level journey, driven through a real browser exactly as a customer would:
  * first-run setup → admin login → create a priced listing → open its public
  * booking page → book → (paid) hosted checkout → land on the return URL →
- * confirm the booking is recorded as paid.
+ * confirm the booking is recorded as paid. Every value that must be unique to
+ * one scenario (owner credentials, booker identity, listing name) is passed in
+ * by the caller rather than shared globally.
  */
 
 /* jscpd:ignore-start */
 import type { Locator } from "playwright";
 import { type BrowserSession, hrefOf, requirePageText } from "./browser.ts";
-import { config } from "./config.ts";
+import {
+  type BookerIdentity,
+  config,
+  type OwnerCredentials,
+} from "./config.ts";
 import { log, step } from "./log.ts";
 import { pollUntil } from "./util.ts";
+
 /* jscpd:ignore-end */
 
-export const LISTING_NAME = "E2E Payment Concert";
-// Not example.com: some processors (Square) reject that reserved domain as an
-// invalid email before redirecting, failing the booking pre-checkout.
-const BOOKER_EMAIL = config.bookerEmail;
-export const BOOKER_NAME = "E2E Booker";
 const LOGIN_FIELDS_SELECTOR = '[name="username"], [name="password"]';
+
+/** Who the booking belongs to, for admin-side assertions. */
+export interface BookingIdentity {
+  booker: BookerIdentity;
+  listingName: string;
+  priceMinor: number;
+}
 
 /** Run the first-run setup wizard for a fresh install. */
 export const runSetup = async (
   session: BrowserSession,
   country: string,
+  owner: OwnerCredentials,
 ): Promise<void> => {
   step("Running first-run setup");
   await session.goto("/setup/");
-  await session.fill("admin_username", config.adminUsername);
-  await session.fill("admin_password", config.adminPassword);
-  await session.fill("admin_password_confirm", config.adminPassword);
+  await session.fill("admin_username", owner.username);
+  await session.fill("admin_password", owner.password);
+  await session.fill("admin_password_confirm", owner.password);
   await session.select("country", country);
   await session.check("accept_agreement");
   await session.clickButton("Complete setup");
-  log(`  setup complete (admin=${config.adminUsername}, country=${country})`);
+  log(`  setup complete (admin=${owner.username}, country=${country})`);
 };
 
 /** Log in to the admin dashboard. */
-export const login = async (session: BrowserSession): Promise<void> => {
+export const login = async (
+  session: BrowserSession,
+  owner: OwnerCredentials,
+): Promise<void> => {
   step("Logging in");
   await session.goto("/admin/");
   const body = await session.bodyText();
   if (/log ?in/i.test(body)) {
-    await session.fill("username", config.adminUsername);
-    await session.fill("password", config.adminPassword);
+    await session.fill("username", owner.username);
+    await session.fill("password", owner.password);
     await session.clickButton("Login");
   }
   // A just-migrated install may show an interstitial.
@@ -71,12 +84,17 @@ export const login = async (session: BrowserSession): Promise<void> => {
  */
 export const createListing = async (
   session: BrowserSession,
-  { priceMinor, name = LISTING_NAME }: { priceMinor: number; name?: string },
+  { priceMinor, name }: { name: string; priceMinor: number },
 ): Promise<string> => {
   step(`Creating listing "${name}" (price=${priceMinor} minor units)`);
   await session.goto("/admin/listing/new?template=custom");
   await session.fill("name", name);
-  await session.fill("description", "End-to-end payment test listing");
+  // The description is a rich markdown editor whose backing textarea is
+  // hidden — type into the visible editing surface like a person.
+  await session.typeInto(
+    ".md-editor .ProseMirror",
+    "End-to-end payment test listing",
+  );
   await session.fill("max_attendees", "100");
   await session.fill("max_quantity", "5");
   await session.check("fields", "email");
@@ -135,13 +153,14 @@ export const incomeLedgerText = async (
 export const submitBooking = async (
   session: BrowserSession,
   ticketPath: string,
+  booker: BookerIdentity,
 ): Promise<void> => {
   step("Submitting booking");
   await session.goto(ticketPath);
   const { page } = session;
 
-  await fillIfPresent(session, "email", BOOKER_EMAIL);
-  await fillIfPresent(session, "name", BOOKER_NAME);
+  await fillIfPresent(session, "email", booker.email);
+  await fillIfPresent(session, "name", booker.name);
 
   // Quantity field name varies (single `quantity` vs per-listing `quantity_<id>`).
   const qty = page
@@ -168,41 +187,43 @@ const fillIfPresent = async (
 /**
  * Set a quantity control that renders as either a `<select>` (small caps) or a
  * plain `<input>` (large caps): choose the option on a select, type the value
- * into an input. Any Playwright options (force / timeout) apply to whichever
- * action runs.
+ * into an input.
  */
 export const setSelectOrInput = async (
   control: Locator,
   value: string,
-  options?: { force?: boolean; timeout?: number },
 ): Promise<void> => {
   const tag = await control.evaluate((el) => el.tagName.toLowerCase());
-  if (tag === "select") await control.selectOption(value, options);
-  else await control.fill(value, options);
+  if (tag === "select") await control.selectOption(value);
+  else await control.fill(value);
 };
 
 /**
- * Before filling a hosted checkout, assert the booking actually left the app
- * for the provider. If payment-session creation fails server-side the app
- * re-renders the booking page with an error alert (no redirect), and blindly
- * hunting for card fields there just times out with a misleading message. Fail
- * fast with the app's own error instead.
+ * Wait until the browser has actually left the app for the provider's hosted
+ * checkout. If the app stayed and re-rendered the booking page, fail fast with
+ * the app's own error alert instead of hunting for card fields that are not
+ * there.
  */
-export const assertRedirectedToCheckout = async (
+export const waitForHostedCheckout = async (
   session: BrowserSession,
 ): Promise<void> => {
-  const { page } = session;
-  if (!page.url().startsWith(session.baseUrl)) return; // left for the provider
-  const alert = page.locator('.error, [role="alert"]').first();
-  const detail = (await alert.count())
-    ? (await alert.innerText()).trim()
-    : "(no error alert on the page)";
-  await session.dumpPage("no-redirect-to-checkout");
-  throw new Error(
-    `booking did not redirect to the hosted checkout — still on ${page.url()}. ` +
-      `The app failed to create the payment session. App said: "${detail}". ` +
-      "See the app server log tail above for the provider API error.",
-  );
+  const appOrigin = new URL(session.baseUrl).origin;
+  try {
+    await session.page.waitForURL((url) => url.origin !== appOrigin, {
+      timeout: config.paymentConfirmTimeoutMs,
+    });
+  } catch {
+    const alert = session.page.locator('.error, [role="alert"]').first();
+    const detail = (await alert.count())
+      ? (await alert.innerText()).trim()
+      : "(no error alert on the page)";
+    await session.dumpPage("no-redirect-to-checkout");
+    throw new Error(
+      `booking did not redirect to the hosted checkout — still on ${session.page.url()}. ` +
+        `The app failed to create the payment session. App said: "${detail}". ` +
+        "See the app server log tail above for the provider API error.",
+    );
+  }
 };
 
 /** Assert the free-booking thank-you page was reached. */
@@ -218,75 +239,56 @@ export const assertFreeThankYou = async (
   log("  ✔ free booking reached the thank-you page");
 };
 
-/**
- * Scrape any visible error/notification text off a hosted checkout page (the
- * main frame and its payment iframes). Hosted pages surface the real reason a
- * payment stalled — "Your card number is incomplete", "Payment declined" — in
- * small alert/notification nodes that are drowned out by the page's country
- * <select>, so target likely error containers and keyword hits directly.
- */
-const collectHostedErrors = async (
+/** Save the page, then raise the failure — every assert's last resort. */
+const failWith = async (
   session: BrowserSession,
-): Promise<string> => {
-  const { page } = session;
-  const selector = [
-    '[role="alert"]',
-    ".error",
-    '[class*="error" i]',
-    '[class*="invalid" i]',
-    '[class*="Notification" i]',
-    '[class*="Message" i]',
-  ].join(", ");
-  const seen = new Set<string>();
-  for (const root of [page, ...page.frames()]) {
-    try {
-      const texts = await root.locator(selector).allInnerTexts();
-      for (const t of texts) {
-        const clean = t.trim().replace(/\s+/g, " ");
-        if (clean && clean.length < 200) seen.add(clean);
-      }
-    } catch {
-      // frame detached mid-scrape; skip
-    }
-  }
-  return [...seen].join(" | ");
+  artifact: string,
+  problem: string,
+): Promise<never> => {
+  await session.screenshot(artifact);
+  throw new Error(problem);
 };
 
-/**
- * After returning from a hosted checkout, confirm the booking is recorded as
- * paid: the customer sees a success/ticket page, and the admin listing shows
- * the booker with a captured amount.
- */
-export const assertPaidBookingConfirmed = async (
+/** Assert a listing recognised no income: its ledger either does not render,
+ * or renders with every total at zero. */
+export const requireNoRecognisedIncome = async (
   session: BrowserSession,
 ): Promise<void> => {
-  step("Confirming the paid booking");
-  const { page } = session;
-
-  // 1. Wait for the browser to arrive back on the app's return URL. On a
-  // timeout, scrape the hosted checkout's own inline errors — the page body
-  // is mostly a huge country <select> that buries the real message.
-  try {
-    await waitForAppReturn(
+  const ledger = await incomeLedgerText(session);
+  if (ledger !== null && !/Total income earned\s*[^0-9-]*0\b/.test(ledger)) {
+    await failWith(
       session,
-      /payment\/success|\/t\/|thank you|your ticket|payment (received|successful)/i,
-      "paid-return-page",
-    );
-  } catch {
-    const hostedError = await collectHostedErrors(session);
-    const appBody = await session.bodyText();
-    throw new Error(
-      `did not land on a success page after checkout.\nURL: ${page.url()}\n` +
-        // Prefer the scraped inline error; only fall back to the raw body when
-        // no error node was found (the body is mostly a huge country <select>
-        // that buries the real message and floods the CI log).
-        (hostedError
-          ? `Checkout page error(s): ${hostedError}`
-          : appBody.slice(0, 400)),
+      "unexpected-income",
+      `income was recognised for a free booking:\n${ledger.slice(0, 400)}`,
     );
   }
-  log(`  ✔ browser reached the app return (${page.url()})`);
-  await assertBookedInAdmin(session);
+};
+
+/** Open a listing's admin page — its Attendees tab for "attendees" (the
+ * roster the booking assertions read), or the Overview tab for "overview" —
+ * and return the page's body text. The tab link is scoped to the tab strip
+ * (`nav.entity-tabs`): the global admin nav also has an "Attendees" link
+ * (the site-wide `/admin/attendees` index), and an unscoped match would
+ * land on the wrong page. */
+export const openListing = async (
+  session: BrowserSession,
+  listingName: string,
+  owner: OwnerCredentials,
+  tab: "overview" | "attendees",
+): Promise<string> => {
+  await session.goto("/admin/");
+  await login(session, owner);
+  await session.clickLink(listingName);
+  if (tab === "overview") return await session.bodyText();
+  const attendeesTabLink = session.page
+    .locator("nav.entity-tabs a", { hasText: "Attendees" })
+    .first();
+  const attendeesHref = await hrefOf(
+    attendeesTabLink,
+    "no Attendees tab link found on the listing page",
+  );
+  await session.goto(attendeesHref);
+  return await session.bodyText();
 };
 
 /**
@@ -298,10 +300,10 @@ export const assertPaidBookingConfirmed = async (
  */
 export const assertBookedInAdmin = async (
   session: BrowserSession,
+  identity: BookingIdentity,
+  owner: OwnerCredentials,
 ): Promise<string> => {
-  await session.goto("/admin/");
-  await login(session);
-  await session.clickLink(LISTING_NAME);
+  await openListing(session, identity.listingName, owner, "overview");
 
   // …crucially, that the payment was actually captured. Assert against the
   // listing's INCOME LEDGER specifically — it projects from the payment ledger,
@@ -319,8 +321,9 @@ export const assertBookedInAdmin = async (
     },
   );
   if (paidRegion === null) {
-    await session.screenshot("paid-admin-no-income-ledger");
-    throw new Error(
+    return await failWith(
+      session,
+      "paid-admin-no-income-ledger",
       "the listing's income ledger (#income-ledger) did not render — no recognised " +
         "income was recorded for the paid booking (lost/failed payment?)",
     );
@@ -334,43 +337,42 @@ export const assertBookedInAdmin = async (
   // itself would need currency-aware decimals. The digits match regardless of
   // the symbol; accept both the decimal and stripped-whole forms so an
   // E2E_UNIT_PRICE override to a whole amount still matches.
-  const withDecimals = (config.unitPrice / 100).toFixed(2); // "1.37" / "2.00"
+  const withDecimals = (identity.priceMinor / 100).toFixed(2); // "1.37" / "2.00"
   const strippedWhole = withDecimals.replace(/\.00$/, ""); //  "1.37" / "2"
   if (
     !paidRegion.includes(withDecimals) &&
     !paidRegion.includes(strippedWhole)
   ) {
-    await session.screenshot("paid-admin-no-income");
-    throw new Error(
+    await failWith(
+      session,
+      "paid-admin-no-income",
       `captured payment not reflected in the listing's income ledger (expected ${withDecimals}). ` +
         `Income ledger:\n${paidRegion.slice(0, 600)}`,
     );
   }
 
   // 3. The booker itself appears on the Attendees tab, not the Overview tab
-  // just checked above. Scoped to the tab strip (`nav.entity-tabs`): the
-  // global admin nav also has an "Attendees" link (the site-wide
-  // `/admin/attendees` index), and clickLink's unscoped `.first()` would match
-  // that link — landing on the wrong page and passing without ever exercising
-  // this listing's tab.
-  const attendeesTabLink = session.page
-    .locator("nav.entity-tabs a", { hasText: "Attendees" })
-    .first();
-  const attendeesHref = await hrefOf(
-    attendeesTabLink,
-    "no Attendees tab link found on the listing page",
+  // just checked above.
+  const attendeesBody = await openListing(
+    session,
+    identity.listingName,
+    owner,
+    "attendees",
   );
-  await session.goto(attendeesHref);
-  const attendeesBody = await session.bodyText();
-  if (!attendeesBody.includes(BOOKER_EMAIL)) {
-    await session.screenshot("paid-admin-missing-booker");
-    throw new Error(
-      `paid booker ${BOOKER_EMAIL} not visible on the admin listing's Attendees tab`,
+  if (!attendeesBody.includes(identity.booker.email)) {
+    await failWith(
+      session,
+      "paid-admin-missing-booker",
+      `paid booker ${identity.booker.email} not visible on the admin listing's Attendees tab`,
     );
   }
 
   log(
-    `  ✔ admin listing shows the paid booker (${BOOKER_EMAIL}) and captured amount (${withDecimals})`,
+    `  ✔ admin listing shows the paid booker (${identity.booker.email}) and captured amount (${withDecimals})`,
   );
   return attendeesBody;
 };
+
+/** How many times one text occurs on the attendees roster (replay checks). */
+export const countOnRoster = (attendeesBody: string, value: string): number =>
+  attendeesBody.split(value).length - 1;
