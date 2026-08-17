@@ -108,6 +108,20 @@ describe("payment joint state", () => {
     expect(illegalJointReasonOrNull("settled", "absent")).toBeNull();
   });
 
+  test("each declared reason tells its whole story", () => {
+    // The reason is the diagnosis an operator reads when the seam trips, so
+    // its exact words are part of the contract, not decoration.
+    expect(illegalJointReasonOrNull("free_reserved", "send_armed")).toBe(
+      "A provider send is armed only under a held claim, and the claim is " +
+        "released only after the send completes — an armed charge on a row " +
+        "nobody holds has no flow that finishes it.",
+    );
+    expect(illegalJointReasonOrNull("claim", "absent")).toBe(
+      "A claim is admitted only over references that carry a charge, so a " +
+        "held row whose references have no charge cannot have been claimed.",
+    );
+  });
+
   test("answers every combination without throwing", () => {
     for (const row of ROW_FACTS) {
       for (const authority of AUTHORITY_FACTS) {
