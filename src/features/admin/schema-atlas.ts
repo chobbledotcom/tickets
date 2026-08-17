@@ -4,11 +4,12 @@
 
 import { ownerPage } from "#routes/auth.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { scanJointAnomalies } from "#shared/db/joint-state-scan.ts";
 import { settings } from "#shared/db/settings.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 
 const handleSchemaAtlasGet = ownerPage(async (session) =>
-  adminSchemaAtlasPage(session, settings.theme),
+  adminSchemaAtlasPage(session, settings.theme, await scanJointAnomalies()),
 );
 
 export const adminHandlers = defineRoutes({

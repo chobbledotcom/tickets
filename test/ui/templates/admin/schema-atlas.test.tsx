@@ -7,7 +7,7 @@ import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 const html = (): string =>
-  adminSchemaAtlasPage({ adminLevel: "owner" }, "light");
+  adminSchemaAtlasPage({ adminLevel: "owner" }, "light", []);
 
 describe("the system map page", () => {
   beforeAll(async () => {
@@ -68,6 +68,22 @@ describe("the system map page", () => {
     expect(page).toContain("A refund at the payment provider");
     expect(page).toContain("A payment row kept for review");
     expect(page).toContain("One payment row's held work");
+  });
+
+  test("the live check answers clean when the scan found nothing", () => {
+    const page = html();
+    expect(page).toContain('id="schema-check"');
+    expect(page).toContain("All stored payment records fit the rules.");
+  });
+
+  test("the live check lists each flagged record in plain words", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
+      { key: "armed_without_claim", sessionId: "cs_seam" },
+    ]);
+    expect(page).toContain(
+      "A refund is set to send, but no job holds this row. <code>cs_seam</code>",
+    );
+    expect(page).not.toContain("All stored payment records fit the rules.");
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {

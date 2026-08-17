@@ -6,6 +6,7 @@
  * as JSON and `client/admin/schema-atlas.ts` turns it into an SVG map. */
 
 import { t } from "#i18n";
+import type { JointAnomaly } from "#shared/db/joint-state-scan.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
@@ -132,9 +133,35 @@ const MachineSection = ({ machine }: { machine: ViewMachine }): JSX.Element => (
   </section>
 );
 
+/** The live answer to the promises above: every row the scan flagged, or
+ * the all-clear. Findings render the plain words for the broken rule plus
+ * the record's own id, so the operator can go look at it. */
+const LiveCheckSection = ({
+  anomalies,
+}: {
+  anomalies: readonly JointAnomaly[];
+}): JSX.Element => (
+  <section id="schema-check">
+    <h2>{t("schema.check.heading")}</h2>
+    <p>{t("schema.check.intro")}</p>
+    {anomalies.length === 0 ? (
+      <p>{t("schema.check.none")}</p>
+    ) : (
+      <ul>
+        {anomalies.map((anomaly) => (
+          <li>
+            {t(`schema.check.${anomaly.key}`)} <code>{anomaly.sessionId}</code>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+);
+
 export const adminSchemaAtlasPage = (
   session: AdminSession,
   theme: Theme,
+  anomalies: readonly JointAnomaly[],
 ): string => {
   const machines = SCHEMA_ATLAS_MACHINES.map(viewMachine);
   return settingsArticlePage(
@@ -163,6 +190,7 @@ export const adminSchemaAtlasPage = (
         {machines.map((machine) => (
           <MachineSection machine={machine} />
         ))}
+        <LiveCheckSection anomalies={anomalies} />
       </div>
       <JsonScript id="schema-atlas-data" value={{ machines }} />
     </>,

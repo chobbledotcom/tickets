@@ -88,9 +88,11 @@ const CLAIM_ROWS: readonly JointRowFact[] = [
 /**
  * The declared impossible combinations. Kept short on purpose: every entry
  * must be provable from the flows, because the verifier reports each match
- * to an operator as data needing repair.
+ * to an operator as data needing repair. Each authority keeps its literal
+ * type, so the database scan must declare a query for every entry here or
+ * refuse to compile.
  */
-export const ILLEGAL_JOINT_STATES: readonly IllegalJointState[] = [
+export const ILLEGAL_JOINT_STATES = [
   {
     authority: "send_armed",
     reason:
@@ -106,7 +108,7 @@ export const ILLEGAL_JOINT_STATES: readonly IllegalJointState[] = [
       "held row whose references have no charge cannot have been claimed.",
     rows: CLAIM_ROWS,
   },
-];
+] as const satisfies readonly IllegalJointState[];
 
 /** The row fact for one parsed row state, split by phase when free.
  * `finalized` is the phase axis: true once the session booked (attendee

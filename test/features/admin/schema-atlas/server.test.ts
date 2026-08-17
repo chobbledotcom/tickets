@@ -1,7 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { cachedAdminPage, testRequiresAuth } from "#test-utils/assertions.ts";
+import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+import {
+  assertAdminHtml,
+  cachedAdminPage,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { plantPaymentRow } from "#test-utils/joint-state.ts";
 
 describeWithEnv("server (admin schema map)", { db: true }, () => {
   const page = cachedAdminPage("/admin/schema");
@@ -25,6 +31,23 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
       expect(html).toContain("You confirm the money came back → Money back");
       // The page names no real payment anywhere.
       expect(html).not.toMatch(/\/admin\/privacy\/refunds\/\d+/);
+    });
+
+    test("renders the live check with a clean answer", async () => {
+      await page(
+        'id="schema-check"',
+        "Live check",
+        "All stored payment records fit the rules.",
+      );
+    });
+
+    test("lists a stored impossible combination with its record id", async () => {
+      await plantPaymentRow("cs_atlas_seam", "ref_atlas_seam", CLAIM_MIRROR);
+      await assertAdminHtml(
+        "/admin/schema",
+        "A job holds this row, but its payment has no charge record.",
+        "<code>cs_atlas_seam</code>",
+      );
     });
   });
 });
