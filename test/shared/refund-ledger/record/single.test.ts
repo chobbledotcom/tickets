@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, setDb } from "#shared/db/client.ts";
-import { proxyMembers } from "#shared/proxy-members.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import {
   ATTENDEE,
   expectSingleRefundCash,
   postBooking,
+  readsTransfers,
   sessionReference,
+  withBrokenLedger,
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -30,19 +30,12 @@ describeWithEnv("refund ledger > record one attendee", { db: true }, () => {
 
   test("keeps every returned reference unrecorded when the ledger read fails", async () => {
     const reference = sessionReference("sess-read-failed");
-    const real = getDb();
-    setDb(
-      proxyMembers(real, {
-        execute: () => Promise.reject(new Error("ledger read failed")),
-      }),
-    );
-    try {
-      expect(await recordAttendeeRefund(ATTENDEE, [reference])).toEqual(
-        refundLedgerResult([], [reference]),
-      );
-    } finally {
-      setDb(real);
-    }
+
+    expect(
+      await withBrokenLedger(readsTransfers, "ledger read failed", () =>
+        recordAttendeeRefund(ATTENDEE, [reference]),
+      ),
+    ).toEqual(refundLedgerResult([], [reference]));
     expect(errors.lastMessage()).toContain("Refund ledger preparation failed");
     expect(errors.lastMessage()).toContain("attendee=3");
     expect(errors.lastMessage()).not.toContain("ledger read failed");

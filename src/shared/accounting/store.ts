@@ -29,7 +29,8 @@ import {
   fromTx,
   insertStatement,
   type RowReader,
-  selectTransfers,
+  selectTransfersMany,
+  type TransferRead,
 } from "#shared/accounting/rows.ts";
 import {
   executeBatch,
@@ -159,20 +160,21 @@ type BatchSnapshot = {
   readonly originalsById: ReadonlyMap<number, Transfer>;
 };
 
-/** Read every transfer whose `column` is one of `values`; an empty set is
- *  answered without touching the database. `column` is a trusted constant. */
-const selectByColumnIn = (
-  read: RowReader,
+/** Wants every transfer whose `column` is one of `values`; an empty set asks for
+ *  nothing, and is answered without touching the database. `column` is a
+ *  trusted constant. */
+const byColumnIn = (
   column: string,
   values: readonly InValue[],
-): Promise<Transfer[]> =>
-  selectTransfers(read, { where: inList(column, values) });
+): TransferRead => ({
+  where: inList(column, values),
+});
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
- *  selects — independent of the number of groups. `read` picks where the
- *  snapshot comes from: the global client for the batch path, or an open
- *  transaction for {@link postTransfersTx} (whose write lock makes the read
- *  authoritative). */
+ *  selects that travel as one round trip — independent of the number of groups.
+ *  `read` picks where the snapshot comes from: the global client for the batch
+ *  path, or an open transaction for {@link postTransfersTx} (whose write lock
+ *  makes the read authoritative). */
 const loadBatchSnapshot = async (
   groups: TransferInput[][],
   read: RowReader,
@@ -182,10 +184,10 @@ const loadBatchSnapshot = async (
   const reversesIds = unique(
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
-  const [existing, stored, originals] = await Promise.all([
-    selectByColumnIn(read, "event_group", eventGroups),
-    selectByColumnIn(read, "reference", references),
-    selectByColumnIn(read, "id", reversesIds),
+  const [existing, stored, originals] = await selectTransfersMany(read, [
+    byColumnIn("event_group", eventGroups),
+    byColumnIn("reference", references),
+    byColumnIn("id", reversesIds),
   ]);
   return {
     existingByGroup: Map.groupBy(existing, (leg) => leg.eventGroup),

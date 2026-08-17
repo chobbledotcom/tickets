@@ -7,23 +7,24 @@
  * here, so the column list and row mapping live in exactly one place.
  */
 
-import type { InValue } from "@libsql/client";
+import type { InValue, ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import {
   orIgnore,
-  queryAll,
+  queryBatch,
   resultRows,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
 import { type Read, readStatement } from "#shared/db/read.ts";
-import { equals, rowsUnlessNoneMatch } from "#shared/db/where-clauses.ts";
+import { equals, matchesNoRows } from "#shared/db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
   Transfer,
   TransferInput,
 } from "#shared/ledger/types.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   epochMsToIso,
   instantToEpochMs,
@@ -197,43 +198,84 @@ export const bookingLegBatchInsert = (
   );
 
 /**
- * Reads rows either from the global client or from an open transaction. The
- * write path reads through its own transaction: the database write lock then
- * makes concurrent posters of the same event take turns, so the second one sees
- * the first one's rows and replays instead of double-posting.
+ * Answers a set of transfer queries together, in one round trip, and hands back
+ * one batch of rows per query in the order asked. Reading either from the global
+ * client or from an open transaction: the write path reads through its own
+ * transaction, so the database write lock makes concurrent posters of the same
+ * event take turns and the second one sees the first one's rows and replays
+ * instead of double-posting.
  */
 export type RowReader = (
-  sql: string,
-  args: InValue[],
-) => Promise<TransferRow[]>;
+  statements: readonly SqlStatement[],
+) => Promise<TransferRow[][]>;
 
-export const fromDb: RowReader = (sql, args) =>
-  queryAll<TransferRow>(sql, args);
+const rowsPerStatement = (results: readonly ResultSet[]): TransferRow[][] =>
+  results.map((result) => resultRows<TransferRow>(result));
+
+export const fromDb: RowReader = async (statements) =>
+  rowsPerStatement(await queryBatch([...statements]));
 
 export const fromTx =
   (tx: TxScope): RowReader =>
-  async (sql, args) =>
-    resultRows<TransferRow>(await tx.execute({ args, sql }));
+  async (statements) =>
+    rowsPerStatement(await tx.batch([...statements]));
 
 /** Which transfers to read, in what order, how many — everything but the
  * columns and the table, which a transfer read always knows. */
 export type TransferRead = Omit<Read, "columns" | "from">;
 
+const transferStatement = (query: TransferRead): SqlStatement =>
+  readStatement({ ...query, columns: COLUMNS, from: "transfers" });
+
+/** One set of rows for each query, in the order the queries were given, so a
+ *  caller can name them by destructuring rather than counting positions. */
+type TransfersPerQuery<Queries extends readonly TransferRead[]> = {
+  [Index in keyof Queries]: Transfer[];
+};
+
+/** Select several sets of transfers at once, each saying which rows it wants
+ * and in what order rather than writing the query. `read` decides where the
+ * rows come from — the client, or an open transaction — and answers them all in
+ * one round trip. A query that can match no row is answered as empty without
+ * being asked, so wanting none of something still costs nothing. */
+export const selectTransfersMany = async <
+  const Queries extends readonly TransferRead[],
+>(
+  read: RowReader,
+  queries: Queries,
+): Promise<TransfersPerQuery<Queries>> => {
+  const asked = queries
+    .map((query, index) => ({ index, query }))
+    .filter(({ query }) => !matchesNoRows(query.where ?? []));
+  const answers =
+    asked.length === 0
+      ? []
+      : await read(asked.map(({ query }) => transferStatement(query)));
+  const rowsByQuery = new Map(
+    asked.map(({ index }, position) => [
+      index,
+      requireValue(
+        answers[position],
+        `Ledger read ${index} went unanswered`,
+      ).map(rowToTransfer),
+    ]),
+  );
+  // Built by mapping the queries, so it is one set per query by construction —
+  // and a query left out of the bundle was one nothing could match.
+  return queries.map(
+    (_, index) => rowsByQuery.get(index) ?? [],
+  ) as TransfersPerQuery<Queries>;
+};
+
 /** Select transfers, saying which rows and in what order rather than writing
- * the query. `read` decides where the rows come from — the client, or an open
- * transaction. Pass nothing to read the whole table. */
-export const selectTransfers = (
+ * the query. Pass nothing to read the whole table. */
+export const selectTransfers = async (
   read: RowReader,
   query: TransferRead = {},
-): Promise<Transfer[]> =>
-  rowsUnlessNoneMatch(query.where ?? [], async () => {
-    const { sql, args } = readStatement({
-      ...query,
-      columns: COLUMNS,
-      from: "transfers",
-    });
-    return (await read(sql, args)).map(rowToTransfer);
-  });
+): Promise<Transfer[]> => {
+  const [rows] = await selectTransfersMany(read, [query]);
+  return rows;
+};
 
 /** Every leg of one business event (booking, refund, …). */
 export const selectByEventGroup = (

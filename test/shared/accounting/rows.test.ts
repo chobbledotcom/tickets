@@ -3,10 +3,19 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingLegBatchInsert,
   fromDb,
+  fromTx,
   insertStatement,
+  type RowReader,
   selectTransfers,
+  selectTransfersMany,
 } from "#shared/accounting/rows.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  type SqlStatement,
+  type TxScope,
+  withTransaction,
+} from "#shared/db/client.ts";
+import { inList } from "#shared/db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
@@ -82,6 +91,108 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
     expect(built.args.at(-1)).toBe("g"); // guard args come last
     expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
     expect(built.sql).toContain("WHERE ? = 'g'");
+  });
+});
+
+/** A reader that answers nothing but remembers what it was handed. */
+const recordingReader = (): {
+  asked: SqlStatement[][];
+  reader: RowReader;
+} => {
+  const asked: SqlStatement[][] = [];
+  const reader: RowReader = (statements) => {
+    asked.push([...statements]);
+    return Promise.resolve(statements.map(() => []));
+  };
+  return { asked, reader };
+};
+
+describe("accounting > rows > selectTransfersMany", () => {
+  useTransactionalDb();
+  const recordedAt = "2026-06-21T12:00:00.000Z";
+
+  const leg = (reference: string, eventGroup: string): TransferInput => ({
+    amount: 5000,
+    destination: account("revenue", 7),
+    eventGroup,
+    occurredAt: "2026-06-21T00:00:00.000Z",
+    reference,
+    source: account("attendee", 3),
+  });
+
+  const storeTwoLegs = (): Promise<void> =>
+    executeBatch([
+      insertStatement(leg("ref-a", "evt-a"), recordedAt),
+      insertStatement(leg("ref-b", "evt-b"), recordedAt),
+    ]);
+
+  test("gives each set of rows back to the query that asked for it", async () => {
+    await storeTwoLegs();
+
+    const [byGroup, byReference] = await selectTransfersMany(fromDb, [
+      { where: inList("event_group", ["evt-b"]) },
+      { where: inList("reference", ["ref-a"]) },
+    ]);
+
+    // Swapped answers would read as a stored collision that is not there.
+    expect(byGroup?.map((row) => row.reference)).toEqual(["ref-b"]);
+    expect(byReference?.map((row) => row.reference)).toEqual(["ref-a"]);
+  });
+
+  test("answers a query nothing can match without asking for it", async () => {
+    const { asked, reader } = recordingReader();
+
+    const [none, some] = await selectTransfersMany(reader, [
+      { where: inList("id", []) },
+      { where: inList("reference", ["ref-a"]) },
+    ]);
+
+    expect(none).toEqual([]);
+    expect(some).toEqual([]);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.map((statement) => statement.args)).toEqual([["ref-a"]]);
+  });
+
+  test("asks for nothing at all when no query can match", async () => {
+    const { asked, reader } = recordingReader();
+
+    const rows = await selectTransfersMany(reader, [
+      { where: inList("id", []) },
+      { where: inList("reference", []) },
+    ]);
+
+    expect(rows).toEqual([[], []]);
+    expect(asked).toEqual([]);
+  });
+
+  test("asks an open transaction once, not once per query", async () => {
+    await storeTwoLegs();
+    let batches = 0;
+    let singles = 0;
+
+    const rows = await withTransaction((scope) => {
+      const counted: TxScope = {
+        batch: (statements) => {
+          batches += 1;
+          return scope.batch(statements);
+        },
+        execute: (statement) => {
+          singles += 1;
+          return scope.execute(statement);
+        },
+      };
+      return selectTransfersMany(fromTx(counted), [
+        { where: inList("event_group", ["evt-a"]) },
+        { where: inList("reference", ["ref-b"]) },
+      ]);
+    });
+
+    expect(batches).toBe(1);
+    expect(singles).toBe(0);
+    expect(rows.map((set) => set.map((row) => row.reference))).toEqual([
+      ["ref-a"],
+      ["ref-b"],
+    ]);
   });
 });
 

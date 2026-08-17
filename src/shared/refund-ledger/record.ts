@@ -18,9 +18,8 @@ import {
   refundLedgerResult,
 } from "./result.ts";
 
-/** Account read + event-group read + reference read + write. Refund legs never
- * carry reversal ids, so the generic reversal-id query is skipped. */
-export const REFUND_LEDGER_BATCH_DATABASE_CALLS = 4;
+/** Account read + the post's own checks, which travel as one read + write. */
+export const REFUND_LEDGER_BATCH_DATABASE_CALLS = 3;
 
 const postComputedRefund = async (
   attendeeId: number,

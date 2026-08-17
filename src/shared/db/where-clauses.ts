@@ -76,8 +76,9 @@ export const inSubquery: SubqueryFilter = bySubquery("IN");
 export const notInSubquery: SubqueryFilter = bySubquery("NOT IN");
 
 /** Whether these clauses can never match a row — the ordinary cause being a
- * filter asking for none of something. */
-const matchesNoRows = (parts: readonly WhereClause[]): boolean =>
+ * filter asking for none of something. A reader that bundles several queries
+ * asks this directly, to leave the already-answered ones out of the bundle. */
+export const matchesNoRows = (parts: readonly WhereClause[]): boolean =>
   parts.some((part) => part.matchesNothing);
 
 /** Run a read unless its clauses can match no row — asking for none of
