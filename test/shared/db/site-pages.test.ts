@@ -199,5 +199,4 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(row?.sort_order).toBe(0);
     });
   });
-
 });
