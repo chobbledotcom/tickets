@@ -115,8 +115,9 @@ describe("attendeeColumns", () => {
     );
   });
 
-  // Pins what each ledger field costs against the subrequest budget, and keeps
-  // the six the module's header quotes from drifting away from the SQL again.
+  // These are correlated, so each runs per row of the outer query — the cost is
+  // database work, not subrequests, the whole SELECT being one round-trip either
+  // way. Pinning them keeps the count in the module header true.
   test("each ledger field emits a fixed number of subqueries", () => {
     const subqueries = (field: AttendeeField): number =>
       (attendeeColumns("inner", [field]).match(/\(SELECT/g) ?? []).length;
