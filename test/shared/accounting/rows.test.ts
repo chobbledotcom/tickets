@@ -305,4 +305,22 @@ describe("accounting > rows > stored-row round-trip", () => {
     expect(stored!.kind).toBeUndefined();
     expect("kind" in stored!).toBe(false);
   });
+
+  test("a leg with no memo stores an empty one, not a stand-in", async () => {
+    const memoless: TransferInput = {
+      amount: 100,
+      destination: account("revenue", 7),
+      eventGroup: "evt-memoless",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-memoless",
+      source: account("attendee", 3),
+    };
+    await executeBatch([insertStatement(memoless, recordedAt)]);
+
+    const [stored] = await selectTransfers(fromDb);
+
+    // Unlike kind, memo keeps its "" — so the absence must be stored as empty
+    // rather than as any filler a reader would later show to an operator.
+    expect(stored!.memo).toBe("");
+  });
 });
