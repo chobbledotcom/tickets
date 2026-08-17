@@ -11,9 +11,9 @@ import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, envWith } from "./child-process.ts";
 import { planIsolateEntries } from "./isolate-entry.ts";
-import type { Status } from "./summary.ts";
+import type { EvaluationStatus } from "./summary.ts";
 
-export type Outcome = "failed" | "passed" | "timed-out";
+export type Outcome = "cancelled" | "failed" | "passed";
 
 export interface StaticGate {
   exit(file: string, workspace: string, signal: AbortSignal): Promise<number>;
@@ -184,7 +184,7 @@ const runOneBatch = async (
     controller.abort();
     return "failed";
   } catch (error) {
-    if (signal.aborted) return "timed-out";
+    if (signal.aborted) return "cancelled";
     if (controller.signal.aborted) return null;
     throw error;
   }
@@ -201,7 +201,7 @@ const runBatchWorker = async (
     const outcome = await runOneBatch(batch, context);
     if (outcome) return outcome;
   }
-  if (signal.aborted) return "timed-out";
+  if (signal.aborted) return "cancelled";
   return null;
 };
 
@@ -228,8 +228,8 @@ export const runTests = async (
     );
     let outcome: Outcome = outcomes.includes("failed")
       ? "failed"
-      : outcomes.includes("timed-out")
-        ? "timed-out"
+      : outcomes.includes("cancelled")
+        ? "cancelled"
         : "passed";
     if (outcome === "passed" && features.length > 0) {
       outcome = (await runOneBatch(features, context)) ?? "passed";
@@ -240,9 +240,9 @@ export const runTests = async (
   }
 };
 
-export const toStatus = (outcome: Outcome): Status =>
+export const toStatus = (outcome: Outcome): EvaluationStatus =>
   outcome === "passed"
     ? "survived"
     : outcome === "failed"
       ? "killed"
-      : "timed-out";
+      : "cancelled";

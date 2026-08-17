@@ -6,16 +6,19 @@
  * thin CLI shell (`scripts/mutation.ts`) does the glob expansion and running.
  */
 
-export const DEFAULT_TIMEOUT = 10_000;
+/** How long a whole run may take before it is called stuck. Generous on
+ *  purpose: this is a guard against a mutant that hangs the tests, not a
+ *  performance budget, and it never decides a mutant either way. */
+export const DEFAULT_DEADLINE = 60 * 60_000;
 
 export interface ParsedArgs {
   batchJobs?: number;
+  deadline: number;
   error: string | null;
   exhaustive: boolean;
   help: boolean;
   sources: string[];
   tests: string[];
-  timeout: number;
   useHarness: boolean;
 }
 
@@ -49,7 +52,7 @@ const BOOLEAN_FLAGS = new Map<string, (parsed: ParsedArgs) => void>([
 
 /**
  * A blank token is not a valid number — `Number("")` and `Number(" ")` are both
- * `0`, which would silently accept `--timeout ""` as a zero timeout. Turn a
+ * `0`, which would silently accept `--deadline ""` as a zero deadline. Turn a
  * blank into NaN so the numeric validation rejects it with a clear message.
  */
 const toNumber = (value: string): number =>
@@ -69,9 +72,9 @@ const VALUE_FLAGS = new Map<
   ["--source", (parsed, value) => parsed.sources.push(value)],
   ["--test", (parsed, value) => parsed.tests.push(value)],
   [
-    "--timeout",
+    "--deadline",
     (parsed, value) => {
-      parsed.timeout = toNumber(value);
+      parsed.deadline = toNumber(value);
     },
   ],
 ]);
@@ -141,9 +144,9 @@ const applyPositionals = (parsed: ParsedArgs, positional: string[]): void => {
 
 /** Validate the parsed numeric options, recording the first error found. */
 const validateNumericArgs = (parsed: ParsedArgs): void => {
-  if (!Number.isFinite(parsed.timeout) || parsed.timeout < 0) {
+  if (!Number.isFinite(parsed.deadline) || parsed.deadline <= 0) {
     parsed.error ??=
-      "Invalid --timeout: expected a non-negative number of milliseconds.";
+      "Invalid --deadline: expected a positive number of milliseconds.";
   }
   const invalidJobs =
     parsed.batchJobs !== undefined &&
@@ -155,12 +158,12 @@ const validateNumericArgs = (parsed: ParsedArgs): void => {
 
 export const parseArgs = (args: string[]): ParsedArgs => {
   const parsed: ParsedArgs = {
+    deadline: DEFAULT_DEADLINE,
     error: null,
     exhaustive: false,
     help: false,
     sources: [],
     tests: [],
-    timeout: DEFAULT_TIMEOUT,
     useHarness: false,
   };
   const positional: string[] = [];

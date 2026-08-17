@@ -19,7 +19,7 @@ import {
   runTestStages,
   type TestStageResult,
 } from "./phases.ts";
-import type { Status } from "./summary.ts";
+import type { EvaluationStatus } from "./summary.ts";
 import {
   createMutantTestState,
   type MutantTestStateResult,
@@ -41,7 +41,7 @@ export interface FileMutationPlan {
 
 export interface MutantEvaluation {
   detectedBy: MutationPhase | null;
-  status: Status;
+  status: EvaluationStatus;
   timings: PhaseTiming[];
 }
 
@@ -68,7 +68,7 @@ const realDeps: EvaluationDeps = {
 
 const detectedByKill = <Phase extends MutationPhase>(
   phase: Phase,
-  status: Status,
+  status: EvaluationStatus,
 ): Phase | null => (status === "killed" ? phase : null);
 
 const testStatus = (
@@ -86,11 +86,11 @@ const testStatus = (
 const confirmStateMutation = async (
   { deps, plan, run, signal }: MutantRunContext,
   failed: FailedTestState,
-): Promise<Status> => {
-  if (failed.status === "timed-out") return "timed-out";
+): Promise<EvaluationStatus> => {
+  if (failed.status === "cancelled") return "cancelled";
   await deps.write(plan.file, plan.original);
   const baseline = await deps.createState(run.env, signal);
-  if (baseline.status === "timed-out") return "timed-out";
+  if (baseline.status === "cancelled") return "cancelled";
   if (baseline.status === "failed") {
     throw new Error(
       `Mutant test-state build failed (${failed.message}), and ` +
@@ -104,8 +104,8 @@ const confirmStateMutation = async (
 const confirmAssetMutation = async (
   { deps, plan, signal }: MutantRunContext,
   assets: MutantAssetHooks,
-): Promise<Status> => {
-  if (signal.aborted) return "timed-out";
+): Promise<EvaluationStatus> => {
+  if (signal.aborted) return "cancelled";
   await deps.write(plan.file, plan.original);
   if (!(await assets.rebuild())) {
     throw new Error(
@@ -216,7 +216,7 @@ export const evaluateMutantTests = async (
       return { ...stages, timings };
     } catch (error) {
       if (signal.aborted) {
-        return { detectedBy: null, status: "timed-out", timings };
+        return { detectedBy: null, status: "cancelled", timings };
       }
       throw error;
     }

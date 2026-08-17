@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { DEFAULT_TIMEOUT, parseArgs } from "#scripts/mutation/args.ts";
+import { DEFAULT_DEADLINE, parseArgs } from "#scripts/mutation/args.ts";
 
 describe("parseArgs", () => {
-  test("defaults the per-mutant timeout to ten seconds", () => {
-    expect(DEFAULT_TIMEOUT).toBe(10_000);
+  test("defaults the whole-run deadline to an hour", () => {
+    expect(DEFAULT_DEADLINE).toBe(60 * 60_000);
   });
 
   test("returns defaults for no arguments", () => {
     const parsed = parseArgs([]);
     expect(parsed).toEqual({
+      deadline: DEFAULT_DEADLINE,
       error: null,
       exhaustive: false,
       help: false,
       sources: [],
       tests: [],
-      timeout: DEFAULT_TIMEOUT,
       useHarness: false,
     });
   });
@@ -71,7 +71,7 @@ describe("parseArgs", () => {
   // fall through and be collected as a positional, surfacing later as a
   // misleading "no files matched" glob error. It must now fail fast with a
   // clear usage error and NOT swallow the flag as a value.
-  const valueFlags = ["--source", "--test", "--jobs", "--timeout"];
+  const valueFlags = ["--source", "--test", "--jobs", "--deadline"];
   for (const flag of valueFlags) {
     test(`reports a clear error when ${flag} has no value`, () => {
       const parsed = parseArgs([flag]);
@@ -80,7 +80,7 @@ describe("parseArgs", () => {
       expect(parsed.sources).toEqual([]);
       expect(parsed.tests).toEqual([]);
       expect(parsed.batchJobs).toBeUndefined();
-      expect(parsed.timeout).toBe(DEFAULT_TIMEOUT);
+      expect(parsed.deadline).toBe(DEFAULT_DEADLINE);
     });
   }
 
@@ -122,10 +122,10 @@ describe("parseArgs", () => {
     });
   }
 
-  test("rejects an empty --timeout value instead of reading it as zero", () => {
-    const parsed = parseArgs(["--source", "a.ts", "--timeout", ""]);
+  test("rejects an empty --deadline value instead of reading it as zero", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--deadline", ""]);
     expect(parsed.error).toBe(
-      "Invalid --timeout: expected a non-negative number of milliseconds.",
+      "Invalid --deadline: expected a positive number of milliseconds.",
     );
   });
 
@@ -174,23 +174,24 @@ describe("parseArgs", () => {
     expect(parsed.error).toBeNull();
   });
 
-  test("parses --timeout as a number", () => {
+  test("parses --deadline as a number", () => {
     const parsed = parseArgs([
       "--source",
       "a.ts",
       "--test",
       "t.ts",
-      "--timeout",
+      "--deadline",
       "5000",
     ]);
-    expect(parsed.timeout).toBe(5000);
+    expect(parsed.deadline).toBe(5000);
     expect(parsed.error).toBeNull();
   });
 
-  test("accepts a zero --timeout as the non-negative boundary", () => {
-    const parsed = parseArgs(["--source", "a.ts", "--timeout", "0"]);
-    expect(parsed.timeout).toBe(0);
-    expect(parsed.error).toBeNull();
+  test("rejects a zero --deadline, which would stop the run at once", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--deadline", "0"]);
+    expect(parsed.error).toBe(
+      "Invalid --deadline: expected a positive number of milliseconds.",
+    );
   });
 
   test("accepts a --jobs of one as the positive boundary", () => {
@@ -209,17 +210,17 @@ describe("parseArgs", () => {
     expect(parsed.error).toBe("Invalid --jobs: expected a positive integer.");
   });
 
-  test("rejects a negative --timeout", () => {
-    const parsed = parseArgs(["--source", "a.ts", "--timeout", "-5"]);
+  test("rejects a negative --deadline", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--deadline", "-5"]);
     expect(parsed.error).toBe(
-      "Invalid --timeout: expected a non-negative number of milliseconds.",
+      "Invalid --deadline: expected a positive number of milliseconds.",
     );
   });
 
-  test("rejects a non-numeric --timeout", () => {
-    const parsed = parseArgs(["--source", "a.ts", "--timeout", "abc"]);
+  test("rejects a non-numeric --deadline", () => {
+    const parsed = parseArgs(["--source", "a.ts", "--deadline", "abc"]);
     expect(parsed.error).toBe(
-      "Invalid --timeout: expected a non-negative number of milliseconds.",
+      "Invalid --deadline: expected a positive number of milliseconds.",
     );
   });
 
@@ -244,8 +245,8 @@ describe("parseArgs", () => {
     expect(parsed.error).toMatch(/^Unexpected positional argument\(s\)/);
   });
 
-  test("keeps the first error when a later --timeout is also invalid", () => {
-    const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--timeout", "-5"]);
+  test("keeps the first error when a later --deadline is also invalid", () => {
+    const parsed = parseArgs(["a.ts", "b.ts", "c.ts", "--deadline", "-5"]);
     expect(parsed.error).toContain("Too many positional arguments (3)");
   });
 
