@@ -34,25 +34,21 @@ import type { Attendee } from "#shared/types.ts";
 
 /**
  * This booking's refund status as a bare SQL expression (0/1), projected from
- * the transfers ledger rather than a stored column. The single home for "did
+ * the transfers ledger rather than a stored column — the single home for "did
  * THIS booking come back", so the projection and the stats that exclude
  * refunded bookings cannot answer it differently.
  *
- * Asked per LISTING, not per person: a refund can now return one of somebody's
+ * Asked per LISTING, not per person: a refund can return one of somebody's
  * charges and leave a sibling with the provider, and the scanner and check-in
- * both turn people away on this flag. "Any `refund_cash` sourced from them"
- * would refuse a ticket they had paid for and not got back.
- *
- * A refund mirrors every leg of the order it reverses, so a sold booking that
- * came back has a `refund_sale` running the other way — revenue to attendee.
- * That is the precise question, and it holds for backfilled historical refunds
- * too, since they are mapped by the same reverser.
+ * both turn people away on this flag — an account-wide answer would refuse a
+ * ticket they had paid for and not got back. A refund mirrors every leg of
+ * the order it reverses, so a sold booking that came back has a `refund_sale`
+ * running the other way; backfilled refunds are mapped by the same reverser.
  *
  * A payment-only placeholder has no sale to mirror, so it falls back to the
  * account's returned cash. Only a placeholder may: a FREE booking has no sale
  * leg either, and reading the account's cash there would turn a real ticket
- * away because some other booking of theirs came back. Anything else with no
- * sale of its own took no money and so cannot have had any returned.
+ * away because some other booking of theirs came back.
  */
 export const refundedForBooking = (
   attendeeIdExpr: string,
