@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { filter, map, pipe } from "#fp";
-import { REFRESH_BUDGET_MESSAGE } from "#routes/admin/refunds/budget.ts";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
@@ -151,23 +150,22 @@ const expectIncompleteRefreshRefused = async (
 
 describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/refresh-payment", () => {
-    test("refuses two unresolved tagged charges before provider reads", async () => {
+    test("refreshes a deposit and its balance charge in one request", async () => {
       const attendee = await setupBalanceRefresh(
         "refresh-balance-session",
         "pi_refresh_balance",
       );
 
-      const queried = await submitRefreshPayment(
-        attendee,
-        (reference) =>
-          Promise.resolve(
-            ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
-          ),
-        REFRESH_BUDGET_MESSAGE,
-        false,
+      const queried = await submitRefreshPayment(attendee, (reference) =>
+        Promise.resolve(
+          ["pi_refresh_balance", "pi_refresh_deposit"].includes(reference),
+        ),
       );
 
-      expect(queried).toEqual([]);
+      expect(queried.sort()).toEqual([
+        "pi_refresh_balance",
+        "pi_refresh_deposit",
+      ]);
     });
 
     test("does not refresh an indexed balance while its tagged deposit is unindexed", async () => {

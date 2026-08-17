@@ -716,24 +716,29 @@ As-built module map:
   settlement reserve; it is not counted a second time in the plan. An arm retry
   therefore cannot consume the permission it is about to persist: exhaustion
   before commit is proved `not_sent`, while a durable keyless `send_armed` phase
-  is reserved for a genuinely uncertain dispatch. The engine's declared
-  worst-case database envelopes are four calls for an already-known terminal
-  authority, sixteen for an observation that creates durable work, twenty for an
-  active send, eight reserved while the provider call is in flight, and twelve
-  to retire returned local work. That final retirement is not pre-reserved: a
-  completed return whose local books are due is canonical recoverable work, not
-  an unsafe partial send. The envelopes derive from `DATABASE_MAX_ATTEMPTS`, not
-  hand-counted happy-path SQL. One unresolved reference fits; two independently
-  retryable sends or observations refuse before either provider read. Provider
-  calls overlap by at most five. One attendee may still carry up to ten
-  references, so even the one-attendee Refund All batch can refuse safely before
-  its first provider call. `logger.ts:withDeferredErrorReports` queues
-  non-critical activity, notification, and Sentry fan-out until the
-  money-critical command finishes, and flushes the queue even on a throw, so
-  diagnostics cannot consume the subrequests reserved for settlement or
-  rollback. Nested scopes share one outer flush boundary, and independent or
-  overlapping errors each persist; only recursive reporting caused by that
-  persistence attempt is suppressed
+  is reserved for a genuinely uncertain dispatch. The engine's declared database
+  envelopes price each statement once: one call for an already-known terminal
+  authority, four for an observation that creates durable work, five for an
+  active send, plus one shared retry ladder per admission plan for the odd
+  contended statement. Pricing every statement at every physical attempt refused
+  ordinary one- and two-payment refunds under real route spend, so admission no
+  longer does that; a run that outlives its shared headroom stops at the
+  subrequest guard and finishes through the durable recovery states. The
+  reserves guarding irreversible windows still price every physical attempt:
+  eight calls held while a provider call is in flight, and eight for settlement.
+  Returned-work retirement is not pre-reserved: a completed return whose local
+  books are due is canonical recoverable work, not an unsafe partial send. A
+  deposit-and-balance pair now fits from the request boundary; five
+  independently retryable sends, or eight observations, still refuse before
+  either provider read. Provider calls overlap by at most five. One attendee may
+  still carry up to ten references, so even the one-attendee Refund All batch
+  can refuse safely before its first provider call.
+  `logger.ts:withDeferredErrorReports` queues non-critical activity,
+  notification, and Sentry fan-out until the money-critical command finishes,
+  and flushes the queue even on a throw, so diagnostics cannot consume the
+  subrequests reserved for settlement or rollback. Nested scopes share one outer
+  flush boundary, and independent or overlapping errors each persist; only
+  recursive reporting caused by that persistence attempt is suppressed
   (`test/integration/logger/log-error.test.ts`).
 - **Refund All admission.** `db/refund-all-candidates.ts` first computes a
   PII-free whole-listing count and detects any visible `review`, `unrecorded`,

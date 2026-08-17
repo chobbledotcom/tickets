@@ -8,6 +8,8 @@ import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import {
   REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
   REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS,
+  REFUND_RETRY_HEADROOM_DATABASE_CALLS,
+  REFUND_TERMINAL_AUTHORITY_DATABASE_CALLS,
 } from "#shared/provider-refunds/budget.ts";
 import { REFUND_LEDGER_BATCH_DATABASE_CALLS } from "#shared/refund-ledger/record.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
@@ -199,8 +201,13 @@ const databaseCallsAt = (
   authorityCalls: number,
 ): number =>
   // A non-empty refund plan may discover returned money, so every safe gate
-  // reserves the full recording tail.
-  plan.fixed + authorityCalls + plan.whenRecordingReturns;
+  // reserves the full recording tail. One shared retry ladder covers the odd
+  // contended statement; sustained contention stops at the subrequest guard
+  // and finishes through the durable recovery states.
+  plan.fixed +
+  authorityCalls +
+  plan.whenRecordingReturns +
+  REFUND_RETRY_HEADROOM_DATABASE_CALLS;
 
 const zeroSubrequests = (): SubrequestCounts => ({
   database: 0,
@@ -240,7 +247,8 @@ const referenceSetSubrequestCost = (
   const external = sum(active.map(referenceCalls({ stage })));
   const authorityCalls =
     activeAuthorityDatabaseCalls(action, active.length) +
-    (references.length - active.length) * DATABASE_MAX_ATTEMPTS;
+    REFUND_TERMINAL_AUTHORITY_DATABASE_CALLS *
+      (references.length - active.length);
   return subrequestCostFor(
     READINESS_DATABASE_CALL_PLANS[action][checkpoint],
     authorityCalls,
@@ -248,9 +256,10 @@ const referenceSetSubrequestCost = (
   );
 };
 
-/** Physical worst-case provider calls plus the DB work before the next safe
- * refusal. The claim wrapper withholds settlement separately, so these plans
- * never count that same reserve twice. */
+/** Physical worst-case provider calls plus the database statements before the
+ * next safe refusal, with one shared retry ladder as contention headroom. The
+ * claim wrapper withholds settlement separately, so these plans never count
+ * that same reserve twice. */
 export interface RefundReadinessBudget {
   readonly action: RefundReadinessAction;
   readonly candidates: readonly RefundBudgetCandidate[];
@@ -315,7 +324,7 @@ export const refundPreparedSubrequestCost = (
   return subrequestCostFor(
     AUTHORITY_REQUEST_DATABASE_PLAN,
     activeAuthorityDatabaseCalls("refund", activeAuthorityCount) +
-      returnedAuthorityCount * DATABASE_MAX_ATTEMPTS,
+      REFUND_TERMINAL_AUTHORITY_DATABASE_CALLS * returnedAuthorityCount,
     external,
   );
 };

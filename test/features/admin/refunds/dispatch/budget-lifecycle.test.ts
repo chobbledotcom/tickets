@@ -69,5 +69,6 @@ test("an over-budget batch makes zero durable authority or provider calls", asyn
   });
   expect(authorityCalled).toBe(false);
   expect(source.refunds).toEqual([]);
-  expect(claim.released).toEqual([]);
+  // The late dispatch refusal still lets go of every held row.
+  expect(claim.released).toEqual([sessionIds]);
 });

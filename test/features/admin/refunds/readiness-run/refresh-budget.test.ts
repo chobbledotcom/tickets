@@ -215,15 +215,15 @@ describeWithEnv(
       expect(run.providerReads).toBe(1);
     });
 
-    test("refuses three independently retryable observations before provider reads", async () => {
-      const run = await runCountedRefresh(29, 3);
+    test("refuses eight independently retryable observations before provider reads", async () => {
+      const run = await runCountedRefresh(29, 8);
 
       expect(run.result).toEqual(REFUSED);
       expect(run.claims).toBe(0);
       expect(run.providerReads).toBe(0);
     });
 
-    test("admits one observation with its full physical retry envelope", async () => {
+    test("admits one observation with its complete statement envelope", async () => {
       const run = await runCountedRefresh(28, 1);
 
       expect(run.result).toMatchObject({ kind: "not_ready" });

@@ -162,16 +162,13 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
       });
     });
 
-    test("refuses two charges before provider work exceeds the request budget", async () => {
+    test("refunds a deposit and its settled balance in one go", async () => {
       const ctx = await setupSettledReservationRefundTest();
 
-      await withRefundMock(refundCompletes, async (mockRefund) => {
-        await expectFlashRedirect(
-          `/admin/attendees/${ctx.attendee.id}/refund`,
-          "This attendee has too many payments to refund in one go. Refund them from the provider dashboard.",
-          false,
-        )(await submitRefund(ctx));
-        expect(mockRefund.calls).toEqual([]);
+      await expectSingleRefundIssued(ctx, (mockRefund) => {
+        expect(
+          mockRefund.calls.map((call) => call.args[0].paymentReference).sort(),
+        ).toEqual(["pi_reservation_balance", "pi_reservation_deposit"]);
       });
     });
 

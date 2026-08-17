@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   REFUND_BUDGET_MESSAGES,
   REFUND_SETTLEMENT_SUBREQUEST_RESERVE,
+  refundReadinessSubrequestCost,
 } from "#routes/admin/refunds/budget.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
@@ -12,6 +13,7 @@ import { settings } from "#shared/db/settings.ts";
 import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import {
+  BUNNY_SUBREQUEST_LIMIT,
   countSubrequest,
   getSubrequestRemaining,
   runWithSubrequestBudget,
@@ -97,12 +99,48 @@ const expectBudgetRefusal = (result: unknown): void => {
   });
 };
 
+/** Refund one attendee's whole reference set to completion, with only
+ *  `remainingAtCommand` of the request allowance left when the command starts. */
+const expectCompletedCommand = async (
+  attendeeId: number,
+  referenceCount: number,
+  remainingAtCommand = BUNNY_SUBREQUEST_LIMIT,
+): Promise<void> => {
+  await settings.update.stripe.secretKey("sk_test_budget");
+  const references = Array.from(
+    { length: referenceCount },
+    (_, offset) => `pi_budget_${attendeeId}_${offset}`,
+  );
+  const sessionIds = references.map((reference) => `session_${reference}`);
+  const source = provider({ refunded: new Set(references) });
+  const granted = grantingRowClaim(new Map([[attendeeId, sessionIds]]));
+
+  await runWithSubrequestBudget(async () => {
+    while (getSubrequestRemaining().total > remainingAtCommand) {
+      countSubrequest("database", "route work before the refund");
+    }
+    const result = await processRefundBatchAt(
+      source,
+      [candidate(attendeeId, referenceCount)],
+      7,
+      { claim: granted, record: recordEveryRefund },
+    );
+
+    expect(result).toMatchObject({
+      counts: { refundedCount: 1 },
+      kind: "finished",
+    });
+  });
+  expect(source.refunds).toEqual(references);
+  expect(granted.released).toEqual([sessionIds]);
+};
+
 describeWithEnv(
   "admin refund provider > whole-command budget",
   { db: true },
   () => {
-    test("three Stripe payments on one attendee make zero provider calls", async () => {
-      await expectRefusedBeforeClaim([candidate(11, 3)]);
+    test("five Stripe payments on one attendee make zero provider calls", async () => {
+      await expectRefusedBeforeClaim([candidate(11, 5)]);
     });
 
     test("a provider set beyond Bunny's total limit refuses before its first send", async () => {
@@ -206,6 +244,7 @@ describeWithEnv(
     test("rechecks the exact set immediately before provider preparation", async () => {
       await settings.update.stripe.secretKey("sk_test_budget");
       const source = provider();
+      const candidates = [candidate(70, 1)];
       const granted = grantingRowClaim(
         new Map([[70, ["session_pi_budget_70_0"]]]),
       );
@@ -213,8 +252,15 @@ describeWithEnv(
         claim: async (attendees, admit) => {
           const result = await granted.claim(attendees, admit);
           if (result.kind === "claimed") {
-            const remainingBeforeWork =
-              REFUND_SETTLEMENT_SUBREQUEST_RESERVE.total + 5;
+            const providerReadCost = refundReadinessSubrequestCost({
+              action: "refund",
+              candidates,
+              checkpoint: "before_provider_read",
+              returned: result.returned,
+            });
+            // The claim wrapper already withholds settlement while this hook
+            // runs, so leave the provider-read plan one call short directly.
+            const remainingBeforeWork = providerReadCost.total - 1;
             while (getSubrequestRemaining().total > remainingBeforeWork) {
               countSubrequest("database", "concurrent command work");
             }
@@ -225,7 +271,7 @@ describeWithEnv(
       };
 
       const result = await runWithSubrequestBudget(() =>
-        processRefundBatchAt(source, [candidate(70, 1)], 7, {
+        processRefundBatchAt(source, candidates, 7, {
           claim,
           record: recordEveryRefund,
         }),
@@ -337,27 +383,14 @@ describeWithEnv(
       });
     });
 
-    test("refuses two independently retryable sends from the request boundary", async () => {
-      await settings.update.stripe.secretKey("sk_test_budget");
-      const source = provider({
-        refunded: new Set(["pi_budget_80_0", "pi_budget_80_1"]),
-      });
-      const granted = grantingRowClaim(
-        new Map([[80, ["session_pi_budget_80_0", "session_pi_budget_80_1"]]]),
-      );
+    test("completes a deposit-and-balance pair from the request boundary", async () => {
+      await expectCompletedCommand(80, 2);
+    });
 
-      await runWithSubrequestBudget(async () => {
-        const result = await processRefundBatchAt(
-          source,
-          [candidate(80, 2)],
-          7,
-          { claim: granted, record: recordEveryRefund },
-        );
-
-        expectBudgetRefusal(result);
-      });
-      expect(source.reads).toEqual([]);
-      expect(source.refunds).toEqual([]);
+    test("refunds one payment after the route spends most of the request", async () => {
+      // A production route has session, attendee, listing, and reference
+      // loads behind it before the refund starts. Model that heavy spend.
+      await expectCompletedCommand(81, 1, 30);
     });
   },
 );
