@@ -9,7 +9,7 @@ export interface MutantTestState {
 
 export type MutantTestStateResult =
   | { message: string; status: "failed" }
-  | { status: "timed-out" }
+  | { status: "cancelled" }
   | { state: MutantTestState; status: "ready" };
 
 interface StateBuilderOutput {
@@ -73,7 +73,7 @@ export const createMutantTestState = async (
     };
   } catch (error) {
     await deps.remove(dir);
-    if (signal.aborted) return { status: "timed-out" };
+    if (signal.aborted) return { status: "cancelled" };
     throw error;
   }
 };

@@ -31,14 +31,13 @@ describe("the terminal mutation report", () => {
     expect(
       terminalLines([
         fakeResult("killed", 1, "===", "!=="),
-        fakeResult("timed-out", 2, "while", "(removed)"),
+        fakeResult("killed", 2, "while", "(removed)"),
         fakeResult("ignored", 3, "??", "||"),
       ]),
     ).toEqual([
       "\nMutation testing summary",
       "  mutants:   3",
-      "  killed:    1",
-      "  timed out: 1",
+      "  killed:    2",
       "  survived:  0",
       "  ignored:   1",
       "  score:     100.0%  (detected 2/2, 1 suppressed)",
@@ -56,7 +55,6 @@ describe("the terminal mutation report", () => {
       "\nMutation testing summary",
       "  mutants:   2",
       "  killed:    1",
-      "  timed out: 0",
       "  survived:  1",
       "  score:     50.0%  (detected 1/2)",
       "\nSurvivors — these mutations did not fail any test:",

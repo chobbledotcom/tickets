@@ -91,7 +91,7 @@ describe("parallel mutation static gates", () => {
     expect(typeChecked).toHaveLength(2);
   });
 
-  test("starts a queued mutant with its own deadline", async () => {
+  test("hands every mutant the run's own signal, queue wait or not", async () => {
     const work = fakeWorkspace();
     const releases: Array<() => void> = [];
     const signals: AbortSignal[] = [];
@@ -117,6 +117,10 @@ describe("parallel mutation static gates", () => {
     releases[0]?.();
     await queuedStarted.promise;
     expect(signals).toHaveLength(3);
+    // The same signal object throughout: no mutant carries a clock of its own,
+    // so one that waited behind two others is judged on what its gates say and
+    // never on how long it queued.
+    expect(signals[2]).toBe(signals[0]);
     expect(signals[2]?.aborted).toBe(false);
     releases[1]?.();
     await evaluated;

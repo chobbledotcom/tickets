@@ -60,7 +60,7 @@ describe("mutant test state", () => {
       Promise.reject(new DOMException("Stopped", "AbortError"));
     expect(
       await createMutantTestState({}, controller.signal, state.deps),
-    ).toEqual({ status: "timed-out" });
+    ).toEqual({ status: "cancelled" });
     expect(state.removed).toEqual(["/tmp/mutant-state"]);
   });
 

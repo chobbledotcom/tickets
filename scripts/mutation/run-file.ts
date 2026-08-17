@@ -1,4 +1,4 @@
-import { dim, green, red, yellow } from "#scripts/precommit/colors.ts";
+import { dim, green, red } from "#scripts/precommit/colors.ts";
 import { write } from "#scripts/precommit/write.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import {
@@ -20,15 +20,11 @@ const PROGRESS_INTERVAL = 10;
 interface FileRunDeps {
   evaluateStatic: typeof evaluateStaticMutants;
   evaluateTests: typeof evaluateMutantTests;
-  now(): number;
-  timeoutSignal(milliseconds: number): AbortSignal;
 }
 
 const realDeps: FileRunDeps = {
   evaluateStatic: evaluateStaticMutants,
   evaluateTests: evaluateMutantTests,
-  now: performance.now.bind(performance),
-  timeoutSignal: AbortSignal.timeout,
 };
 
 const withTrackedOriginal = async <T>(
@@ -57,10 +53,9 @@ export interface FileRunOptions {
   testFiles: string[];
 }
 
-interface MutantLoopContext {
+export interface MutantLoopContext {
   counts: Record<Status, number>;
   gates: StaticGate[];
-  perMutantTimeout: number;
   totalMutants: number;
 }
 
@@ -72,36 +67,22 @@ const runTestsForStaticSurvivor = async (
   deps: FileRunDeps,
 ): Promise<MutantEvaluation> => {
   if (staticResult.status !== "survived") return staticResult;
-  const remaining = Math.max(
-    0,
-    Math.ceil(staticResult.deadlineAt - deps.now()),
-  );
-  if (remaining === 0) return { ...staticResult, status: "timed-out" };
-
-  return withTrackedOriginal(opts, plan, () => {
-    const signal = AbortSignal.any([
-      opts.abortSignal,
-      deps.timeoutSignal(remaining),
-    ]);
-    return deps.evaluateTests(
+  // The tests run to completion. Whatever they say is the mutant's verdict; a
+  // clock could only ever invent one they never gave.
+  return withTrackedOriginal(opts, plan, () =>
+    deps.evaluateTests(
       plan,
       staticResult.mutant,
       run,
       opts.integrationTestFiles,
-      signal,
+      opts.abortSignal,
       staticResult.timings,
-    );
-  });
+    ),
+  );
 };
 
 const statusGlyph = (status: Status): string =>
-  status === "killed"
-    ? green(".")
-    : status === "timed-out"
-      ? yellow("T")
-      : status === "ignored"
-        ? dim("i")
-        : red("S");
+  status === "killed" ? green(".") : status === "ignored" ? dim("i") : red("S");
 
 const reportProgress = (
   last: MutantResult,
@@ -124,7 +105,6 @@ const reportProgress = (
       killed: counts.killed,
       last,
       survived: counts.survived,
-      timedOut: counts["timed-out"],
       total,
     }),
   );
@@ -136,7 +116,7 @@ export const runFileMutants = async (
   ctx: MutantLoopContext,
   deps: FileRunDeps = realDeps,
 ): Promise<void> => {
-  const { counts, gates, perMutantTimeout, totalMutants } = ctx;
+  const { counts, gates, totalMutants } = ctx;
   const run: TestRunConfig = {
     batchJobs: opts.batchJobs,
     env: testEnv(),
@@ -146,7 +126,6 @@ export const runFileMutants = async (
     deps.evaluateStatic(plan, gates, {
       abortSignal: opts.abortSignal,
       jobs: opts.staticJobs,
-      perMutantTimeout,
       root: projectRoot,
       workerParent: opts.staticWorkerParent,
     }),
@@ -161,7 +140,7 @@ export const runFileMutants = async (
       opts,
       deps,
     );
-    if (opts.isAborted()) break;
+    if (opts.isAborted() || evaluation.status === "cancelled") break;
     const status: Status =
       evaluation.status === "survived" &&
       isIgnored(opts.ignoreList, plan.file, mutant)
