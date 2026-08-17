@@ -13,9 +13,7 @@ import {
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { getDb, setDb } from "#shared/db/client.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
-import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   REFUND_LEDGER_BATCH_DATABASE_CALLS,
   recordAttendeeRefund,
@@ -24,11 +22,14 @@ import {
 import {
   BOOKING_AT,
   postBooking,
+  readsTransfers,
   refundCashAmounts,
   refundLegsOf,
   refundTarget,
   returnedReference,
   sessionReference,
+  withBrokenLedger,
+  writesTransfers,
 } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -268,19 +269,12 @@ describeWithEnv(
 
     test("keeps every returned reference unrecorded when the shared read fails", async () => {
       const target = refundTarget(21, "sess-21");
-      const real = getDb();
-      setDb(
-        proxyMembers(real, {
-          execute: () => Promise.reject(new Error("ledger read failed")),
-        }),
-      );
-      try {
-        expect(await recordAttendeeRefundsBatch([target])).toEqual(
-          new Map([[21, refundLedgerResult([], target.references)]]),
-        );
-      } finally {
-        setDb(real);
-      }
+
+      expect(
+        await withBrokenLedger(readsTransfers, "ledger read failed", () =>
+          recordAttendeeRefundsBatch([target]),
+        ),
+      ).toEqual(new Map([[21, refundLedgerResult([], target.references)]]));
       expect(errors.lastMessage()).toContain(
         "Bulk refund ledger preparation failed for 1 attendee records",
       );
@@ -290,19 +284,12 @@ describeWithEnv(
     test("keeps every returned reference unrecorded when the shared write fails", async () => {
       await postBooking({ attendeeId: 22, eventId: "sess-22" });
       const target = refundTarget(22, "sess-22");
-      const real = getDb();
-      setDb(
-        proxyMembers(real, {
-          batch: () => Promise.reject(new Error("ledger write failed")),
-        }),
-      );
-      try {
-        expect(await recordAttendeeRefundsBatch([target])).toEqual(
-          new Map([[22, refundLedgerResult([], target.references)]]),
-        );
-      } finally {
-        setDb(real);
-      }
+
+      expect(
+        await withBrokenLedger(writesTransfers, "ledger write failed", () =>
+          recordAttendeeRefundsBatch([target]),
+        ),
+      ).toEqual(new Map([[22, refundLedgerResult([], target.references)]]));
       expect(errors.lastMessage()).toContain(
         "Bulk refund ledger post failed for 1 attendee records",
       );
