@@ -298,6 +298,14 @@ Two things the analysis got wrong, found by building it:
   Fixing it revealed three comments in `db/client.ts` and `schema-sync.ts` that
   had been hidden.
 
+**The check scans `src/` only**, which is where the measurement was taken.
+Nothing holds `scripts/` or `test/` to any size, and it shows: the comments
+written for the checker itself drifted to nine lines while `src/` was being
+brought down. Extending the scan to those trees is the obvious next step, but it
+wants its own measurement first — `test/` is 1,908 files at 5.7% comment
+density, a different shape from `src/`, and its limits should be chosen against
+that rather than inherited.
+
 Remaining steps, from the staged table above, now that ≤ 20 is done:
 
 | Next | Comments to rewrite | Files touched | Cumulative |
