@@ -27,7 +27,8 @@ with no booking, no refund, and — in one case — no record at all.
   down (`UNUSABLE_METADATA.retryCompletedWebhook`, and `readOrderPayment`
   throwing when the payment does not read `COMPLETED`).
 
-Value if nothing else ever ships:
+Value once the two pull requests in section 5 ship, whether or not any later one
+does — this plan itself changes no behaviour:
 
 > A SumUp checkout that was paid becomes a booking even when its only callback
 > was lost, and a Square webhook for a completed payment whose order is not
@@ -63,9 +64,17 @@ never read as "nothing happened".
 
 ### Valid states
 
-One new plaintext column, `sumup_checkouts.recovery_state`, is the authority for
-a staging row's own lifecycle. It holds a state word only — never a reference,
-an amount, or any buyer fact — so the row stays as unreadable as it is today.
+Two new plaintext columns. `sumup_checkouts.recovery_state` is the authority for
+a staging row's own lifecycle, and `next_check_at` is when that row is next due
+to be asked about. Both hold scheduling and state words only — never a
+reference, an amount, or any buyer fact — so the row stays as unreadable as it
+is today.
+
+`created_at` can only schedule the _first_ check. Without `next_check_at`, an
+oldest-first page under a fixed limit would keep re-selecting the same overdue
+rows and starve newer paid checkouts, so selection, claiming, and ordering all
+key on `next_check_at`, and every check that does not end the row pushes it
+forward by a backoff.
 
 | State      | Meaning                                                              | Facts required                     |
 | ---------- | -------------------------------------------------------------------- | ---------------------------------- |
@@ -82,6 +91,16 @@ routes on `sumup_id != ''` as a proxy for state (data law 4).
 `finished` covers both endings the payment engine can give a paid session: a
 booking, or a rejection whose money was sent back. Neither leaves anything owed.
 
+**Rows that already exist get their state derived, not defaulted.** A column
+added with one `DEFAULT` would label every live checkout `staged` and it would
+never be checked again. The migration therefore adds both columns and then, in
+the same migration's `after` hook (the fourth argument to `schemaMigration`),
+derives each existing row: `staged` where `sumup_id = ''`, `waiting` otherwise,
+with `next_check_at` set from `created_at` plus the first-check delay. The
+allowed-value check and `NOT NULL` are asserted after that derivation, and the
+maintenance task is registered in the same release, so it cannot run against
+un-derived rows.
+
 ### Commands and events
 
 | Starting state               | Command or event                               | Required result                                                       |
@@ -94,11 +113,28 @@ booking, or a rejection whose money was sent back. Neither leaves anything owed.
 | `waiting`                    | Recovery check, read says `PAID`, engine stuck | `owed`                                                                |
 | `waiting`                    | Recovery check, read says `PENDING`            | `waiting` (checked again later)                                       |
 | `waiting`                    | Recovery check, read unavailable               | `waiting` (checked again later)                                       |
-| `owed`                       | Recovery check succeeds later                  | `finished`                                                            |
-| `owed`                       | Owner presses "Check again now"                | Same three outcomes as a scheduled check                              |
+| `owed`                       | Recovery check reaches a final answer          | `finished` (only under the rule below)                                |
+| `owed`                       | Owner presses "Check again now"                | Same outcomes as a scheduled check                                    |
 | `staged`/`unpaid`/`finished` | Pruning past `PRUNE_SUMUP_RETENTION_HOURS`     | Row deleted                                                           |
-| `waiting`                    | Pruning past the new unchecked backstop        | Row deleted, after the live check has been showing it as overdue      |
-| `owed`                       | Pruning                                        | **Never** — it is the only record that money was taken                |
+| `waiting`/`owed`             | Pruning                                        | **Never** — both may hold money we have not accounted for             |
+
+**`owed` never clears on a replayed outcome.** `reserveSession` claims only
+missing and stale unresolved rows; a finalized or recorded-failure row comes
+back as `{reserved: false, existing}` and `handleReservationConflict` replays
+the stored outcome. So a later check on an `owed` row could be handed a
+previously recorded terminal failure and would call it done — marking money we
+know was taken as finished, with no booking. The rule that forbids this:
+
+> An `owed` row becomes `finished` only when the current attempt itself reaches
+> a final answer — a booking finalized now, a refund settled now, or a replay
+> whose existing row is finalized (`attendee_id` set). A replayed terminal
+> _failure_ under an `owed` row leaves it `owed`, because the row states that
+> the money was seen and this attempt did not account for it.
+
+This costs no change to `reserveSession`: today's webhook already calls
+`releaseReservation` when a rejected charge's refund fails, so an unsettled
+attempt leaves the row unresolved and re-reservable. The rule pins that
+behaviour and makes the contradictory case visible instead of silent.
 
 **Why the hot path does not stamp the row.** A completed webhook could mark its
 staging row `finished` and save the later read. It deliberately does not: the
@@ -116,7 +152,7 @@ one provider read per created checkout, once, at least 2.5 hours after creation
 | Nothing                    | SumUp read `found` but not ours       | Row stays `waiting`; refusal logged (cannot happen — id is ours)    | Scheduler   |
 | Read says `PAID`           | Echoed reference does not open row    | `owed` — SumUp contradicted itself about a checkout we created      | Owner       |
 | Read says `PAID`           | Boundary rejects the money            | Existing `settleRejectedCharge`: refunded ⇒ `finished`, else `owed` | Scheduler   |
-| Read says `PAID`           | Classify says `unverifiable`          | `unpaid` — another site's checkout, nothing owed by us              | —           |
+| Read says `PAID`           | Classify says `unverifiable`          | `owed` — a contradiction, not a foreign checkout (see below)        | Owner       |
 | Read says `PAID`           | Classify says `unreadable`            | Row stays `waiting`                                                 | Scheduler   |
 | Engine booked the attendee | State write fails                     | Booking stands; row stays `waiting`; next check is idempotent       | Scheduler   |
 | Square: webhook accepted   | Order reads `missing` under a paid id | **Throw** — 503, Square redelivers                                  | Provider    |
@@ -126,16 +162,30 @@ the payment engine closes it: `processed_payments` (PK = session id = the SumUp
 reference) is reserved before any work, so a replay returns the recorded outcome
 rather than repeating it.
 
+**Why a paid `unverifiable` is `owed`, not `unpaid`.** `unpaid` means SumUp told
+us the checkout was never paid; using it for "not ours" would give one word two
+meanings. And on this path `unverifiable` should be unreachable: the sealed row
+only opens when `hmacHash(reference) === reference_index`, so the metadata — and
+therefore the price proof `classifySessionIntent` checks — is one we wrote
+ourselves. A paid checkout that opened our row and _then_ fails its own proof is
+a contradiction, so it goes to the owner rather than into a normal ending. The
+mapping over the whole read is exhaustive by construction: ownership and money
+are already separate refusals in `sumup-observation.ts`, so a mismatched
+merchant, checkout id, or named charge never reaches classification at all (the
+read is refused as invalid), while a checkout that proves ownership and carries
+unreadable amount, currency, or transaction facts arrives as a session rejection
+and takes the refund-or-`owed` row above.
+
 ### Retry and replay table
 
-| Question                             | Answer                                                                                                                                                                      |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stable identity                      | `processed_payments.session_id` = the SumUp `checkout_reference`; the staging row's `reference_index`                                                                       |
-| What an exact replay returns         | `alreadyProcessedResult` / the recorded terminal failure — no second booking, no second refund                                                                              |
-| Who retries after interruption       | The maintenance scheduler; the row keeps its state until a check writes a new one                                                                                           |
-| What stops two workers               | `claimNextMaintenanceTask`'s lease, plus `reserveSession`, plus a conditional state write (below)                                                                           |
-| Permanent failures                   | `unpaid` (never paid) and `unverifiable` (not ours). Everything else stays retryable                                                                                        |
-| Can one failed item block later work | No — the page is selected oldest-first with a limit; a row that stays `waiting` or goes `owed` is skipped by the next page's ordering and retried on its own slower cadence |
+| Question                             | Answer                                                                                                                                                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stable identity                      | `processed_payments.session_id` = the SumUp `checkout_reference`; the staging row's `reference_index`                                                                                                         |
+| What an exact replay returns         | `alreadyProcessedResult` / the recorded terminal failure — no second booking, no second refund                                                                                                                |
+| Who retries after interruption       | The maintenance scheduler; the row keeps its state until a check writes a new one                                                                                                                             |
+| What stops two workers               | `claimNextMaintenanceTask`'s lease, plus `reserveSession`, plus a conditional state write (below)                                                                                                             |
+| Permanent failures                   | `unpaid` alone — SumUp said it was never paid. Everything else stays retryable, `owed` included                                                                                                               |
+| Can one failed item block later work | No — a row is selected only when `next_check_at` is due, and every non-ending check pushes its own `next_check_at` forward, so a stuck row falls behind newer ones rather than holding the front of the queue |
 
 ### Concurrency table
 
@@ -145,7 +195,7 @@ rather than repeating it.
 | Recovery check                 | Buyer's redirect             | One booking                                                                  | Same                                                                                                                |
 | Recovery check on two isolates | Same task                    | One runner                                                                   | Maintenance lease (`claimNextMaintenanceTask`)                                                                      |
 | Recovery state write           | `setSumupCheckoutId`         | No lost transition                                                           | `UPDATE … WHERE reference_index = ? AND recovery_state = ?` — the expected current value, checked by `rowsAffected` |
-| Recovery check                 | Pruning                      | An `owed` row survives; a checked row may go                                 | Prune's WHERE names the states it may delete                                                                        |
+| Recovery check                 | Pruning                      | The row under check always survives                                          | A row being checked is `waiting` or `owed`, and prune's WHERE names only `staged`/`unpaid`/`finished`               |
 | Owner "Check again now"        | Scheduled check              | One provider read wins; the other's conditional write finds 0 rows and stops | Expected current value                                                                                              |
 
 ### Owner choices
@@ -217,11 +267,19 @@ already performs on the webhook, under the same rules and the same durable
 | Does this refund money in the background?          | Only through the path the webhook already runs for a rejected paid charge. It is the same engine or it is a second one — the plan forbids a second one                   |
 | Square: does throwing break the browser redirect?  | No. `readSessionOrder` throws only when a `paidPaymentId` is present, which only the webhook supplies. The redirect keeps `null` — there, `missing` really is "not ours" |
 
-Open question for the human, and the only product choice left: **`owed` rows are
-never pruned.** They are small (one row, no PII) and they are the only record
-that money was taken, so growth is bounded by real incidents. The alternative —
-age them out after a long retention — loses the evidence. The contract assumes
-"never", resolved by the owner's action.
+Open question for the human, and the only product choice left: **a row that may
+hold money we have not accounted for is never deleted on age alone.** That
+covers `owed` (money seen, not accounted for) and `waiting` (never yet proved
+either way — a checkout paid while SumUp was unreachable for the whole retention
+window would otherwise be deleted, which is the exact harm this work exists to
+close). Both end on a definitive answer or an owner decision, never on a clock.
+
+The cost is that a site which disconnects SumUp keeps its unanswered `waiting`
+rows. They are small, and their metadata stays sealed under a reference this
+database does not hold, so the retained bytes are inert. Growth is bounded by
+real incidents, and the live check shows the operator exactly what is
+outstanding. The alternative — a long backstop that eventually deletes them —
+trades a rare lost payment for a tidier table, which is the wrong way round.
 
 ## 5. Vertical pull requests
 
@@ -234,23 +292,33 @@ age them out after a long retention — loses the evidence. The contract assumes
 - Old path deleted: the `missing → null → "skip" → 200` arm for paid webhooks.
 - Files: `src/shared/square-provider.ts`. **~20 src lines.**
 - Call budget: unchanged (no new reads).
+- Replay key: Square's stable identity is the **order id**. `createPaymentLink`
+  returns it, the webhook reads it from `payment.order_id`, `retrieveSession`
+  puts it on the session as `id: order.id`, and that becomes
+  `processed_payments.payment_session_id`. `payment.id` is only the payment
+  reference carried alongside, and Square's event id is not used at all — so a
+  redelivery of the same completed payment reserves the same row.
 - Tests: a direct test proving a `missing` order under a completed payment id
   throws and the same read without a payment id still returns `null`; a webhook
-  integration test proving 503 instead of 200. The regression test must fail on
-  today's code first.
-- Contract rows: the Square row of the failure table.
+  integration test proving 503 instead of 200; and a redelivery test that lets
+  the order become readable and then delivers the webhook twice, asserting one
+  attendee, one ledger group, and no second refund. The regression test must
+  fail on today's code first.
+- Contract rows: the Square row of the failure table, and the replay key above.
 
 ### PR 2 — A staged SumUp checkout must prove what happened to it
 
 - Value: the paid-but-lost checkout becomes a booking; the evidence stops being
   deleted at 24 hours; the owner can see anything still owed.
-- Change: `recovery_state` column and its migration; the state words as a
-  valibot picklist; the pure `sumupRecoveryOutcome`; `resolveSumupCheckoutById`
-  lifted out of the provider member; the `settlePaymentCallback` extraction with
+- Change: the `recovery_state` and `next_check_at` columns, with the migration's
+  `after` hook deriving both for existing rows; the state words as a valibot
+  picklist; the pure `sumupRecoveryOutcome`; `resolveSumupCheckoutById` lifted
+  out of the provider member; the `settlePaymentCallback` extraction with
   `webhooks.ts` reduced to mapping its outcome to a `Response`; the
-  `sumup_checkout_recovery` maintenance task; prune scoped to the states it may
-  delete plus the unchecked backstop limit; the machine spec and its atlas
-  entry; the bounded live check; the owner-only "Check again now" action.
+  `sumup_checkout_recovery` maintenance task, selecting and re-scheduling on
+  `next_check_at`; prune scoped to `staged`/`unpaid`/`finished`; the machine
+  spec and its atlas entry; the bounded live check; the owner-only "Check again
+  now" action.
 - Old path deleted: the blind
   `boundedDelete("sumup_checkouts", "created_at < ?")`, and the HTTP-shaped
   session handling inside `handlePaymentWebhook`.
@@ -274,14 +342,22 @@ age them out after a long retention — loses the evidence. The contract assumes
 
 Tests proving each row: direct unit tests for `sumupRecoveryOutcome` (table
 driven, one case per read × answer); the machine spec sweep executing every cell
-including the declared refusals; a fault-injected test crashing between the
-booking commit and the state write and proving the next check is idempotent; a
+including the declared refusals; fault-injected tests
+(`test/test-utils/db-fault.ts`) at each of the three windows — failing before
+the booking, during the refund of a rejected charge, and after the booking
+commits but before the state write — each proving the next check reaches the
+same single outcome; a test that puts a recorded terminal failure under an
+`owed` row and proves the replay leaves it `owed` rather than `finished`; a
+migration test starting from rows with and without a `sumup_id` and asserting
+the derived states and check times; a starvation test proving a permanently
+stuck row does not hold the front of the queue while newer rows wait; a
 concurrency test running webhook and recovery together and asserting exactly one
-attendee and one ledger group; a prune test proving an `owed` row survives and a
-`finished` row does not; a scan test reading the declared states back out; and a
-Cucumber story — `specs/payments/a-payment-with-no-callback.feature` — buying
-through the real public booking page, dropping the callback, running
-maintenance, and finding the ticket.
+attendee and one ledger group; a prune test proving `waiting` and `owed` rows
+survive and a `finished` row does not; a scan test reading the declared states
+back out; and a Cucumber story —
+`specs/payments/a-payment-with-no-callback.feature` — buying through the real
+public booking page, dropping the callback, running maintenance, and finding the
+ticket.
 
 ## 6. Where this sits against PLAN.md
 
@@ -309,7 +385,9 @@ rather than building it.
 This plan is not approved. Per PR_WORKFLOW.md step 6, please confirm or change:
 
 1. the two PR slices and their order;
-2. `owed` rows never being pruned (section 4's open question);
+2. never deleting a `waiting` or `owed` row on age alone (section 4's open
+   question) — this is the one that keeps unanswered rows on a disconnected
+   site;
 3. checking **every** created checkout once, rather than stamping the row from
    the completion path;
 4. pulling the task forward from M7 (section 6).
