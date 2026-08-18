@@ -8,6 +8,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
 import {
+  groupRescuedChildAddOn,
   groupScopedAddOn,
   linkedParentChild,
   linkGroupAddOn,
@@ -98,6 +99,29 @@ describeWithEnv("listing action reachability", { db: true }, () => {
         thatPage.id,
       ),
     ).resolves.toBe(childAddOnError("Child-scoped extra"));
+  });
+
+  test("blocks moving an ordinary page out of the group its child add-on needs", async () => {
+    const { rescuer } = await groupRescuedChildAddOn();
+
+    await expect(
+      validateListingInput(
+        await storedInputFor(rescuer.id, { groupIds: [] }),
+        rescuer.id,
+      ),
+    ).resolves.toBe(childAddOnError("Group extra"));
+  });
+
+  test("allows leaving a group when another page still offers its child add-on", async () => {
+    const { group, rescuer } = await groupRescuedChildAddOn();
+    await createTestListing({ groupId: group.id, name: "Second page" });
+
+    await expect(
+      validateListingInput(
+        await storedInputFor(rescuer.id, { groupIds: [] }),
+        rescuer.id,
+      ),
+    ).resolves.toBeNull();
   });
 
   test("allows saving a standalone child when its page remains available", async () => {

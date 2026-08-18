@@ -104,6 +104,27 @@ export const allAddOnWithStaleChildLink = async (): Promise<ParentChild> => {
   return { child, parent };
 };
 
+/** A suppressed child and an ordinary "rescuing" page sharing one group, with
+ * a group-scoped opt-in add-on on that group — the rescuer is the add-on's only
+ * live page, and it has no parent/child edge of its own. */
+export const groupRescuedChildAddOn = async (): Promise<
+  ParentChild & {
+    group: Awaited<ReturnType<typeof createTestGroup>>;
+    rescuer: TestListing;
+  }
+> => {
+  const group = await createTestGroup({ name: "Scope group" });
+  const parent = await createTestListing({ name: "Base unit" });
+  const child = await createTestListing({ groupId: group.id, name: "Add-on" });
+  await postChildren(parent.id, [child.id]);
+  const rescuer = await createTestListing({
+    groupId: group.id,
+    name: "Rescuing page",
+  });
+  await linkGroupAddOn(group.id, "Group extra");
+  return { child, group, parent, rescuer };
+};
+
 /** A parent, its child, and a third "rescuing" page that shares a {child,
  * thatPage}-scoped opt-in add-on. The suppressed child leaves the add-on
  * reachable only through `thatPage`. */
