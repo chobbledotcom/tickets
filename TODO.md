@@ -2640,3 +2640,44 @@ state nothing can currently produce. If a real schema change ever rebuilds
 `processed_payments` anyway, add this check in the same rebuild: the DDL belongs
 on the last column via the `alsoAbout` pattern in
 `src/shared/db/migrations/schema/payments/columns.ts`.
+
+---
+
+## Close the 14 mutation survivors in `src/shared/db/listing-parents.ts` (from PR #2110)
+
+PR #2110 mutation-tested `src/shared/db/listing-edge-write.ts` (100%, no
+survivors) and pulled `src/shared/db/listing-parents.ts` into the same run
+because the assertion it changed lives in that file's mirror tests. That run
+surfaced 14 survivors in `listing-parents.ts`, a file the PR does not change, so
+they are outside its own gate — the branch-level `precommit:mutation` scopes to
+changed sources.
+
+They are all the same shape: "did this list come back empty?" branches whose
+empty and non-empty arms nothing distinguishes.
+
+```
+listingIdsWithLinks~1dqzuig            ?: → arms swapped
+listingIdsWithLinks~0zl9wvu            > → <=,  0 → 1
+getNonStandaloneChildIds~1vmop13       ?: → arms swapped
+getNonStandaloneChildIds~00bh4s4       0 → 1
+anyNonStandaloneChild~0v88xt2          > → <=,  0 → 1
+listingsForLinks~1gjwt45               - → /
+listingsForLinks~14c1k8g               ?: → arms swapped
+listingsForLinks~1v5jl2k               > → <=,  0 → 1
+edgeIncompatibilityAfterChange.children~0cip5re   ?? → ||
+edgeIncompatibilityAfterChange.parents~1cm1r1e    ?? → ||
+edgeIncompatibilityAfterChange~02ardat            ?: → arms swapped
+```
+
+Starting point: `listingIdsWithLinks` is exported and pure, so a table of maps —
+no links, some links, all links — kills its three on its own.
+`getNonStandaloneChildIds` and `anyNonStandaloneChild` need a listing that is a
+child and one that is `bookable_alone`, plus the empty-input short circuit.
+`listingsForLinks` is private; reach it through the hydrating readers, and note
+the `-` → `/` survivor is its sort comparator, which needs two keys whose order
+a divide would change. Reproduce with:
+
+```bash
+deno task mutation --source src/shared/db/listing-parents.ts \
+  --test 'test/shared/db/listing-parents/*.test.ts' --harness
+```
