@@ -47,6 +47,8 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
     });
 
     test("flags a deactivated listing in the filter dropdown", async () => {
+      // A second listing keeps the dropdown rendered (one listing hides it).
+      await makeListing("Live Show");
       const listing = await makeListing("Retired Show");
       await deactivateTestListing(listing.id);
 

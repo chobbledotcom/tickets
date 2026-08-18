@@ -9,7 +9,6 @@
 import { csvResponse, listingAttendeesLoader } from "#routes/admin/actions.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getSearchParam } from "#routes/url.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -17,19 +16,12 @@ import {
   completePaymentAttendees,
   filterAttendees,
 } from "#templates/admin/listings/attendees.tsx";
-import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import {
   filteredAttendeesHandler,
   loadListingQuestionData,
 } from "./listings-view.ts";
 
 /* jscpd:ignore-end */
-
-/** Parse the ?checkin= filter on the export route, defaulting to "all". */
-const checkinFromRequest = (request: Request): AttendeeFilter => {
-  const raw = getSearchParam(request, "checkin");
-  return raw === "in" || raw === "out" ? raw : "all";
-};
 
 /**
  * Handle GET /admin/listing/:id/export (CSV export)
@@ -43,7 +35,7 @@ export const handleAdminListingExport: TypedRouteHandler<
   )(
     filteredAttendeesHandler(
       request,
-      async ({ listing, dateFilter, filteredByDate }) => {
+      async ({ listing, dateFilter, checkin, filteredByDate }) => {
         const isDaily = listing.listing_type === "daily";
         const paymentReferenceAttendeeIds =
           await getAttendeeIdsWithPaymentReference(filteredByDate);
@@ -56,7 +48,7 @@ export const handleAdminListingExport: TypedRouteHandler<
             filteredByDate,
             paymentReferenceAttendeeIds,
           ),
-          checkinFromRequest(request),
+          checkin,
         );
 
         const attendeeIds = exported.map((a) => a.id);

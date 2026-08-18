@@ -19,10 +19,12 @@ export type FilterBarOption = {
 };
 
 /**
- * Render a labelled filter bar as the `.table-actions` div shown above a table.
+ * Render a labelled filter bar as the `.table-actions` div shown above a
+ * table. A null label renders the bare links, for a bar whose options already
+ * name themselves (e.g. "All / Checked In / Checked Out").
  */
 export const renderFilterBar = (
-  label: string,
+  label: string | null,
   options: readonly FilterBarOption[],
 ): string => {
   const links = options
@@ -32,5 +34,5 @@ export const renderFilterBar = (
         : `<a href="${o.href}">${o.label}</a>`,
     )
     .join(" / ");
-  return `<div class="table-actions">${label}: ${links}</div>`;
+  return `<div class="table-actions">${label === null ? "" : `${label}: `}${links}</div>`;
 };

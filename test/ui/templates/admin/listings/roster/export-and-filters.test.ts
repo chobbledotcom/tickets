@@ -20,7 +20,7 @@ describe("adminListingPage export button", () => {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: true })],
     });
-    expect(html).toContain("/admin/listing/1/export?checkin=in");
+    expect(html).toContain("/admin/listing/1/export?filter=in");
   });
 });
 
@@ -51,7 +51,7 @@ describe("adminListingPage filter links", () => {
 
   test("bolds All when no filter is active", () => {
     const html = linkHtml();
-    expect(html).toContain("<strong>All</strong>");
+    expect(html).toContain("<strong><u>All</u></strong>");
     expect(html).toContain(
       `href="/admin/listing/${listing.id}/attendees?filter=in"`,
     );
@@ -62,13 +62,13 @@ describe("adminListingPage filter links", () => {
 
   test("bolds Checked In when filter is in", () => {
     const html = linkHtml("in");
-    expect(html).toContain("<strong>Checked In</strong>");
+    expect(html).toContain("<strong><u>Checked In</u></strong>");
     expect(html).toContain(`href="/admin/listing/${listing.id}/attendees"`);
   });
 
   test("bolds Checked Out when filter is out", () => {
     const html = linkHtml("out");
-    expect(html).toContain("<strong>Checked Out</strong>");
+    expect(html).toContain("<strong><u>Checked Out</u></strong>");
   });
 
   test("filters to only checked-in attendees when filter is in", () => {

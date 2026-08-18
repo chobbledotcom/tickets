@@ -1,4 +1,8 @@
 import { fieldById, map, pipe } from "#fp";
+import {
+  attendeeListHref,
+  inRegistrationOrder,
+} from "#shared/attendee-list-controls.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
@@ -15,7 +19,6 @@ import {
   emailDayHrefFor,
   FailedPaymentsSection,
   filterAttendees,
-  rosterHref,
 } from "./attendees.tsx";
 import {
   DailyCapacityDetailTable,
@@ -28,11 +31,11 @@ const listingRosterView = (opts: ListingPanelOptions) => {
   const {
     listing,
     attendees,
-    activeFilter = "all",
-    dateFilter = null,
+    list,
     questionData,
     paymentReferenceAttendeeIds = new Set(),
   } = opts;
+  const { checkin, date: dateFilter, sort } = list.state;
   const isDaily = listing.listing_type === "daily";
   const hasPaidListing = isPaidListing(listing);
   const {
@@ -46,7 +49,13 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     hasPaidListing,
     paymentReferenceAttendeeIds,
   );
-  const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
+  const filteredAttendees = filterAttendees(completeAttendees, checkin);
+  // A chosen sort orders the rows here; otherwise the table applies its own
+  // date-and-name order.
+  const orderedAttendees =
+    sort === null
+      ? filteredAttendees
+      : inRegistrationOrder(sort)(filteredAttendees);
   const dailySuffix = attendeeCountLabelSuffix(isDaily, dateFilter);
   const sharedRows = buildSharedDetailRows({
     attendeeCount: isDaily && dateFilter ? completeQuantitySum : adjustedCount,
@@ -57,15 +66,12 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     questionData,
     skipAttendees: true,
   });
-  const basePath = `/admin/listing/${listing.id}`;
-  const returnUrl = rosterHref(listing.id, activeFilter, dateFilter);
+  const returnUrl = attendeeListHref(list.setup, list.state);
   const tableRows: AttendeeTableRow[] = pipe(
     map((a: Attendee): AttendeeTableRow => attendeeLineRow(a, listing)),
-  )(filteredAttendees);
+  )(orderedAttendees);
   return {
-    activeFilter,
     adjustedCount,
-    basePath,
     completeQuantitySum,
     dailySuffix,
     dateFilter,
@@ -83,7 +89,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
     listing,
     allowedDomain,
     attendees = [],
-    availableDates = [],
+    list,
     phonePrefix,
     questionData,
     childNames = [],
@@ -110,19 +116,14 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         notes={systemNotes}
       />
       <AttendeesSection
-        activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}
-        availableDates={availableDates}
-        basePath={v.basePath}
-        dateFilter={v.dateFilter}
         emailDayHref={emailDayHrefFor(
           listing.id,
           v.dateFilter,
           opts.isOwner ?? false,
           attendees,
         )}
-        isDaily={v.isDaily}
-        listingId={listing.id}
+        list={list}
         phonePrefix={phonePrefix}
         questionData={questionData}
         returnUrl={v.returnUrl}

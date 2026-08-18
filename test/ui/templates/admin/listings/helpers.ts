@@ -1,5 +1,11 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
 import { fieldById } from "#fp";
+import { rosterListSetup } from "#routes/admin/listings-view.ts";
+import type {
+  AttendeeFilter,
+  AttendeeSort,
+  DateOption,
+} from "#shared/attendee-list-controls.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -8,6 +14,7 @@ import {
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
+import type { RosterListView } from "#templates/admin/listings/types.ts";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -25,13 +32,33 @@ export const withBuilderEnv =
 export const withBuilder = withBuilderEnv("true");
 export const withoutBuilder = withBuilderEnv(undefined);
 
+/** The roster options with the filter/sort choices written the way the old
+ *  panel took them, so fixture-building tests stay terse: the helper builds
+ *  the shared list view (setup + state) from them. */
+type DetailOptions = Omit<Parameters<typeof ListingRosterPanel>[0], "list"> & {
+  activeFilter?: AttendeeFilter;
+  dateFilter?: string | null;
+  sort?: AttendeeSort | null;
+  availableDates?: DateOption[];
+};
+
+const rosterListViewOf = (opts: DetailOptions): RosterListView => ({
+  setup: rosterListSetup(opts.listing, opts.availableDates ?? []),
+  state: {
+    checkin: opts.activeFilter ?? "all",
+    date: opts.dateFilter ?? null,
+    listingId: null,
+    page: 0,
+    sort: opts.sort ?? null,
+    type: "all",
+  },
+});
+
 /** Render the listing detail view the way the entity page composes it: the
  *  Overview panel (details table, income/ledger) plus the Roster panel (attendee
  *  table, filters, failed payments, add-attendee). The legacy `adminListingPage`
  *  composer was removed, so these tests assert against the live panels. */
-export const renderListingDetail = (
-  opts: Parameters<typeof ListingRosterPanel>[0],
-): string =>
+export const renderListingDetail = (opts: DetailOptions): string =>
   String(
     ListingOverviewPanel({
       aggregateRecalculation: opts.aggregateRecalculation,
@@ -56,7 +83,7 @@ export const renderListingDetail = (
       ),
       systemNotes: opts.systemNotes,
     }),
-  ) + String(ListingRosterPanel(opts));
+  ) + String(ListingRosterPanel({ ...opts, list: rosterListViewOf(opts) }));
 
 /** Render the listing detail view with the common defaults (localhost domain,
  *  no attendees); pass `extra` to override attendees, filters, ledger, etc. */

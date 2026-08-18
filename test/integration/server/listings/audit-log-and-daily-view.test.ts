@@ -301,13 +301,13 @@ describeWithEnv(
 
       test("filter links preserve ?date= query parameter", async () => {
         const { listing, html } = await fetchDate1Roster();
-        // The roster's check-in filters are query params now (&amp; in rendered
-        // HTML), not the old /in and /out path segments with an #attendees anchor.
+        // The shared filter bar injects its links raw, so the ampersand
+        // between the query parameters is not entity-escaped.
         expect(html).toContain(
-          `/admin/listing/${listing.id}/attendees?filter=in&amp;date=${validDate1}`,
+          `/admin/listing/${listing.id}/attendees?filter=in&date=${validDate1}`,
         );
         expect(html).toContain(
-          `/admin/listing/${listing.id}/attendees?filter=out&amp;date=${validDate1}`,
+          `/admin/listing/${listing.id}/attendees?filter=out&date=${validDate1}`,
         );
       });
     });

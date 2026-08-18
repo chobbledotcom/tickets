@@ -27,20 +27,20 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
     return listing;
   };
 
-  test("?checkin=in exports only checked-in attendees", async () => {
+  test("?filter=in exports only checked-in attendees", async () => {
     const listing = await setup();
     const response = await adminGet(
-      `/admin/listing/${listing.id}/export?checkin=in`,
+      `/admin/listing/${listing.id}/export?filter=in`,
     );
     const csv = await response.text();
     expect(csv).toContain("AliceIn");
     expect(csv).not.toContain("BobOut");
   });
 
-  test("?checkin=out exports only checked-out attendees", async () => {
+  test("?filter=out exports only checked-out attendees", async () => {
     const listing = await setup();
     const response = await adminGet(
-      `/admin/listing/${listing.id}/export?checkin=out`,
+      `/admin/listing/${listing.id}/export?filter=out`,
     );
     const csv = await response.text();
     expect(csv).toContain("BobOut");

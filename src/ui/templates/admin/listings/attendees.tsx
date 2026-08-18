@@ -2,10 +2,11 @@
 
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import type { AttendeeFilter } from "#shared/attendee-list-controls.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { renderFields, renderSelectOptions } from "#shared/forms/rendering.tsx";
+import { renderFields } from "#shared/forms/rendering.tsx";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -16,11 +17,9 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-import {
-  AttendeeTableBlock,
-  attendeeTableOptions,
-} from "#templates/admin/attendee-table-block.tsx";
+import { attendeeTableOptions } from "#templates/admin/attendee-table-block.tsx";
 import { sumQuantity } from "#templates/admin/detail-rows.tsx";
+import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import { quantityHeader } from "#templates/components/header-row.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
@@ -28,7 +27,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { TableScroll } from "#templates/components/table-scroll.tsx";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
-import type { AttendeeFilter, DateOption } from "./types.ts";
+import type { RosterListView } from "./types.ts";
 
 /* jscpd:ignore-end */
 
@@ -65,12 +64,6 @@ const keepByRosterFilter: Record<AttendeeFilter, (a: Attendee) => boolean> = {
   in: (a) => a.checked_in && hasTicketQuantity(a),
   out: (a) => !a.checked_in && hasTicketQuantity(a),
 };
-
-const ROSTER_FILTER_LINKS: { filter: AttendeeFilter; labelKey: string }[] = [
-  { filter: "all", labelKey: "listings_table.all" },
-  { filter: "in", labelKey: "common.checked_in" },
-  { filter: "out", labelKey: "listings_table.checked_out" },
-];
 
 const hasKnownPaymentReference =
   (paymentReferenceAttendeeIds: ReadonlySet<number>) =>
@@ -145,156 +138,48 @@ export const filterAttendees = (
   activeFilter: AttendeeFilter,
 ): Attendee[] => filter(keepByRosterFilter[activeFilter])(attendees);
 
-const FilterLink = ({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}): string =>
-  active
-    ? String(<strong>{label}</strong>)
-    : String(<a href={href}>{label}</a>);
-
-export const rosterHref = (
-  listingId: number,
-  activeFilter: AttendeeFilter,
-  dateFilter: string | null,
-): string => {
-  const params = new URLSearchParams();
-  if (activeFilter !== "all") params.set("filter", activeFilter);
-  if (dateFilter) params.set("date", dateFilter);
-  const qs = params.toString();
-  return `/admin/listing/${listingId}/attendees${qs ? `?${qs}` : ""}`;
-};
-
-const DateSelector = ({
-  listingId,
-  activeFilter,
-  dateFilter,
-  dates,
-}: {
-  listingId: number;
-  activeFilter: AttendeeFilter;
-  dateFilter: string | null;
-  dates: DateOption[];
-}): string => {
-  const options = renderSelectOptions([
-    {
-      label: t("listings_table.all_dates"),
-      selected: !dateFilter,
-      value: rosterHref(listingId, activeFilter, null),
-    },
-    ...dates.map((d) => ({
-      label: d.label,
-      selected: dateFilter === d.value,
-      value: rosterHref(listingId, activeFilter, d.value),
-    })),
-  ]);
-  return `<select data-nav-select aria-label="${t(
-    "listings_table.filter_by_date",
-  )}">${options}</select>`;
-};
-
-const AttendeesFilterLinks = ({
-  listingId,
-  dateFilter,
-  activeFilter,
-}: {
-  listingId: number;
-  dateFilter: string | null;
-  activeFilter: AttendeeFilter;
-}): JSX.Element => (
-  <p>
-    <Raw
-      html={ROSTER_FILTER_LINKS.map(({ filter, labelKey }) =>
-        FilterLink({
-          active: activeFilter === filter,
-          href: rosterHref(listingId, filter, dateFilter),
-          label: t(labelKey),
-        }),
-      ).join(" / ")}
-    />
-  </p>
-);
-
 export const AttendeesSection = ({
-  listingId,
+  list,
   allowedDomain,
-  isDaily,
-  availableDates,
-  activeFilter,
-  dateFilter,
   emailDayHref,
-  basePath,
   returnUrl,
   tableRows,
   questionData,
   phonePrefix,
 }: {
-  listingId: number;
+  list: RosterListView;
   allowedDomain: string;
-  isDaily: boolean;
-  availableDates: DateOption[];
-  activeFilter: AttendeeFilter;
-  dateFilter: string | null;
   /** Where "Email this date's attendees" goes; undefined withholds the action. */
   emailDayHref: string | undefined;
-  basePath: string;
   returnUrl: string;
   tableRows: AttendeeTableRow[];
   questionData: TableQuestionData | undefined;
   phonePrefix: string | undefined;
-}): JSX.Element => {
-  const exportParams = new URLSearchParams();
-  if (dateFilter) exportParams.set("date", dateFilter);
-  if (activeFilter !== "all") exportParams.set("checkin", activeFilter);
-  const exportQuery = exportParams.toString();
-  const exportHref = `${basePath}/export${
-    exportQuery ? `?${exportQuery}` : ""
-  }`;
-  return (
-    <ProseArticle heading={<h2 id="attendees">{t("terms.attendees")}</h2>}>
-      {isDaily && availableDates.length > 0 && (
-        <Raw
-          html={DateSelector({
-            activeFilter,
-            dateFilter,
-            dates: availableDates,
-            listingId,
-          })}
-        />
-      )}
-      <AttendeesFilterLinks
-        activeFilter={activeFilter}
-        dateFilter={dateFilter}
-        listingId={listingId}
-      />
-      <AttendeeTableBlock
-        actions={
-          <>
-            <a href={exportHref}>{t("listings_table.export_csv")}</a>
-            {emailDayHref && (
-              <a href={emailDayHref}>{t("listings_table.email_this_date")}</a>
-            )}
-          </>
-        }
-        options={attendeeTableOptions({
-          activeFilter,
-          allowedDomain,
-          phonePrefix,
-          questionData,
-          returnUrl,
-          rows: tableRows,
-          showDate: isDaily,
-          showListing: false,
-        })}
-      />
-    </ProseArticle>
-  );
-};
+}): JSX.Element => (
+  <ProseArticle heading={<h2 id="attendees">{t("terms.attendees")}</h2>}>
+    <FilteredAttendeeTable
+      actions={
+        emailDayHref && (
+          <a href={emailDayHref}>{t("listings_table.email_this_date")}</a>
+        )
+      }
+      options={attendeeTableOptions({
+        activeFilter: list.state.checkin,
+        allowedDomain,
+        phonePrefix,
+        // A chosen sort was applied by the caller; the table's own
+        // date-and-name order applies otherwise.
+        presorted: list.state.sort !== null,
+        questionData,
+        returnUrl,
+        rows: tableRows,
+        showDate: list.setup.withDates,
+        showListing: false,
+      })}
+      view={list}
+    />
+  </ProseArticle>
+);
 
 export const FailedPaymentsSection = ({
   attendees,
