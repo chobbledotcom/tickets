@@ -539,6 +539,16 @@ describe("generateSuperuserPassword", () => {
       spyCrypto.restore();
     }
   });
+
+  test("randomness that never yields a usable byte fails loudly", () => {
+    // 255 sits in the rejected tail for a 58-character alphabet, so every
+    // draw contributes nothing and the password can never fill. Without a
+    // ceiling on the draws this spins the CPU forever instead of failing.
+    const allRejected = new Array(64).fill(255);
+    expect(() =>
+      withRandomBytes(allRejected)(() => generateSuperuserPassword(12)),
+    ).toThrow("Could not draw enough random characters for a password");
+  });
 });
 
 // ---------------------------------------------------------------------------
