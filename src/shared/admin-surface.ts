@@ -28,8 +28,9 @@ export const adminPath = <Id extends AdminDestinationId>(
   id: Id,
   params: AdminPathParams<Id>,
 ): string =>
-  adminDestination(id).pattern.replace(/:(\w+)/g, (_, name: string) =>
-    String((params as Record<string, string | number>)[name]),
+  adminDestination(id).pattern.replace(
+    /:(\w+)/g,
+    (_, name: keyof AdminPathParams<Id>) => String(params[name]),
   );
 
 export const adminDestinationAllowed = (
