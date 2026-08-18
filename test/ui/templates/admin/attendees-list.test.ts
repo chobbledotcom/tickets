@@ -168,6 +168,22 @@ describe("adminAttendeesListPage", () => {
     expect(html).not.toContain(">Check in<");
   });
 
+  test("keeps the rows in the order the query chose", () => {
+    // Rows arrive newest-first from the query; the table's own name order
+    // would flip this pair, so this pins that the page trusts the given order.
+    const html = adminAttendeesListPage(
+      buildProps({
+        rows: [
+          row(2, "Zed Newest", 1, "Gala Night"),
+          row(1, "Aaron Oldest", 1, "Gala Night"),
+        ],
+      }),
+    );
+    expect(html.indexOf("Zed Newest")).toBeLessThan(
+      html.indexOf("Aaron Oldest"),
+    );
+  });
+
   test("shows no date column — dates belong to a listing's own list", () => {
     const html = adminAttendeesListPage(
       buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
