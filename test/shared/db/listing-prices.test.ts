@@ -318,6 +318,15 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     ]);
   });
 
+  test("syncListingPricesForIds rebuilds a single listing too", async () => {
+    const only = await createTestListing({ unitPrice: 450 });
+    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
+    await syncListingPricesForIds([only.id]);
+    expect(await priceRows(only.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 450 },
+    ]);
+  });
+
   test("syncListingPricesForIds is a no-op for an empty id list", async () => {
     await syncListingPricesForIds([]);
     expect(await priceRows(987656)).toEqual([]);

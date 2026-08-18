@@ -72,6 +72,30 @@ describe("pending-work", () => {
     });
   });
 
+  test("work that finishes on the last allowed round still succeeds", async () => {
+    // Each piece yields to the event loop before queueing the next, so the
+    // flush advances exactly one piece per round. That makes this the largest
+    // chain the round cap admits: one more and the flush refuses it. Sitting on
+    // the edge is what pins the size of the cap.
+    const TOTAL_WORK = 999;
+    let made = 0;
+    const queueAgain = (): void => {
+      if (made >= TOTAL_WORK) return;
+      made++;
+      addPendingWork(
+        (async () => {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          queueAgain();
+        })(),
+      );
+    };
+    await runWithPendingWork(async () => {
+      queueAgain();
+      await flushPendingWork();
+      expect(made).toBe(TOTAL_WORK);
+    });
+  });
+
   test("work that queues fresh work forever fails loudly instead of spinning", async () => {
     // The chain feeds itself, so it needs its own ceiling as well as the flag:
     // if the assertion below throws, `finally` still lowers the flag, and if
