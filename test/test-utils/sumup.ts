@@ -121,10 +121,14 @@ export const stageSignedSumupCheckout = async (
 };
 
 /** Bring a staged checkout's next recovery check forward, so a test does not
- * have to wait the real hours out. */
-export const makeSumupCheckoutDue = (checkoutId: string): Promise<unknown> =>
+ * have to wait the real hours out. Pass `when` to place it at a exact time,
+ * e.g. older than every other due row. */
+export const makeSumupCheckoutDue = (
+  checkoutId: string,
+  when = "2000-01-01T00:00:00.000Z",
+): Promise<unknown> =>
   execute("UPDATE sumup_checkouts SET next_check_at = ? WHERE sumup_id = ?", [
-    "2000-01-01T00:00:00.000Z",
+    when,
     checkoutId,
   ]);
 

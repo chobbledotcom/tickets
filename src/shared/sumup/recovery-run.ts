@@ -11,20 +11,40 @@ import { settlePaymentCallback } from "#routes/api/payment-callback.ts";
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
+  delaySumupRecoveryCheck,
   getDueSumupCheckouts,
 } from "#shared/db/sumup-recovery.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
-import { logDebug } from "#shared/logger.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import type { RecoveryEventId } from "#shared/payment/sumup-recovery-machine-spec.ts";
 import { resolveSumupCheckoutById } from "#shared/sumup/checkout-resolution.ts";
 import { sumupRecoveryOutcome } from "#shared/sumup/recovery.ts";
 
-/** Ask about one checkout and record what the answer amounted to. */
+/** Ask about one checkout and record what the answer amounted to.
+ *
+ * Asking is caught per row: one checkout blowing up must not stop the rows
+ * behind it. Recording the answer is not caught — a refused write is the
+ * database's problem, not this row's, and throws to the task's own retry.
+ */
 const recoverOne = async (checkout: DueSumupCheckout): Promise<void> => {
-  const { reading, resolved } = await resolveSumupCheckoutById(
-    checkout.sumupId,
-  );
-  const outcome = await settlePaymentCallback(resolved, "Recovery check");
-  const event = sumupRecoveryOutcome(reading, outcome);
+  let event: RecoveryEventId;
+  try {
+    const { reading, resolved } = await resolveSumupCheckoutById(
+      checkout.sumupId,
+    );
+    event = sumupRecoveryOutcome(
+      reading,
+      await settlePaymentCallback(resolved, "Recovery check"),
+    );
+  } catch (error) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `SumUp recovery check failed for ${checkout.sumupId}: ${errorMessage(error)}`,
+    });
+    await delaySumupRecoveryCheck(checkout);
+    return;
+  }
   const wrote = await applySumupRecoveryEvent(checkout, event);
   // Losing the write means another runner answered this row first, with the
   // same evidence. Its answer stands; ours would only overwrite the check

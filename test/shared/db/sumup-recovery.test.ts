@@ -5,6 +5,7 @@ import { execute } from "#shared/db/client.ts";
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
+  delaySumupRecoveryCheck,
   getDueSumupCheckouts,
 } from "#shared/db/sumup-recovery.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
@@ -144,5 +145,26 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
     await expect(
       applySumupRecoveryEvent(due("co_shut", "finished"), "read_pending"),
     ).rejects.toThrow("A finished SumUp checkout refuses read_pending");
+  });
+
+  test("delays a failed row's next check without moving its state", async () => {
+    await seedRow("co_delay", "waiting", PAST);
+
+    await delaySumupRecoveryCheck(due("co_delay", "waiting"));
+
+    const row = await sumupRecoveryRow("co_delay");
+    expect(row.state).toBe("waiting");
+    expect(Date.parse(row.nextCheckAt ?? "")).toBeGreaterThan(Date.now());
+  });
+
+  test("delays nothing when the row moved since it was read", async () => {
+    await seedRow("co_delay_moved", "waiting", "2000-01-05T00:00:00.000Z");
+
+    // The caller read it at a check time it no longer has.
+    await delaySumupRecoveryCheck(due("co_delay_moved", "waiting"));
+
+    expect((await sumupRecoveryRow("co_delay_moved")).nextCheckAt).toBe(
+      "2000-01-05T00:00:00.000Z",
+    );
   });
 });

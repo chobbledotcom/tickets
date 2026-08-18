@@ -1,6 +1,7 @@
 /**
- * The queue of staged SumUp checkouts waiting to be asked about, and the one
- * fenced write that moves a row along it.
+ * The queue of staged SumUp checkouts waiting to be asked about, and the
+ * one fenced write that moves a row along it: an answer moves its state, a
+ * failure moves only its clock.
  *
  * Which rows are due, where an event moves them, and what each event's write
  * matches on all come from the machine declaration in
@@ -64,11 +65,31 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
   }));
 };
 
+/** Move a row to a state and a check time, but only where it is still
+ * exactly as it was read: two runners that looked at one row cannot both
+ * believe they wrote it — the loser finds no row. */
+const moveSumupRecoveryRow = async (
+  checkout: DueSumupCheckout,
+  recoveryState: RecoveryNodeId,
+  nextCheckAt: string | null,
+): Promise<number> => {
+  const result = await execute(
+    `UPDATE sumup_checkouts
+        SET recovery_state = ?, next_check_at = ?
+      WHERE sumup_id = ? AND recovery_state = ? AND next_check_at = ?`,
+    [
+      recoveryState,
+      nextCheckAt,
+      checkout.sumupId,
+      checkout.state,
+      checkout.checkedAt,
+    ],
+  );
+  return result.rowsAffected;
+};
+
 /**
- * Move one row on by the event its check amounted to. The write matches on
- * the exact state and check time the row was read with, so two runners that
- * looked at one row cannot both believe they wrote it — the loser finds no
- * row and is told so.
+ * Move one row on by the event its check amounted to.
  *
  * A row that reached a definitive answer is given no next check: nothing will
  * ask about it again, and pruning is free to delete it once it is old enough.
@@ -79,17 +100,27 @@ export const applySumupRecoveryEvent = async (
 ): Promise<boolean> => {
   const to = recoveryMoveTo(checkout.state, event);
   const settled = RECOVERY_TERMINAL_NODES.includes(to);
-  const result = await execute(
-    `UPDATE sumup_checkouts
-        SET recovery_state = ?, next_check_at = ?
-      WHERE sumup_id = ? AND recovery_state = ? AND next_check_at = ?`,
-    [
+  return (
+    (await moveSumupRecoveryRow(
+      checkout,
       to,
       settled ? null : isoAfter(SUMUP_RECHECK_MS),
-      checkout.sumupId,
-      checkout.state,
-      checkout.checkedAt,
-    ],
+    )) === 1
   );
-  return result.rowsAffected === 1;
+};
+
+/**
+ * Push one row's next check further out without saying anything about it. A
+ * check that blew up gave no answer, so its state is written back unchanged
+ * and only the clock moves — or a row that keeps failing would hold the
+ * front of the queue forever.
+ */
+export const delaySumupRecoveryCheck = async (
+  checkout: DueSumupCheckout,
+): Promise<void> => {
+  await moveSumupRecoveryRow(
+    checkout,
+    checkout.state,
+    isoAfter(SUMUP_RECHECK_MS),
+  );
 };
