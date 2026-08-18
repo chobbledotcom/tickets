@@ -158,6 +158,14 @@ A replayed terminal failure is not its own event. It is classified by the same
 money fact as a fresh one, so it arrives as `read_paid_settled` or
 `read_paid_unsettled` and the table does the rest.
 
+**The callback path raises no event at all.** Only the recovery check moves a
+row, which is what lets `finished` refuse everything without a late callback
+ever hitting that refusal: a callback that arrives after a check has closed the
+row goes through the payment engine, replays the booking it already made,
+answers the provider, and leaves `recovery_state` alone. The same is true of the
+buyer returning to the success page days later. That is checked rather than
+assumed — see the callback-after-recovery tests.
+
 ### The moves table
 
 Every cell that is present is a required landing node. Every cell that is absent
@@ -265,8 +273,11 @@ beside it.
   whenever it has an outgoing system edge, which by the second law every
   money-holding node has. The owner's edge is additive — it brings the next
   check forward, it does not own the retry.
-- **Permanent failure** is not a list. It is exactly the terminal nodes:
-  `unpaid` and `finished`. `owed` is not terminal, so it is not permanent.
+- **Terminal** is not a list either — it is the two nodes no event can move,
+  `unpaid` and `finished`. Only one of them is a failure: `unpaid` means SumUp
+  says nobody ever paid, while `finished` means the money is accounted for, by a
+  booking or by returning it. `owed` is not terminal, so it is never permanent —
+  it is the one state that is still waiting for an answer.
 - **What a replay returns** stays the payment engine's answer, unchanged:
   `processed_payments.payment_session_id` (= the SumUp `checkout_reference`) is
   reserved before any work, so `alreadyProcessedResult` or the recorded terminal
