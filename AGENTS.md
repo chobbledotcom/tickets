@@ -679,7 +679,8 @@ change, which is what the rest of this section is for.
 
 Technical text follows ASD-STE100 Simplified Technical English. The reader must
 understand the text the first time. This section obeys its own rules. It is the
-example to copy.
+example to copy. The quoted examples of bad writing are the one exception. Each
+of them keeps the fault that it shows.
 
 ### What this covers
 
@@ -766,15 +767,18 @@ meet the instruction before the explanation.
 ### Never touch
 
 - Code blocks, identifiers, CLI commands, file paths, quoted error messages, and
-  product names stay exactly as they are. Each one counts as one word toward a
-  sentence limit.
+  product names stay exactly as they are. One of these items inside a sentence
+  counts as one word toward the limit. A standalone code block or quoted line
+  sits outside the sentence count.
 - Facts stay as they are too. If the source names no number and no cause, keep
   the general statement. Do not invent a specific one.
 
 ### Self-check before you finish
 
-- Scan the text for contractions, "has been", "should", ", making", and
-  semicolons.
+- Scan the text for the cheap patterns first: contractions, "has been",
+  "should", ", making", and semicolons.
+- These patterns are a start, not the whole rule. Read the text again for every
+  present perfect form, every "-ing" verb form, and every banned modal.
 - Count the words in your three longest sentences. Split every sentence that is
   above its limit.
 - Collapse a rotation of synonyms into the one word you chose.
