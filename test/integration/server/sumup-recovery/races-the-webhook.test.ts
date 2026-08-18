@@ -2,11 +2,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { queryAll } from "#shared/db/client.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
+  countingQuery,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
   withSumupCheckoutStatus,
@@ -23,9 +23,6 @@ const callback = () =>
       id: CHECKOUT_ID,
     }),
   );
-
-const countOf = async (sql: string): Promise<number> =>
-  (await queryAll<{ n: number }>(sql))[0]?.n ?? 0;
 
 describeWithEnv(
   "server > SumUp recovery races the webhook",
@@ -50,10 +47,12 @@ describeWithEnv(
       // buyer must still get one ticket and one set of money records.
       await runBothAtOnce();
 
-      expect(await countOf("SELECT COUNT(*) AS n FROM attendees")).toBe(1);
+      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
+        1,
+      );
       // One reservation, so neither side booked a second time.
       expect(
-        await countOf("SELECT COUNT(*) AS n FROM processed_payments"),
+        await countingQuery("SELECT COUNT(*) AS n FROM processed_payments"),
       ).toBe(1);
     });
 
@@ -61,7 +60,7 @@ describeWithEnv(
       await runBothAtOnce();
 
       expect(
-        await countOf(
+        await countingQuery(
           "SELECT COUNT(*) AS n FROM sumup_checkouts WHERE recovery_state = 'owed'",
         ),
       ).toBe(0);

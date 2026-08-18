@@ -1,13 +1,15 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll, queryOne } from "#shared/db/client.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import {
+  countingQuery,
+  expectBookedExactlyOnce,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
+  sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
 
@@ -31,18 +33,6 @@ const withStateWriteFault = <T>(body: () => Promise<T>): Promise<T> =>
     body,
   );
 
-const countOf = async (sql: string): Promise<number> =>
-  (await queryAll<{ n: number }>(sql))[0]?.n ?? 0;
-
-const stateOf = async (): Promise<string> => {
-  const row = await queryOne<{ recovery_state: string }>(
-    "SELECT recovery_state FROM sumup_checkouts WHERE sumup_id = ?",
-    [CHECKOUT_ID],
-  );
-  if (!row) throw new Error("The staged checkout is gone");
-  return row.recovery_state;
-};
-
 describeWithEnv("server > SumUp recovery crash windows", { db: true }, () => {
   test("finishes the row on the next check when the state write failed", async () => {
     // The booking commits and then the row cannot be moved. Nothing is lost:
@@ -57,17 +47,16 @@ describeWithEnv("server > SumUp recovery crash windows", { db: true }, () => {
       });
 
       // The booking is already made, but the row still says it is waiting.
-      expect(await countOf("SELECT COUNT(*) AS n FROM attendees")).toBe(1);
-      expect(await stateOf()).toBe("waiting");
+      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
+        1,
+      );
+      expect((await sumupRecoveryRow(CHECKOUT_ID)).state).toBe("waiting");
 
       await runSumupRecovery();
 
-      expect(await stateOf()).toBe("finished");
+      expect((await sumupRecoveryRow(CHECKOUT_ID)).state).toBe("finished");
       // The replay booked nobody a second time.
-      expect(await countOf("SELECT COUNT(*) AS n FROM attendees")).toBe(1);
-      expect(
-        await countOf("SELECT COUNT(*) AS n FROM processed_payments"),
-      ).toBe(1);
+      await expectBookedExactlyOnce();
     } finally {
       restore.restore();
     }

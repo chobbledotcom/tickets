@@ -1,8 +1,9 @@
+import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
@@ -125,6 +126,38 @@ export const makeSumupCheckoutDue = (checkoutId: string): Promise<unknown> =>
     "2000-01-01T00:00:00.000Z",
     checkoutId,
   ]);
+
+/** How a staged checkout's recovery row reads right now. Throws when the row
+ * has gone, so a test asserting on it cannot quietly pass against nothing. */
+export const sumupRecoveryRow = async (
+  checkoutId: string,
+): Promise<{ nextCheckAt: string | null; state: string }> => {
+  const row = await queryOne<{
+    next_check_at: string | null;
+    recovery_state: string;
+  }>(
+    "SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ?",
+    [checkoutId],
+  );
+  if (!row) throw new Error(`No staged checkout ${checkoutId}`);
+  return { nextCheckAt: row.next_check_at, state: row.recovery_state };
+};
+
+/** How many rows a counting query finds — the shape every "was this done
+ * exactly once?" assertion in these suites needs. */
+export const countingQuery = async (sql: string): Promise<number> =>
+  (await queryAll<{ n: number }>(sql))[0]?.n ?? 0;
+
+/** The check every "did this happen exactly once?" test here makes: one
+ * ticket and one reservation, however many times the work was run. The
+ * reservation row is the one that catches a double-book, because it is the
+ * key the payment engine reserves against. */
+export const expectBookedExactlyOnce = async (): Promise<void> => {
+  expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(1);
+  expect(
+    await countingQuery("SELECT COUNT(*) AS n FROM processed_payments"),
+  ).toBe(1);
+};
 
 /** Stub SumUp's checkout lookup for a staged reference. */
 export const withSumupCheckoutStatus = (

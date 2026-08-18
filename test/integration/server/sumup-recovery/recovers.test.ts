@@ -2,13 +2,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  countingQuery,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
+  sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
 
@@ -27,37 +29,25 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     status: "EXPIRED" | "FAILED" | "PAID" | "PENDING",
   ) => withSumupCheckoutStatus(reference, status, "txn_recovered");
 
-  const stateOf = async (checkoutId: string) => {
-    const row = await queryOne<{
-      next_check_at: string | null;
-      recovery_state: string;
-    }>(
-      "SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ?",
-      [checkoutId],
-    );
-    if (!row) throw new Error(`No staged checkout ${checkoutId}`);
-    return row;
-  };
-
-  const attendeeCount = async (): Promise<number> =>
-    (await queryAll<{ n: number }>("SELECT COUNT(*) AS n FROM attendees"))[0]!
-      .n;
-
   test("books a paid checkout whose callback never arrived", async () => {
     // The whole point of the feature: SumUp took the money, the one callback
     // was lost, and nothing else would ever have asked.
     const reference = await stageDueCheckout("co_lost");
     const restore = readCheckout(reference, "PAID");
     try {
-      expect(await attendeeCount()).toBe(0);
+      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
+        0,
+      );
 
       await runSumupRecovery();
 
-      expect(await attendeeCount()).toBe(1);
-      const row = await stateOf("co_lost");
-      expect(row.recovery_state).toBe("finished");
+      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
+        1,
+      );
+      const row = await sumupRecoveryRow("co_lost");
+      expect(row.state).toBe("finished");
       // Finished rows are never asked about again.
-      expect(row.next_check_at).toBeNull();
+      expect(row.nextCheckAt).toBeNull();
     } finally {
       restore.restore();
     }
@@ -75,8 +65,10 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       );
       await runSumupRecovery();
 
-      expect(await attendeeCount()).toBe(1);
-      expect((await stateOf("co_twice")).recovery_state).toBe("finished");
+      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
+        1,
+      );
+      expect((await sumupRecoveryRow("co_twice")).state).toBe("finished");
     } finally {
       restore.restore();
     }
@@ -88,10 +80,12 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     try {
       await runSumupRecovery();
 
-      expect(await attendeeCount()).toBe(0);
-      const row = await stateOf("co_expired");
-      expect(row.recovery_state).toBe("unpaid");
-      expect(row.next_check_at).toBeNull();
+      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
+        0,
+      );
+      const row = await sumupRecoveryRow("co_expired");
+      expect(row.state).toBe("unpaid");
+      expect(row.nextCheckAt).toBeNull();
     } finally {
       restore.restore();
     }
@@ -103,11 +97,11 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     try {
       await runSumupRecovery();
 
-      const row = await stateOf("co_pending");
-      expect(row.recovery_state).toBe("waiting");
+      const row = await sumupRecoveryRow("co_pending");
+      expect(row.state).toBe("waiting");
       // Still open, and moved out of the way of rows due before it: the next
       // check is hours ahead, not the moment in the past it was given.
-      const dueAgainAt = Date.parse(row.next_check_at ?? "");
+      const dueAgainAt = Date.parse(row.nextCheckAt ?? "");
       expect(Number.isNaN(dueAgainAt)).toBe(false);
       expect(dueAgainAt).toBeGreaterThan(Date.now());
     } finally {
@@ -128,7 +122,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     try {
       await runSumupRecovery();
 
-      expect((await stateOf("co_outage")).recovery_state).toBe("waiting");
+      expect((await sumupRecoveryRow("co_outage")).state).toBe("waiting");
     } finally {
       restore.restore();
     }
@@ -152,7 +146,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
 
       expect(await applySumupRecoveryEvent(seen, "read_pending")).toBe(false);
       // The winner's answer stands.
-      expect((await stateOf("co_raced")).recovery_state).toBe("finished");
+      expect((await sumupRecoveryRow("co_raced")).state).toBe("finished");
     } finally {
       restore.restore();
     }
