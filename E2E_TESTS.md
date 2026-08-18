@@ -85,11 +85,11 @@ Write the smallest scenario that proves the rule:
   definitions; focused runs can leave unrelated shared definitions unused.
 - **Drive through the real rendered form.** A Cucumber `When`/`Then` that
   submits an admin edit must read the production HTML form, parse its fields and
-  CSRF token, and POST exactly what a browser would. Do not reconstruct the form
-  state from database rows — that bypasses the rendering layer the scenario
-  exists to prove and would silently keep passing if the editor stopped
-  rendering a field or emitted one the POST parser cannot consume. Exception:
-  pure data-in/data-out rules with no user-facing form action can read state
+  CSRF token, and POST exactly what a browser sends. Do not reconstruct the form
+  state from database rows — that bypasses the rendering layer that the scenario
+  exists to prove. The story then stays green when the editor drops a field, or
+  emits one that the POST parser cannot consume. Exception: pure
+  data-in/data-out rules with no user-facing form action can read state
   directly. When a form is involved, use `extractFormEntries`/`extractCsrfToken`
   against the real served page.
 
