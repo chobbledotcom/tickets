@@ -114,33 +114,40 @@ const handlePaymentCancel = withSessionId(async (sid) => {
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
   jsonResponse({ received: true, ...extra });
 
+/** The answers that carry nothing from the outcome but its kind. Exhaustive
+ * over everything except the three that report an error, so a new outcome
+ * stops this compiling until someone says what the provider is told. */
+const PLAIN_RESPONSES: Record<
+  Exclude<CallbackOutcome["kind"], "held" | "settled" | "unsettled">,
+  () => Response
+> = {
+  booked: () => webhookAckResponse({ processed: true }),
+  not_yet: () => webhookAckResponse({ status: "pending" }),
+  refused: () => plainResponse("Payment verification failed", 503),
+  unpaid: () => webhookAckResponse({ status: "pending" }),
+  unreadable: () => plainResponse("Payment verification failed", 503),
+  unrecognised: () => webhookAckResponse(),
+  unverifiable: () => webhookAckResponse(),
+};
+
 /** Turn what a callback amounted to into the answer the provider gets.
  *
  * A 200 is terminal — the provider stops telling us — so it is only ever
  * given where nothing is left owing. Anything still owed, or still unknown,
  * answers 503 or 409 so the provider tells us again.
  */
-const CALLBACK_RESPONSES: Record<
-  CallbackOutcome["kind"],
-  (outcome: CallbackOutcome) => Response
-> = {
-  booked: () => webhookAckResponse({ processed: true }),
-  held: (outcome) => plainResponse(callbackError(outcome), 409),
-  not_yet: () => webhookAckResponse({ status: "pending" }),
-  refused: () => plainResponse("Payment verification failed", 503),
-  settled: (outcome) =>
-    webhookAckResponse({ error: callbackError(outcome), processed: false }),
-  unpaid: () => webhookAckResponse({ status: "pending" }),
-  unreadable: () => plainResponse("Payment verification failed", 503),
-  unrecognised: () => webhookAckResponse(),
-  unsettled: (outcome) => plainResponse(callbackError(outcome), 503),
-  unverifiable: () => webhookAckResponse(),
+const callbackResponse = (outcome: CallbackOutcome): Response => {
+  switch (outcome.kind) {
+    case "held":
+      return plainResponse(outcome.error, 409);
+    case "unsettled":
+      return plainResponse(outcome.error, 503);
+    case "settled":
+      return webhookAckResponse({ error: outcome.error, processed: false });
+    default:
+      return PLAIN_RESPONSES[outcome.kind]();
+  }
 };
-
-/** The words a failing outcome gives the provider; the arms without them
- * never reach a response that carries one. */
-const callbackError = (outcome: CallbackOutcome): string =>
-  "error" in outcome ? outcome.error : "";
 
 /** The one line a callback worth recording writes, and the console note that
  * goes with it. Outcomes carrying no detail are ordinary traffic. */
@@ -269,7 +276,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     "Webhook",
   );
   logCallbackOutcome(outcome);
-  return CALLBACK_RESPONSES[outcome.kind](outcome);
+  return callbackResponse(outcome);
 };
 
 /** Payment routes definition */
