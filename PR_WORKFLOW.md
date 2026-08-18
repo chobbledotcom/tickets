@@ -51,6 +51,25 @@ dormant foundation.
 Add the following sections to the feature plan. Use tables where there is more
 than one case. Write `None` when a section truly does not apply; do not omit it.
 
+**When the feature has a stateful lifecycle, declare the machine once and let
+these sections read off it.** Written as separate hand-maintained tables, the
+states, the commands, the failures, the retries and the races drift — and they
+drift silently, because nothing checks a plan's tables against each other or
+against the code. Fixing one disagreement then creates the next. Instead declare
+the nodes, the events, and an exhaustive moves table in the shape
+`src/shared/schema-atlas/machine-spec.ts` defines, put every fact the separate
+tables carried onto a node or an edge (may this node hold unresolved money? may
+it be deleted? what does this edge write, and what does it check before
+writing?), and write the sections below as projections that name no fact of
+their own. A cell left out of the table is a declared refusal, and the mirror
+sweep proves it refuses.
+
+Then write the plan's invariants as laws over that declaration rather than as
+prose promises, so a later node or event cannot break one quietly — "a node that
+may hold unresolved money is never deletable and is never a dead end" is a test,
+not a sentence. `SUMUP_RECOVERY_PLAN.md` is the worked example, and AGENTS.md's
+"Checked forwards and backwards" names the mechanisms.
+
 #### Trusted facts
 
 List every input and say why it may be trusted. Keep expected facts separate
