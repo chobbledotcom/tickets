@@ -53,8 +53,8 @@ than one case. Write `None` when a section truly does not apply; do not omit it.
 
 #### Trusted facts
 
-List every input and say why it can be trusted. Keep expected facts separate
-from observed facts.
+List every input and state whether it is trusted. Explain the basis for that
+decision. Keep expected facts separate from observed facts.
 
 Examples:
 

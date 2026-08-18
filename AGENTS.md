@@ -126,12 +126,12 @@ GitHub.
   the norm; a paragraph above a few lines of code is a smell, and usually a sign
   that the code needs to be clearer instead. Never re-narrate the lines below in
   prose, never restate a name (`/** Save the listing. */` above `saveListing`),
-  and never explain a language feature. If a comment is growing to explain a
-  tangle, fix the tangle: rename the thing, or pull the confusing part into a
-  named helper whose name carries the explanation. The bar to clear is "would a
-  competent reader be surprised or misled without this?" — if not, delete it.
-  This applies to prose in commit messages and PR descriptions too: say what
-  changed and why, then stop.
+  and never explain a language feature. If a comment grows to explain a tangle,
+  fix the tangle: rename the thing, or pull the confusing part into a named
+  helper whose name carries the explanation. The bar to clear is this question:
+  is a competent reader surprised or misled without the comment? If the answer
+  is no, delete the comment. This applies to prose in commit messages and PR
+  descriptions too: say what changed and why, then stop.
 
   `deno task check:comments` enforces the size half of this, since Biome never
   reflows comment text and so has never held a comment to any width. It caps the
@@ -1268,8 +1268,9 @@ rule:
   columns with `read.pick`, and specific tables narrow at the cache `fetchAll`
   layer instead.
 
-Even when a caller genuinely needs many columns, list them explicitly rather
-than `SELECT *`, so adding a column later does not silently widen every read.
+Outside these documented full-row exceptions, a caller that genuinely needs many
+columns must still list them explicitly rather than `SELECT *`. A column added
+later then does not silently widen every read.
 
 ### Transactions and Batches
 
@@ -1292,21 +1293,21 @@ query logging and table-scoped cache invalidation stay automatic.
   `deleteByFieldBatch` is a ready-made multi-table delete.
 
 - **Interactive transaction — logic between steps.** When a later statement
-  depends on the result of an earlier one — for example read a balance, validate
-  it, then conditionally update; or create → check capacity → finalize, where a
-  zero-row guard must abort and undo everything — use `withTransaction`. It
-  hands your callback a `TxScope` whose `execute` runs inside one interactive
-  write transaction, committing on success and rolling back (then rethrowing) on
-  any error. The write lock is acquired with a short retry so concurrent writers
-  serialize rather than failing; a database that stays locked surfaces as
-  `DatabaseBusyError`. Read-only statements and batches also retry fleeting
-  upstream HTTP errors (BunnyDB 421 and Turso 502/503/504). Interactive
-  transactions and write paths retry only `SQLITE_BUSY`; upstream HTTP errors
-  are never replayed because the operation can commit before the response
-  arrives. Note the trade-off: an interactive transaction locks the database for
-  writing until it commits or rolls back (with a timeout), so keep the work
-  inside it tight — do any expensive non-DB computation before opening it, and
-  prefer a plain batch whenever no inter-step logic is actually needed.
+  depends on the result of an earlier one, use `withTransaction`. One example is
+  read a balance, validate it, then conditionally update. Another is create →
+  check capacity → finalize, where a zero-row guard must abort and undo
+  everything. It hands your callback a `TxScope` whose `execute` runs inside one
+  interactive write transaction. The transaction commits on success. On any
+  error it rolls back, then rethrows. The write lock is acquired with a short
+  retry so concurrent writers serialize rather than fail. A database that stays
+  locked surfaces as `DatabaseBusyError`. Read-only statements and batches also
+  retry fleeting upstream HTTP errors (BunnyDB 421 and Turso 502/503/504).
+  Interactive transactions and write paths retry only `SQLITE_BUSY`. A write
+  path never replays an upstream HTTP error, because the write can commit before
+  the response arrives. Note the trade-off: an interactive transaction locks the
+  database for writing until it commits or rolls back (with a timeout), so keep
+  the work inside it tight — do any expensive non-DB computation before opening
+  it, and prefer a plain batch whenever no inter-step logic is actually needed.
 
 ## Scripts
 
@@ -1844,10 +1845,10 @@ just guarantees the next person trips over the same survivor. This is the
 [Good citizen](#preferences) rule applied to mutation testing. It is a
 best-effort check with two documented blind spots (see the header of
 `scripts/precommit/mutation-step.ts`): it scopes to the _committed_ diff, so
-uncommitted work is not checked until committed; and it diffs against your
-_local_ `origin/main`, never re-fetching, so a stale local ref under a branch
+uncommitted work is not checked until committed. It also diffs against your
+_local_ `origin/main` and never re-fetches, so a stale local ref under a branch
 built on newer main commits can leak upstream src into the set (run
-`git fetch origin main` first; a branch's own author is unaffected). In each
+`git fetch origin main` first — a branch's own author is unaffected). In each
 case, reach for `deno task mutation` on the specific module.
 
 ### Coverage Requirements
