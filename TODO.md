@@ -109,6 +109,26 @@ everything still outstanding is captured below.
 
 ---
 
+## Loop-freezing mutants stall whole mutation runs (from the dates.ts fix)
+
+PR #2097 removed the per-mutant clock, so a mutant that makes a test loop
+forever now stalls the run until the run-wide deadline fails it with no score.
+That is not rare: any loop whose step a one-token mutant can neutralise
+(`current = addDays(current, 1)` with `1 → 0`, or `i++ → i--`) produces such a
+mutant, and `src/` has roughly forty loop sites. `src/shared/dates.ts` hit it
+first — two mutants on `getNextBookableDate`'s `while` step froze the tests, and
+the run sat idle from minute four to the one-hour deadline. The fix there was to
+restructure the file's three loops into bounded shapes (`Array.from` a day list,
+then `every`/`find`), which is house FP style anyway and is the reference for
+fixing the next file that hits this. The open question is whether the runner
+should ever get its own answer for a test run that outlives the baseline by
+orders of magnitude — a frozen loop _is_ caught breakage, CI would never go
+green — but #2097 deliberately removed clocks as judges, so that is a design
+decision, not a patch. Starting points: the dates.ts restructure in this PR;
+`scripts/mutation/execution.ts` for the test stage the decision would live in.
+
+---
+
 ## Codex Security scan follow-ups
 
 _Origin: Codex Security scan completed on 2026-07-29 at
