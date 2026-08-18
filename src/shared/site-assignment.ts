@@ -309,11 +309,13 @@ const assignSitesForEntries = async (
   }
 
   const assignments: SiteAssignment[] = [];
-  const available = [...(await getAssignableBuiltSites())];
+  // Reversed so pop() hands sites out in their original order without
+  // reindexing the array on every take.
+  const available = [...(await getAssignableBuiltSites())].reverse();
 
   for (const { listing, attendee } of needsSite) {
     for (const _unit of range(0, attendee.quantity)) {
-      const site = available.shift() ?? (await buildAssignableSite());
+      const site = available.pop() ?? (await buildAssignableSite());
       if (!site) break;
 
       assignments.push(

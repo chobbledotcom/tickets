@@ -75,7 +75,13 @@ describe("pending-work", () => {
   test("work that queues fresh work forever fails loudly instead of spinning", async () => {
     let keepQueueing = true;
     const queueAgain = (): void => {
-      if (keepQueueing) addPendingWork(Promise.resolve().then(queueAgain));
+      if (!keepQueueing) return;
+      addPendingWork(
+        (async () => {
+          await Promise.resolve();
+          queueAgain();
+        })(),
+      );
     };
     await runWithPendingWork(async () => {
       queueAgain();

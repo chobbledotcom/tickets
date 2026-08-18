@@ -5,6 +5,7 @@ import {
   setEncryptionKeyForTest,
 } from "#shared/crypto/encryption.ts";
 import {
+  constantTimeEqualBytes,
   getPbkdf2Iterations,
   hashPassword,
   hashSessionToken,
@@ -89,6 +90,43 @@ describe("password hashing", () => {
       );
       expect(result).toBe(false);
     });
+  });
+});
+
+describe("constantTimeEqualBytes", () => {
+  it("accepts identical bytes and rejects a differing byte", () => {
+    expect(
+      constantTimeEqualBytes(
+        new Uint8Array([1, 2, 3]),
+        new Uint8Array([1, 2, 3]),
+      ),
+    ).toBe(true);
+    expect(
+      constantTimeEqualBytes(
+        new Uint8Array([1, 2, 3]),
+        new Uint8Array([1, 9, 3]),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects arrays of different lengths", () => {
+    expect(
+      constantTimeEqualBytes(new Uint8Array([1]), new Uint8Array([1, 2])),
+    ).toBe(false);
+  });
+
+  it("rejects a shorter array even when the extra bytes are zero", () => {
+    // b[i] past its end reads as undefined and XORs to zero, so without the
+    // length seed a zero-padded prefix would wrongly compare equal.
+    expect(
+      constantTimeEqualBytes(new Uint8Array([1, 0, 0]), new Uint8Array([1])),
+    ).toBe(false);
+  });
+
+  it("treats two empty arrays as equal", () => {
+    expect(constantTimeEqualBytes(new Uint8Array(), new Uint8Array())).toBe(
+      true,
+    );
   });
 });
 

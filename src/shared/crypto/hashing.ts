@@ -28,8 +28,9 @@ const PBKDF2_HASH_LENGTH = 32; // Output key length in bytes
 const PASSWORD_PREFIX = "pbkdf2";
 
 /**
- * Constant-time comparison for Uint8Arrays of equal length
- * Caller must ensure arrays have the same length (validated by verifyPassword)
+ * Constant-time comparison for Uint8Arrays. Arrays of different lengths are
+ * never equal — the length difference seeds the mismatch flags, so no branch
+ * on it can leak timing.
  */
 export const constantTimeEqualBytes = (
   a: Uint8Array,
@@ -37,7 +38,10 @@ export const constantTimeEqualBytes = (
 ): boolean => {
   // The fold reads every byte whatever the data holds, so timing never leaks
   // the position of the first mismatch.
-  const mismatch = a.reduce((flags, byte, i) => flags | (byte ^ b[i]!), 0);
+  const mismatch = a.reduce(
+    (flags, byte, i) => flags | (byte ^ b[i]!),
+    a.length ^ b.length,
+  );
   return mismatch === 0;
 };
 

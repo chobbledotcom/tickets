@@ -17,28 +17,45 @@ import type { RawImage } from "./types.ts";
 
 type RgbaPixel = [number, number, number, number];
 
+/** One axis of a destination cell's source footprint: the fractional span
+ * `[start, end)` the cell covers, and the whole source pixels inside it. */
+interface Footprint {
+  end: number;
+  pixels: number[];
+  start: number;
+}
+
+/** Every destination cell's source footprint along one axis, computed once so
+ * the per-pixel loop never rebuilds the same pixel lists. */
+const axisFootprints = (dstSize: number, srcSize: number): Footprint[] => {
+  const scale = srcSize / dstSize;
+  return range(0, dstSize).map((cell) => {
+    const start = cell * scale;
+    const end = (cell + 1) * scale;
+    return {
+      end,
+      pixels: range(Math.floor(start), Math.min(srcSize, Math.ceil(end))),
+      start,
+    };
+  });
+};
+
 /** Calculate one destination pixel from its exact source footprint. */
 const areaAveragePixel = (
   src: RawImage,
-  x0: number,
-  x1: number,
-  y0: number,
-  y1: number,
+  column: Footprint,
+  row: Footprint,
 ): RgbaPixel => {
-  const { data, height, width } = src;
-  const ix0 = Math.floor(x0);
-  const ix1 = Math.min(width, Math.ceil(x1));
-  const iy0 = Math.floor(y0);
-  const iy1 = Math.min(height, Math.ceil(y1));
+  const { data, width } = src;
   let accR = 0;
   let accG = 0;
   let accB = 0;
   let accA = 0;
   let accW = 0;
-  for (const sy of range(iy0, iy1)) {
-    const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
-    for (const sx of range(ix0, ix1)) {
-      const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
+  for (const sy of row.pixels) {
+    const wy = Math.min(row.end, sy + 1) - Math.max(row.start, sy);
+    for (const sx of column.pixels) {
+      const wx = Math.min(column.end, sx + 1) - Math.max(column.start, sx);
       const weight = wx * wy;
       const offset = (sy * width + sx) * 4;
       // In-bounds by construction (offset derived from valid sx/sy), so the
@@ -77,18 +94,13 @@ export const resizeAreaAverage = (
   dstW: number,
   dstH: number,
 ): RawImage => {
-  const { width: sw, height: sh } = src;
   const out = new Uint8ClampedArray(dstW * dstH * 4);
-  const scaleX = sw / dstW;
-  const scaleY = sh / dstH;
+  const columns = axisFootprints(dstW, src.width);
+  const rows = axisFootprints(dstH, src.height);
 
-  for (const dy of range(0, dstH)) {
-    const y0 = dy * scaleY;
-    const y1 = (dy + 1) * scaleY;
-    for (const dx of range(0, dstW)) {
-      const x0 = dx * scaleX;
-      const x1 = (dx + 1) * scaleX;
-      out.set(areaAveragePixel(src, x0, x1, y0, y1), (dy * dstW + dx) * 4);
+  for (const [dy, row] of rows.entries()) {
+    for (const [dx, column] of columns.entries()) {
+      out.set(areaAveragePixel(src, column, row), (dy * dstW + dx) * 4);
     }
   }
 
