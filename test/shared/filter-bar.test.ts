@@ -16,6 +16,13 @@ describe("renderFilterBar", () => {
     );
   });
 
+  test("renders the bare links when the label is null", () => {
+    const html = renderFilterBar(null, [option("All", "/all", false)]);
+    expect(html).toBe(
+      '<div class="table-actions"><a href="/all">All</a></div>',
+    );
+  });
+
   test("renders an inactive option as a link to its href", () => {
     const html = renderFilterBar("Showing", [option("All", "/all", false)]);
     expect(html).toBe(

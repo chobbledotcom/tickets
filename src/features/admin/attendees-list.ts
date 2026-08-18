@@ -4,7 +4,7 @@
  * listing detail and attendee edit pages.
  */
 
-import { fieldById, filter, map, unique } from "#fp";
+import { fieldById, filter, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
@@ -14,57 +14,43 @@ import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getSearchParam } from "#routes/url.ts";
-import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 /* jscpd:ignore-end */
+import {
+  type AttendeeListSetup,
+  type AttendeeListState,
+  type AttendeeSort,
+  readAttendeeListState,
+} from "#shared/attendee-list-controls.ts";
+import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import {
-  type AttendeeSort,
-  getAttendeesPage,
-  isAttendeeSort,
-} from "#shared/db/attendees/queries.ts";
+import { getAttendeesPage } from "#shared/db/attendees/queries.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { loadNotesForAttendees } from "#shared/db/notes/queries.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  type ListingFilter,
-  listingCategory,
-  listingTypeFromRequest,
-} from "#shared/listing-filter.ts";
+import { type ListingFilter, listingCategory } from "#shared/listing-filter.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import { parsePositiveInt } from "#shared/validation/number.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 
-/** Parse the ?sort= param, defaulting to newest-first. Validates against the
- *  {@link AttendeeSort} picklist so the URL is the single source of valid sort
- *  values — no second hand-listed `=== "oldest"` here. */
-const parseSort = (request: Request): AttendeeSort => {
-  const raw = getSearchParam(request, "sort");
-  return raw !== null && isAttendeeSort(raw) ? raw : "newest";
-};
-
-/** Parse the ?page= param into a zero-based, non-negative page index */
-const parsePage = (request: Request): number =>
-  parsePositiveInt(getSearchParam(request, "page")) ?? 0;
-
-/**
- * Parse the ?listing= filter. Returns the listing id only when it matches a
- * known listing, otherwise null (the "all listings" view). Validating against
- * the known set keeps the selected dropdown option and the query in sync.
- */
-const parseListingId = (
-  request: Request,
+/** The browser's controls: every listing, the type filter, sort (newest first
+ *  unless the address says otherwise), and paging. */
+const browserListSetup = (
   listings: ListingWithCount[],
-): number | null => {
-  const raw = parsePositiveInt(getSearchParam(request, "listing"));
-  if (raw === null) return null;
-  return listings.some((e) => e.id === raw) ? raw : null;
-};
+): AttendeeListSetup<AttendeeSort> => ({
+  basePath: "/admin/attendees",
+  csvPath: "/admin/attendees/csv",
+  dates: [],
+  defaultSort: "newest",
+  listings,
+  withCheckin: false,
+  withDates: false,
+  withPaging: true,
+  withTypes: true,
+});
 
 /**
  * The listings the page is restricted to: a specific selected listing wins;
@@ -81,18 +67,33 @@ const resolveListingIds = (
   return listings.filter((e) => listingCategory(e) === type).map((e) => e.id);
 };
 
-/** Auth, then load every listing and hand both to the handler. Shared by the
- * attendees page and its CSV export, which both start from the full set. */
-const withListings = (
+/** The browser's whole query: its controls over every listing, the visitor's
+ *  choices, and the listings those choices restrict the page to. */
+type BrowserList = {
+  setup: AttendeeListSetup<AttendeeSort>;
+  state: AttendeeListState<AttendeeSort>;
+  listingIds: number[] | null;
+};
+
+/** Auth, load every listing, and read the visitor's choices — the start both
+ * the attendees page and its CSV export share. */
+const withBrowserList = (
   request: Request,
-  handler: (
-    session: AuthSession,
-    listings: ListingWithCount[],
-  ) => Promise<Response>,
+  handler: (session: AuthSession, list: BrowserList) => Promise<Response>,
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) =>
-    handler(session, await getAllListings()),
-  );
+  requireSessionOr(request, async (session) => {
+    const listings = await getAllListings();
+    const setup = browserListSetup(listings);
+    const state = readAttendeeListState(
+      setup,
+      new URL(request.url).searchParams,
+    );
+    return handler(session, {
+      listingIds: resolveListingIds(state.listingId, state.type, listings),
+      setup,
+      state,
+    });
+  });
 
 /**
  * Handle GET /admin/attendees
@@ -103,28 +104,22 @@ const withListings = (
 export const handleAttendeesListGet: TypedRouteHandler<
   "GET /admin/attendees"
 > = (request) =>
-  withListings(request, async (session, listings) => {
-    const listingId = parseListingId(request, listings);
-    const type = listingTypeFromRequest(request);
-    const sort = parseSort(request);
-    const page = parsePage(request);
-    const listingIds = resolveListingIds(listingId, type, listings);
-
+  withBrowserList(request, async (session, { setup, state, listingIds }) => {
     const [privateKey, holidays] = await Promise.all([
       requireRequestPrivateKey(),
       getActiveHolidays(),
     ]);
     const { rows, hasNext } = await getAttendeesPage({
       listingIds,
-      page,
-      sort,
+      page: state.page,
+      sort: state.sort,
     });
     const decrypted = await decryptAttendees(rows, privateKey);
     // One row per attendee, its listings in the same display order as the
     // listings page (sortListings decides that order for both).
     const built = groupAttendeeRows(
       decrypted,
-      sortListings(listings, holidays),
+      sortListings(setup.listings, holidays),
     );
     const attendeeIds = unique(decrypted.map((a) => a.id));
     const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
@@ -134,19 +129,14 @@ export const handleAttendeesListGet: TypedRouteHandler<
     return htmlResponse(
       adminAttendeesListPage({
         allowedDomain: getEffectiveDomain(),
-        categories: unique(map(listingCategory)(listings)),
-        count: built.length,
         hasNext,
-        listingId,
-        listings,
         names: fieldById("name")(decrypted),
-        page,
         phonePrefix: settings.phonePrefix,
         rows: built,
         session,
-        sort,
+        setup,
+        state,
         systemNotes,
-        type,
       }),
     );
   });
@@ -181,12 +171,7 @@ const allAttendeeBookings = async (
 export const handleAttendeesCsvExport: TypedRouteHandler<
   "GET /admin/attendees/csv"
 > = (request) =>
-  withListings(request, async (_session, listings) => {
-    const listingIds = resolveListingIds(
-      parseListingId(request, listings),
-      listingTypeFromRequest(request),
-      listings,
-    );
+  withBrowserList(request, async (_session, { setup, listingIds }) => {
     const privateKey = await requireRequestPrivateKey();
     const raw = await allAttendeeBookings(listingIds);
     // Keep one CSV row per booking on the FILTERED listings only: the page
@@ -198,7 +183,7 @@ export const handleAttendeesCsvExport: TypedRouteHandler<
       : raw;
     const attendees = await decryptAttendees(bookings, privateKey);
     const csv = generateCalendarCsv(
-      toCalendarAttendees(attendees, listings),
+      toCalendarAttendees(attendees, setup.listings),
       undefined,
       settings.timezone,
     );

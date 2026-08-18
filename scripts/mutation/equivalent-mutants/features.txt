@@ -149,7 +149,6 @@ src/features/public/cart.ts::resolveCartSlugs~053nnt8  standaloneIds.add(listing
 src/features/public/cart.ts::resolveCartSlugs~1nfyz8t@2  continue; → (removed)   # without it a slug that already resolved to a listing falls into the package lookup, but only slugs with NO listing are put in packagesBySlug, so the lookup always misses and the loop continues anyway
 
 # Listing detail group context (features/admin/listings-view.ts).
-src/features/admin/listings-view.ts::loadGroupContext.remaining~08seojj  Missing group remaining → ""   # getGroupRemainingByGroupId returns an entry for every group id whose cap is positive, and only those ids are looked up, so requiredMapValue never raises this message
 
 # Page packages (shared/booking/page-packages.ts): nullish fallbacks on values
 # that are only ever a number-or-undefined with a matching fallback.

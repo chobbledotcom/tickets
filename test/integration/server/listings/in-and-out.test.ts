@@ -65,7 +65,7 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
       const html = await assertAdminHtml(
         `/admin/listing/${listing.id}/attendees?filter=in`,
         "Checked In User",
-        "<strong>Checked In</strong>",
+        "<strong><u>Checked In</u></strong>",
       );
       expect(html).not.toContain("Not Checked User");
     });
@@ -99,7 +99,7 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
       const html = await response.text();
       expect(html).not.toContain("Checked In User");
       expect(html).toContain("Not Checked User");
-      expect(html).toContain("<strong>Checked Out</strong>");
+      expect(html).toContain("<strong><u>Checked Out</u></strong>");
     });
   });
 });

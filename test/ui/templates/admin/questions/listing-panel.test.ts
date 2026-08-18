@@ -113,6 +113,7 @@ describe("adminListingPage with questionData", () => {
     const html = String(
       ListingOverviewPanel({
         allowedDomain: "example.com",
+        isOwner: false,
         listing,
         noteNames: new Map(),
         questionData: singleAnswerSizeQuestionData(),

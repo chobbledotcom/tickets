@@ -7,10 +7,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  dateOptionsFor,
   filterByDate,
   filteredAttendeesHandler,
   loadGroupContext,
   loadListingQuestionData,
+  rosterListSetup,
 } from "#routes/admin/listings-view.ts";
 import { groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -121,16 +123,31 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
 
   test("offers the booked dates for a daily listing", async () => {
     const { attendees, listing } = await bookedOnTwoDates("Daily");
+
+    expect(dateOptionsFor(listing, attendees).map((d) => d.value)).toEqual([
+      "2026-08-01",
+      "2026-08-02",
+    ]);
+  });
+
+  test("offers no dates for a standard listing", async () => {
+    const { attendees } = await bookedOnTwoDates("StandardDates");
+    const listing = await createTestListing({
+      name: "Standard dates listing",
+    });
+
+    expect(dateOptionsFor(listing, attendees)).toEqual([]);
+  });
+
+  test("narrows the handler's attendees to the chosen date", async () => {
+    const { attendees, listing } = await bookedOnTwoDates("Daily");
     const session = await getTestAuthSession();
 
     const handler = filteredAttendeesHandler(
-      mockRequest(`/admin/listings/${listing.id}?date=2026-08-01`),
+      mockRequest(`/admin/listings/${listing.id}?date=2026-08-01&filter=in`),
       (ctx) => {
         expect(ctx.dateFilter).toBe("2026-08-01");
-        expect(ctx.availableDates.map((d) => d.value)).toEqual([
-          "2026-08-01",
-          "2026-08-02",
-        ]);
+        expect(ctx.checkin).toBe("in");
         expect(ctx.filteredByDate.map((a) => a.id)).toEqual([attendees[1]?.id]);
         return new Response("ok");
       },
@@ -138,7 +155,7 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
     await handler(listing, attendees, session);
   });
 
-  test("offers no dates for a standard listing", async () => {
+  test("ignores a date on a standard listing rather than emptying the list", async () => {
     const { attendees } = await bookedOnTwoDates("Standard");
     const listing = await createTestListing({
       name: "Standard detail listing",
@@ -149,12 +166,32 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
       mockRequest(`/admin/listings/${listing.id}?date=2026-08-01`),
       (ctx) => {
         expect(ctx.dateFilter).toBeNull();
-        expect(ctx.availableDates).toEqual([]);
+        expect(ctx.checkin).toBe("all");
         expect(ctx.filteredByDate).toEqual(attendees);
         return new Response("ok");
       },
     );
     await handler(listing, attendees, session);
+  });
+
+  test("describes the roster's controls from the listing", () => {
+    const daily = rosterListSetup({ id: 5, listing_type: "daily" }, [
+      { label: "3 August", value: "2026-08-03" },
+    ]);
+    expect(daily).toMatchObject({
+      basePath: "/admin/listing/5/attendees",
+      csvPath: "/admin/listing/5/export",
+      defaultSort: null,
+      withCheckin: true,
+      withDates: true,
+      withPaging: false,
+      withTypes: false,
+    });
+    expect(daily.dates.map((d) => d.value)).toEqual(["2026-08-03"]);
+    // A listing not booked by the day has no day filter to offer.
+    expect(
+      rosterListSetup({ id: 5, listing_type: "standard" }, []).withDates,
+    ).toBe(false);
   });
 });
 

@@ -12,6 +12,7 @@ type SharedAttendeeTableOptions = Pick<
       | "activeFilter"
       | "adminLinks"
       | "phonePrefix"
+      | "presorted"
       | "questionData"
       | "returnUrl"
     >

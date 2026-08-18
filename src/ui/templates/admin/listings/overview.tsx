@@ -88,7 +88,7 @@ export const ListingOverviewPanel = (
     isChild = false,
     isHiddenPackageMember = false,
     systemNotes = [],
-    isOwner = false,
+    isOwner,
   } = opts;
   const links = listingLinksFor(listing, allowedDomain);
   const isDaily = listing.listing_type === "daily";

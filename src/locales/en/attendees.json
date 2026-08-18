@@ -92,6 +92,7 @@
   "attendees_list.all_listings": "All listings",
   "attendees_list.deactivated": "(deactivated)",
   "attendees_list.sort": "Sort",
+  "attendees_list.sort_by_date": "By date and name",
   "attendees_list.newest_first": "Newest first",
   "attendees_list.oldest_first": "Oldest first",
   "attendees_list.apply": "Apply",
