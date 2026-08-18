@@ -8,21 +8,12 @@ import {
   packageGroupIdsTx,
   validateListingGroupMembershipsTx,
 } from "#shared/db/groups/membership.ts";
-import { getGroupsById, groups, listingGroups } from "#shared/db/groups.ts";
-import {
-  addParentEdgesWithPackageCheckTx,
-  listingParents,
-} from "#shared/db/listing-parents.ts";
+import { addParentEdgesWithPackageCheckTx } from "#shared/db/listing-parents.ts";
 import {
   syncListingPrices,
   writeListingDayCounts,
 } from "#shared/db/listing-prices.ts";
-import { getListingsById, listingsTable } from "#shared/db/listings/records.ts";
-import {
-  childOnlyAddOnCheckerForListings,
-  type ListingGroupMembership,
-  toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
@@ -33,14 +24,8 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
-  childAddOnError,
-  type EdgeListing,
-  edgeFieldError,
-} from "#shared/listing-parents-rules.ts";
-import {
   dayPriceFieldsFromInput,
   generateUniqueListingSlug,
-  listingInputToEdge,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -48,10 +33,7 @@ import { seenBefore } from "#shared/seen-before.ts";
 import {
   type AdminLevel,
   availableDayCounts,
-  clampDurationDays,
   type DayPricedListing,
-  type Group,
-  type Listing,
   parseDayPrices,
 } from "#shared/types.ts";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
@@ -205,97 +187,6 @@ const listingDataToInput = (
   } as ListingInput;
 };
 
-const listingToEdge = (listing: Listing): EdgeListing => ({
-  customisable_days: listing.customisable_days,
-  day_prices: listing.day_prices,
-  duration_days: clampDurationDays(listing.duration_days),
-  id: listing.id,
-  listing_type: listing.listing_type,
-  months_per_unit: listing.months_per_unit,
-  name: listing.name,
-});
-
-const firstPackageGroup = async (
-  groupIds: readonly number[],
-): Promise<Group | null> => {
-  if (groupIds.length === 0) return null;
-  const byId = await getGroupsById();
-  return (
-    groupIds.map((id) => byId.get(id)).find((group) => group?.is_package) ||
-    null
-  );
-};
-
-const loadChildAddOnChecker = async (
-  input: ListingInput,
-  groupIds: readonly number[],
-  byId: Awaited<ReturnType<typeof getListingsById>>,
-): Promise<Awaited<
-  ReturnType<typeof childOnlyAddOnCheckerForListings>
-> | null> => {
-  if (groupIds.length === 0 || input.bookableAlone) return null;
-  const allMembership = await listingGroups.getIdsByKeys([...byId.keys()]);
-  const wouldBe: ListingGroupMembership[] = [
-    ...[...byId.values()].map((listing) =>
-      toListingGroupMembership(listing, allMembership),
-    ),
-    { active: true, groupIds: [...groupIds], id: 0 },
-  ];
-  return childOnlyAddOnCheckerForListings(wouldBe);
-};
-
-type ParentEdges = {
-  groupIds: readonly number[];
-  input: ListingInput;
-  parentIds: readonly number[];
-};
-
-const validateParentEdges = async ({
-  groupIds,
-  input,
-  parentIds,
-}: ParentEdges): Promise<string | null> => {
-  if (parentIds.length === 0) return null;
-  const pkg = await firstPackageGroup(groupIds);
-  if (pkg) {
-    return `"${input.name}" is a member of the package "${pkg.name}", so it cannot also be an add-on child of another listing.`;
-  }
-  const [byId, nestedParentLinks, parentGroupIds, allGroups] =
-    await Promise.all([
-      getListingsById(),
-      listingParents.getIdsByKeys(parentIds),
-      listingGroups.getIdsByKeys([...parentIds]),
-      groups.cache.getAll(),
-    ]);
-  const addOnChecker = await loadChildAddOnChecker(input, groupIds, byId);
-  const hiddenPackageIds = new Set(
-    allGroups
-      .filter((group) => group.is_package && group.hide_package_listings)
-      .map((group) => group.id),
-  );
-  const childEdge = listingInputToEdge(input, 0);
-  for (const parentId of parentIds) {
-    const parent = byId.get(parentId)!;
-    if (nestedParentLinks.get(parentId)!.length > 0) {
-      return t("listings_table.children_err_parent_is_child", {
-        name: parent.name,
-      });
-    }
-    if (
-      listingGroups
-        .idsFor(parentGroupIds, parentId)
-        .some((groupId) => hiddenPackageIds.has(groupId))
-    ) {
-      return `"${parent.name}" is a member of a hidden package, so it cannot offer add-on children.`;
-    }
-    const fieldError = edgeFieldError(listingToEdge(parent), childEdge);
-    if (fieldError) return fieldError;
-    const addOn = addOnChecker?.(0, [parentId]);
-    if (addOn) return childAddOnError(addOn, input.name);
-  }
-  return null;
-};
-
 const applyImportPolicy = (
   input: ListingInput,
   adminLevel: AdminLevel | undefined,
@@ -338,12 +229,6 @@ export const importListing = async (
   );
   const validationError = await validateListingInput(input);
   if (validationError) return fail(validationError);
-  const edgeError = await validateParentEdges({
-    groupIds: groupResolve.ids,
-    input,
-    parentIds: parentResolve.ids,
-  });
-  if (edgeError) return fail(edgeError);
 
   const newMember: DayPricedListing = dayPriceFieldsFromInput(input);
   const id = await writeRowInTransaction(
