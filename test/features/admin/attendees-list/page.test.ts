@@ -25,6 +25,31 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
   describe("GET /admin/attendees", () => {
     testRequiresAuth("/admin/attendees");
 
+    test("offers the export at its own address", async () => {
+      await seedRegistrationPair();
+      const html = await (await adminGet("/admin/attendees")).text();
+      expect(html).toContain("/admin/attendees/csv");
+    });
+
+    test("offers no check-in filter, which this page does not do", async () => {
+      await seedRegistrationPair();
+      const html = await (await adminGet("/admin/attendees")).text();
+      // The check-in bar links carry filter=in / filter=out when offered.
+      expect(html).not.toContain("filter=in");
+      expect(html).not.toContain("filter=out");
+    });
+
+    test("drops a date from the address, which this page does not use", async () => {
+      await seedRegistrationPair();
+      const html = await (
+        await adminGet("/admin/attendees?date=2026-01-01")
+      ).text();
+      // A page that took dates would carry the chosen one through its own
+      // links and form fields; this one has no date control, so it forgets it.
+      expect(html).toContain("Alice");
+      expect(html).not.toContain("2026-01-01");
+    });
+
     test("renders the attendees page with the registration", async () => {
       const listing = await makeListing("Gala Night");
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
