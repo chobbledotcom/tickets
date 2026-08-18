@@ -159,6 +159,18 @@ describe("adminAttendeesListPage", () => {
     expect(html).toContain("needs a follow-up call");
   });
 
+  test("offers no check-in control — the browser table is read-only", () => {
+    const html = adminAttendeesListPage(
+      buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
+    );
+    expect(html).not.toContain(">Check in<");
+  });
+
+  test("links the attendees section of the guide", () => {
+    const html = adminAttendeesListPage(buildProps());
+    expect(html).toContain('href="/admin/guide#attendees"');
+  });
+
   test("renders no notes summary when no listed attendee has notes", () => {
     const html = adminAttendeesListPage(
       buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),

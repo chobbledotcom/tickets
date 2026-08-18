@@ -163,6 +163,16 @@ describe("the filtered attendee table", () => {
     expect(html).toContain("Export CSV");
   });
 
+  test("shows no paging for a list that is not paged", () => {
+    const html = String(
+      FilteredAttendeeTable({
+        options: tableOptions,
+        view: { setup: testRosterListSetup(), state: state() },
+      }),
+    );
+    expect(html).not.toContain('class="pagination"');
+  });
+
   test("offers no download for a list without one", () => {
     const html = String(
       FilteredAttendeeTable({

@@ -111,6 +111,15 @@ describe("adminListingPage filter links", () => {
   });
 });
 
+describe("adminListingPage add attendee", () => {
+  registerListingTemplateHooks();
+
+  test("offers the add-attendee form beneath the roster", () => {
+    const html = detailHtml(testListingWithCount({ attendee_count: 0 }));
+    expect(html).toContain('id="add-attendee"');
+  });
+});
+
 describe("adminListingPage failed payments", () => {
   registerListingTemplateHooks();
 

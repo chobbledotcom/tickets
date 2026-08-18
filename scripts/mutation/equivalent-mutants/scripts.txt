@@ -102,7 +102,6 @@ src/shared/db/migrations.ts::initDb~0hi1ix2  ?? → ||   # opts.allowMissingSett
 # statuses strictness is about.
 scripts/specs/run.ts::cucumberConfiguration.provided.strict~1w2j4s2  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
 src/shared/crypto/encryption.ts::importKey~1usmfin  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
-src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
 
 # Comment checks: initial values that the first pass always overwrites, and a
 # scan starting on a character no comment can begin with.
