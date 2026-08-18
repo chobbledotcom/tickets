@@ -118,6 +118,11 @@ export const getStorageBackend = (): "bunny" | "local" | "none" => {
  */
 export const isStorageEnabled = (): boolean => getStorageBackend() !== "none";
 
+/** Name of the configured Bunny storage zone, or null when Bunny is not the
+ * active backend. Shown to operators so they can tell which zone a page reads. */
+export const storageZoneName = (): string | null =>
+  getStorageBackend() === "bunny" ? getStorageConfig().zoneName : null;
+
 /**
  * Get the MIME type for an image filename from its extension.
  */
@@ -615,6 +620,11 @@ export const listFilesWithMeta = async (
   // readDirSafe handles a missing directory. Other failures (401/403 bad
   // credentials, 5xx outages) must surface, not masquerade as an empty zone.
   if (response.status === 404) return [];
+  if (!response.ok) {
+    throw new Error(
+      `Storage listing for ${prefix || "the zone root"} failed: HTTP ${response.status}`,
+    );
+  }
   const items = (await response.json()) as Record<string, unknown>[];
   return byName(
     items

@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createBackup, exportTable } from "#shared/db/backup-snapshot.ts";
+import {
+  backupDumpDatabaseCalls,
+  countSchemaTableRows,
+  createBackup,
+  exportTable,
+} from "#shared/db/backup-snapshot.ts";
 import { getDb } from "#shared/db/client.ts";
 import { initDb, SCHEMA_TABLE_NAMES } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -58,6 +63,43 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       expect(sql.match(new RegExp(`\\(${pageOne.id},`, "g"))).toHaveLength(1);
       expect(sql.match(new RegExp(`\\(${pageTwo.id},`, "g"))).toHaveLength(1);
       expect(sql.match(new RegExp(`\\(${pageThree.id},`, "g"))).toHaveLength(1);
+    });
+  });
+
+  describe("backupDumpDatabaseCalls", () => {
+    test("charges two calls for an empty database", () => {
+      expect(backupDumpDatabaseCalls([], 500)).toBe(2);
+    });
+
+    test("tables that fit their first page ride the shared batch", () => {
+      expect(backupDumpDatabaseCalls([499, 1, 250], 500)).toBe(2);
+    });
+
+    test("each full page costs one extra read", () => {
+      const cases: [rows: number, pageSize: number, calls: number][] = [
+        [500, 500, 3],
+        [501, 500, 3],
+        [999, 500, 3],
+        [1000, 500, 4],
+        [3, 1, 5],
+      ];
+      for (const [rows, pageSize, calls] of cases) {
+        expect(backupDumpDatabaseCalls([rows], pageSize)).toBe(calls);
+      }
+    });
+
+    test("sums extra pages across tables", () => {
+      expect(backupDumpDatabaseCalls([500, 1000, 499], 500)).toBe(5);
+    });
+  });
+
+  describe("countSchemaTableRows", () => {
+    test("counts every schema table in order", async () => {
+      await createTestListing({ name: "Counted" });
+      const counts = await countSchemaTableRows();
+      expect(counts).toHaveLength(SCHEMA_TABLE_NAMES.length);
+      expect(counts[SCHEMA_TABLE_NAMES.indexOf("listings")]).toBe(1);
+      expect(counts[SCHEMA_TABLE_NAMES.indexOf("attendees")]).toBe(0);
     });
   });
 

@@ -136,10 +136,30 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
     );
   });
 
-  test("a non-404 listing failure surfaces", async () => {
+  test("a non-404 listing failure names the status", async () => {
     await withBunnyStorageStub(
       () => new Response("Server Error", { status: 500 }),
-      async () => await expect(listFiles("acme/")).rejects.toThrow(),
+      async () =>
+        await expect(listFiles("acme/")).rejects.toThrow(
+          "Storage listing for acme/ failed: HTTP 500",
+        ),
+    );
+  });
+
+  test("an unauthorized listing surfaces as an error, not garbage", async () => {
+    // Bunny answers a bad access key with a JSON error object; before the
+    // status check this fed the object into the file filter and threw a
+    // meaningless TypeError.
+    await withBunnyStorageStub(
+      () =>
+        Response.json(
+          { HttpCode: 401, Message: "Unauthorized" },
+          { status: 401 },
+        ),
+      async () =>
+        await expect(listFiles("")).rejects.toThrow(
+          "Storage listing for the zone root failed: HTTP 401",
+        ),
     );
   });
 

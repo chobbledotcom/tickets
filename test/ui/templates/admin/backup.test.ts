@@ -14,11 +14,15 @@ const mockSession = {
 };
 
 const baseState: BackupPageState = {
+  backupFolder: "my-site/",
   backups: [],
+  createBlocked: null,
   encryptionKey: "dGVzdC1rZXktMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0",
   isRemote: true,
+  listingError: null,
   maxBackups: 30,
   storageEnabled: true,
+  storageZone: null,
 };
 
 describeWithEnv("backup template", { encryptionKey: true }, () => {
@@ -76,6 +80,46 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
   test("shows no backups message when list is empty", () => {
     const html = adminBackupPage(mockSession, baseState);
     expect(html).toContain("No backups found");
+  });
+
+  test("names the folder backups live in", () => {
+    const html = adminBackupPage(mockSession, baseState);
+    expect(html).toContain(
+      "Backups for this database live in the my-site/ folder.",
+    );
+  });
+
+  test("names the storage zone when one is configured", () => {
+    const html = adminBackupPage(mockSession, {
+      ...baseState,
+      storageZone: "zone-a",
+    });
+    expect(html).toContain(
+      "Backups for this database live in the my-site/ folder of the zone-a storage zone.",
+    );
+  });
+
+  test("shows a listing failure instead of an empty list", () => {
+    const html = adminBackupPage(mockSession, {
+      ...baseState,
+      listingError: "Storage listing for my-site/ failed: HTTP 401",
+    });
+    expect(html).toContain(
+      "Could not read the list of backups: Storage listing for my-site/ failed: HTTP 401",
+    );
+    expect(html).not.toContain("No backups found");
+  });
+
+  test("replaces the create button when the dump cannot fit one request", () => {
+    const html = adminBackupPage(mockSession, {
+      ...baseState,
+      createBlocked: { available: 43, needed: 120 },
+    });
+    expect(html).toContain("too big to back up from this page");
+    expect(html).toContain("120 database calls");
+    expect(html).toContain("only allows 43");
+    expect(html).toContain("deno task backup");
+    expect(html).not.toContain("/admin/backup/create");
   });
 
   test("renders backup list as table with friendly date, timestamp, and size", () => {
