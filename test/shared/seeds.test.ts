@@ -20,7 +20,10 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("seeds", { db: true }, () => {
-  test("caps a seeded listing's attendees at a hundred thousand", () => {
+  // The seeds page clamps to this ceiling and offers it as the box's max, so
+  // both of its own tests read it from here and would follow it if it moved.
+  // Naming the number is what keeps it from moving unnoticed.
+  test("the attendee ceiling the seeds page clamps to is a hundred thousand", () => {
     expect(SEED_MAX_ATTENDEES).toBe(100_000);
   });
 
