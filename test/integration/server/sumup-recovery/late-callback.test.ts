@@ -3,10 +3,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
+import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
-  countingQuery,
   expectBookedExactlyOnce,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
@@ -30,9 +30,7 @@ describeWithEnv("server > SumUp callback after recovery", { db: true }, () => {
     try {
       await runSumupRecovery();
       expect((await sumupRecoveryRow(CHECKOUT_ID)).state).toBe("finished");
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        1,
-      );
+      expect(await tableRowCount("attendees")).toBe(1);
 
       const response = await handleRequest(
         mockWebhookRequest({

@@ -2,10 +2,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
+import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import {
-  countingQuery,
   expectBookedExactlyOnce,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
@@ -47,9 +47,7 @@ describeWithEnv("server > SumUp recovery crash windows", { db: true }, () => {
       });
 
       // The booking is already made, but the row still says it is waiting.
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        1,
-      );
+      expect(await tableRowCount("attendees")).toBe(1);
       expect((await sumupRecoveryRow(CHECKOUT_ID)).state).toBe("waiting");
 
       await runSumupRecovery();

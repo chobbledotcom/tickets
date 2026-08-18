@@ -3,12 +3,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
+import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
-  countingQuery,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
+  sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
 
@@ -47,23 +48,15 @@ describeWithEnv(
       // buyer must still get one ticket and one set of money records.
       await runBothAtOnce();
 
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        1,
-      );
+      expect(await tableRowCount("attendees")).toBe(1);
       // One reservation, so neither side booked a second time.
-      expect(
-        await countingQuery("SELECT COUNT(*) AS n FROM processed_payments"),
-      ).toBe(1);
+      expect(await tableRowCount("processed_payments")).toBe(1);
     });
 
     test("never leaves the row claiming money is owed for a booked ticket", async () => {
       await runBothAtOnce();
 
-      expect(
-        await countingQuery(
-          "SELECT COUNT(*) AS n FROM sumup_checkouts WHERE recovery_state = 'owed'",
-        ),
-      ).toBe(0);
+      expect((await sumupRecoveryRow(CHECKOUT_ID)).state).not.toBe("owed");
     });
   },
 );

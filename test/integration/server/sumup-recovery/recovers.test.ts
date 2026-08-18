@@ -5,9 +5,9 @@ import { stub } from "@std/testing/mock";
 import { execute } from "#shared/db/client.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
+import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  countingQuery,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
   sumupRecoveryRow,
@@ -35,15 +35,11 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     const reference = await stageDueCheckout("co_lost");
     const restore = readCheckout(reference, "PAID");
     try {
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        0,
-      );
+      expect(await tableRowCount("attendees")).toBe(0);
 
       await runSumupRecovery();
 
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        1,
-      );
+      expect(await tableRowCount("attendees")).toBe(1);
       const row = await sumupRecoveryRow("co_lost");
       expect(row.state).toBe("finished");
       // Finished rows are never asked about again.
@@ -65,9 +61,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       );
       await runSumupRecovery();
 
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        1,
-      );
+      expect(await tableRowCount("attendees")).toBe(1);
       expect((await sumupRecoveryRow("co_twice")).state).toBe("finished");
     } finally {
       restore.restore();
@@ -80,9 +74,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     try {
       await runSumupRecovery();
 
-      expect(await countingQuery("SELECT COUNT(*) AS n FROM attendees")).toBe(
-        0,
-      );
+      expect(await tableRowCount("attendees")).toBe(0);
       const row = await sumupRecoveryRow("co_expired");
       expect(row.state).toBe("unpaid");
       expect(row.nextCheckAt).toBeNull();
