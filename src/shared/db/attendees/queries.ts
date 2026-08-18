@@ -4,8 +4,8 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import * as v from "valibot";
 import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
+import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
@@ -31,7 +31,6 @@ import {
 } from "#shared/db/client.ts";
 import { columnFrom, columnMapByIds, nameSource } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
-import { guardFor } from "#shared/validation/guard.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -141,13 +140,6 @@ export const getNewestAttendeesRaw = (
       },
     },
   });
-
-/** Sort order for the admin attendees browser */
-export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
-export type AttendeeSort = v.InferOutput<typeof AttendeeSortSchema>;
-
-/** Type guard: narrows an arbitrary string to an {@link AttendeeSort}. */
-export const isAttendeeSort = guardFor(AttendeeSortSchema);
 
 /**
  * Attendees per page in the admin attendees browser. Fixed here so the

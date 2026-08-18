@@ -15,8 +15,14 @@ import {
   sort,
   unique,
 } from "#fp";
-import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import {
+  type AttendeeFilter,
+  type AttendeeListSetup,
+  type AttendeeListState,
+  type DateOption,
+  readAttendeeListState,
+} from "#shared/attendee-list-controls.ts";
 import { coveredDays, formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity/groups.ts";
 import { getGroupsByIds, listingGroups } from "#shared/db/groups.ts";
@@ -28,10 +34,7 @@ import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
-import type {
-  DateOption,
-  GroupContext,
-} from "#templates/admin/listings/types.ts";
+import type { GroupContext } from "#templates/admin/listings/types.ts";
 
 /** Keep the attendees a chosen day belongs to. A booking counts for every day
  * it covers, so day 2 of a three-day stay lists that stay. */
@@ -61,20 +64,23 @@ export const dateOptionsFor = (
 ): DateOption[] =>
   listing.listing_type === "daily" ? getUniqueDates(attendees) : [];
 
-/** Get date filter and filtered attendees for daily listings */
-const applyDateFilter = (
-  listing: ListingWithCount,
-  attendees: Attendee[],
-  request: Request,
-) => {
-  const dateFilter =
-    listing.listing_type === "daily" ? getDateFilter(request) : null;
-  return {
-    availableDates: dateOptionsFor(listing, attendees),
-    dateFilter,
-    filteredByDate: filterByDate(attendees, dateFilter),
-  };
-};
+/** The roster's controls: the day filter for a daily listing, the check-in
+ *  filter, sort (the table's own date-and-name order unless the address says
+ *  otherwise), and its CSV download — no listing dropdown, types, or paging. */
+export const rosterListSetup = (
+  listing: { id: number; listing_type: string },
+  dates: DateOption[],
+): AttendeeListSetup<null> => ({
+  basePath: `/admin/listing/${listing.id}/attendees`,
+  csvPath: `/admin/listing/${listing.id}/export`,
+  dates,
+  defaultSort: null,
+  listings: [],
+  withCheckin: true,
+  withDates: listing.listing_type === "daily",
+  withPaging: false,
+  withTypes: false,
+});
 
 /** Context handed to a date-filtered attendee handler. */
 type FilteredAttendees = {
@@ -83,26 +89,39 @@ type FilteredAttendees = {
   /** Every attendee across all dates (before the date filter is applied). */
   attendees: Attendee[];
   dateFilter: string | null;
-  availableDates: { value: string; label: string }[];
+  checkin: AttendeeFilter;
   filteredByDate: Attendee[];
 };
 
 /**
  * Adapt the {@link listingAttendeesLoader} callback (listing, attendees,
  * session) into a handler that receives the listing pre-filtered by the
- * request's date filter. Shared by the detail page and the CSV export so they
- * apply the same filtering. The full attendee list is still passed through for
- * actions (e.g. emailing) that target every date, not just the filtered view.
+ * request's date filter, plus its check-in filter. Reads the request the same
+ * way the roster page does, so the CSV export mirrors the on-screen table. The
+ * full attendee list is still passed through for actions (e.g. emailing) that
+ * target every date, not just the filtered view.
  */
 export const filteredAttendeesHandler =
-  (request: Request, inner: ResponseHandler<[ctx: FilteredAttendees]>) =>
-  (listing: ListingWithCount, attendees: Attendee[], session: AuthSession) =>
-    inner({
+  (
+    request: Request,
+    inner: ResponseHandler<[ctx: FilteredAttendees]>,
+  ): ResponseHandler<
+    [listing: ListingWithCount, attendees: Attendee[], session: AuthSession]
+  > =>
+  (listing, attendees, session) => {
+    const state: AttendeeListState<null> = readAttendeeListState(
+      rosterListSetup(listing, []),
+      new URL(request.url).searchParams,
+    );
+    return inner({
       attendees,
+      checkin: state.checkin,
+      dateFilter: state.date,
+      filteredByDate: filterByDate(attendees, state.date),
       listing,
       session,
-      ...applyDateFilter(listing, attendees, request),
     });
+  };
 
 /**
  * Load the questions for a listing together with each attendee's answers

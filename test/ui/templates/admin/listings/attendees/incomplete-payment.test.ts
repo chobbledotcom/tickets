@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
+import {
+  attendeeStatsForListing,
+  completePaymentAttendees,
+} from "#templates/admin/listings/attendees.tsx";
 import { getListingForm } from "#templates/fields/listing.ts";
 import { registerListingTemplateHooks } from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
@@ -95,6 +98,26 @@ describe("completePaymentAttendees", () => {
     const a = testAttendee({ id: 1, payment_id: "", price_paid: "0" });
     const b = testAttendee({ id: 2, payment_id: "", price_paid: "1000" });
     expect(completePaymentAttendees(listing, [a, b])).toEqual([a, b]);
+  });
+});
+
+describe("attendeeStatsForListing", () => {
+  registerListingTemplateHooks();
+
+  test("splits out unresolved-payment rows only when the listing is paid", () => {
+    const listing = testListingWithCount({
+      attendee_count: 3,
+      unit_price: 1000,
+    });
+    const stuck = testAttendee({ id: 1, payment_id: "", price_paid: "1000" });
+    const paid = attendeeStatsForListing(listing, [stuck], true);
+    expect(paid.incompleteAttendees).toEqual([stuck]);
+    // The stuck row's one ticket comes off the listing's count of 3.
+    expect(paid.adjustedCount).toBe(2);
+    // A free listing has no payments to be stuck on.
+    expect(
+      attendeeStatsForListing(listing, [stuck], false).incompleteAttendees,
+    ).toEqual([]);
   });
 });
 

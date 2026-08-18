@@ -14,6 +14,7 @@ import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { emptyRange } from "#shared/accounting/range.ts";
+import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
@@ -50,19 +51,18 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-import { isIsoDate } from "#shared/validation/date.ts";
 import {
   ListingOverviewPanel,
   overviewStatsFromDbStats,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
   dateOptionsFor,
   filterByDate,
   loadGroupContext,
   loadListingQuestionData,
+  rosterListSetup,
 } from "./listings-view.ts";
 import { loadListingOr } from "./load-listing.ts";
 
@@ -115,31 +115,6 @@ export const listingHasEmailableAttendees = async (
     pk,
   );
   return recipients.length > 0;
-};
-
-/** The roster's on-screen date + check-in filter, read from a tab's query. */
-export type RosterFilter = {
-  activeFilter: AttendeeFilter;
-  dateFilter: string | null;
-};
-
-/** Read the roster tab's `?filter=` / `?date=` selection from the query. Only
- *  daily listings honour the date, and only a well-formed ISO date is accepted
- *  (a malformed `?date=` is ignored, matching the pre-migration getDateFilter —
- *  otherwise a bogus value would filter out every attendee). */
-export const rosterFilterFromQuery = (
-  listing: ListingWithCount,
-  query: URLSearchParams,
-): RosterFilter => {
-  const requested = query.get("filter");
-  const activeFilter: AttendeeFilter =
-    requested === "in" || requested === "out" ? requested : "all";
-  const rawDate = query.get("date");
-  const dateFilter =
-    listing.listing_type === "daily" && rawDate && isIsoDate(rawDate)
-      ? rawDate
-      : null;
-  return { activeFilter, dateFilter };
 };
 
 /** Load and decrypt a listing's attendees. Uses the attendees-only query (which
@@ -231,13 +206,11 @@ export const loadListingRosterPanel = async (
   { listing }: LoadedListing,
   ctx: PageCtx,
 ): Promise<JSX.Element> => {
-  const { activeFilter, dateFilter } = rosterFilterFromQuery(
-    listing,
-    ctx.query,
-  );
   const privateKey = await requireRequestPrivateKey();
   const attendees = await loadDecryptedListingAttendees(listing.id, privateKey);
-  const filteredByDate = filterByDate(attendees, dateFilter);
+  const setup = rosterListSetup(listing, dateOptionsFor(listing, attendees));
+  const state = readAttendeeListState(setup, ctx.query);
+  const filteredByDate = filterByDate(attendees, state.date);
   const [
     questionData,
     childrenLinks,
@@ -252,7 +225,7 @@ export const loadListingRosterPanel = async (
     hydrateListingLinks(listingChildren, [listing.id]),
     // The date-scoped group cap for the per-date capacity summary; a no-op
     // (null date) when no daily date is selected.
-    loadGroupContext(listing, dateFilter),
+    loadGroupContext(listing, state.date),
     // The contact/history notes summary that used to sit above the roster on
     // the combined page — for the on-screen (date-filtered) attendees.
     loadNotesForAttendees(
@@ -262,16 +235,14 @@ export const loadListingRosterPanel = async (
     getAttendeeIdsWithPaymentReference(filteredByDate),
   ]);
   return ListingRosterPanel({
-    activeFilter,
     allowedDomain: getEffectiveDomain(),
     attendees: filteredByDate,
-    availableDates: dateOptionsFor(listing, attendees),
     childNames: (childrenLinks.listingsByKey.get(listing.id) ?? []).map(
       (child) => child.name,
     ),
-    dateFilter,
     groupContext,
     isOwner: isOwnerRole(ctx.session.adminLevel),
+    list: { setup, state },
     listing,
     paymentReferenceAttendeeIds,
     phonePrefix: settings.phonePrefix,

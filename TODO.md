@@ -1455,27 +1455,16 @@ stands, so the split can be a pure move.
 
 ---
 
-## Two suites now cover the attendees list
+## Two suites now cover the attendees list — done
 
 _Origin: Codex review of PR #1993 (direct tests for the four testless modules)._
 
-`test/features/admin/attendees-list.test.ts` was added because the mutation gate
-needs a test at the source's mirrored path. It calls the handlers directly. But
-`test/integration/server/attendees-list.test.ts` already drives the same
-behaviour over HTTP — authentication, the listing filter, sort order and paging
-— and `test/integration/server/attendees-csv.test.ts` covers the export. So the
-same rules are now checked twice.
-
-That costs runtime on every suite run, and lets the two sets of fixtures and
-expectations drift apart. The fix is to consolidate: move the route-level cases
-into the mirrored feature suite (which can call the handler directly _and_ go
-through the router where that is the point), and delete what is left behind.
-
-Not done in #1993 because that change touches suites the PR otherwise had no
-reason to open, and the mirrored suite had to exist first. Worth doing next time
-either file is opened.
-
-Starting point: the three files named above.
+Consolidated. The three suites (the mirrored direct suite plus
+`test/integration/server/attendees-list.test.ts` and
+`test/integration/server/attendees-csv.test.ts`) merged into one mirrored suite
+at `test/features/admin/attendees-list/` (`page`, `filters`, `rows`, `csv`),
+keeping the stronger variant of each duplicated rule and every unique case. The
+two integration files were deleted.
 
 ---
 
@@ -1734,8 +1723,8 @@ refuses to start on a branch that touches them:
 
 - `src/features/admin/attendee-page.ts` →
   `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
-- `src/features/admin/attendees-list.ts` →
-  `test/features/admin/attendees-list.test.ts` (100%)
+- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list/`
+  (100%)
 - `src/features/admin/listing-page-data.ts` →
   `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
 - `src/features/api/payment-processing/store-refund.ts` →

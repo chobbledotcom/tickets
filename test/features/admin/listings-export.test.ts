@@ -1,15 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getAllActivityLog } from "#shared/db/activity-log.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createDailyTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminGet } from "#test-utils/session.ts";
+import { adminGet, withTestSession } from "#test-utils/session.ts";
 
-describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
+describeWithEnv("the listing CSV export", { db: true }, () => {
   /** A listing with one checked-in (AliceIn) and one not (BobOut). */
   const setup = async () => {
     const listing = await createTestListing({
@@ -27,20 +31,20 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
     return listing;
   };
 
-  test("?checkin=in exports only checked-in attendees", async () => {
+  test("?filter=in exports only checked-in attendees", async () => {
     const listing = await setup();
     const response = await adminGet(
-      `/admin/listing/${listing.id}/export?checkin=in`,
+      `/admin/listing/${listing.id}/export?filter=in`,
     );
     const csv = await response.text();
     expect(csv).toContain("AliceIn");
     expect(csv).not.toContain("BobOut");
   });
 
-  test("?checkin=out exports only checked-out attendees", async () => {
+  test("?filter=out exports only checked-out attendees", async () => {
     const listing = await setup();
     const response = await adminGet(
-      `/admin/listing/${listing.id}/export?checkin=out`,
+      `/admin/listing/${listing.id}/export?filter=out`,
     );
     const csv = await response.text();
     expect(csv).toContain("BobOut");
@@ -53,6 +57,29 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
     const csv = await response.text();
     expect(csv).toContain("AliceIn");
     expect(csv).toContain("BobOut");
+  });
+
+  test("notes the export in the record of what was done", async () => {
+    const listing = await setup();
+    await adminGet(`/admin/listing/${listing.id}/export`);
+    const entries = await withTestSession(() => getAllActivityLog(20));
+    expect(entries.map((entry) => entry.message)).toContain(
+      "CSV exported for 'Gala'",
+    );
+  });
+
+  test("names the chosen day in the export's activity entry", async () => {
+    const { listing } = await createDailyTestAttendee(
+      "DayPerson",
+      "dayperson@example.com",
+      "2026-08-01",
+      { name: "Day Export" },
+    );
+    await adminGet(`/admin/listing/${listing.id}/export?date=2026-08-01`);
+    const entries = await withTestSession(() => getAllActivityLog(20));
+    expect(entries.map((entry) => entry.message)).toContain(
+      "CSV exported for 'Day Export' (date: 2026-08-01)",
+    );
   });
 
   /** A listing with two attendees: Alice (a choice answer plus a free-text
