@@ -71,15 +71,18 @@ export const startFailedOrPortTaken = async (
   return true;
 };
 
-/** Ask again while something else keeps taking the port we were handed. */
+/** Ask again while something else keeps taking the port we were handed.
+ * `keptHappening` is read only once every try is spent, so a caller can
+ * describe what it actually saw rather than what it expected to see. */
 export const retryWhilePortTaken = async (
   attempt: () => Promise<boolean>,
+  keptHappening: () => string = () => "Starting stripe-mock kept succeeding",
 ): Promise<void> => {
   for (let tries = 0; tries < PORT_STEAL_TRIES; tries++) {
     if (!(await attempt())) return;
   }
   throw new Error(
-    `Starting stripe-mock kept succeeding: the port was taken ${PORT_STEAL_TRIES} times running.`,
+    `${keptHappening()}: the port was taken ${PORT_STEAL_TRIES} times running.`,
   );
 };
 
