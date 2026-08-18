@@ -38,7 +38,10 @@ describe("sumup recovery machine", () => {
   registerTableChecks(spec, { events: 9, nodes: 5, shapes: 5 });
 
   test("a row that may hold money is never deleted on age alone", () => {
-    expect(unaccountedNodes.map((node) => node.id)).toEqual(["waiting", "owed"]);
+    expect(unaccountedNodes.map((node) => node.id)).toEqual([
+      "waiting",
+      "owed",
+    ]);
     for (const node of unaccountedNodes) {
       expect(node.prunable, `${node.id} must not be prunable`).toBe(false);
       expect(RECOVERY_PRUNABLE_NODES).not.toContain(node.id);
@@ -83,8 +86,8 @@ describe("sumup recovery machine", () => {
   });
 
   test("every node is one of the stored state words", () => {
-    expect(RECOVERY_NODES.map((node) => node.id).sort()).toEqual([
-      ...SUMUP_RECOVERY_STATES,
-    ].sort());
+    expect(RECOVERY_NODES.map((node) => node.id).sort()).toEqual(
+      [...SUMUP_RECOVERY_STATES].sort(),
+    );
   });
 });
