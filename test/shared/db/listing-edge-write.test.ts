@@ -135,7 +135,7 @@ describeWithEnv(
           missingParentError: t("catalog_transfer.parent_missing"),
           parentIds: [parent.id],
         }),
-      ).rejects.toThrow(t("error.parent_listing_nested"));
+      ).rejects.toThrow(t("error.parent_is_already_a_child"));
     });
 
     test("rejects when a submitted child no longer exists", async () => {
