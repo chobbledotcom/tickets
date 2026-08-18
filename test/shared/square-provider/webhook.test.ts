@@ -383,6 +383,25 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  test("refuses a completed payment whose order is not readable yet", async () => {
+    await withMocks(
+      () =>
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(squareOrderRead(null)),
+        ),
+      async () => {
+        // Square named a COMPLETED payment, so the order exists and has not
+        // caught up. Acknowledging would stop the redelivery and leave the
+        // buyer charged with no booking.
+        expect(
+          await rejectionMessage(
+            completedSquareWebhook("pay_lagging", "order_lagging"),
+          ),
+        ).toBe("Square order is not readable yet for a completed payment");
+      },
+    );
+  });
+
   test("handles flat listing object without payment wrapper", async () => {
     await withMocks(
       () =>
@@ -390,19 +409,23 @@ describe("square-provider resolveWebhookSession", () => {
           Promise.resolve(squareOrderRead(null)),
         ),
       async (mockOrder) => {
-        const result = await squarePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              id: "pay_flat",
-              order_id: "order_flat",
-              status: "COMPLETED",
+        // The order id is read straight off the object rather than a nested
+        // payment key. It reaching readOrder is the whole point here; the
+        // refusal after that belongs to the missing-order case above.
+        await rejectionMessage(
+          squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                id: "pay_flat",
+                order_id: "order_flat",
+                status: "COMPLETED",
+              },
             },
-          },
-          id: "evt_flat",
-          type: "payment.updated",
-        });
+            id: "evt_flat",
+            type: "payment.updated",
+          }),
+        );
         expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
-        expect(result).toBe("skip");
       },
     );
   });
