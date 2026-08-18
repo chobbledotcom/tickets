@@ -559,11 +559,15 @@ describe("generateSuperuserPassword", () => {
     }
   });
 
+  // How many times the generator may draw before it gives up. Written out
+  // rather than imported: the production constant is private, and an export
+  // whose only reader is a test is what the dead-export check refuses.
+  const DRAWS_ALLOWED = 100;
+
   test("uses every draw it is allowed before building the password", () => {
     // Every draw but the last hands back only rejected bytes, so the password
     // can only be finished on the hundredth. One draw fewer and this same run
     // would be refused, which is what pins how many draws are allowed.
-    const DRAWS_ALLOWED = 100;
     let draws = 0;
     const randomStub = stub(
       crypto,
@@ -585,14 +589,31 @@ describe("generateSuperuserPassword", () => {
     }
   });
 
-  test("randomness that never yields a usable byte fails loudly", () => {
-    // 255 sits in the rejected tail for a 58-character alphabet, so every
-    // draw contributes nothing and the password can never fill. Without a
-    // ceiling on the draws this spins the CPU forever instead of failing.
-    const allRejected = new Array(64).fill(255);
-    expect(() =>
-      withRandomBytes(allRejected)(() => generateSuperuserPassword(12)),
-    ).toThrow("Could not draw enough random characters for a password");
+  test("randomness that never yields a usable byte fails after its last draw", () => {
+    // 255 sits in the rejected tail for a 58-character alphabet, so every draw
+    // contributes nothing and the password can never fill. Without a ceiling on
+    // the draws this spins the CPU forever instead of failing. Counting the
+    // draws pins the ceiling from the other side: the test above proves the
+    // hundredth draw is still allowed, this one proves there is no hundred-and-
+    // first.
+    let draws = 0;
+    const randomStub = stub(
+      crypto,
+      "getRandomValues",
+      <A extends ArrayBufferView | null>(array: A): A => {
+        draws++;
+        if (array instanceof Uint8Array) array.fill(255);
+        return array;
+      },
+    );
+    try {
+      expect(() => generateSuperuserPassword(12)).toThrow(
+        "Could not draw enough random characters for a password",
+      );
+      expect(draws).toBe(DRAWS_ALLOWED);
+    } finally {
+      randomStub.restore();
+    }
   });
 });
 

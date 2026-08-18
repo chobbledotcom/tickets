@@ -55,9 +55,21 @@ describe("password hashing", () => {
       // refuses outright; read as hex it would be the real count and this
       // stored digest would match, letting a hand-edited hash through.
       const asHex = `0x${Number(iterations).toString(16)}`;
-      await expect(
-        verifyPassword("password", `${prefix}:${asHex}:${salt}:${digest}`),
-      ).rejects.toThrow();
+      expect(
+        await verifyPassword(
+          "password",
+          `${prefix}:${asHex}:${salt}:${digest}`,
+        ),
+      ).toBe(false);
+    });
+
+    it("refuses a stored hash whose round count is zero", async () => {
+      const [prefix, , salt, digest] = (await hashPassword("password")).split(
+        ":",
+      );
+      expect(
+        await verifyPassword("password", `${prefix}:0:${salt}:${digest}`),
+      ).toBe(false);
     });
 
     it("uses the OWASP production iteration count when the test override is off", () => {

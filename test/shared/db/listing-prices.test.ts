@@ -318,12 +318,27 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     ]);
   });
 
-  test("syncListingPricesForIds rebuilds a single listing too", async () => {
+  test("syncListingPricesForIds rebuilds a single listing, and only it", async () => {
     const only = await createTestListing({ unitPrice: 450 });
-    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
+    const untouched = await createTestListing({ unitPrice: 800 });
+    // The other listing's mirror is left deliberately stale. Syncing one id
+    // must not quietly refresh it — that is what proves the scope is honoured
+    // rather than the whole table being rebuilt.
+    await queryAll("DELETE FROM listing_prices WHERE listing_id = ?", [
+      only.id,
+    ]);
+    await queryAll(
+      "UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ?",
+      [untouched.id],
+    );
+
     await syncListingPricesForIds([only.id]);
+
     expect(await priceRows(only.id)).toEqual([
       { price_id: "", price_type: "base", unit_price: 450 },
+    ]);
+    expect(await priceRows(untouched.id)).toEqual([
+      { price_id: "", price_type: "base", unit_price: 1 },
     ]);
   });
 

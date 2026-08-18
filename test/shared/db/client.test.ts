@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   andConditions,
+  DATABASE_MAX_ATTEMPTS,
   deleteByFieldStatement,
   execute,
   executeReturningRow,
@@ -13,6 +14,7 @@ import {
   getDb,
   inPlaceholders,
   insert,
+  orIgnore,
   queryAll,
   queryBatch,
   queryOne,
@@ -37,6 +39,40 @@ const emptyResultSet = (): ResultSet => ({
   rows: [],
   rowsAffected: 0,
   toJSON: () => ({}),
+});
+
+describe("orIgnore", () => {
+  test("turns a plain insert into one that skips a clash", () => {
+    expect(
+      orIgnore({ args: [1], sql: "INSERT INTO settings (key) VALUES (?)" }),
+    ).toEqual({
+      args: [1],
+      sql: "INSERT OR IGNORE INTO settings (key) VALUES (?)",
+    });
+  });
+
+  test("leaves a statement that does not start with an insert alone", () => {
+    const update = { args: [], sql: "UPDATE settings SET value = 1" };
+    expect(orIgnore(update).sql).toBe(update.sql);
+  });
+
+  test("copies the arguments rather than sharing them", () => {
+    const original = {
+      args: [1],
+      sql: "INSERT INTO settings (key) VALUES (?)",
+    };
+    const relaxed = orIgnore(original);
+    original.args.push(2);
+    expect(relaxed.args).toEqual([1]);
+  });
+});
+
+describe("DATABASE_MAX_ATTEMPTS", () => {
+  // The refund budgets size themselves from this number, so it has to match
+  // what the client really does: one try, then the 50/150/350ms ladder.
+  test("counts the first try plus every wait on the remote ladder", () => {
+    expect(DATABASE_MAX_ATTEMPTS).toBe(4);
+  });
 });
 
 describe("extractUpdateColumns", () => {

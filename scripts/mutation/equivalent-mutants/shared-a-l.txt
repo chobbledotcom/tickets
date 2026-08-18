@@ -231,3 +231,15 @@ src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? →
 src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → ||   # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
 src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → ||   # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1f1  ?? → ||   # the row is an Attendee object or undefined, and an object is always truthy
+
+# db/client.ts — write-verb classification and fallbacks. The cache registry
+# singles out only "update" (its column gate); "insert", "delete" and "replace"
+# all fire every registered invalidator, so misreading one of the latter as
+# "insert" cannot change what is invalidated.
+src/shared/db/client.ts::invalidateForSql.verb~PLACEHOLDER_DELETE  delete → ""   # placeholder
+
+# crypto/hashing.ts — the explicit radix on the stored round count. The line
+# above it now refuses any count that is not pure decimal digits, and for such a
+# string an inferred radix is decimal too, so naming the radix can no longer
+# change what is read. It stays because the reader should say what base it means.
+src/shared/crypto/hashing.ts::verifyPassword.iterations~10pid9h  10 → 0   # the digit-only guard above rules out every string an inferred radix would read differently
