@@ -131,17 +131,32 @@ failure tables kept separately: what it writes, and what its conditional
 
 | Event                     | Actor     | Writes           | Fences on                   |
 | ------------------------- | --------- | ---------------- | --------------------------- |
-| `checkout_created`        | system    | state            | `reference_index` (one row) |
+| `checkout_created`        | system    | state + schedule | `reference_index` (one row) |
 | `read_unavailable`        | system    | schedule         | state + schedule            |
 | `read_pending`            | system    | schedule         | state + schedule            |
 | `read_expired_or_failed`  | system    | state + schedule | state + schedule            |
 | `read_paid_booked`        | system    | state + schedule | state + schedule            |
-| `read_paid_refunded`      | system    | state + schedule | state + schedule            |
+| `read_paid_settled`       | system    | state + schedule | state + schedule            |
 | `read_paid_unsettled`     | system    | state + schedule | state + schedule            |
 | `read_paid_unreadable`    | system    | schedule         | state + schedule            |
 | `read_paid_contradiction` | system    | state + schedule | state + schedule            |
-| `replayed_failure`        | system    | schedule         | state + schedule            |
 | `owner_forces_check`      | **owner** | schedule         | state + schedule            |
+
+The five `read_paid_*` events are exhaustive over what the payment engine can
+answer for a paid checkout, and each is named for the **money fact** it
+establishes, because that is what decides whether the row may be deleted:
+
+| Engine answer                                     | Event                     | Money                       |
+| ------------------------------------------------- | ------------------------- | --------------------------- |
+| Booked (including a replay of an earlier booking) | `read_paid_booked`        | Accounted for by a booking  |
+| Handled failure, refunded or nothing to refund    | `read_paid_settled`       | Accounted for               |
+| Handled failure, a required refund did not go     | `read_paid_unsettled`     | **Not** accounted for       |
+| Reservation held elsewhere, or an unreadable one  | `read_paid_unreadable`    | Not yet known               |
+| The reference does not open the staged row        | `read_paid_contradiction` | Not knowable from this side |
+
+A replayed terminal failure is not its own event. It is classified by the same
+money fact as a fresh one, so it arrives as `read_paid_settled` or
+`read_paid_unsettled` and the table does the rest.
 
 ### The moves table
 
@@ -158,20 +173,18 @@ export const EXPECTED_MOVES: MachineMoves<RecoveryNodeId, RecoveryEventId> = {
     read_paid_unreadable: "waiting",
     read_expired_or_failed: "unpaid",
     read_paid_booked: "finished",
-    read_paid_refunded: "finished",
+    read_paid_settled: "finished",
     read_paid_unsettled: "owed",
     read_paid_contradiction: "owed",
     owner_forces_check: "waiting",
   },
   owed: {
     read_unavailable: "owed",
-    read_pending: "owed",
     read_paid_unreadable: "owed",
     read_paid_booked: "finished",
-    read_paid_refunded: "finished",
+    read_paid_settled: "finished",
     read_paid_unsettled: "owed",
     read_paid_contradiction: "owed",
-    replayed_failure: "owed",
     owner_forces_check: "owed",
   },
   unpaid: {},
@@ -182,10 +195,44 @@ export const EXPECTED_MOVES: MachineMoves<RecoveryNodeId, RecoveryEventId> = {
 Read the refusals, because they are the contract too. `staged` takes no read
 event — a row with no checkout id has nothing to ask SumUp about. `unpaid` and
 `finished` take nothing at all: they are terminal, and a late event against them
-is a bug, not a transition. `owed` has no `checkout_created`. And
-`owed × replayed_failure` is a declared **self-move**, which is the round-one
-finding made executable: a replayed terminal failure may not finish a row that
-says money was seen.
+is a bug, not a transition. `owed` has no `checkout_created`.
+
+`owed` also refuses `read_pending` and `read_expired_or_failed`. Every `owed`
+row got there from a read that said PAID, and SumUp never moves a checkout back
+off PAID, so a cell for either would be defending against the impossible. The
+round-one finding — a replayed terminal failure may not finish a row that says
+money was seen — is now carried by the table itself rather than by a special
+event: from `owed`, the only cells that reach `finished` are the two that
+establish the money is accounted for.
+
+### What drafting the code changed here
+
+Writing the first slice against this table found four places where it did not
+survive contact with the code. They are corrected above; they are listed here
+because each one is a decision, not a typo, and the reviewer is approving the
+corrected version:
+
+1. **`checkout_created` writes the schedule too**, not the state alone. The
+   Events table said state; the fourth law says every edge landing on a
+   non-terminal node writes the schedule. A newly created checkout with no check
+   time would never be asked about — the exact harm this work exists to close —
+   so the law was right and the row was wrong.
+2. **`replayed_failure` is gone.** It had no `waiting` cell, but the path is
+   reachable and common: a callback that arrives, fails terminally, and leaves
+   the row still `waiting` for its first check. Rather than add a cell, the
+   event was removed — a replayed terminal failure carries the same money fact
+   as a fresh one, so it classifies as `read_paid_settled` or
+   `read_paid_unsettled` like any other.
+3. **`read_paid_refunded` became `read_paid_settled`.** The engine has a
+   handled-failure answer with nothing to refund (no charge was captured). The
+   old name had no cell for it. The new name covers both, and says the thing
+   that actually decides the row's fate: the money is accounted for.
+4. **`owed` lost `read_pending`.** Every `owed` row got there from a PAID read,
+   and a checkout never moves back off PAID, so the cell was defending against
+   the impossible.
+
+The first three were found by the laws and the totality requirement rather than
+by reading — which is the argument for writing lifecycles this way.
 
 ### The laws over the declaration
 
@@ -389,7 +436,11 @@ trades a rare lost payment for a tidier table, which is the wrong way round.
 - **~640 src lines**, under the 800 cap. If it overruns, the split is by
   invariant: the task and its machine first, the live check and owner action
   second — but only if the first still leaves `owed` reachable through the
-  scheduled retry.
+  scheduled retry. `owner_forces_check` moves with the action that raises it,
+  not with the machine: an edge whose only caller is in a later slice is an
+  export with no production caller, which this repository deletes rather than
+  ships. The laws hold either way — the money-holding nodes keep their system
+  edges without it.
 - Call budget: startup adds 1 settings read + 1 database call to the task check.
   Per run: ≤3 database reads, ≤3 SumUp reads, ≤1 paid recovery (which may spend
   the existing refund path's calls). Well inside `MAINTENANCE_TASK_CALL_LIMIT`.
@@ -409,8 +460,9 @@ answer, naming the event rather than the landing node); fault-injected tests
 (`test/test-utils/db-fault.ts`) at each of the three windows — failing before
 the booking, during the refund of a rejected charge, and after the booking
 commits but before the state write — each proving the next check reaches the
-same single outcome; a test that puts a recorded terminal failure under an
-`owed` row and proves the replay leaves it `owed` rather than `finished`; a
+same single outcome; a test that puts a recorded terminal failure with an
+unreturned charge under an `owed` row and proves the replay leaves it `owed`
+rather than `finished`, and its pair that proves a refunded one does finish; a
 migration test starting from rows with and without a `sumup_id` and asserting
 the derived states and check times; a starvation test proving a permanently
 stuck row does not hold the front of the queue while newer rows wait; a test
