@@ -146,16 +146,29 @@ one provider read per created checkout, once, at least 2.5 hours after creation
 
 ### Failure table
 
-| Work completed             | Failure                               | Required result                                                     | Retry owner                                |
-| -------------------------- | ------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
-| Nothing                    | SumUp read unavailable                | Row stays `waiting`; no state written                               | Scheduler                                  |
-| Nothing                    | SumUp read `found` but not ours       | Row stays `waiting`; refusal logged (cannot happen — id is ours)    | Scheduler                                  |
-| Read says `PAID`           | Echoed reference does not open row    | `owed` — SumUp contradicted itself about a checkout we created      | Scheduler, and the owner can force a check |
-| Read says `PAID`           | Boundary rejects the money            | Existing `settleRejectedCharge`: refunded ⇒ `finished`, else `owed` | Scheduler                                  |
-| Read says `PAID`           | Classify says `unverifiable`          | `owed` — a contradiction, not a foreign checkout (see below)        | Scheduler, and the owner can force a check |
-| Read says `PAID`           | Classify says `unreadable`            | Row stays `waiting`                                                 | Scheduler                                  |
-| Engine booked the attendee | State write fails                     | Booking stands; row stays `waiting`; next check is idempotent       | Scheduler                                  |
-| Square: webhook accepted   | Order reads `missing` under a paid id | **Throw** — 503, Square redelivers                                  | Provider                                   |
+| Work completed             | Failure                               | Required result                                                                              | Retry owner                                |
+| -------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Nothing                    | SumUp read unavailable                | Stays `waiting`; `next_check_at` advanced by the backoff                                     | Scheduler                                  |
+| Nothing                    | SumUp read `found` but not ours       | Stays `waiting`, `next_check_at` advanced; refusal logged (cannot happen — id is ours)       | Scheduler                                  |
+| Read says `PAID`           | Echoed reference does not open row    | `owed` — SumUp contradicted itself about a checkout we created                               | Scheduler, and the owner can force a check |
+| Read says `PAID`           | Boundary rejects the money            | Existing `settleRejectedCharge`: refunded ⇒ `finished`, else `owed`                          | Scheduler                                  |
+| Read says `PAID`           | Classify says `unverifiable`          | `owed` — a contradiction, not a foreign checkout (see below)                                 | Scheduler, and the owner can force a check |
+| Read says `PAID`           | Classify says `unreadable`            | Stays `waiting`; `next_check_at` advanced by the backoff                                     | Scheduler                                  |
+| Engine booked the attendee | State write fails                     | Booking stands; nothing written, so the task's own failure backoff carries the retry (below) | Scheduler                                  |
+| Square: webhook accepted   | Order reads `missing` under a paid id | **Throw** — 503, Square redelivers                                                           | Provider                                   |
+
+**Every non-terminal outcome writes a new `next_check_at`.** Leaving a row
+untouched because its state did not change would leave it due, so the very next
+run would select it again — the starvation `next_check_at` exists to prevent.
+Staying `waiting` is therefore still a write: the state word is unchanged and
+the schedule moves.
+
+The one case that cannot write is a failed state write itself. Nothing durable
+can be recorded there by definition, so the retry falls to the maintenance
+framework: the task throws, and the runner holds it off for its declared
+`failureRetryIntervalMs` before running it again. The booking already committed
+and the next check is idempotent, so the cost of that re-selection is one wasted
+provider read, not a wrong answer.
 
 The gap between provider success and local success is closed the way the rest of
 the payment engine closes it: `processed_payments` (PK = `payment_session_id` =
@@ -196,14 +209,23 @@ and takes the refund-or-`owed` row above.
 
 ### Concurrency table
 
-| Operation A                    | Operation B                  | Required result                                                              | Protection                                                                                                          |
-| ------------------------------ | ---------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Recovery check                 | Late webhook for the same id | One booking                                                                  | `reserveSession` on `processed_payments`                                                                            |
-| Recovery check                 | Buyer's redirect             | One booking                                                                  | Same                                                                                                                |
-| Recovery check on two isolates | Same task                    | One runner                                                                   | Maintenance lease (`claimNextMaintenanceTask`)                                                                      |
-| Recovery state write           | `setSumupCheckoutId`         | No lost transition                                                           | `UPDATE … WHERE reference_index = ? AND recovery_state = ?` — the expected current value, checked by `rowsAffected` |
-| Recovery check                 | Pruning                      | The row under check always survives                                          | A row being checked is `waiting` or `owed`, and prune's WHERE names only `staged`/`unpaid`/`finished`               |
-| Owner "Check again now"        | Scheduled check              | One provider read wins; the other's conditional write finds 0 rows and stops | Expected current value                                                                                              |
+| Operation A                    | Operation B                  | Required result                                  | Protection                                                                                                                          |
+| ------------------------------ | ---------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Recovery check                 | Late webhook for the same id | One booking                                      | `reserveSession` on `processed_payments`                                                                                            |
+| Recovery check                 | Buyer's redirect             | One booking                                      | Same                                                                                                                                |
+| Recovery check on two isolates | Same task                    | One runner                                       | Maintenance lease (`claimNextMaintenanceTask`)                                                                                      |
+| Recovery state write           | `setSumupCheckoutId`         | No lost transition                               | `UPDATE … WHERE reference_index = ? AND recovery_state = ? AND next_check_at = ?` — both expected values, checked by `rowsAffected` |
+| Recovery check                 | Pruning                      | The row under check always survives              | A row being checked is `waiting` or `owed`, and prune's WHERE names only `staged`/`unpaid`/`finished`                               |
+| Owner "Check again now"        | Scheduled check              | One write wins; the loser finds 0 rows and stops | Same expected `recovery_state` **and** `next_check_at` — see "Why the fence needs both" below                                       |
+
+**Why the fence needs both.** Guarding only on `recovery_state` is enough for a
+transition that changes it, but not for the `waiting → waiting` writes above:
+two checks can both read `waiting`, both write `waiting`, and both report one
+affected row, so neither learns it raced. The loser would then overwrite the
+winner's `next_check_at` — including one an owner had just pulled forward.
+Naming the expected `next_check_at` in the same `WHERE` makes a stale write
+affect zero rows, which is how the loser finds out. The owner's control writes
+under the same fence, so it cannot clobber a scheduled check either.
 
 ### Owner choices
 
@@ -229,6 +251,14 @@ already performs on the webhook, under the same rules and the same durable
 - `/admin/schema` and its live check are owner-only, matching the existing page.
   The "Check again now" control is rendered only where the owner can use it and
   only for a row that exists, so no dead or forbidden link is emitted.
+- **"Check again now" is a POST built with `ownerFormHandler`**
+  (`src/shared/app-forms.ts`), which is `createAuthedHandler` under the
+  `OWNER_FORM` policy — CSRF plus owner auth from the one shared mechanism, not
+  new plumbing. The scheduled task has no external caller, but this control is a
+  state-changing HTTP entry point and gets the same guard every other admin form
+  has. All it may do is bring `next_check_at` forward under the fence above; it
+  never reads the provider itself, so a replayed submission costs nothing. Tests
+  cover a manager being refused and a missing or invalid token being refused.
 - The live check lists the SumUp checkout id (not sensitive, already the
   pre-filter key) and the state word. No amount, no buyer fact.
 
@@ -357,14 +387,17 @@ same single outcome; a test that puts a recorded terminal failure under an
 `owed` row and proves the replay leaves it `owed` rather than `finished`; a
 migration test starting from rows with and without a `sumup_id` and asserting
 the derived states and check times; a starvation test proving a permanently
-stuck row does not hold the front of the queue while newer rows wait; a
-concurrency test running webhook and recovery together and asserting exactly one
-attendee and one ledger group; a prune test proving `waiting` and `owed` rows
-survive and a `finished` row does not; a scan test reading the declared states
-back out; and a Cucumber story —
-`specs/payments/a-payment-with-no-callback.feature` — buying through the real
-public booking page, dropping the callback, running maintenance, and finding the
-ticket.
+stuck row does not hold the front of the queue while newer rows wait; a test
+that two concurrent checks on one `waiting` row leave exactly one new
+`next_check_at`, and that an owner-forced check is not overwritten by a
+scheduled one that raced it; route tests refusing a manager and refusing a
+missing or invalid CSRF token on "Check again now"; a concurrency test running
+webhook and recovery together and asserting exactly one attendee and one ledger
+group; a prune test proving `waiting` and `owed` rows survive and a `finished`
+row does not; a scan test reading the declared states back out; and a Cucumber
+story — `specs/payments/a-payment-with-no-callback.feature` — buying through the
+real public booking page, dropping the callback, running maintenance, and
+finding the ticket.
 
 ## 6. Where this sits against PLAN.md
 
