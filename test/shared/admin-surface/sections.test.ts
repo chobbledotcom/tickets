@@ -92,3 +92,70 @@ describe("the admin sections table", () => {
     expect(twice).toEqual([]);
   });
 });
+
+/** Every message key the English catalog defines, across all its files. */
+const catalogKeys = new Set(
+  Array.from(Deno.readDirSync("src/locales/en"))
+    .filter((entry) => entry.name.endsWith(".json"))
+    .flatMap((entry) =>
+      Object.keys(
+        JSON.parse(Deno.readTextFileSync(`src/locales/en/${entry.name}`)),
+      ),
+    ),
+);
+
+describe("the words the navigation shows", () => {
+  test("names a real message for every section", () => {
+    const missing = ADMIN_SECTIONS.filter(
+      (section) => !catalogKeys.has(section.labelKey),
+    ).map((section) => `${section.id}: ${section.labelKey}`);
+    expect(missing).toEqual([]);
+  });
+
+  test("names a real message for every link", () => {
+    const missing = navEntries
+      .filter(({ entry }) => !catalogKeys.has(entry.labelKey))
+      .map(({ entry }) => `${entry.id}: ${entry.labelKey}`);
+    expect(missing).toEqual([]);
+  });
+});
+
+describe("the sections that own a record page", () => {
+  const withDetail = ADMIN_SECTIONS.filter(
+    (section) => section.detailPath !== undefined,
+  );
+
+  test("cover listings and groups", () => {
+    expect(withDetail.map((section) => section.id)).toEqual([
+      "listings",
+      "groups",
+    ]);
+  });
+
+  test("point at one record", () => {
+    const wrong = withDetail
+      .filter(
+        (section) =>
+          !section.detailPath!.startsWith("/admin/") ||
+          !section.detailPath!.includes(":id"),
+      )
+      .map((section) => section.id);
+    expect(wrong).toEqual([]);
+  });
+
+  test("keep the record page for staff only", () => {
+    // An editor cannot open either detail page, so entityReturnPath sends
+    // them to the edit form instead. Both flags carry that.
+    const open = withDetail
+      .filter((section) => section.staffOnlyDetail !== true)
+      .map((section) => section.id);
+    expect(open).toEqual([]);
+  });
+
+  test("keep the exact paths entityReturnPath rewrites", () => {
+    expect(withDetail.map((section) => section.detailPath)).toEqual([
+      "/admin/listing/:id",
+      "/admin/groups/:id",
+    ]);
+  });
+});

@@ -127,3 +127,50 @@ describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
     );
   });
 });
+
+describe("links a section hides", () => {
+  const ownerContext = {
+    active: "/admin/settings",
+    adminLevel: "owner" as const,
+    builder: false,
+    enabledFeatures: setFeatureEnabled(DEFAULT_ENABLED_FEATURES, "money", true),
+    isReadOnly: false,
+    storage: false,
+    support: false,
+  };
+
+  test("drops a section whose only link is its own landing", () => {
+    // Money is on, so the owner can see the Ledger section, and it still has
+    // no sub-navigation of its own because it holds exactly one link.
+    expect(visibleTopLevel(ownerContext).map((link) => link.href)).toContain(
+      "/admin/ledger",
+    );
+    expect(
+      visibleSections(ownerContext).map((section) => section.topHref),
+    ).not.toContain("/admin/ledger");
+  });
+
+  test("hides an add link while the site is read only, keeping the rest", () => {
+    const readOnly = visibleSections({ ...ownerContext, isReadOnly: true })
+      .flatMap((section) => section.items)
+      .map((link) => link.href);
+    const writable = visibleSections(ownerContext)
+      .flatMap((section) => section.items)
+      .map((link) => link.href);
+    expect(writable).toContain("/admin/listing/new");
+    expect(readOnly).not.toContain("/admin/listing/new");
+    expect(readOnly).toContain("/admin/listings");
+  });
+
+  test("hides a link the viewer's role cannot reach", () => {
+    const editorLinks = visibleSections({
+      ...ownerContext,
+      active: "/admin/listings",
+      adminLevel: "editor",
+    })
+      .flatMap((section) => section.items)
+      .map((link) => link.href);
+    // Editors reach the listings pages but not the owner-only settings ones.
+    expect(editorLinks).not.toContain("/admin/settings");
+  });
+});
