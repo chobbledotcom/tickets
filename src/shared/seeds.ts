@@ -37,9 +37,8 @@ export const SEED_MAX_ATTENDEES = 100_000;
 /** Pick a random ticket quantity (1-4) */
 const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);
 
-/** Sample unit prices in minor units (e.g. pence/cents) for paid listings.
- * Exported so the seeds suite can pin the exact set a paid listing draws from. */
-export const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
+/** Sample unit prices in minor units (e.g. pence/cents) for paid listings */
+const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 
 /** Generate slugs that are unique within the batch */
 const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
@@ -188,7 +187,10 @@ export const createSeeds = async (
       index: i,
       quantities,
       slug: slugs[i]!,
-      unitPrice: i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
+      // Paid listings walk the sample prices in order, so a big enough demo
+      // set shows every tier and a test can name each one.
+      unitPrice:
+        i % 2 === 0 ? DEMO_UNIT_PRICES[(i / 2) % DEMO_UNIT_PRICES.length]! : 0,
     };
   });
 

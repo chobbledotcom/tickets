@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { sum } from "#fp";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
@@ -8,21 +8,13 @@ import { getListingDayPrices } from "#shared/db/listing-prices.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { DEMO_EMAILS, DEMO_NAMES } from "#shared/demo/samples.ts";
-import {
-  createSeeds,
-  DEMO_UNIT_PRICES,
-  SEED_MAX_ATTENDEES,
-} from "#shared/seeds.ts";
+import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("seeds", { db: true }, () => {
   test("caps a seeded listing's attendees at a hundred thousand", () => {
     expect(SEED_MAX_ATTENDEES).toBe(100_000);
-  });
-
-  test("the demo price set is exactly the seven sample amounts", () => {
-    expect(DEMO_UNIT_PRICES).toEqual([500, 1000, 1500, 2000, 2500, 3000, 5000]);
   });
 
   test("reports exactly what it created", async () => {
@@ -38,15 +30,15 @@ describeWithEnv("seeds", { db: true }, () => {
     expect(listing!.max_attendees).toBe(0);
   });
 
-  test("every other listing is paid from the demo prices, the rest are free", async () => {
-    await createSeeds(4, 0);
+  test("every other listing is paid, walking the sample prices in order", async () => {
+    // Enough listings to walk the whole price set and wrap back around.
+    await createSeeds(16, 0);
     const prices = (await getAllListings())
       .toSorted((a, b) => a.id - b.id)
       .map((listing) => listing.unit_price);
-    expect(DEMO_UNIT_PRICES).toContain(prices[0]);
-    expect(prices[1]).toBe(0);
-    expect(DEMO_UNIT_PRICES).toContain(prices[2]);
-    expect(prices[3]).toBe(0);
+    expect(prices).toEqual([
+      500, 0, 1000, 0, 1500, 0, 2000, 0, 2500, 0, 3000, 0, 5000, 0, 500, 0,
+    ]);
   });
 
   test("only the first listing is customisable, with 1/2/3-day demo prices", async () => {

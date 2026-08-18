@@ -5,6 +5,7 @@
  * The pull zone is discovered via the Edge Script API, not request hostname.
  */
 
+import { range } from "#fp";
 import {
   getBunnyApiKey,
   getBunnyDnsSubdomainSuffix,
@@ -373,11 +374,8 @@ const registerBunnySubdomainImpl = async (
   // 3. Register hostname with pull zone (add hostname + SSL)
   //    Retry to allow DNS propagation after CNAME record creation.
   let cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
-  for (
-    let attempt = 0;
-    attempt < CERT_RETRY_COUNT && !cdnResult.ok;
-    attempt++
-  ) {
+  for (const attempt of range(0, CERT_RETRY_COUNT)) {
+    if (cdnResult.ok) break;
     await bunnyCdnApi.delay(certRetryDelay(attempt));
     cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
   }
