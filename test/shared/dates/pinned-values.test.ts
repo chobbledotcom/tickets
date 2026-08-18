@@ -13,6 +13,7 @@ import {
   bookedRangeLabel,
   bookedSpanDays,
   calendarGridDates,
+  dateRange,
   formatDateLabel,
   getBookableStartDates,
   parseDateMs,
@@ -76,6 +77,19 @@ describe("dates — pinned values", () => {
   test("startOfHour zeroes minutes, seconds and milliseconds but keeps the hour", () => {
     const rounded = startOfHour(new Date("2026-07-10T13:47:23.456Z"));
     expect(rounded.toISOString()).toBe("2026-07-10T13:00:00.000Z");
+  });
+
+  test("a date range includes both of its ends", () => {
+    expect(dateRange("2026-01-30", "2026-02-01")).toEqual([
+      "2026-01-30",
+      "2026-01-31",
+      "2026-02-01",
+    ]);
+    expect(dateRange("2026-02-01", "2026-02-01")).toEqual(["2026-02-01"]);
+  });
+
+  test("a range whose start is past its end is empty", () => {
+    expect(dateRange("2026-02-01", "2026-01-30")).toEqual([]);
   });
 
   test("the calendar grid for a Sunday-ending month stops one week after it", () => {
