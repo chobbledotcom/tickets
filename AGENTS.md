@@ -229,6 +229,42 @@ GitHub.
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
   build you helped produce is your responsibility too.
+- **A written-down diagnosis is a hypothesis, not a finding**: A `TODO.md`
+  entry, a review comment, a commit message, or a code comment explaining why
+  something breaks was written by someone reasoning about the code at a moment
+  that has passed. Re-derive it from the current source before you fix anything,
+  however confident and detailed it reads — a wrong diagnosis is more expensive
+  than none, because it aims your fix at the wrong place and takes the
+  regression test with it. The stripe-mock port-steal entry in `TODO.md` is the
+  worked example: it was a careful, plausible, thoroughly argued account of a
+  race in the wrong function, and following it would have "fixed" code that was
+  already correct while leaving the real hazard in place. When you find one
+  wrong, correct the note in the same change — leaving it sends the next person
+  down the same path.
+- **Stage what you changed, never `git add -A`**: Name the files you meant to
+  touch, and read `git status --short` before committing. A blanket add cannot
+  tell your work from a stray tool run, a build artefact, or a formatter that
+  rewrote a thousand files you never opened — and a commit is where that stops
+  being recoverable quietly. If the file list surprises you, that surprise is
+  the point: find out why before you commit, not after a reviewer counts the
+  diff.
+- **Judge nothing from a stale base ref**: `git fetch origin main` before you
+  read a `origin/main...HEAD` diff, count changed lines, or run the mutation
+  gate. A local `origin/main` left behind by a few merges makes an unrelated
+  branch look like it rewrote the tree, and every conclusion drawn from that —
+  what a PR contains, how big it is, what needs mutating — is wrong in the
+  alarming direction.
+- **A red check is not automatically yours**: Before treating a CI or status
+  failure as your breakage, ask what it could possibly have to do with your
+  diff, and look for a control. A sibling build of the identical commit that
+  succeeded, a failing test your files cannot reach, a provider outside the
+  repository — each is evidence that the cause is elsewhere, and none is proof.
+  A sibling passing shows the failure is nondeterministic or depends on its
+  environment, which a real bug in your own code can also be, so trace the
+  failing path far enough to name the cause before setting it aside. Say so,
+  once, with the evidence rather than the word "flaky", and keep going. This
+  never licenses ignoring a failure: not yours still means diagnosed, reported,
+  and re-run.
 - **Every bug fix ships with a regression test**: Never fix a bug without also
   adding a test that fails before the fix and passes after it. The test must
   exercise the real bug — reproduce the exact condition that was broken so it
@@ -1166,7 +1202,13 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task specs:files <feature>... [--tags <expression>]` - Run selected
   Features through the shared harness
 - `deno task lint` - Format Markdown with Deno, then format and lint code with
-  Biome (`check --write`; auto-fixes in place).
+  Biome (`check --write`; auto-fixes in place). **Format through this task
+  rather than reaching for a formatter yourself.** The two own different file
+  types and neither refuses work outside its own, so `deno fmt` pointed at a
+  directory of TypeScript quietly reformats every file it finds to a style Biome
+  does not use — an enormous unrelated diff that buries the change you meant to
+  make. Naming one file directly is fine when you know whose it is: `deno fmt`
+  for Markdown, Biome for code. When in doubt, run the task.
 - `deno task lint:ci` - Strict, read-only formatting and lint. Runs
   `deno fmt --check` for Markdown and Biome `check --error-on-warnings` for
   code. Fails on lint warnings (e.g. cognitive complexity) and on any file that
@@ -1703,6 +1745,28 @@ import {
 | Duplicating test helpers        | Use `#test-utils`                |
 | Magic numbers/strings           | Import constants from production |
 | Testing private internals       | Test public API behavior         |
+
+### Tests That Share A Machine
+
+A test that reserves a real resource — a port, a lock file, a fixed path —
+shares it with every other suite running at that moment, and CI runs them loaded
+and in parallel. The failure this produces is the nastiest kind: rare,
+unreproducible locally, and landing on whichever pull request happens to be
+open, so it reads as that author's bug.
+
+`withUnusedPort` names the hazard exactly: it finds a free port and lets go of
+it before the code under test binds it, so anything else starting in that window
+can take it. **A test that takes a port and then asserts on what the start did
+must go through `retryWhilePortTaken`**
+(`test/test-utils/stripe-mock/ports.ts`), which asks again on a fresh port
+instead of reading a stolen one as the answer. Both known flakes in
+`lifecycle.test.ts` were a sibling case that had the guard sitting next to one
+that did not.
+
+The general rule: when a test can fail because of something outside itself,
+either remove the sharing or make the test able to tell the two apart. Never
+leave it to chance and a re-run — a test that is right nine times in ten is a
+test nobody trusts the tenth time, which is exactly when it matters.
 
 ### Fast Tests
 

@@ -68,6 +68,27 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
     await expectWebhookResponse(event, squareOrderRead(null), 0, 503);
   });
 
+  test("keeps a completed payment whose order is not readable yet retryable", async () => {
+    // Square named a payment it completed, so the order is ours and has not
+    // caught up. A 200 here would end the redelivery and leave the buyer
+    // charged with no booking.
+    const event: WebhookEvent = {
+      data: {
+        object: {
+          payment: {
+            id: "lagging-payment",
+            order_id: "lagging-order",
+            status: "COMPLETED",
+          },
+        },
+      },
+      id: "lagging-payment-event",
+      type: "payment.updated",
+    };
+
+    await expectWebhookResponse(event, squareOrderRead(null), 1, 503);
+  });
+
   test("acknowledges a completed payment for a foreign Square order", async () => {
     const event: WebhookEvent = {
       data: {
