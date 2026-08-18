@@ -176,6 +176,31 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  test("reports a blank payment status as blank, not as unreadable", async () => {
+    // "unreadable" is reserved for a payment Square would not give us at all.
+    // A payment that came back carrying no status is a different fault, and
+    // saying so is what stops someone chasing an outage that never happened.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_blank_status",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          { id: "pay_blank_status", status: "" },
+        ),
+      async () => {
+        expect(
+          await rejectionMessage(
+            completedSquareWebhook("pay_blank_status", "order_blank_status"),
+          ),
+        ).toBe("Square payment did not read back as completed (status=)");
+      },
+    );
+  });
+
   test("books a completed payment whose order has no tender yet", async () => {
     // The completed event wins while Square's order tenders lag behind it.
     await withMocks(
