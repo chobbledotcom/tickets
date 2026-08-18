@@ -2,9 +2,54 @@
 
 ## Status
 
-Proposal, with no implementation. A human must approve this plan before any
-slice starts (PR_WORKFLOW.md, step 6). The survey behind it is in
-[The shortlist](#the-shortlist--other-rooms-the-survey-found).
+Approved. Slice 1 is built, and so is the backwards check that slice 3 was going
+to add. Slice 2, and the policy builders in slice 3, remain. See
+[What is built](#what-is-built) for the map from this plan to the code, and
+[The shortlist](#the-shortlist--other-rooms-the-survey-found) for the survey
+behind it.
+
+The built code is the authority for the parts that shipped. This document now
+points at them; it does not describe them a second time.
+
+## What is built
+
+| Piece                    | Where it lives now                           |
+| ------------------------ | -------------------------------------------- |
+| The one declaration      | `src/shared/admin-surface/areas.ts`          |
+| Types and the fold       | `src/shared/admin-surface/definitions.ts`    |
+| Ids and path parameters  | `src/shared/admin-surface/ids.ts`            |
+| Navigation and its order | `src/shared/admin-surface/sections.ts`       |
+| The derived surface      | `src/shared/admin-surface.ts`                |
+| Navigation model         | `src/shared/admin-pages.ts`                  |
+| The backwards check      | `test/integration/admin-role-matrix.test.ts` |
+
+Deleted with slice 1: `admin-surface/nav-routes.ts`,
+`admin-surface/write-routes-a-m.ts`, `admin-surface/write-routes-n-z.ts`, and
+the hand-written `ADMIN_SURFACE_AREAS` map.
+
+Two things differ from what this plan first proposed:
+
+- **Sections own their navigation order.** The plan grouped routes by area but
+  did not say what happens to navigation order, which used to be the position of
+  an entry in a 383-line file. Grouping by area destroys that order, because one
+  section draws its links from up to sixteen areas. Each section now names its
+  own links in order, so the order is a stated fact rather than a side effect of
+  where a line sits.
+- **A route no longer carries a section.** All 111 routes declared one, but only
+  the 42 with a navigation link ever read it. It is gone from the other 69.
+
+### What the backwards check found
+
+`deliveries` declared `STAFF_ADMIN_LEVELS`, but `GET /admin/deliveries` is gated
+by `deliveryPage`, which admits agents — and its own comment calls the run sheet
+"their only page". An agent could open the page while the surface said they
+could not, so `adminDestinationAllowed` gave the wrong answer for every link to
+it.
+
+The declaration was corrected to `DELIVERY_ADMIN_LEVELS`, which is the one place
+that fact now lives. This is the "stricter side wins" default being overruled on
+purpose: the strict reading would take the run sheet away from the agents it was
+built for. No access changed — only the answer the surface gives about it.
 
 ## The search that led here
 
@@ -29,12 +74,13 @@ consumers are:
   `src/shared/admin-surface.ts`);
 - read-only gates (`readOnlyGetRoutePatterns`).
 
-## The duplication today
+## The duplication this replaced
 
-`src/shared/admin-surface/` is a shadow map of the admin surface: 111
+This is the state slice 1 replaced, kept as the evidence for the change. Before
+it, `src/shared/admin-surface/` was a shadow map of the admin surface: 111
 destinations, each with a path pattern, a role audience, an area, a section, and
-a read/write intent. The real route tables live in `src/features/admin/*` and
-repeat the same facts.
+a read/write intent, while the real route tables in `src/features/admin/*`
+repeated the same facts.
 
 | File                                           | Lines | What it restates                                   |
 | ---------------------------------------------- | ----- | -------------------------------------------------- |
@@ -90,10 +136,11 @@ derive from it and cannot drift.
 
 ### Valid states
 
-Compile-time only, because no stored data changes. Every destination must carry
-an id, an area, a section, a pattern, an audience, and an intent. The area maps
-stay exhaustive `Record<AdminAreaId, …>` types, so an area without a loader
-entry, or a loader without an area, does not compile.
+Compile-time only, because no stored data changes. Every route must carry an id,
+an area, a pattern, an audience, and an intent; a route reached from the
+navigation also carries its link. The loader map stays an exhaustive
+`Record<AdminAreaId, …>`, so an area without a loader entry, or a loader without
+an area, does not compile.
 
 ### Commands and events
 
@@ -220,20 +267,35 @@ Three stacked pull requests, bottom up. Each is complete and green on its own.
 The database and provider call budget is zero for all three: the change is
 module-load data, not runtime IO.
 
-1. **One declaration per area.** Add `areas.ts` and the derivations. Fold
-   `definitions.ts`, `nav-routes.ts`, `write-routes-a-m.ts`,
-   `write-routes-n-z.ts`, and the facts half of `area-loaders.ts` into it.
-   Consumers (`admin-surface.ts`, `admin-pages.ts`, `admin/index.ts`) switch to
-   the derivations. Budget: ~350 changed source lines, net negative.
+1. **One declaration per area.** — **Built.** See
+   [What is built](#what-is-built).
 2. **The path becomes one fact.** `crudRoutes`, `entityTabRoutes`,
    `defineEditEntityPage`, and the per-area route tables consume the declared
    destinations. Delete every repeated path literal in `src/features/admin/*`.
    Budget: ~400 changed source lines.
-3. **The role becomes one fact.** Add the derived policy builders in
-   `src/features/auth.ts`. Migrate the admin handlers and guards to them. List
-   every disagreement found, fix each explicitly, and pin each with a regression
-   test. Budget: ~500 changed source lines. If churn approaches the limit, split
-   this slice alphabetically the way the write-route files split today.
+
+   Measured, now that slice 1 has landed: 14 base paths passed to
+   `crudRoutes`/`entityTabRoutes` across nine files, and about twelve more in
+   `basePath`, `navActive`, and `listPath` on the page definitions. The
+   primitive to add is `adminPattern(id)`, returning the declared pattern with
+   its literal type kept, so `crudRoutes(adminPattern("holidays"), crud)` still
+   builds typed route keys. One route resists it: `entityTabRoutes` for listings
+   uses `/admin/listing`, which no destination declares — the list page is
+   `/admin/listings` and the detail base only appears inside `detailPath`.
+   Decide whether the entity base becomes a declared fact before starting.
+3. **The role becomes one fact.** The check half is **built**: the role matrix
+   proves declaration and enforcement agree for every parameter-free page, in
+   both directions. What remains is deriving the policies rather than checking
+   them — `formPolicy(destination)`, `multipartPolicy(destination)`,
+   `apiPolicy(destination)` in `src/features/auth.ts`, and migrating the admin
+   handlers to them. Budget: ~500 changed source lines. If churn approaches the
+   limit, split this slice alphabetically the way the write-route files split
+   today.
+
+   The matrix covers pages whose pattern takes no parameter, because a page for
+   one record answers 404 when the record is absent, which says nothing about
+   permission. Extending it to the parameterised pages needs a fixture per
+   record kind, and is the natural first step of this slice.
 
 A later, separate candidate: the app layer keeps four parallel prefix-keyed
 tables (`PREFIX_LOADERS`, `PREFIX_MESSAGE_GROUPS`, `PREFIX_GATES` in
@@ -243,25 +305,38 @@ out of scope here.
 
 ## Tests that prove the contract
 
-- Slice 1: `test/integration/admin-route-manifest.test.ts` and the nav tests
-  stay green unchanged. New unit tests cover the derivations (destination fold,
-  segment fold).
+- Slice 1: **done.** `test/integration/admin-route-manifest.test.ts` and the nav
+  tests stay green. `test/shared/admin-surface/definitions.test.ts` covers the
+  fold directly (area default audience, per-route override, intent by group,
+  segments derived from patterns, extra segments, an area with no routes).
+  `test/shared/admin-pages.test.ts` and `test/features/admin/index.test.ts` now
+  mirror the sources they test, so each is mutation-tested against its own file.
+  The migration was also proved faithful once, by comparing every derived route,
+  segment list, and navigation order against the deleted tables.
 - Slice 2: the manifest test's "every destination has a GET route" check
   tightens — a declared destination without a wired handler fails at area
   wiring, loudly. Unit tests cover the generators.
-- Slice 3: the new backwards check, in the house "checked forwards and
-  backwards" pattern: a role-matrix test walks every declared destination and
-  asserts, for every admin level, that access equals the declared audience.
-  Every disagreement fixed on the way gets its own regression test first.
+- Slice 3: **the backwards check is done.**
+  `test/integration/admin-role-matrix.test.ts` walks every parameter-free page
+  and asks it as all four roles: a role outside the audience is never served the
+  page, and a role inside it is never forbidden. It is written about being
+  served (200) and being forbidden (403) rather than one exact status, because a
+  page whose feature is switched off answers 404 to everybody, which is still a
+  refusal. It found the `deliveries` fault above, and fails with
+  `deliveries (/admin/deliveries) served agent` if that fix is reverted.
 - Every slice runs `deno task precommit` and `deno task precommit:mutation`.
 
 ## Open questions for the reviewer
 
-1. Do you approve the three-slice shape, or must slice 3 split further?
-2. Is "the stricter side wins" the right default proposal for each
-   audience↔policy disagreement the migration finds?
-3. For view-less areas, do you prefer the explicit `segments` list (the
-   recommendation), or non-nav destinations for POST-only endpoints?
+1. Is overruling "the stricter side wins" for `deliveries` the outcome you want?
+   The alternative is to take the run sheet away from delivery agents, which the
+   handler and its comment both argue against.
+2. Slice 2 must decide whether an entity's detail base (`/admin/listing`)
+   becomes a declared fact, or stays a literal in the one route table that needs
+   it. Declaring it is tidier; it also adds a field only one area uses.
+3. Slice 3's remaining half derives handler policies from the declaration. The
+   role matrix already proves the two agree, so this is now a simplification
+   rather than a safety fix. Is it worth the churn across the admin handlers?
 
 ## The shortlist — other rooms the survey found
 

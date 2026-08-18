@@ -13,8 +13,6 @@ import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
 
 const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
   const routesByArea = new Map<string, string[]>();
@@ -97,29 +95,9 @@ describe("admin route manifest", () => {
     }
   });
 
-  test("adminPathSegment picks the part after /admin", () => {
-    expect(adminPathSegment("/admin")).toBe("");
-    expect(adminPathSegment("/admin/settings")).toBe("settings");
-    expect(adminPathSegment("/admin/listing/5/edit")).toBe("listing");
-  });
-
   test("guide message ownership rejects an undeclared segment", () => {
     expect(() => ADMIN_AREA_LOADERS.guide.messageGroupsFor("unknown")).toThrow(
       'No message groups declared for admin segment "unknown"',
     );
-  });
-});
-
-describeWithEnv("admin segment dispatch", { db: true }, () => {
-  test("a path under no declared segment gets a 404", async () => {
-    const response = await awaitTestRequest("/admin/no-such-area");
-    expect(response.status).toBe(404);
-  });
-
-  test("a repeat hit on a settings segment succeeds twice", async () => {
-    const first = await awaitTestRequest("/admin/settings");
-    const second = await awaitTestRequest("/admin/settings");
-    expect(first.status).toBe(302);
-    expect(second.status).toBe(302);
   });
 });

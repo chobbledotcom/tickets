@@ -14,6 +14,7 @@ import type { AdminAreasSpec } from "#shared/admin-surface/definitions.ts";
 import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
 import {
   CONTENT_ADMIN_LEVELS,
+  DELIVERY_ADMIN_LEVELS,
   SITE_ADMIN_LEVELS,
   STAFF_ADMIN_LEVELS,
 } from "#shared/types.ts";
@@ -145,7 +146,9 @@ export const ADMIN_AREAS = {
     },
   },
   deliveries: {
-    audience: STAFF_ADMIN_LEVELS,
+    // The run sheet is a delivery agent's only page, so it admits agents as
+    // well as staff — the same roles `deliveryPage` lets through.
+    audience: DELIVERY_ADMIN_LEVELS,
     view: {
       deliveries: "/admin/deliveries",
     },
