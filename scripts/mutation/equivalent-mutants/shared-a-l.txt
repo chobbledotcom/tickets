@@ -178,6 +178,14 @@ src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated" 
 # parsePositiveIntId's strict decimal-digit schema.
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated"   # parsePositiveIntId's schema rejects any non-digit string identically; the "" fallback and any mutated string both parse to null
 
+# crypto/utils.ts — the out-of-range code readers. constantTimeCodesEqual seeds
+# its XOR fold with lengthA ^ lengthB and walks the longer sequence, so a reader
+# is only asked past the end of one string when the lengths differ — and that
+# seed already forces "not equal". Whatever the short side reads there cannot
+# change the answer.
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1   # only read past the end of the shorter string, where the length XOR has already decided the result
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1   # same reader for the other side, reached only when the lengths already differ
+
 # crypto/der.ts — this value is written into a Uint8Array element. Adding or
 # subtracting 128 produces the same low eight bits, and Uint8Array discards all
 # higher bits.
