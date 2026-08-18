@@ -40,9 +40,9 @@ export type AttendeesListPageProps = {
   allowedDomain: string;
   phonePrefix: string;
   /** Decrypted notes for the listed attendees (empty when none). */
-  systemNotes?: SystemNote[];
+  systemNotes: SystemNote[];
   /** Attendee id → display name, for labelling notes in the summary. */
-  names?: Map<number, string>;
+  names: Map<number, string>;
 };
 
 /** Admin attendees browser page */
@@ -56,8 +56,8 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
       <PageBlock>
         <AttendeeNotesSummary
           isOwner={isOwnerRole(props.session.adminLevel)}
-          names={props.names ?? new Map()}
-          notes={props.systemNotes ?? []}
+          names={props.names}
+          notes={props.systemNotes}
         />
 
         <FilteredAttendeeTable

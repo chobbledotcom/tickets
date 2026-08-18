@@ -54,6 +54,7 @@ const buildProps = (
   return {
     allowedDomain: "tickets.example.com",
     hasNext: false,
+    names: new Map(),
     phonePrefix: "44",
     rows: [],
     session: OWNER_SESSION,
@@ -61,6 +62,7 @@ const buildProps = (
       listings ?? [testListingWithCount({ id: 1, name: "Gala Night" })],
     ),
     state: buildState(),
+    systemNotes: [],
     ...rest,
   };
 };
@@ -164,6 +166,13 @@ describe("adminAttendeesListPage", () => {
       buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
     );
     expect(html).not.toContain(">Check in<");
+  });
+
+  test("shows no date column — dates belong to a listing's own list", () => {
+    const html = adminAttendeesListPage(
+      buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
+    );
+    expect(html).not.toContain(">Date<");
   });
 
   test("links the attendees section of the guide", () => {

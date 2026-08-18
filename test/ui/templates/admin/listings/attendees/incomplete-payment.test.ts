@@ -105,11 +105,15 @@ describe("attendeeStatsForListing", () => {
   registerListingTemplateHooks();
 
   test("splits out unresolved-payment rows only when the listing is paid", () => {
-    const listing = testListingWithCount({ unit_price: 1000 });
+    const listing = testListingWithCount({
+      attendee_count: 3,
+      unit_price: 1000,
+    });
     const stuck = testAttendee({ id: 1, payment_id: "", price_paid: "1000" });
-    expect(
-      attendeeStatsForListing(listing, [stuck], true).incompleteAttendees,
-    ).toEqual([stuck]);
+    const paid = attendeeStatsForListing(listing, [stuck], true);
+    expect(paid.incompleteAttendees).toEqual([stuck]);
+    // The stuck row's one ticket comes off the listing's count of 3.
+    expect(paid.adjustedCount).toBe(2);
     // A free listing has no payments to be stuck on.
     expect(
       attendeeStatsForListing(listing, [stuck], false).incompleteAttendees,
