@@ -391,6 +391,26 @@ trades a rare lost payment for a tidier table, which is the wrong way round.
 
 ### PR 1 — A Square webhook for a completed payment is never acknowledged as pending
 
+**Shipped** in #2106. The code is now the authority: `readSessionOrder` in
+`src/shared/square-provider.ts` throws when a `paidPaymentId` is present and the
+order reads `missing`, and `retrieveSession` still answers `null` for the
+browser redirect. The tests are `test/shared/square-provider/webhook.test.ts`
+("refuses a completed payment whose order is not readable yet"),
+`test/shared/square-provider/read-outcomes.test.ts` ("keeps an order Square
+cannot find retryable after a completed event"), and
+`test/integration/server/webhooks/square.test.ts` ("keeps a completed payment
+whose order is not readable yet retryable").
+
+Two things differ from what is written below. The redelivery test named here was
+not written: the existing idempotency tests already deliver the same Square
+webhook twice and assert one attendee, so a third would have restated a pinned
+test rather than added one. And #2107 followed it, closing three gaps the
+mutation gate found in the same file — a one-character payment id being
+discarded, two different order faults logging identically, and a blank payment
+status reported as an outage.
+
+The original plan for this slice, kept for the record:
+
 - Value: a paid Square booking whose order lags is redelivered, not dropped.
 - Change: `readSessionOrder` learns whether a `paidPaymentId` is in play and
   throws on `missing` when it is, matching `readOrderPayment` two functions
