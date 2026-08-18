@@ -16,7 +16,7 @@
  * writing all of them.
  */
 
-import { compact, mapNotNullish } from "#fp";
+import { chunk, compact, mapNotNullish } from "#fp";
 import {
   execute,
   executeBatch,
@@ -363,8 +363,8 @@ const readSourceRows = async (
 const executePaged = async (
   statements: Array<{ sql: string; args: (number | string)[] }>,
 ): Promise<void> => {
-  for (let i = 0; i < statements.length; i += BACKFILL_STATEMENT_PAGE) {
-    await executeBatch(statements.slice(i, i + BACKFILL_STATEMENT_PAGE));
+  for (const page of chunk(BACKFILL_STATEMENT_PAGE)(statements)) {
+    await executeBatch(page);
   }
 };
 
@@ -376,8 +376,8 @@ const executePaged = async (
  * before it is dropped; the per-write paths keep them in step thereafter.) */
 export const backfillListingPrices = async (): Promise<void> => {
   const ids = await queryIdColumn("SELECT id FROM listings ORDER BY id");
-  for (let i = 0; i < ids.length; i += BACKFILL_LISTING_PAGE) {
-    const rows = await readSourceRows(ids.slice(i, i + BACKFILL_LISTING_PAGE));
+  for (const pageIds of chunk(BACKFILL_LISTING_PAGE)(ids)) {
+    const rows = await readSourceRows(pageIds);
     await executePaged(rows.flatMap(sourceRowStatements));
   }
 };

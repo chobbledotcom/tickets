@@ -75,8 +75,7 @@ export const extractUpdateColumns = (
   };
   let depth = 0;
   let start = 0;
-  for (let i = 0; i < setClause.length; i++) {
-    const ch = setClause[i]!;
+  for (const [i, ch] of setClause.split("").entries()) {
     if (ch === "(") depth++;
     else if (ch === ")") depth--;
     else if (ch === "," && depth === 0) {

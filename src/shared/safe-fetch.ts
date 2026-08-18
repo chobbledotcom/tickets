@@ -5,6 +5,7 @@
  * redirect hop can be validated before the server makes the next request.
  */
 
+import { range } from "#fp";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 
@@ -38,8 +39,8 @@ export const fetchTextFollowingSafeRedirects = async (
 ): Promise<FetchResult> => {
   let currentUrl = url;
 
-  let redirectCount = 0;
-  while (true) {
+  // One fetch for the original URL plus one per allowed redirect hop.
+  for (const _hop of range(0, MAX_SAFE_REDIRECTS + 1)) {
     if (!isSafeServerFetchUrl(currentUrl)) {
       throw new Error("Unsafe redirect URL");
     }
@@ -49,11 +50,8 @@ export const fetchTextFollowingSafeRedirects = async (
 
     const location = result.headers.get("location");
     if (!location) return result;
-    if (redirectCount === MAX_SAFE_REDIRECTS) {
-      throw new Error("Too many redirects");
-    }
 
     currentUrl = resolveRedirectUrl(location, currentUrl);
-    redirectCount++;
   }
+  throw new Error("Too many redirects");
 };

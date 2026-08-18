@@ -31,6 +31,7 @@ import { getAllListings } from "#shared/db/listings/records.ts";
 import { loadNotesForAttendees } from "#shared/db/notes/queries.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type ListingFilter, listingCategory } from "#shared/listing-filter.ts";
+import { readAllPages } from "#shared/paged-read.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -146,20 +147,16 @@ export const handleAttendeesListGet: TypedRouteHandler<
  * (null) stays an unfiltered query rather than an enormous `IN (...)` clause.
  * Note the page query matches ATTENDEES: a filtered call also returns a matched
  * attendee's bookings on other listings — the CSV handler re-narrows. */
-const allAttendeeBookings = async (
+/** Hard stop for the export's page walk. More pages than this means the page
+ * cursor stopped advancing, not that a site really has this many bookings. */
+const MAX_EXPORT_PAGES = 10_000;
+
+const allAttendeeBookings = (
   listingIds: number[] | null,
-): Promise<Attendee[]> => {
-  const out: Attendee[] = [];
-  let page = 0;
-  let hasNext = true;
-  while (hasNext) {
-    const result = await getAttendeesPage({ listingIds, page, sort: "newest" });
-    for (const row of result.rows) out.push(row);
-    hasNext = result.hasNext;
-    page++;
-  }
-  return out;
-};
+): Promise<Attendee[]> =>
+  readAllPages(MAX_EXPORT_PAGES, (page) =>
+    getAttendeesPage({ listingIds, page, sort: "newest" }),
+  );
 
 /**
  * Handle GET /admin/attendees/csv

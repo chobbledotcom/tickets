@@ -9,7 +9,7 @@
  * lives here and is exercised by plain-object unit tests.
  */
 
-import { identity, mapById } from "#fp";
+import { identity, mapById, range } from "#fp";
 import {
   sitePageItemTargets,
   targetOfPageItem,
@@ -108,21 +108,21 @@ export type ParentLinks = Pick<Forest, "parentByChild">;
 
 /**
  * The ancestor page ids of `pageId`, root-first, excluding the node itself.
- * Uses a visited guard so a corrupt cyclic edge set throws loudly rather than
- * looping — the app guarantees an acyclic tree, so a cycle here is an
- * impossible state to surface, not to absorb.
+ * A chain can use each stored parent link at most once, so a walk still going
+ * after that many steps proves a corrupt cyclic edge set: it throws loudly —
+ * the app guarantees an acyclic tree, so a cycle here is an impossible state
+ * to surface, not to absorb.
  */
 export const ancestorsOf = (forest: ParentLinks, pageId: number): number[] => {
   const chain: number[] = [];
-  const seen = new Set<number>([pageId]);
   let cursor = forest.parentByChild.get(pageId);
-  while (cursor !== undefined) {
-    if (seen.has(cursor)) {
-      throw new Error(`site_pages: cycle detected above page ${pageId}`);
-    }
-    seen.add(cursor);
+  for (const _step of range(0, forest.parentByChild.size)) {
+    if (cursor === undefined) break;
     chain.push(cursor);
     cursor = forest.parentByChild.get(cursor);
+  }
+  if (cursor !== undefined) {
+    throw new Error(`site_pages: cycle detected above page ${pageId}`);
   }
   return chain.reverse();
 };

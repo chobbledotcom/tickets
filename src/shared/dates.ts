@@ -103,6 +103,15 @@ export const addDays = (dateStr: string, days: number): string => {
   return date.toISOString().slice(0, 10);
 };
 
+/** Epoch milliseconds at midnight UTC of a YYYY-MM-DD day */
+const dayStartMs = (dateStr: string): number =>
+  new Date(`${dateStr}T00:00:00Z`).getTime();
+
+/** Whole days from one YYYY-MM-DD day to another (negative when `to` is
+ * earlier). Both days are read at midnight UTC, so the division is exact. */
+const wholeDaysBetween = (from: string, to: string): number =>
+  Math.round((dayStartMs(to) - dayStartMs(from)) / DAY_MS);
+
 /** Get the day name for a YYYY-MM-DD date string */
 const getDayName = (dateStr: string): string =>
   DAY_NAMES[new Date(`${dateStr}T00:00:00Z`).getUTCDay()]!;
@@ -111,21 +120,23 @@ const getDayName = (dateStr: string): string =>
 const isHoliday = (dateStr: string, holidays: Holiday[]): boolean =>
   holidays.some((h) => dateStr >= h.start_date && dateStr <= h.end_date);
 
-/** Generate a range of YYYY-MM-DD date strings from start to end (inclusive) */
+/** Generate a range of YYYY-MM-DD date strings from start to end (inclusive).
+ * A start past the end is an empty range: Array.from reads the negative
+ * length as zero. */
 export const dateRange = (start: string, end: string): string[] => {
-  const dates: string[] = [];
-  let current = start;
-  while (current <= end) {
-    dates.push(current);
-    current = addDays(current, 1);
-  }
-  return dates;
+  const dayCount = wholeDaysBetween(start, end) + 1;
+  return Array.from({ length: dayCount }, (_, i) => addDays(start, i));
 };
 
+/** The window of days a daily listing can currently be booked in. */
+interface BookingWindow {
+  bookableDays: string[];
+  end: string;
+  start: string;
+}
+
 /** Compute bookable date range for a daily listing */
-const bookableRange = (
-  listing: SortableListing,
-): { bookableDays: string[]; start: string; end: string } => {
+const bookableRange = (listing: SortableListing): BookingWindow => {
   const todayStr = todayInTz(settings.timezone);
   const start = addDays(todayStr, listing.minimum_days_before);
   const maxDays =
@@ -145,24 +156,17 @@ const isBookable = (
   bookableDays.includes(getDayName(dateStr)) && !isHoliday(dateStr, holidays);
 
 /**
- * Check if every day in a multi-day booking starting at `start` is bookable.
- * All days in `[start, start + durationDays)` must pass `isBookable` and
- * stay within `endLimit` (inclusive).
+ * Can a booking of `durationDays` days start on a given day? Every day in
+ * `[start, start + durationDays)` must pass `isBookable` and stay within the
+ * window's end (inclusive).
  */
-const isRangeBookable = (
-  start: string,
-  durationDays: number,
-  bookableDays: string[],
-  holidays: Holiday[],
-  endLimit: string,
-): boolean => {
-  for (let i = 0; i < durationDays; i++) {
-    const day = addDays(start, i);
-    if (day > endLimit) return false;
-    if (!isBookable(day, bookableDays, holidays)) return false;
-  }
-  return true;
-};
+const canStartOn =
+  (range: BookingWindow, durationDays: number, holidays: Holiday[]) =>
+  (start: string): boolean =>
+    Array.from({ length: durationDays }, (_, i) => addDays(start, i)).every(
+      (day) =>
+        day <= range.end && isBookable(day, range.bookableDays, holidays),
+    );
 
 /**
  * Compute available booking dates for a daily listing.
@@ -185,9 +189,9 @@ export const getAvailableDates = (
 ): string[] => {
   const range = bookableRange(listing);
   const duration = clampDurationDays(durationOverride ?? listing.duration_days);
-  return filter((d: string) =>
-    isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
-  )(dateRange(range.start, range.end));
+  return filter(canStartOn(range, duration, holidays))(
+    dateRange(range.start, range.end),
+  );
 };
 
 /**
@@ -228,44 +232,24 @@ export const isBookingRangeValid = (
 ): boolean => {
   const range = bookableRange(listing);
   if (date < range.start) return false;
-  return isRangeBookable(
-    date,
-    clampDurationDays(days),
-    range.bookableDays,
-    holidays,
-    range.end,
-  );
+  return canStartOn(range, clampDurationDays(days), holidays)(date);
 };
 
 /**
  * Get the next available booking date for a daily listing.
- * More efficient than getAvailableDates()[0] — stops at first match.
- * Returns null if no bookable dates are available.
+ * More efficient than getAvailableDates()[0] — stops checking spans at the
+ * first match. Returns null if no bookable dates are available.
  */
 export const getNextBookableDate = (
   listing: SortableListing,
   holidays: Holiday[],
 ): string | null => {
   const range = bookableRange(listing);
-  if (range.bookableDays.length === 0) return null;
   const duration = clampDurationDays(listing.duration_days);
-
-  let current = range.start;
-  while (current <= range.end) {
-    if (
-      isRangeBookable(
-        current,
-        duration,
-        range.bookableDays,
-        holidays,
-        range.end,
-      )
-    ) {
-      return current;
-    }
-    current = addDays(current, 1);
-  }
-  return null;
+  const first = dateRange(range.start, range.end).find(
+    canStartOn(range, duration, holidays),
+  );
+  return first === undefined ? null : first;
 };
 
 /**
@@ -493,9 +477,7 @@ export const daysAgo = (utcIso: string): number | null => {
   if (!calDate) return null;
   const todayStr = todayInTz(settings.timezone);
   if (calDate >= todayStr) return null;
-  const listingMs = new Date(`${calDate}T00:00:00Z`).getTime();
-  const todayMs = new Date(`${todayStr}T00:00:00Z`).getTime();
-  return Math.round((todayMs - listingMs) / DAY_MS);
+  return wholeDaysBetween(calDate, todayStr);
 };
 
 /**

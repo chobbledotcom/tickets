@@ -1,8 +1,8 @@
 /** Listing reads batched with attendee data and daily attendee queries. */
 
 import type { ResultSet } from "@libsql/client";
-import { reduce, sortStrings, unique } from "#fp";
-import { addDays } from "#shared/dates.ts";
+import { flatMap, sortStrings, unique } from "#fp";
+import { coveredDays } from "#shared/dates.ts";
 import {
   ATTENDEE_FIELDS,
   attendeeBatchStatement,
@@ -67,17 +67,8 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
        AND listingAttendee.end_at IS NOT NULL
        AND listingAttendee.quantity > 0`,
   );
-  const dates = reduce(
-    (allDates: string[], row: { start_at: string; end_at: string }) => {
-      const endExclusive = row.end_at.slice(0, 10);
-      let current = row.start_at.slice(0, 10);
-      while (current < endExclusive) {
-        allDates.push(current);
-        current = addDays(current, 1);
-      }
-      return allDates;
-    },
-    [],
+  const dates = flatMap((row: { start_at: string; end_at: string }) =>
+    coveredDays(row.start_at.slice(0, 10), row.end_at.slice(0, 10)),
   )(rows);
   return sortStrings(unique(dates));
 };

@@ -140,17 +140,16 @@ export const generateSuperuserPassword = (length = 12): string => {
   const alphabetLength = PASSWORD_ALPHABET.length;
   const maxValidByte = 256 - (256 % alphabetLength);
   let result = "";
-  let count = 0;
 
-  while (count < length) {
+  while (result.length < length) {
+    // Rejection sampling: bytes past the last whole multiple of the alphabet
+    // are dropped so every character stays equally likely.
     const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
-    for (let i = 0; i < bytes.length && count < length; i++) {
-      const byte = bytes[i]!;
-      if (byte < maxValidByte) {
-        result += PASSWORD_ALPHABET[byte % alphabetLength];
-        count++;
-      }
-    }
+    result += Array.from(bytes)
+      .filter((byte) => byte < maxValidByte)
+      .slice(0, length - result.length)
+      .map((byte) => PASSWORD_ALPHABET[byte % alphabetLength])
+      .join("");
   }
 
   return result;

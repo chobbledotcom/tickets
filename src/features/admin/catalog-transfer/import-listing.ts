@@ -355,11 +355,11 @@ export const importListing = async (
         await validateListingGroupMembershipsTx(tx)([newId], groupResolve.ids),
       );
       const packageGroupIds = await packageGroupIdsTx(tx, groupResolve.ids);
-      for (let i = 0; i < memberships.length; i++) {
+      for (const [i, membership] of memberships.entries()) {
         if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
         const dayError = memberDayPriceError(
           listing.name,
-          memberships[i]!.dayPrices,
+          membership.dayPrices,
           newMember,
         );
         requireDayPriceOk(dayError);

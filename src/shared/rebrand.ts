@@ -13,6 +13,7 @@ import {
   type MessageFormatElement,
   parse,
 } from "@formatjs/icu-messageformat-parser";
+import { range } from "#fp";
 
 /**
  * A message with neither a `{` (an ICU placeholder) nor a `'` (ICU quote
@@ -73,7 +74,7 @@ const freshScan = (): ScanState => ({
  * the next node.
  */
 const scanTagEnd = (copy: string, from: number, state: ScanState): number => {
-  for (let i = from; i < copy.length; i++) {
+  for (const i of range(from, copy.length)) {
     const char = copy[i]!;
     if (state.quote) {
       if (char === state.quote) state.quote = null;
@@ -171,7 +172,10 @@ const rebrandLiteral = (
 ): string => {
   let out = "";
   let i = 0;
-  while (i !== -1 && i < copy.length) {
+  // Every step emits at least one character, so no scan can need more steps
+  // than the copy has characters; -1 means the span runs into a later node.
+  for (const _move of range(0, copy.length)) {
+    if (i === -1 || i >= copy.length) break;
     const step = state.inCode
       ? stepCode(copy, i, state)
       : state.inTag

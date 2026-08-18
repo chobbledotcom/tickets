@@ -17,7 +17,7 @@
  */
 
 /* jscpd:ignore-start */
-import { compact } from "#fp";
+import { compact, range } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -55,19 +55,16 @@ import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. */
-const dayCountOptions = (startDate: string): SelectOption[] => {
-  const options: SelectOption[] = [];
-  for (let n = 1; n <= MAX_DURATION_DAYS; n++) {
-    const label = startDate
+const dayCountOptions = (startDate: string): SelectOption[] =>
+  range(1, MAX_DURATION_DAYS + 1).map((n) => ({
+    label: startDate
       ? t("attendee_form.day_count_option_with_end", {
           count: n,
           end: formatDateLabel(addDays(startDate, n - 1)),
         })
-      : t("attendee_form.day_count_option", { count: n });
-    options.push({ label, value: String(n) });
-  }
-  return options;
-};
+      : t("attendee_form.day_count_option", { count: n }),
+    value: String(n),
+  }));
 
 /** Shared start date + length for every daily listing. The length is a select
  * of day counts (the end date is derived, never edited directly). The

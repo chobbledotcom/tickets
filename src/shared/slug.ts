@@ -7,6 +7,7 @@
  */
 
 import * as v from "valibot";
+import { range } from "#fp";
 
 const DIGITS = "0123456789";
 const LETTERS = "abcdefgh";
@@ -31,7 +32,7 @@ export const generateSlug = (): string => {
   ];
 
   // Fisher-Yates shuffle
-  for (let i = chars.length - 1; i > 0; i--) {
+  for (const i of range(1, chars.length).toReversed()) {
     const j = Math.floor(Math.random() * (i + 1));
     [chars[i], chars[j]] = [chars[j]!, chars[i]!];
   }
@@ -101,7 +102,7 @@ const uniqueSlugFrom = async <Index extends string>(opts: {
   isTaken: IsTaken;
   exhausted: () => string;
 }): Promise<SlugWithIndex<Index>> => {
-  for (let attempt = 0; attempt < opts.maxAttempts; attempt++) {
+  for (const attempt of range(0, opts.maxAttempts)) {
     const slug = opts.candidate(attempt);
     if (!(await opts.isTaken(slug)))
       return { slug, slugIndex: await opts.computeIndex(slug) };

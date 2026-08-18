@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { range } from "#fp";
 import {
   ADMIN_FEATURES,
   type AdminFeatureDefinition,
@@ -240,7 +241,7 @@ const validateStoredFeatureSetting = async (): Promise<void> => {
 };
 
 const disableLogisticsFeature = async (): Promise<boolean> => {
-  for (let attempt = 0; attempt < JSON_WRITE_ATTEMPTS; attempt += 1) {
+  for (const _attempt of range(0, JSON_WRITE_ATTEMPTS)) {
     const prepared = await prepareLogisticsDefault();
     try {
       await saveLogisticsDisable(prepared);
