@@ -42,6 +42,28 @@ describe("square provider order ownership", () => {
     );
   });
 
+  test("says which reason it refused a half-filled order for", async () => {
+    // An order carrying our marker but not the fields it needs is a different
+    // fault from a till sale, and the operator reading the log has to be able
+    // to tell them apart.
+    await withMocks(
+      () =>
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(
+            completedOrder("order_partial_meta", { _origin: "localhost" }),
+          ),
+        ),
+      async () => {
+        expect(
+          await squarePaymentProvider.retrieveSession("order_partial_meta"),
+        ).toBeNull();
+        expect(debug().calls.at(-1)?.args).toEqual([
+          "[Square] Square order is missing required metadata fields",
+        ]);
+      },
+    );
+  });
+
   test("acknowledges a completed foreign order with a common metadata field", async () => {
     await withMocks(
       () =>
