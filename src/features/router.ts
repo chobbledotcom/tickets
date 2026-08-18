@@ -124,10 +124,9 @@ const extractParams = (
   match: RegExpMatchArray,
 ): RouteParams => {
   const params: RouteParams = {};
-  for (let i = 0; i < paramNames.length; i++) {
-    const name = paramNames[i];
+  for (const [i, name] of paramNames.entries()) {
     const value = match[i + 1];
-    if (name !== undefined && value !== undefined) {
+    if (value !== undefined) {
       params[name] = numericParams.has(name) ? Number(value) : value;
     }
   }

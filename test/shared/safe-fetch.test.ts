@@ -49,12 +49,39 @@ describe("safe-fetch", () => {
   });
 
   test("stops after the maximum safe redirect hops", async () => {
+    const seen: string[] = [];
+
     await expect(
       fetchTextFollowingSafeRedirects(
         "https://example.com/start",
         undefined,
-        () => Promise.resolve(response(302, "/next")),
+        (url) => {
+          seen.push(url);
+          return Promise.resolve(response(302, "/next"));
+        },
       ),
     ).rejects.toThrow("Too many redirects");
+
+    // The original URL plus the five allowed hops, and not one fetch more.
+    expect(seen.length).toBe(6);
+  });
+
+  test("follows a chain that uses every allowed hop", async () => {
+    const seen: string[] = [];
+
+    const result = await fetchTextFollowingSafeRedirects(
+      "https://example.com/0",
+      undefined,
+      (url) => {
+        seen.push(url);
+        // Five redirects, then a real page on the sixth fetch.
+        return Promise.resolve(
+          seen.length <= 5 ? response(302, `/${seen.length}`) : response(200),
+        );
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(seen.length).toBe(6);
   });
 });

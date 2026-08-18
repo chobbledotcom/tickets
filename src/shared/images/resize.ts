@@ -1,5 +1,5 @@
 /**
- * Pure image downscaling — no imports, no IO, trivially unit-testable.
+ * Pure image downscaling — no IO, trivially unit-testable.
  *
  * The pipeline only ever shrinks images (each variant caps the width), so the
  * right filter is an *area average*: every destination pixel is the
@@ -12,6 +12,7 @@
  * Fully-opaque images — the common case — reduce to a plain per-channel mean.
  */
 
+import { range } from "#fp";
 import type { RawImage } from "./types.ts";
 
 type RgbaPixel = [number, number, number, number];
@@ -34,9 +35,9 @@ const areaAveragePixel = (
   let accB = 0;
   let accA = 0;
   let accW = 0;
-  for (let sy = iy0; sy < iy1; sy++) {
+  for (const sy of range(iy0, iy1)) {
     const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
-    for (let sx = ix0; sx < ix1; sx++) {
+    for (const sx of range(ix0, ix1)) {
       const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
       const weight = wx * wy;
       const offset = (sy * width + sx) * 4;
@@ -81,10 +82,10 @@ export const resizeAreaAverage = (
   const scaleX = sw / dstW;
   const scaleY = sh / dstH;
 
-  for (let dy = 0; dy < dstH; dy++) {
+  for (const dy of range(0, dstH)) {
     const y0 = dy * scaleY;
     const y1 = (dy + 1) * scaleY;
-    for (let dx = 0; dx < dstW; dx++) {
+    for (const dx of range(0, dstW)) {
       const x0 = dx * scaleX;
       const x1 = (dx + 1) * scaleX;
       out.set(areaAveragePixel(src, x0, x1, y0, y1), (dy * dstW + dx) * 4);

@@ -4,7 +4,7 @@
  * All assignment logic is gated behind CAN_BUILD_SITES.
  */
 
-import { sort } from "#fp";
+import { range, sort } from "#fp";
 import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -309,19 +309,16 @@ const assignSitesForEntries = async (
   }
 
   const assignments: SiteAssignment[] = [];
-  const available = await getAssignableBuiltSites();
-  let idx = 0;
+  const available = [...(await getAssignableBuiltSites())];
 
   for (const { listing, attendee } of needsSite) {
-    const qty = attendee.quantity;
-    for (let i = 0; i < qty; i++) {
-      const site = available[idx] ?? (await buildAssignableSite());
+    for (const _unit of range(0, attendee.quantity)) {
+      const site = available.shift() ?? (await buildAssignableSite());
       if (!site) break;
 
       assignments.push(
         await assignSiteWithRenewal({ attendee, listing, site }),
       );
-      idx++;
     }
   }
 

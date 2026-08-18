@@ -97,11 +97,10 @@ export const encodeInteger = (value: number): Uint8Array => {
 
 const encodeBase128 = (value: bigint): number[] => {
   // OID arcs use seven data bits per byte; bit 7 says another byte follows.
-  const bytes = [Number(value & 0x7fn)];
-  for (let remaining = value >> 7n; remaining > 0; remaining >>= 7n) {
-    bytes.unshift(Number(remaining & 0x7fn) + 0x80);
-  }
-  return bytes;
+  const last = Number(value & 0x7fn);
+  const rest = value >> 7n;
+  if (rest === 0n) return [last];
+  return [...encodeBase128(rest).map((byte) => byte | 0x80), last];
 };
 
 export const encodeOid = (value: string): Uint8Array => {
@@ -171,10 +170,9 @@ const decodeLongLength = (
     throw new Error("Invalid DER length");
   }
   if (bytes[contentStart] === 0) throw new Error("Non-minimal DER length");
-  let length = 0;
-  for (let index = 0; index < count; index++) {
-    length = length * 256 + bytes[contentStart + index]!;
-  }
+  const length = bytes
+    .subarray(contentStart, lengthEnd)
+    .reduce((total, byte) => total * 256 + byte, 0);
   if (length < 128) throw new Error("Non-minimal DER length");
   return { contentStart: lengthEnd, length };
 };

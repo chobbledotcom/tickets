@@ -33,11 +33,13 @@ export const constantTimeCodesEqual = (
   codeB: (i: number) => number,
 ): boolean => {
   const len = Math.max(lengthA, lengthB);
-  let result = lengthA ^ lengthB;
-  for (let i = 0; i < len; i++) {
-    result |= codeA(i) ^ codeB(i);
-  }
-  return result === 0;
+  // Array.from visits every index whatever the codes hold, so timing never
+  // leaks the position of the first mismatch.
+  const mismatch = Array.from(
+    { length: len },
+    (_, i) => codeA(i) ^ codeB(i),
+  ).reduce((flags, diff) => flags | diff, lengthA ^ lengthB);
+  return mismatch === 0;
 };
 
 /**

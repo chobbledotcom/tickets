@@ -4,7 +4,7 @@
  * listing detail and attendee edit pages.
  */
 
-import { fieldById, filter, map, unique } from "#fp";
+import { fieldById, filter, map, range, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
@@ -156,19 +156,20 @@ export const handleAttendeesListGet: TypedRouteHandler<
  * (null) stays an unfiltered query rather than an enormous `IN (...)` clause.
  * Note the page query matches ATTENDEES: a filtered call also returns a matched
  * attendee's bookings on other listings — the CSV handler re-narrows. */
+/** Hard stop for the export's page walk. More pages than this means the page
+ * cursor stopped advancing, not that a site really has this many bookings. */
+const MAX_EXPORT_PAGES = 10_000;
+
 const allAttendeeBookings = async (
   listingIds: number[] | null,
 ): Promise<Attendee[]> => {
   const out: Attendee[] = [];
-  let page = 0;
-  let hasNext = true;
-  while (hasNext) {
+  for (const page of range(0, MAX_EXPORT_PAGES)) {
     const result = await getAttendeesPage({ listingIds, page, sort: "newest" });
     for (const row of result.rows) out.push(row);
-    hasNext = result.hasNext;
-    page++;
+    if (!result.hasNext) return out;
   }
-  return out;
+  throw new Error("Attendee export read more pages than any site can hold");
 };
 
 /**

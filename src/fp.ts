@@ -402,6 +402,15 @@ export const chunk =
     stdChunk(array, size);
 
 /**
+ * Whole numbers counting up from `start`, stopping before `end` ([] when `end`
+ * is not past `start`). Hand-rolled because `@std/collections` has no numeric
+ * range helper. Iterating this bounded array replaces hand-counted loops,
+ * which a single slip in their step can make endless.
+ */
+export const range = (start: number, end: number): number[] =>
+  Array.from({ length: Math.max(0, end - start) }, (_, i) => start + i);
+
+/**
  * Map over a promise-returning function in parallel (Promise.all)
  */
 export const mapParallel =
