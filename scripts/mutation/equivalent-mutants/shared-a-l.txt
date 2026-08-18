@@ -232,11 +232,13 @@ src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?
 src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → ||   # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1f1  ?? → ||   # the row is an Attendee object or undefined, and an object is always truthy
 
-# db/client.ts — write-verb classification and fallbacks. The cache registry
-# singles out only "update" (its column gate); "insert", "delete" and "replace"
-# all fire every registered invalidator, so misreading one of the latter as
-# "insert" cannot change what is invalidated.
-src/shared/db/client.ts::invalidateForSql.verb~PLACEHOLDER_DELETE  delete → ""   # placeholder
+# db/client.ts — fallbacks whose left side can never be a falsy-but-present
+# value, and a label no code ever reads.
+src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
+src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # the captured tail has to start with INSERT, UPDATE, DELETE, REPLACE or SELECT, so the group is never the empty string
+src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
+src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # args is an array or a named-args object when present, and both are always truthy
+src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
 
 # crypto/hashing.ts — the explicit radix on the stored round count. The line
 # above it now refuses any count that is not pure decimal digits, and for such a

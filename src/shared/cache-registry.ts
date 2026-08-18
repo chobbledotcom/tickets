@@ -50,14 +50,12 @@ export const getAllCacheStats = (): CacheStat[] =>
  * row entering or leaving always shifts the aggregates.
  */
 
-/** Verb of a mutating SQL statement */
-export type WriteVerb = "delete" | "insert" | "replace" | "update";
-
-/** Context extracted from a write statement for column-gated invalidation */
+/** What a write narrows to, for column-gated invalidation. */
 export type WriteInfo = {
-  verb: WriteVerb;
-  /** Lower-cased columns assigned by an UPDATE SET clause; empty for non-updates */
-  columns: ReadonlySet<string>;
+  /** Lower-cased columns an UPDATE assigns, or null when the write narrows
+   * nothing: an INSERT, DELETE or REPLACE, or an UPDATE whose SET clause
+   * could not be read. */
+  updatedColumns: ReadonlySet<string> | null;
 };
 
 /** Why cached data was cleared. Only a committed write needs primary refills. */
@@ -146,9 +144,9 @@ export const invalidateCachesForWrite = (
   if (!set) return;
   for (const reg of set) {
     if (
-      info.verb === "update" &&
+      info.updatedColumns !== null &&
       reg.whenColumns !== undefined &&
-      !setsIntersect(info.columns, reg.whenColumns)
+      !setsIntersect(info.updatedColumns, reg.whenColumns)
     ) {
       continue;
     }
@@ -157,9 +155,9 @@ export const invalidateCachesForWrite = (
 };
 
 /** Fire every cache invalidator registered against `table` (no-op if none).
- * Treats the write as unconditional (INSERT semantics): always fires column-gated entries too. */
+ * The write narrows nothing, so column-gated entries fire too. */
 export const invalidateCachesForTable = (table: string): void =>
-  invalidateCachesForWrite(table, { columns: new Set(), verb: "insert" });
+  invalidateCachesForWrite(table, { updatedColumns: null });
 
 /** A `dependsOn` entry accepted by `cachedTable` / `cachedEntityTable`. */
 export type DependsOnEntry =

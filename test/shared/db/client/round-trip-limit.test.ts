@@ -1,7 +1,12 @@
 import type { Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryBatch, setDb } from "#shared/db/client.ts";
+import {
+  getDb,
+  queryBatch,
+  setDb,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
@@ -171,11 +176,65 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
       const rollbackAtLimit = async () => {
         await openTx.rollback();
       };
-      await expect(rollbackAtLimit()).rejects.toThrow(/limit 50/);
+      await expect(rollbackAtLimit()).rejects.toThrow(
+        /limit 50.*Blocked operation: transaction rollback/,
+      );
       return openTx;
     });
     // Clean up the still-open transaction outside the counted scope.
     await tx.rollback();
+  });
+
+  // A write transaction begins and commits with two database calls, so an
+  // allowance of two is exactly enough for the work and nothing else.
+  const BEGIN_AND_COMMIT = 2;
+
+  const transactionWithin = (allowance: {
+    database: number;
+    total: number;
+  }): Promise<string> =>
+    runWithSubrequestBudget(() =>
+      runWithQueryLogContext(() =>
+        withSubrequestAllowance(
+          { external: BUNNY_SUBREQUEST_LIMIT, ...allowance },
+          () => withTransaction(() => Promise.resolve("committed")),
+        ),
+      ),
+    );
+
+  test("a transaction leaves a database call spare for the rollback it may need", async () => {
+    // The reserve is what keeps a failure recoverable: a transaction that
+    // spent the last call of its allowance on the commit would have nothing
+    // left for the rollback that must close it. So it is refused one call
+    // earlier instead, and the call held back is the rollback's.
+    await expect(
+      transactionWithin({
+        database: BEGIN_AND_COMMIT,
+        total: BUNNY_SUBREQUEST_LIMIT,
+      }),
+    ).rejects.toThrow(/allowance exceeded/);
+  });
+
+  test("the spare call is held against the total allowance too", async () => {
+    // Same reserve, counted the other way: an allowance that only limits the
+    // combined total still has to fit the rollback.
+    await expect(
+      transactionWithin({
+        database: BUNNY_SUBREQUEST_LIMIT,
+        total: BEGIN_AND_COMMIT,
+      }),
+    ).rejects.toThrow(/allowance exceeded/);
+  });
+
+  test("one call above its work is all a transaction needs", async () => {
+    // One more than the work itself, on both counts, and it commits — so the
+    // reserve is a single call, not a wider margin.
+    await expect(
+      transactionWithin({
+        database: BEGIN_AND_COMMIT + 1,
+        total: BEGIN_AND_COMMIT + 1,
+      }),
+    ).resolves.toBe("committed");
   });
 
   test("a re-set guarded client is not wrapped again (no double counting)", async () => {
