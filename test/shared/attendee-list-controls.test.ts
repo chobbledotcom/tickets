@@ -122,6 +122,14 @@ describe("reading the choices from a query string", () => {
       expect(read(testRosterListSetup(), "date=").date).toBeNull();
     });
 
+    test("keeps a well-formed day even when the dropdown does not offer it", () => {
+      // A day nobody booked filters to an empty list — the honest answer for
+      // that day — and the CSV export reads days with an empty dropdown list.
+      expect(read(testRosterListSetup(), "date=2030-01-01").date).toBe(
+        "2030-01-01",
+      );
+    });
+
     test("ignores a date on a list without the day filter", () => {
       expect(read(testBrowserListSetup(), "date=2026-08-03").date).toBeNull();
     });

@@ -88,8 +88,12 @@ const readCheckin = (raw: string | null): AttendeeFilter =>
 /**
  * Read the visitor's choices from a request's query string. Each control is
  * read only when the setup offers it, so a pasted address cannot claim a
- * filter the page has no control for; an unknown value falls back to the
- * control's "everything" choice rather than showing an empty page.
+ * filter the page has no control for; an unrecognised listing, type, sort, or
+ * check-in value falls back to that control's "everything" choice. The day is
+ * different: any well-formed day is honoured, even one the dropdown does not
+ * offer — an empty list is the honest answer for a day nobody booked, and the
+ * CSV export reads days with no dropdown at all. Only a malformed day is
+ * ignored.
  */
 export const readAttendeeListState = <Sort extends AttendeeSort | null>(
   setup: AttendeeListSetup<Sort>,

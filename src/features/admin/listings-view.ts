@@ -102,8 +102,13 @@ type FilteredAttendees = {
  * target every date, not just the filtered view.
  */
 export const filteredAttendeesHandler =
-  (request: Request, inner: ResponseHandler<[ctx: FilteredAttendees]>) =>
-  (listing: ListingWithCount, attendees: Attendee[], session: AuthSession) => {
+  (
+    request: Request,
+    inner: ResponseHandler<[ctx: FilteredAttendees]>,
+  ): ResponseHandler<
+    [listing: ListingWithCount, attendees: Attendee[], session: AuthSession]
+  > =>
+  (listing, attendees, session) => {
     const state: AttendeeListState<null> = readAttendeeListState(
       rosterListSetup(listing, []),
       new URL(request.url).searchParams,
