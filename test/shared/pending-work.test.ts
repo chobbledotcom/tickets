@@ -7,6 +7,21 @@ import {
   runWithPendingWork,
 } from "#shared/pending-work.ts";
 
+// Waits for a fresh task, not just a microtask, so a piece of work always
+// settles after the flush's own bookkeeping and each round advances exactly
+// one piece. A message port is a task like a timer is, without the
+// millisecond a `setTimeout` would really spend waiting.
+const nextTask = (): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      channel.port2.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+
 describe("pending-work", () => {
   test("has a scope inside runWithPendingWork and none outside", async () => {
     expect(hasPendingWorkScope()).toBe(false);
@@ -84,7 +99,7 @@ describe("pending-work", () => {
       made++;
       addPendingWork(
         (async () => {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          await nextTask();
           queueAgain();
         })(),
       );
