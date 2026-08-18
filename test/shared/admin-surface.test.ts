@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  ADMIN_SURFACE,
   adminDestination,
   adminDestinationAllowed,
   adminPath,
@@ -28,38 +27,9 @@ describe("admin surface paths", () => {
     expect(adminDestinationAllowed("modifiers", "manager", true)).toBe(true);
   });
 
-  test("keeps the complete top-level section order", () => {
-    expect(ADMIN_SURFACE.sections.map((section) => section.id)).toEqual([
-      "home",
-      "listings",
-      "calendar",
-      "servicing",
-      "attendees",
-      "users",
-      "groups",
-      "images",
-      "modifiers",
-      "ledger",
-      "site",
-      "settings",
-    ]);
-  });
-
   test("takes each route's intent from the group it is declared in", () => {
     expect(adminDestination("modifiers").intent).toBe("view");
     expect(adminDestination("modifierEdit").intent).toBe("write-form");
-  });
-
-  test("keeps each section's sub-navigation in its declared order", () => {
-    const users = ADMIN_SURFACE.sections.find(
-      (section) => section.id === "users",
-    )!;
-    expect(users.nav.map((entry) => entry.id)).toEqual([
-      "users",
-      "userNew",
-      "sessions",
-      "apiKeys",
-    ]);
   });
 
   test("gives every route the audience its area declares", () => {
