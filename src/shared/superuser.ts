@@ -147,7 +147,6 @@ export const generateSuperuserPassword = (length = 12): string => {
   let result = "";
 
   for (const _draw of range(0, MAX_PASSWORD_DRAWS)) {
-    if (result.length >= length) return result;
     // Rejection sampling: bytes past the last whole multiple of the alphabet
     // are dropped so every character stays equally likely.
     const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
@@ -156,6 +155,7 @@ export const generateSuperuserPassword = (length = 12): string => {
       .slice(0, length - result.length)
       .map((byte) => PASSWORD_ALPHABET[byte % alphabetLength])
       .join("");
+    if (result.length >= length) return result;
   }
 
   throw new Error("Could not draw enough random characters for a password");

@@ -265,3 +265,9 @@ src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim a
 # seeds.ts — two thresholds no seeded value can fall between.
 src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1   # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds
 src/shared/seeds.ts::createSeeds~0ghuowu  0 → 1   # the customisable listing always yields a delete plus one multi-row insert, so the list holds 0 or 2 statements, never 1
+
+# superuser.ts — the cache generation's starting number. Only a CHANGE in the
+# generation matters: a lookup snapshots it before its await and compares that
+# snapshot with the current value, so every comparison is between two readings
+# of the same counter. Starting the count anywhere gives the same answers.
+src/shared/superuser.ts::%3cfile%3e~0ljtci5  0 → 1   # the generation is only ever compared against itself across an await, never against a fixed number
