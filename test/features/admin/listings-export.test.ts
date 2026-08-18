@@ -9,7 +9,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 
-describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
+describeWithEnv("the listing CSV export", { db: true }, () => {
   /** A listing with one checked-in (AliceIn) and one not (BobOut). */
   const setup = async () => {
     const listing = await createTestListing({
