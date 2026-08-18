@@ -3,7 +3,7 @@
  * Uses batch writes for efficient database operations.
  */
 
-import { map, sum } from "#fp";
+import { chunk, map, range, sum } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
@@ -37,14 +37,15 @@ export const SEED_MAX_ATTENDEES = 100_000;
 /** Pick a random ticket quantity (1-4) */
 const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);
 
-/** Sample unit prices in minor units (e.g. pence/cents) for paid listings */
-const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
+/** Sample unit prices in minor units (e.g. pence/cents) for paid listings.
+ * Exported so the seeds suite can pin the exact set a paid listing draws from. */
+export const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 
 /** Generate slugs that are unique within the batch */
 const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
   const usedSlugs = new Set<string>();
   const results: SlugWithIndex[] = [];
-  for (let i = 0; i < count; i++) {
+  for (const _slot of range(0, count)) {
     const result = await generateUniqueSlug(hmacHash, (slug) =>
       Promise.resolve(usedSlugs.has(slug)),
     );
@@ -232,9 +233,7 @@ export const createSeeds = async (
   for (const [e, listingId] of listingIds.entries()) {
     const { quantities, unitPrice } = listingData[e]!;
 
-    for (let offset = 0; offset < attendeesPerListing; offset += CHUNK_SIZE) {
-      const batchSize = Math.min(CHUNK_SIZE, attendeesPerListing - offset);
-      const chunkQuantities = quantities.slice(offset, offset + batchSize);
+    for (const chunkQuantities of chunk(CHUNK_SIZE)(quantities)) {
       const statementPairs = await Promise.all(
         map((q: number) => prepareAttendee(listingId, q, unitPrice))(
           chunkQuantities,
@@ -242,7 +241,7 @@ export const createSeeds = async (
       );
       // Each booking locates its attendee by the caller-supplied stable token.
       await executeBatch(statementPairs.flat());
-      totalAttendees += batchSize;
+      totalAttendees += chunkQuantities.length;
     }
   }
 

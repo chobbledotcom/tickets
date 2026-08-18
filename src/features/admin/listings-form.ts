@@ -7,6 +7,7 @@
  */
 
 /* jscpd:ignore-start */
+import { range } from "#fp";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type ListingInput,
@@ -107,7 +108,7 @@ const parseDayPricesFromForm = (
   maxDays: number,
 ): DayPrices => {
   const result: DayPrices = {};
-  for (let n = 1; n <= maxDays; n++) {
+  for (const n of range(1, maxDays + 1)) {
     // Optional per-day price: blank ⇒ skip (that day isn't offered). A non-blank
     // value that fails to parse is caught by validateDayPricesFromForm before
     // the save, so here a null result is only ever a blank.
