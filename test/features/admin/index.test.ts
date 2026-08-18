@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -46,6 +47,20 @@ describeWithEnv("admin segment dispatch", { db: true }, () => {
       const response = await awaitTestRequest(path);
       expect(response.status, path).toBe(200);
     }
+  });
+
+  test("a signed-out check-in is refused as JSON, not redirected", async () => {
+    // The scanner posts check-ins here and reads the answer as JSON, so this
+    // path must skip the redirect every other signed-out page gets.
+    const response = await handleRequest(
+      new Request("http://localhost/admin/listing/1/scan", {
+        body: JSON.stringify({}),
+        headers: { "content-type": "application/json", host: "localhost" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("content-type")).toContain("application/json");
   });
 
   test("a signed-in visitor reaches a protected page", async () => {
