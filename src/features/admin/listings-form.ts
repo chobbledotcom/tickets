@@ -95,7 +95,7 @@ export const parseGroupIds = (form: FormParams): number[] =>
   form
     .getAll("group_ids")
     .map(Number)
-    .filter((n) => n > 0);
+    .filter((n) => Number.isSafeInteger(n) && n > 0);
 
 /**
  * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from

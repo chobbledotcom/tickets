@@ -47,7 +47,9 @@ const updateListing = async (
 describeWithEnv("listings form", { db: true }, () => {
   describe("parseGroupIds", () => {
     test("keeps only positive whole group ids", () => {
-      const form = testFormParams({ group_ids: ["3", "0", "-2", "abc", "7"] });
+      const form = testFormParams({
+        group_ids: ["3", "0", "-2", "abc", "3.5", "Infinity", "7"],
+      });
       expect(parseGroupIds(form)).toEqual([3, 7]);
     });
 
@@ -151,7 +153,9 @@ describeWithEnv("listings form", { db: true }, () => {
       });
       const links = await getDb().execute({
         args: [row.id],
-        sql: "SELECT group_id FROM group_listings WHERE listing_id = ?",
+        sql:
+          "SELECT groupListing.group_id FROM group_listings AS groupListing " +
+          "WHERE groupListing.listing_id = ?",
       });
       expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
     });
