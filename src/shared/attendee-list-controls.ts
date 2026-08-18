@@ -99,6 +99,7 @@ export const readAttendeeListState = <Sort extends AttendeeSort | null>(
   const rawDate = query.get("date");
   const rawType = query.get("type");
   const rawPage = query.get("page");
+  const page = rawPage === null ? null : parsePositiveInt(rawPage);
   return {
     checkin: setup.withCheckin ? readCheckin(query.get("filter")) : "all",
     date:
@@ -106,10 +107,7 @@ export const readAttendeeListState = <Sort extends AttendeeSort | null>(
         ? rawDate
         : null,
     listingId: readChosenListing(setup.listings, query.get("listing")),
-    page:
-      setup.withPaging && rawPage !== null
-        ? (parsePositiveInt(rawPage) ?? 0)
-        : 0,
+    page: setup.withPaging && page !== null ? page : 0,
     sort:
       rawSort !== null && isAttendeeSort(rawSort) ? rawSort : setup.defaultSort,
     type: setup.withTypes && isListingFilter(rawType) ? rawType : "all",
