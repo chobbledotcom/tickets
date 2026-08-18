@@ -30,7 +30,7 @@ type ListingPanelSharedOptions = {
   systemNotes?: SystemNote[] | undefined;
   /** Only owners may open the ledger pages, so a note's ledger link renders
    * as plain text for everyone else. */
-  isOwner?: boolean | undefined;
+  isOwner: boolean;
 };
 
 /** The roster's filter/sort description: its controls and current choices. */

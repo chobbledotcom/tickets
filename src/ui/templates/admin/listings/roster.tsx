@@ -111,7 +111,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         sharedRows: v.sharedRows,
       })}
       <AttendeeNotesSummary
-        isOwner={opts.isOwner ?? false}
+        isOwner={opts.isOwner}
         names={fieldById("name")(attendees)}
         notes={systemNotes}
       />
@@ -120,7 +120,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         emailDayHref={emailDayHrefFor(
           listing.id,
           v.dateFilter,
-          opts.isOwner ?? false,
+          opts.isOwner,
           attendees,
         )}
         list={list}

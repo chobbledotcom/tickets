@@ -35,11 +35,15 @@ export const withoutBuilder = withBuilderEnv(undefined);
 /** The roster options with the filter/sort choices written the way the old
  *  panel took them, so fixture-building tests stay terse: the helper builds
  *  the shared list view (setup + state) from them. */
-type DetailOptions = Omit<Parameters<typeof ListingRosterPanel>[0], "list"> & {
+type DetailOptions = Omit<
+  Parameters<typeof ListingRosterPanel>[0],
+  "list" | "isOwner"
+> & {
   activeFilter?: AttendeeFilter;
   dateFilter?: string | null;
   sort?: AttendeeSort | null;
   availableDates?: DateOption[];
+  isOwner?: boolean;
 };
 
 const rosterListViewOf = (opts: DetailOptions): RosterListView => ({
@@ -66,6 +70,7 @@ export const renderListingDetail = (opts: DetailOptions): string =>
       groupContext: opts.groupContext,
       isChild: opts.isChild,
       isHiddenPackageMember: opts.isHiddenPackageMember,
+      isOwner: opts.isOwner ?? false,
       ledgerHref: opts.moneyTotals
         ? listingLedgerHref(opts.listing.id)
         : undefined,
@@ -83,7 +88,14 @@ export const renderListingDetail = (opts: DetailOptions): string =>
       ),
       systemNotes: opts.systemNotes,
     }),
-  ) + String(ListingRosterPanel({ ...opts, list: rosterListViewOf(opts) }));
+  ) +
+  String(
+    ListingRosterPanel({
+      ...opts,
+      isOwner: opts.isOwner ?? false,
+      list: rosterListViewOf(opts),
+    }),
+  );
 
 /** Render the listing detail view with the common defaults (localhost domain,
  *  no attendees); pass `extra` to override attendees, filters, ledger, etc. */
