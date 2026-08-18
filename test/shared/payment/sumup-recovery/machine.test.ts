@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  parseSumupRecoveryState,
   RECOVERY_EVENTS,
   RECOVERY_MOVES,
   RECOVERY_NODES,
@@ -9,7 +10,6 @@ import {
   RECOVERY_TERMINAL_NODES,
   type RecoveryNodeId,
   recoveryNodeOf,
-  SUMUP_RECOVERY_STATES,
 } from "#shared/payment/sumup-recovery-machine-spec.ts";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
 import {
@@ -85,9 +85,17 @@ describe("sumup recovery machine", () => {
     expect([...RECOVERY_TERMINAL_NODES].sort()).toEqual(["finished", "unpaid"]);
   });
 
-  test("every node is one of the stored state words", () => {
-    expect(RECOVERY_NODES.map((node) => node.id).sort()).toEqual(
-      [...SUMUP_RECOVERY_STATES].sort(),
+  test("every node id is a word the row reader accepts", () => {
+    for (const node of RECOVERY_NODES) {
+      expect(parseSumupRecoveryState(node.id), node.id).toBe(node.id);
+    }
+  });
+
+  test("refuses a stored word the machine does not have", () => {
+    // A row carrying a word nothing here wrote means the database and this
+    // code disagree, which must be raised rather than worked around.
+    expect(() => parseSumupRecoveryState("abandoned")).toThrow(
+      "holds unknown state abandoned",
     );
   });
 });

@@ -15,8 +15,8 @@ import {
 } from "#shared/db/sumup-recovery.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
+import { resolveSumupCheckoutById } from "#shared/sumup/checkout-resolution.ts";
 import { sumupRecoveryOutcome } from "#shared/sumup/recovery.ts";
-import { resolveSumupCheckoutById } from "#shared/sumup-provider.ts";
 
 /** Ask about one checkout and record what the answer amounted to. */
 const recoverOne = async (checkout: DueSumupCheckout): Promise<void> => {

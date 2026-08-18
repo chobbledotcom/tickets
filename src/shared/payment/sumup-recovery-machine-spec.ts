@@ -34,10 +34,15 @@ export const SumupRecoveryStateSchema = v.picklist([
   "waiting",
 ]);
 export type SumupRecoveryState = v.InferOutput<typeof SumupRecoveryStateSchema>;
-export const SUMUP_RECOVERY_STATES = SumupRecoveryStateSchema.options;
-export const isSumupRecoveryState = (
-  word: string,
-): word is SumupRecoveryState => v.is(SumupRecoveryStateSchema, word);
+/** Read a stored word back as a state, refusing one this machine does not
+ * have. A row carrying an unknown word is a database this code cannot reason
+ * about, so it is raised where it is read rather than carried inward. */
+export const parseSumupRecoveryState = (word: string): SumupRecoveryState => {
+  if (!v.is(SumupRecoveryStateSchema, word)) {
+    throw new Error(`A sumup_checkouts row holds unknown state ${word}`);
+  }
+  return word;
+};
 
 export type RecoveryNodeId = SumupRecoveryState;
 
@@ -276,16 +281,6 @@ const nodeIdsWhere = (
 export const RECOVERY_TERMINAL_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
   (node) => RECOVERY_EVENTS.every((event) => !accepts(node.id, event.id)),
 );
-
-/** One declared event by id. Throws on a name the machine does not have, so
- * a caller cannot quietly ask for a move that was never declared. */
-export const recoveryEvent = (id: RecoveryEventId): RecoveryMachineEvent => {
-  const event = RECOVERY_EVENTS.find((candidate) => candidate.id === id);
-  if (event === undefined) {
-    throw new Error(`The SumUp recovery machine has no ${id} event`);
-  }
-  return event;
-};
 
 /** The nodes still worth asking SumUp about: the ones some check can move.
  * Derived, so a node stops being asked about the moment its last check is

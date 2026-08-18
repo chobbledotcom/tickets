@@ -12,12 +12,13 @@ import { execute, queryAll } from "#shared/db/client.ts";
 import { SUMUP_RECHECK_MS, SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { isoAfter, nowIso } from "#shared/now.ts";
 import {
+  parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,
   RECOVERY_TERMINAL_NODES,
   type RecoveryEventId,
   type RecoveryNodeId,
-  recoveryEvent,
   recoveryMoveTo,
+  recoveryNodeOf,
 } from "#shared/payment/sumup-recovery-machine-spec.ts";
 
 /** One checkout the recovery task is about to ask SumUp about. The metadata
@@ -39,7 +40,7 @@ const CHECKABLE_SLOTS = RECOVERY_CHECKABLE_NODES.map(() => "?").join(", ");
 export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
   const rows = await queryAll<{
     next_check_at: string;
-    recovery_state: RecoveryNodeId;
+    recovery_state: string;
     sumup_id: string;
   }>(
     `SELECT sumup_id, recovery_state, next_check_at
@@ -51,9 +52,14 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
       LIMIT ?`,
     [...RECOVERY_CHECKABLE_NODES, nowIso(), SUMUP_RECOVERY_BATCH],
   );
+  // Reading the stored word back through the machine is what turns a row
+  // nothing here could have written into a raised error rather than work.
   return rows.map((row) => ({
     checkedAt: row.next_check_at,
-    state: row.recovery_state,
+    state: recoveryNodeOf({
+      recoveryState: parseSumupRecoveryState(row.recovery_state),
+      sumupId: row.sumup_id,
+    }),
     sumupId: row.sumup_id,
   }));
 };
@@ -71,10 +77,6 @@ export const applySumupRecoveryEvent = async (
   checkout: DueSumupCheckout,
   event: RecoveryEventId,
 ): Promise<boolean> => {
-  const fence = recoveryEvent(event).fencesOn;
-  if (fence !== "state_and_schedule") {
-    throw new Error(`A SumUp recovery check cannot fence on ${fence}`);
-  }
   const to = recoveryMoveTo(checkout.state, event);
   const settled = RECOVERY_TERMINAL_NODES.includes(to);
   const result = await execute(
