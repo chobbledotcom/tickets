@@ -103,6 +103,15 @@ export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
       ...groupDestinations(areaId, area.audience, "write-form", area.write),
     ];
     for (const destination of areaDestinations) {
+      // Two areas claiming one id would leave the loser silently unreachable,
+      // and every link to it pointing at the winner.
+      const claimed = destinations[destination.id];
+      if (claimed) {
+        throw new Error(
+          `Admin route "${destination.id}" is declared by both ` +
+            `"${claimed.area}" and "${destination.area}"`,
+        );
+      }
       destinations[destination.id] = destination;
     }
     areas[areaId] = [

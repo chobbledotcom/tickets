@@ -88,3 +88,16 @@ describe("adminPathSegment", () => {
     expect(adminPathSegment("/admin/listing/5/edit")).toBe("listing");
   });
 });
+
+describe("a table that declares one route twice", () => {
+  test("refuses to fold, naming both areas", () => {
+    expect(() =>
+      foldAdminAreas({
+        holidays: { audience: ["owner"], view: { report: "/admin/holidays" } },
+        ledger: { audience: ["owner"], view: { report: "/admin/ledger" } },
+      }),
+    ).toThrow(
+      'Admin route "report" is declared by both "holidays" and "ledger"',
+    );
+  });
+});
