@@ -31,3 +31,10 @@ src/ui/templates/admin/questions.tsx::questionListingsFor.listingNames~1vj5u51  
 src/ui/templates/admin/questions.tsx::adminQuestionsPage.columns.key~0eka7sm  question → ""   # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; reorderableListPage renders the questions table with only reorder options — no columnKeys, hiddenKeys, or filter — so this key is never read
 src/ui/templates/admin/questions.tsx::adminQuestionsPage.columns.key~1c98v7j  answers → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
 src/ui/templates/admin/questions.tsx::adminQuestionsPage.columns.key~08wyblh  listings → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+
+# backups page (ui/templates/admin/backup.tsx) — column keys the page never
+# reads back, same class as the questions list table above.
+src/ui/templates/admin/backup.tsx::backupsTable.key~1353jpe  created → ""   # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; adminBackupPage renders the backups table with none of those options, so this key is never read
+src/ui/templates/admin/backup.tsx::backupsTable.key~1o7pzgq  timestamp → ""   # same as backup.tsx's created key — the backups table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+src/ui/templates/admin/backup.tsx::backupsTable.key~1tpb30l  size → ""   # same as backup.tsx's created key — the backups table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+src/ui/templates/admin/backup.tsx::backupsTable.key~120g5gv  actions → ""   # same as backup.tsx's created key — the backups table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read

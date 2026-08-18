@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   getStorageBackend,
   runWithStorageConfig,
+  storageZoneName,
   uploadRaw,
 } from "#shared/storage.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -80,6 +81,19 @@ describeWithEnv("storage environment config", STORAGE_TEST_ENV, () => {
     });
     await withStorageDisabled(() => {
       expect(getStorageBackend()).toBe("none");
+    });
+  });
+
+  test("names the zone when Bunny storage is active", () => {
+    runWithStorageConfig({ zoneKey: "mykey", zoneName: "myzone" }, () => {
+      expect(storageZoneName()).toBe("myzone");
+    });
+  });
+
+  test("has no zone name under local storage", async () => {
+    await withLocalStorageEnabled(async () => {
+      await Promise.resolve();
+      expect(storageZoneName()).toBe(null);
     });
   });
 });
