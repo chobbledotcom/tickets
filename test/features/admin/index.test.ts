@@ -28,10 +28,14 @@ describeWithEnv("admin segment dispatch", { db: true }, () => {
   });
 
   test("a repeat hit on a settings segment succeeds twice", async () => {
-    const first = await awaitTestRequest("/admin/settings");
-    const second = await awaitTestRequest("/admin/settings");
-    expect(first.status).toBe(302);
-    expect(second.status).toBe(302);
+    // A segment builds its router once and keeps it. Both hits must be signed
+    // in: a signed-out one is refused before the router is ever built, so it
+    // would pass whether or not the second hit can reuse the first's router.
+    const { cookie } = await getTestSession();
+    const first = await awaitTestRequest("/admin/settings", { cookie });
+    const second = await awaitTestRequest("/admin/settings", { cookie });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
   });
 
   test("a signed-out visitor is sent back to /admin", async () => {
