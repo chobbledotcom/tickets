@@ -4,7 +4,7 @@
  * listing detail and attendee edit pages.
  */
 
-import { fieldById, filter, map, range, unique } from "#fp";
+import { fieldById, filter, map, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
@@ -34,6 +34,7 @@ import {
   listingCategory,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
+import { readAllPages } from "#shared/paged-read.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -160,17 +161,12 @@ export const handleAttendeesListGet: TypedRouteHandler<
  * cursor stopped advancing, not that a site really has this many bookings. */
 const MAX_EXPORT_PAGES = 10_000;
 
-const allAttendeeBookings = async (
+const allAttendeeBookings = (
   listingIds: number[] | null,
-): Promise<Attendee[]> => {
-  const out: Attendee[] = [];
-  for (const page of range(0, MAX_EXPORT_PAGES)) {
-    const result = await getAttendeesPage({ listingIds, page, sort: "newest" });
-    for (const row of result.rows) out.push(row);
-    if (!result.hasNext) return out;
-  }
-  throw new Error("Attendee export read more pages than any site can hold");
-};
+): Promise<Attendee[]> =>
+  readAllPages(MAX_EXPORT_PAGES, (page) =>
+    getAttendeesPage({ listingIds, page, sort: "newest" }),
+  );
 
 /**
  * Handle GET /admin/attendees/csv

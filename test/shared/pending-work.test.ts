@@ -72,6 +72,22 @@ describe("pending-work", () => {
     });
   });
 
+  test("work that queues fresh work forever fails loudly instead of spinning", async () => {
+    let keepQueueing = true;
+    const queueAgain = (): void => {
+      if (keepQueueing) addPendingWork(Promise.resolve().then(queueAgain));
+    };
+    await runWithPendingWork(async () => {
+      queueAgain();
+      await expect(flushPendingWork()).rejects.toThrow(
+        "Pending work kept queueing more work instead of finishing",
+      );
+      // Stop the chain and drain its tail so the scope can end cleanly.
+      keepQueueing = false;
+      await flushPendingWork();
+    });
+  });
+
   test("flushPendingWork outside a scope is a no-op", async () => {
     await flushPendingWork(); // nothing to flush and no scope: must not throw
     expect(hasPendingWorkScope()).toBe(false);
