@@ -2651,8 +2651,16 @@ the PR changed lives in that file's mirror tests. The run found 14 survivors in
 outside its own gate. The branch-level `precommit:mutation` step covers only the
 sources that a branch changes.
 
-The survivors all have one shape. Each one is a "did this list come back empty?"
-branch, and no test tells its two arms apart.
+The survivors fall into three shapes:
+
+- Eleven are "did this list come back empty?" branches. No test tells the empty
+  arm from the full one.
+- One is the sort comparator inside `listingsForLinks`, where a divide replaces
+  the subtraction.
+- Two are fallbacks in `edgeIncompatibilityAfterChange`, where `||` replaces
+  `??`. Check first whether either left side can hold a falsy-but-present value.
+  If it cannot, the entry belongs in `equivalent-mutants/` with that proof
+  rather than in a test.
 
 ```
 listingIdsWithLinks~1dqzuig            ?: → arms swapped
