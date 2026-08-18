@@ -269,6 +269,15 @@ describeWithEnv("listings form", { db: true }, () => {
 
       const row = await updateListing(created.id, { unit_price: "0" });
       expect(row.unit_price).toBe(0);
+      // A real stored zero, not an absent value: the column is what the base
+      // price row is mirrored from.
+      const stored = await getDb().execute({
+        args: [row.id],
+        sql:
+          "SELECT listing.unit_price FROM listings AS listing " +
+          "WHERE listing.id = ?",
+      });
+      expect(stored.rows[0]!.unit_price).toBe(0);
     });
 
     test("a daily listing keeps an emptied day selection empty", async () => {

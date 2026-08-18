@@ -150,7 +150,9 @@ describeWithEnv("seeds", { db: true }, () => {
 
   test("each seeded listing gets its own slug", async () => {
     await createSeeds(3, 0);
-    const rows = await getDb().execute("SELECT slug_index FROM listings");
+    const rows = await getDb().execute(
+      "SELECT listing.slug_index FROM listings AS listing",
+    );
     const indexes = rows.rows.map((row) => row.slug_index);
     expect(new Set(indexes).size).toBe(3);
   });
