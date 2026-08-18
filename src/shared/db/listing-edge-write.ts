@@ -69,9 +69,9 @@ const nestingError = (
     return null;
   }
   if (hasChildren) return t("error.child_listing_nested");
-  // The parents contract is the catalog import, where "reload and try again"
-  // would be no help: the named parent was already a child before the file was
-  // read, so the fix is to change the file.
+  // The parents contract is the catalog import. "Reload and try again" is no
+  // help there. The named parent was already a child before the file was read,
+  // so the fix is to change the file.
   if (hasParent) return t("error.parent_is_already_a_child");
   return null;
 };

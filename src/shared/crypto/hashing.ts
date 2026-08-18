@@ -105,8 +105,8 @@ export const verifyPassword = async (
   if (!iterStr || !saltStr || !hashStr) return false;
 
   // Every other malformed stored hash returns false, so a count that is not a
-  // plain positive number must too — parseInt would read "0x3e8" as 0 and hand
-  // that to PBKDF2, which rejects it by throwing.
+  // plain positive number must too. parseInt reads "0x3e8" as 0, and PBKDF2
+  // throws on a count of 0.
   if (!/^\d+$/.test(iterStr)) return false;
   const iterations = Number.parseInt(iterStr, 10);
   if (iterations === 0) return false;

@@ -136,9 +136,9 @@ export const getSuperuserState = async (): Promise<SuperuserState> => {
 const PASSWORD_ALPHABET =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
-/** Each draw asks for twice the characters still needed, so one is almost
- * always enough and even a dozen would be a freak run. Needing this many means
- * the randomness source is handing back nothing usable. */
+/** Each draw asks for twice the characters still needed, so one draw is almost
+ * always enough, and even a dozen is a freak run. A run that reaches this many
+ * draws has a randomness source that hands back nothing usable. */
 const MAX_PASSWORD_DRAWS = 100;
 
 export const generateSuperuserPassword = (length = 12): string => {

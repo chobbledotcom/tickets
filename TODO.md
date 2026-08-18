@@ -2644,15 +2644,15 @@ on the last column via the `alsoAbout` pattern in
 
 ## Close the 14 mutation survivors in `src/shared/db/listing-parents.ts` (from PR #2110)
 
-PR #2110 mutation-tested `src/shared/db/listing-edge-write.ts` (100%, no
-survivors) and pulled `src/shared/db/listing-parents.ts` into the same run
-because the assertion it changed lives in that file's mirror tests. That run
-surfaced 14 survivors in `listing-parents.ts`, a file the PR does not change, so
-they are outside its own gate — the branch-level `precommit:mutation` scopes to
-changed sources.
+PR #2110 mutated `src/shared/db/listing-edge-write.ts` to a 100% score. The same
+run also covered `src/shared/db/listing-parents.ts`, because the assertion that
+the PR changed lives in that file's mirror tests. The run found 14 survivors in
+`listing-parents.ts`. The PR does not change that file, so the survivors sit
+outside its own gate. The branch-level `precommit:mutation` step covers only the
+sources that a branch changes.
 
-They are all the same shape: "did this list come back empty?" branches whose
-empty and non-empty arms nothing distinguishes.
+The survivors all have one shape. Each one is a "did this list come back empty?"
+branch, and no test tells its two arms apart.
 
 ```
 listingIdsWithLinks~1dqzuig            ?: → arms swapped
@@ -2668,13 +2668,13 @@ edgeIncompatibilityAfterChange.parents~1cm1r1e    ?? → ||
 edgeIncompatibilityAfterChange~02ardat            ?: → arms swapped
 ```
 
-Starting point: `listingIdsWithLinks` is exported and pure, so a table of maps —
-no links, some links, all links — kills its three on its own.
+Starting point: `listingIdsWithLinks` is exported and pure. A table of maps — no
+links, some links, all links — kills its three survivors on its own.
 `getNonStandaloneChildIds` and `anyNonStandaloneChild` need a listing that is a
-child and one that is `bookable_alone`, plus the empty-input short circuit.
-`listingsForLinks` is private; reach it through the hydrating readers, and note
-the `-` → `/` survivor is its sort comparator, which needs two keys whose order
-a divide would change. Reproduce with:
+child, a listing that is `bookable_alone`, and the empty-input short circuit.
+`listingsForLinks` is private, so reach it through the readers that hydrate the
+links. Note that its `-` → `/` survivor sits in a sort comparator. That one
+needs two keys whose order a divide changes. Reproduce with:
 
 ```bash
 deno task mutation --source src/shared/db/listing-parents.ts \

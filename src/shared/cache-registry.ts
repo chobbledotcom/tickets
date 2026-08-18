@@ -53,8 +53,8 @@ export const getAllCacheStats = (): CacheStat[] =>
 /** What a write narrows to, for column-gated invalidation. */
 export type WriteInfo = {
   /** Lower-cased columns an UPDATE assigns, or null when the write narrows
-   * nothing: an INSERT, DELETE or REPLACE, or an UPDATE whose SET clause
-   * could not be read. */
+   * nothing: an INSERT, DELETE or REPLACE, or an UPDATE whose SET clause the
+   * parser cannot read. */
   updatedColumns: ReadonlySet<string> | null;
 };
 
