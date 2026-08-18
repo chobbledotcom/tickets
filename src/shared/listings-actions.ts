@@ -478,14 +478,15 @@ export const deleteOrphanedAddOnError = (
   deactivationOrphanedAddOnError(new Set([listingId]));
 
 /**
- * Delete a listing: clean up its attachment, remove DB links, log activity.
- * Returns the listing that was deleted (for response formatting).
+ * Delete a listing: remove its DB rows, then its attachment file, then log.
+ * The row goes first so a failed database delete cannot leave a live listing
+ * pointing at an already-removed attachment file.
  */
 export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<void> => {
-  await deleteListingAttachmentFile(listing, "listing deletion");
   await deleteListing(listing.id);
+  await deleteListingAttachmentFile(listing, "listing deletion");
   await logActivity(
     `Listing '${listing.name}' deleted (${listing.attendee_count} attendee(s) removed)`,
   );
