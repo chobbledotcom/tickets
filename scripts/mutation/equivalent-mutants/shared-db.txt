@@ -78,3 +78,9 @@ src/shared/sumup/transaction.ts::readSumupTransaction.events~0aphohd  ?? → || 
 # sessionId that is a key of that same map. requiredMapValue can never miss
 # there, and no input can observe the message on that unreachable throw.
 src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement lost a payment row→""   # unreachable: the IN-clause is built from the same map's keys
+
+# backup dump (shared/db/backup-snapshot.ts) — exportTable internals whose
+# intermediate values are overwritten or type-guaranteed before any read.
+src/shared/db/backup-snapshot.ts::exportTable.colList~1el369a   → "mutated"   # colList is only read when INSERT statements are built, which happens after the first non-empty page assigned it in the rowCount === 0 branch; the initializer is overwritten before every read (an empty table breaks out before any read)
+src/shared/db/backup-snapshot.ts::exportTable.rows~0k5qahc  ?? → ||   # suppliedPage is BackupRow[] | undefined: an array (even an empty one) is truthy and undefined is falsy, so ?? and || pick the same side for every possible value
+src/shared/db/backup-snapshot.ts::exportTable.colList~0ou5ceg  = → +=   # the rowCount === 0 branch runs at most once (rowCount grows past zero with the same page that enters it), so this appends to the initial empty string, and "" + x === x

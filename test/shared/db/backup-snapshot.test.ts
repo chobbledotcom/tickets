@@ -10,6 +10,7 @@ import { getDb } from "#shared/db/client.ts";
 import { initDb, SCHEMA_TABLE_NAMES } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("backup snapshot", { db: true }, () => {
   describe("exportTable", () => {
@@ -46,6 +47,17 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       expect(sql).toContain("NULL");
     });
 
+    test("escapes single quotes by doubling them", async () => {
+      // Seeded at the storage layer with bound args, so nothing escapes the
+      // quote on the way in — only the dump's own escaping can double it.
+      await getDb().execute({
+        args: ["quote-test", "O'Brien's Gala"],
+        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+      });
+      const { sql } = await exportTable("settings");
+      expect(sql).toContain("'O''Brien''s Gala'");
+    });
+
     test("keyset-paginates across multiple pages without losing rows", async () => {
       const pageOne = await createTestListing({ name: "Page One" });
       const pageTwo = await createTestListing({ name: "Page Two" });
@@ -63,6 +75,20 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       expect(sql.match(new RegExp(`\\(${pageOne.id},`, "g"))).toHaveLength(1);
       expect(sql.match(new RegExp(`\\(${pageTwo.id},`, "g"))).toHaveLength(1);
       expect(sql.match(new RegExp(`\\(${pageThree.id},`, "g"))).toHaveLength(1);
+      // Statements are newline-separated so a dump stays readable.
+      expect(sql).toContain(';\nINSERT INTO "listings"');
+    });
+
+    test("the keyset cursor tracks the last row id, not a running sum", async () => {
+      // Three pages: a summed cursor would agree on page two (0 + last id)
+      // and only overshoot from page three on, silently dropping rows.
+      const ids: number[] = [];
+      for (let n = 1; n <= 5; n++) {
+        ids.push((await createTestListing({ name: `Cursor ${n}` })).id);
+      }
+      const { sql, rowCount } = await exportTable("listings", 2);
+      expect(rowCount).toBe(5);
+      expect(sql).toContain(`(${ids[4]},`);
     });
   });
 
@@ -91,6 +117,12 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     test("sums extra pages across tables", () => {
       expect(backupDumpDatabaseCalls([500, 1000, 499], 500)).toBe(5);
     });
+
+    test("reads the page size from BACKUP_PAGE_SIZE by default", () => {
+      using _env = withEnv({ BACKUP_PAGE_SIZE: "1" });
+      // Three one-row pages past the shared first-page batch: 2 + 3.
+      expect(backupDumpDatabaseCalls([3])).toBe(5);
+    });
   });
 
   describe("countSchemaTableRows", () => {
@@ -107,6 +139,16 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     test("returns tables in SCHEMA order", async () => {
       const backups = await createBackup();
       expect(backups.map((b) => b.table)).toEqual(SCHEMA_TABLE_NAMES);
+    });
+
+    test("includes each table's first row", async () => {
+      // The batched first pages start their keyset cursor below every real
+      // rowid; a cursor of 1 would silently drop each table's first row.
+      const listing = await createTestListing({ name: "First Row" });
+      const backups = await createBackup();
+      const listings = backups.find((backup) => backup.table === "listings");
+      expect(listings?.rowCount).toBe(1);
+      expect(listings?.sql).toContain(`(${listing.id},`);
     });
 
     test("skips tables that do not exist", async () => {
