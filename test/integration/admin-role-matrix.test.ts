@@ -65,8 +65,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
 
   test("covers every parameter-free page the surface declares", () => {
     // Guards the walk below: a surface that stopped declaring its pages would
-    // otherwise make this suite pass by testing nothing.
-    expect(roleOnlyDestinations.length).toBeGreaterThan(20);
+    // otherwise make this suite pass by testing nothing. The split is stated
+    // exactly so the plan cannot claim wider cover than this suite has.
+    const all = Object.values(ADMIN_SURFACE.destinations);
+    expect(roleOnlyDestinations.length).toBe(48);
+    expect(all.length - roleOnlyDestinations.length).toBe(63);
   });
 
   test("never serves a page to a role it does not declare", async () => {

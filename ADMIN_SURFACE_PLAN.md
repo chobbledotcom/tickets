@@ -176,11 +176,14 @@ The stricter side is the proposed default. No disagreement is resolved silently.
   the bug class this plan removes. Each found case gets an explicit fix and a
   regression test.
 - The navigation already shows a destination only when the viewer's level is in
-  the audience. The role matrix now proves that the declared audience and the
-  gate each handler enforces agree, so a rendered link cannot outrun its target.
-  After Slice 3 the declared audience will build that gate as well, which makes
-  the "never render a dead or forbidden link" rule mechanical for the whole
-  admin surface rather than checked.
+  the audience. The role matrix proves that the declared audience and the gate
+  the handler enforces agree for the 48 pages whose pattern takes no parameter,
+  so a rendered link to one of those cannot outrun its target. The 63 pages for
+  one record are not covered: a missing record answers 404 whatever the role is,
+  so each needs a fixture, which is the first step of Slice 3. After Slice 3 the
+  declared audience builds the gate as well, which makes the "never render a
+  dead or forbidden link" rule mechanical for the whole admin surface rather
+  than checked for part of it.
 - No secret or personal field moves. No new untrusted input reaches the
   database.
 
