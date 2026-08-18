@@ -23,17 +23,10 @@ export const bytesEqual = (left: Uint8Array, right: Uint8Array): boolean =>
   left.length === right.length &&
   left.every((byte, index) => byte === right[index]);
 
-const unsignedBytes = (value: number): number[] => {
-  const bytes: number[] = [];
-  for (
-    let remaining = value;
-    remaining > 0;
-    remaining = Math.floor(remaining / 256)
-  ) {
-    bytes.unshift(remaining & 0xff);
-  }
-  return bytes;
-};
+/** Big-endian bytes of a non-negative whole number; zero is no bytes. Each
+ * step shrinks the value 256-fold, so the recursion always bottoms out. */
+const unsignedBytes = (value: number): number[] =>
+  value <= 0 ? [] : [...unsignedBytes(Math.floor(value / 256)), value & 0xff];
 
 const encodeLength = (length: number): Uint8Array => {
   // Values below 128 use one byte. Otherwise bit 7 marks how many

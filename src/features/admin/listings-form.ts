@@ -7,6 +7,7 @@
  */
 
 /* jscpd:ignore-start */
+import { range } from "#fp";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type ListingInput,
@@ -94,7 +95,7 @@ export const parseGroupIds = (form: FormParams): number[] =>
   form
     .getAll("group_ids")
     .map(Number)
-    .filter((n) => n > 0);
+    .filter((n) => Number.isSafeInteger(n) && n > 0);
 
 /**
  * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
@@ -107,7 +108,7 @@ const parseDayPricesFromForm = (
   maxDays: number,
 ): DayPrices => {
   const result: DayPrices = {};
-  for (let n = 1; n <= maxDays; n++) {
+  for (const n of range(1, maxDays + 1)) {
     // Optional per-day price: blank ⇒ skip (that day isn't offered). A non-blank
     // value that fails to parse is caught by validateDayPricesFromForm before
     // the save, so here a null result is only ever a blank.

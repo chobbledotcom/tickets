@@ -3,11 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { DEMO_NAMES } from "#shared/demo/samples.ts";
-import { createSeeds } from "#shared/seeds.ts";
 import {
   assertAdminHtml,
   expectFlashRedirect,
@@ -150,35 +147,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(listings[0]!.max_attendees).toBe(0);
     });
 
-    test("seeds a customisable-days listing with day prices", async () => {
-      await createSeeds(1, 0);
-      const { getListingDayPrices } = await import(
-        "#shared/db/listing-prices.ts"
-      );
-      const listings = await getAllListings();
-      const customisable = listings.find((l) => l.customisable_days);
-      expect(customisable).toBeDefined();
-      // The demo day prices are 1/2/3-day counts (day prices are no longer a
-      // listings column — they are seeded as day_count rows in listing_prices).
-      const dayPrices = customisable!.day_prices;
-      expect(
-        Object.keys(dayPrices)
-          .map(Number)
-          .sort((x, y) => x - y),
-      ).toEqual([1, 2, 3]);
-      // The projected value matches the stored day_count rows exactly.
-      expect(await getListingDayPrices(customisable!.id)).toEqual(dayPrices);
-    });
-
-    test("throws when public key is not configured", async () => {
-      // Remove public key to cause createSeeds to throw
-      await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
-      settings.invalidateCache();
-
-      await expect(createSeeds(1, 0)).rejects.toThrow(
-        "Public key not configured",
-      );
-    });
+    // The direct createSeeds contracts (day prices, price alternation, the
+    // missing-public-key throw) live in test/shared/seeds.test.ts.
 
     test("can seed multiple times additively", async () => {
       // First seed

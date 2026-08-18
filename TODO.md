@@ -128,17 +128,9 @@ decision, not a patch. Starting points: the dates.ts restructure in this PR;
 `scripts/mutation/execution.ts` for the test stage the decision would live in.
 
 The follow-up sweep bounded the freeze-capable loops across the rest of `src/`
-(`range`/`entries`/`chunk`/`reduce` shapes; see the `#fp` `range` helper). Two
-files were left out because they have **no mirror direct test suite at all**, so
-the mutation gate cannot even start on them — each needs its suite built first,
-then the same bounded-loop treatment:
-
-- `src/features/admin/listings-form.ts` — `parseDayPricesFromForm`'s
-  `for (let n = 1; n <= maxDays; n++)` spins forever under `n++ → n--` (blank
-  day-price reads skip without ever ending the loop).
-- `src/shared/seeds.ts` — the unique-slug count loop and the chunked attendee
-  loop both spin or grow without bound under a step-neutralising mutant
-  (`i++ → i--`, `offset += CHUNK_SIZE → /=`).
+(`range`/`entries`/`chunk`/`reduce` shapes; see the `#fp` `range` helper),
+including the two files that first needed mirror direct suites built
+(`src/features/admin/listings-form.ts`, `src/shared/seeds.ts`).
 
 ---
 
