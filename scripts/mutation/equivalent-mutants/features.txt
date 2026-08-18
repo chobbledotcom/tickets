@@ -181,3 +181,9 @@ src/features/admin/listings-form.ts::extractCommonFields.unitPrice~0fxriin  ?? �
 src/features/admin/listings-form.ts::extractCommonFields.closesAt~1ox85dk  closes_at → ""   # the label only appears in normalizeDatetime's throw, and the field's validateDatetime already refused every value localToUtc would reject
 src/features/admin/listings-form.ts::extractCommonFields.date~1ogjyd0  date → ""   # same: the date field is validated by the same parser before toInput runs, so the throw naming it is unreachable
 src/features/admin/listings-form.ts::listingValidate~19dmftv  ?? → ||   # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
+
+# Route ordering (router.ts) — two array fallbacks, and a replacement string
+# whose length cancels out of the only comparison that reads it.
+src/features/router.ts::routeSpecificity.paramCount~1806jrr  ?? → ||   # String.match returns an array or null, and an array is always truthy
+src/features/router.ts::compileRoutes.methodRoutes~02urywu  ?? → ||   # Map.get returns an array or undefined, and an array is always truthy
+src/features/router.ts::routeSpecificity.literalLength~0au8fma   → "mutated"   # literal length is only ever compared between two routes with the SAME parameter count, so replacing each parameter with a fixed word adds the same amount to both sides and the comparison is unchanged
