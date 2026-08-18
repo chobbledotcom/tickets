@@ -2,80 +2,30 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { execute, queryAll, queryOne } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
-import {
-  setSumupCheckoutId,
-  storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  makeSumupCheckoutDue,
+  stageSignedSumupCheckout,
+  withSumupCheckoutStatus,
+} from "#test-utils/sumup.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server > SumUp recovery", { db: true }, () => {
   /** Stage a real checkout the way production does, then make it due. */
   const stageDueCheckout = async (checkoutId: string): Promise<string> => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    await settings.update.paymentProvider("sumup");
-    await settings.update.sumup.apiKey("sk_test_x");
-    await settings.update.sumup.merchantCode("MC1");
-    setEffectiveDomainForTest("localhost");
-    const reference = crypto.randomUUID();
-    const intent: CheckoutIntent = {
-      address: "",
-      date: null,
-      email: "alice@example.com",
-      items: [
-        {
-          listingId: listing.id,
-          name: listing.name,
-          quantity: 1,
-          slug: listing.slug,
-          unitPrice: 1000,
-        },
-      ],
-      name: "Alice",
-      phone: "",
-      special_instructions: "",
-    };
-    const metadata = await assembleCheckoutMetadata(
-      "sumup",
-      intent,
-      priceCheckout(intent).total,
-    );
-    await storeSumupCheckout(reference, metadata);
-    await setSumupCheckoutId(reference, checkoutId);
-    // The first check is hours out; bring it forward rather than waiting.
-    await execute(
-      "UPDATE sumup_checkouts SET next_check_at = ? WHERE sumup_id = ?",
-      ["2000-01-01T00:00:00.000Z", checkoutId],
-    );
+    const { reference } = await stageSignedSumupCheckout(checkoutId);
+    await makeSumupCheckoutDue(checkoutId);
     return reference;
   };
 
   const readCheckout = (
     reference: string,
     status: "EXPIRED" | "FAILED" | "PAID" | "PENDING",
-  ) =>
-    stub(sumupApi, "readCheckoutById", () =>
-      Promise.resolve({
-        resource: {
-          amountMinor: 1000,
-          currency: "GBP",
-          reference,
-          status,
-          transactionId: "txn_recovered",
-        },
-        status: "found" as const,
-      }),
-    );
+  ) => withSumupCheckoutStatus(reference, status, "txn_recovered");
 
   const stateOf = async (checkoutId: string) => {
     const row = await queryOne<{

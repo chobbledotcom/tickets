@@ -1,15 +1,20 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import type { SumupCheckout } from "#shared/sumup-observation.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -67,6 +72,72 @@ export const stageSumupCheckout = async (): Promise<void> => {
   await storeSumupCheckout("ref", SUMUP_META);
   await setSumupCheckoutId("ref", "co_1");
 };
+
+/**
+ * Stage a checkout the way production does: a real listing, a real priced
+ * intent, and metadata signed by assembleCheckoutMetadata, stored encrypted
+ * and mapped to `checkoutId`. Use this over {@link stageSumupCheckout}
+ * whenever the test needs the price proof to actually verify.
+ */
+export const stageSignedSumupCheckout = async (
+  checkoutId: string,
+  unitPrice = 1000,
+): Promise<{ listing: { id: number }; reference: string }> => {
+  const listing = await createTestListing({ unitPrice });
+  await settings.update.paymentProvider("sumup");
+  await settings.update.sumup.apiKey("sk_test_x");
+  await settings.update.sumup.merchantCode("MC1");
+  setEffectiveDomainForTest("localhost");
+  const reference = crypto.randomUUID();
+  const intent: CheckoutIntent = {
+    address: "",
+    date: null,
+    email: "alice@example.com",
+    items: [
+      {
+        listingId: listing.id,
+        name: listing.name,
+        quantity: 1,
+        slug: listing.slug,
+        unitPrice,
+      },
+    ],
+    name: "Alice",
+    phone: "",
+    special_instructions: "",
+  };
+  await storeSumupCheckout(
+    reference,
+    await assembleCheckoutMetadata(
+      "sumup",
+      intent,
+      priceCheckout(intent).total,
+    ),
+  );
+  await setSumupCheckoutId(reference, checkoutId);
+  return { listing, reference };
+};
+
+/** Bring a staged checkout's next recovery check forward, so a test does not
+ * have to wait the real hours out. */
+export const makeSumupCheckoutDue = (checkoutId: string): Promise<unknown> =>
+  execute("UPDATE sumup_checkouts SET next_check_at = ? WHERE sumup_id = ?", [
+    "2000-01-01T00:00:00.000Z",
+    checkoutId,
+  ]);
+
+/** Stub SumUp's checkout lookup for a staged reference. */
+export const withSumupCheckoutStatus = (
+  reference: string,
+  status: SumupCheckout["status"],
+  transactionId = "txn_test",
+) =>
+  stub(sumupApi, "readCheckoutById", () =>
+    Promise.resolve({
+      resource: sumupCheckout({ reference, status, transactionId }),
+      status: "found" as const,
+    }),
+  );
 
 /** Run `body` with readCheckoutById stubbed to resolve `read`, handing it
  *  a reader for the arguments the adapter was called with. */

@@ -260,15 +260,22 @@ export const RECOVERY_MOVES: MachineMoves<RecoveryNodeId, RecoveryEventId> = {
   },
 };
 
+/** Whether the table has a cell for this pair at all. */
+const accepts = (node: RecoveryNodeId, event: RecoveryEventId): boolean =>
+  movesIn(RECOVERY_MOVES).expected(node, event, "") !== "refused";
+
+/** The ids of every node a rule holds for — the one shape the derived lists
+ * below share, so none of them can drift into reading the table differently. */
+const nodeIdsWhere = (
+  holds: (node: RecoveryNode) => boolean,
+): readonly RecoveryNodeId[] =>
+  RECOVERY_NODES.filter(holds).map((node) => node.id);
+
 /** The nodes a row can never leave. Derived, so a cell added to a closed
  * row's line changes this rather than quietly contradicting it. */
-export const RECOVERY_TERMINAL_NODES: readonly RecoveryNodeId[] =
-  RECOVERY_NODES.filter((node) =>
-    RECOVERY_EVENTS.every(
-      (event) =>
-        movesIn(RECOVERY_MOVES).expected(node.id, event.id, "") === "refused",
-    ),
-  ).map((node) => node.id);
+export const RECOVERY_TERMINAL_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
+  (node) => RECOVERY_EVENTS.every((event) => !accepts(node.id, event.id)),
+);
 
 /** One declared event by id. Throws on a name the machine does not have, so
  * a caller cannot quietly ask for a move that was never declared. */
@@ -283,16 +290,15 @@ export const recoveryEvent = (id: RecoveryEventId): RecoveryMachineEvent => {
 /** The nodes still worth asking SumUp about: the ones some check can move.
  * Derived, so a node stops being asked about the moment its last check is
  * taken away, and a new one joins by being declared. */
-export const RECOVERY_CHECKABLE_NODES: readonly RecoveryNodeId[] =
-  RECOVERY_NODES.filter((node) =>
+export const RECOVERY_CHECKABLE_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
+  (node) =>
     RECOVERY_EVENTS.some(
-      (event) =>
-        event.kind === "check" &&
-        movesIn(RECOVERY_MOVES).expected(node.id, event.id, "") !== "refused",
+      (event) => event.kind === "check" && accepts(node.id, event.id),
     ),
-  ).map((node) => node.id);
+);
 
 /** The nodes pruning may delete on age alone. Everything else is kept until
  * it has a definitive answer, however old it gets. */
-export const RECOVERY_PRUNABLE_NODES: readonly RecoveryNodeId[] =
-  RECOVERY_NODES.filter((node) => node.prunable).map((node) => node.id);
+export const RECOVERY_PRUNABLE_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
+  (node) => node.prunable,
+);
