@@ -1531,16 +1531,16 @@ one machine and merge together.
 - The M5 complete-a-proven-booking case action lands here.
 - Extend M4's current-row merge/delete/prune/orphan protections to aggregate
   cases and effects. Fence listing deletion against pending payment work,
-  establishing the claim before any irreversible step: today
-  `performListingDelete` removes the stored attachment before the database
-  delete, so the fence must precede storage cleanup, not only the row delete.
-  Fence attendee deletion the same way: an attendee with unfinished completion
-  work or durable effects cannot be deleted until that work settles or is
-  repointed, checked inside the deleting transaction. Repoint payment work and
-  open cases during attendee merges. The cutover fence blocks merge, delete,
-  prune, PII edits, and `deleteAllStaleReservations` while historical rows are
-  being copied, so activated maintenance code can be canonical-only; it never
-  needs a copied/not-copied branch or migration snapshot.
+  establishing the claim before any irreversible step: `performListingDelete`
+  now deletes the database rows before removing the stored attachment, and the
+  fence must precede both. Fence attendee deletion the same way: an attendee
+  with unfinished completion work or durable effects cannot be deleted until
+  that work settles or is repointed, checked inside the deleting transaction.
+  Repoint payment work and open cases during attendee merges. The cutover fence
+  blocks merge, delete, prune, PII edits, and `deleteAllStaleReservations` while
+  historical rows are being copied, so activated maintenance code can be
+  canonical-only; it never needs a copied/not-copied branch or migration
+  snapshot.
 - Install the old-write fence before the first migration page and verify it in
   every old committing transaction until all in-flight requests drain. Provider
   refunds need no exemption: M4 already writes their state only to canonical

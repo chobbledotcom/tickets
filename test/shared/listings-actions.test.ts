@@ -18,6 +18,7 @@ import {
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
@@ -340,6 +341,35 @@ describeWithEnv("performListingDelete", { db: true }, () => {
       expect(await downloadRaw("delete-me.pdf")).toBeNull();
       const log = await getAllActivityLog();
       expect(log.some((e) => e.message.includes("Delete Me"))).toBe(true);
+    });
+  });
+
+  test("keeps the attachment file when the database delete fails", async () => {
+    await withLocalStorageEnabled(async () => {
+      const listing = await createTestListing({ name: "Delete Blocked" });
+      await uploadRaw(new Uint8Array([4, 5, 6]), "delete-blocked.pdf");
+      await listingsTable.update(listing.id, {
+        attachmentName: "delete-blocked.pdf",
+        attachmentUrl: "delete-blocked.pdf",
+      });
+      const withCount = (await getListingWithCount(listing.id))!;
+
+      await withDbFault(
+        `CREATE TRIGGER test_listing_delete_fault
+          BEFORE DELETE ON listings
+          BEGIN
+            SELECT RAISE(ABORT, 'listing delete unavailable');
+          END`,
+        "test_listing_delete_fault",
+        async () => {
+          await expect(performListingDelete(withCount)).rejects.toThrow(
+            "listing delete unavailable",
+          );
+        },
+      );
+
+      expect(await getListingWithCount(listing.id)).not.toBeNull();
+      expect(await downloadRaw("delete-blocked.pdf")).not.toBeNull();
     });
   });
 });
