@@ -47,6 +47,7 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { readSumupCharge, sumupRefundOutcome } from "#shared/sumup/money.ts";
+import type { SumupCheckoutReading } from "#shared/sumup/recovery.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import type {
   SumupCheckout,
@@ -105,6 +106,85 @@ const createSumupCheckoutSession = makeCreateCheckoutSession(
   (result) => ({ id: result?.reference, url: result?.url }),
 );
 
+/** What SumUp said about a checkout, and the session that came of it. The
+ * webhook only wants the session; the recovery task needs SumUp's own word
+ * too, because "we could not read it" and "it was never paid" move a staged
+ * row to very different places. */
+export type SumupCheckoutResolution = {
+  readonly reading: SumupCheckoutReading;
+  readonly resolved: WebhookSessionResult;
+};
+
+/** A read that told us nothing usable — never to be read as "not paid". */
+const unusable = (why: string): SumupCheckoutResolution => ({
+  reading: "unusable",
+  resolved: refuseRetryably(why),
+});
+
+/**
+ * Ask SumUp what became of one checkout we staged, and turn its answer into a
+ * session the payment engine can settle.
+ *
+ * The webhook reaches this with the id its callback named; the recovery task
+ * reaches it with the id off a staged row that nothing has answered for. They
+ * are the same question, so they run the same code — the recovery task is not
+ * a second way of reading SumUp.
+ */
+export const resolveSumupCheckoutById = async (
+  sumupId: string,
+): Promise<SumupCheckoutResolution> => {
+  if (!isUsableSumupId(sumupId)) {
+    return unusable("id is not one we could have staged");
+  }
+  // Unsigned webhooks: only fetch checkouts we created. Spam and other
+  // integrations' listings never cost an API call — one indexed read
+  // answers the pre-filter and carries the sealed row for later. They are
+  // refused retryably rather than acknowledged, because the same answer
+  // covers a real callback racing our own staging write, and one fixed
+  // refusal tells a forger nothing about whether an id exists.
+  const sealed = await getSealedSumupCheckout(sumupId);
+  if (sealed === null) {
+    return unusable("checkout is not one we staged");
+  }
+  // The staged row already proved this checkout is ours, so anything but a
+  // clean read is refused retryably: acknowledging is terminal, and a paid
+  // checkout would be left with the money taken and no booking.
+  const read = await sumupApi.readCheckoutById(sumupId);
+  if (read.status !== "found") {
+    return unusable(
+      "reason" in read
+        ? `read ${read.status} (${read.reason})`
+        : "read missing",
+    );
+  }
+  const checkout = read.resource;
+  // From here SumUp has told us what the checkout is, so its own word is
+  // carried out even when the rest of the read cannot be used.
+  const reading = checkout.status;
+  // The reference SumUp echoes back must be the one we generated for this
+  // checkout and staged under this id — the sealed row only opens with it. If
+  // it is unknown or another booking's, SumUp has contradicted itself about a
+  // checkout we created: the booking is encrypted under that reference, so
+  // without a match we can neither read it nor prove the charge is ours to
+  // refund.
+  const metadata = await openSumupCheckout(sealed, checkout.reference);
+  if (metadata === null) {
+    return {
+      reading,
+      resolved: refuseRetryably("reference does not open the staged row"),
+    };
+  }
+  const session = buildValidatedSession(checkout, metadata);
+  // A charge the boundary could not read: surface the rejection so a paid
+  // one still reaches the refund path.
+  if (isSessionRejection(session)) return { reading, resolved: session };
+  // Not yet (or never) paid: acknowledge without processing.
+  return {
+    reading,
+    resolved: session.paymentStatus === "paid" ? session : "skip",
+  };
+};
+
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
@@ -141,47 +221,7 @@ export const sumupPaymentProvider: PaymentProvider = {
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
   ): Promise<WebhookSessionResult> {
-    if (!isUsableSumupId(webhookEvent.id)) {
-      return refuseRetryably("id is not one we could have staged");
-    }
-    // Unsigned webhooks: only fetch checkouts we created. Spam and other
-    // integrations' listings never cost an API call — one indexed read
-    // answers the pre-filter and carries the sealed row for later. They are
-    // refused retryably rather than acknowledged, because the same answer
-    // covers a real callback racing our own staging write, and one fixed
-    // refusal tells a forger nothing about whether an id exists.
-    const sealed = await getSealedSumupCheckout(webhookEvent.id);
-    if (sealed === null) {
-      return refuseRetryably("checkout is not one we staged");
-    }
-    // The staged row already proved this checkout is ours, so anything but a
-    // clean read is refused retryably: acknowledging is terminal, and a paid
-    // checkout would be left with the money taken and no booking.
-    const read = await sumupApi.readCheckoutById(webhookEvent.id);
-    if (read.status !== "found") {
-      return refuseRetryably(
-        "reason" in read
-          ? `read ${read.status} (${read.reason})`
-          : "read missing",
-      );
-    }
-    const checkout = read.resource;
-    // The reference SumUp echoes back must be the one we generated for this
-    // checkout and staged under this webhook id — the sealed row only opens
-    // with it. If it is unknown or another booking's, SumUp has contradicted
-    // itself about a checkout we created: the booking is encrypted under
-    // that reference, so without a match we can neither read it nor prove
-    // the charge is ours to refund.
-    const metadata = await openSumupCheckout(sealed, checkout.reference);
-    if (metadata === null) {
-      return refuseRetryably("reference does not open the staged row");
-    }
-    const session = buildValidatedSession(checkout, metadata);
-    // A charge the boundary could not read: surface the rejection so a paid
-    // one still reaches the refund path.
-    if (isSessionRejection(session)) return session;
-    // Not yet (or never) paid: acknowledge without processing.
-    return session.paymentStatus === "paid" ? session : "skip";
+    return (await resolveSumupCheckoutById(webhookEvent.id)).resolved;
   },
 
   /* jscpd:ignore-start -- PaymentProvider interface conformance, not

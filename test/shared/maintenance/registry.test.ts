@@ -49,7 +49,7 @@ const runTask = (
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded local pruning and activity backfill", () => {
+  test("declares only bounded pruning, activity backfill and SumUp recovery", () => {
     expect(
       MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
         ...task,
@@ -86,7 +86,30 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         name: "activity_log_backfill",
         wakePolicy: "organic_safe",
       },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: ["sumup_api_key", "sumup_merchant_code"],
+        },
+        deadlineMs: 20_000,
+        failureRetryIntervalMs: 300_000,
+        intervalMs: 1_800_000,
+        maxDatabaseCalls: 19,
+        maxExternalCalls: 6,
+        name: "sumup_checkout_recovery",
+        wakePolicy: "organic_safe",
+      },
     ]);
+  });
+
+  test("the SumUp recovery task is off until SumUp is connected", async () => {
+    // A site with no SumUp key stages no checkouts, so there is nothing to
+    // ask about and syncMaintenanceTaskRows drops the row entirely.
+    expect(await taskNamed("sumup_checkout_recovery").check.enabled()).toBe(
+      false,
+    );
   });
 
   test("the pruning task runs one bounded database batch", async () => {
