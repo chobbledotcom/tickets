@@ -77,11 +77,17 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       }),
     );
 
-  const stateOf = async (checkoutId: string) =>
-    await queryOne<{ next_check_at: string | null; recovery_state: string }>(
+  const stateOf = async (checkoutId: string) => {
+    const row = await queryOne<{
+      next_check_at: string | null;
+      recovery_state: string;
+    }>(
       "SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ?",
       [checkoutId],
     );
+    if (!row) throw new Error(`No staged checkout ${checkoutId}`);
+    return row;
+  };
 
   const attendeeCount = async (): Promise<number> =>
     (await queryAll<{ n: number }>("SELECT COUNT(*) AS n FROM attendees"))[0]!
@@ -99,9 +105,9 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
 
       expect(await attendeeCount()).toBe(1);
       const row = await stateOf("co_lost");
-      expect(row?.recovery_state).toBe("finished");
+      expect(row.recovery_state).toBe("finished");
       // Finished rows are never asked about again.
-      expect(row?.next_check_at).toBeNull();
+      expect(row.next_check_at).toBeNull();
     } finally {
       restore.restore();
     }
@@ -120,7 +126,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       await runSumupRecovery();
 
       expect(await attendeeCount()).toBe(1);
-      expect((await stateOf("co_twice"))?.recovery_state).toBe("finished");
+      expect((await stateOf("co_twice")).recovery_state).toBe("finished");
     } finally {
       restore.restore();
     }
@@ -134,8 +140,8 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
 
       expect(await attendeeCount()).toBe(0);
       const row = await stateOf("co_expired");
-      expect(row?.recovery_state).toBe("unpaid");
-      expect(row?.next_check_at).toBeNull();
+      expect(row.recovery_state).toBe("unpaid");
+      expect(row.next_check_at).toBeNull();
     } finally {
       restore.restore();
     }
@@ -148,10 +154,12 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       await runSumupRecovery();
 
       const row = await stateOf("co_pending");
-      expect(row?.recovery_state).toBe("waiting");
-      // Still open, and moved out of the way of rows due before it.
-      expect(row?.next_check_at).not.toBeNull();
-      expect(row?.next_check_at! > "2000-01-01T00:00:00.000Z").toBe(true);
+      expect(row.recovery_state).toBe("waiting");
+      // Still open, and moved out of the way of rows due before it: the next
+      // check is hours ahead, not the moment in the past it was given.
+      const dueAgainAt = Date.parse(row.next_check_at ?? "");
+      expect(Number.isNaN(dueAgainAt)).toBe(false);
+      expect(dueAgainAt).toBeGreaterThan(Date.now());
     } finally {
       restore.restore();
     }
@@ -170,7 +178,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     try {
       await runSumupRecovery();
 
-      expect((await stateOf("co_outage"))?.recovery_state).toBe("waiting");
+      expect((await stateOf("co_outage")).recovery_state).toBe("waiting");
     } finally {
       restore.restore();
     }
@@ -183,16 +191,18 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       const { getDueSumupCheckouts, applySumupRecoveryEvent } = await import(
         "#shared/db/sumup-recovery.ts"
       );
-      const [seen] = await getDueSumupCheckouts();
+      const due = await getDueSumupCheckouts();
+      const seen = due[0];
+      if (!seen) throw new Error("The staged checkout was not due");
       // Another runner answers the row between our read and our write.
       await execute(
         "UPDATE sumup_checkouts SET recovery_state = 'finished', next_check_at = NULL WHERE sumup_id = ?",
         ["co_raced"],
       );
 
-      expect(await applySumupRecoveryEvent(seen!, "read_pending")).toBe(false);
+      expect(await applySumupRecoveryEvent(seen, "read_pending")).toBe(false);
       // The winner's answer stands.
-      expect((await stateOf("co_raced"))?.recovery_state).toBe("finished");
+      expect((await stateOf("co_raced")).recovery_state).toBe("finished");
     } finally {
       restore.restore();
     }
