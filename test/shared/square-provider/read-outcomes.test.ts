@@ -163,15 +163,23 @@ describe("square-provider read outcomes", () => {
     );
   });
 
-  test("acknowledges a completed event only when Square proves the order is gone", async () => {
+  test("keeps an order Square cannot find retryable after a completed event", async () => {
     await withSquareClient(
       {
         ordersGet: () => Promise.reject(new SquareApiError(404)),
       },
       async () => {
-        expect(await completedSquareWebhook("pay_gone", "order_gone")).toBe(
-          "skip",
-        );
+        // A 404 used to be read as proof the order was gone, and the event was
+        // acknowledged. A completed payment names an order we created, so the
+        // likelier reading is that Square has not caught up — and an
+        // acknowledgement is final, leaving the buyer charged with no booking.
+        // Retry noise is the cheaper mistake, so this window stays retryable
+        // like every other unreadable order above.
+        expect(
+          await rejectionMessage(
+            completedSquareWebhook("pay_gone", "order_gone"),
+          ),
+        ).toBe("Square order is not readable yet for a completed payment");
       },
     );
   });

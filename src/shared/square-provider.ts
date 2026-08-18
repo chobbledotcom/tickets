@@ -129,9 +129,20 @@ const webhookPayment = (listing: WebhookEvent): SquareWebhookPayment => {
 
 const readSessionOrder = async (
   sessionId: string,
+  paidPaymentId: string | undefined,
 ): Promise<SquareOrder | null> => {
   const read = await squareApi.readOrder(sessionId);
   if (read.status === "missing") {
+    // A webhook naming a completed payment proves the order exists, so a
+    // missing read is Square lagging, not a stranger's order — the same
+    // window readOrderPayment refuses below. Acknowledging would end the
+    // redelivery and leave the buyer charged with no booking. Without a
+    // completed payment, missing really is "not one of ours".
+    if (paidPaymentId) {
+      throw new Error(
+        "Square order is not readable yet for a completed payment",
+      );
+    }
     logDebug("Square", "Square order not found");
     return null;
   }
@@ -293,7 +304,7 @@ export const squarePaymentProvider: PaymentProvider = {
     paidPaymentId?: string,
   ): Promise<RetrieveSessionResult> {
     /* jscpd:ignore-end */
-    const order = await readSessionOrder(sessionId);
+    const order = await readSessionOrder(sessionId, paidPaymentId);
     if (!order) return null;
     const metadata = sessionMetadata(order, paidPaymentId);
     if (!metadata) return null;
