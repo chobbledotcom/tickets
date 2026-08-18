@@ -96,6 +96,16 @@ GitHub.
   wrapping to Markdown files. Do not hand-wrap prose to a different width or
   unwrap paragraphs onto single long lines. Formatter exceptions such as tables,
   code blocks, and long links may exceed 80 columns.
+- **Write technical text in Simplified Technical English**: Documentation,
+  READMEs, runbooks, procedures, release notes, reports, commit messages, pull
+  request descriptions, and developer-facing error messages follow ASD-STE100.
+  Classify the passage first. Procedural text uses the imperative and a maximum
+  of 20 words per sentence. Descriptive text uses simple tenses and a maximum of
+  25 words. Use only `can`, `will`, and `must` as modals. Do not use
+  contractions, semicolons, the present perfect, or "-ing" verb forms. See
+  [Simplified Technical English](#simplified-technical-english--how-we-write-documentation)
+  for the full rules. Copy inside the app is different, and follows
+  [Simple Language](#simple-language--how-we-talk-to-users).
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over
   imperative loops
 - **Plain language for functional code**: Keep the functional style, but name
@@ -466,7 +476,8 @@ GitHub.
   non-technical language — the same plain language we want in our code,
   comments, and method names. Someone without a CS degree should be able to read
   the PR and know what changed, why, and what it means for the people using the
-  site.
+  site. The name and the description are technical text, so they also follow
+  [Simplified Technical English](#simplified-technical-english--how-we-write-documentation).
 - **Final check**: Run `nix develop -c deno task precommit` before finishing any
   job with code or documentation changes. It is the only check that mirrors CI
   exactly — it typechecks the **test** files too, so `deno check <src>` plus
@@ -574,6 +585,11 @@ dyslexic, or is simply impatient with reading: nothing on this system should
 stump them. Be as short and plain as you can **while still saying everything the
 reader needs** — concise, never clipped.
 
+This section is about copy inside the app. Documentation, runbooks, commit
+messages, and other technical text follow
+[Simplified Technical English](#simplified-technical-english--how-we-write-documentation)
+instead.
+
 This is not "dumbing down". Assume the reader understands the domain concepts
 the platform runs on — a percentage, a deposit, gross vs net, a refund. Do not
 stop to teach those. Explain _our system's_ behaviour in plain words, and never
@@ -658,6 +674,121 @@ change, which is what the rest of this section is for.
 | "…keyed by its anonymised HMAC."               | "It is found by a one-way code, so the real email or phone is never stored here." |
 | "For nerdy debug info click here."             | "See debug info."                                                                 |
 | "In order to confirm, type the name."          | "Type the name to confirm."                                                       |
+
+## Simplified Technical English — How We Write Documentation
+
+Technical text follows ASD-STE100 Simplified Technical English. The reader must
+understand the text the first time. This section obeys its own rules. It is the
+example to copy.
+
+### What this covers
+
+- Markdown in this repository: `README.md`, `AGENTS.md`, `docs/`, plans, and
+  runbooks.
+- Procedures, release notes, and reports.
+- Pull request titles and descriptions, and commit messages.
+- Text that only a developer or an operator reads: `throw new Error(...)`
+  messages, log lines, and the output of `scripts/` and `cli/`.
+- Code comments. The comment rules in [Preferences](#preferences) still set how
+  short a comment must be.
+
+Two kinds of writing stay outside this section:
+
+- Everything that a person reads inside the app. That copy lives in the message
+  catalog at `src/locales/en/*.json`, and
+  [Simple Language](#simple-language--how-we-talk-to-users) governs it. That
+  section wins for every error message, label, warning, and button in the app.
+- Marketing copy and brand writing.
+
+These rules apply to the text that you write or rewrite. When you edit a
+paragraph, bring it to these rules. Do not rewrite a whole document only for its
+style.
+
+### Classify the passage first
+
+Procedural text tells the reader what to do. Descriptive text explains how
+something works. Never mix the two in one passage. A procedure that stops to
+explain becomes a paragraph nobody can follow under pressure.
+
+| Kind        | Voice         | Words per sentence | Other limits                                   |
+| ----------- | ------------- | ------------------ | ---------------------------------------------- |
+| Procedural  | imperative    | 20 maximum         | one instruction per sentence                   |
+| Descriptive | simple tenses | 25 maximum         | one topic per paragraph, six sentences at most |
+
+### Verbs
+
+- Use only these verb forms:
+  - the infinitive
+  - the imperative
+  - the simple present
+  - the simple past
+  - the simple future
+  - the past participle as an adjective
+- Do not use the present perfect. Write "completed", not "has completed".
+- Do not use an "-ing" verb form. Write a new sentence in place of ", making it
+  easy".
+- Write in the active voice. Use the passive voice only in descriptive text, and
+  only when the actor is unknown.
+- Use only these modals: `can`, `will`, and `must`.
+- Do not use should, would, may, might, or could. Write "must" when the thing is
+  required. Delete the word when the thing is optional.
+
+### Sentences
+
+- Keep the grammar complete. Do not use contractions. Keep the articles.
+- Keep the word "that". Write "make sure that the file exists".
+- Put the condition before the command, and separate them with a comma. "If the
+  test fails, read the log."
+- Do not use a semicolon. Write two sentences.
+- Use a vertical list for more than two items, or for more than two steps.
+
+### Words
+
+- One word carries one meaning through a whole document. Use "make sure that"
+  for the check idea. The STE dictionary rejects check, verify, and confirm as
+  verbs.
+- Limit a noun chain to three words. Break a longer chain with prepositions.
+  Write "the timeout value for the connection pool".
+- Delete a word that carries no fact. Examples: simply, seamlessly, robust,
+  powerful, comprehensive, leverage, "in order to", and "it is worth noting".
+- Replace utilize with use, prior to with before, in the event that with if, and
+  e.g. with "for example".
+- Use British spelling. Code, identifiers, file names, and an established term
+  such as the behavior contract keep their own spelling.
+
+### Warnings
+
+Write the command or the condition first. Write the risk second. The reader must
+meet the instruction before the explanation.
+
+> Do not run this against production. The command deletes rows.
+
+### Never touch
+
+- Code blocks, identifiers, CLI commands, file paths, quoted error messages, and
+  product names stay exactly as they are. Each one counts as one word toward a
+  sentence limit.
+- Facts stay as they are too. If the source names no number and no cause, keep
+  the general statement. Do not invent a specific one.
+
+### Self-check before you finish
+
+- Scan the text for contractions, "has been", "should", ", making", and
+  semicolons.
+- Count the words in your three longest sentences. Split every sentence that is
+  above its limit.
+- Collapse a rotation of synonyms into the one word you chose.
+- No checker enforces this section. The judgement is yours on every change.
+
+### Before → after
+
+| Do not                                                         | Do                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| "This should be run prior to deployment."                      | "Run this before you deploy."                                             |
+| "The migration has been applied, making the column available." | "The migration added the column. The column is now available."            |
+| "Verify the key, then confirm the row count."                  | "Make sure that the key exists. Make sure that the row count is correct." |
+| "the connection pool timeout value"                            | "the timeout value for the connection pool"                               |
+| "Simply run the task; it will handle the rest."                | "Run the task. The task does the rest."                                   |
 
 ## Designing New Systems
 
