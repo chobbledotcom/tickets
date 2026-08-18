@@ -10,7 +10,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
-import { adminPathSegment } from "#routes/admin/index.ts";
+import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -79,7 +79,7 @@ describe("admin route manifest", () => {
   });
 
   test("every UI destination is served by a GET route in its area", () => {
-    for (const destination of ADMIN_SURFACE.destinations) {
+    for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
       const concretePath = destination.pattern
         .replace(/:(\w+)/g, (_, name: string) =>
           name === "id" || name.endsWith("Id") ? "1" : "value",

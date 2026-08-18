@@ -1,41 +1,35 @@
+/**
+ * The admin surface every consumer reads: each route by id, and the segments
+ * each area serves. Both derive from the one declaration in
+ * `admin-surface/areas.ts`.
+ */
+
+import { ADMIN_AREAS } from "#shared/admin-surface/areas.ts";
 import {
-  ADMIN_SECTIONS,
-  ADMIN_SURFACE_AREAS,
+  type AdminDestinationDef,
+  foldAdminAreas,
 } from "#shared/admin-surface/definitions.ts";
-import { ADMIN_NAV_ROUTES } from "#shared/admin-surface/nav-routes.ts";
-import { ADMIN_WRITE_ROUTES_A_M } from "#shared/admin-surface/write-routes-a-m.ts";
-import { ADMIN_WRITE_ROUTES_N_Z } from "#shared/admin-surface/write-routes-n-z.ts";
-import type { RouteParamNames } from "#shared/route-pattern.ts";
+import type {
+  AdminDestinationId,
+  AdminPathParams,
+} from "#shared/admin-surface/ids.ts";
+import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
-const ADMIN_DESTINATIONS = [
-  ...ADMIN_NAV_ROUTES,
-  ...ADMIN_WRITE_ROUTES_A_M,
-  ...ADMIN_WRITE_ROUTES_N_Z,
-] as const;
+export type { AdminDestinationId, AdminPathParams };
 
-export type AdminDestinationId = (typeof ADMIN_DESTINATIONS)[number]["id"];
+const folded = foldAdminAreas(ADMIN_AREAS);
 
-type PathFor<Id extends AdminDestinationId> = Extract<
-  (typeof ADMIN_DESTINATIONS)[number],
-  { readonly id: Id }
->;
-export type AdminPathParams<Id extends AdminDestinationId> = Record<
-  RouteParamNames<PathFor<Id>["pattern"]>,
-  string | number
->;
-
-// AdminDestinationId is derived from this list, so the lookup cannot miss.
-export const adminDestination = (id: AdminDestinationId) =>
-  ADMIN_DESTINATIONS.find((candidate) => candidate.id === id)!;
+/** The id type comes from the same table, so the lookup cannot miss. */
+export const adminDestination = (id: AdminDestinationId): AdminDestinationDef =>
+  folded.destinations[id]!;
 
 export const adminPath = <Id extends AdminDestinationId>(
   id: Id,
   params: AdminPathParams<Id>,
 ): string =>
-  adminDestination(id).pattern.replace(
-    /:(\w+)/g,
-    (_, name: RouteParamNames<PathFor<Id>["pattern"]>) => String(params[name]),
+  adminDestination(id).pattern.replace(/:(\w+)/g, (_, name: string) =>
+    String((params as Record<string, string | number>)[name]),
   );
 
 export const adminDestinationAllowed = (
@@ -51,7 +45,7 @@ export const adminDestinationAllowed = (
 };
 
 export const ADMIN_SURFACE = {
-  areas: ADMIN_SURFACE_AREAS,
-  destinations: ADMIN_DESTINATIONS,
+  areas: folded.areas,
+  destinations: folded.destinations,
   sections: ADMIN_SECTIONS,
 } as const;

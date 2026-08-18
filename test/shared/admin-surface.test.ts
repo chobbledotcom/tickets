@@ -57,9 +57,28 @@ describe("admin surface paths", () => {
     ]);
   });
 
-  test("uses link and view defaults for ordinary destinations", () => {
-    expect(adminDestination("sessions").nav?.kind).toBe("link");
+  test("takes each route's intent from the group it is declared in", () => {
     expect(adminDestination("modifiers").intent).toBe("view");
+    expect(adminDestination("modifierEdit").intent).toBe("write-form");
+  });
+
+  test("keeps each section's sub-navigation in its declared order", () => {
+    const users = ADMIN_SURFACE.sections.find(
+      (section) => section.id === "users",
+    )!;
+    expect(users.nav.map((entry) => entry.id)).toEqual([
+      "users",
+      "userNew",
+      "sessions",
+      "apiKeys",
+    ]);
+  });
+
+  test("gives every route the audience its area declares", () => {
+    // holidayNew states no role of its own, so it takes the area's owner-only
+    // audience — the same one the handler enforces.
+    expect(adminDestination("holidayNew").audience).toEqual(["owner"]);
+    expect(adminDestination("holidays").audience).toEqual(["owner"]);
   });
 
   test("shows the Site section to editors only when Site is enabled", () => {
