@@ -1,0 +1,93 @@
+/**
+ * The queue of staged SumUp checkouts waiting to be asked about, and the one
+ * fenced write that moves a row along it.
+ *
+ * Which rows are due, where an event moves them, and what each event's write
+ * matches on all come from the machine declaration in
+ * `shared/payment/sumup-recovery-machine-spec.ts` — this module holds only the
+ * SQL that carries it out.
+ */
+
+import { execute, queryAll } from "#shared/db/client.ts";
+import { SUMUP_RECHECK_MS, SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
+import { isoAfter, nowIso } from "#shared/now.ts";
+import {
+  RECOVERY_CHECKABLE_NODES,
+  RECOVERY_TERMINAL_NODES,
+  type RecoveryEventId,
+  type RecoveryNodeId,
+  recoveryEvent,
+  recoveryMoveTo,
+} from "#shared/payment/sumup-recovery-machine-spec.ts";
+
+/** One checkout the recovery task is about to ask SumUp about. The metadata
+ * stays sealed: this is the queue, not the opening of a row. */
+export type DueSumupCheckout = {
+  readonly checkedAt: string;
+  readonly state: RecoveryNodeId;
+  readonly sumupId: string;
+};
+
+const CHECKABLE_SLOTS = RECOVERY_CHECKABLE_NODES.map(() => "?").join(", ");
+
+/**
+ * The oldest checkouts whose check time has come, newest-last so a row that
+ * keeps failing cannot hold the front of the queue: its own check time moves
+ * forward every time it is looked at, which puts it behind everything that
+ * became due in the meantime.
+ */
+export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
+  const rows = await queryAll<{
+    next_check_at: string;
+    recovery_state: RecoveryNodeId;
+    sumup_id: string;
+  }>(
+    `SELECT sumup_id, recovery_state, next_check_at
+       FROM sumup_checkouts
+      WHERE recovery_state IN (${CHECKABLE_SLOTS})
+        AND next_check_at IS NOT NULL
+        AND next_check_at <= ?
+      ORDER BY next_check_at
+      LIMIT ?`,
+    [...RECOVERY_CHECKABLE_NODES, nowIso(), SUMUP_RECOVERY_BATCH],
+  );
+  return rows.map((row) => ({
+    checkedAt: row.next_check_at,
+    state: row.recovery_state,
+    sumupId: row.sumup_id,
+  }));
+};
+
+/**
+ * Move one row on by the event its check amounted to. The write matches on
+ * the exact state and check time the row was read with, so two runners that
+ * looked at one row cannot both believe they wrote it — the loser finds no
+ * row and is told so.
+ *
+ * A row that reached a definitive answer is given no next check: nothing will
+ * ask about it again, and pruning is free to delete it once it is old enough.
+ */
+export const applySumupRecoveryEvent = async (
+  checkout: DueSumupCheckout,
+  event: RecoveryEventId,
+): Promise<boolean> => {
+  const fence = recoveryEvent(event).fencesOn;
+  if (fence !== "state_and_schedule") {
+    throw new Error(`A SumUp recovery check cannot fence on ${fence}`);
+  }
+  const to = recoveryMoveTo(checkout.state, event);
+  const settled = RECOVERY_TERMINAL_NODES.includes(to);
+  const result = await execute(
+    `UPDATE sumup_checkouts
+        SET recovery_state = ?, next_check_at = ?
+      WHERE sumup_id = ? AND recovery_state = ? AND next_check_at = ?`,
+    [
+      to,
+      settled ? null : isoAfter(SUMUP_RECHECK_MS),
+      checkout.sumupId,
+      checkout.state,
+      checkout.checkedAt,
+    ],
+  );
+  return result.rowsAffected === 1;
+};

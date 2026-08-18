@@ -125,11 +125,17 @@ export type RecoveryWrites = "schedule" | "state_and_schedule";
  * must still find the exact state and check time it read. */
 export type RecoveryFence = "reference_index" | "state_and_schedule";
 
+/** Whether an event is the row's creation or one of the checks that asks
+ * SumUp what became of it. The queue of rows still worth asking about is
+ * derived from this, so a new check event joins the queue by being declared. */
+export type RecoveryEventKind = "check" | "create";
+
 export type RecoveryMachineEvent = MachineEvent<
   SumupRecoveryRow,
   RecoveryEventId
 > & {
   readonly fencesOn: RecoveryFence;
+  readonly kind: RecoveryEventKind;
   readonly writes: RecoveryWrites;
 };
 
@@ -187,11 +193,13 @@ const moves =
 const systemEvent = (
   id: RecoveryEventId,
   writes: RecoveryWrites,
+  kind: RecoveryEventKind = "check",
   fencesOn: RecoveryFence = "state_and_schedule",
 ): RecoveryMachineEvent => ({
   actor: "system",
   fencesOn,
   id,
+  kind,
   labelKey: `schema.sumup_recovery.edge.${id}`,
   movesMoney: id === "read_paid_settled" || id === "read_paid_unsettled",
   run: moves(id),
@@ -203,7 +211,12 @@ const systemEvent = (
  * and each is named for the money fact it establishes, because that is what
  * decides whether the row may ever be deleted. */
 export const RECOVERY_EVENTS: readonly RecoveryMachineEvent[] = [
-  systemEvent("checkout_created", "state_and_schedule", "reference_index"),
+  systemEvent(
+    "checkout_created",
+    "state_and_schedule",
+    "create",
+    "reference_index",
+  ),
   systemEvent("read_unavailable", "schedule"),
   systemEvent("read_pending", "schedule"),
   systemEvent("read_expired_or_failed", "state_and_schedule"),
@@ -254,6 +267,28 @@ export const RECOVERY_TERMINAL_NODES: readonly RecoveryNodeId[] =
     RECOVERY_EVENTS.every(
       (event) =>
         movesIn(RECOVERY_MOVES).expected(node.id, event.id, "") === "refused",
+    ),
+  ).map((node) => node.id);
+
+/** One declared event by id. Throws on a name the machine does not have, so
+ * a caller cannot quietly ask for a move that was never declared. */
+export const recoveryEvent = (id: RecoveryEventId): RecoveryMachineEvent => {
+  const event = RECOVERY_EVENTS.find((candidate) => candidate.id === id);
+  if (event === undefined) {
+    throw new Error(`The SumUp recovery machine has no ${id} event`);
+  }
+  return event;
+};
+
+/** The nodes still worth asking SumUp about: the ones some check can move.
+ * Derived, so a node stops being asked about the moment its last check is
+ * taken away, and a new one joins by being declared. */
+export const RECOVERY_CHECKABLE_NODES: readonly RecoveryNodeId[] =
+  RECOVERY_NODES.filter((node) =>
+    RECOVERY_EVENTS.some(
+      (event) =>
+        event.kind === "check" &&
+        movesIn(RECOVERY_MOVES).expected(node.id, event.id, "") !== "refused",
     ),
   ).map((node) => node.id);
 
