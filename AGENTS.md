@@ -1302,9 +1302,9 @@ query logging and table-scoped cache invalidation stay automatic.
   retry so concurrent writers serialize rather than fail. A database that stays
   locked surfaces as `DatabaseBusyError`. Read-only statements and batches also
   retry fleeting upstream HTTP errors (BunnyDB 421 and Turso 502/503/504).
-  Interactive transactions and write paths retry only `SQLITE_BUSY`. Upstream
-  HTTP errors are never replayed, because the operation can commit before the
-  response arrives. Note the trade-off: an interactive transaction locks the
+  Interactive transactions and write paths retry only `SQLITE_BUSY`. A write
+  path never replays an upstream HTTP error, because the write can commit before
+  the response arrives. Note the trade-off: an interactive transaction locks the
   database for writing until it commits or rolls back (with a timeout), so keep
   the work inside it tight — do any expensive non-DB computation before opening
   it, and prefer a plain batch whenever no inter-step logic is actually needed.
