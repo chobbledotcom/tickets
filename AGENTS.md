@@ -19,7 +19,7 @@ nix develop -c deno task precommit
 
 Do not use `mise` or a host-installed `deno` directly when Nix is available. All
 `deno ...` commands in this file assume you are already inside `nix develop`;
-non-interactive agents should prefix them with `nix develop -c`. On systems
+non-interactive agents must prefix them with `nix develop -c`. On systems
 without Nix, `./setup.sh` remains the fallback.
 
 ## Runtime Environment
@@ -36,7 +36,7 @@ development with Deno ensures parity.
 ## Deno Version
 
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
-project is expected to run on. Local development should use that version too.
+project is expected to run on. Local development must use that version too.
 
 The Nix flake pins the required Deno version. Check it with:
 
@@ -56,7 +56,7 @@ mutation runs) start one stripe-mock process on a free local port and export
 fight over port 12111. The harness normally downloads a prebuilt release from
 GitHub, but in sandboxes where GitHub release downloads are blocked you can
 build it from source with Go instead — the Go module proxy is usually reachable
-when GitHub isn't:
+when GitHub is not:
 
 ```bash
 GOBIN="$PWD/.bin" go install github.com/stripe/stripe-mock@v0.188.0
@@ -95,7 +95,7 @@ GitHub.
 - **Format Markdown with Deno**: Let `deno fmt` apply its standard 80-column
   wrapping to Markdown files. Do not hand-wrap prose to a different width or
   unwrap paragraphs onto single long lines. Formatter exceptions such as tables,
-  code blocks, and long links may exceed 80 columns.
+  code blocks, and long links can exceed 80 columns.
 - **Write technical text in Simplified Technical English**: Documentation,
   READMEs, runbooks, procedures, release notes, reports, commit messages, pull
   request descriptions, and developer-facing error messages follow ASD-STE100.
@@ -111,9 +111,9 @@ GitHub.
 - **Plain language for functional code**: Keep the functional style, but name
   helpers and write comments in simple domain words. Avoid CS jargon in code
   (`predicate`, `cohort`, `projection`, `fold`, `atom`, etc.) when a plain
-  phrase works. A helper should explain itself like "Keeps only children that
-  can still be booked for this ticket." Write for someone without a CS degree; a
-  ten-year-old should understand the comment and the method name, even if the
+  phrase works. A helper must explain itself like "Keeps only children that can
+  still be booked for this ticket." Write for someone without a CS degree; a
+  ten-year-old must understand the comment and the method name, even if the
   implementation uses `map`, `filter`, or `reduce`.
 - **Comments describe current code**: Do not leave comments that compare current
   code with an old implementation or explain what the code replaced. They do not
@@ -124,11 +124,11 @@ GitHub.
   values already say _what_ the code does, so a comment only needs to add what
   the reader cannot see — a _why_, a constraint, a surprise. One or two lines is
   the norm; a paragraph above a few lines of code is a smell, and usually a sign
-  the code should be clearer instead. Never re-narrate the lines below in prose,
-  never restate a name (`/** Save the listing. */` above `saveListing`), and
-  never explain a language feature. If a comment is growing to explain a tangle,
-  fix the tangle: rename the thing, or pull the confusing part into a named
-  helper whose name carries the explanation. The bar to clear is "would a
+  that the code needs to be clearer instead. Never re-narrate the lines below in
+  prose, never restate a name (`/** Save the listing. */` above `saveListing`),
+  and never explain a language feature. If a comment is growing to explain a
+  tangle, fix the tangle: rename the thing, or pull the confusing part into a
+  named helper whose name carries the explanation. The bar to clear is "would a
   competent reader be surprised or misled without this?" — if not, delete it.
   This applies to prose in commit messages and PR descriptions too: say what
   changed and why, then stop.
@@ -155,35 +155,35 @@ GitHub.
 - **100% test coverage**: All code must have complete test coverage - run
   `deno coverage` to find uncovered lines/branches. Coverage must also be
   _deterministic_: a line or branch reached only through a spawned subprocess or
-  e2e test (e.g. the `cli/` scripts, exercised by `test/e2e/cli-api.test.ts` via
-  `deno run`) is covered non-deterministically — the child process's coverage is
-  collected through `DENO_COVERAGE_DIR` and is environment-sensitive, so it can
-  pass CI on one run and fail on the next. Give any branch that must stay
-  covered a direct in-process unit test, not just incidental subprocess
-  coverage.
+  e2e test (for example the `cli/` scripts, exercised by
+  `test/e2e/cli-api.test.ts` via `deno run`) is covered non-deterministically —
+  the child process's coverage is collected through `DENO_COVERAGE_DIR` and is
+  environment-sensitive, so it can pass CI on one run and fail on the next. Give
+  any branch that must stay covered a direct in-process unit test, not just
+  incidental subprocess coverage.
 - **Hardest first, no need to ask**: When the only open question is _what order
   to build several things in_, the answer is always "do the more difficult one
-  first" — just proceed, don't ask.
+  first" — just proceed, do not ask.
 - **Always the complete version**: When choosing between a result that is less
   accurate/complete and the full, correct version, always do the complete
   version — even if it means changing more files than originally estimated. Our
-  aim is always to create the most perfect software; don't ask permission to do
+  aim is always to create the most perfect software; do not ask permission to do
   it properly.
-- **Feature-complete by default**: When the open question is "should we take
-  this feature all the way to complete?", the answer is yes — build the whole
-  thing, not a partial slice, and don't ask permission to finish it. The _only_
+- **Feature-complete by default**: When the open question is whether to take
+  this feature all the way to complete, the answer is yes — build the whole
+  thing, not a partial slice, and do not ask permission to finish it. The _only_
   reason to stop short is when finishing would genuinely complicate the
   codebase: more branching, more special cases, a worse overall shape. That
   trade-off — completeness against simplicity — is the sole deciding factor;
   never the effort or the number of files touched. If the two genuinely pull
   apart, say so explicitly and let the codebase's health break the tie.
-- **Unify systems — the answer is yes**: When the question is "should we unify
-  these two systems / collapse these two paths into one?", the answer is yes. A
-  core aim is to _reduce the lines of code_ needed to accomplish the same thing:
-  the codebase has a finite size it must stay within, so it is critical we reuse
-  and refactor toward one shared mechanism rather than maintain two parallel
-  ones. Two things doing almost the same job are a standing invitation to find
-  the single abstraction that does both — take it. The recent `serve-app.ts`
+- **Unify systems — the answer is yes**: When the question is whether to unify
+  two systems, or collapse two paths into one, the answer is yes. A core aim is
+  to _reduce the lines of code_ needed to accomplish the same thing: the
+  codebase has a finite size it must stay within, so it is critical we reuse and
+  refactor toward one shared mechanism rather than maintain two parallel ones.
+  Two things doing almost the same job are a standing invitation to find the
+  single abstraction that does both — take it. The recent `serve-app.ts`
   extraction is the reference: it collapsed the Bunny edge and Deno Deploy entry
   points onto one shared production request handler, leaving
   `edge.ts`/`deploy.ts` as thin platform wrappers.
@@ -208,7 +208,7 @@ GitHub.
   right call; never keep it "for symmetry" or "for future use" (add it back when
   the future arrives, from git history), and never paper over it with a
   test-only import or a lint/usage-check exemption. If a check surfaces an
-  export that's used only by tests, that's a signal the export is dead, not a
+  export that is used only by tests, that is a signal the export is dead, not a
   reason to allow-list it: remove the export (and its now-pointless test). A
   symmetric-but-unused API is still dead code. The reference:
   `agentPage`/`requireAgentOr` were an agent-only page+guard pair with no route
@@ -218,11 +218,11 @@ GitHub.
   file, aim to keep it under 400 lines — and if hitting that target means
   splitting one file into several, so be it: a new file is cheaper than an
   overloaded one. When you end up with a handful of files all about the same
-  thing, group them in a folder and give them shorter names that don't repeat
+  thing, group them in a folder and give them shorter names that do not repeat
   the folder's name (`ledger/project.ts`, not `ledger/ledger-project.ts` — see
   the `src/shared/ledger/` and `src/shared/db/attendees/` examples in
-  [Modularised](#modularised)). While you're at it, use the split as a chance to
-  separate pure from non-pure code — push the data-in/data-out logic into its
+  [Modularised](#modularised)). While you are at it, use the split as a chance
+  to separate pure from non-pure code — push the data-in/data-out logic into its
   own file and keep the IO in a thin shell (see
   [Pure, functional](#pure-functional)). **The same 400-line limit applies to
   test files**, and matters just as much: smaller, more specific test files let
@@ -231,7 +231,7 @@ GitHub.
   enforces a hard 1,000-line ceiling for every code and test file; never add an
   override to let one past it. Root instruction files such as `AGENTS.md` are
   exempt because their policy must be available as one automatically loaded
-  document, but their sections should still stay concise. (Expect a known side
+  document, but their sections must still stay concise. (Expect a known side
   effect when splitting: jscpd cannot fully scan very large files, so a split
   routinely _surfaces_ duplication that was silently passing inside the monolith
   — budget for extracting helpers, not just moving tests.)
@@ -265,8 +265,8 @@ GitHub.
   what a PR contains, how big it is, what needs mutating — is wrong in the
   alarming direction.
 - **A red check is not automatically yours**: Before treating a CI or status
-  failure as your breakage, ask what it could possibly have to do with your
-  diff, and look for a control. A sibling build of the identical commit that
+  failure as your breakage, ask what it can possibly have to do with your diff,
+  and look for a control. A sibling build of the identical commit that
   succeeded, a failing test your files cannot reach, a provider outside the
   repository — each is evidence that the cause is elsewhere, and none is proof.
   A sibling passing shows the failure is nondeterministic or depends on its
@@ -300,12 +300,12 @@ GitHub.
   database states the application says are impossible. If an impossible state is
   observed, raise it as an error and repair the data explicitly rather than
   silently accepting or normalising it.
-- **Don't defend against the impossible**: Do not add fallbacks, placeholders,
+- **Do not defend against the impossible**: Do not add fallbacks, placeholders,
   or `try/catch`es for failures that can only happen when a foundational system
-  is already broken — the encryption/data key won't decrypt, the database has
+  is already broken — the encryption/data key will not decrypt, the database has
   vanished, a core invariant the app guarantees is violated. You will never
   reach such a branch without the whole app already being down: you cannot
-  render a page whose data won't decrypt, because the _same_ key protects the
+  render a page whose data will not decrypt, because the _same_ key protects the
   attendee's own PII, so the request dies long before your guard runs. Such a
   guard only hides a system-wide failure behind an untestable, never-exercised
   branch (and a coverage gap). Let it throw, loudly. Reserve resilience for
@@ -318,19 +318,19 @@ GitHub.
   key. Do not spend CPU cycles or source bytes checking that either key exists
   in request code, and do not test states that can only be made by corrupting
   this setup.
-- **One path for one-or-many — a single item is an array of one**: Don't write a
-  separate "single" code path beside a "multiple" one (no `getThing(id)` next to
-  `getThings(ids)`, no `length === 1` branch that renders/loads/books
+- **One path for one-or-many — a single item is an array of one**: Do not write
+  a separate "single" code path beside a "multiple" one (no `getThing(id)` next
+  to `getThings(ids)`, no `length === 1` branch that renders/loads/books
   differently from the N-item case). Model the operation over a collection once
-  and call it with an array of one when there's a single item; derive the
+  and call it with an array of one when there is a single item; derive the
   singular answer from the array result
   (`(await getHiddenPackageMemberIds([id])).size > 0`). A thin singular wrapper
-  that _delegates_ to the array implementation is fine (it's still one path);
+  that _delegates_ to the array implementation is fine (it is still one path);
   two parallel implementations that can drift are not. The multi-group
   membership refactor is the reference: a listing's groups are always an array,
   never a special-cased single `group_id`. This keeps behaviour identical for 1
   and N, and kills the class of bug where the single case is fixed but the batch
-  case isn't (or vice-versa).
+  case is not (or vice-versa).
 - **Schema over organic structure**: Prefer a declarative schema plus functional
   composition (map/filter/`compact` over data) to hand-nested or imperative
   construction — _even for content that looks organic_, like help/FAQ pages,
@@ -339,7 +339,7 @@ GitHub.
   the types make invalid arrangements unrepresentable. The admin guide
   (`src/ui/templates/admin/guide/`) is the reference example: each topic exports
   a `GuideSection[]`, `renderGuideSections` turns it into markup, and because a
-  section's `entries` can never be a section, a sub-section can't be mis-nested
+  section's `entries` can never be a section, a sub-section cannot be mis-nested
   mid-list and drag unrelated questions under the wrong heading. When you catch
   yourself authoring repetitive nested JSX/markup by hand, lift it into a schema
   first.
@@ -360,45 +360,45 @@ GitHub.
   `if logistics-off / if renewal-tier` special-casing — the invariants now live
   with the fields they guard.
 - **Malleable software**: Prefer being up front with operators about the
-  underlying data structure over hiding it. Where it's safe, expose stored
+  underlying data structure over hiding it. Where it is safe, expose stored
   records directly and give the operator a page to view and edit them —
   including aggregated/derived numbers — rather than treating the DB as a black
   box. The per-contact record editor at `/admin/history/:hmac` (raw
   booking/message counts plus the private note, keyed by the contact's HMAC) is
-  the reference example. Repairing data should be a first-class operator action,
-  not a manual DB surgery.
-- **Never render a dead or forbidden link**: Don't emit a link the viewer can't
-  follow — one whose target would 404, or whose page the current user's admin
-  level can't open. A rendered link is a promise that it works, so gate it on
-  the same condition the target enforces; when that condition fails, show plain
-  text or an indicator in its place rather than a link that breaks on click. The
-  no-quantity attendee's ticket cell is the reference: a quantity-0-only
-  attendee has no live `/t` page (it 404s), so admin views render a "No
-  quantity" indicator instead of the `/t` link. This holds for permission-gated
-  links too: an action a role can't reach must not be linked for that role. Mind
-  the blind spot — a link to a restricted page still works when the page is
-  viewed (or tested) as a high-privilege user, so the dead link the
-  lower-privilege roles see goes unnoticed. Gate the link on the same permission
-  the target enforces, and when testing visibility, render the page as each role
-  rather than only the most-privileged one.
+  the reference example. Repairing data must be a first-class operator action,
+  not manual DB surgery.
+- **Never render a dead or forbidden link**: Do not emit a link the viewer
+  cannot follow — one whose target returns 404, or whose page the current user's
+  admin level cannot open. A rendered link is a promise that it works, so gate
+  it on the same condition the target enforces; when that condition fails, show
+  plain text or an indicator in its place rather than a link that breaks on
+  click. The no-quantity attendee's ticket cell is the reference: a
+  quantity-0-only attendee has no live `/t` page (it 404s), so admin views
+  render a "No quantity" indicator instead of the `/t` link. This holds for
+  permission-gated links too: an action a role cannot reach must not be linked
+  for that role. Mind the blind spot — a link to a restricted page still works
+  when the page is viewed (or tested) as a high-privilege user, so the dead link
+  the lower-privilege roles see goes unnoticed. Gate the link on the same
+  permission the target enforces, and when testing visibility, render the page
+  as each role rather than only the most-privileged one.
 - **Operator decides genuine conflicts — a required choice, never a silent
   default**: When an action hits a conflict the system cannot unambiguously
-  resolve (e.g. an attendee merge where both records booked the same listing, or
-  where each side carries a real payment), do NOT auto-pick a resolution and
-  quietly proceed. Surface the conflict and make the operator choose explicitly
-  via a **required** field — the request fails closed until they decide.
-  Silently moving money, voiding a leg, or keeping one side by default hides a
-  real decision behind a guess; an explicit operator choice keeps the
-  irreversible call — especially anything that touches the money ledger — with
-  the human who can see the context.
+  resolve (for example an attendee merge where both records booked the same
+  listing, or where each side carries a real payment), do NOT auto-pick a
+  resolution and quietly proceed. Surface the conflict and make the operator
+  choose explicitly via a **required** field — the request fails closed until
+  they decide. Silently moving money, voiding a leg, or keeping one side by
+  default hides a real decision behind a guess; an explicit operator choice
+  keeps the irreversible call — especially anything that touches the money
+  ledger — with the human who can see the context.
 - **Select only needed columns**: Avoid `SELECT *` and broad "load every row"
   helpers — query the specific columns a caller actually uses. See
   [Database Queries](#database-queries).
 - **SQL table aliases**: Alias tables with the full singular word using `AS`,
   not a single letter — write `FROM listings AS listing`, never
   `FROM listings e` (the `e` is a leftover from when listings were called
-  "events"). When one query references the same table more than once (e.g.
-  correlated subqueries that compare a row against its group), give each
+  "events"). When one query references the same table more than once (for
+  example correlated subqueries that compare a row against its group), give each
   occurrence a descriptive word alias — `listing` for the row being checked,
   `groupListing` for sibling rows in its group.
 - **Name positional results at the boundary**: When a library returns an ordered
@@ -434,14 +434,14 @@ GitHub.
   non-trivial work in progress and are about to pause, hand off, delegate to a
   background agent, or end a turn with a dirty tree, **commit and push it**
   rather than leaving it uncommitted. A known-broken checkpoint is fine and
-  expected — mark it unmistakably in the commit message (e.g.
+  expected — mark it unmistakably in the commit message (for example
   `WIP: <chunk> — NOT GREEN, <what fails>`) so it is never mistaken for finished
   work, and follow up with a green commit. Do not hold a commit back purely
   because the tree does not yet build or pass; losing the work is worse.
 - **Answer every PR review thread you address**: When a pull request review
-  leaves comments — from an automated reviewer (e.g. Codex) or a human — reply
-  to **each** thread directly with a concise, proper note: how it was resolved
-  (the mechanism + the regression test that locks it), or why it is not
+  leaves comments — from an automated reviewer (for example Codex) or a human —
+  reply to **each** thread directly with a concise, proper note: how it was
+  resolved (the mechanism + the regression test that locks it), or why it is not
   actionable/incorrect. Do this even when the commit message already explains
   the change — an open thread reads as unaddressed, so close the loop on the
   thread itself. This is a deliberate exception to general GitHub-comment
@@ -450,7 +450,7 @@ GitHub.
   suggestion is valid but outside the current job's scope**, do not silently
   drop it — record it in `TODO.md` with enough context for a future person to
   pick it up without re-reading the PR (the file/path it concerns, what the
-  reviewer proposed, why it's genuinely out of scope here, and a starting
+  reviewer proposed, why it is genuinely out of scope here, and a starting
   point), then reply on the thread pointing to the TODO entry. Scope is a real
   boundary, not an excuse to lose good ideas.
 - **"Actually broken" outranks "nice in a perfect world"**: A finding, review
@@ -471,12 +471,13 @@ GitHub.
   converged and hand the decision to a human.
 - **Finish by rewriting the PR name and description**: Once a feature is done,
   revisit its pull request and update the name and description to match what was
-  actually built. A PR often starts life with a WIP or work-in-flight title; the
-  finished PR should be thorough but written in simple, concise, understandable,
-  non-technical language — the same plain language we want in our code,
-  comments, and method names. Someone without a CS degree should be able to read
-  the PR and know what changed, why, and what it means for the people using the
-  site. The name and the description are technical text, so they also follow
+  actually built. A PR often starts life with a WIP or work-in-flight title. The
+  finished PR must be thorough, and written in the same plain words we want in
+  our code, comments, and method names. Someone without a CS degree must be able
+  to read the PR and know what changed, why, and what it means for the people
+  using the site. Name a file, a route, or a setting when that names the change
+  most clearly. The name and the description are technical text, so they also
+  follow
   [Simplified Technical English](#simplified-technical-english--how-we-write-documentation).
 - **Final check**: Run `nix develop -c deno task precommit` before finishing any
   job with code or documentation changes. It is the only check that mirrors CI
@@ -499,7 +500,7 @@ targets `main`, and every higher branch targets the branch directly below it.
   unused foundation do not justify a layer. Delete the implementation a layer
   replaces in that same layer unless it is a named mixed-version deployment
   adapter.
-- Review and merge from the bottom up. Higher layers may be reviewed in
+- Review and merge from the bottom up. Higher layers can be reviewed in
   parallel, but do not merge an upper layer while a required lower layer is
   unapproved. After a lower layer changes or merges, use `gh stack rebase` or
   `gh stack sync` rather than manually retargeting every branch.
@@ -519,7 +520,7 @@ not defensive programming. Defensive code tolerates bad states to keep running;
 offensive code makes bad states impossible to miss. A loud failure is almost
 always better than a silent wrong answer — the crash points at the bug, while a
 swallowed error corrupts data far from the cause. "Trust application invariants"
-and "Don't defend against the impossible" in [Preferences](#preferences) are
+and "Do not defend against the impossible" in [Preferences](#preferences) are
 this same philosophy; the rules below are how it applies to everyday error
 handling.
 
@@ -536,27 +537,27 @@ handling.
   (`src/shared/sms/gateway.ts` — a gateway response without a message id throws,
   it does not return `""`) and `getDb` does for a missing `DB_URL`
   (`src/shared/db/client.ts`).
-- **Don't use `??` / `||` / `?.` to make a missing value someone else's
+- **Do not use `??` / `||` / `?.` to make a missing value someone else's
   problem.** Coercing `null`/`undefined` into `""`, `0`, or `[]` to keep the
   pipeline moving converts a detectable failure into corrupt data. These
   operators are for _genuinely optional_ values (next bullet), not for papering
-  over a value that should always exist. Unchecked assertions — the non-null `!`
-  and `as` casts that claim a shape the data hasn't been checked against — are a
-  different trap: they run no code at all, they just tell TypeScript to stop
+  over a value that must always exist. Unchecked assertions — the non-null `!`
+  and `as` casts that claim a shape the data has not been checked against — are
+  a different trap: they run no code at all, they just tell TypeScript to stop
   checking, so the failure surfaces wherever the impossible value is first
-  touched instead of where it went missing. Parse, don't pretend.
+  touched instead of where it went missing. Parse, do not pretend.
 - **No empty `catch`, no catch-and-continue.** Only catch when there is a real
   recovery path, catch at the narrowest point that has one, and re-raise (or
   log + re-raise) otherwise. Good catches look like `parseMessageId` — a
   `JSON.parse` of an external response caught and rethrown as a specific,
   contextful error — or a boundary handler turning an invalid webhook payload
   into a 400. A `catch {}` whose body ignores the error is acceptable only when
-  the fallback _is_ the documented behavior, stated in a comment (e.g.
+  the fallback _is_ the documented behavior, stated in a comment (for example
   `tryDecrypt` in `src/features/api/sms-webhook.ts`, whose contract is "fall
-  back to the raw value if it isn't encrypted").
+  back to the raw value if it is not encrypted").
 - **A function that looks something up, resolves, computes, or finds something
-  must THROW when it can't** — never return `null` / `""` / `0` / `-1` / `[]` as
-  a "not found" stand-in — unless "not found" is a genuinely expected,
+  must THROW when it cannot** — never return `null` / `""` / `0` / `-1` / `[]`
+  as a "not found" stand-in — unless "not found" is a genuinely expected,
   documented outcome the caller branches on. This is the case that keeps
   recurring: a helper iterates looking for a value (an id, a match, a record)
   and falls off the end. The right tail is
@@ -570,7 +571,7 @@ handling.
   only when the absence is genuinely expected and semantically meaningful.** An
   optional query-string parameter (`searchParams.get(key) ?? ""` in
   `src/features/url.ts`), an accumulator's first visit (`totals.get(key) ?? 0`),
-  a record that may legitimately not exist yet. In that case, name it for what
+  a record that legitimately does not exist yet. In that case, name it for what
   it is — the `*OrNull` suffix (`decryptAttendeeOrNull`, `firstRowOrNull`) and a
   `| null` return type are the house convention — and comment why the absence is
   expected, so a reader can tell a deliberate branch from a suppressed failure.
@@ -581,8 +582,8 @@ Everything the system says to a person — error messages, form intros and field
 hints, column headers, buttons, warnings, alerts, success and flash messages,
 empty states, confirmations — must read at roughly **Simple Wikipedia** level.
 The reader to picture is someone who reads English as a second language, is
-dyslexic, or is simply impatient with reading: nothing on this system should
-stump them. Be as short and plain as you can **while still saying everything the
+dyslexic, or is just impatient with reading. The system must never stump that
+reader. Be as short and plain as you can **while still saying everything the
 reader needs** — concise, never clipped.
 
 This section is about copy inside the app. Documentation, runbooks, commit
@@ -610,10 +611,9 @@ that shows it stays worded the same.
   "and", a semicolon, or a trailing comma-clause — split it. (A conjunction
   inside one phrase, like "your first and last name", is fine.) Short sentences
   are the single biggest win for a struggling reader.
-- **Everyday words.** Prefer the word a ten-year-old would use: "use" not
-  "utilise", "start" not "commence", "before" not "prior to", "help" not
-  "facilitate". This is a matter of judgement on every change — no checker
-  enforces it.
+- **Everyday words.** Prefer the word a ten-year-old uses: "use" not "utilise",
+  "start" not "commence", "before" not "prior to", "help" not "facilitate". This
+  is a matter of judgement on every change — no checker enforces it.
 - **Front-load the action.** Say what to do first and why second: "Type the
   listing name to confirm." — not "In order to confirm, the listing name must be
   typed."
@@ -764,6 +764,9 @@ meet the instruction before the explanation.
 
 > Do not run this against production. The command deletes rows.
 
+A warning inside the app is copy, so it opens with `Warning:` instead. See
+[Simple Language](#simple-language--how-we-talk-to-users).
+
 ### Never touch
 
 - Code blocks, identifiers, CLI commands, file paths, quoted error messages, and
@@ -854,7 +857,7 @@ to copy:
     `FormSections`/ `SectionFieldset` keeps that so. The listing form
     (`listings/form-sections.tsx`) and the attendee form
     (`admin/attendee-form.tsx`) both build a `FormSection[]`; see them for
-    conditional sections (`compact` drops the ones that don't apply).
+    conditional sections (`compact` drops the ones that do not apply).
 - **One vocabulary for "attached to any record".** `defineRecordTarget`
   (`src/shared/db/record-target.ts`): a domain says which kinds of record it
   accepts and which two columns hold the kind and the id, and gets back the
@@ -956,7 +959,7 @@ presentation). Within `shared/`, the shapes to copy:
   `stats.ts`, `delete.ts`: a big table's concerns separated instead of one
   1,500-line module.
 
-A new system should arrive as a small directory of single-purpose files, not one
+A new system must arrive as a small directory of single-purpose files, not one
 grab-bag module — and not as fragments scattered through unrelated existing
 files.
 
@@ -968,7 +971,7 @@ The filename states the concept; the concept fills the file.
 its name and vice versa. Function names carry contracts the same way: the `Raw`
 suffix on `getAttendeesRaw`/`getAttendeeRaw` means "PII still encrypted —
 decrypt before display", and `getUserDisplayFields` names the exact narrow
-column set it selects. If you can't name the file in a couple of words, it is
+column set it selects. If you cannot name the file in a couple of words, it is
 probably two concepts — split it.
 
 ### Valibot and standard libraries
@@ -994,11 +997,11 @@ formatting is `Intl`. Valibot patterns to copy:
   `Temporal.Instant.from` (valibot's `isoTimestamp` accepts overflow days) and
   documents why.
 
-### Don't reinvent the wheel
+### Do not reinvent the wheel
 
 Before writing an algorithm, formatter, or parser, check `deno.json` — the
 answer is usually already a dependency. When the project's calling convention
-differs from a library's, write a thin adapter; don't re-implement:
+differs from a library's, write a thin adapter; do not re-implement:
 
 - `src/fp.ts` — `unique`, `uniqueBy`, `mapNotNullish`, `sumOf`, `chunk` are
   one-line curried adapters over `@std/collections`.
@@ -1039,8 +1042,8 @@ rules, with their reference implementations:
 
 - **Nothing heavy at module load.** Entry points only register the handler
   (`src/edge.ts`); app boot runs `once()` on the _first request_
-  (`src/serve-app.ts`). Module-load work is fine only when pure and cheap (e.g.
-  `defineTable` building its schemas once).
+  (`src/serve-app.ts`). Module-load work is fine only when pure and cheap (for
+  example `defineTable` building its schemas once).
 - **Lazy singletons via `once`/`lazyRef` from `#fp`.** The DB client (`getDb` in
   `src/shared/db/client.ts`), the dynamically imported Stripe SDK
   (`src/shared/stripe.ts`), the Liquid email engine, crypto key material — all
@@ -1050,7 +1053,7 @@ rules, with their reference implementations:
   request. Any new per-request state is built on one of the three factories in
   `src/shared/request-scoped.ts` (`createScope`, `createScopedValue`,
   `createRequestScoped`) — the only module allowed to touch `AsyncLocalStorage`
-  — so two concurrent requests on one isolate can't clobber each other and a
+  — so two concurrent requests on one isolate cannot clobber each other and a
   leaked post-request context always reads as "outside a request". Isolate-lived
   caches are best-effort and bounded (`src/shared/db/keyed-cache.ts`; the
   settings version-stamp cache in `src/shared/db/settings.ts`) — never
@@ -1203,7 +1206,7 @@ guidance. Fix the duplication; do not silence it:
    `jscpd:ignore` tag anywhere else is a code smell, not a fix.
 
 **The jscpd warning is a positive signal, not a nuisance to silence.** Each
-duplication it flags is a pointer at two things that should become one — a real
+duplication it flags is a pointer at two things that must become one — a real
 merge waiting to happen, and the whole point of this exercise. So:
 
 - **Never work around the warning by changing a structure so the matcher stops
@@ -1217,11 +1220,11 @@ merge waiting to happen, and the whole point of this exercise. So:
 - **Every merge is warranted — the merges are the goal.** When jscpd flags a new
   helper against an existing one (as it will the moment you extract something),
   that is not a problem to route around; it is telling you the new helper and
-  the old one are the same operation and should be unified into a single
+  the old one are the same operation and must be unified into a single
   mechanism. Do that unification. Reducing the codebase to one shared way of
   doing each thing is the aim; the warning is just the to-do list.
 - **After a dedup, zoom out and integrate further.** Once your new helper
-  exists, search the codebase for the _other_ places that could now fold into it
+  exists, search the codebase for the _other_ places that can now fold into it
   or into an existing sibling. A dedup pass rarely ends at the sites that first
   tripped the check — the biggest wins come from noticing that the helper you
   just wrote subsumes three more call sites, or that it and an older helper are
@@ -1241,10 +1244,10 @@ Avoid `SELECT *`, and avoid loading more rows or columns than the caller needs.
   `getAllAttendeePiiBlobs` (`pii_blob`), `getAllRawEmailTemplates`
   (`id, subject, body`).
 - **"Get all rows" is rarely the right shape.** About the only legitimate reason
-  to read a whole table is rendering an admin collection page (e.g.
+  to read a whole table is rendering an admin collection page (for example
   `/admin/listings`, `/admin/questions`) — and even then, select only the
   columns those rows display, not every column on the table. Everything else
-  should be a bounded query (by id, by key, or with a `WHERE`/`LIMIT`).
+  must be a bounded query (by id, by key, or with a `WHERE`/`LIMIT`).
 
 Some reads legitimately need the full row — these are the exceptions, not the
 rule:
@@ -1266,13 +1269,13 @@ rule:
   layer instead.
 
 Even when a caller genuinely needs many columns, list them explicitly rather
-than `SELECT *`, so adding a column later doesn't silently widen every read.
+than `SELECT *`, so adding a column later does not silently widen every read.
 
 ### Transactions and Batches
 
 For anything more complex than a single statement, prefer libsql's batches or
 interactive transactions over firing independent `execute` calls. Independent
-calls neither share a transaction (a later failure can't undo an earlier write)
+calls neither share a transaction (a later failure cannot undo an earlier write)
 nor a round-trip (each one is a separate request to the primary). The helpers in
 `src/shared/db/client.ts` already wrap libsql's transaction APIs — reach for
 them rather than calling `getDb().batch`/`getDb().transaction` directly, so
@@ -1289,8 +1292,8 @@ query logging and table-scoped cache invalidation stay automatic.
   `deleteByFieldBatch` is a ready-made multi-table delete.
 
 - **Interactive transaction — logic between steps.** When a later statement
-  depends on the result of an earlier one — e.g. read a balance, validate it,
-  then conditionally update; or create → check capacity → finalize, where a
+  depends on the result of an earlier one — for example read a balance, validate
+  it, then conditionally update; or create → check capacity → finalize, where a
   zero-row guard must abort and undo everything — use `withTransaction`. It
   hands your callback a `TxScope` whose `execute` runs inside one interactive
   write transaction, committing on success and rolling back (then rethrowing) on
@@ -1299,11 +1302,11 @@ query logging and table-scoped cache invalidation stay automatic.
   `DatabaseBusyError`. Read-only statements and batches also retry fleeting
   upstream HTTP errors (BunnyDB 421 and Turso 502/503/504). Interactive
   transactions and write paths retry only `SQLITE_BUSY`; upstream HTTP errors
-  are never replayed because the operation may have committed before the
-  response arrived. Note the trade-off: an interactive transaction locks the
-  database for writing until it commits or rolls back (with a timeout), so keep
-  the work inside it tight — do any expensive non-DB computation before opening
-  it, and prefer a plain batch whenever no inter-step logic is actually needed.
+  are never replayed because the operation can commit before the response
+  arrives. Note the trade-off: an interactive transaction locks the database for
+  writing until it commits or rolls back (with a timeout), so keep the work
+  inside it tight — do any expensive non-DB computation before opening it, and
+  prefer a plain batch whenever no inter-step logic is actually needed.
 
 ## Scripts
 
@@ -1346,11 +1349,11 @@ query logging and table-scoped cache invalidation stay automatic.
   for Markdown, Biome for code. When in doubt, run the task.
 - `deno task lint:ci` - Strict, read-only formatting and lint. Runs
   `deno fmt --check` for Markdown and Biome `check --error-on-warnings` for
-  code. Fails on lint warnings (e.g. cognitive complexity) and on any file that
-  would be reformatted, without touching the checkout. This is the lint
-  `deno task precommit` runs in **every** environment, so a clean `precommit`
-  locally means the lint step will pass in CI too. Run `deno task lint` to
-  auto-fix before re-running.
+  code. Fails on lint warnings (for example cognitive complexity) and on any
+  file that would be reformatted, without touching the checkout. This is the
+  lint `deno task precommit` runs in **every** environment, so a clean
+  `precommit` locally means the lint step will pass in CI too. Run
+  `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the
   configured storage zone by default (so it appears on the Backups page and lets
@@ -1390,7 +1393,7 @@ query logging and table-scoped cache invalidation stay automatic.
   or `specs/` run only for direct-test survivors. A changed Cucumber step or
   support file selects every Feature. The changed set is the branch's committed
   diff against the integration branch (`origin/main`, else a local `main`) via
-  `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main
+  `base...HEAD` — three-dot/merge-base, so it is the branch's full diff vs main
   and stays bounded to the branch's own commits (precommit runs post-commit on a
   clean tree, so the index is empty). Skips cheaply when there is no base ref or
   no changed `src/` files. If a badly stale local `origin/main` balloons the
@@ -1480,7 +1483,7 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
 
 ### Required (configure in Bunny dashboard)
 
-- `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
+- `DB_URL` - Database URL (required, for example `libsql://your-db.turso.io`)
 - `DB_TOKEN` - Database auth token (required for remote databases)
 - `DB_ENCRYPTION_KEY` - 32-byte base64-encoded encryption key (required)
 
@@ -1498,7 +1501,7 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   (default 500). Each page is one libsql response, so this bounds the response
   size to stay under libsqld's "Response is too large" payload cap. Used by
   `deno task backup` and the admin Backups page; migrations no longer back up
-  inline (the edge subrequest budget can't fit a full dump), so backups are
+  inline (the edge subrequest budget cannot fit a full dump), so backups are
   taken out-of-band.
 - `MAIN_INSTANCE_KEY` - Shared secret authorizing the inter-instance
   site-credentials endpoint (`POST /instance/site-credentials`). When set on a
@@ -1527,21 +1530,21 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   managed `<app>.<organization>.deno.net` production domain.
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables
   subdomain feature when set with `BUNNY_API_KEY`)
-- `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g.
-  `.tickets`)
-- `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g.
+- `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (for
+  example `.tickets`)
+- `NTFY_URL` - Ntfy endpoint URL for error notifications (for example
   `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal
   or encrypted data.
-- `SENTRY_URL` - Sentry DSN for server-side error reporting (e.g. a self-hosted
-  Bugsink: `https://<key>@bugs.example.com/<project>`). When set, the same
-  classified server errors that log to the console and ping ntfy are also
-  captured by Sentry, with a real stack trace when the originating exception is
-  available. Unset ⇒ Sentry is disabled (the SDK never initializes). The release
-  is `chobble-tickets@<commit>`, matching the source maps the deploy workflows
-  upload; readable (un-minified) traces additionally require the
-  `SENTRY_AUTH_TOKEN`, `SENTRY_CLI_URL` (the instance base URL, e.g.
-  `https://bugs.example.com/`), `SENTRY_ORG`, and `SENTRY_PROJECT` GitHub
-  Actions secrets so the deploy can inject debug IDs and upload the maps.
+- `SENTRY_URL` - Sentry DSN for server-side error reporting (for example a
+  self-hosted Bugsink: `https://<key>@bugs.example.com/<project>`). When set,
+  the same classified server errors that log to the console and ping ntfy are
+  also captured by Sentry, with a real stack trace when the originating
+  exception is available. Unset ⇒ Sentry is disabled (the SDK never
+  initializes). The release is `chobble-tickets@<commit>`, matching the source
+  maps the deploy workflows upload; readable (un-minified) traces additionally
+  require the `SENTRY_AUTH_TOKEN`, `SENTRY_CLI_URL` (the instance base URL, for
+  example `https://bugs.example.com/`), `SENTRY_ORG`, and `SENTRY_PROJECT`
+  GitHub Actions secrets so the deploy can inject debug IDs and upload the maps.
   Without those secrets the deploy still works; traces just stay minified.
 - `UPTIME_KUMA_URL` - Uptime Kuma 2.4 or newer base URL used by builder
   instances to inspect and add built-site scheduled maintenance monitors.
@@ -1575,7 +1578,7 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   page (`/admin/support`), where the operator can message this address.
 - `SUPPORT_PAGE_TEXT` - Optional markdown shown at the top of the Support page
   (requires `ADMIN_EMAIL_ADDRESS`). Use literal `\n` for line breaks since Bunny
-  secrets can't hold real newlines. When unset, a placeholder note is shown
+  secrets cannot hold real newlines. When unset, a placeholder note is shown
   instead. The support form below it (which delivers to `ADMIN_EMAIL_ADDRESS`)
   needs a business email to be set, like the public contact form.
 - `SUPPORT_FORM_NAG_DAYS` - Optional positive integer (default `7`). For this
@@ -1583,21 +1586,21 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   submitted this form …" notice to discourage duplicate messages.
 - `I18N_REPLACEMENTS` - Optional comma-separated `from|to` substring
   replacements that rebrand the **translatable copy** of every rendered message,
-  e.g. `ticket|booking,attendee|guest`. Matching is case-insensitive and by
-  substring (`ticket|booking` turns `tickets` into `bookings`), and the output
-  copies the source word's capitalisation — `Ticket` → `Booking`, `ticket` →
-  `booking` (only lowercase and title-case occur in real copy). It is applied to
-  each message **template** once at load, and the rebranded template is compiled
-  and cached, so rendering stays a plain ICU format with no per-call cost
-  (important on a cold-booting edge runtime). It deliberately leaves alone: HTML
-  tags and attributes (so link `href`s survive), `<code>` examples (literal
+  for example `ticket|booking,attendee|guest`. Matching is case-insensitive and
+  by substring (`ticket|booking` turns `tickets` into `bookings`), and the
+  output copies the source word's capitalisation — `Ticket` → `Booking`,
+  `ticket` → `booking` (only lowercase and title-case occur in real copy). It is
+  applied to each message **template** once at load, and the rebranded template
+  is compiled and cached, so rendering stays a plain ICU format with no per-call
+  cost (important on a cold-booting edge runtime). It deliberately leaves alone:
+  HTML tags and attributes (so link `href`s survive), `<code>` examples (literal
   route/CLI text), interpolated values such as a stored listing name (so "type
   this exact name" confirmations still match), and the fallback key returned for
   a missing translation. Avoid terms that collide with ICU keywords or
   placeholder names (`name`, `count`, `plural`, …).
-- `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (e.g.
+- `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (for example
   `pass.com.example.tickets`)
-- `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (e.g. `ABC1234567`)
+- `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (for example `ABC1234567`)
 - `APPLE_WALLET_SIGNING_CERT` - PEM-encoded signing certificate
 - `APPLE_WALLET_SIGNING_KEY` - PEM-encoded signing private key
 - `APPLE_WALLET_WWDR_CERT` - PEM-encoded Apple WWDR intermediate certificate
@@ -1656,30 +1659,30 @@ All tests must meet these mandatory criteria:
 
 - Import and call actual production functions
 - Never copy-paste or reimplement production logic in tests
-- Import constants from production code, don't hardcode
+- Import constants from production code, do not hardcode
 
 ### 2. Not Tautological
 
-- Never assert a value you just set (e.g., `expect(true).toBe(true)`)
+- Never assert a value you just set (for example, `expect(true).toBe(true)`)
 - Always have production code execution between setup and assertion
 - Verify behavior, not that JavaScript assignment works
 
 ### 3. Tests Behavior, Not Implementation Details
 
 - Verify observable outcomes (HTTP status, content, state changes)
-- Refactoring shouldn't break tests unless behavior changes
+- Refactoring must not break tests unless the behavior changes
 - Answer "does it work?" not "is it structured this way?"
 
 ### 4. Has Clear Failure Semantics
 
 - Test names describe the specific behavior being verified
-- When a test fails, it should be obvious what's broken
+- When a test fails, it must be obvious what broke
 - Use descriptive assertion messages
 
 ### 5. Isolated and Repeatable
 
 - Tests clean up after themselves (use `beforeEach`/`afterEach`)
-- Tests don't depend on other tests running first
+- Tests do not depend on other tests running first
 - No time-dependent flakiness
 
 ### 6. Tests One Thing
@@ -1691,7 +1694,7 @@ All tests must meet these mandatory criteria:
 
 - Treat 100% coverage as a hygiene floor, not proof that tests would catch
   meaningful regressions.
-- Prefer assertions that would fail under realistic mutants: wrong
+- Prefer assertions that fail under realistic mutants: wrong
   arithmetic/operator, skipped validation, inverted permission checks, missing
   persistence, or omitted escaping.
 - Avoid compound boolean assertions such as `expect(a && b).toBe(true)`; assert
@@ -1704,7 +1707,7 @@ All tests must meet these mandatory criteria:
   families of inputs and state the invariant being protected. Keep any generated
   cases deterministic.
 - For critical flows, include negative-path, idempotency, concurrency, and
-  metamorphic tests: e.g. payment/webhook replay does not double-credit,
+  metamorphic tests: for example payment/webhook replay does not double-credit,
   capacity cannot go below zero across edits/deletes, role downgrades remove
   access, and PII/secrets remain encrypted or absent from responses/logs.
 - When generated or bulk-added tests are involved, run
@@ -1733,7 +1736,7 @@ It reports a mutation score and lists each survivor as
 can gate CI on a chosen module. By default it runs the test files directly
 (fast, for pure-unit modules); pass `--harness` for tests that import the app /
 Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
-client-bundle source (anything bundled into `src/ui/static/*.js` — e.g.
+client-bundle source (anything bundled into `src/ui/static/*.js` — for example
 `src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
 bundle for each mutant, so the mutation reaches the built asset the tests load.
 Likewise, a mutant in any file that feeds the run-wide prebuilt test state (the
@@ -1817,14 +1820,14 @@ unless a new benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm
 one-file runs measured a 17.3 ms standalone median and a 51.2 ms `--use-server`
 median. Either gate exiting non-zero kills the mutant without spending a full
 `deno test` on it — both a forbidden lint diagnostic and a type error are build
-failures, so the mutant could never ship, and static checks are far faster than
+failures, so the mutant can never ship, and static checks are far faster than
 the suite. The type-check gate catches the mutants that turn valid code into a
-type error — e.g. a `+ → *` swap on a string concatenation (`"a" * "b"` doesn't
-type-check), or any operator change that violates a parameter/return type. Each
-gate is only trusted after the runner confirms the _unmutated_ target passes it
-(the baseline probe): a standalone `deno task mutation` doesn't run
-`lint:ci`/`typecheck` first, so if the target isn't already clean the run aborts
-loudly rather than scoring a bogus 100%. This means a mutant recorded in
+type error — for example a `+ → *` swap on a string concatenation (`"a" * "b"`
+does not type-check), or any operator change that violates a parameter/return
+type. Each gate is only trusted after the runner confirms the _unmutated_ target
+passes it (the baseline probe): a standalone `deno task mutation` does not run
+`lint:ci`/`typecheck` first, so if the target is not already clean the run
+aborts loudly rather than scoring a bogus 100%. This means a mutant recorded in
 `equivalent-mutants/` must be one that survives _both_ gates _and_ the tests; a
 mutation that produces a type error never reaches the ignore-list because the
 type-check gate kills it first.
@@ -1841,7 +1844,7 @@ just guarantees the next person trips over the same survivor. This is the
 [Good citizen](#preferences) rule applied to mutation testing. It is a
 best-effort check with two documented blind spots (see the header of
 `scripts/precommit/mutation-step.ts`): it scopes to the _committed_ diff, so
-uncommitted work isn't checked until committed; and it diffs against your
+uncommitted work is not checked until committed; and it diffs against your
 _local_ `origin/main`, never re-fetching, so a stale local ref under a branch
 built on newer main commits can leak upstream src into the set (run
 `git fetch origin main` first; a branch's own author is unaffected). In each
@@ -1921,7 +1924,7 @@ the report:
   a helper function called at module level — put hooks inside your `describe`),
   and never rely on a virgin isolate (module state you switch is visible to
   files that run after you, so reset what you change — and state _other_ files
-  switched may be visible to you, so pin what you assert on). A file that
+  switched can be visible to you, so pin what you assert on). A file that
   genuinely needs its own isolate carries a `// test-groups: run-alone` comment.
   `deno task
   test:files` never groups: you always debug exactly the files you
@@ -1941,9 +1944,9 @@ the report:
   single time and every test asserts against the cached HTML
   (`test/integration/server/guide.test.ts` is the reference). Tests that alter
   config, env, or fixture data still fetch their own copy.
-- **Seed volume with a batch, not a loop.** When a test needs many rows (e.g.
-  filling a pagination page), create ONE record through the production path and
-  clone its rows in a single batch — see `seedFillerAttendees` in
+- **Seed volume with a batch, not a loop.** When a test needs many rows (for
+  example filling a pagination page), create ONE record through the production
+  path and clone its rows in a single batch — see `seedFillerAttendees` in
   `test/test-utils/db-helpers/attendee-seeding.ts` — instead of running the full
   production write path N times.
 - **Shard inherently heavy suites.** A suite that is minutes of sequential work

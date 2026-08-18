@@ -5,13 +5,13 @@ any Deno environment) with libsql, which encrypts all PII at rest and handles
 free and paid listings with Stripe, Square, or SumUp.
 
 It is developed by [Chobble CIC](https://chobble.com) - a community interest
-company, which means the assets are locked to the community and can't be sold
+company, which means the assets are locked to the community and cannot be sold
 off.
 
 **Website**: [tickets.chobble.com](https://tickets.chobble.com)
 
 This is not "open core" - every feature is available under
-[AGPL-3.0-only](LICENSE) with no proprietary add-ons. If you'd rather not host
+[AGPL-3.0-only](LICENSE) with no proprietary add-ons. If you prefer not to host
 it yourself, I offer hosted instances at
 [tix.chobble.com](https://tix.chobble.com/ticket/register) for £5/month or
 £50/year.
@@ -119,7 +119,7 @@ for all optional variables.
 ### Localisation
 
 - ICU MessageFormat copy with locale picked from the `Accept-Language` header
-- Rebrand layer (`I18N_REPLACEMENTS`): substring replacements (e.g.
+- Rebrand layer (`I18N_REPLACEMENTS`): substring replacements (for example
   `ticket|booking`) that rewrite copy without touching HTML, links, or
   interpolated values, applied once at load
 
@@ -278,9 +278,9 @@ for all optional variables.
 }
 ```
 
-Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing
-bookings the `tickets` array contains one entry per listing and the `ticket_url`
-combines tokens with `+` - one webhook, not several.
+Prices are in the smallest currency unit (for example pence, cents). For
+multi-listing bookings the `tickets` array contains one entry per listing and
+the `ticket_url` combines tokens with `+` - one webhook, not several.
 
 </details>
 
@@ -538,7 +538,7 @@ rules.
 keyset-paginated so no single response trips libsqld's "Response is too large"
 payload cap (the server limit behind Bunny's databases). Backups run
 **out-of-band**, not inside the migration: a full dump of a ~31-table schema
-can't fit alongside a migration within one edge request's
+cannot fit alongside a migration within one edge request's
 [50-subrequest budget](https://docs.bunny.net/scripting/limits), so migrations
 just migrate, and a backup is taken by GitHub Actions (or `deno task backup`)
 beforehand. To enforce that, **`/admin/update` and the per-site update button
@@ -604,7 +604,7 @@ before deploying to it (the staging push-to-`main` trigger is the one exception
   whole fleet is the deliberate `release` choice. For a canary (`alpha`/`beta`)
   the workflow **fails closed** unless the main instance echoes the tier back in
   its response, so running it against a master that predates tier filtering
-  (which would ignore the filter and return the whole fleet) can't silently
+  (which would ignore the filter and return the whole fleet) cannot silently
   deploy to everyone — upgrade the master first. It needs the `MAIN_INSTANCE`
   URL secret plus `STORAGE_ZONE_*` and `BUNNY_ACCESS_KEY`; CDN-enabled builds
   additionally need the five optional CDN secrets below. The `MAIN_INSTANCE_KEY`
