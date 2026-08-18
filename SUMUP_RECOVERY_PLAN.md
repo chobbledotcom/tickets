@@ -146,21 +146,28 @@ one provider read per created checkout, once, at least 2.5 hours after creation
 
 ### Failure table
 
-| Work completed             | Failure                               | Required result                                                     | Retry owner |
-| -------------------------- | ------------------------------------- | ------------------------------------------------------------------- | ----------- |
-| Nothing                    | SumUp read unavailable                | Row stays `waiting`; no state written                               | Scheduler   |
-| Nothing                    | SumUp read `found` but not ours       | Row stays `waiting`; refusal logged (cannot happen — id is ours)    | Scheduler   |
-| Read says `PAID`           | Echoed reference does not open row    | `owed` — SumUp contradicted itself about a checkout we created      | Owner       |
-| Read says `PAID`           | Boundary rejects the money            | Existing `settleRejectedCharge`: refunded ⇒ `finished`, else `owed` | Scheduler   |
-| Read says `PAID`           | Classify says `unverifiable`          | `owed` — a contradiction, not a foreign checkout (see below)        | Owner       |
-| Read says `PAID`           | Classify says `unreadable`            | Row stays `waiting`                                                 | Scheduler   |
-| Engine booked the attendee | State write fails                     | Booking stands; row stays `waiting`; next check is idempotent       | Scheduler   |
-| Square: webhook accepted   | Order reads `missing` under a paid id | **Throw** — 503, Square redelivers                                  | Provider    |
+| Work completed             | Failure                               | Required result                                                     | Retry owner                                |
+| -------------------------- | ------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
+| Nothing                    | SumUp read unavailable                | Row stays `waiting`; no state written                               | Scheduler                                  |
+| Nothing                    | SumUp read `found` but not ours       | Row stays `waiting`; refusal logged (cannot happen — id is ours)    | Scheduler                                  |
+| Read says `PAID`           | Echoed reference does not open row    | `owed` — SumUp contradicted itself about a checkout we created      | Scheduler, and the owner can force a check |
+| Read says `PAID`           | Boundary rejects the money            | Existing `settleRejectedCharge`: refunded ⇒ `finished`, else `owed` | Scheduler                                  |
+| Read says `PAID`           | Classify says `unverifiable`          | `owed` — a contradiction, not a foreign checkout (see below)        | Scheduler, and the owner can force a check |
+| Read says `PAID`           | Classify says `unreadable`            | Row stays `waiting`                                                 | Scheduler                                  |
+| Engine booked the attendee | State write fails                     | Booking stands; row stays `waiting`; next check is idempotent       | Scheduler                                  |
+| Square: webhook accepted   | Order reads `missing` under a paid id | **Throw** — 503, Square redelivers                                  | Provider                                   |
 
 The gap between provider success and local success is closed the way the rest of
-the payment engine closes it: `processed_payments` (PK = session id = the SumUp
-reference) is reserved before any work, so a replay returns the recorded outcome
-rather than repeating it.
+the payment engine closes it: `processed_payments` (PK = `payment_session_id` =
+the SumUp reference) is reserved before any work, so a replay returns the
+recorded outcome rather than repeating it.
+
+**`owed` has one retry owner: the scheduler.** Every `owed` row keeps its place
+in the scheduled queue and is checked again on its own `next_check_at` backoff,
+exactly like a `waiting` one — nothing that may hold unaccounted money is ever
+left waiting on a person to notice it. The owner's "Check again now" control
+does not own the retry; it only brings the next scheduled check forward for one
+row. So `owed` is never a manual-only state, and it is never abandoned.
 
 **Why a paid `unverifiable` is `owed`, not `unpaid`.** `unpaid` means SumUp told
 us the checkout was never paid; using it for "not ours" would give one word two
@@ -180,7 +187,7 @@ and takes the refund-or-`owed` row above.
 
 | Question                             | Answer                                                                                                                                                                                                        |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stable identity                      | `processed_payments.session_id` = the SumUp `checkout_reference`; the staging row's `reference_index`                                                                                                         |
+| Stable identity                      | `processed_payments.payment_session_id` = the SumUp `checkout_reference`; the staging row's `reference_index`                                                                                                 |
 | What an exact replay returns         | `alreadyProcessedResult` / the recorded terminal failure — no second booking, no second refund                                                                                                                |
 | Who retries after interruption       | The maintenance scheduler; the row keeps its state until a check writes a new one                                                                                                                             |
 | What stops two workers               | `claimNextMaintenanceTask`'s lease, plus `reserveSession`, plus a conditional state write (below)                                                                                                             |
