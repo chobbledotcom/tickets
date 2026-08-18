@@ -73,9 +73,17 @@ describe("pending-work", () => {
   });
 
   test("work that queues fresh work forever fails loudly instead of spinning", async () => {
+    // The chain feeds itself, so it needs its own ceiling as well as the flag:
+    // if the assertion below throws, `finally` still lowers the flag, and if
+    // something stops the flush from ever throwing, this ceiling stops the
+    // chain rather than letting it spin the event loop forever. It sits far
+    // above the flush's own round cap so the real failure still happens first.
+    const QUEUE_CEILING = 5_000;
+    let queued = 0;
     let keepQueueing = true;
     const queueAgain = (): void => {
-      if (!keepQueueing) return;
+      if (!keepQueueing || queued >= QUEUE_CEILING) return;
+      queued++;
       addPendingWork(
         (async () => {
           await Promise.resolve();
@@ -85,13 +93,17 @@ describe("pending-work", () => {
     };
     await runWithPendingWork(async () => {
       queueAgain();
-      await expect(flushPendingWork()).rejects.toThrow(
-        "Pending work kept queueing more work instead of finishing",
-      );
-      // Stop the chain and drain its tail so the scope can end cleanly.
-      keepQueueing = false;
-      await flushPendingWork();
+      try {
+        await expect(flushPendingWork()).rejects.toThrow(
+          "Pending work kept queueing more work instead of finishing",
+        );
+      } finally {
+        // Stop the chain and drain its tail so the scope can end cleanly.
+        keepQueueing = false;
+        await flushPendingWork();
+      }
     });
+    expect(queued).toBeLessThan(QUEUE_CEILING);
   });
 
   test("flushPendingWork outside a scope is a no-op", async () => {
