@@ -1,0 +1,145 @@
+/* jscpd:ignore-start -- imports */
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
+import {
+  buildSumupSession,
+  resolveSumupCheckoutById,
+  toSumupPaymentStatus,
+} from "#shared/sumup/checkout-resolution.ts";
+import { sumupApi } from "#shared/sumup.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  makeSumupCheckoutDue,
+  stageSignedSumupCheckout,
+  sumupCheckout,
+  withSumupCheckoutStatus,
+} from "#test-utils/sumup.ts";
+
+/* jscpd:ignore-end */
+
+describeWithEnv("sumup checkout resolution", { db: true }, () => {
+  test("reads a paid checkout back as a session to settle", async () => {
+    const { reference } = await stageSignedSumupCheckout("co_ok");
+    await makeSumupCheckoutDue("co_ok");
+    const restore = withSumupCheckoutStatus(reference, "PAID", "txn_ok");
+    try {
+      const { reading, resolved } = await resolveSumupCheckoutById("co_ok");
+
+      expect(reading).toBe("PAID");
+      expect(resolved).not.toBe("retry");
+      expect(resolved).not.toBe("skip");
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("keeps SumUp's own word for a checkout nobody has paid", async () => {
+    // "skip" alone would lose the difference between not-yet and never, which
+    // is the difference between asking again and closing the row.
+    const { reference } = await stageSignedSumupCheckout("co_pending");
+    const restore = withSumupCheckoutStatus(reference, "PENDING", "");
+    try {
+      const { reading, resolved } =
+        await resolveSumupCheckoutById("co_pending");
+
+      expect(reading).toBe("PENDING");
+      expect(resolved).toBe("skip");
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("keeps SumUp's own word for a checkout that expired", async () => {
+    const { reference } = await stageSignedSumupCheckout("co_expired");
+    const restore = withSumupCheckoutStatus(reference, "EXPIRED", "");
+    try {
+      expect((await resolveSumupCheckoutById("co_expired")).reading).toBe(
+        "EXPIRED",
+      );
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("calls a read it could not make unusable, never unpaid", async () => {
+    await stageSignedSumupCheckout("co_down");
+    const restore = stub(sumupApi, "readCheckoutById", () =>
+      Promise.resolve({
+        reason: "provider_error" as const,
+        status: "unavailable" as const,
+      }),
+    );
+    try {
+      expect(await resolveSumupCheckoutById("co_down")).toEqual({
+        reading: "unusable",
+        resolved: "retry",
+      });
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("refuses an id no staging write could have produced", async () => {
+    const fetched = stub(sumupApi, "readCheckoutById");
+    try {
+      expect(await resolveSumupCheckoutById("")).toEqual({
+        reading: "unusable",
+        resolved: "retry",
+      });
+      // Refused before it costs an API call.
+      expect(fetched.calls).toHaveLength(0);
+    } finally {
+      fetched.restore();
+    }
+  });
+
+  test("refuses a checkout this site never staged", async () => {
+    const fetched = stub(sumupApi, "readCheckoutById");
+    try {
+      expect((await resolveSumupCheckoutById("co_stranger")).reading).toBe(
+        "unusable",
+      );
+      expect(fetched.calls).toHaveLength(0);
+    } finally {
+      fetched.restore();
+    }
+  });
+
+  test("keeps SumUp's word when its reference does not open our row", async () => {
+    // SumUp contradicting itself about a checkout we created: we cannot read
+    // the booking, but we still know it says the money was taken.
+    await stageSignedSumupCheckout("co_wrong_ref");
+    const restore = withSumupCheckoutStatus("not-our-reference", "PAID", "txn");
+    try {
+      expect(await resolveSumupCheckoutById("co_wrong_ref")).toEqual({
+        reading: "PAID",
+        resolved: "retry",
+      });
+    } finally {
+      restore.restore();
+    }
+  });
+});
+
+describeWithEnv("sumup session building", { db: false }, () => {
+  test("maps SumUp's words to the shared payment words", () => {
+    expect(toSumupPaymentStatus("PAID")).toBe("paid");
+    expect(toSumupPaymentStatus("PENDING")).toBe("unpaid");
+    expect(toSumupPaymentStatus("EXPIRED")).toBe("failed");
+    expect(toSumupPaymentStatus("FAILED")).toBe("failed");
+  });
+
+  test("refuses a charge whose money the boundary cannot read", () => {
+    // A paid charge with no amount must still reach the refund path, so this
+    // is a rejection rather than a thrown-away read.
+    const session = buildSumupSession(sumupCheckout({ amountMinor: null }), {
+      email: "alice@example.com",
+      items: '[{"e":1,"q":1,"p":0}]',
+      name: "Alice",
+    });
+
+    expect(isSessionRejection(session)).toBe(true);
+  });
+});
