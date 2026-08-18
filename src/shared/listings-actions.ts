@@ -328,7 +328,7 @@ export const deactivationOrphanedAddOnError = async (
   // it from the suppressed set — yet taking its page offline removes the only
   // surface a child-only add-on could sell from. Force every deactivated flagged
   // child (a child of some parent whose flag is still set) into the suppressed
-  // set, matching the edit-save path's strippedPageOrphanedAddOn.
+  // set, matching the edit-save path's lostPageOrphanedAddOn.
   const ids = [...inactiveIds];
   const childLinks = await listingParents.getIdsByKeys(ids);
   const childIds = listingIdsWithLinks(childLinks);
@@ -341,43 +341,49 @@ export const deactivationOrphanedAddOnError = async (
   );
 };
 
+/** True when the save takes this listing out of a group it is currently in.
+ * Losing a group can strip the page out of a group-scoped add-on's reach even
+ * while the page itself stays live. */
+const leavesAGroup = async (
+  existingId: number,
+  wouldBeGroupIds: readonly number[],
+): Promise<boolean> =>
+  (await listingGroups.getIds(existingId)).some(
+    (groupId) => !wouldBeGroupIds.includes(groupId),
+  );
+
 /**
- * Re-check add-on reachability when a listing save STRIPS a page that could
- * rescue a child-scoped opt-in add-on: a deactivation (`active` → false), or
- * clearing "can be booked by itself" on a child (true → false), which removes the
- * child's own booking page. Both can leave an add-on that only that page kept
- * reachable a dead end, so both re-run the shared reachability guard over the
- * save's PENDING state — the edited listing at its would-be group set (so a
- * group-scoped add-on for a group the same save is joining is resolved correctly)
- * and, when deactivating, inactive. Either transition leaves the stored row
- * reading `bookable_alone = 1` until the save commits, so a flagged child with
- * parents is forced into the suppressed set by hand — whether the page is lost to
- * a cleared flag or to a deactivation. Inert unless the save deactivates, or
- * clears the flag for a listing that is a child.
+ * Re-check add-on reachability when a listing save takes away a page that could
+ * rescue a child-scoped opt-in add-on. Three transitions can do that: a
+ * deactivation (the page goes offline), clearing "can be booked by itself" on a
+ * child (the child loses its own booking page), and leaving a group (the page
+ * drops out of that group's add-on scope while staying live — an edge-less page
+ * has no touching edge, so the edge walk above never sees the move). Each
+ * re-runs the shared reachability guard over the save's PENDING state — the
+ * edited listing at its would-be group set and active state. A page-stripping
+ * transition leaves the stored row reading `bookable_alone = 1` until the save
+ * commits, so a flagged child with parents is forced into the suppressed set by
+ * hand.
  */
-const strippedPageOrphanedAddOn = async (
+const lostPageOrphanedAddOn = async (
   input: ListingInput,
   existingId: number,
 ): Promise<string | null> => {
   const deactivating = input.active === false;
   const clearingFlag = input.bookableAlone === false;
-  // Either transition strips a child's OWN booking page: clearing the flag turns
-  // it non-standalone, deactivating takes its page offline. In both cases the
-  // stored row still reads `bookable_alone = 1`, so getNonStandaloneChildIds
-  // treats the child as a live standalone seller and excludes it from the
-  // suppressed set — meaning an add-on only its page could offer would pass. So
-  // load the row and, when it is a flagged child with parents, force it into the
-  // suppressed set by hand (a deactivation needs this just as much as a clear).
   const mayStripPage = deactivating || clearingFlag;
   const existing = mayStripPage ? await getListingWithCount(existingId) : null;
   const flaggedChildWithParents =
     existing?.bookable_alone === true &&
     (await listingParents.getIds(existingId)).length > 0;
-  if (!deactivating && !(clearingFlag && flaggedChildWithParents)) return null;
   // Both listing-save entry points always resolve groupIds to an array — the
   // form via parseGroupIds, the JSON API via `groups.input ?? existingGroupIds` —
   // so it is defined here (matching the create path's `input.groupIds!` writer).
   const wouldBeGroupIds = input.groupIds!;
+  const stripsOwnPage = deactivating || flaggedChildWithParents;
+  if (!stripsOwnPage && !(await leavesAGroup(existingId, wouldBeGroupIds))) {
+    return null;
+  }
   const override = (
     listing: ListingWithCount,
   ): Partial<ListingGroupMembership> =>
@@ -395,10 +401,11 @@ const strippedPageOrphanedAddOn = async (
  * against its would-be field values *and* its would-be `group_id`, so a
  * type/duration/renewal change can't leave a persisted edge the booking gate
  * can't honour, and a group change can't orphan a group-scoped add-on that the
- * edge's child suppresses. Also re-check add-on reachability when the
- * save DEACTIVATES this listing (the edge-touching walk above misses a
- * no-edge page that is the only one rescuing a child-scoped add-on). No-op for
- * creates (no edges yet, and a fresh listing rescues nothing).
+ * edge's child suppresses. Also re-check add-on reachability when the save
+ * strips a rescuing page or takes it out of a group (the edge-touching walk
+ * above misses a no-edge page that is the only one rescuing a child-scoped
+ * add-on). No-op for creates (no edges yet, and a fresh listing rescues
+ * nothing).
  */
 const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (existingId === undefined) return null;
@@ -411,7 +418,7 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
     input.groupIds ?? [],
   );
   if (orphanError) return orphanError;
-  return strippedPageOrphanedAddOn(input, existingId);
+  return lostPageOrphanedAddOn(input, existingId);
 };
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
@@ -478,14 +485,15 @@ export const deleteOrphanedAddOnError = (
   deactivationOrphanedAddOnError(new Set([listingId]));
 
 /**
- * Delete a listing: clean up its attachment, remove DB links, log activity.
- * Returns the listing that was deleted (for response formatting).
+ * Delete a listing: remove its DB rows, then its attachment file, then log.
+ * The row goes first so a failed database delete cannot leave a live listing
+ * pointing at an already-removed attachment file.
  */
 export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<void> => {
-  await deleteListingAttachmentFile(listing, "listing deletion");
   await deleteListing(listing.id);
+  await deleteListingAttachmentFile(listing, "listing deletion");
   await logActivity(
     `Listing '${listing.name}' deleted (${listing.attendee_count} attendee(s) removed)`,
   );

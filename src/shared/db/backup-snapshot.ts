@@ -1,4 +1,4 @@
-import { chunk, requiredMapValue } from "#fp";
+import { chunk, requiredMapValue, sumOf } from "#fp";
 import {
   queryAll,
   queryBatch,
@@ -116,6 +116,29 @@ export const exportTable = async (
   }
   return { rowCount, sql: statements.join("\n") };
 };
+
+/** Row counts for every schema table, in SCHEMA order, in one round trip. */
+export const countSchemaTableRows = async (): Promise<number[]> => {
+  const results = await queryBatch(
+    SCHEMA_TABLE_NAMES.map((table) => ({
+      args: [],
+      sql: `SELECT count(*) AS rowCount FROM ${quoteId(table)}`,
+    })),
+  );
+  // count(*) always returns exactly one row per statement.
+  return results.map(
+    (result) => resultRows<{ rowCount: number }>(result)[0]!.rowCount,
+  );
+};
+
+/** Database round trips a full dump makes for these row counts: one to list
+ *  the tables, one batched first page for every table, then one extra read
+ *  per additional page of a table that spills past its first. */
+export const backupDumpDatabaseCalls = (
+  rowCounts: number[],
+  pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
+): number =>
+  2 + sumOf((rows: number) => Math.floor(rows / pageSize))(rowCounts);
 
 /** Create a full backup — one TableBackup per table in SCHEMA order.
  *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */

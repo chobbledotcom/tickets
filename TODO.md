@@ -638,16 +638,11 @@ table-hardening slice is at `369977cf` (`refs/pull/1973/head`). None of that
 branch's code is on main, so the findings are not jobs here — they are the
 failure map for the redo the section above plans._
 
-**One finding does apply to main's current code** (checked against
-`performListingDelete` in `src/shared/listings-actions.ts` and `deleteListing`
-in `src/shared/db/listings/delete.ts`):
-
-- **Delete the listing row before its attachment file.** `performListingDelete`
-  removes the stored attachment file first and only then runs the database
-  delete. The delete batch can genuinely fail — a busy database under a
-  concurrent write is a normal failure here — and when it does, the file is gone
-  but the listing stays, showing an attachment link that no longer works. Swap
-  the order: take the database delete first, then remove the file.
+The one finding that applied to main's current code — `performListingDelete`
+removing the stored attachment file before the database delete, so a failed
+delete batch left a live listing with a dead attachment link — is fixed: the
+database delete now runs first, pinned by a fault-injected regression test in
+`test/shared/listings-actions.test.ts`.
 
 **Failure shapes the redo must design out.** Each of these was found, and most
 were confirmed, on the rewrite. They are worth reading in full at the commit

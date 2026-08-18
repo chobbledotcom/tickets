@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { unzipSync, zipSync } from "fflate";
 import {
   type BackupManifest,
+  backupBudget,
   createBackupZip,
   inspectBackupZip,
   PostResetError,
@@ -22,13 +23,58 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import {
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   storedListingNames,
 } from "#test-utils/db-helpers/listings.ts";
 
+/** backupBudget under a request-style allowance of `total` calls. */
+const budgetWithAllowance = (total: number) =>
+  runWithSubrequestBudget(() =>
+    withSubrequestAllowance(
+      { database: total, external: total, total },
+      backupBudget,
+    ),
+  );
+
 describeWithEnv("backup", { db: true }, () => {
+  describe("backupBudget", () => {
+    test("prices a small database at the fixed dump and storage calls", async () => {
+      // Outside a request scope the full 50-call allowance is reported, and
+      // every fixture table fits its first page: 2 dump + 3 storage calls.
+      expect(await backupBudget()).toEqual({
+        available: 50,
+        fits: true,
+        needed: 5,
+      });
+    });
+
+    test("fits exactly when the allowance equals the need", async () => {
+      const { needed } = await backupBudget();
+      // Counting the rows spends one call, so an allowance one above the
+      // need leaves exactly `needed` available — still a fit.
+      expect(await budgetWithAllowance(needed + 1)).toEqual({
+        available: needed,
+        fits: true,
+        needed,
+      });
+    });
+
+    test("refuses when one call short of the need", async () => {
+      const { needed } = await backupBudget();
+      expect(await budgetWithAllowance(needed)).toEqual({
+        available: needed - 1,
+        fits: false,
+        needed,
+      });
+    });
+  });
+
   describe("splitStatements", () => {
     test("splits on semicolon-newline boundaries", () => {
       const stmts = splitStatements(

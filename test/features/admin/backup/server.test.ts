@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { logActivities } from "#shared/db/activity-log.ts";
 import { backupDir } from "#shared/db/backup-storage.ts";
 import { runWithStorageConfig, uploadRaw } from "#shared/storage.ts";
 import {
@@ -9,6 +10,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import {
   awaitTestRequest,
@@ -62,7 +64,14 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       });
     });
 
-    test("shows restore instructions when storage listing fails", async () => {
+    test("shows where backups are stored", async () => {
+      const html = await (await adminGet("/admin/backup")).text();
+      expect(html).toContain(
+        `Backups for this database live in the ${backupDir()} folder.`,
+      );
+    });
+
+    test("shows the failure when the storage listing fails", async () => {
       await runWithStorageConfig(TEST_STORAGE_ZONE, () =>
         withFetchMock(async (originalFetch) => {
           installUrlHandler(originalFetch, (url) =>
@@ -71,8 +80,17 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
               : null,
           );
           const html = await (await adminGet("/admin/backup")).text();
+          // The key and restore instructions still render, but the failure is
+          // named instead of masquerading as an empty backup list.
           expect(html).toContain("deno task restore");
-          expect(html).toContain("No backups found");
+          expect(html).toContain(
+            "Could not read the list of backups: list failed",
+          );
+          expect(html).not.toContain("No backups found");
+          // Under Bunny storage the page also names the zone it reads.
+          expect(html).toContain(
+            `of the ${TEST_STORAGE_ZONE.zoneName} storage zone`,
+          );
         }),
       );
     });
@@ -116,6 +134,39 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       const html = await (await adminGet("/admin/backup")).text();
       expect(html).toContain("There is 1 backup");
       expect(html).toContain("Up to 30 are kept");
+    });
+  });
+
+  describe("when the dump cannot fit one request", () => {
+    // A page size of one makes every row past each table's first page cost a
+    // read of its own, and a hundred log rows (written as ONE batch) push the
+    // dump far past any request's 50-call allowance — deterministically, no
+    // matter what the fixture tables hold.
+    const seedOversizedDatabase = (): Promise<unknown> =>
+      logActivities(
+        Array.from({ length: 100 }, (_, index) => ({
+          message: `filler ${index}`,
+        })),
+      );
+
+    test("replaces the create button with an explanation", async () => {
+      using _env = withEnv({ BACKUP_PAGE_SIZE: "1" });
+      await seedOversizedDatabase();
+      const html = await (await adminGet("/admin/backup")).text();
+      expect(html).toContain("too big to back up from this page");
+      expect(html).toContain("deno task backup");
+      expect(html).not.toContain('action="/admin/backup/create"');
+    });
+
+    test("refuses to create a backup, with a plain explanation", async () => {
+      using _env = withEnv({ BACKUP_PAGE_SIZE: "1" });
+      await seedOversizedDatabase();
+      const { response } = await adminFormPost("/admin/backup/create");
+      await expectFlashRedirect(
+        "/admin/backup",
+        "This database is too big to back up from this page. Run deno task backup from a checkout of this app instead.",
+        false,
+      )(response);
     });
   });
 

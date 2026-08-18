@@ -197,3 +197,24 @@ src/shared/dates.ts::bookedRangeLabel.lastDay~0xqfu39  1 → 0   # bookedRangeLa
 
 # Logger (logger.ts) — a provably-equivalent survivor from the logger suites.
 src/shared/logger.ts::persistErrorToActivityLog~0kl9lpw  ?? → ||   # context.listingId is number|undefined and listing ids are positive autoincrement integers, so the LHS is never a falsy non-null value — ?? and || agree on every input
+
+# Listing actions (listings-actions.ts) — validated-input fallbacks whose only
+# falsy left-hand values coincide with the fallback, plus two unreachable arms.
+src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → ||   # input.unitPrice is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateListingGroup.groupIds~1juqee2  ?? → ||   # input.groupIds is an array when present, and arrays are always truthy
+src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → ||   # input.canPayMore is boolean when present; false stays false with either operator
+src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → ""   # getListingsByGroupIds seeds every requested group id with at least an empty array, so the missing-key throw can never fire and its message is unobservable
+src/shared/listings-actions.ts::validateListingGroup.checked.customisable_days~0350hpg  ?? → ||   # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → ||   # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1   # checkGroupListingSettings never reads the candidate's id — sibling self-exclusion uses the separate excludeListingId argument
+src/shared/listings-actions.ts::validateListingGroup.checked.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listings-actions.ts::validateListingGroup.checked~1o94tt5  ?? → ||   # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → ||   # input.initialSiteMonths is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → ||   # input.dayPrices is an object when present, and objects are always truthy
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → ||   # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
+src/shared/listings-actions.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listings-actions.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? → ||   # input.groupIds is an array when present, and arrays are always truthy

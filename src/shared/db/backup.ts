@@ -14,7 +14,12 @@ import { unzipSync, zipSync } from "fflate";
 import * as v from "valibot";
 import { compact, reduce, sum } from "#fp";
 import { utf8ByteLength } from "#shared/bytes.ts";
-import { createBackup, type TableBackup } from "#shared/db/backup-snapshot.ts";
+import {
+  backupDumpDatabaseCalls,
+  countSchemaTableRows,
+  createBackup,
+  type TableBackup,
+} from "#shared/db/backup-snapshot.ts";
 import {
   backupKey,
   backupTimestamp,
@@ -42,6 +47,7 @@ import {
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import { uploadRaw } from "#shared/storage.ts";
+import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
@@ -217,6 +223,30 @@ export const createBackupZip = async (): Promise<Uint8Array> => {
     files[`${table}.sql`] = encoder.encode(sql);
   }
   return zipSync(files, { level: 1 });
+};
+
+/** Storage calls a backup makes after the dump: the upload, the prune's
+ *  listing, and one pruned delete when the backup count rolls past the cap. */
+const BACKUP_STORAGE_CALLS = 3;
+
+export type BackupBudget = {
+  available: number;
+  fits: boolean;
+  needed: number;
+};
+
+/**
+ * Whether a full backup fits in the current request's remaining subrequest
+ * allowance. Counting the rows costs one database call; `available` is what is
+ * left after it. Only meaningful inside a request — the out-of-band
+ * `deno task backup` runs with no allowance to fit in.
+ */
+export const backupBudget = async (): Promise<BackupBudget> => {
+  const needed =
+    backupDumpDatabaseCalls(await countSchemaTableRows()) +
+    BACKUP_STORAGE_CALLS;
+  const available = getSubrequestRemaining().total;
+  return { available, fits: needed <= available, needed };
 };
 
 /** Create a backup zip and upload it to storage. Returns the filename.
