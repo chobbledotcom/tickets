@@ -286,3 +286,9 @@ src/shared/db/modifier-resolve.ts::eligibleCandidates.answerQuantities~1uu272f  
 src/shared/db/modifier-resolve.ts::eligibleCandidates.ctx~0kgxcim  ?? → ||   # the option is a pricing-context object or absent, and every object is truthy
 src/shared/db/modifier-resolve.ts::oversubscribedAnswerTiers~0f5w5hu  ?? → ||   # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
 src/shared/db/modifier-resolve.ts::childOnlyAddOnNameWithScopes~0vgtyif  ?? → ||   # a modifier name is a required non-empty field, so the only falsy result is the missing one the fallback is for
+
+# db/modifier-resolve.ts — the early drop of an untriggered modifier. It saves
+# real work on every checkout, because an unmatched promo code yields 0 for
+# every code modifier. It changes no answer, because both readers drop a 0
+# again, and no negative quantity ever reaches it.
+src/shared/db/modifier-resolve.ts::eligibleCandidates~1oaufcv  1 → 0   # resolveModifiers keeps only a stocked quantity of 1 or more, and an oversubscribed tier needs a quantity above the stock left, which 0 never is
