@@ -24,12 +24,21 @@ export type BackupEntry = {
 };
 
 export type BackupPageState = {
+  /** Storage folder this database's backups live in, e.g. "my-site/". */
+  backupFolder: string;
   backups: BackupEntry[];
+  /** Set when the dump cannot fit one request's subrequest allowance —
+   *  the create button is replaced with an explanation. */
+  createBlocked: { available: number; needed: number } | null;
   encryptionKey: string;
   isRemote: boolean;
+  /** Why the stored-backup listing failed, or null when it succeeded. */
+  listingError: string | null;
   /** Maximum backups retained before the oldest is purged */
   maxBackups: number;
   storageEnabled: boolean;
+  /** Bunny storage zone the backups are read from; null on local storage. */
+  storageZone: string | null;
 };
 
 const backupsTable = defineTable<BackupEntry>([
@@ -116,20 +125,40 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
           <section>
             <div class="prose">
               <h2>{t("backup.create_backup_heading")}</h2>
-              <p>{t("backup.create_backup_description")}</p>
+              {state.createBlocked ? (
+                <Raw html={t("backup.create_too_large", state.createBlocked)} />
+              ) : (
+                <p>{t("backup.create_backup_description")}</p>
+              )}
             </div>
-            <SaveForm
-              action="/admin/backup/create"
-              class="no-bg"
-              id="backup-create"
-              submitIcon="plus"
-              submitLabel={t("backup.create_button")}
-            />
+            {!state.createBlocked && (
+              <SaveForm
+                action="/admin/backup/create"
+                class="no-bg"
+                id="backup-create"
+                submitIcon="plus"
+                submitLabel={t("backup.create_button")}
+              />
+            )}
           </section>
 
           <section>
             <h2>{t("backup.existing_backups_heading")}</h2>
-            {state.backups.length === 0 ? (
+            <p>
+              {state.storageZone
+                ? t("backup.stored_in_zone", {
+                    folder: state.backupFolder,
+                    zone: state.storageZone,
+                  })
+                : t("backup.stored_in_folder", { folder: state.backupFolder })}
+            </p>
+            {state.listingError ? (
+              <p>
+                <em>
+                  {t("backup.listing_error", { error: state.listingError })}
+                </em>
+              </p>
+            ) : state.backups.length === 0 ? (
               <p>
                 <em>{t("backup.no_backups_found")}</em>
               </p>

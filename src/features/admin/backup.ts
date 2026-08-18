@@ -1,12 +1,13 @@
 /** Admin backup routes. Restores run out of band through `deno task restore`. */
 
+import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { downloadResponse, htmlResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
-import { createAndUploadBackup } from "#shared/db/backup.ts";
+import { backupBudget, createAndUploadBackup } from "#shared/db/backup.ts";
 import {
   backupDir,
   backupTimestamp,
@@ -15,6 +16,7 @@ import {
   isRemoteDatabase,
   parseBackupTime,
 } from "#shared/db/backup-storage.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
 import {
   downloadRaw,
@@ -22,6 +24,7 @@ import {
   isStorageEnabled,
   listFilesWithMeta,
   type StorageFileMeta,
+  storageZoneName,
 } from "#shared/storage.ts";
 import {
   adminBackupPage,
@@ -49,22 +52,38 @@ const toBackupEntries = (files: StorageFileMeta[]): BackupEntry[] =>
 
 const getBackupPageState = async (): Promise<BackupPageState> => {
   const base = {
+    backupFolder: backupDir(),
     encryptionKey: getEncryptionKeyString(),
     isRemote: isRemoteDatabase(),
+    listingError: null,
     maxBackups: MAX_BACKUPS,
     storageEnabled: isStorageEnabled(),
+    storageZone: storageZoneName(),
   };
-  if (!isStorageEnabled()) return { ...base, backups: [] };
+  if (!base.storageEnabled) {
+    return { ...base, backups: [], createBlocked: null };
+  }
 
+  const budget = await backupBudget();
+  const createBlocked = budget.fits
+    ? null
+    : { available: budget.available, needed: budget.needed };
   try {
     return {
       ...base,
       backups: toBackupEntries(await listFilesWithMeta(backupDir())),
+      createBlocked,
     };
-  } catch {
-    // A transient storage listing failure must not hide the encryption key or
-    // the out-of-band restore instructions.
-    return { ...base, backups: [] };
+  } catch (err) {
+    // A storage listing failure must not hide the encryption key or the
+    // out-of-band restore instructions — but it must be shown as a failure,
+    // never dressed up as an empty backup list.
+    return {
+      ...base,
+      backups: [],
+      createBlocked,
+      listingError: errorMessage(err),
+    };
   }
 };
 
@@ -82,6 +101,12 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
   createActionHandler({
     auth: "owner",
     execute: async () => {
+      // Refuse up front when the dump cannot fit the request's subrequest
+      // allowance, instead of crashing partway through the table reads.
+      const budget = await backupBudget();
+      if (!budget.fits) {
+        throw new Error(t("backup.create_too_large_error"));
+      }
       await createAndUploadBackup();
     },
     message: "Database backup created",
