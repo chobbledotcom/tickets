@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   CatalogExportError,
   exportGroup,
@@ -422,7 +423,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("cannot also be an add-on child");
+      expect(result.error).toBe(t("error.package_child_is_member"));
       // Reference the created package so the binding is used.
       expect(pkg.is_package).toBe(true);
     });
@@ -506,7 +507,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("offered as a child");
+      expect(result.error).toBe(t("error.parent_is_already_a_child"));
     });
 
     test("strips webhook URL and use-defaults for an editor import", async () => {
