@@ -236,8 +236,8 @@ what it was carrying into `docs/` — 837 headers are the single biggest block o
 work either way.
 
 **Land it by lowering one number, not by grandfathering files.** The repo has no
-allow-lists and should not gain one. Set the cap in config at a number that
-passes today and lower it per PR; each step is bounded.
+allow-lists and must not gain one. Set the cap in config at a number that passes
+today and lower it per PR; each step is bounded.
 
 The first two columns are **incremental** — the work that one PR takes on, being
 only the comments that step newly catches. The last column is the running total,
@@ -303,7 +303,7 @@ Nothing holds `scripts/` or `test/` to any size, and it shows: the comments
 written for the checker itself drifted to nine lines while `src/` was being
 brought down. Extending the scan to those trees is the obvious next step, but it
 wants its own measurement first — `test/` is 1,908 files at 5.7% comment
-density, a different shape from `src/`, and its limits should be chosen against
+density, a different shape from `src/`, and its limits must be chosen against
 that rather than inherited.
 
 Remaining steps, from the staged table above, now that ≤ 20 is done:

@@ -40,30 +40,43 @@ const START_LOCK_NAME = "stripe-mock.start.lock";
 /**
  * Ask for three tries at a mock that always fails, with the port settled the
  * given way, and report how many times it was actually started.
+ *
+ * The port is picked and let go of before the start uses it, so another test
+ * can take it in between. A start that finds the port already listening
+ * returns without spawning — the only way an attempt skips its spawn — so a
+ * stolen port shows up as a count below `wanted`. Ask again on a fresh port
+ * rather than reading someone else's port as this test's answer.
  */
 const triesBeforeGivingUp = async (
   pinPort: (port: number) => StartOptions,
+  wanted: number,
 ): Promise<number> => {
   let tries = 0;
-  await withTempStripeMockPaths(async (paths) => {
-    const count = join(paths.binDir, "starts");
-    await writeCountingFailingMock(paths, count, "no good");
+  await retryWhilePortTaken(
+    async () => {
+      await withTempStripeMockPaths(async (paths) => {
+        const count = join(paths.binDir, "starts");
+        await writeCountingFailingMock(paths, count, "no good");
 
-    await withUnusedPort(async (port) => {
-      await expect(
-        startStripeMock({
-          budgetMs: 50,
-          choosePort: () => port,
-          delayMs: 1,
-          paths,
-          startAttempts: 3,
-          ...pinPort(port),
-        }),
-      ).rejects.toThrow(STRIPE_MOCK_FAILED_TO_START);
-    });
+        await withUnusedPort(async (port) => {
+          await expect(
+            startStripeMock({
+              budgetMs: 50,
+              choosePort: () => port,
+              delayMs: 1,
+              paths,
+              startAttempts: 3,
+              ...pinPort(port),
+            }),
+          ).rejects.toThrow(STRIPE_MOCK_FAILED_TO_START);
+        });
 
-    tries = await startCount(count);
-  });
+        tries = await startCount(count);
+      });
+      return tries < wanted;
+    },
+    () => `The mock started ${tries} times instead of ${wanted}`,
+  );
   return tries;
 };
 
@@ -153,18 +166,19 @@ describe("starting stripe-mock", () => {
 
   test("stops trying once the mock has been started as many times as asked", async () => {
     // Nobody pinned the port, so a fresh one is worth trying.
-    expect(await triesBeforeGivingUp(() => ({ env: testEnv({}) }))).toBe(3);
+    expect(await triesBeforeGivingUp(() => ({ env: testEnv({}) }), 3)).toBe(3);
   });
 
   test("tries a pinned port only once, however many tries were asked for", async () => {
-    expect(await triesBeforeGivingUp((port) => ({ port }))).toBe(1);
+    expect(await triesBeforeGivingUp((port) => ({ port }), 1)).toBe(1);
   });
 
   test("treats a port named in the environment as pinned too", async () => {
     expect(
-      await triesBeforeGivingUp((port) => ({
-        env: testEnv({ STRIPE_MOCK_PORT: String(port) }),
-      })),
+      await triesBeforeGivingUp(
+        (port) => ({ env: testEnv({ STRIPE_MOCK_PORT: String(port) }) }),
+        1,
+      ),
     ).toBe(1);
   });
 

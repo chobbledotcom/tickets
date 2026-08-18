@@ -2440,34 +2440,33 @@ locally-recorded canonical charge. An attendee-wide `refund_cash` leg or a
 returned sibling charge is never deletion authority. Keep that exact-charge rule
 when the stable obligation model replaces the current booking projection.
 
-## The stripe-mock start-count test races its own subprocesses
+## The stripe-mock start-count test read a port somebody else had taken — fixed
 
 `test/scripts/stripe-mock/lifecycle.test.ts` — "stops trying once the mock has
-been started as many times as asked" — failed once on CI (PR #2065, run
-31501332067, 22,419 of 22,420 passing) on a commit that changed only Markdown
-and a test comment, and passes reliably locally.
+been started as many times as asked" — failed on CI twice on commits that
+changed only Markdown (PR #2065 run 31501332067, and PR #2104 run 32130150568 at
+24,020 of 24,021 passing), and passed reliably locally.
 
-The counting mock is a shell script whose whole body is `echo x >> <countPath>`
-(`writeCountingFailingMock` in `test/scripts/stripe-mock/fixtures.ts`).
-`triesBeforeGivingUp` spawns it three times, then reads the file ONCE with
-`startCount` and asserts exactly 3.
+**The first diagnosis recorded here was wrong**, and it is worth keeping the
+correction. It said the parent read the count file before the last `/bin/sh` had
+appended its line. It cannot: a failing attempt ends at
+`await stopProcess(spawned.process, ...)`, and `stopProcess` awaits the child's
+`status` on both of its branches — `beforeTimeout` resolves when the status
+does, and the timeout branch awaits it after the SIGKILL. Every spawned child
+has therefore exited, and written, before `startStripeMock` rejects.
 
-Nothing makes the children's writes happen-before that read. Each attempt gives
-up on `waitForOwnedStripeMock` returning false, which happens either when the
-child's `status` promise resolves OR when the per-attempt budget (50ms in this
-test) elapses — so the parent can move on, and finally reject and be read, while
-the last `/bin/sh` has been spawned but has not yet appended its line. On a
-loaded runner that gap is easily wide enough, and the count reads 2.
+The real cause is a stolen port. `attemptStartStripeMock` has exactly one early
+return before it spawns: the port is already listening, so an unpinned attempt
+gives up and asks for another. `withUnusedPort` picks a free port and lets go of
+it before the start binds it, so another suite can take it in between — and that
+attempt never spawns, so the count comes up one short. The sibling test at
+"gives a mock time to shut itself down" already guarded against exactly this
+with `retryWhilePortTaken`; `triesBeforeGivingUp` did not.
 
-Two ways to fix it. Wait for the count to REACH the expected number with a
-deadline instead of reading once — the property is "three starts happened", not
-"three starts had happened by the instant the promise rejected". Or make
-`startStripeMock` await each child's exit before the next attempt, which is
-tidier anyway: the CI run's cleanup reported an orphan process, and a start path
-that leaves children behind is worth a look on its own.
-
-The two sibling cases (`toBe(1)`) are not exposed, since one attempt gives the
-single child far longer to write before the read.
+`triesBeforeGivingUp` now takes the count it wants and retries on a fresh port
+while it comes up short, over the same shared helper. `retryWhilePortTaken`
+takes an optional description, read only once every try is spent, so a run that
+never gets a clean port reports what it actually saw.
 
 ## A schema migration between the two payment-record migrations can stop an upgrade
 

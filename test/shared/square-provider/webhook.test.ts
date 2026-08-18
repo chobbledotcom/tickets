@@ -176,6 +176,31 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  test("reports a blank payment status as blank, not as unreadable", async () => {
+    // "unreadable" is reserved for a payment Square would not give us at all.
+    // A payment that came back carrying no status is a different fault, and
+    // saying so is what stops someone chasing an outage that never happened.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_blank_status",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          { id: "pay_blank_status", status: "" },
+        ),
+      async () => {
+        expect(
+          await rejectionMessage(
+            completedSquareWebhook("pay_blank_status", "order_blank_status"),
+          ),
+        ).toBe("Square payment did not read back as completed (status=)");
+      },
+    );
+  });
+
   test("books a completed payment whose order has no tender yet", async () => {
     // The completed event wins while Square's order tenders lag behind it.
     await withMocks(
@@ -383,6 +408,25 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  test("refuses a completed payment whose order is not readable yet", async () => {
+    await withMocks(
+      () =>
+        stub(squareApi, "readOrder", () =>
+          Promise.resolve(squareOrderRead(null)),
+        ),
+      async () => {
+        // Square named a COMPLETED payment, so the order exists and has not
+        // caught up. Acknowledging would stop the redelivery and leave the
+        // buyer charged with no booking.
+        expect(
+          await rejectionMessage(
+            completedSquareWebhook("pay_lagging", "order_lagging"),
+          ),
+        ).toBe("Square order is not readable yet for a completed payment");
+      },
+    );
+  });
+
   test("handles flat listing object without payment wrapper", async () => {
     await withMocks(
       () =>
@@ -390,19 +434,23 @@ describe("square-provider resolveWebhookSession", () => {
           Promise.resolve(squareOrderRead(null)),
         ),
       async (mockOrder) => {
-        const result = await squarePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              id: "pay_flat",
-              order_id: "order_flat",
-              status: "COMPLETED",
+        // The order id is read straight off the object rather than a nested
+        // payment key. It reaching readOrder is the whole point here; the
+        // refusal after that belongs to the missing-order case above.
+        await rejectionMessage(
+          squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                id: "pay_flat",
+                order_id: "order_flat",
+                status: "COMPLETED",
+              },
             },
-          },
-          id: "evt_flat",
-          type: "payment.updated",
-        });
+            id: "evt_flat",
+            type: "payment.updated",
+          }),
+        );
         expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
-        expect(result).toBe("skip");
       },
     );
   });

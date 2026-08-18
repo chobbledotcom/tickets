@@ -19,8 +19,8 @@ TypeScript test is smaller or more exact.
 ## Test architecture — three categories, no generic e2e bucket
 
 Every test falls into exactly one of three categories. A generic `test/e2e`
-bucket is not one of them — each existing e2e test should eventually become
-either a Cucumber story or a narrowly scoped direct technical contract test.
+bucket is not one of them — each existing e2e test must eventually become either
+a Cucumber story or a narrowly scoped direct technical contract test.
 
 1. **Pure unit/property tests** — data in, data out. No database, network,
    filesystem, DOM, subprocess, or real clock. Mirror the source file.
@@ -71,7 +71,7 @@ Write the smallest scenario that proves the rule:
 - Describe the domain and observable result, not routes, SQL, selectors, form
   field names, provider payloads, mocks, or implementation details.
 - Keep exact mutation-resistant assertions in the TypeScript step definition. A
-  plain-language `Then the payment is refunded once` may assert the exact
+  plain-language `Then the payment is refunded once` can assert the exact
   provider call count, stored note, terminal result, and lack of a duplicate.
 - Use `Scenario Outline` only for the same rule over a real input family, never
   to combine unrelated facts or reduce line count.
@@ -82,14 +82,14 @@ Write the smallest scenario that proves the rule:
   setup and cleanup that a reader does not need to understand the rule.
 - Every step must match exactly one definition. Undefined, ambiguous, pending,
   skipped, and retried steps fail. The full suite also fails on unused step
-  definitions; focused runs may leave unrelated shared definitions unused.
+  definitions; focused runs can leave unrelated shared definitions unused.
 - **Drive through the real rendered form.** A Cucumber `When`/`Then` that
   submits an admin edit must read the production HTML form, parse its fields and
   CSRF token, and POST exactly what a browser would. Do not reconstruct the form
   state from database rows — that bypasses the rendering layer the scenario
   exists to prove and would silently keep passing if the editor stopped
   rendering a field or emitted one the POST parser cannot consume. Exception:
-  pure data-in/data-out rules with no user-facing form action may read state
+  pure data-in/data-out rules with no user-facing form action can read state
   directly. When a form is involved, use `extractFormEntries`/`extractCsrfToken`
   against the real served page.
 
@@ -152,13 +152,13 @@ request description is a good place, because a reviewer can then check it too. A
 claim is anything the old test asserted: a status code, a count, a rendered
 figure, a stored row, a ledger balance, a log entry, an absence.
 
-Each claim ends up in exactly one of three places, and you should be able to say
+Each claim ends up in exactly one of three places, and you must be able to say
 which:
 
 1. **In the story**, as a plain-language `Then` with the exact assertion behind
    it in the step. Most claims land here.
 2. **In a direct test you keep or write**, when the claim is technical — a
-   status code, a stored shape, a query budget, a branch a story may never be
+   status code, a stored shape, a query budget, a branch a story can never be
    the only cover of.
 3. **Deliberately dropped**, because the claim was about the old test's own
    scaffolding rather than the product. Say so out loud; do not let it vanish
@@ -196,9 +196,9 @@ its scenario at the time.
 
 ### Driving the page, not just posting to it
 
-A story that submits a form must send what a visitor could actually send. The
-test browser will post anything you hand it, so "it passed" says nothing on its
-own. Before submitting, check that:
+A story that submits a form must send what a visitor can actually send. The test
+browser will post anything you hand it, so "it passed" says nothing on its own.
+Before submitting, check that:
 
 - every field you are about to send is **rendered on the page**;
 - any value chosen from a dropdown is **one of the options offered**;
@@ -244,8 +244,8 @@ changing its exclusive-end arithmetic would have kept the story green. Write the
 expected value out in the step from the story's own numbers.
 
 This is not the same as importing a production _constant_ or _message_, which
-you should do — a wording or a day-name list is a shared fact, not the
-calculation under test.
+you must do — a wording or a day-name list is a shared fact, not the calculation
+under test.
 
 ### Cucumber mechanics that bite
 
@@ -274,7 +274,7 @@ A scenario that computes days from "today" on each call can straddle midnight
 and set up against one day while asserting against the next. Fix the scenario's
 first day **once** per World and derive every other day from it.
 
-### Don't trust a position in a list
+### Do not trust a position in a list
 
 `getAttendeesRaw` returns rows newest-first. Taking "the newest" with `.at(-1)`
 quietly picked the _oldest_ booking and passed for weeks, because the scenario
@@ -305,7 +305,7 @@ Coverage measures everything the direct suite loads, and Cucumber runs do
   directly-testable rules in their own module and leave the browser-driving
   shell with the stories.
 
-And the rule that catches both: a story may never be the only cover of a
+And the rule that catches both: a story must never be the only cover of a
 production line or branch.
 
 **A green coverage number does not mean the contract survived.** Coverage counts
