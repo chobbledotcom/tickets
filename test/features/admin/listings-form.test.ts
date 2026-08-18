@@ -7,11 +7,17 @@ import {
   parseGroupIds,
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { listingAttributeOptions } from "#shared/db/attributes.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingDayPrices } from "#shared/db/listing-prices.ts";
 import { computeSlugIndex } from "#shared/db/listings/table.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import type { Listing } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  assignTestAttributeOptions,
+  createTestAttributeWithOptions,
+} from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   type TestFormValues,
@@ -118,6 +124,76 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.bookable_days).toEqual(["Monday", "Thursday"]);
     });
 
+    test("a single chosen day stays that one day", async () => {
+      const row = await createListing({ bookable_days: ["Friday"] });
+      expect(row.bookable_days).toEqual(["Friday"]);
+    });
+
+    test("an impossible date is refused before anything is saved", async () => {
+      const form = listingForm({ date_date: "2026-02-30", date_time: "10:00" });
+      const result = await buildCreateListingResource(form).create(form);
+      expect(result).toEqual({
+        error: "Please enter a valid date and time",
+        ok: false,
+      });
+    });
+
+    test("a listing with no closing date stores nothing in that column", async () => {
+      const row = await createListing();
+      const stored = await getDb().execute({
+        args: [row.id],
+        sql:
+          "SELECT listing.closes_at FROM listings AS listing " +
+          "WHERE listing.id = ?",
+      });
+      expect(stored.rows[0]!.closes_at).toBeNull();
+    });
+
+    test("the use-defaults tick is saved", async () => {
+      const on = await createListing({ use_defaults: "1" });
+      expect(on.use_defaults).toBe(true);
+
+      const off = await createListing({ name: "Own values" });
+      expect(off.use_defaults).toBe(false);
+    });
+
+    test("demo mode drops the webhook address, normal mode keeps it", async () => {
+      const hook = "https://example.com/hook";
+      const real = await createListing({ webhook_url: hook });
+      expect(real.webhook_url).toBe(hook);
+
+      setDemoModeForTest(true);
+      try {
+        const demo = await createListing({
+          name: "Demo listing",
+          webhook_url: hook,
+        });
+        expect(demo.webhook_url).toBe("");
+      } finally {
+        setDemoModeForTest(false);
+      }
+    });
+
+    test("duplicating a listing copies the source's attribute choices", async () => {
+      const attribute = await createTestAttributeWithOptions("Size", [
+        "Small",
+        "Large",
+      ]);
+      const source = await createListing({ name: "Source" });
+      await assignTestAttributeOptions(source.id, attribute.options);
+
+      const copy = await createListing({
+        duplicated_from: String(source.id),
+        name: "Copy",
+      });
+      expect(await listingAttributeOptions.getIds(copy.id)).toEqual(
+        attribute.options.map((option) => option.id),
+      );
+
+      const fresh = await createListing({ name: "Fresh" });
+      expect(await listingAttributeOptions.getIds(fresh.id)).toEqual([]);
+    });
+
     test("day prices are read for days one up to the duration only", async () => {
       const row = await createListing({
         day_price_1: "10",
@@ -185,6 +261,14 @@ describeWithEnv("listings form", { db: true }, () => {
       const row = await updateListing(created.id, { slug: "  New-Slug  " });
       expect(row.slug).toBe("new-slug");
       expect(row.slug_index).toBe(await computeSlugIndex("new-slug"));
+    });
+
+    test("clearing the price on an update stores a real zero", async () => {
+      const created = await createListing({ unit_price: "12.34" });
+      expect(created.unit_price).toBe(1234);
+
+      const row = await updateListing(created.id, { unit_price: "0" });
+      expect(row.unit_price).toBe(0);
     });
 
     test("a daily listing keeps an emptied day selection empty", async () => {

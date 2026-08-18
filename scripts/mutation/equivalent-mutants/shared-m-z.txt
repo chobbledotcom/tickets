@@ -261,3 +261,7 @@ src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.f
 # data), so no caller, page, or log can ever see this string — no input
 # distinguishes it from "".
 src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → ""   # issue text is discarded by the stored-JSON wrapper; unobservable through any surface
+
+# seeds.ts — two thresholds no seeded value can fall between.
+src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1   # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds
+src/shared/seeds.ts::createSeeds~0ghuowu  0 → 1   # the customisable listing always yields a delete plus one multi-row insert, so the list holds 0 or 2 statements, never 1

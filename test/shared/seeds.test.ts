@@ -1,13 +1,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { sum } from "#fp";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingDayPrices } from "#shared/db/listing-prices.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
-import { DEMO_EMAILS, DEMO_NAMES } from "#shared/demo/samples.ts";
+import {
+  DEMO_EMAILS,
+  DEMO_LISTING_DESCRIPTIONS,
+  DEMO_LISTING_LOCATIONS,
+  DEMO_LISTING_NAMES,
+  DEMO_NAMES,
+} from "#shared/demo/samples.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -39,6 +46,43 @@ describeWithEnv("seeds", { db: true }, () => {
     expect(prices).toEqual([
       500, 0, 1000, 0, 1500, 0, 2000, 0, 2500, 0, 3000, 0, 5000, 0, 500, 0,
     ]);
+  });
+
+  test("listings take their name, description and place from the demo lists", async () => {
+    await createSeeds(3, 0);
+    const listings = (await getAllListings()).toSorted((a, b) => a.id - b.id);
+    expect(listings.map((listing) => listing.name)).toEqual(
+      DEMO_LISTING_NAMES.slice(0, 3),
+    );
+    expect(listings.map((listing) => listing.description)).toEqual(
+      DEMO_LISTING_DESCRIPTIONS.slice(0, 3),
+    );
+    expect(listings.map((listing) => listing.location)).toEqual(
+      DEMO_LISTING_LOCATIONS.slice(0, 3),
+    );
+  });
+
+  test("a seeded listing opens every day with the demo booking limits", async () => {
+    await createSeeds(1, 0);
+    const [listing] = await getAllListings();
+    expect(listing!.listing_type).toBe("standard");
+    expect(listing!.fields).toBe("email");
+    expect(listing!.max_quantity).toBe(4);
+    expect(listing!.minimum_days_before).toBe(1);
+    expect(listing!.maximum_days_after).toBe(90);
+    expect(listing!.non_transferable).toBe(false);
+    expect(listing!.bookable_days).toEqual([...VALID_DAY_NAMES]);
+  });
+
+  test("a seeded listing has no dates, no links and no attachment", async () => {
+    await createSeeds(1, 0);
+    const [listing] = await getAllListings();
+    expect(listing!.date).toBe("");
+    expect(listing!.closes_at).toBeNull();
+    expect(listing!.thank_you_url).toBe("");
+    expect(listing!.webhook_url).toBe("");
+    expect(listing!.attachment_url).toBe("");
+    expect(listing!.attachment_name).toBe("");
   });
 
   test("only the first listing is customisable, with 1/2/3-day demo prices", async () => {

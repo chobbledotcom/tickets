@@ -178,12 +178,10 @@ src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated" 
 # parsePositiveIntId's strict decimal-digit schema.
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated"   # parsePositiveIntId's schema rejects any non-digit string identically; the "" fallback and any mutated string both parse to null
 
-# crypto/der.ts — these values are written into Uint8Array elements. Adding or
+# crypto/der.ts — this value is written into a Uint8Array element. Adding or
 # subtracting 128 produces the same low eight bits, and Uint8Array discards all
-# higher bits. The base-128 continuation byte is therefore identical either way.
+# higher bits.
 src/shared/crypto/der.ts::encodeLength~0ikcwcz  128 → -128   # DER long-length marker: 128+n and -128+n have identical low eight bits
-src/shared/crypto/der.ts::encodeBase128~1em6brp  + → -   # base-128 continuation: low7+128 and low7-128 have identical low eight bits
-src/shared/crypto/der.ts::encodeBase128~1em6brp  128 → -128   # base-128 continuation marker is unchanged after Uint8Array conversion
 
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.

@@ -40,16 +40,16 @@ const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);
 /** Sample unit prices in minor units (e.g. pence/cents) for paid listings */
 const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 
-/** Generate slugs that are unique within the batch */
+/** Generate slugs that are unique within the batch. The slugs made so far are
+ * the only "already taken" list — nothing is in the database yet. */
 const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
-  const usedSlugs = new Set<string>();
   const results: SlugWithIndex[] = [];
   for (const _slot of range(0, count)) {
-    const result = await generateUniqueSlug(hmacHash, (slug) =>
-      Promise.resolve(usedSlugs.has(slug)),
+    results.push(
+      await generateUniqueSlug(hmacHash, (slug) =>
+        Promise.resolve(results.some((made) => made.slug === slug)),
+      ),
     );
-    usedSlugs.add(result.slug);
-    results.push(result);
   }
   return results;
 };

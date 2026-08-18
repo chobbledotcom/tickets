@@ -171,3 +171,12 @@ src/features/public/order.ts::loadOrderPools~15mruqs  1 → 0   # every listing'
 src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated"   # a selection key is always built as kind:id by listingOptionKey/packageOptionKey, so the kind is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated"   # the same key always carries its id, so the id half is never missing
 src/features/public/order.ts::bookingUrlFor.chosen.prefill~1vgmybj  1 → 0   # buildTicketListing sets maxPurchasable to 0 for a sold-out or closed listing and to at least 1 otherwise (max_quantity is at least 1), so the two thresholds never disagree once the checks beside them have passed
+
+# Listing form (listings-form.ts) — a redundant day-price row the parser drops,
+# a default the field's own bounds make unreachable, error text no surface can
+# show, and a fallback whose left side is never falsy-but-present.
+src/features/admin/listings-form.ts::parseDayPricesFromForm~11szepb  1 → 0   # reading day_price_0 as well changes nothing: parseDayPrices keeps only whole day counts of 1 or more
+src/features/admin/listings-form.ts::extractCommonFields.durationDays~1nsjfgg  ?? → ||   # duration_days is a number field with min 1 whose validate rejects anything below 1, so the value here is a positive number or absent
+src/features/admin/listings-form.ts::extractCommonFields.closesAt~1ox85dk  closes_at → ""   # the label only appears in normalizeDatetime's throw, and the field's validateDatetime already refused every value localToUtc would reject
+src/features/admin/listings-form.ts::extractCommonFields.date~1ogjyd0  date → ""   # same: the date field is validated by the same parser before toInput runs, so the throw naming it is unreachable
+src/features/admin/listings-form.ts::listingValidate~19dmftv  ?? → ||   # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
