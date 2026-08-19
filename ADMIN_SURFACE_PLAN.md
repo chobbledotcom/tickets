@@ -2,9 +2,10 @@
 
 ## Status
 
-Approved. Slice 1 is built, and so is the backwards check that slice 3 was going
-to add. Slice 2, and the policy builders in slice 3, remain. See
-[What is built](#what-is-built) for the map from this plan to the code, and
+Approved. Slices 1 and 2 are built. Slice 3 is built for the shared frameworks
+and checked for everything else. What is left is named in
+[What remains](#what-remains). See [What is built](#what-is-built) for the map
+from this plan to the code, and
 [The shortlist](#the-shortlist--other-rooms-the-survey-found) for the survey
 behind it.
 
@@ -13,19 +14,27 @@ points at them; it does not describe them a second time.
 
 ## What is built
 
-| Piece                    | Where it lives now                           |
-| ------------------------ | -------------------------------------------- |
-| The one declaration      | `src/shared/admin-surface/areas.ts`          |
-| Types and the fold       | `src/shared/admin-surface/definitions.ts`    |
-| Ids and path parameters  | `src/shared/admin-surface/ids.ts`            |
-| Navigation and its order | `src/shared/admin-surface/sections.ts`       |
-| The derived surface      | `src/shared/admin-surface.ts`                |
-| Navigation model         | `src/shared/admin-pages.ts`                  |
-| The backwards check      | `test/integration/admin-role-matrix.test.ts` |
+| Piece                    | Where it lives now                              |
+| ------------------------ | ----------------------------------------------- |
+| The one declaration      | `src/shared/admin-surface/areas.ts`             |
+| Types and the fold       | `src/shared/admin-surface/definitions.ts`       |
+| Ids and path parameters  | `src/shared/admin-surface/ids.ts`               |
+| Navigation and its order | `src/shared/admin-surface/sections.ts`          |
+| The derived surface      | `src/shared/admin-surface.ts`                   |
+| Navigation model         | `src/shared/admin-pages.ts`                     |
+| Gates from a route       | `src/features/auth.ts`                          |
+| Route tables from a path | `src/features/admin/route-tables.ts`            |
+| One CRUD factory         | `src/features/admin/crud-handlers.ts`           |
+| Entity pages             | `src/features/admin/entity-pages.ts`            |
+| The backwards check      | `test/integration/admin-role-matrix.test.ts`    |
+| The forwards check       | `test/integration/admin-route-manifest.test.ts` |
 
 Deleted with slice 1: `admin-surface/nav-routes.ts`,
 `admin-surface/write-routes-a-m.ts`, `admin-surface/write-routes-n-z.ts`, and
-the hand-written `ADMIN_SURFACE_AREAS` map.
+the hand-written `ADMIN_SURFACE_AREAS` map. Deleted with slice 3:
+`createOwnerCrudHandlers`, `createContentCrudHandlers`, the `guard` and
+`basePath` fields on every entity page, and the `staffOnlyDetail` flag on a
+navigation section.
 
 Two things differ from what this plan first proposed:
 
@@ -267,39 +276,41 @@ await appears.
 
 ## Slices
 
-Three stacked pull requests, bottom up. Each is complete and green on its own.
-The database and provider call budget is zero for all three: the change is
-module-load data, not runtime IO.
+Three slices, bottom up. Each is complete and green on its own. The database and
+provider call budget is zero for all three: the change is module-load data, not
+runtime IO.
 
-1. **One declaration per area.** — **Built.** See
-   [What is built](#what-is-built).
-2. **The path becomes one fact.** `crudRoutes`, `entityTabRoutes`,
-   `defineEditEntityPage`, and the per-area route tables consume the declared
-   destinations. Delete every repeated path literal in `src/features/admin/*`.
-   Budget: ~400 changed source lines.
+1. **One declaration per area.** — **Built.**
+2. **The path becomes one fact.** — **Built.** `adminPattern(id)` returns the
+   path a route declares, keeping the literal type so the route keys built from
+   it stay typed. The nine entity pages and five CRUD tables bind under it, and
+   every `basePath`, `navActive`, and `listPath` reads `adminPath` or
+   `adminPattern`.
 
-   Measured, now that slice 1 has landed: 14 base paths passed to
-   `crudRoutes`/`entityTabRoutes` across nine files, and about twelve more in
-   `basePath`, `navActive`, and `listPath` on the page definitions. The
-   primitive to add is `adminPattern(id)`, returning the declared pattern with
-   its literal type kept, so `crudRoutes(adminPattern("holidays"), crud)` still
-   builds typed route keys. One route resists it: `entityTabRoutes` for listings
-   uses `/admin/listing`, which no destination declares — the list page is
-   `/admin/listings` and the detail base only appears inside `detailPath`.
-   Decide whether the entity base becomes a declared fact before starting.
-3. **The role becomes one fact.** The check half is **built**: the role matrix
-   proves declaration and enforcement agree for every parameter-free page, in
-   both directions. What remains is deriving the policies rather than checking
-   them — `formPolicy(destination)`, `multipartPolicy(destination)`,
-   `apiPolicy(destination)` in `src/features/auth.ts`, and migrating the admin
-   handlers to them. Budget: ~500 changed source lines. If churn approaches the
-   limit, split this slice alphabetically the way the write-route files split
-   today.
+   `entityTabRoutes` takes the record page's own path instead of a base plus a
+   separate parameter name, so `/admin/attendees/:attendeeId` states the record
+   parameter once. A path that names no record is refused when the table is
+   built, which is module load, so it can never reach a request.
 
-   The matrix covers pages whose pattern takes no parameter, because a page for
-   one record answers 404 when the record is absent, which says nothing about
-   permission. Extending it to the parameterised pages needs a fixture per
-   record kind, and is the natural first step of this slice.
+   The entity base did become a declared fact, and so did 37 other admin GET
+   routes that named no audience at all: every record page, the guide, the log,
+   the sign-in and sign-out pages, the seeds and SMS tools, and nine downloads.
+   The surface went from 111 routes to 149.
+3. **The role becomes one fact.** — **Built for the shared frameworks, checked
+   everywhere else.**
+
+   Derived: an entity page names the route it serves and takes both its URLs and
+   its auth floor from it, so `basePath` and `guard` are gone from all eleven
+   page definitions. The floor is every role that can reach any route beneath
+   the page, because a tab open to a wider role sits under the same path.
+   `createOwnerCrudHandlers`, `createCrudHandlers`, and
+   `createContentCrudHandlers` are one factory in `crud-handlers.ts` whose six
+   routes each take their gate from the route they guard. Groups kept three
+   bundles only to mix a staff-only delete with editor-reachable edits, and now
+   has two, which differ in which resource writes the row.
+
+   Checked: `test/integration/admin-role-matrix.test.ts` asks all 149 routes.
+   See [What remains](#what-remains) for the gates still written twice.
 
 A later, separate candidate: the app layer keeps four parallel prefix-keyed
 tables (`PREFIX_LOADERS`, `PREFIX_MESSAGE_GROUPS`, `PREFIX_GATES` in
@@ -309,38 +320,50 @@ out of scope here.
 
 ## Tests that prove the contract
 
-- Slice 1: **done.** `test/integration/admin-route-manifest.test.ts` and the nav
-  tests stay green. `test/shared/admin-surface/definitions.test.ts` covers the
-  fold directly (area default audience, per-route override, intent by group,
-  segments derived from patterns, extra segments, an area with no routes).
-  `test/shared/admin-pages.test.ts` and `test/features/admin/index.test.ts` now
-  mirror the sources they test, so each is mutation-tested against its own file.
-  The migration was also proved faithful once, by comparing every derived route,
-  segment list, and navigation order against the deleted tables.
-- Slice 2: the manifest test's "every destination has a GET route" check
-  tightens — a declared destination without a wired handler fails at area
-  wiring, loudly. Unit tests cover the generators.
-- Slice 3: **the backwards check is done.**
-  `test/integration/admin-role-matrix.test.ts` walks every parameter-free page
-  and asks it as all four roles: a role outside the audience is never served the
-  page, and a role inside it is never forbidden. It is written about being
-  served (200) and being forbidden (403) rather than one exact status, because a
-  page whose feature is switched off answers 404 to everybody, which is still a
-  refusal. It found the `deliveries` fault above, and fails with
-  `deliveries (/admin/deliveries) served agent` if that fix is reverted.
+- **Forwards**, `test/integration/admin-route-manifest.test.ts`: every route
+  falls under a segment its area declares, every declared segment serves a
+  route, no two method and path pairs collide, every declared route has a GET
+  route serving it, and — the check that keeps the map complete — every GET
+  route has a destination saying who may reach it.
+- **Backwards**, `test/integration/admin-role-matrix.test.ts`: 61 parameter-free
+  pages, asked as all four roles, both ways round. The 88 record pages, asked as
+  the roles they exclude; no record needs to exist, because the gate runs before
+  the lookup. The 91 declared paths that also take a write, asked with their own
+  method and a real CSRF token, so the role gate is the only thing left that can
+  refuse them.
+- The declaration's own rules are in `test/shared/admin-surface/`, and the
+  navigation model in `test/shared/admin-pages.test.ts`.
 - Every slice runs `deno task precommit` and `deno task precommit:mutation`.
 
-## Open questions for the reviewer
+## Questions the reviewer answered
 
-1. Is overruling "the stricter side wins" for `deliveries` the outcome you want?
-   The alternative is to take the run sheet away from delivery agents, which the
-   handler and its comment both argue against.
-2. Slice 2 must decide whether an entity's detail base (`/admin/listing`)
-   becomes a declared fact, or stays a literal in the one route table that needs
-   it. Declaring it is tidier; it also adds a field only one area uses.
-3. Slice 3's remaining half derives handler policies from the declaration. The
-   role matrix already proves the two agree, so this is now a simplification
-   rather than a safety fix. Is it worth the churn across the admin handlers?
+1. **Is overruling "the stricter side wins" for `deliveries` the outcome you
+   want?** Yes. Delivery agents keep the run sheet, and the declaration says so.
+2. **Does the entity detail base become a declared fact?** Yes, along with every
+   other admin GET route that had no declaration.
+3. **Is deriving the handler policies worth the churn?** Yes, and it was done
+   where the duplication was systematic. See [What remains](#what-remains) for
+   what was left, and why.
+
+## What remains
+
+Two measured gaps, recorded rather than left implicit.
+
+1. **The gates in bespoke handlers are still written twice.** About 150 uses of
+   `OWNER_FORM`, `AUTH_FORM`, `SITE_FORM`, `CONTENT_FORM`, `ownerPage`,
+   `sessionPage`, `contentPage`, `sitePage`, and their `require*Or` guards
+   remain across roughly 50 files, three to thirteen each. Each is one route
+   with one gate, not a drifting pair the way the three CRUD factories were, and
+   the role matrix now compares every one of them with its declaration.
+   Migrating them is de-duplication, not a safety fix. Use `pageGuardFor` and
+   `formPolicyFor`, which take the route a handler serves.
+2. **Ninety-eight write routes sit at a path no route declares** — mostly the
+   settings sub-forms, the reorder moves, and the image uploads. Their roles are
+   in the handler alone, and nothing compares them with anything.
+   `test/integration/admin-role-matrix.test.ts` states the number, so the gap
+   cannot widen unnoticed. Closing it means declaring those routes, which is a
+   slice of its own. The same slice can let every tab of a record page declare
+   its own audience, in place of the `visible` predicate that hides it today.
 
 ## The shortlist — other rooms the survey found
 
