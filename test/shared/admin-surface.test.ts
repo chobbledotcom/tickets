@@ -42,6 +42,14 @@ describe("the pattern a route declares", () => {
     );
   });
 
+  test("refuses to mint a record URL for a route taking none", () => {
+    // A collection's own path names no record either, and quietly returning
+    // it would send every record to the same page.
+    expect(() => adminRecordPath("holidays", 7)).toThrow(
+      'Admin route "holidays" does not address one record',
+    );
+  });
+
   test("mints a record URL whatever the route calls its parameter", () => {
     expect(adminRecordPath("attendee", 7)).toBe("/admin/attendees/7");
     expect(adminRecordPath("holiday", 7)).toBe("/admin/holidays/7");
