@@ -120,24 +120,24 @@ export const sendSentryTest = async (): Promise<boolean> => {
  * console lines carry, so a report leads back to the log beside it. Empty and
  * missing values are dropped rather than sent as blanks.
  */
-const eventTags = (context: ErrorContext): Record<string, string> =>
-  Object.fromEntries(
+const eventTags = (context: ErrorContext): Record<string, string> => {
+  const trace = getRequestTrace();
+  return Object.fromEntries(
     Object.entries({
       attendeeId: context.attendeeId,
       code: context.code,
       listingId: context.listingId,
       requestId: getRequestId(),
       // The host the visitor actually asked for. Outside a request — boot, a
-      // scheduled run — fall back to the site's own configured domain, the
-      // same one the ntfy notification titles use.
-      site: getRequestTrace()?.host ?? getEffectiveDomain(),
+      // scheduled run — the site's own configured domain, which is the one
+      // the ntfy notification titles already use.
+      site: trace ? trace.host : getEffectiveDomain(),
       url: getTracedUrl(),
     })
-      .filter(
-        ([, value]) => value !== undefined && value !== null && value !== "",
-      )
+      .filter(([, value]) => value !== undefined && value !== "")
       .map(([key, value]) => [key, String(value)]),
   );
+};
 
 /**
  * How to group a report that carries no exception.
@@ -176,7 +176,7 @@ export const captureServerError = async (
     fingerprint: messageFingerprint(context),
     message: formatErrorMessage(context),
     tags: eventTags(context),
-    transactionName: getTracedRoute() ?? undefined,
+    transactionName: getTracedRoute(),
   });
 
   await Sentry.flush(FLUSH_TIMEOUT_MS);

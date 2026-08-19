@@ -33,19 +33,22 @@ export const runWithRequestTrace = <T>(request: Request, fn: () => T): T => {
 /** The request being served, or null when nothing is being served. */
 export const getRequestTrace = (): RequestTrace | null => requestTrace.read();
 
-/** Read one fact off the request being served, or null when none is. */
+/**
+ * Read one fact off the request being served. Undefined when none is, which is
+ * what the reporter wants for a field it should leave off the report.
+ */
 const fromTrace =
   <T>(read: (trace: RequestTrace) => T) =>
-  (): T | null => {
+  (): T | undefined => {
     const trace = getRequestTrace();
-    return trace ? read(trace) : null;
+    return trace ? read(trace) : undefined;
   };
 
 /**
- * The route name an error report is grouped under, or null outside a request.
+ * The route name an error report is grouped under, or nothing outside one.
  * Reads like the request log line: `GET /admin/listings/[id]`.
  */
-export const getTracedRoute: () => string | null = fromTrace(
+export const getTracedRoute: () => string | undefined = fromTrace(
   (trace) => `${trace.method} ${trace.route}`,
 );
 
@@ -53,6 +56,6 @@ export const getTracedRoute: () => string | null = fromTrace(
  * The public URL an error report happened on, with every secret removed. The
  * query string is dropped whole, because it carries tokens on some routes.
  */
-export const getTracedUrl: () => string | null = fromTrace(
+export const getTracedUrl: () => string | undefined = fromTrace(
   (trace) => `https://${trace.host}${trace.route}`,
 );

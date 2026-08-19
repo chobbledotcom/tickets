@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { getEffectiveDomain } from "#shared/config.ts";
 import {
   ErrorCode,
   formatErrorMessage,
@@ -288,6 +289,35 @@ describe("sentry", () => {
       expect(body).not.toContain("9D5F57B232");
       expect(body).not.toContain("a@b.test");
       expect(body).toContain('"transaction":"GET /t/[redacted]"');
+    });
+
+    // A blank tag is worse than a missing one: it shows up in the tag list and
+    // filters to nothing. Outside a request there is no id, route, or URL.
+    test("leaves out the tags it has no value for", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+
+      const body = firstFetchBody();
+      expect(body).not.toContain("requestId");
+      expect(body).not.toContain('"url"');
+      expect(body).not.toContain("listingId");
+      expect(body).not.toContain("attendeeId");
+      expect(body).toContain('"code":"E_DB_QUERY"');
+    });
+
+    // Boot and scheduled runs report outside any request, and still have to say
+    // which site they came from.
+    test("names the site from its own settings when there is no request", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+
+      expect(firstFetchBody()).toContain(
+        `"site":${JSON.stringify(getEffectiveDomain())}`,
+      );
     });
 
     test("carries the request id the console lines carry", async () => {

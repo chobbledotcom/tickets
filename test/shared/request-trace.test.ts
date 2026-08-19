@@ -65,8 +65,8 @@ describe("request trace", () => {
 
   test("reads as no request at all outside a request", () => {
     expect(getRequestTrace()).toBe(null);
-    expect(getTracedRoute()).toBe(null);
-    expect(getTracedUrl()).toBe(null);
+    expect(getTracedRoute()).toBe(undefined);
+    expect(getTracedUrl()).toBe(undefined);
   });
 
   test("does not leak one request's trace into the next", async () => {
