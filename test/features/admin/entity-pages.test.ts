@@ -10,7 +10,6 @@ import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {

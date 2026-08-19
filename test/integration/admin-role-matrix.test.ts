@@ -117,6 +117,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     cookies.set("agent", (await createTestAgentSession()).cookie);
   });
 
+  /** Ask one path as one role. A write carries a real CSRF token, so the role
+   * gate is the only thing left that can refuse it. */
   const askAs = async (
     path: string,
     adminLevel: AdminLevel,
@@ -127,43 +129,55 @@ describeWithEnv("admin role matrix", { db: true }, () => {
       cookie: cookies.get(adminLevel)!,
       host: "localhost",
     };
-    const body =
-      method === "GET"
-        ? {}
-        : {
-            body: "unused=1",
-            headers: {
-              ...headers,
-              "content-type": "application/x-www-form-urlencoded",
-            },
-          };
-    const response = await handleRequest(
-      new Request(`http://localhost${path}`, { headers, method, ...body }),
-    );
-    return response.status;
+    if (method === "GET") {
+      const read = new Request(`http://localhost${path}`, { headers });
+      return (await handleRequest(read)).status;
+    }
+    headers["content-type"] = "application/x-www-form-urlencoded";
+    const write = new Request(`http://localhost${path}`, {
+      body: new URLSearchParams({
+        csrf_token: await signCsrfToken(),
+      }).toString(),
+      headers,
+      method,
+    });
+    return (await handleRequest(write)).status;
   };
 
-  /** Ask `destination` as every role it does not declare. */
+  /** The roles a route keeps out. */
+  const outsidersOf = (destination: AdminDestinationDef): AdminLevel[] =>
+    ALL_ADMIN_LEVELS.filter((level) => !destination.audience.includes(level));
+
+  /** Ask one route as every role it keeps out, reporting each answer that was
+   * not the refusal that route owes them. */
+  const refusalsOf = async (
+    destination: AdminDestinationDef,
+    method: string,
+  ): Promise<string[]> => {
+    const channel = method === "GET" ? "page" : "write";
+    const path = oneServedPath(destination.pattern);
+    const wrong: string[] = [];
+    for (const adminLevel of outsidersOf(destination)) {
+      const expected = refusalFor(destination, adminLevel, channel);
+      const status = await askAs(path, adminLevel, method);
+      if (status !== expected) {
+        wrong.push(
+          `${method} ${destination.pattern} answered ${status} to ${adminLevel}, wanted ${expected}`,
+        );
+      }
+    }
+    return wrong;
+  };
+
   const askOutsiders = async (
     destinations: readonly AdminDestinationDef[],
-    method?: (destination: AdminDestinationDef) => string,
+    methodOf?: (destination: AdminDestinationDef) => string,
   ): Promise<string[]> => {
     const wrong: string[] = [];
     for (const destination of destinations) {
-      for (const adminLevel of ALL_ADMIN_LEVELS) {
-        if (destination.audience.includes(adminLevel)) continue;
-        const expected = refusalFor(destination, adminLevel, "page");
-        const status = await askAs(
-          oneServedPath(destination.pattern),
-          adminLevel,
-          method?.(destination),
-        );
-        if (status !== expected) {
-          wrong.push(
-            `${destination.id} (${destination.pattern}) answered ${status} to ${adminLevel}, wanted ${expected}`,
-          );
-        }
-      }
+      wrong.push(
+        ...(await refusalsOf(destination, methodOf?.(destination) ?? "GET")),
+      );
     }
     return wrong;
   };
@@ -217,33 +231,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // The token is real, so a request that gets past the role gate would go
     // on to do the write. Nothing is written while this passes, and a gate
     // that admits too much shows up as an answer that is not a refusal.
-    const { handleRequest } = await import("#routes");
-    const csrf = await signCsrfToken();
-    const wrong: string[] = [];
-    for (const destination of declared) {
-      const method = methods.get(destination.pattern);
-      if (method === undefined) continue;
-      for (const adminLevel of ALL_ADMIN_LEVELS) {
-        if (destination.audience.includes(adminLevel)) continue;
-        const expected = refusalFor(destination, adminLevel, "write");
-        const response = await handleRequest(
-          new Request(`http://localhost${oneServedPath(destination.pattern)}`, {
-            body: new URLSearchParams({ csrf_token: csrf }).toString(),
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              cookie: cookies.get(adminLevel)!,
-              host: "localhost",
-            },
-            method,
-          }),
-        );
-        if (response.status !== expected) {
-          wrong.push(
-            `${method} ${destination.pattern} answered ${response.status} to ${adminLevel}, wanted ${expected}`,
-          );
-        }
-      }
-    }
+    const writable = declared.filter((one) => methods.has(one.pattern));
+    const wrong = await askOutsiders(
+      writable,
+      (one) => methods.get(one.pattern)!,
+    );
     expect(wrong).toEqual([]);
   });
 
