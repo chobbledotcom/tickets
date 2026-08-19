@@ -1362,7 +1362,7 @@ _Noticed while moving the payment provider settings out of
 651._
 
 The file is still one grab-bag over four modules, and well past the 400-line
-target. Its describes already name the split:
+target. Each `describe` block already names its own part of the split:
 
 - `basic CRUD`, `settings version probe`, and `writeRawBatch` cover
   `settings/raw-writes.ts` and `settings/cache.ts`, which have their own mirror
@@ -1371,7 +1371,7 @@ target. Its describes already name the split:
   `settings/load.ts`, whose mirror file already exists.
 - `setup` covers `settings/setup.ts`.
 - `timezone cache` covers the country-derived fields.
-- The four `superuserChoice` describes and `orphan-purge settings` cover plain
+- The four `superuserChoice` blocks and `orphan-purge settings` cover plain
   accessors and can share one file.
 
 Move each group to its mirror path under `test/shared/db/settings/`. The
