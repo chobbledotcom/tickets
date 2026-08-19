@@ -8,6 +8,7 @@ import {
 
 const IMPORT_MAP = {
   "#cli/": "./cli/",
+  "#db/": "./src/shared/db/",
   "#fp": "./src/fp.ts",
   "#scripts/": "./scripts/",
   "#shared/": "./src/shared/",

@@ -13,7 +13,11 @@ const writeProject = async (
   await Deno.writeTextFile(
     configPath,
     JSON.stringify({
-      imports: { "#shared/": "./src/shared/", "#test/": `${root}/test/` },
+      imports: {
+        "#db/": "./src/shared/db/",
+        "#shared/": "./src/shared/",
+        "#test/": `${root}/test/`,
+      },
     }),
   );
   for (const [path, text] of Object.entries(files)) {
