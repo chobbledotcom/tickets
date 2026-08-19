@@ -32,8 +32,9 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   getAll: holidays.getAll,
   name: "holidays",
   nameField: "name",
-  // Holiday management is owner-only in the dashboard (createOwnerCrudHandlers),
-  // so the JSON API matches: managers cannot mutate holidays via the API either.
+  // The dashboard's holiday routes are owner-only, because that is what
+  // `holidays` declares. The JSON API matches, so a manager cannot mutate a
+  // holiday through the API either.
   policy: OWNER_API,
   singular: "Holiday",
   table: holidays.table,
