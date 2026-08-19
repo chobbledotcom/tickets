@@ -597,14 +597,11 @@ a live legacy engine, read-through, dual write, or fallback authority.
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
-- **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
-  Review of PR 1 correctly noted that the settings assembly is already over the
-  preferred 400-line size and now also owns provider activation, recovery,
-  credential-state preservation, and cache synchronization. The clean starting
-  point is `src/shared/db/settings/payment-provider.ts`, moving the provider
-  getters and `settings.update` methods together with mirror tests under
-  `test/shared/db/settings/payment-provider/`. This is deferred because that
-  extraction would take PR 1 beyond its strict 800-line source-change limit.
+- **Payment-provider persistence is out of `src/shared/db/settings.ts` — done.**
+  The provider getters and the `settings.update` methods now live in
+  `src/shared/db/settings/payment-provider.ts`, with mirror tests under
+  `test/shared/db/settings/payment-provider/`. `settings.ts` is back to assembly
+  alone, at 373 lines.
 
 - **Split provider credential routes out of
   `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
@@ -615,9 +612,9 @@ The seven accepted safety rules are recorded as acceptance constraints in
   This is deferred because doing the move in PR 1 would break the same strict
   800-line source-change limit.
 
-- **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
-  callback and webhook processing paths into focused modules. This predates PR 1
-  and is deferred because the split would exceed its strict source-change limit.
+- **`src/features/api/webhooks.ts` is below 400 lines — done.** #2065 moved the
+  payment callback and webhook processing paths into their own modules, and the
+  file went from 494 lines to 333. Nothing further is planned here.
 
 ## Payment aggregate — what the closed rewrite taught us
 
@@ -2501,9 +2498,15 @@ scope so intermediate applies never touch tables the migration does not declare.
 The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
 keep the loud refusal on non-empty tables.
 
-## A completed Square webhook whose order reads as missing is acked, not retried
+## A completed Square webhook whose order reads as missing is acked — fixed
 
 _Origin: Codex review on PR #2065 (thread on `src/shared/square-provider.ts`)._
+
+Closed by #2106. `readSessionOrder` now throws when the read comes back
+`missing` under a `paidPaymentId`, so the boundary answers 503 and Square
+delivers the webhook again. A read with no payment id still returns `null`,
+because there a missing order really is not one of ours. The finding as first
+written is kept below.
 
 In `resolveWebhookSession`, a completed payment webhook calls
 `retrieveSession(orderId, paymentId)`. `readSessionOrder` maps a `missing` order
