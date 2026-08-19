@@ -96,3 +96,11 @@ src/shared/db/backup-snapshot.ts::exportTable.colList~0ou5ceg  = → +=   # the 
 # key is reached.
 src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u  ?? → ||   # provider is PaymentProviderType | undefined, and no provider id is the empty string, so ?? and || pick the same side
 src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u   → "mutated"   # only kind "disable" takes this fallback, and the disable statement never evaluates a placeholder bound to chosen
+
+# settings/payment-provider.ts — the same shape one line down. The chosen
+# provider's credential key fills slot ?4, which the statement reads in exactly
+# one place: inside RECOVERY_ALLOWED, behind `?1 <> 'recover'`. Only the
+# disable call omits the provider and so takes this empty fallback, and for
+# that kind the guard's left side is already true, so the row set is the same
+# whatever the key holds.
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosenCredentialKey~1lnjyfd  → "mutated"   # only kind "disable" takes this fallback, and for that kind RECOVERY_ALLOWED is satisfied before the key is read
