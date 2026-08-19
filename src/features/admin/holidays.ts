@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";

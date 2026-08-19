@@ -10,7 +10,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 import { compact } from "#fp";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";

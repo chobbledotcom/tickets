@@ -18,7 +18,7 @@ import type { InValue } from "@libsql/client";
 import {
   createCrudHandlers,
   operationResponse,
-} from "#routes/admin/owner-crud.ts";
+} from "#routes/admin/crud-handlers.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activity-log.ts";

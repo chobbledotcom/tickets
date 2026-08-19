@@ -8,7 +8,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 /* jscpd:ignore-start */
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";

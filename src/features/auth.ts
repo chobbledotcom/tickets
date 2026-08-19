@@ -440,21 +440,6 @@ export const formPolicyFor = (
   route: AdminDestinationDef,
 ): AuthPolicy<"form"> => ({ body: "form", roles: route.audience });
 
-/** A file-upload POST's policy, from the roles its route declares. */
-export const multipartPolicyFor = (
-  route: AdminDestinationDef,
-): AuthPolicy<"multipart"> => ({ body: "multipart", roles: route.audience });
-
-/** A JSON API policy, from the roles its route declares. Keeps the API and
- * the dashboard answering the same question about who may act. */
-export const apiPolicyFor = (
-  route: AdminDestinationDef,
-): AuthPolicy<"json"> => ({
-  allowApiKey: true,
-  body: "json",
-  roles: route.audience,
-});
-
 /** A gate a route runs before its handler: it authenticates/loads whatever
  * the handler needs, then calls it with that data — or answers the request
  * itself (a redirect, a 403) without ever calling it. */

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import {

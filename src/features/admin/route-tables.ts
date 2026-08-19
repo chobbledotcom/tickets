@@ -18,9 +18,6 @@ export type EntityTabRoutes<Pattern extends string> = {
   [K in `GET ${Pattern}` | `GET ${Pattern}/:tab`]: TypedRouteHandler<K>;
 };
 
-/** Which parameter of the detail path holds the record's id. */
-type IdParamOf<Pattern extends string> = RouteParamNames<Pattern>;
-
 /** The id parameter a detail path ends with. It must keep the router's
  * numeric-param convention (`id` or `…Id`) so the page receives a number. */
 const idParamOf = (pattern: string): string => {
@@ -38,17 +35,17 @@ export const entityTabRoutes = <Pattern extends string>(
   pattern: Pattern,
   page: Pick<EntityPage<never>, "renderTab">,
 ): EntityTabRoutes<Pattern> => {
-  const name = idParamOf(pattern) as IdParamOf<Pattern>;
-  const idOf = (params: Record<IdParamOf<Pattern>, number>): number =>
+  const name = idParamOf(pattern) as RouteParamNames<Pattern>;
+  const idOf = (params: Record<RouteParamNames<Pattern>, number>): number =>
     params[name];
   return {
     [`GET ${pattern}`]: (
       request: Request,
-      params: Record<IdParamOf<Pattern>, number>,
+      params: Record<RouteParamNames<Pattern>, number>,
     ) => page.renderTab(request, idOf(params), ""),
     [`GET ${pattern}/:tab`]: (
       request: Request,
-      params: Record<IdParamOf<Pattern>, number> & { tab: string },
+      params: Record<RouteParamNames<Pattern>, number> & { tab: string },
     ) => page.renderTab(request, idOf(params), params.tab),
   } as EntityTabRoutes<Pattern>;
 };

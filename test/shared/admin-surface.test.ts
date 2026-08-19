@@ -8,6 +8,7 @@ import {
   adminDestinationAt,
   adminPath,
   adminPattern,
+  adminRecordPath,
 } from "#shared/admin-surface.ts";
 
 describe("the pattern a route declares", () => {
@@ -30,6 +31,20 @@ describe("the pattern a route declares", () => {
     expect(() => adminPattern("nowhere" as AdminDestinationId)).toThrow(
       'No admin route is declared as "nowhere"',
     );
+  });
+
+  test("refuses to mint a record URL for a route taking two parameters", () => {
+    // An entity page names the route it serves, so a route that needs a
+    // second value cannot be one, and saying so at the page definition beats
+    // minting a URL with a parameter still in it.
+    expect(() => adminRecordPath("answerEdit", 7)).toThrow(
+      'Admin route "answerEdit" does not address one record',
+    );
+  });
+
+  test("mints a record URL whatever the route calls its parameter", () => {
+    expect(adminRecordPath("attendee", 7)).toBe("/admin/attendees/7");
+    expect(adminRecordPath("holiday", 7)).toBe("/admin/holidays/7");
   });
 
   test("says which path has no route", () => {

@@ -24,8 +24,8 @@ import { type TxScope, withTransaction } from "#shared/db/client.ts";
 import type { ParamsRoute, RequestRoute } from "#shared/response-steps.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession, ImageUseItemType } from "#shared/types.ts";
+import type { CollectionRenderers } from "./crud-handlers.ts";
 import { createItemImageHandlers } from "./item-images.ts";
-import type { CollectionRenderers } from "./owner-crud.ts";
 
 /* jscpd:ignore-end */
 

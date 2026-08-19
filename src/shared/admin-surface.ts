@@ -122,7 +122,6 @@ export const adminDestinationAllowed = (
 
 export const ADMIN_SURFACE = {
   areas: folded.areas,
-  byPattern: folded.byPattern,
   destinations: folded.destinations,
   sections: ADMIN_SECTIONS,
 } as const;

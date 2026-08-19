@@ -12,7 +12,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 /* jscpd:ignore-start */
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { OWNER_FORM } from "#routes/auth.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import {
