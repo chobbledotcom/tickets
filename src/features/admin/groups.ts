@@ -263,7 +263,7 @@ const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
   getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
-  getRowPath: (g: Group) => entityReturnPath("/admin/groups", g.id),
+  getRowPath: (g: Group) => entityReturnPath(adminPattern("groups"), g.id),
   list: "groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,

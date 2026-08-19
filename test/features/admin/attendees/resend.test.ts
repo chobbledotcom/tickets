@@ -10,10 +10,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { execute } from "#shared/db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
-import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
+import {
+  emptyBookingLine,
+  setupListingAndAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -85,10 +87,7 @@ describeWithEnv("re-sending for a line with no places", { db: true }, () => {
     const { attendee, listing } = await setupListingAndAttendee({
       name: "Gave It Up",
     });
-    await execute(
-      "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
-      [listing.id, attendee.id],
-    );
+    await emptyBookingLine(listing.id, attendee.id);
     const before = await registeredEntries();
 
     const { response } = await resend(attendee.id, "Gave It Up");

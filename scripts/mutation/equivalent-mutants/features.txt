@@ -189,6 +189,6 @@ src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → ||   # getAuthentic
 src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → ||   # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself
 src/features/auth.ts::parseCsrfBody.err~0lmzdfk   → "mutated"   # the fallback is only reached when the header is absent, and every value that is not a signed token fails verification the same way
 src/features/auth.ts::parseCsrfBody~091hnp4  ?? → ||   # err is a Response object or null, and objects are always truthy
-src/features/auth.ts::parseCsrfBody.err~0mxpuuo  ?? → ||   # FormData.get gives back a string, a File, or null, and neither a File nor the empty string can differ from the empty fallback after String() and trim()
+src/features/auth.ts::parseCsrfBody.err~0mxpuuo  ?? → ||   # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
 src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated"   # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
 src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → ||   # err is a Response object or null, and objects are always truthy

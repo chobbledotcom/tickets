@@ -10,8 +10,6 @@ import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
-const GONE = 404;
-
 describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
   test("serves the attendee list", async () => {
     const response = await adminGet("/admin/attendees");
@@ -33,10 +31,11 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
   });
 
   test("takes that form back", async () => {
-    // Nothing is filled in, so it comes back rejected — the point is that the
-    // path is bound and answers, rather than being absent.
+    // Nothing is filled in, so the form comes straight back at 400 with the
+    // reason on it, rather than the submission going through.
     const { response } = await adminFormPost("/admin/attendees/new", {});
 
-    expect(response.status).not.toBe(GONE);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("required");
   });
 });

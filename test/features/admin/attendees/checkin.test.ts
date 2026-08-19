@@ -5,10 +5,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
-import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
+import {
+  emptyBookingLine,
+  setupListingAndAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -20,17 +22,6 @@ const checkIn = (
   adminFormPost(
     `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
     extra,
-  );
-
-/** Empty the roster row's quantity, leaving the ghost line a real booking
- * leaves behind when every place on it is given up. */
-const emptyTheLine = (
-  listingId: number,
-  attendeeId: number,
-): Promise<unknown> =>
-  execute(
-    "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
-    [listingId, attendeeId],
   );
 
 describeWithEnv("what a check-in writes down", { db: true }, () => {
@@ -102,7 +93,7 @@ describeWithEnv("a roster row with no places on it", { db: true }, () => {
     const { attendee, listing } = await setupListingAndAttendee({
       name: "Gave It Up",
     });
-    await emptyTheLine(listing.id, attendee.id);
+    await emptyBookingLine(listing.id, attendee.id);
 
     const { response } = await checkIn(listing.id, attendee.id);
 
@@ -117,7 +108,7 @@ describeWithEnv("a roster row with no places on it", { db: true }, () => {
     const { attendee, listing } = await setupListingAndAttendee({
       name: "Gave It Up Too",
     });
-    await emptyTheLine(listing.id, attendee.id);
+    await emptyBookingLine(listing.id, attendee.id);
 
     const { response } = await checkIn(listing.id, attendee.id, {
       return_url: `/admin/listing/${listing.id}/scanner`,
@@ -132,14 +123,15 @@ describeWithEnv("a roster row with no places on it", { db: true }, () => {
 
   test("is left alone by the refusal", async () => {
     const { attendee, listing } = await setupListingAndAttendee({
+      listing: { name: "Untouched Listing" },
       name: "Untouched",
     });
-    await emptyTheLine(listing.id, attendee.id);
+    await emptyBookingLine(listing.id, attendee.id);
 
     await checkIn(listing.id, attendee.id);
 
     expect(await activityMessages()).not.toContain(
-      "Attendee checked in for 'Test Listing'",
+      `Attendee checked in for '${listing.name}'`,
     );
   });
 });
