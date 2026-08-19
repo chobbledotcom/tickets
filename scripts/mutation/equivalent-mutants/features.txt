@@ -192,3 +192,4 @@ src/features/auth.ts::parseCsrfBody~091hnp4  ?? → ||   # err is a Response obj
 src/features/auth.ts::parseCsrfBody.err~0mxpuuo  ?? → ||   # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
 src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated"   # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
 src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → ||   # err is a Response object or null, and objects are always truthy
+src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true   # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
