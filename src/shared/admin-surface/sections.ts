@@ -12,7 +12,10 @@ import {
   type AdminSurfaceContext,
   featureVisible,
 } from "#shared/admin-surface/definitions.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import type {
+  AdminDestinationId,
+  AdminRecordDestinationId,
+} from "#shared/admin-surface/ids.ts";
 
 export type AdminNavEntry = {
   readonly id: AdminDestinationId;
@@ -25,8 +28,8 @@ export type AdminNavEntry = {
  * it goes instead. Both are declared routes, so the audience on the page is
  * what decides which one a reader is sent to. */
 export type AdminSectionDetail = {
-  readonly editForm: AdminDestinationId;
-  readonly page: AdminDestinationId;
+  readonly editForm: AdminRecordDestinationId;
+  readonly page: AdminRecordDestinationId;
 };
 
 export type AdminSectionDef = {

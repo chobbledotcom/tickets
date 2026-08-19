@@ -36,14 +36,37 @@ type SpecFor<Id extends AdminDestinationId> = {
       : never;
 }[keyof Areas];
 
-/** The exact path a route declares, as a literal type. Route tables keyed by
- * a pattern stay typed because this keeps the string, not `string`. */
-export type AdminPatternFor<Id extends AdminDestinationId> =
-  SpecFor<Id> extends string
-    ? SpecFor<Id>
-    : SpecFor<Id> extends { readonly pattern: infer Pattern }
-      ? Pattern
-      : never;
+/** The path out of one route's entry, whichever of the two forms it took. */
+type PatternOfSpec<Spec> = Spec extends string
+  ? Spec
+  : Spec extends { readonly pattern: infer Pattern }
+    ? Pattern
+    : never;
+
+/**
+ * The exact path a route declares, as a literal type. Route tables keyed by a
+ * pattern stay typed because this keeps the string, not `string`.
+ *
+ * `Id extends unknown` looks like nothing, and is the whole point: it takes
+ * each id of a union on its own. Without it a caller holding two ids resolves
+ * to `never`, and `AdminPathParams` below then asks for no parameters at all.
+ */
+export type AdminPatternFor<Id extends AdminDestinationId> = Id extends unknown
+  ? PatternOfSpec<SpecFor<Id>>
+  : never;
+
+/**
+ * A route addressed by one plain `:id` and nothing else. A section's record
+ * page and the form a reader falls back to must both be of this kind, so
+ * `entityReturnPath` can build either from the same id.
+ */
+export type AdminRecordDestinationId = {
+  [Id in AdminDestinationId]: RouteParamNames<
+    AdminPatternFor<Id> & string
+  > extends "id"
+    ? Id
+    : never;
+}[AdminDestinationId];
 
 export type AdminPathParams<Id extends AdminDestinationId> = Record<
   RouteParamNames<AdminPatternFor<Id> & string>,
