@@ -110,6 +110,37 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
     }
   });
 
+  test("treats a 255-byte id like any other staged checkout", async () => {
+    const longId = "x".repeat(255);
+    const { reference } = await stageSignedSumupCheckout(longId);
+    const restore = withSumupCheckoutStatus(reference, "PAID", "txn_long");
+    try {
+      const { resolved } = await resolve(longId);
+
+      expect(resolved).toMatchObject({ id: reference, paymentStatus: "paid" });
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("refuses an oversized id without reading anything, even when staged", async () => {
+    // The bound is the cheap refusal — no staged-row lookup, no API call —
+    // and a row carrying such an id must not change that.
+    const longId = "x".repeat(256);
+    const { reference } = await stageSignedSumupCheckout(longId);
+    void reference;
+    const fetched = stub(sumupApi, "readCheckoutById");
+    try {
+      expect(await resolve(longId)).toEqual({
+        reading: "unusable",
+        resolved: "retry",
+      });
+      expect(fetched.calls).toHaveLength(0);
+    } finally {
+      fetched.restore();
+    }
+  });
+
   test("refuses a checkout this site never staged", async () => {
     const fetched = stub(sumupApi, "readCheckoutById");
     try {

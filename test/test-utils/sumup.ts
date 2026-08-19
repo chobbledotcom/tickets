@@ -85,7 +85,25 @@ export const stageSignedSumupCheckout = async (
   checkoutId: string,
   unitPrice = 1000,
 ): Promise<{ listing: { id: number }; reference: string }> => {
-  const listing = await createTestListing({ unitPrice });
+  const staged = await stageSignedMultiItemSumupCheckout(checkoutId, 1, [
+    unitPrice,
+  ]);
+  return { listing: staged.listings[0]!, reference: staged.reference };
+};
+
+/** Stage a signed checkout holding one item per listing, so a test can tell
+ * the booking's first listing from its second. */
+export const stageSignedMultiItemSumupCheckout = async (
+  checkoutId: string,
+  itemCount: number,
+  unitPrices: number[] = [],
+): Promise<{ listings: { id: number }[]; reference: string }> => {
+  const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
+  for (let index = 0; index < itemCount; index++) {
+    listings.push(
+      await createTestListing({ unitPrice: unitPrices[index] ?? 1000 }),
+    );
+  }
   await settings.update.paymentProvider("sumup");
   await settings.update.sumup.apiKey("sk_test_x");
   await settings.update.sumup.merchantCode("MC1");
@@ -95,15 +113,13 @@ export const stageSignedSumupCheckout = async (
     address: "",
     date: null,
     email: "alice@example.com",
-    items: [
-      {
-        listingId: listing.id,
-        name: listing.name,
-        quantity: 1,
-        slug: listing.slug,
-        unitPrice,
-      },
-    ],
+    items: listings.map((listing, index) => ({
+      listingId: listing.id,
+      name: listing.name,
+      quantity: 1,
+      slug: listing.slug,
+      unitPrice: unitPrices[index] ?? 1000,
+    })),
     name: "Alice",
     phone: "",
     special_instructions: "",
@@ -117,7 +133,7 @@ export const stageSignedSumupCheckout = async (
     ),
   );
   await setSumupCheckoutId(reference, checkoutId);
-  return { listing, reference };
+  return { listings, reference };
 };
 
 /** Bring a staged checkout's next recovery check forward, so a test does not
