@@ -21,6 +21,7 @@ import {
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
+import { readLoggedId } from "#e2e/providers/shared.ts";
 import {
   deliverGenuineCallbackTwice,
   deliverRefusalProbes,
@@ -114,59 +115,91 @@ for (const [text, pay] of HOSTED_PAYMENT_STEPS) {
 }
 
 /**
- * Steps that wait for exactly one booking on the roster: the step text, the
- * failure wording, and the follow-up check after the booking is confirmed.
+ * The server-log evidence that the SIGNED webhook itself was verified and
+ * processed. The roster alone cannot prove this — the visitor's browser
+ * return can book first — but only the webhook route writes `[Webhook]
+ * Payment callback …` lines, so one appearing is independent evidence the
+ * webhook was delivered through the tunnel, its signature verified, and its
+ * session resolved into the payment engine. The "is being processed
+ * elsewhere" arm is accepted deliberately: the webhook can race the browser
+ * return for the one reservation, and Stripe redelivers its 409 on a slow
+ * schedule a nightly cannot wait out — the held line still proves delivery,
+ * verification, and resolution.
  */
-const SINGLE_BOOKING_STEPS: readonly [
+const WEBHOOK_EVIDENCE = {
+  booked: {
+    expected: "[Webhook] Payment callback booked",
+    pattern:
+      /\[Webhook\] Payment callback (booked|is being processed elsewhere)/g,
+  },
+  settled: {
+    expected: "[Webhook] Payment callback settled without a booking",
+    pattern:
+      /\[Webhook\] Payment callback (settled without a booking|is being processed elsewhere)/g,
+  },
+} as const;
+
+/** Build the follow-up check that waits for the signed webhook's own log
+ * line — never inferred from pages — then records the step's phase. */
+const webhookEvidenceThen =
+  (evidence: keyof typeof WEBHOOK_EVIDENCE, phase: string) =>
+  async (world: LiveWorld): Promise<void> => {
+    const line = WEBHOOK_EVIDENCE[evidence];
+    const outcome = await readLoggedId(
+      world.resources.server.logPath,
+      line.pattern,
+      line.expected,
+      config.paymentConfirmTimeoutMs,
+    );
+    world.recordPhase(`webhook-evidence-${outcome.replace(/[^a-z]+/g, "-")}`);
+    world.recordPhase(phase);
+  };
+
+/** Steps that first prove a fact on the scenario's roster, then run a
+ * follow-up check: the step text, the roster fact to prove, and the
+ * follow-up once the fact holds. */
+const ROSTER_FACT_STEPS: readonly [
   string,
-  string,
+  (world: LiveWorld) => Promise<void>,
   (world: LiveWorld) => Promise<void>,
 ][] = [
   [
     "Stripe's signed webhook confirms the payment",
-    "booking created by the signed webhook",
-    async (world) => world.recordPhase("webhook-booked"),
+    (world) =>
+      requireSingleBooking(world, "booking created by the signed webhook"),
+    webhookEvidenceThen("booked", "webhook-booked"),
   ],
   [
     "there is still one retained booking and one refund",
-    "retained booking after the replay",
-    async (world) => await requireMoneyRefunds(world, 1, "Money refund"),
+    (world) => requireSingleBooking(world, "retained booking after the replay"),
+    (world) => requireMoneyRefunds(world, 1, "Money refund"),
   ],
-];
-
-for (const [text, what, after] of SINGLE_BOOKING_STEPS) {
-  Then(text, async function (this: LiveWorld) {
-    await requireSingleBooking(this, what);
-    await after(this);
-  });
-}
-
-/** Steps that assert a specific fact appears on the scenario's roster: the
- * step text, what to look for, the failure wording, and the journal phase. */
-const ROSTER_CHECK_STEPS: readonly [
-  string,
-  (world: LiveWorld) => string,
-  string,
-  string,
-][] = [
   [
     "Stripe's signed webhook processes the payment",
-    (world) => world.scenario.booker.email,
-    "the signed webhook did not retain a booking for the paying visitor",
-    "webhook-terminalized",
+    (world) =>
+      requireOnScenarioRoster(
+        world,
+        world.scenario.booker.email,
+        "the signed webhook did not retain a booking for the paying visitor",
+      ),
+    webhookEvidenceThen("settled", "webhook-terminalized"),
   ],
   [
     "the owner sees one retained No quantity booking",
-    () => "No quantity",
-    "the retained booking does not show the No quantity indicator",
-    "retained-no-quantity-checked",
+    (world) =>
+      requireOnScenarioRoster(
+        world,
+        "No quantity",
+        "the retained booking does not show the No quantity indicator",
+      ),
+    async (world) => world.recordPhase("retained-no-quantity-checked"),
   ],
 ];
 
-for (const [text, expectedOf, missing, phase] of ROSTER_CHECK_STEPS) {
+for (const [text, prove, after] of ROSTER_FACT_STEPS) {
   Then(text, async function (this: LiveWorld) {
-    await requireOnScenarioRoster(this, expectedOf(this), missing);
-    this.recordPhase(phase);
+    await prove(this);
+    await after(this);
   });
 }
 
@@ -413,6 +446,7 @@ Then(
       // listing, not skipped.
       for (const listingId of [
         this.builtOrderCatalog.memberAId,
+        this.builtOrderCatalog.memberBId,
         this.builtOrderCatalog.plainId,
       ]) {
         await owner.goto(`/admin/listing/${listingId}`);

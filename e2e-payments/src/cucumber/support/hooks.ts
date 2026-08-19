@@ -93,6 +93,37 @@ const caseIdOf = (hook: ITestCaseHookParameter): string => {
   );
 };
 
+/** Acquire the scenario's server, tunnel, browser and sessions, releasing
+ * everything already acquired (newest first) when a later acquisition fails —
+ * a half-started scenario must not leak its app server or Chromium into the
+ * scenarios after it. */
+const acquireInfra = async (world: LiveWorld): Promise<void> => {
+  const acquired: NamedCleanup[] = [];
+  try {
+    const server = await startAppServer();
+    acquired.push({ name: "app server", run: () => server.stop() });
+    const tunnel = needsTunnel(world.target)
+      ? await startTunnel(server.port)
+      : noTunnel(server.localBaseUrl);
+    acquired.push({ name: "tunnel", run: () => tunnel.stop() });
+    const browser = await launchAppBrowser(tunnel.publicBaseUrl);
+    acquired.push({ name: "browser", run: () => browser.stop() });
+    world.attachInfra({
+      browser,
+      owner: await browser.session(`${world.scenario.caseId}-owner`),
+      server,
+      tunnel,
+      visitor: await browser.session(`${world.scenario.caseId}-visitor`),
+    });
+  } catch (error) {
+    const unwound = await attemptEveryCleanup(acquired.toReversed());
+    for (const failure of unwound.errors) {
+      warn(`startup unwind: ${failure.message}`);
+    }
+    throw error;
+  }
+};
+
 Before(
   { timeout: config.startupTimeoutMs },
   async function (this: LiveWorld, hook: ITestCaseHookParameter) {
@@ -100,18 +131,7 @@ Before(
     log(`— scenario ${this.scenario.caseId} (run ${this.scenario.runId})`);
     this.recordPhase("starting-infrastructure");
 
-    const server = await startAppServer();
-    const tunnel = needsTunnel(this.target)
-      ? await startTunnel(server.port)
-      : noTunnel(server.localBaseUrl);
-    const browser = await launchAppBrowser(tunnel.publicBaseUrl);
-    this.attachInfra({
-      browser,
-      owner: await browser.session(`${this.scenario.caseId}-owner`),
-      server,
-      tunnel,
-      visitor: await browser.session(`${this.scenario.caseId}-visitor`),
-    });
+    await acquireInfra(this);
 
     if (this.target !== "free") {
       const driver = providers[this.target];

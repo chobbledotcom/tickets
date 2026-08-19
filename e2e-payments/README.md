@@ -89,7 +89,10 @@ visible submit control (`requestSubmit`) — never force, never `form.submit()`.
 Some headless Chromium builds stop scheduling compositor frames after a form
 POST, which stalls Playwright's stability wait; the harness detects that and
 falls back to `requestSubmit` / a scripted click, which still runs browser
-validation and the app's own event handlers.
+validation and the app's own event handlers. A failed ordinary action is only
+replayed through that fallback when a page-side witness proves the click never
+dispatched — a post-dispatch failure rethrows, so a live refund form can never
+be submitted twice by the fallback.
 
 ### Cleanup
 

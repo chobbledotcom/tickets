@@ -183,11 +183,15 @@ const fillBookingPage = async (
 const waitForReturn = (session: BrowserSession): Promise<void> =>
   waitForAppReturn(session, /reserved|success|thank/i, "order-no-return");
 
-/** The app's currency rendering for a minor amount: decimals kept for broken
- * amounts, stripped for whole ones ("4.00" → "4"). */
-const rendered = (minor: number): string[] => {
-  const withDecimals = (minor / 100).toFixed(2);
-  return [withDecimals, withDecimals.replace(/\.00$/, "")];
+/** Whether the ledger text carries this exact amount — in either app
+ * rendering (decimals kept for broken amounts, stripped for whole ones:
+ * "4.00" → "4") — with digit boundaries, so "6" cannot pass by matching the
+ * digits inside "16" or "6.50". */
+const ledgerCarriesAmount = (text: string, minor: number): boolean => {
+  const whole = Math.trunc(minor / 100);
+  const cents = (minor % 100).toString().padStart(2, "0");
+  const amount = minor % 100 === 0 ? `${whole}(\\.00)?` : `${whole}\\.${cents}`;
+  return new RegExp(`(^|[^\\d.])${amount}(?![\\d.])`).test(text);
 };
 
 /** Assert a listing's income ledger recognises the given amount. */
@@ -202,7 +206,7 @@ const assertListingIncome = async (
   const problem =
     text === null
       ? `no income ledger rendered for ${name}`
-      : rendered(minor).some((form) => text.includes(form))
+      : ledgerCarriesAmount(text, minor)
         ? null
         : `${name}: expected recognised income ${(minor / 100).toFixed(
             2,
@@ -216,15 +220,16 @@ const assertListingIncome = async (
 };
 
 /** Assert the admin sees the order one line per path: member A twice (via the
- * kit and on its own row), labelled with the package's name. */
+ * kit and on its own row), member B once (via the kit), labelled with the
+ * package's name. */
 const assertPerPathEditor = async (
   session: BrowserSession,
   identity: OrderJourneyIdentity,
-  memberAId: number,
+  built: BuiltOrderCatalog,
 ): Promise<void> => {
   const { booker, catalog } = identity;
   step("Verifying the order path-by-path in the admin editor");
-  await session.goto(`/admin/listing/${memberAId}/attendees`);
+  await session.goto(`/admin/listing/${built.memberAId}/attendees`);
   const body = await session.bodyText();
   if (!body.includes(booker.name)) {
     await session.dumpPage("order-buyer-missing-from-roster");
@@ -250,23 +255,38 @@ const assertPerPathEditor = async (
       `the editor does not label the package path "via ${catalog.kit}"`,
     );
   }
-  const memberLines = [
-    ...editor.matchAll(/name="line_listing_\d+"[^>]*value="(\d+)"/g),
-  ].filter((match) => Number(match[1]) === memberAId).length;
-  if (memberLines !== 2) {
-    await session.dumpPage("order-editor-wrong-line-count");
-    throw new Error(
-      `${catalog.memberA} should book through 2 paths (via the kit + its own row); the editor shows ${memberLines}`,
-    );
+  // A stored booking row carries its non-empty `line_key_<n>`; the editor
+  // also renders blank per-path creation lines (empty key), which are offers,
+  // not bookings — only the stored rows count as booked paths.
+  const isStoredLine = (index: string): boolean =>
+    new RegExp(`name="line_key_${index}"[^>]*value="[^"]+"`).test(editor);
+  const linesFor = (listingId: number): number =>
+    [...editor.matchAll(/name="line_listing_(\d+)"[^>]*value="(\d+)"/g)].filter(
+      (match) => Number(match[2]) === listingId && isStoredLine(match[1] ?? ""),
+    ).length;
+  const expectedLines: [string, number, number][] = [
+    [`${catalog.memberA} (via the kit + its own row)`, built.memberAId, 2],
+    [`${catalog.memberB} (via the kit)`, built.memberBId, 1],
+    [`${catalog.plain} (its own row)`, built.plainId, 1],
+  ];
+  for (const [what, listingId, expected] of expectedLines) {
+    const lines = linesFor(listingId);
+    if (lines !== expected) {
+      await session.dumpPage("order-editor-wrong-line-count");
+      throw new Error(
+        `${what} should book through ${expected} path(s); the editor shows ${lines}`,
+      );
+    }
   }
   log(
-    `  ✔ editor shows "via ${catalog.kit}" and both ${catalog.memberA} paths`,
+    `  ✔ editor shows "via ${catalog.kit}" and every member path (A twice, B once)`,
   );
 };
 
 /** What the catalog builder created, for the booking step to assert against. */
 export interface BuiltOrderCatalog {
   memberAId: number;
+  memberBId: number;
   plainId: number;
 }
 
@@ -299,7 +319,7 @@ export const buildOrderCatalog = async (
     { id: memberBId, priceMinor: zeroed(PRICES.kitMemberB) },
   ]);
   await enableOrderGallery(session);
-  return { memberAId, plainId };
+  return { memberAId, memberBId, plainId };
 };
 
 /** The visitor's half: select on the gallery, book every path in one order,
@@ -329,21 +349,22 @@ export const bookComplexOrder = async (
 };
 
 /** The admin verification of a completed complex order: one line per path
- * (member A twice — via the kit and on its own row, labelled with the
- * package's name), and — when `expectIncome` — each listing recognising its
- * own paths' income (member A one kit unit plus one own-row unit; the plain
- * listing two units). */
+ * (member A twice — via the kit and on its own row — and member B once,
+ * labelled with the package's name), and — when `expectIncome` — each
+ * listing recognising its own paths' income (member A one kit unit plus one
+ * own-row unit; member B its one kit unit; the plain listing two units). */
 export const verifyComplexOrder = async (
   session: BrowserSession,
   identity: OrderJourneyIdentity,
   built: BuiltOrderCatalog,
   { expectIncome }: { expectIncome: boolean },
 ): Promise<void> => {
-  await assertPerPathEditor(session, identity, built.memberAId);
+  await assertPerPathEditor(session, identity, built);
   if (!expectIncome) return;
   const { catalog } = identity;
   const expected: [number, string, number][] = [
     [built.memberAId, catalog.memberA, PRICES.kitMemberA + PRICES.memberAOwn],
+    [built.memberBId, catalog.memberB, PRICES.kitMemberB],
     [built.plainId, catalog.plain, PRICES.plain * 2],
   ];
   for (const [listingId, name, minor] of expected) {

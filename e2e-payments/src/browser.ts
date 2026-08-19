@@ -16,7 +16,7 @@ import { type Browser, chromium, type Locator, type Page } from "playwright";
 import { browserLaunchOptions } from "#scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
-import { repoRoot } from "./server.ts";
+import { artifactsRoot } from "./server.ts";
 import { pollUntil } from "./util.ts";
 
 export interface BrowserSession {
@@ -80,6 +80,74 @@ export const hrefOf = async (
   return href;
 };
 
+/** Whether the control can honestly be acted on at all. */
+const interactable = async (locator: Locator): Promise<boolean> =>
+  (await locator.isVisible()) && (await locator.isEnabled());
+
+/** The page-side shape the click witness stamps onto a control. */
+type Witnessed = {
+  __e2eClickSeen?: boolean;
+  addEventListener: (
+    type: string,
+    listener: () => void,
+    options: { capture: boolean; once: boolean },
+  ) => void;
+};
+
+/** Arm a page-side click witness on the control. The returned question is
+ * whether the click may have dispatched — and a witness that cannot answer
+ * (the element or its document is already gone, which navigation after a
+ * dispatched submission causes) says yes, never "safe to replay". */
+const armClickWitness = async (
+  control: Locator,
+): Promise<() => Promise<boolean>> => {
+  const armed = await control
+    .evaluate((element) => {
+      const witnessed = element as unknown as Witnessed;
+      witnessed.__e2eClickSeen = false;
+      witnessed.addEventListener(
+        "click",
+        () => {
+          witnessed.__e2eClickSeen = true;
+        },
+        { capture: true, once: true },
+      );
+    })
+    .then(() => true)
+    .catch(() => false);
+  return () =>
+    armed
+      ? control
+          .evaluate(
+            (element) =>
+              (element as unknown as Witnessed).__e2eClickSeen !== false,
+          )
+          .catch(() => true)
+      : Promise.resolve(true);
+};
+
+/** Arm the click witness and return the attempt that runs an ordinary action
+ * under it: true when the action finished, false only for the one
+ * replay-safe failure — the witness proves the click never dispatched and
+ * the control is still interactable. Every other failure rethrows: replaying
+ * a dispatched submission would act twice, and a second POST on a live
+ * refund form moves real money. */
+const armWitnessedAttempt = async (
+  control: Locator,
+): Promise<(ordinary: () => Promise<void>) => Promise<boolean>> => {
+  const mayHaveDispatched = await armClickWitness(control);
+  return async (ordinary) => {
+    try {
+      await ordinary();
+      return true;
+    } catch (error) {
+      if (await mayHaveDispatched()) throw error;
+      if (!(await interactable(control))) throw error;
+      return false;
+    }
+  };
+};
+
 export const launchAppBrowser = async (
   baseUrl: string,
 ): Promise<AppBrowser> => {
@@ -87,7 +155,6 @@ export const launchAppBrowser = async (
   const browser = await chromium.launch(
     browserLaunchOptions(config.headless, config.chromiumExecutable),
   );
-  const artifactsDir = join(repoRoot, "e2e-payments", config.artifactsDir);
 
   const session = async (artifactPrefix: string): Promise<BrowserSession> => {
     const context = await browser.newContext({ baseURL: baseUrl });
@@ -117,8 +184,8 @@ export const launchAppBrowser = async (
     /** Save a screenshot AND the page HTML for debugging; the artifact prefix
      * (the case id) keeps scenarios from overwriting each other's evidence. */
     const dumpPage = async (label: string): Promise<void> => {
-      const png = join(artifactsDir, `${artifactPrefix}-${label}.png`);
-      const html = join(artifactsDir, `${artifactPrefix}-${label}.html`);
+      const png = join(artifactsRoot, `${artifactPrefix}-${label}.png`);
+      const html = join(artifactsRoot, `${artifactPrefix}-${label}.html`);
       await page.screenshot({ fullPage: true, path: png }).catch(() => {});
       await page
         .content()
@@ -153,10 +220,6 @@ export const launchAppBrowser = async (
       return framesLive;
     };
 
-    /** Whether the control can honestly be acted on at all. */
-    const interactable = async (locator: Locator): Promise<boolean> =>
-      (await locator.isVisible()) && (await locator.isEnabled());
-
     /** Act on a control through the page's own DOM APIs: `requestSubmit` for
      * a form's submit control (which runs browser validation and the app's
      * submit handlers), a scripted click for anything else. Typed without the
@@ -188,20 +251,17 @@ export const launchAppBrowser = async (
     };
 
     /** Act on a control like a person when the renderer is healthy, and
-     * through the page's own DOM APIs when it is frame-idle or the ordinary
-     * action times out on a still-interactable control. */
+     * through the page's own DOM APIs when it is frame-idle — or when the
+     * ordinary action provably failed before its click dispatched (see
+     * armWitnessedAttempt). */
     const actOnControl = async (
       control: Locator,
       ordinary: () => Promise<void>,
     ): Promise<void> => {
       const healthyRenderer = await framesAreLive();
       if (healthyRenderer) {
-        try {
-          await ordinary();
-          return;
-        } catch (error) {
-          if (!(await interactable(control))) throw error;
-        }
+        const attempt = await armWitnessedAttempt(control);
+        if (await attempt(ordinary)) return;
       }
       await throughDomIfInteractable(control);
     };
@@ -313,7 +373,13 @@ export const launchAppBrowser = async (
           new Promise((resolve) => setTimeout(resolve, 5_000)),
         ]);
         if (browser.isConnected()) {
-          log("  browser would not close; the runner will outlive it");
+          // Playwright exposes no process handle to kill, so the leak is
+          // raised instead of logged: the cleanup sweep reports it and fails
+          // an otherwise-green scenario rather than letting the zombie
+          // Chromium quietly consume the runner.
+          throw new Error(
+            "Chromium did not close after the bounded graceful close and CDP Browser.close",
+          );
         }
       }
     },

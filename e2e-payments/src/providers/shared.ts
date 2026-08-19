@@ -6,6 +6,7 @@ import type { ProviderName } from "#e2e/config.ts";
 import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
@@ -23,8 +24,9 @@ export const readLoggedId = async (
   logPath: string,
   pattern: RegExp,
   expectedLine: string,
+  timeoutMs = 10_000,
 ): Promise<string> => {
-  const found = await pollUntil(10_000, () => {
+  const found = await pollUntil(timeoutMs, () => {
     let text = "";
     try {
       text = readFileSync(logPath, "utf8");
@@ -181,7 +183,9 @@ export interface ProviderRequest {
 /**
  * One authenticated provider REST call that throws with the API's own answer
  * on a non-2xx and returns the parsed JSON (or `{}` for an empty body). A
- * response whose body is not valid JSON fails here, at the boundary.
+ * response whose body is not valid JSON fails here, at the boundary. Bounded
+ * by the same allowance the production transports use, so a hung sandbox
+ * read fails its step instead of outliving the scenario's hooks.
  */
 export const providerFetch = async (
   provider: ProviderName,
@@ -195,6 +199,7 @@ export const providerFetch = async (
       ...(init.headers ?? {}),
     },
     method: init.method ?? "GET",
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   const text = await res.text();
   if (!res.ok) {

@@ -2485,63 +2485,16 @@ scope so intermediate applies never touch tables the migration does not declare.
 The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
 keep the loud refusal on non-empty tables.
 
-## Harden the live payment harness so green means what it claims
+## Give the live payment harness direct tests through injectable seams
 
-_Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all
-verified against the code and none blocking the merge — the nightly run passes,
-but each item is a way it could pass while proving less than its steps claim._
+_Origin: the coverage-exclusion thread of the Codex review on PR #2065._
 
-- **Partial-startup leak** (`cucumber/support/hooks.ts`): the `Before` hook
-  acquires server → tunnel → browser → sessions with no unwind; a rejection
-  after the first acquire leaks the app-server child into later scenarios.
-  Attach each resource as it is acquired or unwind in `finally`.
-- **No failure notification before the summary** (`main.ts`): the terminal
-  `run().catch` reports but never calls `notifyFailure`, so missing credentials
-  and other pre-summary failures ping nothing.
-- **Ambiguous click replay** (`browser.ts` `actOnControl`): when `ordinary()`
-  dispatched a submission but its navigation wait failed, the still-interactable
-  control is submitted again through the DOM fallback — a second POST on live
-  refund forms. Only fall back for failures proven to predate dispatch.
-- **Chromium surviving teardown** (`browser.ts` `stop`): when both close paths
-  fail, the hook logs and resolves; the leaked browser keeps consuming runner
-  resources. Reject or kill the process.
-- **Provider fetches without a bound** (`providers/shared.ts`): the harness's
-  own fetches carry no abort signal (the production transports now share
-  `PROVIDER_TIMEOUT_MS`); a hung sandbox read outlives its hook.
-- **Malformed Stripe list answers** (`providers/stripe.ts`): both the
-  endpoint-list and refund-list reads default a missing `data` field to `[]`, so
-  a malformed 2xx can silently pass as "nothing there". Validate the documented
-  fields at the boundary.
-- **Partial final refund passes** (`cucumber/steps/refund.ts`): the final
-  non-growth check only rejects amounts GREATER than the capture; a completed
-  400-of-2500 observation after the first check passes. Require exactness for
-  every completed final observation.
-- **Broad refresh assertion** (`cucumber/steps/refund.ts`): the second,
-  observation-only refresh matches `/payment status/i`, which the rendered
-  button satisfies — an erroring refresh still passes. Assert the specific
-  outcome (the exact-amount first refresh is the model).
-- **Protection not rechecked after refresh** (`cucumber/steps/refund.ts`): the
-  Refund/Delete-unavailable assertions run before the final refresh; a refresh
-  that re-enabled them would pass. Re-read the actions after it.
-- **Vacuous webhook coverage** (`cucumber/steps/booking.ts`):
-  `holdFirstAppReturn` captures the return URL but holds nothing (interception
-  proved unreliable), so the browser return can book before "Stripe's signed
-  webhook confirms the payment" — the step then only polls the roster and passes
-  with the webhook broken. Assert independent webhook evidence (or rename the
-  claim).
-- **memberB never verified** (`order-flow.ts`): `verifyComplexOrder` asserts
-  member A's two paths and the plain listing; member B's booking line and its £6
-  kit income are never checked in either the free or paid scenario.
-- **Configured artifact directory ignored** (`main.ts`): cleanup, reports, and
-  the step summary use the hard-coded `e2e-payments/artifacts` while scenarios
-  write under `E2E_ARTIFACTS_DIR`; derive the root from config.
-
-The coverage-exclusion thread from the same round (`scripts/run-tests.ts`) is
-the same theme: the harness modules are excluded wholesale with the reasoning
-recorded beside the list, and the pure helpers stay covered. The durable fix is
-the one Codex names — push the env/config parsing behind injectable seams so
-those branches get direct in-process tests — which is worth doing when the
-harness is next open.
+The harness modules under `e2e-payments/src/` are excluded from coverage
+wholesale in `scripts/run-tests.ts`, with the reasoning recorded beside the
+list; only the pure helpers stay covered. The durable fix is the one Codex names
+— push the env/config parsing behind injectable seams so those branches get
+direct in-process tests. The twelve behaviour findings from the same review
+round are fixed; this remaining item is the test-architecture half.
 
 ## Deleting your own contact record also deletes your promotions opt-out
 

@@ -47,8 +47,11 @@ const attemptTunnel = async (localPort: number): Promise<Tunnel | null> => {
   while (Date.now() < deadline) {
     if (publicUrl) {
       // Confirm the tunnel actually routes to the app before returning.
+      // Bounded so one hung probe cannot stall the loop past its deadline.
       try {
-        const res = await fetch(`${publicUrl}/health`);
+        const res = await fetch(`${publicUrl}/health`, {
+          signal: AbortSignal.timeout(5_000),
+        });
         const ok = res.ok;
         await res.body?.cancel();
         if (ok) {

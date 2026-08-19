@@ -126,7 +126,13 @@ export const stripe: PaymentProvider = {
             : ""
         }`,
       );
-      const endpoints = page.data ?? [];
+      // A 2xx list answer without its documented `data` array is a malformed
+      // boundary, not an empty account — it must not pass as "nothing there".
+      const endpoints = requiredField(
+        page.data,
+        "stripe",
+        "data on the webhook endpoint list",
+      );
       for (const endpoint of endpoints) {
         if (endpoint.url !== exactUrl) continue;
         await stripeApi(
@@ -164,7 +170,13 @@ export const stripe: PaymentProvider = {
         )}&limit=100`,
       ),
     (list) => {
-      const refunds = list.data ?? [];
+      // Same boundary rule as the endpoint list: a missing `data` array is a
+      // malformed answer, never "no refunds yet".
+      const refunds = requiredField(
+        list.data,
+        "stripe",
+        "data on the refund list",
+      );
       // Nothing settled yet would make the sum a lie — report pending.
       const succeeded = refunds.filter(
         (refund) => refund.status === "succeeded",
