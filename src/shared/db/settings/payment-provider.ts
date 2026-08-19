@@ -67,6 +67,123 @@ const syncLastActivePaymentProvider = (provider: string): void => {
   data.last_active_payment_provider = provider;
 };
 
+/** Where each provider keeps its own credential. An exhaustive record, so a
+ * fourth provider is a compile error here rather than a silent miss. */
+const CREDENTIAL_KEY_OF: Record<PaymentProviderType, string> = {
+  square: CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+  stripe: CONFIG_KEYS.STRIPE_SECRET_KEY,
+  sumup: CONFIG_KEYS.SUMUP_API_KEY,
+};
+
+/** Credential keys in the same order as the provider ids, so slot N of one
+ * lines up with slot N of the other. */
+const CREDENTIAL_KEYS = PAYMENT_PROVIDER_IDS.map((id) => CREDENTIAL_KEY_OF[id]);
+
+/** Numbered parameters, so a value the statement reads seven times is still
+ * bound once. The slots run in the order `changePaymentProvider` passes them:
+ * the kind of change, the provider it names, whether this is a first
+ * credential save, then one slot per provider id and one per credential key. */
+const slot = (index: number): string => `?${index + 1}`;
+const KIND = slot(0);
+const CHOSEN = slot(1);
+const FIRST_CREDENTIAL = slot(2);
+const PROVIDER_ID_SLOTS = PAYMENT_PROVIDER_IDS.map((_, i) => slot(3 + i));
+const CREDENTIAL_KEY_SLOTS = CREDENTIAL_KEYS.map((_, i) =>
+  slot(3 + PAYMENT_PROVIDER_IDS.length + i),
+);
+
+/** What the two rows hold right now. A row that does not exist yet reads as
+ * "no provider takes sales" and "none is remembered". */
+const STORED_PROVIDER = `(SELECT value FROM settings WHERE key = 'payment_provider')`;
+const STORED_LAST_ACTIVE = `(SELECT value FROM settings WHERE key = 'last_active_payment_provider')`;
+const CURRENT_PROVIDER = `COALESCE(${STORED_PROVIDER}, 'none')`;
+const CURRENT_LAST_ACTIVE = `COALESCE(${STORED_LAST_ACTIVE}, '')`;
+
+/** A credential save speaks for the provider it names only when that provider
+ * is already the chosen one, or when it is the first credential on a site that
+ * has never chosen. Otherwise a stale save cannot replace a newer choice. */
+const CREDENTIAL_SAVE_WINS = `${STORED_PROVIDER} = ${CHOSEN}
+          OR (
+            ${FIRST_CREDENTIAL} = 1
+            AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')
+          )`;
+
+/** No provider takes new sales, and none is remembered for the payments that
+ * already exist. Both recovery and activation turn on this state. */
+const NOTHING_CHOSEN_YET = `${CURRENT_PROVIDER} = 'none'
+      AND ${CURRENT_LAST_ACTIVE} = ''`;
+
+/** Which provider takes new sales after this change. */
+const NEW_PROVIDER = `CASE
+      WHEN ${KIND} IN ('disable', 'recover') THEN 'none'
+      WHEN ${KIND} = 'credentials' THEN CASE
+        WHEN ${CREDENTIAL_SAVE_WINS} THEN ${CHOSEN}
+        ELSE ${CURRENT_PROVIDER}
+      END
+      ELSE ${CHOSEN}
+    END`;
+
+/** Which provider owns the payments that already exist. Switching sales off
+ * remembers the provider that was live, so refunds keep working. */
+const NEW_LAST_ACTIVE = `CASE
+      WHEN ${KIND} = 'disable' THEN CASE
+        WHEN ${STORED_PROVIDER} IN (${PROVIDER_ID_SLOTS.join(", ")})
+          THEN ${STORED_PROVIDER}
+        ELSE ${CURRENT_LAST_ACTIVE}
+      END
+      WHEN ${KIND} = 'credentials' THEN CASE
+        WHEN ${CREDENTIAL_SAVE_WINS} THEN ${CHOSEN}
+        ELSE ${CURRENT_LAST_ACTIVE}
+      END
+      ELSE ${CHOSEN}
+    END`;
+
+/** Every settings write bumps the version, which is what invalidates the
+ * per-request snapshot. */
+const NEXT_VERSION = `CAST(
+      COALESCE((SELECT value FROM settings WHERE key = 'settings_version'), '0') AS INTEGER
+    ) + 1`;
+
+/** The credential key belonging to the provider this change names. */
+const CHOSEN_CREDENTIAL_KEY = `CASE ${CHOSEN}
+${PROVIDER_ID_SLOTS.map((id, i) => `          WHEN ${id} THEN ${CREDENTIAL_KEY_SLOTS[i]}`).join("\n")}
+        END`;
+
+/** Recovery is only for a site that lost its choice and still holds the named
+ * provider's credential. Nothing else qualifies for it. */
+const RECOVERY_ALLOWED = `${KIND} <> 'recover' OR (
+      ${NOTHING_CHOSEN_YET}
+      AND EXISTS (
+        SELECT 1 FROM settings
+        WHERE key = ${CHOSEN_CREDENTIAL_KEY}
+        AND value <> ''
+      )
+    )`;
+
+/** Turning sales on is ambiguous when nothing is chosen and more than one
+ * provider holds credentials. The owner recovers the old provider first. */
+const ACTIVATION_ALLOWED = `${KIND} <> 'activate' OR NOT (
+      ${NOTHING_CHOSEN_YET}
+      AND (
+        SELECT COUNT(*) FROM settings
+        WHERE key IN (${CREDENTIAL_KEY_SLOTS.join(", ")}) AND value <> ''
+      ) > 1
+    )`;
+
+/** One statement decides both provider rows and bumps the version, so a
+ * concurrent change cannot land between reading the current provider and
+ * writing the new one. It returns no rows when a guard refuses the change. */
+const CHANGE_PROVIDER_SQL = `INSERT INTO settings (key, value)
+  SELECT key, value FROM (
+    SELECT 'payment_provider' AS key, ${NEW_PROVIDER} AS value
+    UNION ALL SELECT 'last_active_payment_provider', ${NEW_LAST_ACTIVE}
+    UNION ALL SELECT 'settings_version', ${NEXT_VERSION}
+  )
+  WHERE (${RECOVERY_ALLOWED})
+  AND (${ACTIVATION_ALLOWED})
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  RETURNING key, value`;
+
 const changePaymentProvider = async (
   kind: "activate" | "credentials" | "disable" | "recover",
   provider?: PaymentProviderType,
@@ -77,26 +194,17 @@ const changePaymentProvider = async (
   }
   const chosen = provider ?? "";
   const firstCredential = kind === "credentials" && first ? 1 : 0;
-  const sql = `INSERT INTO settings (key, value) SELECT key, value FROM (
-SELECT 'payment_provider' AS key, CASE WHEN ? IN ('disable', 'recover') THEN 'none' WHEN ? = 'credentials' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? ELSE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') END ELSE ? END AS value
-UNION ALL SELECT 'last_active_payment_provider', CASE WHEN ? = 'disable' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) THEN (SELECT value FROM settings WHERE key = 'payment_provider') ELSE COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') END WHEN ? = 'credentials' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? ELSE COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') END ELSE ? END
-UNION ALL SELECT 'settings_version', CAST(COALESCE((SELECT value FROM settings WHERE key = 'settings_version'), '0') AS INTEGER) + 1) WHERE (? <> 'recover' OR (COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' AND EXISTS (SELECT 1 FROM settings WHERE key = CASE ? WHEN 'stripe' THEN ? WHEN 'square' THEN ? WHEN 'sumup' THEN ? END AND value <> '')))
-AND (? <> 'activate' OR NOT (COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' AND (SELECT COUNT(*) FROM settings WHERE key IN (?, ?, ?) AND value <> '') > 1))
-ON CONFLICT(key) DO UPDATE SET value = excluded.value RETURNING key, value`;
-  const credentialKeys = [
-    CONFIG_KEYS.STRIPE_SECRET_KEY,
-    CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
-    CONFIG_KEYS.SUMUP_API_KEY,
-  ];
   const args = [
-    [kind, kind, chosen, firstCredential, chosen, chosen, kind],
-    PAYMENT_PROVIDER_IDS,
-    [kind, chosen, firstCredential, chosen, chosen, kind, chosen],
-    credentialKeys,
-    [kind],
-    credentialKeys,
-  ].flat();
-  const result = await executeWithoutCacheInvalidation(sql, args);
+    kind,
+    chosen,
+    firstCredential,
+    ...PAYMENT_PROVIDER_IDS,
+    ...CREDENTIAL_KEYS,
+  ];
+  const result = await executeWithoutCacheInvalidation(
+    CHANGE_PROVIDER_SQL,
+    args,
+  );
   const rejection =
     kind === "recover"
       ? "Payment provider recovery is no longer available"
