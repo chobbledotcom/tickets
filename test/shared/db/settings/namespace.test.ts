@@ -28,8 +28,8 @@ describe("db > settings namespace", () => {
     const merged = withProperties({}, part);
     stored = "second";
 
-    // A spread would have called the getter once, at assembly time, and
-    // frozen "first" here.
+    // A spread would call the getter once, at assembly time, and freeze
+    // "first" here.
     expect(merged.live).toBe("second");
   });
 });
