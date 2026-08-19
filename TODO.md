@@ -1355,6 +1355,30 @@ non-equivalent mutant on the unchanged `folded-booking.ts`. Five equivalents
 `scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors
 remain.
 
+## Split `test/shared/db/settings.test.ts` by what each part covers
+
+_Noticed while moving the payment provider settings out of
+`src/shared/db/settings.ts` (PR #2114), which took the file from 747 lines to
+651._
+
+The file is still one grab-bag over four modules, and well past the 400-line
+target. Its describes already name the split:
+
+- `basic CRUD`, `settings version probe`, and `writeRawBatch` cover
+  `settings/raw-writes.ts` and `settings/cache.ts`, which have their own mirror
+  files at `test/shared/db/settings/raw-writes.test.ts` and no cache file yet.
+- `buildSnapshot via loadKeys` and `loadKeys (on-demand)` cover
+  `settings/load.ts`, whose mirror file already exists.
+- `setup` covers `settings/setup.ts`.
+- `timezone cache` covers the country-derived fields.
+- The four `superuserChoice` describes and `orphan-purge settings` cover plain
+  accessors and can share one file.
+
+Move each group to its mirror path under `test/shared/db/settings/`. The
+payment-provider move in #2114 is the worked example: the mutation runner picks
+direct tests by mirror path alone, so a group that sits in the wrong file does
+not run for the source it covers.
+
 ## Split `render-selector.test.ts` by what each case actually checks
 
 _Origin: Codex review on PR #1926 (test reorganisation)._
