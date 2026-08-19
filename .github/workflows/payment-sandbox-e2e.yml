@@ -46,6 +46,10 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    # The harness bounds every step, scenario, and teardown internally, so a
+    # healthy leg finishes well inside this. The limit stops a stalled runner
+    # step (for example a hung apt mirror) from holding a leg for hours.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
