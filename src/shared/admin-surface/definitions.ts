@@ -1,3 +1,13 @@
+/**
+ * The shape of the admin surface declaration, and the fold that turns it into
+ * the flat destination and segment maps every consumer reads.
+ *
+ * One area declares its own routes once. Its audience is the area default, so
+ * a route only names a role when it differs from the rest of its area. The
+ * segments an area serves derive from the patterns it declares; `segments`
+ * lists only the extra ones an area serves without a page of its own.
+ */
+
 import type { EnabledFeatures } from "#shared/admin-features.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
@@ -11,53 +21,6 @@ export interface AdminSurfaceContext {
   readonly support: boolean;
 }
 
-export const ADMIN_SURFACE_AREAS = {
-  apiKeys: ["api-keys"],
-  attendeeNotes: ["attendee"],
-  attendeeRefunds: ["attendees", "listing"],
-  attendees: ["attendees", "listing"],
-  attributes: ["attributes", "listing"],
-  auth: ["login", "logout"],
-  backup: ["backup"],
-  builder: ["builder"],
-  builtSites: ["built-sites"],
-  bulkActions: ["groups"],
-  bulkEmail: ["emails"],
-  calendar: ["calendar"],
-  catalogTransfer: ["catalog", "groups", "listing"],
-  contactHistory: ["history"],
-  dashboard: ["", "listings", "log"],
-  debug: ["debug"],
-  deliveries: ["deliveries"],
-  groups: ["groups"],
-  guide: ["formatting", "guide"],
-  holidays: ["holidays"],
-  images: ["images"],
-  ledger: ["ledger"],
-  listingQr: ["listing"],
-  listings: ["listing", "listings"],
-  markdownPreview: ["markdown-preview"],
-  modifiers: ["modifiers"],
-  news: ["site"],
-  privacy: ["privacy"],
-  questions: ["listing", "questions"],
-  scanner: ["listing"],
-  schemaAtlas: ["schema"],
-  seeds: ["seeds"],
-  servicing: ["servicing"],
-  sessions: ["sessions"],
-  settings: ["features", "listing-defaults", "settings", "settings-advanced"],
-  settingsLogistics: ["logistics"],
-  settingsStatuses: ["settings"],
-  site: ["site"],
-  sitePages: ["site"],
-  sms: ["sms"],
-  support: ["support"],
-  update: ["update"],
-  users: ["user", "users"],
-} as const;
-
-export type AdminAreaId = keyof typeof ADMIN_SURFACE_AREAS;
 export type AdminAudience = readonly AdminLevel[];
 export type AdminRouteIntent = "view" | "write-form";
 export type AdminNavKind = "landing" | "link" | "create" | "import";
@@ -69,109 +32,95 @@ export const featureVisible =
   (ctx: AdminSurfaceContext): boolean =>
     ctx.enabledFeatures[feature];
 
-export const ADMIN_SECTIONS = [
-  { id: "home", labelKey: "nav.public.home", landing: "home" },
-  {
-    detailPath: "/admin/listing/:id",
-    id: "listings",
-    labelKey: "terms.listings",
-    landing: "listings",
-    staffOnlyDetail: true,
-  },
-  { id: "calendar", labelKey: "nav.calendar", landing: "calendar" },
-  {
-    id: "servicing",
-    labelKey: "nav.servicing",
-    landing: "servicing",
-    visible: featureVisible("servicing"),
-  },
-  { id: "attendees", labelKey: "terms.attendees", landing: "attendees" },
-  { id: "users", labelKey: "terms.users", landing: "users" },
-  {
-    detailPath: "/admin/groups/:id",
-    id: "groups",
-    labelKey: "terms.groups",
-    landing: "groups",
-    staffOnlyDetail: true,
-  },
-  {
-    id: "images",
-    labelKey: "terms.images",
-    landing: "images",
-    visible: (ctx: AdminSurfaceContext) => ctx.storage,
-  },
-  {
-    id: "modifiers",
-    labelKey: "terms.modifiers",
-    landing: "modifiers",
-    visible: featureVisible("modifiers"),
-  },
-  {
-    id: "ledger",
-    labelKey: "nav.ledger",
-    landing: "ledger",
-    visible: featureVisible("money"),
-  },
-  {
-    id: "site",
-    labelKey: "nav.site",
-    landing: "site",
-    visible: featureVisible("site"),
-  },
-  { id: "settings", labelKey: "nav.settings", landing: "settings" },
-] as const;
+/** A route: its pattern alone, or a pattern whose role differs from its area. */
+export type AdminDestinationSpec =
+  | string
+  | { readonly audience: AdminAudience; readonly pattern: string };
 
-export type AdminSectionId = (typeof ADMIN_SECTIONS)[number]["id"];
+type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
+
+/** An area serving pages. Declaring a route requires declaring who reaches it. */
+type AdminAreaWithRoutes = {
+  readonly audience: AdminAudience;
+  readonly segments?: readonly string[];
+  readonly view?: AdminRouteGroup;
+  readonly write?: AdminRouteGroup;
+};
+
+/** An area whose routes have no page of their own, such as a POST endpoint. */
+type AdminAreaWithoutRoutes = { readonly segments: readonly string[] };
+
+export type AdminAreaSpec = AdminAreaWithRoutes | AdminAreaWithoutRoutes;
+export type AdminAreasSpec = Readonly<Record<string, AdminAreaSpec>>;
 
 export type AdminDestinationDef = {
-  readonly area: AdminAreaId;
+  readonly area: string;
   readonly audience: AdminAudience;
   readonly id: string;
   readonly intent: AdminRouteIntent;
-  readonly nav?: {
-    readonly kind: AdminNavKind;
-    readonly labelKey: string;
-    readonly visible?: (ctx: AdminSurfaceContext) => boolean;
-  };
   readonly pattern: string;
-  readonly section: AdminSectionId;
 };
 
-const defineDestination =
-  (intent: AdminRouteIntent) =>
-  <Id extends string, Pattern extends string>(
-    id: Id,
-    area: AdminAreaId,
-    pattern: Pattern,
-    audience: AdminAudience,
-    section: AdminSectionId,
-    nav?: AdminDestinationDef["nav"],
-  ): AdminDestinationDef & { readonly id: Id; readonly pattern: Pattern } => ({
+/** The `/admin/<segment>` part of a path, or "" for `/admin` itself. */
+export const adminPathSegment = (path: string): string =>
+  path.split("/")[2] ?? "";
+
+const groupDestinations = (
+  area: string,
+  areaAudience: AdminAudience,
+  intent: AdminRouteIntent,
+  group: AdminRouteGroup | undefined,
+): AdminDestinationDef[] =>
+  Object.entries(group ?? {}).map(([id, spec]) => ({
     area,
-    audience,
+    audience: typeof spec === "string" ? areaAudience : spec.audience,
     id,
     intent,
-    pattern,
-    section,
-    ...(nav ? { nav } : {}),
-  });
+    pattern: typeof spec === "string" ? spec : spec.pattern,
+  }));
 
-export const view = <Id extends string, Pattern extends string>(
-  id: Id,
-  area: AdminAreaId,
-  section: AdminSectionId,
-  pattern: Pattern,
-  audience: AdminAudience,
-  labelKey: string,
-  kind: AdminNavKind = "link",
-  visible?: (ctx: AdminSurfaceContext) => boolean,
-): AdminDestinationDef & { readonly id: Id; readonly pattern: Pattern } =>
-  defineDestination(
-    kind === "create" || kind === "import" ? "write-form" : "view",
-  )(id, area, pattern, audience, section, {
-    kind,
-    labelKey,
-    ...(visible ? { visible } : {}),
-  });
+export type FoldedAdminSurface = {
+  readonly areas: Readonly<Record<string, readonly string[]>>;
+  readonly destinations: Readonly<Record<string, AdminDestinationDef>>;
+};
 
-export const writeForm = defineDestination("write-form");
+/**
+ * Fold the declaration into the flat maps consumers read: every destination by
+ * id, and every area's segments. Runs once at module load over pure data.
+ */
+export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
+  const areas: Record<string, readonly string[]> = {};
+  const destinations: Record<string, AdminDestinationDef> = {};
+
+  for (const [areaId, area] of Object.entries(spec)) {
+    const declaredSegments = area.segments ?? [];
+    if (!("audience" in area)) {
+      areas[areaId] = declaredSegments;
+      continue;
+    }
+    const areaDestinations = [
+      ...groupDestinations(areaId, area.audience, "view", area.view),
+      ...groupDestinations(areaId, area.audience, "write-form", area.write),
+    ];
+    for (const destination of areaDestinations) {
+      // Two areas claiming one id would leave the loser silently unreachable,
+      // and every link to it pointing at the winner.
+      const claimed = destinations[destination.id];
+      if (claimed) {
+        throw new Error(
+          `Admin route "${destination.id}" is declared by both ` +
+            `"${claimed.area}" and "${destination.area}"`,
+        );
+      }
+      destinations[destination.id] = destination;
+    }
+    areas[areaId] = [
+      ...new Set([
+        ...areaDestinations.map((one) => adminPathSegment(one.pattern)),
+        ...declaredSegments,
+      ]),
+    ];
+  }
+
+  return { areas, destinations };
+};

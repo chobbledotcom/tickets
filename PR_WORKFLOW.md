@@ -4,7 +4,7 @@ Use this workflow for every non-trivial feature, bug fix, or refactor. The work
 must happen in this order. Do not start with implementation and discover the
 behavior through review.
 
-One assigned agent owns the plan from start to finish. The agent may use
+One assigned agent owns the plan from start to finish. The agent can use
 subagents to research the codebase or challenge a detail, but it must assemble,
 check, and present one complete plan itself. A person reviews that plan before
 implementation starts.
@@ -53,8 +53,8 @@ than one case. Write `None` when a section truly does not apply; do not omit it.
 
 #### Trusted facts
 
-List every input and say why it may be trusted. Keep expected facts separate
-from observed facts.
+List every input and state whether it is trusted. Explain the basis for that
+decision. Keep expected facts separate from observed facts.
 
 Examples:
 
@@ -121,7 +121,7 @@ For every command and event, answer:
 
 #### Concurrency table
 
-List operations that may overlap, including two copies of the same operation.
+List operations that can overlap, including two copies of the same operation.
 
 | Operation A     | Operation B       | Required result      | Protection          |
 | --------------- | ----------------- | -------------------- | ------------------- |
@@ -142,11 +142,11 @@ money or data outcome for the owner.
 
 State:
 
-- who may perform each action;
-- which links each role may see;
+- who can perform each action;
+- which links each role can see;
 - which secrets or personal fields cross each boundary;
 - when sensitive facts can be redacted;
-- which untrusted inputs could cause provider or database work.
+- which untrusted inputs can cause provider or database work.
 
 ### 3. Design the shared contract
 
@@ -166,7 +166,7 @@ by the current behavior, and every required current fact must be present.
 ### 4. Challenge the design yourself
 
 The assigned agent must try to break its own contract before presenting the
-plan. It may ask a subagent to investigate a risk, but responsibility for every
+plan. It can ask a subagent to investigate a risk, but responsibility for every
 answer stays with the assigned agent. At a minimum, ask:
 
 - What if the external call succeeds and the local write fails?
@@ -373,7 +373,7 @@ finish them, and then begin the next stack.
 
 ## Ready to code
 
-Implementation may start only when all of these are true:
+Implementation can start only when all of these are true:
 
 - The current-system value and production caller are named.
 - Trusted facts and observed facts are separate.

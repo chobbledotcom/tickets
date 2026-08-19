@@ -2663,3 +2663,30 @@ state nothing can currently produce. If a real schema change ever rebuilds
 `processed_payments` anyway, add this check in the same rebuild: the DDL belongs
 on the last column via the `alsoAbout` pattern in
 `src/shared/db/migrations/schema/payments/columns.ts`.
+
+---
+
+## Square treats a malformed payment link as "provider not configured"
+
+_Origin: the 2026-08 refactor survey (ADMIN_SURFACE_PLAN.md)._
+
+Stripe and SumUp build their checkout through `makeCreateCheckoutSession`
+(`src/shared/payment-helpers.ts:483`). Its `requiredCheckoutResult` throws when
+a non-null provider response lacks its session id or URL. Square opted out:
+`squarePaymentProvider.createCheckoutSession`
+(`src/shared/square-provider.ts:241-246`) reads the created payment link with
+`toCheckoutResult(link?.orderId, link?.url, "Square")`, which logs and returns
+`null` for the same condition. A `null` checkout result means "provider not
+configured" to callers. So a Square payment link that arrives without its
+`orderId` or `url` is reported as an unconfigured provider, where the identical
+Stripe/SumUp condition raises loudly. That breaks the offensive-programming
+rule: an absent expected field from structured external data must fail at its
+boundary, not become a quiet default. The fix is to route Square through
+`makeCreateCheckoutSession` (create = `squareApi.createPaymentLink`, readResult
+= `link => ({ id: link.orderId, url: link.url })`), keep null-link =
+not-configured, and add a regression test in which a payment link arrives
+without its URL and the checkout throws instead of a "not configured" answer.
+This is a payment behaviour change, so it needs its own small PR with the test.
+Starting points: `src/shared/square-provider.ts:241`,
+`src/shared/payment-helpers.ts:455-501`, the Square checkout tests under
+`test/`.

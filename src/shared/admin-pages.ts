@@ -1,12 +1,9 @@
+import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
 import type {
-  AdminSectionId,
-  AdminSurfaceContext,
-} from "#shared/admin-surface/definitions.ts";
-import {
-  ADMIN_SURFACE,
-  type AdminDestinationId,
-  adminDestination,
-} from "#shared/admin-surface.ts";
+  AdminNavEntry,
+  AdminSectionDef,
+} from "#shared/admin-surface/sections.ts";
+import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
 export interface NavLink {
@@ -20,36 +17,31 @@ export interface NavSection {
   readonly topHref: string;
 }
 
-const landingPattern = (
-  section: Pick<(typeof ADMIN_SURFACE.sections)[number], "landing">,
-): string => adminDestination(section.landing as AdminDestinationId).pattern;
-
-const navRoutesFor = (section: AdminSectionId) =>
-  ADMIN_SURFACE.destinations.filter(
-    (route) => route.section === section && route.nav !== undefined,
-  );
+const landingPattern = (section: AdminSectionDef): string =>
+  adminDestination(section.landing).pattern;
 
 const sectionVisible = (
-  section: (typeof ADMIN_SURFACE.sections)[number],
+  section: AdminSectionDef,
+  ctx: AdminSurfaceContext,
+): boolean =>
+  adminDestination(section.landing).audience.includes(ctx.adminLevel) &&
+  (section.visible === undefined || section.visible(ctx));
+
+const navEntryVisible = (
+  entry: AdminNavEntry,
   ctx: AdminSurfaceContext,
 ): boolean => {
-  const landing = adminDestination(section.landing as AdminDestinationId);
+  const route = adminDestination(entry.id);
   return (
-    landing.audience.includes(ctx.adminLevel) &&
-    (!("visible" in section) || section.visible(ctx))
+    route.audience.includes(ctx.adminLevel) &&
+    !(ctx.isReadOnly && route.intent === "write-form") &&
+    (entry.visible === undefined || entry.visible(ctx))
   );
 };
 
-const routeVisible = (
-  route: (typeof ADMIN_SURFACE.destinations)[number],
+const visibleAdminSections = (
   ctx: AdminSurfaceContext,
-): boolean =>
-  route.nav !== undefined &&
-  route.audience.includes(ctx.adminLevel) &&
-  !(ctx.isReadOnly && route.intent === "write-form") &&
-  (!("visible" in route.nav) || route.nav.visible(ctx));
-
-const visibleAdminSections = (ctx: AdminSurfaceContext) =>
+): readonly AdminSectionDef[] =>
   ADMIN_SURFACE.sections.filter((section) => sectionVisible(section, ctx));
 
 export const visibleTopLevel = (ctx: AdminSurfaceContext): NavLink[] =>
@@ -60,15 +52,14 @@ export const visibleTopLevel = (ctx: AdminSurfaceContext): NavLink[] =>
 
 export const visibleSections = (ctx: AdminSurfaceContext): NavSection[] =>
   visibleAdminSections(ctx)
-    .map((section) => ({ routes: navRoutesFor(section.id), section }))
-    .filter(({ routes }) => routes.length > 1)
-    .map(({ routes, section }) => ({
-      items: routes
-        .filter((route) => routeVisible(route, ctx))
-        .map((route) => ({
-          href: route.pattern,
-          // navRoutesFor keeps only destinations with navigation metadata.
-          labelKey: route.nav!.labelKey,
+    // A section with one link needs no sub-navigation of its own.
+    .filter((section) => section.nav.length > 1)
+    .map((section) => ({
+      items: section.nav
+        .filter((entry) => navEntryVisible(entry, ctx))
+        .map((entry) => ({
+          href: adminDestination(entry.id).pattern,
+          labelKey: entry.labelKey,
         })),
       labelKey: section.labelKey,
       topHref: landingPattern(section),
@@ -82,7 +73,7 @@ export const entityReturnPath = (
   const section = ADMIN_SURFACE.sections.find(
     (candidate) => landingPattern(candidate) === sectionPath,
   );
-  if (!section || !("detailPath" in section)) return sectionPath;
+  if (!section?.detailPath) return sectionPath;
   const detail = section.detailPath.replace(":id", String(id));
   return section.staffOnlyDetail && adminLevel === "editor"
     ? `${detail}/edit`
@@ -90,6 +81,6 @@ export const entityReturnPath = (
 };
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>
-  ADMIN_SURFACE.destinations
+  Object.values(ADMIN_SURFACE.destinations)
     .filter((route) => route.intent === "write-form")
     .map((route) => route.pattern);
