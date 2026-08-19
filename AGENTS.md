@@ -251,6 +251,18 @@ GitHub.
   already correct while leaving the real hazard in place. When you find one
   wrong, correct the note in the same change — leaving it sends the next person
   down the same path.
+- **A finished job leaves `TODO.md`**: `TODO.md` holds work that is still open.
+  When you complete an entry, delete it in the same change. Never leave it in
+  place marked "done", "fixed", or "shipped". A reader must be able to trust
+  that every entry is work somebody can still pick up, so a list of finished
+  ones costs every later reader the time to work out which is which. The commit
+  message and the pull request are the record of what you did, and git history
+  holds the entry itself. The same applies to an entry you did not write: when
+  you find one the code already answers, check it against the current source,
+  then delete it. An entry stays only when part of it is still open, and then
+  only that part stays. The one exception is an entry this file cites as a
+  worked example, such as the stripe-mock port-steal note. That entry is
+  documentation, not a job.
 - **Stage what you changed, never `git add -A`**: Name the files you meant to
   touch, and read `git status --short` before committing. A blanket add cannot
   tell your work from a stray tool run, a build artefact, or a formatter that

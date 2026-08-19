@@ -621,15 +621,6 @@ a live legacy engine, read-through, dual write, or fallback authority.
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
-- **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
-  Review of PR 1 correctly noted that the settings assembly is already over the
-  preferred 400-line size and now also owns provider activation, recovery,
-  credential-state preservation, and cache synchronization. The clean starting
-  point is `src/shared/db/settings/payment-provider.ts`, moving the provider
-  getters and `settings.update` methods together with mirror tests under
-  `test/shared/db/settings/payment-provider/`. This is deferred because that
-  extraction would take PR 1 beyond its strict 800-line source-change limit.
-
 - **Split provider credential routes out of
   `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
   `ProviderCredentialsConfig`, `persistProviderCredentials`, and
@@ -638,10 +629,6 @@ The seven accepted safety rules are recorded as acceptance constraints in
   `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
   This is deferred because doing the move in PR 1 would break the same strict
   800-line source-change limit.
-
-- **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
-  callback and webhook processing paths into focused modules. This predates PR 1
-  and is deferred because the split would exceed its strict source-change limit.
 
 ## Payment aggregate — what the closed rewrite taught us
 
@@ -911,43 +898,28 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
 
 ---
 
-## The shared "reasons" shape for validation failures — shipped
+## Surfaces the shared "reasons" shape now makes cheap
 
-_Origin: reviewing the package-restriction work (PR #1770); built once the
-collect-all need (the multi-item "no shared date" diagnostic) arrived._
+_Origin: the package-restriction work (PR #1770), which built the combinator in
+`src/shared/reasons.ts` and converged the parent/child edge rules
+(`src/shared/listing-parents-rules.ts`), the package member rules
+(`src/shared/package-membership.ts`), and the group homogeneity rules
+(`groupListingTypeError` in `src/shared/db/groups.ts`) onto it._
 
-What shipped:
+Each of these is one rule row plus one surface (see the restrictions audit
+above):
 
-- **The combinator.** `src/shared/reasons.ts`: a `Reason` answers with the
-  message to show or null, and one rule list serves both runners — `firstReason`
-  (fail-fast; list order is precedence) and `allReasons` (name every problem at
-  once).
-- **The converged tables.** The parent/child edge rules
-  (`src/shared/listing-parents-rules.ts`), the package member rules
-  (`src/shared/package-membership.ts` — messages render inside the rules, so the
-  separate block-code layer is gone), and the group homogeneity rules
-  (`groupListingTypeError` in `src/shared/db/groups.ts`). `CAPACITY_RULES`
-  deliberately did NOT converge: it classifies which checks apply, it does not
-  refuse with a message — a genuinely different shape.
-- **The `kind` tag, as a reporter.** `reportInvariant`
-  (`src/shared/invariant-errors.ts`) renders an operator-facing flash whose
-  message means a system promise broke AND reports it through `logError`'s
-  existing fan-out (console, ntfy, activity log, Sentry) under
-  `E_INVARIANT_REPORTED`. `error.refund_not_recorded` is the first tagged key;
-  tag a new key only when the flash means "repair the data by hand".
-- **The first collect-all consumer.** `src/shared/booking/cart-conflicts.ts` +
-  the ticket page name the clashing items when a multi-item page has no shared
-  date or booking length (was: a bare "No dates are currently available").
+- Grey out incompatible listings in the add-listings picker.
+- Disable the two either/or control pairs.
+- Surface the child-duration clash at save time.
+- Warn the operator about the chooser own-cap.
 
-Still correct, unchanged: i18n keys ARE the error codes (no registry needed);
-fail-fast stays the default for forms — `allReasons` is only for surfaces that
-must name every problem at once; ordinary validation failures stay out of
-Sentry.
-
-Follow-ups this mechanism now makes cheap (each is a rule row + a surface, see
-the restrictions audit above): greying out incompatible listings in the add-
-listings picker, the two either/or disabled-control pairs, surfacing the
-child-duration clash at save time, and the chooser own-cap warning.
+Three decisions bound that work. The i18n keys are the error codes, so no
+registry is needed. Fail-fast stays the default for forms, and `allReasons` is
+only for a surface that must name every problem at once. An ordinary validation
+failure stays out of Sentry: `reportInvariant`
+(`src/shared/invariant-errors.ts`) is for a broken system promise, and a new key
+gets its `kind` tag only when the flash means "repair the data by hand".
 
 ## Deferred Codex suggestions from PR #1975 (API documentation examples)
 
@@ -1407,6 +1379,30 @@ non-equivalent mutant on the unchanged `folded-booking.ts`. Five equivalents
 `scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors
 remain.
 
+## Split `test/shared/db/settings.test.ts` by what each part covers
+
+_Noticed while moving the payment provider settings out of
+`src/shared/db/settings.ts` (PR #2114), which took the file from 747 lines to
+651._
+
+The file is still one grab-bag over four modules, and well past the 400-line
+target. Each `describe` block already names its own part of the split:
+
+- `basic CRUD`, `settings version probe`, and `writeRawBatch` cover
+  `settings/raw-writes.ts` and `settings/cache.ts`, which have their own mirror
+  files at `test/shared/db/settings/raw-writes.test.ts` and no cache file yet.
+- `buildSnapshot via loadKeys` and `loadKeys (on-demand)` cover
+  `settings/load.ts`, whose mirror file already exists.
+- `setup` covers `settings/setup.ts`.
+- `timezone cache` covers the country-derived fields.
+- The four `superuserChoice` blocks and `orphan-purge settings` cover plain
+  accessors and can share one file.
+
+Move each group to its mirror path under `test/shared/db/settings/`. The
+payment-provider move in #2114 is the worked example: the mutation runner picks
+direct tests by mirror path alone, so a group that sits in the wrong file does
+not run for the source it covers.
+
 ## Split `render-selector.test.ts` by what each case actually checks
 
 _Origin: Codex review on PR #1926 (test reorganisation)._
@@ -1468,19 +1464,6 @@ can be split into a folder of the same names and each pair stays mirrored (which
 is what the mutation gate wants). Out of scope for #1944, whose job was closing
 the mutation gaps rather than moving the file around; the file scores 100% as it
 stands, so the split can be a pure move.
-
----
-
-## Two suites now cover the attendees list — done
-
-_Origin: Codex review of PR #1993 (direct tests for the four testless modules)._
-
-Consolidated. The three suites (the mirrored direct suite plus
-`test/integration/server/attendees-list.test.ts` and
-`test/integration/server/attendees-csv.test.ts`) merged into one mirrored suite
-at `test/features/admin/attendees-list/` (`page`, `filters`, `rows`, `csv`),
-keeping the stronger variant of each duplicated rule and every unique case. The
-two integration files were deleted.
 
 ---
 
@@ -1664,14 +1647,18 @@ It has since been seen more, in `test/scripts/stripe-mock/lifecycle.test.ts`
 ("stops trying once the mock has been started as many times as asked", on CI for
 PR #1968, and "gives a mock time to shut itself down before killing it", on CI
 for PR #2032 — the latter now hardened: the fixture notes when it wins its port,
-and the test retries on a fresh port when that note is missing), with a second
-symptom worth knowing about. That test counts how many times the fake mock was
-started and expects one start per try asked for. A try whose freshly picked port
-already has something listening on it is abandoned _before_ the mock is started,
-so the count comes up short and the test fails — even though the starter did try
-the number of times it was asked to. Handing out ports so no two tests can
-receive the same one would fix this too; short of that, the count is the wrong
-thing to measure.
+and the test retries on a fresh port when that note is missing), and in
+`test/scripts/stripe-mock/ports.test.ts` ("keeps a reserved port unavailable
+until release", on CI for PR #2114 — the test released its reservation and then
+re-bound the same number, which a suite running beside it can take in that
+window, so the re-bind now goes through `retryWhilePortTaken`). There is a
+second symptom worth knowing about. That test counts how many times the fake
+mock was started and expects one start per try asked for. A try whose freshly
+picked port already has something listening on it is abandoned _before_ the mock
+is started, so the count comes up short and the test fails — even though the
+starter did try the number of times it was asked to. Handing out ports so no two
+tests can receive the same one would fix this too; short of that, the count is
+the wrong thing to measure.
 
 ## The Turso upload suite sometimes dies with no diagnostic at all
 
@@ -1728,33 +1715,6 @@ logging one, but pointing is not proving — do not "fix" this one from the shap
 of the test.
 
 ---
-
-## Four feature modules had no test at their mirrored path — now they do
-
-_Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start. Closed by the direct-test pass that followed._
-
-All four now have a direct test at their mirrored path, so the gate no longer
-refuses to start on a branch that touches them:
-
-- `src/features/admin/attendee-page.ts` →
-  `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
-- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list/`
-  (100%)
-- `src/features/admin/listing-page-data.ts` →
-  `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
-- `src/features/api/payment-processing/store-refund.ts` →
-  `test/features/api/payment-processing/store-refund.test.ts` (100%)
-
-Every one of them now catches every mutation the gate demands, so a branch
-touching any of them can pass without first writing the tests that should
-already have existed.
-
-`src/features/admin/attendee-notes.ts` was in the same state and was fixed
-earlier: its route suite drives real pages through the session helpers, so it
-moved from `test/integration/admin/` to `test/features/admin/`, which is where
-that kind of suite belongs (see "Let the misplaced-test list see past request
-helpers" above).
 
 ## Two people setting a site up at the same moment can both succeed
 
@@ -2524,27 +2484,6 @@ they exist in a foreign shape), or give `schemaMigration` a per-migration table
 scope so intermediate applies never touch tables the migration does not declare.
 The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
 keep the loud refusal on non-empty tables.
-
-## A completed Square webhook whose order reads as missing is acked, not retried
-
-_Origin: Codex review on PR #2065 (thread on `src/shared/square-provider.ts`)._
-
-In `resolveWebhookSession`, a completed payment webhook calls
-`retrieveSession(orderId, paymentId)`. `readSessionOrder` maps a `missing` order
-read to `null` (a debug log), `resolveWebhookSession` turns `null` into
-`"skip"`, and the webhook handler acknowledges 200 — so Square stops
-redelivering. The codebase already treats the adjacent lag windows as retryable:
-malformed metadata for a completed payment throws
-(`UNUSABLE_METADATA.
-retryCompletedWebhook`), and a payment that does not read
-back COMPLETED throws (`readOrderPayment`). A missing order is the same
-eventual-consistency window — the webhook can genuinely arrive before the order
-is readable — and should fail the boundary the same way instead of skipping, so
-Square redelivers and the buyer does not stay charged with no booking and no
-refund.
-
-Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
-`missing` read under a `paidPaymentId` should throw like the malformed case.
 
 ## Harden the live payment harness so green means what it claims
 
