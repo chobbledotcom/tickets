@@ -68,8 +68,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // otherwise make this suite pass by testing nothing. The split is stated
     // exactly so the plan cannot claim wider cover than this suite has.
     const all = Object.values(ADMIN_SURFACE.destinations);
-    expect(roleOnlyDestinations.length).toBe(48);
-    expect(all.length - roleOnlyDestinations.length).toBe(63);
+    expect(roleOnlyDestinations.length).toBe(61);
+    expect(all.length - roleOnlyDestinations.length).toBe(88);
   });
 
   test("never serves a page to a role it does not declare", async () => {
