@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { computeSlugIndex } from "#shared/db/listings/table.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
   matchName,
   normalizeEntityName,
-} from "#shared/db/name-registry.ts";
+} from "#db/name-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

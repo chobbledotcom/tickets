@@ -10,15 +10,15 @@ import {
   selectById,
   selectTransfers,
   selectTransfersMany,
-} from "#shared/accounting/rows.ts";
+} from "#accounting/rows.ts";
 import {
   executeBatch,
   queryOne,
   type SqlStatement,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
-import { inList } from "#shared/db/where-clauses.ts";
+} from "#db/client.ts";
+import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";

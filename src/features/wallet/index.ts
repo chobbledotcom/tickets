@@ -4,6 +4,7 @@
  * CDN-cacheable — passes are deterministic for a given token + settings.
  */
 
+import { settings } from "#db/settings.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
@@ -12,7 +13,6 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { buildPkpass, type SigningCredentials } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 
 /** MIME type for Apple Wallet passes */

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { everydayDailyListing } from "#test/test-utils/attendee-form/helpers.ts";
+import type { CreateAttendeeResult } from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import {
   expectHtmlResponse,
   expectListingRowQuantity,
 } from "#test-utils/assertions.ts";
+import { everydayDailyListing } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -76,9 +76,7 @@ describeWithEnv(
           "Arrived",
           "arrived@example.com",
         );
-        const { updateCheckedIn } = await import(
-          "#shared/db/attendees/update.ts"
-        );
+        const { updateCheckedIn } = await import("#db/attendees/update.ts");
         await updateCheckedIn(attendee.id, listing.id, true);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);

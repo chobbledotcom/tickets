@@ -3,7 +3,7 @@
  * Used by both Stripe and Square webhook signature implementations.
  */
 
-import { constantTimeCodesEqual } from "#shared/crypto/utils.ts";
+import { constantTimeCodesEqual } from "#crypto/utils.ts";
 
 /** Constant-time string comparison (over UTF-16 char codes) to prevent timing
  * attacks. Shares the one constant-time loop in `constantTimeCodesEqual`. */

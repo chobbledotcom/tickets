@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
+import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import { MigrationInProgressError } from "#db/migrations/errors.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
   MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
-} from "#shared/db/migrations/schema/version.ts";
+} from "#db/migrations/schema/version.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   type Migration,
-} from "#shared/db/migrations.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+} from "#db/migrations.ts";
+import { runWithQueryLogContext } from "#db/query-log.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,

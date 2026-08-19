@@ -13,8 +13,8 @@
  */
 
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type { ChoiceOption } from "#shared/choice.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 
 export type SelectOption = { value: string; label: Child };
 

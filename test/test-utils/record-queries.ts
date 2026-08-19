@@ -1,6 +1,6 @@
 import type { Client, InStatement, ResultSet } from "@libsql/client";
-import { getDb, setDb } from "#shared/db/client.ts";
-import { wrapExecute } from "#shared/db/libsql-call.ts";
+import { getDb, setDb } from "#db/client.ts";
+import { wrapExecute } from "#db/libsql-call.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 
 type BatchStatement = Parameters<ReturnType<typeof getDb>["batch"]>[0][number];

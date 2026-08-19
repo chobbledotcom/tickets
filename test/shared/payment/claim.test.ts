@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import {
   type ClaimDecision,
   type ClaimRequest,
@@ -9,8 +8,9 @@ import {
   decideClaim,
   holdsTheRow,
   isClaimStale,
-} from "#shared/payment/claim.ts";
-import type { RefundClaim } from "#shared/payment/row-state.ts";
+} from "#payment/claim.ts";
+import type { RefundClaim } from "#payment/row-state.ts";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 
 const STALE_BEFORE = "2026-08-10T12:00:00.000Z";
 const FRESH = "2026-08-10T12:00:01.000Z";

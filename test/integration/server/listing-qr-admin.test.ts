@@ -37,12 +37,10 @@ const extractAndVerifyToken = async (html: string, slug: string) => {
 /** Parent with a Monday-only child: computes bookable start dates for each.
  * Shared by two tests that exercise the child-date-constrained QR flow. */
 const setupParentWithMondayChild = async () => {
-  const { listingChildren } = await import("#shared/db/listing-parents.ts");
+  const { listingChildren } = await import("#db/listing-parents.ts");
   const { getBookableStartDates } = await import("#shared/dates.ts");
-  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-  const { getListingWithCount } = await import(
-    "#shared/db/listings/records.ts"
-  );
+  const { getActiveHolidays } = await import("#db/holidays.ts");
+  const { getListingWithCount } = await import("#db/listings/records.ts");
   const parent = await createDailyTestListing({ unitPrice: 500 });
   const child = await createDailyTestListing({
     bookableDays: ["Monday"],
@@ -231,10 +229,8 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       // valid one passes and a token is generated (covers the date-allowed path).
       const listing = await createDailyTestListing({ unitPrice: 500 });
       const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
-      const { getListingWithCount } = await import(
-        "#shared/db/listings/records.ts"
-      );
+      const { getActiveHolidays } = await import("#db/holidays.ts");
+      const { getListingWithCount } = await import("#db/listings/records.ts");
       const date = getBookableStartDates(
         (await getListingWithCount(listing.id))!,
         await getActiveHolidays(),

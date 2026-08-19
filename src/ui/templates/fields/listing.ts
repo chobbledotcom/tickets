@@ -3,11 +3,11 @@
  * with the group and add-attendee forms.
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   defineForm,
   type FormDefinition,
@@ -19,11 +19,6 @@ import {
   requireChoiceOptions,
 } from "#shared/forms/field.ts";
 import { formatBytes, MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
-import {
-  ContactFieldSchema,
-  ListingTypeSchema,
-  MAX_DURATION_DAYS,
-} from "#shared/types.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
@@ -38,6 +33,11 @@ import {
   validateListingFields,
   validateNonNegativePrice,
 } from "#templates/fields/validators.ts";
+import {
+  ContactFieldSchema,
+  ListingTypeSchema,
+  MAX_DURATION_DAYS,
+} from "#types";
 
 /* jscpd:ignore-end */
 

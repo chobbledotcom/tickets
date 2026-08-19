@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
 import { attendeeTable } from "#templates/attendee-table/columns.tsx";
 import type { AttendeeColumnOpts } from "#templates/attendee-table/types.ts";
 import {
@@ -12,6 +11,7 @@ import {
   render,
 } from "#test/ui/templates/attendee-table/shared.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { AttendeeTableRow } from "#types";
 
 const headersOf = (html: string): (string | undefined)[] =>
   [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map((match) => match[1]);

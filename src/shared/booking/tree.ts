@@ -1,4 +1,4 @@
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /**
  * The canonical **booking-node tree** — one in-memory model that represents a

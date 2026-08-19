@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { listingGroups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { listingGroups } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import {
@@ -247,10 +247,8 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
       await deleteTestGroup(group.id);
 
-      const { groups } = await import("#shared/db/groups.ts");
-      const { getListingWithCount } = await import(
-        "#shared/db/listings/records.ts"
-      );
+      const { groups } = await import("#db/groups.ts");
+      const { getListingWithCount } = await import("#db/listings/records.ts");
 
       expect(await groups.table.read.one({ id: group.id })).toBeNull();
       const existingListing = await getListingWithCount(listing.id);
@@ -276,7 +274,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
       // The confirm page still loads the group; by the time the delete itself
       // checks the row is there, it has gone.
-      const { groups } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
       const readStub = stub(groups.table.read, "exists", () =>
         Promise.resolve(false),
       );

@@ -4,7 +4,7 @@ import {
   blobToSiteFields,
   buildSiteDataBlobFromInput,
   parseSiteDataBlob,
-} from "#shared/db/built-sites/blob.ts";
+} from "#db/built-sites/blob.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 test("builds and parses every current site-data field", () => {

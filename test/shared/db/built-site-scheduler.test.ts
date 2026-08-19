@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts";
+import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import {
   builtSitesCrudTable,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
-import { queryOne } from "#shared/db/client.ts";
+} from "#db/built-sites.ts";
+import { queryOne } from "#db/client.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";

@@ -5,10 +5,8 @@
  * ids only; display code resolves those ids back to ordered attribute groups.
  */
 
-/* jscpd:ignore-start */
-import { filter, groupToMap, map, reduce, sort, unique, uniqueBy } from "#fp";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   deleteByFieldBatch,
   executeBatch,
@@ -16,19 +14,21 @@ import {
   queryAll,
   queryIdColumn,
   queryOne,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   idAndEncryptedNameSchema,
   type NamedSortOrderInput,
-} from "#shared/db/common-schema.ts";
-import { linkTableSide } from "#shared/db/link-table.ts";
+} from "#db/common-schema.ts";
+import { linkTableSide } from "#db/link-table.ts";
 import {
   type ListingOption,
   listingOptionColumns,
-} from "#shared/db/listings/table.ts";
-import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import { col, defineTable } from "#shared/db/table.ts";
-import type { Listing } from "#shared/types.ts";
+} from "#db/listings/table.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { col, defineTable } from "#db/table.ts";
+/* jscpd:ignore-start */
+import { filter, groupToMap, map, reduce, sort, unique, uniqueBy } from "#fp";
+import type { Listing } from "#types";
 /* jscpd:ignore-end */
 
 export type Attribute = {

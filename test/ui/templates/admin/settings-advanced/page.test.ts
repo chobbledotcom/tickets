@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {

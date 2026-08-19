@@ -1,8 +1,34 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin routes for listing attributes.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import {
+  type AttributeOption,
+  type AttributeWithOptions,
+  attributeOptionsOrder,
+  attributeOptionsTable,
+  attributesOrder,
+  attributesTable,
+  deleteAttribute,
+  deleteAttributeOption,
+  getAllAttributeOptionIds,
+  getAllAttributesWithOptions,
+  getAttributeId,
+  getAttributeIdsOrdered,
+  getAttributeListingUse,
+  getAttributeWithOptions,
+  listingAttributeOptions,
+  pruneInvalidAttributeOptionIds,
+} from "#db/attributes.ts";
+import { type TxScope, writeRowInTransaction } from "#db/client.ts";
+import {
+  flatCollectionSwap,
+  insertScopedOrderedRow,
+  scopedCollectionSwap,
+} from "#db/ordered-collection.ts";
 /* jscpd:ignore-start */
 import {
   createConfirmedHandlers,
@@ -26,31 +52,6 @@ import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  type AttributeOption,
-  type AttributeWithOptions,
-  attributeOptionsOrder,
-  attributeOptionsTable,
-  attributesOrder,
-  attributesTable,
-  deleteAttribute,
-  deleteAttributeOption,
-  getAllAttributeOptionIds,
-  getAllAttributesWithOptions,
-  getAttributeId,
-  getAttributeIdsOrdered,
-  getAttributeListingUse,
-  getAttributeWithOptions,
-  listingAttributeOptions,
-  pruneInvalidAttributeOptionIds,
-} from "#shared/db/attributes.ts";
-import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
-import {
-  flatCollectionSwap,
-  insertScopedOrderedRow,
-  scopedCollectionSwap,
-} from "#shared/db/ordered-collection.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineTextForm } from "#shared/forms/definition.ts";
 import {

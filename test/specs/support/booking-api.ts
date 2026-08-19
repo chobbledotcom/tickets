@@ -7,7 +7,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 
 import { listingNamed } from "#test/specs/support/listings.ts";
 import type {

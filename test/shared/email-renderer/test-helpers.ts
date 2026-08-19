@@ -1,10 +1,10 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import type { TemplateData } from "#shared/email-renderer.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import {
   buildTemplateData,
   renderEmailContent,
   resetEngine,
+  type TemplateData,
 } from "#shared/email-renderer.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";

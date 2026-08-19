@@ -19,9 +19,9 @@
  * / throws — fail-closed, never falling back to another session.
  */
 
-import { getPrivateKeyFromSession } from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getPrivateKeyFromSession } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { settings } from "#db/settings.ts";
 import { namedError } from "#shared/named-error.ts";
 import { getCachedSession } from "#shared/session-context.ts";
 

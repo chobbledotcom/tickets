@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 
+import type { AttributeOption, AttributeWithOptions } from "#db/attributes.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
@@ -8,13 +9,8 @@ import {
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
 import { adminPath } from "#shared/admin-surface.ts";
-import type {
-  AttributeOption,
-  AttributeWithOptions,
-} from "#shared/db/attributes.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { warningDeletePage } from "#templates/admin/confirm-page.tsx";
@@ -31,6 +27,7 @@ import {
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession } from "#types";
 import {
   type ListingPanelProps,
   listingChoicePanel,

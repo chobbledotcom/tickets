@@ -5,6 +5,17 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { bookingEventGroup } from "#accounting/mappers.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { parseSessionFailure } from "#db/processed-payments.ts";
+import { placeholderRefund } from "#payment/placeholder-refund.ts";
+import { readRowState } from "#payment/row-state.ts";
+import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
@@ -14,17 +25,6 @@ import {
   settlementForHeldClaim,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requestSessionRefund } from "#routes/api/payment-processing/refunds.ts";
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import { transfersByEventGroup } from "#shared/accounting/queries.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { parseSessionFailure } from "#shared/db/processed-payments.ts";
-import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
-import { readRowState } from "#shared/payment/row-state.ts";
-import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

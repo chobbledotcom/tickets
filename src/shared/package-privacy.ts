@@ -1,7 +1,4 @@
-import {
-  getPackageDisplaysByIds,
-  type PackageDisplay,
-} from "#shared/db/groups.ts";
+import { getPackageDisplaysByIds, type PackageDisplay } from "#db/groups.ts";
 
 /**
  * HIDDEN-PACKAGE PRIVACY — the one chokepoint deciding what a BUYER may see of

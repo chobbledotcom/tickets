@@ -3,9 +3,9 @@
  */
 
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";

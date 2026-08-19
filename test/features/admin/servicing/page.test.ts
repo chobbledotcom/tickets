@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { renderServicingPage } from "#routes/admin/servicing/page.tsx";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,

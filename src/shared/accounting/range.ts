@@ -9,7 +9,7 @@
  * range (the {@link emptyRange} default) selects the whole ledger ("forever").
  */
 
-import type { WhereClause } from "#shared/db/where-clauses.ts";
+import type { WhereClause } from "#db/where-clauses.ts";
 
 /** A bounded window over `occurred_at`: `startMs` ≤ occurred_at < `endMs`. A
  *  null bound is open on that side; both null is "forever". */

@@ -1,5 +1,5 @@
-import { backfillTransfers } from "#shared/accounting/backfill.ts";
-import { getDb } from "#shared/db/client.ts";
+import { backfillTransfers } from "#accounting/backfill.ts";
+import { getDb } from "#db/client.ts";
 import { schemaMigration } from "./define.ts";
 import { getExistingColumns } from "./schema-sync.ts";
 

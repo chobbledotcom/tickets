@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { appendImageToItem, imagesTable } from "#db/images.ts";
 import { handleRequest } from "#routes";
-import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {

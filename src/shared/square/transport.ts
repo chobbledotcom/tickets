@@ -1,10 +1,10 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { isNotNullish } from "#fp";
+import type { ProviderUnavailableReason } from "#payment/provider-read.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { isAbortOrTimeoutError } from "#shared/named-error.ts";
-import type { ProviderUnavailableReason } from "#shared/payment/provider-read.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 /* jscpd:ignore-end */
 
 /** Square API version for all requests. */

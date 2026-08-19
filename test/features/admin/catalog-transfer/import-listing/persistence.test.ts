@@ -1,24 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import {
-  countRows,
-  execute,
-  writeRowInTransaction,
-} from "#shared/db/client.ts";
+import { countRows, execute, writeRowInTransaction } from "#db/client.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
   setListingGroupsTx,
-} from "#shared/db/groups.ts";
-import { listingParents } from "#shared/db/listing-parents.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+} from "#db/groups.ts";
+import { listingParents } from "#db/listing-parents.ts";
+import { getGroupDayPrices } from "#db/listing-prices.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
+import { t } from "#i18n";
+import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import {
   generateUniqueListingSlug,
   validateListingInput,

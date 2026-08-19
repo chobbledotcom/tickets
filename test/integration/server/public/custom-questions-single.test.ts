@@ -1,15 +1,15 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { addDays } from "#shared/dates.ts";
 import {
   getAllModifiers,
   modifiersTable,
   setModifierAnswers,
-} from "#shared/db/modifiers.ts";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/modifiers.ts";
+import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/public/daily-listing.ts";
 import {
@@ -62,9 +62,7 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify answers were saved
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
+        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
         const attendees = await getAttendeesRaw(listing.id);
         const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
           texts: false,

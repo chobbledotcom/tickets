@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
+import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 import {
   createPaidListing,
   createRefundableAttendee,

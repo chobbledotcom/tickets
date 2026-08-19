@@ -5,12 +5,8 @@
  * transform. No DB, no crypto, no JSX.
  */
 
-import type { RecordTargetKey } from "#shared/db/record-target.ts";
-import type {
-  SitePageItem,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
+import type { RecordTargetKey } from "#db/record-target.ts";
+import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 /** A stable string key for any nav target — the composite `(kind, id)` the
  * whole system is keyed on. `sitePageItemTargets.key()` mints it; everything

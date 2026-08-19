@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { postExpectingNoCheckout } from "#test/integration/routes/_shared-checkout.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
@@ -149,7 +149,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         unitPrice: 500,
       });
       const { token } = await setupRenewalSite();
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
       await settings.update.addressLookup.provider("easypostcodes");
       await settings.update.addressLookup.apiKey("test-key");
 

@@ -1,5 +1,5 @@
 import type * as v from "valibot";
-import type { ColumnDef } from "#shared/db/table.ts";
+import type { ColumnDef } from "#db/table.ts";
 
 const TRANSFER_KINDS = {
   bookableDays: "array",

@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   openAdminPage,
   scenarioBrowser,

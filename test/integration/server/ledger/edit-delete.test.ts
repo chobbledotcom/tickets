@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { MANUAL_ATTENDEE_CHARGE } from "#shared/accounting/manual-entries.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
+import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   postAttendeePayment,

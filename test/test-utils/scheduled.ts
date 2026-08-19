@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { toBase64Url } from "#crypto/utils.ts";
+import { insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
-import { toBase64Url } from "#shared/crypto/utils.ts";
-import { insertBuiltSite } from "#shared/db/built-sites.ts";
 
 export const TEST_SCHEDULED_KEY = toBase64Url(new Uint8Array(32).fill(7));
 

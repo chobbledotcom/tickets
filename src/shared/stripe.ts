@@ -1,21 +1,22 @@
 /* jscpd:ignore-start */
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { settings } from "#shared/db/settings.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import type { Money } from "#shared/payment/money.ts";
+
+import { settings } from "#db/settings.ts";
+import type { Money } from "#payment/money.ts";
 import {
   type ProviderFailure,
   providerFailure,
   withExactRefundMoney,
-} from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+} from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   uncertainRefund,
-} from "#shared/payment/refund-attempt.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-attempt.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,

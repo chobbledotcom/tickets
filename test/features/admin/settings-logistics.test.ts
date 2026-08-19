@@ -5,9 +5,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { agentUsers } from "#shared/db/user-agents.ts";
-import { getAllUsers } from "#shared/db/users.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { agentUsers } from "#db/user-agents.ts";
+import { getAllUsers } from "#db/users.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";

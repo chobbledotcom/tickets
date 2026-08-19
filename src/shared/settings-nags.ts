@@ -1,7 +1,7 @@
+import { settings } from "#db/settings.ts";
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
-import type { NagItem } from "#shared/types.ts";
+import type { NagItem } from "#types";
 
 /**
  * Returns an ordered list of settings nags for incomplete configuration.

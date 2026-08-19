@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { adjustListingIncome } from "#shared/db/listings/aggregates.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { adjustListingIncome } from "#db/listings/aggregates.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   ledgerPageHtml,

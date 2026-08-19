@@ -2,9 +2,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import {
   expectHtmlResponse,
   expectRedirect,

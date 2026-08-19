@@ -5,7 +5,7 @@ import {
   parseListingFields,
   withRequiredEmail,
 } from "#shared/listing-fields.ts";
-import { CONTACT_FIELDS } from "#shared/types.ts";
+import { CONTACT_FIELDS } from "#types";
 
 describe("listing-fields", () => {
   describe("parseListingFields", () => {

@@ -10,7 +10,7 @@ import {
   RECOVERY_TERMINAL_NODES,
   type RecoveryNodeId,
   recoveryNodeOf,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
 import {
   registerConformanceSweep,

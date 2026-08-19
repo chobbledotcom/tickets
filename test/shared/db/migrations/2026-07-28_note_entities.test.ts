@@ -1,17 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, getDb, queryAll } from "#shared/db/client.ts";
-import noteEntities from "#shared/db/migrations/2026-07-28_note_entities.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
-import {
-  recreateTable,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
-import type {
-  Migration,
-  MigrationContext,
-} from "#shared/db/migrations/types.ts";
-import { columnNames } from "#test/test-utils/db/migration-test-helpers.ts";
+import { execute, getDb, queryAll } from "#db/client.ts";
+import noteEntities from "#db/migrations/2026-07-28_note_entities.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
+import { recreateTable, syncIndexes } from "#db/migrations/schema-sync.ts";
+import type { Migration, MigrationContext } from "#db/migrations/types.ts";
+import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
 

@@ -13,9 +13,9 @@
  * the send path never re-validates an address.
  */
 
+import { escapeHtml } from "#jsx/escape-html.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ValidEmail } from "#shared/validation/email.ts";

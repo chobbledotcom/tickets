@@ -8,8 +8,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import type { TitledBlock } from "#templates/components/titled-block.ts";

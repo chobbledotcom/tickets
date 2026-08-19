@@ -2,9 +2,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PAYMENT_ROW_LIFECYCLE } from "#shared/payment/admit-move.ts";
-import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
-import { REFUND_NODES } from "#shared/payment/refund-machine-spec.ts";
+import { PAYMENT_ROW_LIFECYCLE } from "#payment/admit-move.ts";
+import { refundLifecycleFor } from "#payment/refund-authority-lifecycle.ts";
+import { REFUND_NODES } from "#payment/refund-machine-spec.ts";
 import { getAllFilesWithExt } from "#test/scripts/code-quality/detectors.ts";
 import {
   AMBIENT_REFUND_PROVIDER_FORMS,

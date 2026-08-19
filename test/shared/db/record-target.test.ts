@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  defineRecordTarget,
-  ITEM_TARGET_COLUMNS,
-} from "#shared/db/record-target.ts";
+import { defineRecordTarget, ITEM_TARGET_COLUMNS } from "#db/record-target.ts";
 import {
   clauseArgs,
   rowsUnlessNoneMatch,
   whereSql,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
 
 /** A make-believe domain: notes-style columns, two kinds, tables listed. */
 const targets = defineRecordTarget({

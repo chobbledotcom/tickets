@@ -1,10 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
-import { selectOptionsFromHtml } from "#test/test-utils/parents-gate/helpers.ts";
+import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import { selectOptionsFromHtml } from "#test-utils/parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

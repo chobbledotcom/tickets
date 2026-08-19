@@ -1,14 +1,14 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryAll } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
-import { PRUNE_SUMUP_RETENTION_MS } from "#shared/limits.ts";
-import { isoBefore } from "#shared/now.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import {
   RECOVERY_NODES,
   type RecoveryNodeId,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
+import { PRUNE_SUMUP_RETENTION_MS } from "#shared/limits.ts";
+import { isoBefore } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 // jscpd:ignore-end

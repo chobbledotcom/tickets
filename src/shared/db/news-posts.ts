@@ -9,13 +9,12 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
-// jscpd:ignore-start
-import { fieldById, mapParallel } from "#fp";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
+/* jscpd:ignore-start -- imports */
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
+import type { StoredRowOf } from "#db/chosen-columns.ts";
+/* jscpd:ignore-end */
 import {
   executeBatch,
   insertedRowId,
@@ -24,40 +23,38 @@ import {
   type SqlStatement,
   type TxScope,
   useTransaction,
-} from "#shared/db/client.ts";
-// jscpd:ignore-end
-import {
-  encryptedSlugSchema,
-  idAndCreatedSchema,
-} from "#shared/db/common-schema.ts";
-import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
-import type { FillableRead } from "#shared/db/fill-together.ts";
+} from "#db/client.ts";
+import { encryptedSlugSchema, idAndCreatedSchema } from "#db/common-schema.ts";
+import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
+import type { FillableRead } from "#db/fill-together.ts";
 import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
   imageUseTargets,
-} from "#shared/db/images.ts";
-import { readRows } from "#shared/db/read.ts";
+} from "#db/images.ts";
+import { readRows } from "#db/read.ts";
 import {
   unclaimedSlugCondition,
   updateRowWithUnclaimedSlug,
-} from "#shared/db/slug-registry.ts";
-import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import { col } from "#shared/db/table.ts";
+} from "#db/slug-registry.ts";
+import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import { col } from "#db/table.ts";
+import { fieldById, mapParallel } from "#fp";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
+import { isInstant } from "#shared/validation/timestamp.ts";
 import type {
   ItemImageColumns,
   NewsPost,
   NewsPostCard,
   NewsPostSummary,
-} from "#shared/types.ts";
-import { isInstant } from "#shared/validation/timestamp.ts";
+} from "#types";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the

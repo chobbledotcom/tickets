@@ -10,14 +10,14 @@ import {
   queryBatchPrimary,
   type SqlStatement,
   setDb,
-} from "#shared/db/client.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+} from "#db/client.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
+} from "#db/migrations.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 

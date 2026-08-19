@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { MAX_WEBSITE_TITLE_LENGTH } from "#db/settings/constants.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { MAX_WEBSITE_TITLE_LENGTH } from "#shared/db/settings/constants.ts";
-import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlashRedirect,

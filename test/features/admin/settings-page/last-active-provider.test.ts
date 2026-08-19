@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  ALL_SETTINGS_KEYS,
-  CONFIG_KEYS,
-  settings,
-} from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";

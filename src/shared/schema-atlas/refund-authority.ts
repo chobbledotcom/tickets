@@ -7,14 +7,14 @@
  * wording keys, and the lifecycle facts shown beside each node. One source
  * feeds the map and the checks, so they cannot drift apart. */
 
-import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+import { refundLifecycleFor } from "#payment/refund-authority-lifecycle.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
 import {
   REFUND_EVENTS,
   REFUND_NODES,
   type RefundNodeId,
   refundNodeOf,
-} from "#shared/payment/refund-machine-spec.ts";
+} from "#payment/refund-machine-spec.ts";
 /* jscpd:ignore-start -- imports */
 import {
   atlasStatesFromSpec,

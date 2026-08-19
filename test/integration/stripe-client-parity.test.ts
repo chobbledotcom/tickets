@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import Stripe from "stripe";
 import { createStripeClient } from "#shared/stripe/client.ts";
 import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
-import { stripeResponseFor } from "#test/test-utils/stripe/responses.ts";
+import { stripeResponseFor } from "#test-utils/stripe/responses.ts";
 
 type RecordedRequest = {
   authorization: string | null;

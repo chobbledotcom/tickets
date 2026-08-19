@@ -2,6 +2,12 @@
  * Admin question management templates
  */
 
+import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
+import type {
+  AnswerAggregateField,
+  AnswerAggregateRecalculation,
+} from "#db/questions/aggregates.ts";
+/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -9,15 +15,10 @@ import {
   answerTextForm,
   questionTextForm,
 } from "#routes/admin/questions/forms.ts";
+/* jscpd:ignore-end */
 import { adminPath } from "#shared/admin-surface.ts";
-import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
-import type {
-  AnswerAggregateField,
-  AnswerAggregateRecalculation,
-} from "#shared/db/questions/aggregates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { warningDeletePage } from "#templates/admin/confirm-page.tsx";
@@ -48,6 +49,7 @@ import {
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
+import type { AdminSession, ListingWithCount } from "#types";
 import {
   type ListingPanelProps,
   listingChoicePanel,

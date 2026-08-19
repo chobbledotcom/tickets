@@ -8,8 +8,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundOwnerChoices } from "#shared/payment/refund-authority-choice.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+import { refundOwnerChoices } from "#payment/refund-authority-choice.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
 import {
   EXPECTED_MOVES,
   REFUND_EVENTS,
@@ -18,12 +18,12 @@ import {
   refundChoiceTarget,
   refundNodeOf,
   refundNodeSendsMoney,
-} from "#shared/payment/refund-machine-spec.ts";
+} from "#payment/refund-machine-spec.ts";
 import {
   registerConformanceSweep,
   registerDrivenExportsCheck,
   registerTableChecks,
-} from "#test/test-utils/machine-spec.ts";
+} from "#test-utils/machine-spec.ts";
 
 const REFUND_SPEC = {
   events: REFUND_EVENTS,

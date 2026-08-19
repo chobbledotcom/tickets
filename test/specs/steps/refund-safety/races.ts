@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { getAttendeeRaw } from "#db/attendees/queries.ts";
+import { queryAll } from "#db/client.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   buyDuplicateFreePlace,

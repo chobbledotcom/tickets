@@ -1,5 +1,5 @@
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { colClass } from "#templates/components/table-columns.ts";

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { reportCheck } from "#scripts/check-report.ts";
+import { byLine, reportCheck } from "#scripts/check-report.ts";
 
 describe("reportCheck", () => {
   let logs: string[] = [];
@@ -52,5 +52,27 @@ describe("reportCheck", () => {
     expect(errors.at(-1)).toBe(
       "\n1 simple-language issue(s) found. See the Simple Language section.",
     );
+  });
+});
+
+describe("byLine", () => {
+  test("puts an earlier line first", () => {
+    expect([{ line: 3 }, { line: 1 }].sort(byLine)).toEqual([
+      { line: 1 },
+      { line: 3 },
+    ]);
+  });
+
+  test("leaves findings that already read in order alone", () => {
+    expect([{ line: 1 }, { line: 3 }].sort(byLine)).toEqual([
+      { line: 1 },
+      { line: 3 },
+    ]);
+  });
+
+  test("keeps two findings on one line in the order they were found", () => {
+    const first = { line: 4, note: "first" };
+    const second = { line: 4, note: "second" };
+    expect([first, second].sort(byLine)).toEqual([first, second]);
   });
 });

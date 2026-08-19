@@ -1,4 +1,13 @@
 /* jscpd:ignore-start -- imports */
+
+import { DatabaseBusyError } from "#db/client.ts";
+import {
+  MigrationInProgressError,
+  MissingSettingsTableError,
+} from "#db/migrations/errors.ts";
+import { enableQueryLog } from "#db/query-log.ts";
+import { settings } from "#db/settings.ts";
+import { assertSettingsReadsDeclared } from "#db/settings-audit.ts";
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
 import { SETUP_MESSAGE_GROUPS } from "#locales/groups.ts";
@@ -30,14 +39,6 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
-import { DatabaseBusyError } from "#shared/db/client.ts";
-import {
-  MigrationInProgressError,
-  MissingSettingsTableError,
-} from "#shared/db/migrations/errors.ts";
-import { enableQueryLog } from "#shared/db/query-log.ts";
-import { settings } from "#shared/db/settings.ts";
-import { assertSettingsReadsDeclared } from "#shared/db/settings-audit.ts";
 import { hasFlash, setFlashContext } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { takeForm } from "#shared/form-stash.ts";
@@ -103,7 +104,7 @@ const initializeDatabaseForPath = async (
   path: string,
 ): Promise<Response | null> => {
   try {
-    const { initDb } = await import("#shared/db/migrations.ts");
+    const { initDb } = await import("#db/migrations.ts");
     await initDb({ allowMissingSettings: isSetupPath(path) });
     return null;
   } catch (error) {

@@ -1,8 +1,8 @@
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { executeBatch, getDb, insert } from "#shared/db/client.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { executeBatch, getDb, insert } from "#db/client.ts";
 import { nowMs } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
 

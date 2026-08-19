@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
-import { createQuestion } from "#test/test-utils/questions/helpers.ts";
+import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
+import { createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(

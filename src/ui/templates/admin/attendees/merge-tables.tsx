@@ -1,9 +1,9 @@
 /* jscpd:ignore-start */
 import { filter } from "#fp";
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import {
   bookingConflictLabel,
   bookingKey,

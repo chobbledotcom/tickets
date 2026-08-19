@@ -12,17 +12,17 @@ import {
   SquareConnectionError,
   SquareProtocolError,
 } from "#shared/square/transport.ts";
-import {
-  configureSquare,
-  expectNoLink,
-  withSquareClient,
-} from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   expectClosedCheckoutFailure,
   expectSameThrown,
 } from "#test-utils/checkout-failure.ts";
+import {
+  configureSquare,
+  expectNoLink,
+  withSquareClient,
+} from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
   describe("createPaymentLink request handling", () => {

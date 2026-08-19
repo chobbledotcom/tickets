@@ -19,8 +19,8 @@
  * ALTER statements and analysis out.
  */
 
+import { SCHEMA } from "#db/migrations/schema/index.ts";
 import { mapNotNullish } from "#fp";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 
 /** The `INSERT INTO "table" ("col", …) VALUES` prefix exportTable emits. */
 const INSERT_COLUMNS = /^INSERT INTO "(\w+)" \(([^)]+)\) VALUES /;

@@ -16,7 +16,7 @@ describe("balance-link", () => {
   // test can exercise the shape validation with a signature that already passes.
   const signRawPayload = async (payload: unknown): Promise<string> => {
     const { buildSignedToken, encodeTokenPayload } = await import(
-      "#shared/crypto/signed-token.ts"
+      "#crypto/signed-token.ts"
     );
     const encoded = encodeTokenPayload(payload);
     return buildSignedToken("bal1.", encoded, `balance:${encoded}`);

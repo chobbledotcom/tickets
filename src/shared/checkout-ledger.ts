@@ -19,7 +19,7 @@
  * `pricePaidFromLedger`.
  */
 
-import type { BookingFacts } from "#shared/accounting/mappers.ts";
+import type { BookingFacts } from "#accounting/mappers.ts";
 import {
   lineListPrice,
   lineTotalsByListingId,

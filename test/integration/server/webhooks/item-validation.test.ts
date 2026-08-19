@@ -43,9 +43,7 @@ describeWithEnv(
           sessionId: "cs_no_price",
         }),
       );
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
     });
 
@@ -174,9 +172,7 @@ describeWithEnv(
           sessionId: "cs_bad_p",
         }),
       );
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
@@ -201,9 +197,7 @@ describeWithEnv(
           sessionId: "cs_bad_item",
         }),
       );
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
   },

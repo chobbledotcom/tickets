@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { isNotNullish, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   type ChoiceField,
@@ -11,7 +12,6 @@ import {
 } from "#shared/forms/field.ts";
 import { getSavedFieldValue } from "#shared/forms/saved-data.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { commaParts } from "#shared/split.ts";
 import { PriceInput } from "#templates/components/price-input.tsx";
 /* jscpd:ignore-end */

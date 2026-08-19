@@ -4,7 +4,7 @@ import {
   type InStatement,
   type TransactionMode,
 } from "@libsql/client";
-import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
+import { beginTransaction, wrapExecute } from "#db/libsql-call.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 

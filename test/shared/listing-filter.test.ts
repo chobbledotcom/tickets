@@ -12,7 +12,7 @@ import {
   listingTypeFromRequest,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 // The filter labels resolve through the catalog, so it must be loaded first.
 await ensureMessageGroups(MESSAGE_GROUPS);

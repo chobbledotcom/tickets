@@ -1,37 +1,18 @@
 /* jscpd:ignore-start */
-import { once } from "#fp";
-import { t } from "#i18n";
-import {
-  createRecalculateHandlers,
-  createRecalculatePageRenderer,
-  parseEditableAggregateForm,
-} from "#routes/admin/aggregate-recalculation.ts";
-import {
-  defineEditEntityPage,
-  type EditEntityPage,
-} from "#routes/admin/entity-write-tab.ts";
-import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
-import { modifierAccount } from "#shared/accounting/accounts.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { toMinorUnits } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { groups, listingGroups } from "#shared/db/groups.ts";
-import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
+
+import { modifierAccount } from "#accounting/accounts.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { groups, listingGroups } from "#db/groups.ts";
+import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import {
   childUnreachableAddOnError,
   type ListingGroupMembership,
   listingIdsInGroups,
   reachablePageIds,
   toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
 import {
   adjustModifierRevenue,
   getAllModifiers,
@@ -48,8 +29,27 @@ import {
   resetModifierAggregateFields,
   setModifierAnswers,
   updateModifierAggregateValues,
-} from "#shared/db/modifiers.ts";
-import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
+} from "#db/modifiers.ts";
+import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
+import { once } from "#fp";
+import { t } from "#i18n";
+import {
+  createRecalculateHandlers,
+  createRecalculatePageRenderer,
+  parseEditableAggregateForm,
+} from "#routes/admin/aggregate-recalculation.ts";
+import {
+  defineEditEntityPage,
+  type EditEntityPage,
+} from "#routes/admin/entity-write-tab.ts";
+import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type ModifierScope,
@@ -58,7 +58,6 @@ import {
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import type { Modifier } from "#shared/types.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
 import type {
@@ -77,6 +76,7 @@ import {
   getModifierForm,
   type ModifierFormValues,
 } from "#templates/fields/modifier.ts";
+import type { Modifier } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 

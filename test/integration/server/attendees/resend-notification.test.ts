@@ -2,8 +2,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -11,6 +9,8 @@ import {
   followRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -222,7 +222,7 @@ describeWithEnv(
         const { createTestGroup } = await import(
           "#test-utils/db-helpers/groups.ts"
         );
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
         const group = await createTestGroup({
           isPackage: true,
           name: "Duo Kit",

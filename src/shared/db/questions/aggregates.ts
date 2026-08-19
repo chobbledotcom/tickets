@@ -6,18 +6,18 @@
  * The `modifier_id` column links an answer to the price modifier it triggers.
  */
 
-import { map } from "#fp";
 import {
   execute,
   queryAll,
   queryOne,
   requireOne,
   resetAggregates,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import type {
   AggregateRecalculation,
   AggregateValues,
-} from "#shared/db/common-schema.ts";
+} from "#db/common-schema.ts";
+import { map } from "#fp";
 
 /** The owner-editable, trigger-maintained aggregate columns on an answer. */
 export const ANSWER_AGGREGATE_FIELDS = ["times_selected"] as const;

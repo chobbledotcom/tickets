@@ -1,13 +1,13 @@
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
 import type { FlashPageRenderer } from "#templates/admin/admin-page.tsx";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
+import type { AdminSession } from "#types";
 
 type StackBaseProps = {
   children: Child;

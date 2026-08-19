@@ -4,10 +4,12 @@
  * personal details.
  */
 
+/* jscpd:ignore-start -- imports */
+import type { OrderLine, OrderSummary } from "#db/attendees/balance.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { OrderLine, OrderSummary } from "#shared/db/attendees/balance.ts";
 import { defineTable } from "#shared/tables/definition.ts";
+/* jscpd:ignore-end */
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { prosePage, simplePublicPage } from "./prose-page.tsx";

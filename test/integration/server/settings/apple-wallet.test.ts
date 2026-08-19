@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   expectFlashRedirect,
   getHeader,
@@ -105,7 +105,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
       "Orphan",
       "orphan@test.com",
     );
-    const { getDb } = await import("#shared/db/client.ts");
+    const { getDb } = await import("#db/client.ts");
     await getDb().execute({
       args: [attendee.id],
       sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",

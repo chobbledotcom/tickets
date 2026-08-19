@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#db/client.ts";
 import {
   hashEmail,
   isHashUnsubscribed,
   unsubscribeHash,
-} from "#shared/db/contact-preferences.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/contact-preferences.ts";
+import { settings } from "#db/settings.ts";
+import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
 import {
   expectHtmlResponse,
   expectRedirect,

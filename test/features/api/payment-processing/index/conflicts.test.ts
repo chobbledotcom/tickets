@@ -1,13 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { markSessionFailed, reserveSession } from "#db/processed-payments.ts";
 import {
   formatPaymentError,
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
-import {
-  markSessionFailed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

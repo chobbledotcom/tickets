@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 import { handleRequest } from "#routes";
-import { execute } from "#shared/db/client.ts";
-import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   createPaidListing,
   createRefundableAttendee,

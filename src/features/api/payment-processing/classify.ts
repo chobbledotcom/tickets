@@ -4,6 +4,9 @@
  * ours before anything downstream processes or refunds it.
  */
 
+import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
+import { isSessionRejection } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
@@ -14,10 +17,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { settings } from "#shared/db/settings.ts";
-import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,

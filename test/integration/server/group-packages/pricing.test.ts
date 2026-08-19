@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
+import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -76,9 +76,7 @@ describeWithEnv(
     });
 
     test("edit POST saves per-day prices for customisable members and the form round-trips them", async () => {
-      const { getGroupDayPrices } = await import(
-        "#shared/db/listing-prices.ts"
-      );
+      const { getGroupDayPrices } = await import("#db/listing-prices.ts");
       const group = await createTestGroup({ name: "DayPkg", slug: "day-pkg" });
       const flex = await member(group, "Flex", {
         customisableDays: true,

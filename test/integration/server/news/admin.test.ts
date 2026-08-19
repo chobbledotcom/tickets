@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { getNewsPostById, getNewsPostCards } from "#shared/db/news-posts.ts";
-import type { NewsPost } from "#shared/types.ts";
+import { getDb } from "#db/client.ts";
+import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -16,6 +15,7 @@ import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import type { NewsPost } from "#types";
 
 const BASE = "/admin/site/news";
 

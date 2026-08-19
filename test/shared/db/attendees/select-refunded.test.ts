@@ -10,18 +10,18 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { mapRefund } from "#shared/accounting/mappers.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { postTransferGroups } from "#shared/accounting/store.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { mapRefund } from "#accounting/mappers.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { postTransferGroups } from "#accounting/store.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
-import type { Attendee } from "#shared/types.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import type { Attendee } from "#types";
 
 const PRICE = 500;
 

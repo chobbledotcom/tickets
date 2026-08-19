@@ -6,7 +6,7 @@ import {
   readPaymentReference,
   type TaggedPaymentReference,
   writePaymentReference,
-} from "#shared/payment/provider-reference.ts";
+} from "#payment/provider-reference.ts";
 
 const tagged = (
   provider: TaggedPaymentReference["provider"],

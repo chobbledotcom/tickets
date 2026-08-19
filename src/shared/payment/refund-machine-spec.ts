@@ -14,7 +14,7 @@
  * `movesMoney` flag marks the events whose ENGINE counterpart sends money to
  * the provider, so checks can tell a money path from a bookkeeping path. */
 
-import type { Money } from "#shared/payment/money.ts";
+import type { Money } from "#payment/money.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -23,7 +23,7 @@ import {
   readyRefund,
   rearmKeyedRefund,
   returnRefundToReady,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
@@ -31,13 +31,13 @@ import {
   type RefundOwnerChoice,
   type RefundOwnerChoiceName,
   resolveRefundOwnerChoice,
-} from "#shared/payment/refund-authority-choice.ts";
+} from "#payment/refund-authority-choice.ts";
 import type {
   RefundAuthorityState,
   RefundRequestGeneration,
-} from "#shared/payment/refund-authority-state.ts";
-import type { RefundConflictDecision } from "#shared/payment/refund-conflict-decision.ts";
-import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
+} from "#payment/refund-authority-state.ts";
+import type { RefundConflictDecision } from "#payment/refund-conflict-decision.ts";
+import { refundReplayUntil } from "#payment/refund-replay-window.ts";
 import {
   type ExpectedMove,
   type MachineEvent,

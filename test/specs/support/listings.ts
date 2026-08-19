@@ -9,8 +9,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
-import type { Listing } from "#shared/types.ts";
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { adminBrowser, openAdminPage } from "#test/specs/support/browser.ts";
 import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -18,6 +17,7 @@ import { minorUnits } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Listing } from "#types";
 // jscpd:ignore-end
 
 /** Keep a listing under the name the story calls it, so later steps can find

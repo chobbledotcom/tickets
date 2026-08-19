@@ -7,7 +7,7 @@
  * markup lives here once.
  */
 
-import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   questionFieldset,

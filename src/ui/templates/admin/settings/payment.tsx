@@ -2,19 +2,17 @@
  * Payment Provider, Stripe, Square, and Booking Fee forms for settings
  */
 
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,
   providerCurrencyBlock,
 } from "#shared/payment-providers.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
@@ -25,6 +23,7 @@ import {
   getStripeKeyFields,
   getSumupFields,
 } from "#templates/fields/admin.ts";
+import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */
 

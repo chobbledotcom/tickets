@@ -1,8 +1,8 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { expectStatus } from "#test-utils/assertions.ts";
 import { mockRequest } from "#test-utils/mocks.ts";

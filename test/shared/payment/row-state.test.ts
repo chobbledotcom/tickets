@@ -7,7 +7,7 @@ import {
   readRowState,
   sessionAnswerOf,
   writeRowState,
-} from "#shared/payment/row-state.ts";
+} from "#payment/row-state.ts";
 import { reviewCase } from "#test-utils/payment-claim.ts";
 
 const CONTEXT = "processed_payments.failure_data";

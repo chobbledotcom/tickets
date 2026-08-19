@@ -5,21 +5,17 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type {
-  AdminSession,
-  Attendee,
-  ListingWithCount,
-} from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession, Attendee, ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** A text-message activity-log entry, shown as conversation history. */

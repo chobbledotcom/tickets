@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { pricePaidFromLedger } from "#db/attendees/select.ts";
+import { getDb } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
-import { getDb } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
-import {
-  setPublicReservation,
-  stubPaidSession,
-} from "#test/test-utils/reservation/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  setPublicReservation,
+  stubPaidSession,
+} from "#test-utils/reservation/helpers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 

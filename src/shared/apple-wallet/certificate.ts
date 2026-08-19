@@ -6,9 +6,9 @@ import {
   readDerChildren,
   readDerSequence,
   requireDerTag,
-} from "#shared/crypto/der.ts";
-import { readPem } from "#shared/crypto/pem.ts";
-import { isValidRsaPublicKey } from "#shared/crypto/rsa-private-key.ts";
+} from "#crypto/der.ts";
+import { readPem } from "#crypto/pem.ts";
+import { isValidRsaPublicKey } from "#crypto/rsa-private-key.ts";
 
 /* jscpd:ignore-end */
 

@@ -1,7 +1,7 @@
 import { createClient, type ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import { insert, setDb } from "#shared/db/client.ts";
+import { insert, setDb } from "#db/client.ts";
 import { resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {

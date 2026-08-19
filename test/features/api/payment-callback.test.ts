@@ -1,11 +1,11 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   type CallbackOutcome,
   settlePaymentCallback,
 } from "#routes/api/payment-callback.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
 import {
   buildSumupSession,
   resolveSumupCheckoutById,

@@ -6,6 +6,7 @@
  * footer state before dispatching the chosen area.
  */
 
+import { enableFooterDebug } from "#db/query-log.ts";
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
 import { ADMIN_SHELL_MESSAGE_GROUPS } from "#locales/groups.ts";
@@ -20,8 +21,7 @@ import type { PathMethodRoute } from "#routes/types.ts";
 import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import type { AdminAreaId } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
-import { enableFooterDebug } from "#shared/db/query-log.ts";
-import { isStaffRole } from "#shared/types.ts";
+import { isStaffRole } from "#types";
 
 type AdminSegment = {
   load: () => Promise<PathMethodRoute>;

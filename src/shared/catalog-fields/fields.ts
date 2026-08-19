@@ -1,16 +1,16 @@
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { col } from "#db/table.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { col } from "#shared/db/table.ts";
 import {
   clampDurationDays,
   type DayPrices,
   DayPricesSchema,
   type ListingFields,
   type ListingType,
-} from "#shared/types.ts";
+} from "#types";
 import type { OptionalCatalogFieldValues } from "./definition.ts";
 
 /* jscpd:ignore-end */

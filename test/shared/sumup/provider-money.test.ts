@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
-} from "#shared/payment/refund-provider-authorization.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+} from "#payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { SumupRefundSubmission } from "#shared/sumup/failures.ts";
 import type { SumupTransactionMoney } from "#shared/sumup/transaction.ts";
 import { sumupApi } from "#shared/sumup.ts";

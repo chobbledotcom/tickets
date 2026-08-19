@@ -8,9 +8,9 @@ import {
   MANUAL_LISTING_INCOME,
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
-} from "#shared/accounting/manual-entries.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+} from "#accounting/manual-entries.ts";
+import { allTransfers } from "#accounting/queries.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   postAttendeePayment,

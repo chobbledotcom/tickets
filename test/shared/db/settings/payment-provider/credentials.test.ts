@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { getDb } from "#db/client.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > settings payment credentials", { db: true }, () => {

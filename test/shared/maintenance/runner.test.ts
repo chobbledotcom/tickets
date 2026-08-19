@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   defineMaintenanceTasks,
   MAINTENANCE_MIN_INTERVAL_MS,

@@ -3,23 +3,16 @@
  */
 
 import { intersect } from "@std/collections";
-import { compact, requiredMapValue, unique } from "#fp";
-import { checkoutResponse } from "#routes/payment-response.ts";
-import { errorRedirect, notFoundResponse } from "#routes/response.ts";
-import { getBaseUrl } from "#routes/url.ts";
-import {
-  type BuildTreeInput,
-  buildBookingTree,
-} from "#shared/booking/build-tree.ts";
-import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
+import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
+import type { CartDateItem } from "#booking/cart-conflicts.ts";
 import {
   childSelectableForSpan,
   type FoldBase,
   type FoldChildrenResult,
   foldBookingTree,
   resolvedByNodeKey,
-} from "#shared/booking/fold-tree.ts";
-import { formatAtomicError } from "#shared/booking/form.ts";
+} from "#booking/fold-tree.ts";
+import { formatAtomicError } from "#booking/form.ts";
 import {
   type ChildDatesByDayCount,
   childDateKey,
@@ -27,14 +20,44 @@ import {
   keepOptionsSomeChildSupports,
   type TicketListing,
   updateForMembersWithChildren,
-} from "#shared/booking/model.ts";
+} from "#booking/model.ts";
 import {
   buildPagePackage,
   combinedPackageTerms,
   explicitStandaloneIds,
   type PagePackage,
-} from "#shared/booking/page-packages.ts";
-import type { BookingTree } from "#shared/booking/tree.ts";
+} from "#booking/page-packages.ts";
+import type { BookingTree } from "#booking/tree.ts";
+import { requirePublicStatusId } from "#db/attendee-statuses.ts";
+import type { ChildAllocation, LineBooking } from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getDatelessGroupRemaining } from "#db/attendees/capacity/groups.ts";
+import {
+  getHiddenPackageMemberIds,
+  isHiddenPackageMember,
+  listingGroups,
+  loadPackageMemberPricingByGroupIds,
+} from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getImageFilenamesForItem } from "#db/images.ts";
+import {
+  anyNonStandaloneChild,
+  hydrateListingLinks,
+  listingChildren,
+  listingParents,
+} from "#db/listing-parents.ts";
+import { getListingsBySlugs } from "#db/listings/records.ts";
+import {
+  getOptionalAddOns,
+  hasPromoCodeModifiers,
+} from "#db/modifier-resolve.ts";
+import type { ModifierUsage } from "#db/modifier-usage.ts";
+import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
+import { settings } from "#db/settings.ts";
+import { compact, requiredMapValue, unique } from "#fp";
+import { checkoutResponse } from "#routes/payment-response.ts";
+import { errorRedirect, notFoundResponse } from "#routes/response.ts";
+import { getBaseUrl } from "#routes/url.ts";
 /* jscpd:ignore-start */
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import {
@@ -45,35 +68,6 @@ import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 /* jscpd:ignore-end */
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
-import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import type {
-  ChildAllocation,
-  LineBooking,
-} from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.ts";
-import {
-  getHiddenPackageMemberIds,
-  isHiddenPackageMember,
-  listingGroups,
-  loadPackageMemberPricingByGroupIds,
-} from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getImageFilenamesForItem } from "#shared/db/images.ts";
-import {
-  anyNonStandaloneChild,
-  hydrateListingLinks,
-  listingChildren,
-  listingParents,
-} from "#shared/db/listing-parents.ts";
-import { getListingsBySlugs } from "#shared/db/listings/records.ts";
-import {
-  getOptionalAddOns,
-  hasPromoCodeModifiers,
-} from "#shared/db/modifier-resolve.ts";
-import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
-import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -85,6 +79,7 @@ import {
 } from "#shared/payments.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   availableDayCounts,
   type ContactInfo,
@@ -92,8 +87,7 @@ import {
   type Group,
   type Holiday,
   type ListingWithCount,
-} from "#shared/types.ts";
-import { parsePositiveInt } from "#shared/validation/number.ts";
+} from "#types";
 /* jscpd:ignore-start */
 import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";

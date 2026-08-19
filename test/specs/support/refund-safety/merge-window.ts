@@ -2,8 +2,8 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { queryAll } from "#db/client.ts";
 import { choicesForQuestion } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { buyFreePlaceThroughPublicPage } from "#test/specs/support/refund-safety/journeys.ts";

@@ -9,21 +9,18 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-} from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import {
   execute,
   executeBatch,
   inPlaceholders,
   queryAll,
   queryOne,
-} from "#shared/db/client.ts";
-import { queryColumnSet } from "#shared/db/query.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/client.ts";
+import { queryColumnSet } from "#db/query.ts";
+import { settings } from "#db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";

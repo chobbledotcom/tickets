@@ -1,10 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { invalidateListingsCache } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { getVisibleGroupMembers } from "#routes/public/group-liveness.ts";
-import { groups } from "#shared/db/groups.ts";
-import { invalidateListingsCache } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

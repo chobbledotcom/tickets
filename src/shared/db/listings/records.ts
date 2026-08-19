@@ -1,20 +1,20 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
-/* jscpd:ignore-start */
-import { mapParallel } from "#fp";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { executeBatch, queryOnePrimary } from "#shared/db/client.ts";
-import { cachedEntityTable } from "#shared/db/common-schema.ts";
-import { getImageFilenamesForItem } from "#shared/db/images.ts";
+import { executeBatch, queryOnePrimary } from "#db/client.ts";
+import { cachedEntityTable } from "#db/common-schema.ts";
+import { getImageFilenamesForItem } from "#db/images.ts";
 import {
   dayCountPriceStatements,
   getListingDayPrices,
   syncListingPrices,
-} from "#shared/db/listing-prices.ts";
-import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { envNameSource } from "#shared/db/query.ts";
-import { settings } from "#shared/db/settings.ts";
-import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
+} from "#db/listing-prices.ts";
+import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
+import { envNameSource } from "#db/query.ts";
+import { settings } from "#db/settings.ts";
+import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
+/* jscpd:ignore-start */
+import { mapParallel } from "#fp";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
@@ -22,7 +22,7 @@ import type {
   ItemImageColumns,
   Listing,
   ListingWithCount,
-} from "#shared/types.ts";
+} from "#types";
 import {
   getListingRows,
   type ListingRecordRow,

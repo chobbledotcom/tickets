@@ -1,11 +1,11 @@
+import type { TaggedRefundPaymentReference } from "#db/payment-references.ts";
 import { requiredMapValue, uniqueBy } from "#fp";
-import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { loadRefundProvider } from "#shared/provider-refunds.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 import type { RefundCandidate } from "./candidates.ts";
 import type { HeldRefundClaim } from "./claim.ts";
 import { mapProviderRequests } from "./provider-requests.ts";

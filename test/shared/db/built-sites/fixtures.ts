@@ -1,4 +1,4 @@
-import type { builtSitesCrudTable } from "#shared/db/built-sites.ts";
+import type { builtSitesCrudTable } from "#db/built-sites.ts";
 
 type BuiltSiteFormInput = Parameters<typeof builtSitesCrudTable.insert>[0];
 

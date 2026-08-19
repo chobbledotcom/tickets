@@ -14,8 +14,8 @@ import { it as test } from "@std/testing/bdd";
 import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,
-} from "#shared/db/attendees/update.ts";
-import { getDb } from "#shared/db/client.ts";
+} from "#db/attendees/update.ts";
+import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

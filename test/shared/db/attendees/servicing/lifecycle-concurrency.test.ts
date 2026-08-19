@@ -15,9 +15,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -112,7 +112,7 @@ describeWithEnv(
       // is gone), and the duplicate must reject rather than produce a phantom.
       await deleteServicingEvent(event.id);
       const { duplicateServicingEvent } = await import(
-        "#shared/db/attendees/servicing.ts"
+        "#db/attendees/servicing.ts"
       );
       await expectRejects(duplicateServicingEvent(event.id));
     });

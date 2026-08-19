@@ -10,29 +10,29 @@
  */
 
 /* jscpd:ignore-start */
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   resultRows,
   type SqlStatement,
   type TxScope,
   useTransaction,
-} from "#shared/db/client.ts";
-import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
-import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import type { FillableRead } from "#shared/db/fill-together.ts";
-import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+} from "#db/client.ts";
+import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
+import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import type { FillableRead } from "#db/fill-together.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import {
   unclaimedSiteSlugCondition,
   updateRowWithUnclaimedSlug,
-} from "#shared/db/slug-registry.ts";
-import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
+} from "#db/slug-registry.ts";
+import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import { cachedTable, col, writeTableRow } from "#db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import type { SitePage, SitePageNavRow } from "#shared/types.ts";
+import type { SitePage, SitePageNavRow } from "#types";
 /* jscpd:ignore-end */
 
 /** Create/update input (camelCase keys → snake_case columns). */

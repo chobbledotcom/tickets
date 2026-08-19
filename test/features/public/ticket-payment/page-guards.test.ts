@@ -6,6 +6,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingChildren } from "#db/listing-parents.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { map } from "#fp";
 import {
   dropChildListings,
@@ -14,13 +16,11 @@ import {
   withActiveListings,
 } from "#routes/public/ticket-payment.ts";
 import { addDays } from "#shared/dates.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { ListingWithCount } from "#types";
 
 /** A parent listing with one child, linked. */
 const parentWithChild = async (

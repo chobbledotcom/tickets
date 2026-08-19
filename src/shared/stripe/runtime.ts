@@ -1,11 +1,11 @@
+import { settings } from "#db/settings.ts";
 import { mapNotNullish } from "#fp";
-import { settings } from "#shared/db/settings.ts";
-import { getEnv } from "#shared/env.ts";
 import {
   checkoutFailure,
   type ProviderCheckoutError,
-} from "#shared/payment/checkout-failure.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
+} from "#payment/checkout-failure.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { getEnv } from "#shared/env.ts";
 import {
   cachedClientFactory,
   createWithClient,

@@ -1,4 +1,4 @@
-import { getDb, insert } from "#shared/db/client.ts";
+import { getDb, insert } from "#db/client.ts";
 
 /** Insert a dormant checkout stage for cleanup-path tests. */
 export const insertCheckoutStage = (

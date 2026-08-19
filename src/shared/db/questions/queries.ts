@@ -6,17 +6,13 @@
  * here too; display order always comes from the question's own sort_order.
  */
 
+import { inPlaceholders, queryAll, type SqlStatement } from "#db/client.ts";
+import { linkTableSide } from "#db/link-table.ts";
+import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { readRows } from "#db/read.ts";
+import { equals, type WhereClause } from "#db/where-clauses.ts";
 import { filter, map, mapParallel, reduce } from "#fp";
-import {
-  inPlaceholders,
-  queryAll,
-  type SqlStatement,
-} from "#shared/db/client.ts";
-import { linkTableSide } from "#shared/db/link-table.ts";
-import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { readRows } from "#shared/db/read.ts";
-import { equals, type WhereClause } from "#shared/db/where-clauses.ts";
 
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(

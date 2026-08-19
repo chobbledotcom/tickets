@@ -10,11 +10,7 @@ import { toMajorUnits } from "#shared/currency.ts";
 import { listingCategory, listingFilterLabel } from "#shared/listing-filter.ts";
 import { formatDatetimeShortInTz } from "#shared/timezone.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
-import {
-  availableDayCounts,
-  dayPriceFor,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

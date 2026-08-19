@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllListings } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";
@@ -10,6 +9,7 @@ import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockMultipartRequest, withStorageMock } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
+import type { ListingWithCount } from "#types";
 
 /** Shared form fields for creating a new listing via POST /admin/listing */
 const newListingFormFields = (

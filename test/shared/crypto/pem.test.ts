@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { readPem } from "#shared/crypto/pem.ts";
+import { readPem } from "#crypto/pem.ts";
 import { pemFor } from "#test-utils/der.ts";
 import { thrownError } from "#test-utils/errors.ts";
 

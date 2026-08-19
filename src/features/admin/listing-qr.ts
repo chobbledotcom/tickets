@@ -1,4 +1,5 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin route for generating pre-filled booking QR codes for an listing.
  *
@@ -9,6 +10,8 @@ import { defineRoutes } from "#routes/router.ts";
  * can refresh the QR client-side (every minute) without a full reload.
  */
 
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import {
@@ -20,26 +23,23 @@ import {
   jsonResponse,
   notFoundResponse,
 } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   createAuthedFormRoute,
   type FormValidator,
 } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { validatePrice } from "#shared/validation/money.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import type {
-  AdminListingQrResult,
-  AdminListingQrValues,
+import {
+  type AdminListingQrResult,
+  type AdminListingQrValues,
+  adminListingQrPage,
 } from "#templates/admin/listing-qr.tsx";
-import { adminListingQrPage } from "#templates/admin/listing-qr.tsx";
+import type { AdminSession, ListingWithCount } from "#types";
 import { loadListingOr } from "./load-listing.ts";
 
 export const EMPTY_QR_VALUES: AdminListingQrValues = {

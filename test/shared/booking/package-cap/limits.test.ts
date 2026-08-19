@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import type { TicketListing } from "#booking/model.ts";
 import {
   packageBundleLimit,
   packageChildTicketLimits,
   packageLimitInfo,
   pagePackageBundleLimit,
-} from "#shared/booking/package-cap.ts";
+} from "#booking/package-cap.ts";
 import {
   packageTree,
   tl,
   treePackage,
-} from "#test/test-utils/package-cap-fixtures.ts";
+} from "#test-utils/package-cap-fixtures.ts";
 
 // PARENT_CHILD_GROUP_UNITS is 2, so a pool of 5 spots fits floor(5/2)=2
 // tickets — used across the group-sharing tests below.

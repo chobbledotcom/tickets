@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import {
   expectFlashRedirect,
   expectListingActivityLogLacks,

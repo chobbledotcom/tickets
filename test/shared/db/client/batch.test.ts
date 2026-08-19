@@ -7,14 +7,14 @@ import {
   queryBatch,
   queryBatchPrimary,
   withTransaction,
-} from "#shared/db/client.ts";
-import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
+} from "#db/client.ts";
+import { runWithPrimaryReads } from "#db/primary-reads.ts";
 import {
   enableQueryLog,
   getQueryLog,
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";

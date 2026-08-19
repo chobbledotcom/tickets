@@ -3,14 +3,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { builtSites, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import {
-  builtSites,
-  updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
 import { expectedSiteSecrets } from "#shared/site-secrets.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";

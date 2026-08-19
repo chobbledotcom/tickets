@@ -9,13 +9,13 @@ import {
   listingNames,
   requireListingsWithCountsByIds,
   requireListingWithCount,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/query-log.ts";
+import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,

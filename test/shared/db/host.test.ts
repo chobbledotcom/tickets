@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { databaseHostFor } from "#shared/db/host.ts";
+import { databaseHostFor } from "#db/host.ts";
 
 describe("database host", () => {
   const cases: [string, string][] = [

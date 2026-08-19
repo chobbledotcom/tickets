@@ -6,8 +6,8 @@ import {
   SquareConnectionError,
   SquareProtocolError,
 } from "#shared/square/transport.ts";
-import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
+import { withSquareClient } from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
   describe("readOrder", () => {

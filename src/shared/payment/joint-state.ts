@@ -17,9 +17,9 @@
  * (reserved in flight, finalized booked).
  */
 
-import type { RefundAuthorityStateName } from "#shared/payment/refund-authority-state.ts";
-import { type ROW_NODES, rowNodeOf } from "#shared/payment/row-machine-spec.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+import type { RefundAuthorityStateName } from "#payment/refund-authority-state.ts";
+import { type ROW_NODES, rowNodeOf } from "#payment/row-machine-spec.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 
 /** One charge's refund authority as this seam sees it: the authority
  * machine's own stored state name (whether its local recording is done is a

@@ -4,13 +4,10 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
-import {
-  signedHeader,
-  signedWebhook,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { activateStripe } from "#test-utils/settings.ts";
+import { signedHeader, signedWebhook } from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   describe("verifyWebhookSignature", () => {

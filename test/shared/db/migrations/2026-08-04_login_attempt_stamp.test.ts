@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { getDb } from "#shared/db/client.ts";
-import loginAttemptStampMigration from "#shared/db/migrations/2026-08-04_login_attempt_stamp.ts";
-import {
-  applySchemaChanges,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import loginAttemptStampMigration from "#db/migrations/2026-08-04_login_attempt_stamp.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

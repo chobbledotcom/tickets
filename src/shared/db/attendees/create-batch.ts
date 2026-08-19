@@ -1,6 +1,6 @@
-import { bookingLegBatchInsert } from "#shared/accounting/rows.ts";
-import { assertPostable } from "#shared/accounting/store.ts";
-import type { EncryptedAttendeeData } from "#shared/db/attendee-types.ts";
+import { bookingLegBatchInsert } from "#accounting/rows.ts";
+import { assertPostable } from "#accounting/store.ts";
+import type { EncryptedAttendeeData } from "#db/attendee-types.ts";
 import {
   andConditions,
   executeBatchWithResults,
@@ -9,17 +9,17 @@ import {
   type SqlStatement,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   allModifiersInStockCondition,
   type ModifierUsage,
   usageInsert,
-} from "#shared/db/modifier-usage.ts";
-import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
+} from "#db/modifier-usage.ts";
+import { batchFinalizeStatements } from "#db/payment-finalize.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 
 export type PreparedWrite = {
   enc: EncryptedAttendeeData;

@@ -1,6 +1,9 @@
 import { UptimeKumaError, type UptimeKumaErrorKind } from "./error.ts";
-import type { UptimeKumaSocket } from "./socket.ts";
-import { SOCKET_TIMEOUT_MS, type SocketListener } from "./socket.ts";
+import {
+  SOCKET_TIMEOUT_MS,
+  type SocketListener,
+  type UptimeKumaSocket,
+} from "./socket.ts";
 
 /**
  * Timing out socket event captures and request acknowledgements.

@@ -3,14 +3,14 @@ import { stub } from "@std/testing/mock";
 import {
   attendeeStatuses,
   requirePublicDefaultStatus,
-} from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
-import { getDb } from "#shared/db/client.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
-import { settings } from "#shared/db/settings.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+} from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { pricePaidFromLedger } from "#db/attendees/select.ts";
+import { getDb } from "#db/client.ts";
+import { modifiersTable } from "#db/modifiers.ts";
+import { settings } from "#db/settings.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
@@ -232,7 +232,7 @@ export const expectRefundedPlaceholder = async (
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
   expect(responseText).toContain("saved your details");
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);
   // The placeholder posts no sale leg, so the still-sold-out add-on is not
@@ -240,7 +240,7 @@ export const expectRefundedPlaceholder = async (
   expect(await modifierUsageCount(addOnId)).toBe(0);
   expect(refund.calls[0]!.args[0].paymentReference).toBe(paymentIntentId);
   expect(refund.calls.length).toBe(1);
-  const { getNoteRows } = await import("#shared/db/notes/queries.ts");
+  const { getNoteRows } = await import("#db/notes/queries.ts");
   expect((await getNoteRows("attendee", [attendees[0]!.id])).length).toBe(1);
   return attendees;
 };

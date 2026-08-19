@@ -9,11 +9,11 @@ import {
   encodeTime,
   readDer,
   sortDerValues,
-} from "#shared/crypto/der.ts";
+} from "#crypto/der.ts";
 import {
   importRsaPrivateKey,
   importRsaPublicKey,
-} from "#shared/crypto/rsa-private-key.ts";
+} from "#crypto/rsa-private-key.ts";
 import { startOfHour } from "#shared/dates.ts";
 import { readAppleCertificate, readCertificateBytes } from "./certificate.ts";
 

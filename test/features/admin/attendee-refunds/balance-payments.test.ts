@@ -1,13 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { updateAttendeePII } from "#shared/db/attendees/update.ts";
-import { execute } from "#shared/db/client.ts";
-import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { settleAttendeeBalance } from "#db/attendees/balance.ts";
+import { updateAttendeePII } from "#db/attendees/update.ts";
+import { execute } from "#db/client.ts";
+import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlashRedirect,
@@ -35,6 +34,7 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import type { Attendee, Listing } from "#types";
 
 const refundCtx = async (
   attendee: Attendee,

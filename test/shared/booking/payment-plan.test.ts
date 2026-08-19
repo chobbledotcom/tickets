@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { planBookingPayment } from "#shared/booking/payment-plan.ts";
+import { planBookingPayment } from "#booking/payment-plan.ts";
 
 describe("planBookingPayment", () => {
   const cases = [

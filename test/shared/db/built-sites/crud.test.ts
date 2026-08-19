@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { parseSiteDataBlob } from "#shared/db/built-sites/blob.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   assignBuiltSite,
   builtSitesCrudTable,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
-import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
+} from "#db/built-sites.ts";
+import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { builtSiteFormInput } from "./fixtures.ts";

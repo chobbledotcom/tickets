@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   type ActionDef,
   defineEntityPage,
@@ -9,7 +10,6 @@ import {
 import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 

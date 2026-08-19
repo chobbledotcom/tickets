@@ -12,7 +12,7 @@
  * dimensions don't match is treated as "Custom" (full form, no hiding).
  */
 
-import type { Listing } from "#shared/types.ts";
+import type { Listing } from "#types";
 
 export type TemplateId =
   | "hireable-item"

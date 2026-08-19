@@ -10,21 +10,21 @@
  * its create transaction via {@link manualAddLedgerPoster}.
  */
 
-import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
-import { mapBooking } from "#shared/accounting/mappers.ts";
+import { ledgerTx } from "#accounting/ledger-tx.ts";
+import { mapBooking } from "#accounting/mappers.ts";
+import type {
+  AttendeeCreationWork,
+  BookingBatchPlan,
+} from "#db/attendees/create.ts";
+import { type TxScope, update } from "#db/client.ts";
+import type { ModifierUsage } from "#db/modifier-usage.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   bookingFactsFromOrder,
   owedOrderForLedger,
 } from "#shared/checkout-ledger.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import type {
-  AttendeeCreationWork,
-  BookingBatchPlan,
-} from "#shared/db/attendees/create.ts";
-import { type TxScope, update } from "#shared/db/client.ts";
-import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
 
 /**
  * The attendee id stitched into the booking facts when building legs for the

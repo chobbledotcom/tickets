@@ -10,53 +10,53 @@
  * tabs render the same data the single detail page used to.
  */
 
-import { unique } from "#fp";
-import type { PageCtx } from "#routes/admin/entity-pages.ts";
-import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
-import { emptyRange } from "#shared/accounting/range.ts";
-import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
-import { resolveRecipientEmails } from "#shared/bulk-email.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
+import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import { emptyRange } from "#accounting/range.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
   getListingWithActivityLogOrNull,
-} from "#shared/db/activity-log.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
+} from "#db/activity-log.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
+import { getHiddenPackageMemberIds } from "#db/groups.ts";
+import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
   hydrateListingLinks,
   listingChildren,
-} from "#shared/db/listing-parents.ts";
-import { getListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
+} from "#db/listing-parents.ts";
+import { getListingAggregateRecalculation } from "#db/listings/aggregates.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import {
   loadNotesForAttendees,
   loadNotesForListing,
-} from "#shared/db/notes/queries.ts";
-import type { SystemNote } from "#shared/db/notes/types.ts";
-import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
-import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
-import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers/reads.ts";
-import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/notes/queries.ts";
+import type { SystemNote } from "#db/notes/types.ts";
+import { getAttendeeIdsWithPaymentReference } from "#db/payment-references.ts";
+import { deleteAllStaleReservations } from "#db/processed-payments.ts";
+import { getListingChoiceAnswerMap } from "#db/questions/attendee-answers/reads.ts";
+import { getQuestionsForListing } from "#db/questions/queries.ts";
+import { settings } from "#db/settings.ts";
+import { unique } from "#fp";
+import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
+import { resolveRecipientEmails } from "#shared/bulk-email.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import {
-  type Attendee,
-  isOwnerRole,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import {
   ListingOverviewPanel,
   overviewStatsFromDbStats,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import {
+  type Attendee,
+  isOwnerRole,
+  isPaidListing,
+  type ListingWithCount,
+} from "#types";
 import {
   dateOptionsFor,
   filterByDate,

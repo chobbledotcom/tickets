@@ -1,10 +1,9 @@
-import { map } from "#fp";
-import type { TicketListing } from "#shared/booking/model.ts";
+import type { TicketListing } from "#booking/model.ts";
 import {
   packageByMemberListingId,
   type TreePackage,
-} from "#shared/booking/page-packages.ts";
-import { selectPriceRule } from "#shared/booking/price-tree.ts";
+} from "#booking/page-packages.ts";
+import { selectPriceRule } from "#booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
@@ -17,8 +16,9 @@ import {
   type QuantityRule,
   type RootRef,
   type Visibility,
-} from "#shared/booking/tree.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#booking/tree.ts";
+import { map } from "#fp";
+import type { ListingWithCount } from "#types";
 
 /**
  * The pure, DB-free builder that turns the data a booking page has already

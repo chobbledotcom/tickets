@@ -5,7 +5,7 @@
  * serves every kind of record: see ./target.ts.
  */
 
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import {
   execute,
   executeBatch,
@@ -13,13 +13,9 @@ import {
   orIgnore,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import { readOneRow, readRows } from "#shared/db/read.ts";
-import {
-  deleteWhere,
-  equals,
-  type WhereClause,
-} from "#shared/db/where-clauses.ts";
+} from "#db/client.ts";
+import { readOneRow, readRows } from "#db/read.ts";
+import { deleteWhere, equals, type WhereClause } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";

@@ -1,23 +1,20 @@
 /** Arm, authorize, send, and durably interpret one exact refund generation. */
 
 /* jscpd:ignore-start -- imports */
-import type { RefundAuthorityRow } from "#shared/db/provider-refund-authority.ts";
-import { transitionRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
-import { sameMoney } from "#shared/payment/money.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import type { RefundAuthorityRow } from "#db/provider-refund-authority.ts";
+import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
+import { sameMoney } from "#payment/money.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
   rearmKeyedRefund,
   returnRefundToReady,
-} from "#shared/payment/refund-authority.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
-import { authorizeDurableRefundSend } from "#shared/payment/refund-provider-authorization.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
-import {
-  type ChargeMoney,
-  returnedRefundMoney,
-} from "#shared/payment/resources.ts";
+} from "#payment/refund-authority.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
+import { authorizeDurableRefundSend } from "#payment/refund-provider-authorization.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
+import { type ChargeMoney, returnedRefundMoney } from "#payment/resources.ts";
 import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import { REFUND_RESULT_DATABASE_RESERVE } from "#shared/provider-refunds/budget.ts";
 import type {

@@ -11,6 +11,7 @@
  * against anonymous abuse, not the operator's own attendee forms.
  */
 
+import { makeIpRateLimiter } from "#db/login-attempts.ts";
 import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
@@ -19,12 +20,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getClientIp, getSearchParam } from "#routes/url.ts";
 import { activeAddressLookupProvider } from "#shared/address-lookup/providers.ts";
 import { lookupAddresses } from "#shared/address-lookup/service.ts";
-import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";
 import {
   ADDRESS_LOOKUP_LOCKOUT_MS,
   MAX_ADDRESS_LOOKUPS,
 } from "#shared/limits.ts";
-import { isStaffRole } from "#shared/types.ts";
+import { isStaffRole } from "#types";
 
 /** "address:" namespaces the counters away from login/booking limiters. */
 const limiter = makeIpRateLimiter(

@@ -2,10 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { t } from "#i18n";
-import type { EmailConfig, EmailMessage } from "#shared/email.ts";
 import {
   deliverRegistrationEmail,
   EMAIL_PROVIDER_LABELS,
+  type EmailConfig,
+  type EmailMessage,
   sendEmail,
   sendTestEmail,
 } from "#shared/email.ts";

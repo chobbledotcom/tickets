@@ -2,9 +2,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { deleteListing } from "#db/listings/delete.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -28,6 +27,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import type { PaymentProviderType } from "#types";
 import { bookAttendee, MANAGER, OWNER, tabHtml } from "./helpers.ts";
 
 /** One paid attendee whose modern payment row can carry review work. */

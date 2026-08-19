@@ -2,12 +2,14 @@
  * Admin guide — Listings sections.
  */
 
+/* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
 import {
   custom,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+/* jscpd:ignore-end */
 
 /** The markdown text-formatting help section. Exported so the standalone
  * `/admin/formatting` help page (reachable by content roles, including editors

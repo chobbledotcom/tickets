@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingReader } from "#shared/db/listings/select.ts";
+import { listingReader } from "#db/listings/select.ts";
 
 const LISTINGS_FROM = "FROM listings AS listing";
 const GROUPS_FROM =

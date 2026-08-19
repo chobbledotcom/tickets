@@ -1,14 +1,14 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
-import type { Currency } from "#shared/payment/money.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import { settings } from "#db/settings.ts";
+import type { Currency } from "#payment/money.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
-} from "#shared/payment/refund-provider-authorization.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+} from "#payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { CheckoutItem, WebhookEvent } from "#shared/payments.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
 import { STRIPE_API_VERSION, StripeApiError } from "#shared/stripe/request.ts";
@@ -17,9 +17,9 @@ import type {
   StripeCheckoutSession,
   StripeRefund,
 } from "#shared/stripe/schemas.ts";
-import type { Listing } from "#shared/types.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import type { Listing } from "#types";
 
 /**
  * Stores a Stripe secret key in the database and hands back the ready client.

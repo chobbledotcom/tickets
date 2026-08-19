@@ -5,7 +5,7 @@
  */
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
+import { decryptBytes, encryptBytes } from "#crypto/encryption.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** The layout the format promises: "ENCB", version 1, then a 12-byte IV. */

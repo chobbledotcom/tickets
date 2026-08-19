@@ -1,9 +1,9 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import { handleRequest } from "#routes";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";

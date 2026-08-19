@@ -2,16 +2,12 @@ import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import {
-  getDb,
-  withTransaction,
-  writeRowInTransaction,
-} from "#shared/db/client.ts";
+import { getDb, withTransaction, writeRowInTransaction } from "#db/client.ts";
 import {
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import {
   getSubrequestRemaining,
   runWithSubrequestBudget,

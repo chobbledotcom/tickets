@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { withTransaction } from "#db/client.ts";
+import { relationshipErrorTx } from "#db/listing-relationship-validation.ts";
 import { t } from "#i18n";
-import { withTransaction } from "#shared/db/client.ts";
-import { relationshipErrorTx } from "#shared/db/listing-relationship-validation.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

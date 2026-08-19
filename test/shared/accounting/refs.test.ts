@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  eventGroup,
-  legReference,
-  type RefPart,
-} from "#shared/accounting/refs.ts";
+import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("accounting > refs", { encryptionKey: true }, () => {

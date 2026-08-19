@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getApiKeysForUser, touchApiKeyLastUsed } from "#db/api-keys.ts";
 import { handleRequest } from "#routes";
-import { getApiKeysForUser, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import {
   expectFlashRedirect,
   followRedirectWithFlash,

@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectAttendeeCounts } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -92,7 +92,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
       }),
     );
 
-    const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
     const childRows = await getAttendeesRaw(child.id);
     expect(childRows.length).toBe(1);
     const parentIdRow = await getDb().execute({

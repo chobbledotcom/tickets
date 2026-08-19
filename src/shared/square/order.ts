@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import { ResourceIdSchema } from "#payment/resource-id.ts";
 import type { GetSquareClient } from "#shared/square/client.ts";
 import { readSquareResource } from "#shared/square/read.ts";
 import { OptionalNullableStringSchema } from "#shared/validation/string.ts";

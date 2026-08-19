@@ -1,17 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { backupKey, backupTimestamp, dbName } from "#db/backup-storage.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import {
-  backupKey,
-  backupTimestamp,
-  dbName,
-} from "#shared/db/backup-storage.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
-import { useLocalStoragePath } from "#test/test-utils/_shared-site-update.ts";
+import { useLocalStoragePath } from "#test-utils/_shared-site-update.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

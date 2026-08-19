@@ -8,8 +8,8 @@ import {
   MODIFIER,
   REVENUE,
   WRITEOFF_TYPE,
-} from "#shared/accounting/accounts.ts";
-import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
+} from "#accounting/accounts.ts";
+import { MANUAL_ATTENDEE_PAYMENT } from "#accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
 import { statementFor } from "#shared/ledger/project.ts";

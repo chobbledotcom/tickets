@@ -10,15 +10,13 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { projectRoot } from "#scripts/project-root.ts";
 import { startStripeMock } from "#scripts/stripe-mock.ts";
-import type {
-  StartOptions,
-  TestStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
 import {
   keepPortOpenCommand,
   makeExecutable,
+  type StartOptions,
   shellQuote,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+  type TestStripeMockPaths,
+} from "#test-utils/stripe-mock/helpers.ts";
 
 /** A mock that opens its port, then does whatever the given perl says next. */
 const writeListeningPerlMock = async (

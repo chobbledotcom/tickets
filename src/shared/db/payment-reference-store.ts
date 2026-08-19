@@ -1,22 +1,22 @@
 /** Owner-key storage and blind indexes for provider payment references. */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
   HYBRID_PREFIX,
-} from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { inPlaceholders } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
-import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+} from "#crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { inPlaceholders } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
+import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   type PaymentReference,
   paymentReferenceIndexInput,
   readPaymentReference,
   type TaggedPaymentReference,
-} from "#shared/payment/provider-reference.ts";
-import { PaymentProviderSchema } from "#shared/types.ts";
+} from "#payment/provider-reference.ts";
+import { PaymentProviderSchema } from "#types";
 
 /** The two columns that must always be written together. */
 export type StoredPaymentReference = {

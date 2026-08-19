@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
 const freeText = (

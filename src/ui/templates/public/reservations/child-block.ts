@@ -4,8 +4,6 @@
  * inputs, and their deduped non-required questions. Requiredness/totals are
  * enforced server-side. */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
 import {
   type ChildDatesByDayCount,
   childCanBeBooked,
@@ -13,18 +11,14 @@ import {
   dayCountsChildSupports,
   encodeChildDatesByDayCount,
   type TicketListing,
-} from "#shared/booking/model.ts";
-import {
-  childTicketLimit,
-  groupCapacityInfo,
-} from "#shared/booking/package-cap.ts";
-import {
-  childPriceFieldName,
-  childQuantityFieldName,
-} from "#shared/booking/tree.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#booking/model.ts";
+import { childTicketLimit, groupCapacityInfo } from "#booking/package-cap.ts";
+import { childPriceFieldName, childQuantityFieldName } from "#booking/tree.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
+import type { ListingWithCount } from "#types";
 import {
   childLimitedMax,
   childPriceLabel,

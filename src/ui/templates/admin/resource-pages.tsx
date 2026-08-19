@@ -13,13 +13,12 @@
  */
 
 /* jscpd:ignore-start */
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type {
   ReorderColumnOptions,
   TableColumn,
 } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession } from "#shared/types.ts";
 import {
   type FlashPageRenderer,
   flashAdminPage,
@@ -33,6 +32,7 @@ import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /** A delete confirmation spec, parameterised by the entity. */

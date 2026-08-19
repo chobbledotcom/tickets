@@ -5,9 +5,9 @@
  * This module is pure — the route handlers fetch, these functions compute.
  */
 
+import type { AttributeOption } from "#db/attributes.ts";
+import type { ListingOption } from "#db/listings/table.ts";
 import { flatMap } from "#fp";
-import type { AttributeOption } from "#shared/db/attributes.ts";
-import type { ListingOption } from "#shared/db/listings/table.ts";
 
 /** One listing that has at least one of an attribute's options set. */
 export type AttributeListingRow = ListingOption & {

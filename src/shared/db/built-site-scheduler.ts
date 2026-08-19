@@ -1,4 +1,4 @@
-import { updateBuiltSite } from "#shared/db/built-sites.ts";
+import { updateBuiltSite } from "#db/built-sites.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 
 /** Create one active key for a built site, or return its existing key. */

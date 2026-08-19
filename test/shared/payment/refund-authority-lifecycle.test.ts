@@ -6,13 +6,13 @@ import {
   markRefundLocalRecorded,
   markRefundObservationDue,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
   refundOwnerChoices,
   resolveRefundOwnerChoice,
-} from "#shared/payment/refund-authority-choice.ts";
+} from "#payment/refund-authority-choice.ts";
 import {
   type RefundEvidenceAction,
   refundAuthorityPrunableSql,
@@ -20,8 +20,8 @@ import {
   refundEvidenceActionAllowed,
   refundLifecycleFor,
   refundMoveRefusalOrNull,
-} from "#shared/payment/refund-authority-lifecycle.ts";
-import type { RefundAuthorityStateName } from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-lifecycle.ts";
+import type { RefundAuthorityStateName } from "#payment/refund-authority-state.ts";
 
 const ready = () =>
   readyRefund({

@@ -10,8 +10,8 @@ import {
   withLockReadFailure,
   withSecondLockRefreshHeld,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
-import { expectStartFails } from "#test/test-utils/stripe-mock/ports.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
+import { expectStartFails } from "#test-utils/stripe-mock/ports.ts";
 import { expectDownloadWithLockCleanup } from "./lock-fixture.ts";
 
 describe("cleaning up after an install", () => {

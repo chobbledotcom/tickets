@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute } from "#shared/db/client.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute } from "#db/client.ts";
 import {
   contradictFirstPayment,
   correctFirstPayment,

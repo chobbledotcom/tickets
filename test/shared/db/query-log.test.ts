@@ -15,7 +15,7 @@ import {
   sqlWallClockMs,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
   trackSql,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 // Importing logger eagerly also preloads it, so the dynamic
 // `import("#shared/logger.ts")` in the N+1 guard and the SQL system-log
 // mirror is a cache hit — keeping their fire-and-forget flush deterministic

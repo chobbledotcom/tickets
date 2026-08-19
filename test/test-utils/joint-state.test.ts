@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 

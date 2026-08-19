@@ -6,12 +6,12 @@
  */
 
 import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
-import type { ListingFields } from "#shared/types.ts";
 import {
   getTicketFields,
   type TicketFormValues,
 } from "#templates/fields/ticket.ts";
 import { validateDate } from "#templates/fields/validators.ts";
+import type { ListingFields } from "#types";
 
 /** Typed values from the admin add-attendee form. */
 export type AddAttendeeFormValues = TicketFormValues & {

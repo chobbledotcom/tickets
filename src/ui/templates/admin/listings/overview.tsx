@@ -1,10 +1,5 @@
+import type { ListingOverviewStats } from "#db/listing-overview-stats.ts";
 import { t } from "#i18n";
-import type { ListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
-import {
-  type Attendee,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import {
   buildStatDetailRows,
@@ -13,6 +8,7 @@ import {
 } from "#templates/admin/detail-rows.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
+import { type Attendee, isPaidListing, type ListingWithCount } from "#types";
 import { attendeeStatsForListing } from "./attendees.tsx";
 import { listingCapacityRowsFor } from "./capacity-rows.tsx";
 import { ListingDetailsTable } from "./details.tsx";

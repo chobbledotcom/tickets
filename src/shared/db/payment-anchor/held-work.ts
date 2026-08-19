@@ -1,18 +1,14 @@
 /** Find the anchor rows a payment's money work could still be sitting on. */
 
-import {
-  inPlaceholders,
-  queryBatchPrimary,
-  resultRows,
-} from "#shared/db/client.ts";
+import { inPlaceholders, queryBatchPrimary, resultRows } from "#db/client.ts";
 import {
   asPaymentRowRecord,
   type PaymentRowRecord,
   paymentClaimRowsSql,
   type StoredPaymentClaimRow,
-} from "#shared/db/payment-claim.ts";
-import { matchingPaymentReferenceIndexes } from "#shared/db/payment-reference-store.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/payment-claim.ts";
+import { matchingPaymentReferenceIndexes } from "#db/payment-reference-store.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 
 /** One anchor row with the joined authority's plain state word, so a resume
  * can tell "money known returned" from "refund still underway" in one read. */

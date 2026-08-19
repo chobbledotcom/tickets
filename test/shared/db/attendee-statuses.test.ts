@@ -11,11 +11,11 @@ import {
   requirePaidDefaultStatus,
   requirePublicDefaultStatus,
   requirePublicStatusId,
-} from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
-import { getDb } from "#shared/db/client.ts";
+} from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { updateAttendeeStatus } from "#db/attendees/update.ts";
+import { getDb } from "#db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

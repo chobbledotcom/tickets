@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectErrorFlash,

@@ -7,7 +7,7 @@
  * dedicated namespace and are cleaned by database pruning.
  */
 
-import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";
+import { makeIpRateLimiter } from "#db/login-attempts.ts";
 import { APIKEY_LOCKOUT_MS, MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 
 /** Namespace so API-key counters don't collide with login or booking limiters. */

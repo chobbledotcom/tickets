@@ -6,17 +6,17 @@
  * later listing/group reuse a page's slug, or vice versa).
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   resultRows,
   rowExists,
   type SqlStatement,
   type TxScope,
   useTransaction,
-} from "#shared/db/client.ts";
-import { type Table, writeTableRow } from "#shared/db/table.ts";
+} from "#db/client.ts";
+import { type Table, writeTableRow } from "#db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import type { SitePageItemType } from "#shared/types.ts";
+import type { SitePageItemType } from "#types";
 
 /** The slug-owning tables (plural form, one per {@link SitePageItemType}). */
 export type SlugTable = "listings" | "groups" | "site_pages";

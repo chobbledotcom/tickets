@@ -1,14 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { setupListingAndDirectAttendee } from "#test/test-utils/attendees/helpers.ts";
-import {
-  getMergeVersion,
-  mergePair,
-  submitMerge,
-} from "#test/test-utils/attendees/merge.ts";
+import { getAttendeeRaw } from "#db/attendees/queries.ts";
+import { queryAll } from "#db/client.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -16,6 +10,12 @@ import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { setupListingAndDirectAttendee } from "#test-utils/attendees/helpers.ts";
+import {
+  getMergeVersion,
+  mergePair,
+  submitMerge,
+} from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -341,7 +341,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         name: "L2",
         unitPrice: 500,
       });
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const { attendeesApi } = await import("#db/attendees/api.ts");
       const targetResult = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: listing1.id, quantity: 1 },

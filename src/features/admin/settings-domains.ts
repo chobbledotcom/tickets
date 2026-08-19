@@ -3,19 +3,21 @@
  * Owner-only access enforced via advancedSettingsRoute
  */
 
+/* jscpd:ignore-start -- imports */
+import { logActivity } from "#db/activity-log.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   advancedSettingsRoute,
   type ErrorPageFn,
 } from "#routes/admin/settings-helpers.ts";
+/* jscpd:ignore-end */
 import {
   checkSubdomainAvailable,
   registerBunnySubdomain,
   validateCustomDomain,
 } from "#shared/bunny-cdn.ts";
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { settings } from "#shared/db/settings.ts";
 import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { fail, ok } from "#shared/response.ts";

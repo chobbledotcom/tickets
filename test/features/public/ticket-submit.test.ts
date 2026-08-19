@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ChildAllocation } from "#db/attendee-types.ts";
 import { withPaidBookingMetadata } from "#routes/public/ticket-submit.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 
 const intent: CheckoutIntent = {

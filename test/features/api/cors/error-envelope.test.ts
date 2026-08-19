@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { apiError, apiErrorResponse } from "#routes/api/cors.ts";
-import { expectCorsHeaders } from "#test/test-utils/api/helpers.ts";
+import { expectCorsHeaders } from "#test-utils/api/helpers.ts";
 
 describe("apiError", () => {
   test("responds with the envelope, the status, and CORS headers", async () => {

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { SystemNote } from "#shared/db/notes/types.ts";
+import type { SystemNote } from "#db/notes/types.ts";
 import {
   AddNoteLink,
   AttendeeNotesSection,

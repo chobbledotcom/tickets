@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { listingChildren } from "#db/listing-parents.ts";
 import { handleRequest } from "#routes";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

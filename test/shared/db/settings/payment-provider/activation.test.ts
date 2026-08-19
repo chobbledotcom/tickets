@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > settings payment provider", { db: true }, () => {
@@ -156,9 +156,7 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
 
     test("does not recover over a provider enabled by another request", async () => {
       await settings.update.clearPaymentProvider();
-      const { executeWithoutCacheInvalidation } = await import(
-        "#shared/db/client.ts"
-      );
+      const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       await executeWithoutCacheInvalidation(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
@@ -222,9 +220,7 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       // Write Square directly to the DB (bypassing the snapshot cache), so the
       // snapshot still holds the stale "stripe" value.
-      const { executeWithoutCacheInvalidation } = await import(
-        "#shared/db/client.ts"
-      );
+      const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       await executeWithoutCacheInvalidation(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         [CONFIG_KEYS.PAYMENT_PROVIDER, "square"],

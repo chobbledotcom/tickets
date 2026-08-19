@@ -5,17 +5,16 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
-import { queryAll, queryOne, withTransaction } from "#shared/db/client.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+} from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { attendeePaymentProvenance } from "#db/attendees/payment-provenance.ts";
+import { queryAll, queryOne, withTransaction } from "#db/client.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   getRefundAllSummary,
   loadRefundAllBatch,
-} from "#shared/db/refund-all-candidates.ts";
-import type { Attendee } from "#shared/types.ts";
+} from "#db/refund-all-candidates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -25,6 +24,7 @@ import {
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import type { Attendee } from "#types";
 import {
   createAttendee,
   getBookings,

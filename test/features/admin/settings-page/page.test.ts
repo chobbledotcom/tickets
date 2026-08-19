@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import type { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { buildFlashCookie } from "#shared/cookies.ts";
-import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectHtml,

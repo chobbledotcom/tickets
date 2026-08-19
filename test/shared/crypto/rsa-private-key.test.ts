@@ -9,11 +9,11 @@ import {
   encodeSequence,
   readDer,
   readDerChildren,
-} from "#shared/crypto/der.ts";
+} from "#crypto/der.ts";
 import {
   importRsaPrivateKey,
   isValidRsaPrivateKey,
-} from "#shared/crypto/rsa-private-key.ts";
+} from "#crypto/rsa-private-key.ts";
 import {
   generateGoogleTestCreds,
   generateTestCerts,

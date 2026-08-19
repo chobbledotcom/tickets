@@ -1,5 +1,5 @@
-import type { PackagePrices } from "#shared/db/groups.ts";
-import type { Group } from "#shared/types.ts";
+import type { PackagePrices } from "#db/groups.ts";
+import type { Group } from "#types";
 
 /**
  * The **page package** — one package bundle offered on a booking page. A page

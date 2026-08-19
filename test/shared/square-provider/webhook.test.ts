@@ -5,19 +5,19 @@ import { stub } from "@std/testing/mock";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
+import { rejectionMessage } from "#test-utils/assertions.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { asSession } from "#test-utils/payment-session.ts";
 import {
   SQUARE_ORDER_META,
   setupSquareProviderSuite,
   squareMoney,
-} from "#test/test-utils/square/fixtures.ts";
+} from "#test-utils/square/fixtures.ts";
 import {
   completedSquareWebhook,
   squareOrderRead,
   squarePaymentRead,
-} from "#test/test-utils/square/outcomes.ts";
-import { rejectionMessage } from "#test-utils/assertions.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { asSession } from "#test-utils/payment-session.ts";
+} from "#test-utils/square/outcomes.ts";
 
 /* jscpd:ignore-end */
 

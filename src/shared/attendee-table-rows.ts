@@ -11,7 +11,7 @@ import type {
   AttendeeRowListing,
   AttendeeTableRow,
   DisplayAttendee,
-} from "#shared/types.ts";
+} from "#types";
 
 /** One table row for a single booking line — the roster, check-in, calendar,
  * and group tables, where each line keeps its own date, quantity, and

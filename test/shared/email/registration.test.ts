@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { execute } from "#db/client.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { sendRegistrationEmails } from "#shared/email/registration.ts";
 import {
   RegistrationDeliveryError,

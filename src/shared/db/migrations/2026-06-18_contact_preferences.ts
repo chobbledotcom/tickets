@@ -1,4 +1,4 @@
-import { countRows } from "#shared/db/client.ts";
+import { countRows } from "#db/client.ts";
 import { nowMs } from "#shared/now.ts";
 import { getExistingColumns, runMigration } from "./schema-sync.ts";
 /* jscpd:ignore-start */

@@ -4,12 +4,12 @@
  * re-spelling the same boilerplate.
  */
 
+import { groups } from "#db/groups.ts";
+import { holidays } from "#db/holidays.ts";
+import { invalidateListingsCache } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
+import { invalidateUsersCache } from "#db/users.ts";
 import { invalidateCachesForTable } from "#shared/cache-registry.ts";
-import { groups } from "#shared/db/groups.ts";
-import { holidays } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import {
   TEST_ADMIN_PASSWORD,

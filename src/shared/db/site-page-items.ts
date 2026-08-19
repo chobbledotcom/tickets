@@ -9,7 +9,6 @@
  * transaction** — two concurrent adds of the same page can't both slip through.
  */
 
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   execute,
   executeBatch,
@@ -18,21 +17,19 @@ import {
   type SqlStatement,
   type TxScope,
   useTransaction,
-} from "#shared/db/client.ts";
-import type { FillableRead } from "#shared/db/fill-together.ts";
-import {
-  clearImageUsesForItemStatement,
-  imageUseTargets,
-} from "#shared/db/images.ts";
-import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import { existingSitePageIdsStatement } from "#shared/db/site-pages.ts";
+} from "#db/client.ts";
+import type { FillableRead } from "#db/fill-together.ts";
+import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { existingSitePageIdsStatement } from "#db/site-pages.ts";
 import {
   clauseArgs,
   deleteWhere,
   equals,
   type WhereClause,
   whereSql,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   pageParentMapFromEdges,
@@ -42,7 +39,7 @@ import {
   type SitePageItemTarget,
   sitePageItemTargets,
 } from "#shared/site-pages/target.ts";
-import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
+import type { SitePageItem, SitePageItemType } from "#types";
 
 const SELECT_COLS = "page_id, item_type, item_id, sort_order";
 

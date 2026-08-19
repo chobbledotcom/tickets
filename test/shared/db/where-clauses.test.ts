@@ -14,7 +14,7 @@ import {
   inList,
   rowsUnlessNoneMatch,
   whereSql,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
 
 describe("inList", () => {
   test("adds no clause when the caller did not ask for this filter", () => {

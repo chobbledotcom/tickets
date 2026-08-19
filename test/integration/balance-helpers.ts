@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
+import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { getDb } from "#shared/db/client.ts";
 import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {

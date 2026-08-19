@@ -1,4 +1,4 @@
-import type { GroupIdsByListingId } from "#shared/types.ts";
+import type { GroupIdsByListingId } from "#types";
 
 /**
  * The **order selection model** — the pure core behind ordering surfaces (the

@@ -1,15 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import sumupRecoveryMigration from "#shared/db/migrations/2026-08-18_sumup_recovery_state.ts";
-import {
-  applySchemaChanges,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import sumupRecoveryMigration from "#db/migrations/2026-08-18_sumup_recovery_state.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import {
   recoveryNodeOf,
   type SumupRecoveryState,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

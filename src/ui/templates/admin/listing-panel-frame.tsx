@@ -1,5 +1,5 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 export type ListingPanelProps = {
   listing: ListingWithCount;

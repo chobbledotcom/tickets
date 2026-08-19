@@ -1,11 +1,12 @@
 import { t } from "#i18n";
+/* jscpd:ignore-start -- imports */
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
-import type { SuperuserChoice } from "#shared/types.ts";
+/* jscpd:ignore-end */
 import { SaveButton } from "#templates/components/actions.tsx";
+import type { SuperuserChoice } from "#types";
 
 /** A radio-label option for the superuser choice. `checkedValue` is the
  *  SuperuserChoice that should mark this option checked — note the radio's

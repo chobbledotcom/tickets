@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { AttributeOption, AttributeWithOptions } from "#db/attributes.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
-import type {
-  AttributeOption,
-  AttributeWithOptions,
-} from "#shared/db/attributes.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,

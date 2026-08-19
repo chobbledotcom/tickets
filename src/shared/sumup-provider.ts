@@ -12,15 +12,15 @@
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
-import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import { getSumupCheckout } from "#db/sumup-checkouts.ts";
 import {
   type RefundAttemptResult,
   refundOutcomeAfterReread,
-} from "#shared/payment/refund-attempt.ts";
+} from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   requireProviderRefundAuthorization,
-} from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-provider-authorization.ts";
 import { makeCreateCheckoutSession } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,

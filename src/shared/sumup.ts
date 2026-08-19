@@ -15,24 +15,20 @@
  * tells an authoritative not-found apart from SumUp being unreachable.
  */
 
-import type { Currency } from "@sumup/sdk";
-import { APIError, SumUp, SumUpError } from "@sumup/sdk";
-/* jscpd:ignore-start */
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { toMajorUnits } from "#shared/currency.ts";
-import { settings } from "#shared/db/settings.ts";
-import {
-  setSumupCheckoutId,
-  storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
-import { errorMessage } from "#shared/error-message.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { isAbortOrTimeoutError } from "#shared/named-error.ts";
+import { APIError, type Currency, SumUp, SumUpError } from "@sumup/sdk";
+import { settings } from "#db/settings.ts";
+import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import {
   checkoutFailure,
   type ProviderCheckoutError,
-} from "#shared/payment/checkout-failure.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+} from "#payment/checkout-failure.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+/* jscpd:ignore-start */
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { toMajorUnits } from "#shared/currency.ts";
+import { errorMessage } from "#shared/error-message.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,

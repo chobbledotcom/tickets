@@ -5,9 +5,9 @@ import {
   REVENUE,
   WORLD,
   WRITEOFF_TYPE,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { MANUAL_ATTENDEE_CHARGE } from "#shared/accounting/manual-entries.ts";
+} from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 import {
   accountBalanceSubquery,
   accountPredicate,
@@ -19,7 +19,7 @@ import {
   reservationSubtotalSubquery,
   saleLegPredicate,
   signedSumCase,
-} from "#shared/accounting/projection-sql.ts";
+} from "#accounting/projection-sql.ts";
 
 // Constants are imported (never hardcoded) so a rename of the kind/account
 // vocabulary updates the expected SQL here too. The SQL *structure* — column

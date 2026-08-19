@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingGroups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  apiCreateListing,
-  linkedParentChild,
-  parentAndChild,
-} from "#test/test-utils/listing-parents/helpers.ts";
+import { listingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  apiCreateListing,
+  linkedParentChild,
+  parentAndChild,
+} from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
@@ -196,7 +196,7 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   test("admin API POST rejecting an invalid child creates NO listing row", async () => {
     // On create the child-edge validation runs before the insert, so a rejected
     // edge must leave no orphan listing row behind.
-    const { getAllListings } = await import("#shared/db/listings/records.ts");
+    const { getAllListings } = await import("#db/listings/records.ts");
     const child = await createTestListing({
       listingType: "daily",
       name: "Daily add-on",

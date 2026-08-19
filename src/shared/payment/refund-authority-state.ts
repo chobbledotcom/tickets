@@ -5,7 +5,7 @@ import {
   RefundConflictDecisionSchema,
   ReturnedOrNotSentDecisionSchema,
   refundConflictNeedsProviderCheck,
-} from "#shared/payment/refund-conflict-decision.ts";
+} from "#payment/refund-conflict-decision.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";

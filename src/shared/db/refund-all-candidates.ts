@@ -2,23 +2,23 @@
 
 /* jscpd:ignore-start -- imports */
 import type { ResultSet } from "@libsql/client";
-import { ATTENDEE } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { ATTENDEE } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   accountPredicate,
   saleLegPredicate,
-} from "#shared/accounting/projection-sql.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { refundedForBooking } from "#shared/db/attendees/select.ts";
+} from "#accounting/projection-sql.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { refundedForBooking } from "#db/attendees/select.ts";
 import {
   queryBatchPrimary,
   resultRows,
   type SqlStatement,
-} from "#shared/db/client.ts";
-import { paymentAnchorSessionCondition } from "#shared/db/payment-anchor/session.ts";
-import { rowWorkMirrorSql } from "#shared/payment/admit-move.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+} from "#db/client.ts";
+import { paymentAnchorSessionCondition } from "#db/payment-anchor/session.ts";
+import { rowWorkMirrorSql } from "#payment/admit-move.ts";
+import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */

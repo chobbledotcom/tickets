@@ -1,8 +1,8 @@
 import type { Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryBatch, setDb } from "#shared/db/client.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { getDb, queryBatch, setDb } from "#db/client.ts";
+import { runWithQueryLogContext } from "#db/query-log.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestUsage,

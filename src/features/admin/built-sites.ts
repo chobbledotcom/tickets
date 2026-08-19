@@ -1,28 +1,28 @@
 import { mapValues } from "@std/collections";
 import { t } from "#i18n";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+
 /**
  * Admin built site management routes - owner only
  */
 
-/* jscpd:ignore-start */
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { ownerPage } from "#routes/auth.ts";
-import { notFoundResponse } from "#routes/response.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
-/* jscpd:ignore-end */
-import { siteHostingAccess } from "#shared/builder.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { dbName, hasRecentBackup } from "#shared/db/backup-storage.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { dbName, hasRecentBackup } from "#db/backup-storage.ts";
 import {
   type BuiltSite,
   type BuiltSiteFormInput,
   isUpdateTier,
   providerOrBunny,
-} from "#shared/db/built-sites/types.ts";
-import { builtSites, builtSitesCrudTable } from "#shared/db/built-sites.ts";
+} from "#db/built-sites/types.ts";
+import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+/* jscpd:ignore-start */
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { ownerPage } from "#routes/auth.ts";
+import { notFoundResponse } from "#routes/response.ts";
+/* jscpd:ignore-end */
+import { siteHostingAccess } from "#shared/builder.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";

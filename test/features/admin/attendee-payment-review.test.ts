@@ -3,10 +3,10 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { deleteListing } from "#db/listings/delete.ts";
+import { getPaymentReviewState } from "#db/payment-review.ts";
 import { resetI18nForTest } from "#i18n";
 import { handleRequest } from "#routes";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { getPaymentReviewState } from "#shared/db/payment-review.ts";
 import { nowIso } from "#shared/now.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {

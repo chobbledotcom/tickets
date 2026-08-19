@@ -7,13 +7,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type Stub, spy, stub } from "@std/testing/mock";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BuiltSiteRow } from "#shared/db/built-sites/types.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BuiltSiteRow } from "#db/built-sites/types.ts";
 import {
   insertBuiltSite,
   updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
+} from "#db/built-sites.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { applyRenewalsForEntries } from "#shared/webhook.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

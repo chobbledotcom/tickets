@@ -4,8 +4,8 @@ import {
   queryBatchPrimary,
   type SqlStatement,
   withTransaction,
-} from "#shared/db/client.ts";
-import { stringColumnSet } from "#shared/db/query.ts";
+} from "#db/client.ts";
+import { stringColumnSet } from "#db/query.ts";
 import { logDebug } from "#shared/logger.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";

@@ -33,7 +33,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
   beforeEach(async () => {
     resetEffectiveDomain();
-    const { settings: s } = await import("#shared/db/settings.ts");
+    const { settings: s } = await import("#db/settings.ts");
     s.invalidateCache();
   });
 

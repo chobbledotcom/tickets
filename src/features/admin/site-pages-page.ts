@@ -5,13 +5,13 @@
  * their own routes in site-pages.ts, so this file owns only the GET surface.
  */
 
+import { getSitePageById } from "#db/site-pages.ts";
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
-import { getSitePageById } from "#shared/db/site-pages.ts";
-import type { SitePage } from "#shared/types.ts";
 import {
   sitePageEditPanel,
   sitePageItemsPanel,
 } from "#templates/admin/site-pages.tsx";
+import type { SitePage } from "#types";
 import { writeFormTab } from "./entity-write-tab.ts";
 import { defineSiteContentPage } from "./site-content-page.ts";
 import { buildEditModel } from "./site-pages-data.ts";

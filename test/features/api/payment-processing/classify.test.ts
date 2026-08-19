@@ -1,24 +1,24 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { SessionRejection } from "#payment/validated-session.ts";
 import {
   classifySession,
   classifySessionIntent,
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
-import {
-  answerCompletedStripeRefund,
-  stripeRefundRequestShape,
-} from "#test/test-utils/stripe/fixtures.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import {
+  answerCompletedStripeRefund,
+  stripeRefundRequestShape,
+} from "#test-utils/stripe/fixtures.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a

@@ -5,15 +5,13 @@
 /* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
@@ -24,6 +22,7 @@ import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

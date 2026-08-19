@@ -2,27 +2,24 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { requirePublicStatusId } from "#db/attendee-statuses.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { execute, queryOne, withTransaction } from "#db/client.ts";
+import {
+  assertRowsFreeToMove,
+  PaymentRowsBusyError,
+} from "#db/payment-admit-move.ts";
+import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
+import { markSessionFailed, reserveSession } from "#db/processed-payments.ts";
+import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import {
   placeholderBookings,
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { execute, queryOne, withTransaction } from "#shared/db/client.ts";
-import {
-  assertRowsFreeToMove,
-  PaymentRowsBusyError,
-} from "#shared/db/payment-admit-move.ts";
-import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
-import {
-  markSessionFailed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
-import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -324,7 +321,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     test("keeps the booking, holding no places", async () => {
       const { listing } = await storedPlaceholder("cs_kept");
       const { getAttendeesByListingIds } = await import(
-        "#shared/db/listings/attendees.ts"
+        "#db/listings/attendees.ts"
       );
       const rows = await getAttendeesByListingIds([listing.id]);
       expect(rows.length).toBe(1);
@@ -358,7 +355,7 @@ describeWithEnv(
       // quantity-0 row still fits (booked + 0 <= cap), so only going *over*
       // makes the capacity gate refuse it — which is what the overbook flag
       // has to override.
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute(
         "UPDATE listings SET max_attendees = 1 WHERE id = ?",
         [listing.id],
@@ -386,7 +383,7 @@ describeWithEnv(
 
       expect(result.status).toBe(200);
       const { getAttendeesByListingIds } = await import(
-        "#shared/db/listings/attendees.ts"
+        "#db/listings/attendees.ts"
       );
       // The two real bookings plus the placeholder, which holds no places.
       const rows = await getAttendeesByListingIds([listing.id]);

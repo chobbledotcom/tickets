@@ -1,29 +1,29 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   MANUAL_ATTENDEE_CHARGE,
   postManualLedgerEntry,
-} from "#shared/accounting/manual-entries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
+} from "#accounting/manual-entries.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
 import {
   attendeeStatuses,
   requirePaidDefaultStatus,
-} from "#shared/db/attendee-statuses.ts";
+} from "#db/attendee-statuses.ts";
 import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
   settleAttendeeBalance,
-} from "#shared/db/attendees/balance.ts";
-import { getDb } from "#shared/db/client.ts";
-import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+} from "#db/attendees/balance.ts";
+import { getDb } from "#db/client.ts";
+import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {

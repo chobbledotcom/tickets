@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
   REFUND_PROVIDER_CAPABILITIES,
   type RefundAuthorization,
   requireProviderRefundAuthorization,
-} from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-provider-authorization.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 
 const request: RefundRequest = {

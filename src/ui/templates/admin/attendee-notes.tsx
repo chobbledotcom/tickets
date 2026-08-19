@@ -10,24 +10,24 @@
  *    copy/paste confirmation), returning to wherever the operator came from.
  */
 
+import { groupNotesByTargetId } from "#db/notes/target.ts";
+import type { SystemNote } from "#db/notes/types.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { groupNotesByTargetId } from "#shared/db/notes/target.ts";
-import type { SystemNote } from "#shared/db/notes/types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderField } from "#shared/forms/rendering.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown, withoutLinksTo } from "#shared/markdown.ts";
-import { type AdminSession, isOwnerRole } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { type AdminSession, isOwnerRole } from "#types";
 
 /* jscpd:ignore-end */
 

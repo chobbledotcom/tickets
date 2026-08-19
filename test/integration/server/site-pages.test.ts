@@ -1,15 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { addPageItem, getItemsForPage } from "#shared/db/site-page-items.ts";
+import { getDb } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { addPageItem, getItemsForPage } from "#db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
   getSitePageById,
   getSitePageBySlugIndex,
   sitePages,
-} from "#shared/db/site-pages.ts";
-import type { SitePage } from "#shared/types.ts";
+} from "#db/site-pages.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -25,6 +24,7 @@ import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import type { SitePage } from "#types";
 
 const BASE = "/admin/site/pages";
 
@@ -431,7 +431,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await addPageItem(page.id, "group", group.id);
       expect((await getItemsForPage(page.id)).length).toBe(2);
 
-      const { deleteListing } = await import("#shared/db/listings/delete.ts");
+      const { deleteListing } = await import("#db/listings/delete.ts");
       const { deleteGroup } = await import("#routes/admin/groups.ts");
       await deleteListing(listing.id);
       await deleteGroup(group.id);

@@ -1,13 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { PARENT_CHILD_GROUP_UNITS } from "#shared/types.ts";
-import {
-  expectRendersSoldOut,
-  expectSelectOffers,
-} from "#test/test-utils/parents-gate/helpers.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -24,6 +19,11 @@ import {
   makeRoomySharedChild,
   parentField,
 } from "#test-utils/parents.ts";
+import {
+  expectRendersSoldOut,
+  expectSelectOffers,
+} from "#test-utils/parents-gate/helpers.ts";
+import { PARENT_CHILD_GROUP_UNITS } from "#types";
 
 // jscpd:ignore-end
 

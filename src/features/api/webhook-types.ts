@@ -4,7 +4,7 @@
 
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#types";
 
 /**
  * A paid session that carries a cryptographically valid price proof, so it is

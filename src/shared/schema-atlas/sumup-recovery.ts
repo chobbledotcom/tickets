@@ -12,7 +12,7 @@ import {
   RECOVERY_NODES,
   type RecoveryNodeId,
   recoveryNodeOf,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
 /* jscpd:ignore-start -- imports */
 import {
   atlasStatesFromSpec,

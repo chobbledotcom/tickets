@@ -1,7 +1,7 @@
 // test-groups: run-alone
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { adminGet } from "#test-utils/session.ts";

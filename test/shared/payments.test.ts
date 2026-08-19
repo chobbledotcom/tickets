@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import {
   getActivePaymentProvider,
   getPaymentProviderForExistingPayments,

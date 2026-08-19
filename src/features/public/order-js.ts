@@ -14,11 +14,11 @@
  * per-request catalog is prepended as a `const CATALOG = {…};` statement.
  */
 
+import { getCatalogListings } from "#db/listings/catalog.ts";
+import { settings } from "#db/settings.ts";
 import { orderWidgetBody } from "#routes/assets.ts";
 import { encodeBody } from "#routes/response.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
-import { getCatalogListings } from "#shared/db/listings/catalog.ts";
-import { settings } from "#shared/db/settings.ts";
 import { parseEmbedHosts } from "#shared/embed-hosts.ts";
 import {
   buildCatalog,

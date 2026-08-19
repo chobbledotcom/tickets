@@ -1,6 +1,5 @@
 import type { InValue } from "@libsql/client";
-import type { ColumnDef, TableSchema } from "#shared/db/table.ts";
-import { col } from "#shared/db/table.ts";
+import { type ColumnDef, col, type TableSchema } from "#db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   type BuiltSite,

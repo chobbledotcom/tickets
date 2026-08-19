@@ -17,7 +17,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeeKindsByIds,
@@ -25,9 +25,9 @@ import {
   getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
-} from "#shared/db/attendees/queries.ts";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { getListingWithAttendeesRaw } from "#shared/db/listings/attendees.ts";
+} from "#db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -52,9 +52,9 @@ const createMixedAudience = async () => {
 };
 
 const decryptNames = async (
-  rows: import("#shared/types.ts").Attendee[],
+  rows: import("#types").Attendee[],
 ): Promise<string[]> => {
-  const { decryptAttendees } = await import("#shared/db/attendees/pii.ts");
+  const { decryptAttendees } = await import("#db/attendees/pii.ts");
   const pk = await getTestPrivateKey();
   return (await decryptAttendees(rows, pk)).map((a) => a.name);
 };

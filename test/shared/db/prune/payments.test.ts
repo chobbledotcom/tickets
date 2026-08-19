@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
-import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { execute } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import {
   markRefundCompleted,
   markRefundLocalRecorded,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
+import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,

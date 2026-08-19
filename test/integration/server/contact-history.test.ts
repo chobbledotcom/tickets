@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   getContactRecord,
   hashEmail,
   saveContactRecord,
   toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectHtml,

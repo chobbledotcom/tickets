@@ -6,7 +6,7 @@
  * registered here.
  */
 
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { EASYPOSTCODES_PROVIDER } from "./easypostcodes.ts";
 import type {
   AddressLookupProvider,

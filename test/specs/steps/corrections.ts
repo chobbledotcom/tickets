@@ -8,11 +8,8 @@ import {
   modifierAccount,
   revenueAccount,
   WRITEOFF,
-} from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
+} from "#accounting/accounts.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   addBalanceEntry,

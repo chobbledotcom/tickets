@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#shared/db/groups.ts";
+import { groups } from "#db/groups.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";

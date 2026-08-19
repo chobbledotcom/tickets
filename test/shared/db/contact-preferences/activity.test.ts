@@ -5,7 +5,7 @@ import {
   getVisits,
   hashEmail,
   hashPhone,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -36,7 +36,7 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("a multi-listing order records one visit, not one per booking", async () => {
     const a = await createTestListing({ maxAttendees: 5, name: "A" });
     const b = await createTestListing({ maxAttendees: 5, name: "B" });
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: a.id }, { listingId: b.id }],
       email: "multi@example.com",
@@ -55,7 +55,7 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("a default order counts as a public booking", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Pub" });
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "public-buyer@example.com",
@@ -72,7 +72,7 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("an admin-source order counts as an admin booking", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Adm" });
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "admin-added@example.com",

@@ -2,23 +2,23 @@
  * booking tree plus which listings get their own standalone row, the overall
  * sold-out check, and the lone header listing whose details head the page. */
 
-/* jscpd:ignore-start */
-import { reduce } from "#fp";
-import { t } from "#i18n";
-import {
-  type BuildTreeInput,
-  buildBookingTree,
-} from "#shared/booking/build-tree.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
+import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
+import type { TicketListing } from "#booking/model.ts";
 import {
   type PackageLimitInfo,
   pageBundleLimits,
-} from "#shared/booking/package-cap.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
-import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
-import { standaloneListingIds } from "#shared/booking/tree.ts";
+} from "#booking/package-cap.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
+import {
+  type BookingNode,
+  type BookingTree,
+  standaloneListingIds,
+} from "#booking/tree.ts";
+/* jscpd:ignore-start */
+import { reduce } from "#fp";
+import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** Unavailability message shown when all listings are sold out or closed */

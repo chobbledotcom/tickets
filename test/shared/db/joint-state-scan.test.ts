@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { scanJointAnomalies } from "#shared/db/joint-state-scan.ts";
-import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+import { scanJointAnomalies } from "#db/joint-state-scan.ts";
+import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantArmedCharge, plantPaymentRow } from "#test-utils/joint-state.ts";
 

@@ -13,13 +13,12 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import { editPanel, successListPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
@@ -34,6 +33,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
+import type { AdminLevel, LogisticsAgent } from "#types";
 
 /* jscpd:ignore-end */
 

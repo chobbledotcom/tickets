@@ -4,16 +4,16 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
+} from "#accounting/accounts.ts";
 import {
   accountBalance,
   allTransfers,
   transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { postTransfersTx } from "#shared/accounting/store.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type { TxScope } from "#shared/db/client.ts";
+} from "#accounting/queries.ts";
+import { postTransfersTx } from "#accounting/store.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import type { TxScope } from "#db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

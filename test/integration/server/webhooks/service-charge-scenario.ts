@@ -1,4 +1,4 @@
-import { type ModifierRow, modifiersTable } from "#shared/db/modifiers.ts";
+import { type ModifierRow, modifiersTable } from "#db/modifiers.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 type TestListing = Awaited<ReturnType<typeof createTestListing>>;

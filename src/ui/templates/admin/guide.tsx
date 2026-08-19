@@ -14,8 +14,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { accountsSections } from "#templates/admin/guide/accounts.tsx";
 import {
@@ -35,6 +34,7 @@ import {
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /** The whole guide as one ordered list of sections. */

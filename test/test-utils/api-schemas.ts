@@ -7,13 +7,9 @@
 import * as v from "valibot";
 import { ApiQuantitySchema } from "#routes/api/request-schemas.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import {
-  CONTACT_FIELDS,
-  DayPricesSchema,
-  MAX_DURATION_DAYS,
-} from "#shared/types.ts";
 import { IsoDateSchema } from "#shared/validation/date.ts";
 import { EmailSchema } from "#shared/validation/email.ts";
+import { CONTACT_FIELDS, DayPricesSchema, MAX_DURATION_DAYS } from "#types";
 
 /**
  * Shape of a public listing as returned by the JSON API (mirrors the production

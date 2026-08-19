@@ -10,8 +10,8 @@
  * rows, so the updates are a harmless no-op.
  */
 
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { type SqlStatement, update } from "#shared/db/client.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { type SqlStatement, update } from "#db/client.ts";
 
 export const repointAttendeeStatements = (
   fromAttendeeId: number,

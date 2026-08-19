@@ -1,18 +1,18 @@
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import type {
+  RefundPaymentReference,
+  TaggedRefundPaymentReference,
+} from "#db/payment-references.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { HeldRefundClaim } from "#routes/admin/refunds/claim.ts";
 import type {
   ReadyRefundProvider,
   RefundReadinessDependencies,
 } from "#routes/admin/refunds/readiness.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import type {
-  RefundPaymentReference,
-  TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import { provider as recordingProvider } from "#test/features/admin/refunds/provider/helpers.ts";
+import type { PaymentProviderType } from "#types";
 
 export const charge = (): ChargeMoney => ({
   captured: { amount: 1000, currency: "GBP" },

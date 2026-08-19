@@ -5,7 +5,7 @@
  */
 
 // jscpd:ignore-start
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { watchesOutgoing } from "#test/specs/support/outgoing.ts";

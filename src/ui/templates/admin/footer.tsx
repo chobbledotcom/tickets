@@ -14,19 +14,19 @@
  * public-page render in the same isolate.
  */
 
-import { compact, reduce } from "#fp";
-import { t } from "#i18n";
-import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   getQueryLog,
   getQueryLogStartTime,
   isFooterDebugEnabled,
   type QueryLogEntry,
   sqlWallClockMs,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
+import { compact, reduce } from "#fp";
+import { t } from "#i18n";
+import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
-import { type AdminLevel, isStaffRole } from "#shared/types.ts";
 import { getUptimeSeconds } from "#shared/uptime.ts";
+import { type AdminLevel, isStaffRole } from "#types";
 
 /** Data passed to the debug-details renderer */
 export type DebugFooterData = {

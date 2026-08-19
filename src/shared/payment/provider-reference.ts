@@ -1,14 +1,8 @@
 import * as v from "valibot";
-import {
-  type ResourceId,
-  ResourceIdSchema,
-} from "#shared/payment/resource-id.ts";
-import {
-  PaymentProviderSchema,
-  type PaymentProviderType,
-} from "#shared/types.ts";
+import { type ResourceId, ResourceIdSchema } from "#payment/resource-id.ts";
 import { parseOrThrow } from "#shared/validation/parse.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { PaymentProviderSchema, type PaymentProviderType } from "#types";
 
 const PAYMENT_REFERENCE_PREFIX = "payment-reference:1:";
 

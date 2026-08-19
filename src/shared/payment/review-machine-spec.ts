@@ -12,7 +12,7 @@ import {
   PAYMENT_REVIEW_RETIREMENT,
   type PaymentReviewCase,
   type PaymentReviewReason,
-} from "#shared/payment/review.ts";
+} from "#payment/review.ts";
 import {
   type MachineEvent,
   type MachineMoves,

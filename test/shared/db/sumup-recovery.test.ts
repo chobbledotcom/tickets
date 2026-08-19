@@ -1,13 +1,13 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
   delaySumupRecoveryCheck,
   getDueSumupCheckouts,
-} from "#shared/db/sumup-recovery.ts";
+} from "#db/sumup-recovery.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { sumupRecoveryRow } from "#test-utils/sumup.ts";

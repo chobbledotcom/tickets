@@ -2,18 +2,18 @@
  * Previous bookings for the attendee Contact History panel.
  */
 
-import { compact, unique } from "#fp";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
   type AttendeeBookingRows,
   getAttendeeBookingRowsByTokens,
-} from "#shared/db/attendees/tokens.ts";
-import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
-import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
-import { listingNames } from "#shared/db/listings/records.ts";
+} from "#db/attendees/tokens.ts";
+import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
+import { getRecentBookingTokens } from "#db/contact-tokens.ts";
+import { listingNames } from "#db/listings/records.ts";
+import { compact, unique } from "#fp";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
 import type { PreviousBooking } from "#templates/admin/attendee-page.tsx";
+import type { Attendee } from "#types";
 
 const PREVIOUS_BOOKINGS_LIMIT = 100;
 const TOKENS_PER_CHANNEL_LIMIT = PREVIOUS_BOOKINGS_LIMIT * 4;

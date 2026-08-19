@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {

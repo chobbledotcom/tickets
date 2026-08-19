@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
-import type { Question, TextAnswer } from "#shared/db/question-types.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
+import type { Question, TextAnswer } from "#db/question-types.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
 import {
   answersTable,
   questionsOrder,
   questionsTable,
-} from "#shared/db/questions/tables.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
+} from "#db/questions/tables.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { Attendee, Listing } from "#types";
 
 /** Create a test attendee directly via the DB (bypasses routes). Shared by
  *  every questions test file that needs an attendee to hang answers off. */

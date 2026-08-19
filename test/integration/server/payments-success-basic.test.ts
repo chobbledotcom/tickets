@@ -24,7 +24,7 @@ const expectMembersBookedOnDate = async (
   date: string,
   groupId: number,
 ): Promise<void> => {
-  const { getDb } = await import("#shared/db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   for (const member of members) {
     const row = (
       await getDb().execute({
@@ -109,7 +109,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       // created booking rows, so tickets/emails group the order by the persisted
       // id rather than membership equality.
       await setupStripe();
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Paid Kit",
@@ -236,7 +236,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       await setupStripe();
       const { addDays } = await import("#shared/dates.ts");
       const { todayInTz } = await import("#shared/timezone.ts");
-      const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+      const { setGroupPackageMembers } = await import("#db/groups.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Flex Paid Kit",

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { TokenHash } from "#shared/crypto/sealed.ts";
-import type { Session } from "#shared/types.ts";
+import type { TokenHash } from "#crypto/sealed.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import type { Session } from "#types";
 
 const mkSession = (token: string): Session => ({
   csrf_token: "csrf",

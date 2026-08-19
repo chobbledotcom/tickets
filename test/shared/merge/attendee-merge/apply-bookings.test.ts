@@ -1,7 +1,7 @@
 /** Booking-row behavior for attendee merges. */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#db/client.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

@@ -18,9 +18,9 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import type { TransactionStateReader, TxScope } from "#shared/db/client.ts";
-import type { Table } from "#shared/db/table.ts";
-import { byPrimaryKey } from "#shared/db/table-reader.ts";
+import type { TransactionStateReader, TxScope } from "#db/client.ts";
+import type { Table } from "#db/table.ts";
+import { byPrimaryKey } from "#db/table-reader.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";

@@ -6,15 +6,15 @@
  * 2. Deploy: download release asset, upload via bunny-cdn module
  */
 
-import { compact, lazyRef } from "#fp";
-import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
-import { deployScriptCode } from "#shared/bunny-cdn.ts";
 import {
   executeBatchWithoutCacheInvalidation,
   inPlaceholders,
   queryAll,
   queryOnePrimary,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
+import { compact, lazyRef } from "#fp";
+import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
+import { deployScriptCode } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
 import { type Result, requireSuccess } from "#shared/result.ts";

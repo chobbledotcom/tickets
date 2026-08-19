@@ -15,8 +15,8 @@
  * submitter, with anti-spoof handling) lives here.
  */
 
+import { settings } from "#db/settings.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   deliverMessage,
   resolveMessageEmailConfig,

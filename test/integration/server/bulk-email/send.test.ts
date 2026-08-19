@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hashEmail, unsubscribeHash } from "#db/contact-preferences.ts";
+import { settings } from "#db/settings.ts";
 import {
   seedDraft,
   seedListingWithAttendees,

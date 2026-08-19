@@ -2,9 +2,9 @@ import type { InStatement, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { PostResetError, restoreFromSql } from "#shared/db/backup.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
+import { PostResetError, restoreFromSql } from "#db/backup.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("backup import batches", { db: true }, () => {

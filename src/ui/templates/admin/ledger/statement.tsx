@@ -3,7 +3,6 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
-import type { AdminSession } from "#shared/types.ts";
 import {
   humanDescription,
   shownFigure,
@@ -23,6 +22,7 @@ import {
 } from "#templates/admin/ledger.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import type { AdminSession } from "#types";
 
 const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
   sameAccount(line.transfer.destination, account)

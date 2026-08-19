@@ -1,13 +1,13 @@
 import { APIError } from "@sumup/sdk";
-import { logDebug } from "#shared/logger.ts";
-import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import {
   type ProviderFailure,
   type ProviderFailureFacts,
   providerFailure,
-} from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+} from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import { logDebug } from "#shared/logger.ts";
+import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import { SumupApiError, SumupProtocolError } from "#shared/sumup/transport.ts";
 
 /** The immediate answer to a SumUp refund call. Its empty success body only

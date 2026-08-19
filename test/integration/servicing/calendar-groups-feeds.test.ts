@@ -18,8 +18,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeeKindsByIds } from "#shared/db/attendees/queries.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
+import { getAttendeeKindsByIds } from "#db/attendees/queries.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -135,7 +135,7 @@ describeWithEnv("servicing §8 — calendar, groups & feeds", { db: true }, () =
 
   test("CalDAV feed excludes servicing events (no servicing VEVENT leaks)", async () => {
     await createCalendarHold();
-    const { settings } = await import("#shared/db/settings.ts");
+    const { settings } = await import("#db/settings.ts");
     settings.setForTest({ calendar_feeds_enabled: true });
     try {
       const { cookie } = await getTestSession();

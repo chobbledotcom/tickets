@@ -1,15 +1,20 @@
 /** Fixed-size database pruning used by the maintenance task and owner actions. */
 
-import { decrypt } from "#shared/crypto/encryption.ts";
-import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
-import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import { addressCachePruneStatement } from "#db/address-cache.ts";
+import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import {
   executeBatchWithResults,
   queryAll,
   type SqlStatement,
-} from "#shared/db/client.ts";
-import { orphanIdsBatch } from "#shared/db/orphan-attendees.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/client.ts";
+import { orphanIdsBatch } from "#db/orphan-attendees.ts";
+import { settings } from "#db/settings.ts";
+import {
+  refundAuthorityPrunableSql,
+  refundAuthorityWorkSql,
+} from "#payment/refund-authority-lifecycle.ts";
+import { RECOVERY_PRUNABLE_NODES } from "#payment/sumup-recovery-machine-spec.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
@@ -23,13 +28,8 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
-import {
-  refundAuthorityPrunableSql,
-  refundAuthorityWorkSql,
-} from "#shared/payment/refund-authority-lifecycle.ts";
-import { RECOVERY_PRUNABLE_NODES } from "#shared/payment/sumup-recovery-machine-spec.ts";
-import type { User } from "#shared/types.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
+import type { User } from "#types";
 
 type PruneStatement = SqlStatement;
 

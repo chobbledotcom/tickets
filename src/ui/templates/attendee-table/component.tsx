@@ -1,6 +1,6 @@
+import { isServicing } from "#db/attendees/kind.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { isServicing } from "#shared/db/attendees/kind.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import { attendeeTable } from "#templates/attendee-table/columns.tsx";

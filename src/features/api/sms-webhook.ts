@@ -10,24 +10,24 @@
  */
 
 import * as v from "valibot";
-import { asString } from "#fp";
-import { apiErrorResponse } from "#routes/api/cors.ts";
-import { jsonResponse } from "#routes/response.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
-import { constantTimeEqual } from "#shared/crypto/utils.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { findAttendeeIdByPhoneIndex } from "#shared/db/attendee-phone-index.ts";
+import { constantTimeEqual } from "#crypto/utils.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { findAttendeeIdByPhoneIndex } from "#db/attendee-phone-index.ts";
 import {
   claimProcessedSmsInbound,
   pruneProcessedSmsInboundBefore,
-} from "#shared/db/processed-sms-inbound.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/processed-sms-inbound.ts";
+import { settings } from "#db/settings.ts";
 import {
   deleteSmsMessage,
   getSmsMessageByProviderId,
   pruneSmsMessagesBefore,
   type SmsMessageRow,
-} from "#shared/db/sms-messages.ts";
+} from "#db/sms-messages.ts";
+import { asString } from "#fp";
+import { apiErrorResponse } from "#routes/api/cors.ts";
+import { jsonResponse } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import { DAY_MS, isoBefore, nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex } from "#shared/payment-crypto.ts";
 import { decryptField } from "#shared/sms/e2e.ts";

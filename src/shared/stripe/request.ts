@@ -1,11 +1,11 @@
 import * as v from "valibot";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   isAbortOrTimeoutError,
   isTimeoutError,
   namedError,
 } from "#shared/named-error.ts";
 import { delay } from "#shared/now.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
 import { parseStripeErrorBody } from "./schemas.ts";

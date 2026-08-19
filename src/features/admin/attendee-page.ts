@@ -15,7 +15,17 @@
  * attendee-form-routes.ts; the shared loaders live in attendee-page-data.ts.
  */
 
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { getNotesFor } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import {
+  loadPaymentMoveSnapshot,
+  type PaymentMoveSnapshot,
+} from "#db/payment-admit-move.ts";
+import type { RefundPaymentReferenceSet } from "#db/payment-references.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
 import { loadAttendeeLedgerPanel } from "#routes/admin/attendee-ledger-panel.ts";
 import { loadLogisticsPanel } from "#routes/admin/attendee-logistics-tab.ts";
@@ -49,19 +59,8 @@ import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  loadPaymentMoveSnapshot,
-  type PaymentMoveSnapshot,
-} from "#shared/db/payment-admit-move.ts";
-import type { RefundPaymentReferenceSet } from "#shared/db/payment-references.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
-import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { isOwnerRole } from "#shared/types.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
@@ -77,6 +76,7 @@ import {
   PaymentDetails,
   type PaymentRefreshControl,
 } from "#templates/admin/attendees.tsx";
+import { isOwnerRole } from "#types";
 
 type AttendeePageEntity = LoadedAttendee & {
   readonly paymentMove: PaymentMoveSnapshot | "not_loaded";

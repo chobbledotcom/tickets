@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { TicketListing } from "#booking/model.ts";
+import type { AddOnOption } from "#db/modifier-resolve.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 import {
   type AnswerInfo,
   listingAnswerMaps,
   parseAddOnSelections,
   parseQuantities,
 } from "#routes/public/ticket-form.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
-import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import { groupListingAnswerSets } from "#shared/db/questions/attendee-answers/save.ts";
 import { FormParams } from "#shared/form-data.ts";
 
 const question = (

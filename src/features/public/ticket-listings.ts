@@ -1,10 +1,7 @@
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import { getGroupRemainingByListingId } from "#db/attendees/capacity/groups.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
-import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity/groups.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 export const buildTicketListingsWithGroupCapacity = async (
   listings: ListingWithCount[],

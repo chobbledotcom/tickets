@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { resetHostEmailConfig } from "#shared/email.ts";
 import {
   parseEmail,

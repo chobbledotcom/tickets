@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { buildTicketListing } from "#booking/model.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { createFreeReservation } from "#routes/public/ticket-payment.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
-import type { ContactInfo, Listing } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import type { ContactInfo, Listing } from "#types";
 
 const contact: ContactInfo = {
   address: "",

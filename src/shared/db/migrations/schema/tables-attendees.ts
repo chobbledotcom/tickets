@@ -1,6 +1,6 @@
 /** Attendee, booking, payment, and activity tables. */
 
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import type { Table } from "./types.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [

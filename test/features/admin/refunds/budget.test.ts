@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { TaggedRefundPaymentReference } from "#db/payment-references.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import {
   REFRESH_BUDGET_MESSAGE,
   REFUND_BUDGET_MESSAGES,
@@ -9,9 +11,7 @@ import {
   refundReadinessSubrequestCost,
   subrequestCostFits,
 } from "#routes/admin/refunds/budget.ts";
-import type { TaggedRefundPaymentReference } from "#shared/db/payment-references.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 const referenceFacts = (label: string) => ({
   heldRowSessionIds: [],

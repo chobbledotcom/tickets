@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertAdminHtml,
   expectFlash,

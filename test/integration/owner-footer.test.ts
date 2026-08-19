@@ -6,12 +6,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { isFooterDebugEnabled, runWithQueryLogContext } from "#db/query-log.ts";
 import { handleRequest } from "#routes";
 import { routeAdmin } from "#routes/admin/index.ts";
-import {
-  isFooterDebugEnabled,
-  runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
 import { assertAdminHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

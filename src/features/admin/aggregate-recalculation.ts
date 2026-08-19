@@ -12,7 +12,7 @@ import {
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { errorResult } from "#shared/result.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

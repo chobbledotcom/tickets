@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
+import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import {
   expectProcessed,
   expectStoredRefund,

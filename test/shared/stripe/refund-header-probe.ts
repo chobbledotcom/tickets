@@ -1,6 +1,8 @@
-import type { StripeClient } from "#shared/stripe/client.ts";
-import { createStripeClient } from "#shared/stripe/client.ts";
-import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
+import {
+  createStripeClient,
+  type StripeClient,
+} from "#shared/stripe/client.ts";
+import { stripeRefund } from "#test-utils/stripe/fixtures.ts";
 
 /**
  * Build a Stripe client whose fetch records the Idempotency-Key header sent

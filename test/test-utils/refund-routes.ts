@@ -1,16 +1,15 @@
 import { type Spy, spy, stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
-import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import type {
   RefundAttemptResult,
   RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { PaymentReviewChange } from "#shared/payment/row-transitions.ts";
+} from "#payment/refund-attempt.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
+import type { PaymentReviewReason } from "#payment/review.ts";
+import type { PaymentReviewChange } from "#payment/row-transitions.ts";
+import { handleRequest } from "#routes";
+import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { paymentsApi } from "#shared/payments.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import {
   mockFormRequest,
@@ -25,6 +24,7 @@ import {
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import type { Attendee, Listing } from "#types";
 
 /** What a "was it refunded?" answer looks like as charge money. */
 const asChargeMoney = (refunded: boolean): ChargeMoney =>

@@ -6,21 +6,21 @@ import {
   revenueAccount,
   WORLD,
   WRITEOFF,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+} from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   accountBalance,
   allTransfers,
   transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+} from "#accounting/queries.ts";
+import { legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";

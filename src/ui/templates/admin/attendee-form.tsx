@@ -28,7 +28,6 @@ import {
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
-import { type AdminSession, MAX_DURATION_DAYS } from "#shared/types.ts";
 import { AdminPage, renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
@@ -50,6 +49,7 @@ import {
   type SelectOption,
 } from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
+import { type AdminSession, MAX_DURATION_DAYS } from "#types";
 
 /* jscpd:ignore-end */
 

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { logActivities } from "#shared/db/activity-log.ts";
-import { backupDir } from "#shared/db/backup-storage.ts";
+import { logActivities } from "#db/activity-log.ts";
+import { backupDir } from "#db/backup-storage.ts";
 import { runWithStorageConfig, uploadRaw } from "#shared/storage.ts";
 import {
   expectFlashRedirect,

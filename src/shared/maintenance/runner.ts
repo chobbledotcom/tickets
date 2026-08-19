@@ -1,5 +1,5 @@
+import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
-import { settings } from "#shared/db/settings.ts";
 import {
   getSubrequestRemaining,
   getSubrequestUsage,

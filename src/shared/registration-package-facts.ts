@@ -1,9 +1,9 @@
-import { mapNotNullish, unique } from "#fp";
 import {
   getPackageDisplaysByIds,
   loadPackageMemberPricingByGroupIds,
   type PackageDisplay,
-} from "#shared/db/groups.ts";
+} from "#db/groups.ts";
+import { mapNotNullish, unique } from "#fp";
 
 export interface RegistrationPackagePricing {
   dayPriceMap: ReadonlyMap<number, ReadonlyMap<number, number>>;

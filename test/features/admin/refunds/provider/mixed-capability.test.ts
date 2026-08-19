@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import {
   recordProviderRefunds,
   requestProviderRefund,

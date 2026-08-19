@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { LogisticsAgent } from "#shared/types.ts";
 import {
   adminUserNewPage,
   adminUsersPage,
@@ -11,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import type { LogisticsAgent } from "#types";
 
 const AGENTS: LogisticsAgent[] = [
   { id: 1, name: "Van 1" },

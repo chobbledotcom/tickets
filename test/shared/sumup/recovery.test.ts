@@ -1,11 +1,11 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
 import {
   RECOVERY_EVENTS,
   recoveryMoveTo,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
+import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
 import {
   type SumupCheckoutReading,
   sumupRecoveryOutcome,

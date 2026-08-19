@@ -19,17 +19,17 @@
  * it. A POST keeps the key and response out of access-log query strings.
  */
 
-import { apiErrorResponse } from "#routes/api/cors.ts";
-import { jsonResponse } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
-import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
-import { constantTimeEqual } from "#shared/crypto/utils.ts";
+import { constantTimeEqual } from "#crypto/utils.ts";
 import {
   DEFAULT_UPDATE_TIER,
   isUpdateTier,
   siteAcceptsDeployTier,
-} from "#shared/db/built-sites/types.ts";
-import { builtSites } from "#shared/db/built-sites.ts";
+} from "#db/built-sites/types.ts";
+import { builtSites } from "#db/built-sites.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
+import { jsonResponse } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
 
 /** Extract the bearer token from the Authorization header (empty if absent). */
 const bearerToken = (request: Request): string => {

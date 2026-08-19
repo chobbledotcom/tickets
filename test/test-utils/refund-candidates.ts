@@ -1,10 +1,10 @@
 import { assert } from "@std/assert";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
   getRefundCandidates,
   type RefundCandidate,
 } from "#routes/admin/refunds/candidates.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 /** Refund candidates for fixtures that deliberately contain only current

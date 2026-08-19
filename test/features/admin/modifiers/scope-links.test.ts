@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   getAllModifiers,
   getModifierAnswerIds,
   modifierGroups,
   modifierListings,
-} from "#shared/db/modifiers.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/modifiers.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   expectFlashRedirect,
