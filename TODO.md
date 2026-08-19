@@ -1623,14 +1623,18 @@ It has since been seen more, in `test/scripts/stripe-mock/lifecycle.test.ts`
 ("stops trying once the mock has been started as many times as asked", on CI for
 PR #1968, and "gives a mock time to shut itself down before killing it", on CI
 for PR #2032 — the latter now hardened: the fixture notes when it wins its port,
-and the test retries on a fresh port when that note is missing), with a second
-symptom worth knowing about. That test counts how many times the fake mock was
-started and expects one start per try asked for. A try whose freshly picked port
-already has something listening on it is abandoned _before_ the mock is started,
-so the count comes up short and the test fails — even though the starter did try
-the number of times it was asked to. Handing out ports so no two tests can
-receive the same one would fix this too; short of that, the count is the wrong
-thing to measure.
+and the test retries on a fresh port when that note is missing), and in
+`test/scripts/stripe-mock/ports.test.ts` ("keeps a reserved port unavailable
+until release", on CI for PR #2114 — the test released its reservation and then
+re-bound the same number, which a suite running beside it can take in that
+window, so the re-bind now goes through `retryWhilePortTaken`). There is a
+second symptom worth knowing about. That test counts how many times the fake
+mock was started and expects one start per try asked for. A try whose freshly
+picked port already has something listening on it is abandoned _before_ the mock
+is started, so the count comes up short and the test fails — even though the
+starter did try the number of times it was asked to. Handing out ports so no two
+tests can receive the same one would fix this too; short of that, the count is
+the wrong thing to measure.
 
 ## The Turso upload suite sometimes dies with no diagnostic at all
 
