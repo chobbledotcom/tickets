@@ -1,6 +1,6 @@
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 /**
  * Admin API key management routes
  */
@@ -130,12 +130,12 @@ const overviewTab: TabDef<ApiKeyDisplay> = {
 
 /** The owner-only API key summary and actions page. */
 const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
-  basePath: (id) => `/admin/api-keys/${id}`,
+  basePath: (id) => adminPath("apiKey", { apiKeyId: id }),
   guard: requireOwnerOr,
   load: async (id, session) =>
     (await getApiKeysForUser(session.userId)).find((key) => key.id === id) ??
     null,
-  navActive: "/admin/api-keys",
+  navActive: adminPattern("apiKeys"),
   tabs: [
     overviewTab,
     deleteActionTab(

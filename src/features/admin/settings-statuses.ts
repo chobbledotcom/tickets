@@ -37,7 +37,7 @@ import { attendeeStatusPage } from "./attendee-status-page.ts";
 
 /* jscpd:ignore-end */
 
-const LIST_PATH = "/admin/settings/statuses";
+const LIST_PATH = adminPattern("statuses");
 
 /** Parse and validate the status form. */
 const parseStatusForm = (

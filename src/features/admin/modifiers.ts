@@ -18,7 +18,7 @@ import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -311,7 +311,7 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
-  basePath: (id) => `/admin/modifiers/${id}`,
+  basePath: (id) => adminPath("modifier", { id }),
   deleteLabelKey: "modifiers.delete.submit",
   edit: (modifier, ctx, rejected) =>
     loadModifierEditPanel(
@@ -323,7 +323,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
   guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
-  navActive: { section: "/admin/modifiers" },
+  navActive: { section: adminPattern("modifiers") },
 });
 
 // The list and entity page load the ledger-projected Modifier; writes and the
@@ -331,7 +331,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
-  listPath: "/admin/modifiers",
+  listPath: adminPattern("modifiers"),
   operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,

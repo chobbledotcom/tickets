@@ -10,6 +10,7 @@ import {
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
 import {
@@ -42,7 +43,7 @@ export const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
 /** The tabbed logistics-agent page. */
 export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
   defineEditEntityPage({
-    basePath: (id) => `/admin/logistics/${id}`,
+    basePath: (id) => adminPath("logisticsAgent", { id }),
     deleteLabelKey: "logistics.delete_agent",
     edit: async (agent, _ctx, rejected) => {
       const users = await loadAgentUserOptions();
@@ -64,5 +65,5 @@ export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
     editSlug: "",
     guard: requireOwnerOr,
     load: (id) => logisticsAgents.table.read.one({ id }),
-    navActive: { section: "/admin/logistics" },
+    navActive: { section: adminPattern("logistics") },
   });

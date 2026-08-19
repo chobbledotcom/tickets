@@ -9,6 +9,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
@@ -27,7 +28,7 @@ import { translatedTableHeader } from "#templates/components/translated-table-co
 
 /* jscpd:ignore-end */
 
-const LIST_PATH = "/admin/settings/statuses";
+const LIST_PATH = adminPattern("statuses");
 
 /** Render one row's flag badges. */
 const statusBadges = (s: AttendeeStatus): JSX.Element => (
@@ -46,7 +47,7 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
  * table renderer. */
 const statusColumns: TableColumn<AttendeeStatus>[] = [
   writableNameColumn(
-    (s) => `${LIST_PATH}/${s.id}`,
+    (s) => adminPath("status", { id: s.id }),
     (s) => s.name,
   ),
   {
@@ -136,7 +137,7 @@ export const AttendeeStatusEditPanel = ({
 }): JSX.Element =>
   editPanel(error)(
     <SaveForm
-      action={`${LIST_PATH}/${status.id}/edit`}
+      action={adminPath("statusEdit", { id: status.id })}
       submitLabel={t("statuses.form_save_button")}
     >
       {renderStatusFields(status, values)}
@@ -167,7 +168,7 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
   },
   list: {
     actions: (
-      <ActionButton href={`${LIST_PATH}/new`} icon="plus">
+      <ActionButton href={adminPattern("statusNew")} icon="plus">
         {t("statuses.add_status_button")}
       </ActionButton>
     ),

@@ -6,6 +6,7 @@ import {
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import {
   type AttendeeStatus,
   getAttendeeStatus,
@@ -14,11 +15,9 @@ import { AttendeeStatusEditPanel } from "#templates/admin/settings-statuses.tsx"
 
 /* jscpd:ignore-end */
 
-const LIST_PATH = "/admin/settings/statuses";
-
 export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
   defineEditEntityPage({
-    basePath: (id) => `${LIST_PATH}/${id}`,
+    basePath: (id) => adminPath("status", { id }),
     deleteLabelKey: "statuses.delete_button",
     edit: (status, _ctx, rejected) =>
       Promise.resolve(
@@ -29,5 +28,5 @@ export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
       ),
     guard: requireOwnerOr,
     load: (id) => getAttendeeStatus(id),
-    navActive: LIST_PATH,
+    navActive: adminPattern("statuses"),
   });

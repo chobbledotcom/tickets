@@ -85,7 +85,7 @@ const logisticsAgentEditResource = defineNamedResource({
 const crud = createOwnerCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (agent) => agent.name,
-  listPath: "/admin/logistics",
+  listPath: adminPattern("logistics"),
   operations: logisticsAgentsResource,
   renderDelete: logisticsAgentPages.deletePage,
   renderList: adminLogisticsPage,

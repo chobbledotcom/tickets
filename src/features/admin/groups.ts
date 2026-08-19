@@ -271,7 +271,7 @@ const crudConfig = {
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>
     entityReturnPath("/admin/groups", session.adminLevel, g.id),
-  listPath: "/admin/groups",
+  listPath: adminPattern("groups"),
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,

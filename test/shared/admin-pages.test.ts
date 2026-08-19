@@ -97,7 +97,10 @@ describe("admin navigation", () => {
 });
 
 describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
-  test("editors are sent to the edit form (they can't open the detail page)", () => {
+  // Which page a role lands on is decided by the audience the record page
+  // declares, not by naming one role. Only content roles reach these two
+  // call sites, so those are the roles the cases below cover.
+  test("sends a role that cannot open the record page to its edit form", () => {
     expect(entityReturnPath("/admin/listings", "editor", 5)).toBe(
       "/admin/listing/5/edit",
     );
@@ -106,7 +109,7 @@ describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
     );
   });
 
-  test("staff are sent to the detail page", () => {
+  test("sends a role that can open the record page to the page", () => {
     expect(entityReturnPath("/admin/listings", "owner", 5)).toBe(
       "/admin/listing/5",
     );
@@ -116,7 +119,7 @@ describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
     expect(entityReturnPath("/admin/groups", "owner", 7)).toBe(
       "/admin/groups/7",
     );
-    expect(entityReturnPath("/admin/groups", "agent", 7)).toBe(
+    expect(entityReturnPath("/admin/groups", "manager", 7)).toBe(
       "/admin/groups/7",
     );
   });

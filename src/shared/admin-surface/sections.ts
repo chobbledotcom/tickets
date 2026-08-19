@@ -21,13 +21,20 @@ export type AdminNavEntry = {
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
 
+/** The page for one of a section's records, and where a role that cannot open
+ * it goes instead. Both are declared routes, so the audience on the page is
+ * what decides which one a reader is sent to. */
+export type AdminSectionDetail = {
+  readonly editForm: AdminDestinationId;
+  readonly page: AdminDestinationId;
+};
+
 export type AdminSectionDef = {
-  readonly detailPath?: string;
+  readonly detail?: AdminSectionDetail;
   readonly id: string;
   readonly labelKey: string;
   readonly landing: AdminDestinationId;
   readonly nav: readonly AdminNavEntry[];
-  readonly staffOnlyDetail?: boolean;
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
 
@@ -39,7 +46,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     nav: [{ id: "home", kind: "landing", labelKey: "nav.public.home" }],
   },
   {
-    detailPath: "/admin/listing/:id",
+    detail: { editForm: "listingEdit", page: "listing" },
     id: "listings",
     labelKey: "terms.listings",
     landing: "listings",
@@ -48,7 +55,6 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "listingNew", kind: "create", labelKey: "nav.sub.add" },
       { id: "catalogImport", kind: "import", labelKey: "nav.sub.import" },
     ],
-    staffOnlyDetail: true,
   },
   {
     id: "calendar",
@@ -100,7 +106,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     ],
   },
   {
-    detailPath: "/admin/groups/:id",
+    detail: { editForm: "groupEdit", page: "group" },
     id: "groups",
     labelKey: "terms.groups",
     landing: "groups",
@@ -108,7 +114,6 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "groups", kind: "landing", labelKey: "terms.groups" },
       { id: "groupNew", kind: "create", labelKey: "nav.sub.add" },
     ],
-    staffOnlyDetail: true,
   },
   {
     id: "images",

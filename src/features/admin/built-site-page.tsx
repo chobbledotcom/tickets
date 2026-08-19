@@ -9,6 +9,7 @@ import {
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
@@ -25,7 +26,7 @@ import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 
 /* jscpd:ignore-end */
 
-const basePath = (id: number): string => `/admin/built-sites/${id}`;
+const basePath = (id: number): string => adminPath("builtSite", { id });
 
 const renewalTab = panelTab<BuiltSite>(
   "renewal",
@@ -71,5 +72,5 @@ export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
   guard: requireOwnerOr,
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
   load: (id) => builtSitesCrudTable.read.one({ id }),
-  navActive: "/admin/built-sites",
+  navActive: adminPattern("builtSites"),
 });

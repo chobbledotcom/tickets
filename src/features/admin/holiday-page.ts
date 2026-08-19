@@ -10,6 +10,7 @@ import {
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import type { Holiday } from "#shared/types.ts";
 import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
@@ -17,7 +18,7 @@ import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
 /* jscpd:ignore-end */
 
 export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
-  basePath: (id) => `/admin/holidays/${id}`,
+  basePath: (id) => adminPath("holiday", { id }),
   deleteLabelKey: "holidays.delete.submit",
   edit: (holiday, _ctx, rejected) =>
     Promise.resolve(
@@ -25,5 +26,5 @@ export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
     ),
   guard: requireOwnerOr,
   load: (id) => holidays.table.read.one({ id }),
-  navActive: "/admin/holidays",
+  navActive: adminPattern("holidays"),
 });

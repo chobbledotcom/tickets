@@ -57,7 +57,7 @@ export const holidaysCrud = createOwnerCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   getRowPath: (holiday) => holidayPage.path(holiday.id),
-  listPath: "/admin/holidays",
+  listPath: adminPattern("holidays"),
   operations: holidaysResource,
   renderDelete: (...args) => getHolidayPages().deletePage(...args),
   renderEditError: holidayPage.renderEditError,

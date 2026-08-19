@@ -13,6 +13,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
@@ -145,7 +146,7 @@ const AgentUsersSelector = ({
 
 export const logisticsAgentPages = defineAdminResourcePages<LogisticsAgent>({
   active: "/admin/logistics",
-  basePath: "/admin/logistics",
+  basePath: adminPattern("logistics"),
   delete: {
     confirm: (agent) => ({
       args: { name: escapeHtml(agent.name) },

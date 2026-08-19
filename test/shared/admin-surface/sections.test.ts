@@ -7,7 +7,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
-import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
+import {
+  ADMIN_SURFACE,
+  adminDestination,
+  adminPattern,
+} from "#shared/admin-surface.ts";
 
 const navEntries = ADMIN_SECTIONS.flatMap((section) =>
   section.nav.map((entry) => ({ entry, section })),
@@ -122,7 +126,7 @@ describe("the words the navigation shows", () => {
 
 describe("the sections that own a record page", () => {
   const withDetail = ADMIN_SECTIONS.filter(
-    (section) => section.detailPath !== undefined,
+    (section) => section.detail !== undefined,
   );
 
   test("cover listings and groups", () => {
@@ -132,30 +136,44 @@ describe("the sections that own a record page", () => {
     ]);
   });
 
-  test("point at one record", () => {
+  test("name the record page and the form to fall back to", () => {
+    expect(
+      withDetail.map((section) => [
+        adminPattern(section.detail!.page),
+        adminPattern(section.detail!.editForm),
+      ]),
+    ).toEqual([
+      ["/admin/listing/:id", "/admin/listing/:id/edit"],
+      ["/admin/groups/:id", "/admin/groups/:id/edit"],
+    ]);
+  });
+
+  test("point both routes at one record", () => {
     const wrong = withDetail
-      .filter(
-        (section) =>
-          !section.detailPath!.startsWith("/admin/") ||
-          !section.detailPath!.includes(":id"),
+      .filter(({ detail }) =>
+        [detail!.page, detail!.editForm].some(
+          (id) => !adminPattern(id).includes(":id"),
+        ),
       )
       .map((section) => section.id);
     expect(wrong).toEqual([]);
   });
 
-  test("keep the record page for staff only", () => {
-    // An editor cannot open either detail page, so entityReturnPath sends
-    // them to the edit form instead. Both flags carry that.
-    const open = withDetail
-      .filter((section) => section.staffOnlyDetail !== true)
-      .map((section) => section.id);
-    expect(open).toEqual([]);
+  test("keep the record page out of an editor's reach", () => {
+    // Every tab of both pages is staff-only, so an editor following the link
+    // would meet a 404. entityReturnPath reads this audience to send them to
+    // the edit form instead, which is why the two must stay apart.
+    const open = withDetail.filter(({ detail }) =>
+      adminDestination(detail!.page).audience.includes("editor"),
+    );
+    expect(open.map((section) => section.id)).toEqual([]);
   });
 
-  test("keep the exact paths entityReturnPath rewrites", () => {
-    expect(withDetail.map((section) => section.detailPath)).toEqual([
-      "/admin/listing/:id",
-      "/admin/groups/:id",
-    ]);
+  test("keep the edit form within an editor's reach", () => {
+    const shut = withDetail.filter(
+      ({ detail }) =>
+        !adminDestination(detail!.editForm).audience.includes("editor"),
+    );
+    expect(shut.map((section) => section.id)).toEqual([]);
   });
 });

@@ -23,6 +23,7 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
 import {
@@ -96,13 +97,13 @@ const actionsTab = (): TabDef<Group> => ({
 
 /** The tabbed group page. */
 export const groupPage: EntityPage<Group> = defineEntityPage({
-  basePath: (id) => `/admin/groups/${id}`,
+  basePath: (id) => adminPath("group", { id }),
   // Content editors can edit groups, manage their images, and use safe actions.
   guard: requireContentOr,
   load: (id) => loadGroupForPage(id),
   // A single group is a page *within* the Groups section — highlight the top
   // link, no "Add" sub-nav (see attendee-page.ts).
-  navActive: { section: "/admin/groups" },
+  navActive: { section: adminPattern("groups") },
   tabs: [
     panelTab(
       "",

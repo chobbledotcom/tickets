@@ -7,7 +7,7 @@ import {
   attributeNameForm,
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type {
   AttributeOption,
   AttributeWithOptions,
@@ -77,7 +77,7 @@ export const adminAttributesPage = (
   reorderableListPage({
     addFormHtml: attributeNameForm.render(),
     addLabel: t("attributes.add_submit"),
-    basePath: "/admin/attributes",
+    basePath: adminPattern("attributes"),
     columns: [
       {
         cell: (attribute) => (

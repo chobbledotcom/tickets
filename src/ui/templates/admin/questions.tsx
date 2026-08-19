@@ -9,7 +9,7 @@ import {
   answerTextForm,
   questionTextForm,
 } from "#routes/admin/questions/forms.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type {
   AnswerAggregateField,
@@ -158,7 +158,7 @@ export const adminQuestionsPage = (
   reorderableListPage({
     addFormHtml: questionTextForm.render(),
     addLabel: t("questions.add_submit"),
-    basePath: "/admin/questions",
+    basePath: adminPattern("questions"),
     columns: [
       {
         cell: (question) => (
