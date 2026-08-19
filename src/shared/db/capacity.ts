@@ -17,11 +17,11 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { joinStatements, type SqlStatement } from "#db/client.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
-import { joinStatements, type SqlStatement } from "#shared/db/client.ts";
 import { DAY_MS } from "#shared/now.ts";
-import { clampDurationDays } from "#shared/types.ts";
+import { clampDurationDays } from "#types";
 
 /** A half-open [startAt, endAt) window of whole days, as timestamps. Also
  * the shape of an attendee's booked windows on the Logistics tab. */

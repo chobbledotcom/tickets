@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createQuestion } from "#test/test-utils/questions/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -10,6 +9,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -62,7 +62,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify it's gone
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       const found = await questionsTable.read.one({ id: id });
       expect(found).toBeNull();
     });
@@ -82,7 +82,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Question deleted",
       )(response);
 
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       expect(await questionsTable.read.one({ id: id })).toBeNull();
     });
 
@@ -102,7 +102,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
 
       // Verify still exists
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       const found = await questionsTable.read.one({ id: id });
       expect(found).not.toBeNull();
     });

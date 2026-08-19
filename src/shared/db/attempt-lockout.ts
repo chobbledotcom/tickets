@@ -7,13 +7,13 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   deleteByField,
   execute,
   executeReturningRow,
   queryOne,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import { nowMs } from "#shared/now.ts";
 
 type StoredLockout = { locked_until: number | null };

@@ -20,21 +20,18 @@
  */
 
 import { expect } from "@std/expect";
-import { costAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import {
-  ATTENDEE_FIELDS,
-  attendeeColumns,
-} from "#shared/db/attendees/select.ts";
-import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
+import { costAccount } from "#accounting/accounts.ts";
+import { accountBalance } from "#accounting/queries.ts";
+import type { ListingBooking } from "#db/attendee-types.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { ATTENDEE_FIELDS, attendeeColumns } from "#db/attendees/select.ts";
+import { getDb, queryAll, queryOne } from "#db/client.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { nowMs } from "#shared/now.ts";
-import type { Attendee, Listing, ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
+import type { Attendee, Listing, ListingWithCount } from "#types";
 
 // ─── Production API re-exports (see contract above) ────────────────────────
 
@@ -49,7 +46,7 @@ import {
   type ServicingEvent,
   type ServicingEventInput,
   updateServicingEvent as updateServicingEventImpl,
-} from "#shared/db/attendees/servicing.ts";
+} from "#db/attendees/servicing.ts";
 
 export type { ServicingEvent, ServicingEventInput };
 export { buildDuplicateServicingInput, editServiceCost, recordServiceCost };
@@ -232,7 +229,7 @@ export const servicingRowsForListing = (
 export const decryptFirstServicingAttendee = async (
   listingId: number,
 ): Promise<Attendee | null> => {
-  const { decryptAttendeeOrNull } = await import("#shared/db/attendees/pii.ts");
+  const { decryptAttendeeOrNull } = await import("#db/attendees/pii.ts");
   const pk = await getTestPrivateKey();
   const rows = await servicingRowsForListing(listingId);
   return decryptAttendeeOrNull(rows[0]!, pk);
@@ -452,7 +449,7 @@ export const createRealAttendee = async (
   email = "real@example.com",
   listingOverrides: Parameters<typeof createTestListing>[0] = {},
 ): Promise<{
-  attendee: import("#shared/types.ts").Attendee;
+  attendee: import("#types").Attendee;
   listing: Listing;
 }> => {
   const { createTestAttendeeDirect } = await import(

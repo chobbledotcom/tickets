@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
@@ -128,7 +128,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
     const restore = readCheckout(reference, "PAID");
     try {
       const { getDueSumupCheckouts, applySumupRecoveryEvent } = await import(
-        "#shared/db/sumup-recovery.ts"
+        "#db/sumup-recovery.ts"
       );
       const due = await getDueSumupCheckouts();
       const seen = due[0];

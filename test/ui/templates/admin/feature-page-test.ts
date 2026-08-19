@@ -1,5 +1,5 @@
+import { settings } from "#db/settings.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
-import { settings } from "#shared/db/settings.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 

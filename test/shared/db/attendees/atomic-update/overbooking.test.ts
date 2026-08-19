@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import {
   everydayDailyListing,
   expectMixedStandardAndDailyLines,
   submitNewAttendeeForm,
   tomorrowInTz,
-} from "#test/test-utils/attendee-form/helpers.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+} from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
@@ -52,7 +52,7 @@ describeWithEnv(
           "a@e.com",
         );
         const { loadExistingLines } = await import(
-          "#shared/db/attendees/atomic-update.ts"
+          "#db/attendees/atomic-update.ts"
         );
         const key = (await loadExistingLines(attendee.id))[0]!.key;
         const form = await buildAttendeeEditForm(attendee.id, {
@@ -81,7 +81,7 @@ describeWithEnv(
           "b@e.com",
         );
         const { loadExistingLines } = await import(
-          "#shared/db/attendees/atomic-update.ts"
+          "#db/attendees/atomic-update.ts"
         );
         const homeKey = (await loadExistingLines(attendee.id))[0]!.key;
         const form = await buildAttendeeEditForm(attendee.id, {
@@ -184,7 +184,7 @@ describeWithEnv(
           "editmix@example.com",
         );
         const { loadExistingLines } = await import(
-          "#shared/db/attendees/atomic-update.ts"
+          "#db/attendees/atomic-update.ts"
         );
         const existing = await loadExistingLines(attendee.id);
         const tomorrow = tomorrowInTz();

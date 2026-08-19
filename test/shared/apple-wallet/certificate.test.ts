@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  isValidAppleCertificate,
-  isValidCertificate,
-  readAppleCertificate,
-} from "#shared/apple-wallet/certificate.ts";
-import {
   encodeDer,
   encodeInteger,
   encodeOid,
   encodeSequence,
-} from "#shared/crypto/der.ts";
+} from "#crypto/der.ts";
+import {
+  isValidAppleCertificate,
+  isValidCertificate,
+  readAppleCertificate,
+} from "#shared/apple-wallet/certificate.ts";
 import { generateTestCerts } from "#test-utils/crypto.ts";
 import { nonRsaCertificatePem, pemFor, rsaAlgorithm } from "#test-utils/der.ts";
 import { thrownError } from "#test-utils/errors.ts";

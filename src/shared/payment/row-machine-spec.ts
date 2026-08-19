@@ -15,11 +15,8 @@
  * Acknowledging a review changes nothing the row machine can see — that
  * move belongs to the payment-review machine. */
 
-import { acknowledgePaymentReview } from "#shared/payment/review.ts";
-import type {
-  PaymentRowState,
-  RefundClaim,
-} from "#shared/payment/row-state.ts";
+import { acknowledgePaymentReview } from "#payment/review.ts";
+import type { PaymentRowState, RefundClaim } from "#payment/row-state.ts";
 import {
   checkingClaimFor,
   grantClaim,
@@ -27,7 +24,7 @@ import {
   type PaymentRowSettlement,
   settledRowState,
   withOutcome,
-} from "#shared/payment/row-transitions.ts";
+} from "#payment/row-transitions.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
   type MachineEvent,

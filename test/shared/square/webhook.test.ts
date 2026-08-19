@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
 import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
-import { constructTestWebhookEvent } from "#test/test-utils/square/webhook.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
+import { constructTestWebhookEvent } from "#test-utils/square/webhook.ts";
 
 describeSquare(() => {
   describe("verifyWebhookSignature", () => {

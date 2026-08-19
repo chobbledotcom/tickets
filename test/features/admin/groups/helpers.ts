@@ -1,10 +1,9 @@
 /** Shared arrange helpers for the admin group route tests. */
 
 import { expect } from "@std/expect";
+import { computeGroupSlugIndex } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
-import { computeGroupSlugIndex } from "#shared/db/groups.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
 import {
   createSoldPackageMember,
   createTestGroup,
@@ -13,6 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { apiRequest, getTestSession } from "#test-utils/session.ts";
+import type { Group, ListingWithCount } from "#types";
 
 /** Post a signed-in admin form and hand back the raw response, so a rejected
  * save can be read from its flash message instead of throwing. */

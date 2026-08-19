@@ -7,10 +7,10 @@
  * reservation amount depends on a checkbox.
  */
 
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";

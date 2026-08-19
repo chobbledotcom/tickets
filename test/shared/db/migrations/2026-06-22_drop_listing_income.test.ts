@@ -1,13 +1,10 @@
-import { getDb } from "#shared/db/client.ts";
-import dropListingIncomeMigration from "#shared/db/migrations/2026-06-22_drop_listing_income.ts";
-import {
-  recreateTable,
-  syncTriggers,
-} from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import dropListingIncomeMigration from "#db/migrations/2026-06-22_drop_listing_income.ts";
+import { recreateTable, syncTriggers } from "#db/migrations/schema-sync.ts";
 import {
   readListingAggregates as listingAggregates,
   runAggregateColumnDropTests,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";

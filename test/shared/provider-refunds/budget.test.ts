@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { DATABASE_MAX_ATTEMPTS } from "#shared/db/client.ts";
+import { DATABASE_MAX_ATTEMPTS } from "#db/client.ts";
 import {
   REFUND_ACTIVE_AUTHORITY_DATABASE_CALLS,
   REFUND_OBSERVED_AUTHORITY_DATABASE_CALLS,

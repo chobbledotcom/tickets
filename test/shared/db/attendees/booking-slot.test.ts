@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingSlotKey,
   hasDuplicateBookingSlot,
-} from "#shared/db/attendees/booking-slot.ts";
+} from "#db/attendees/booking-slot.ts";
 
 describe("db > attendees > booking-slot", () => {
   describe("bookingSlotKey", () => {

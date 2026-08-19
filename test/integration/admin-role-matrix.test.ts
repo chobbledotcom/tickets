@@ -26,8 +26,6 @@ import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { AdminLevel } from "#shared/types.ts";
-import { ALL_ADMIN_LEVELS } from "#shared/types.ts";
 import { oneServedPath } from "#test-utils/admin-surface.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -36,6 +34,7 @@ import {
   createTestManagerSession,
   getTestSession,
 } from "#test-utils/session.ts";
+import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
 const FORBIDDEN = 403;
 const GONE = 404;

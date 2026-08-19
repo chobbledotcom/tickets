@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { SCHEMA_HASH } from "#db/migrations.ts";
+import { settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { SCHEMA_HASH } from "#shared/db/migrations.ts";
-import { settings } from "#shared/db/settings.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { getRuntimeInfo } from "#shared/runtime.ts";
 import { adminDebugPage } from "#templates/admin/debug.tsx";

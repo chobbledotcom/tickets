@@ -6,21 +6,21 @@
  */
 
 import { map, pipe } from "#fp";
-import type { FormEntry } from "#test-utils/test-browser/forms.ts";
 import {
   appendFormValue,
   extractFormEntries,
+  type FormEntry,
   findFormByButton,
   findForms,
   pressableOn,
   throwNoForm,
   wayToPost,
 } from "#test-utils/test-browser/forms.ts";
-import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
 import {
   decodeEntities,
   findAllLinks,
   findLinkByText,
+  type LinkMatch,
   stripTags,
 } from "#test-utils/test-browser/parsing.ts";
 

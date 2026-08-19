@@ -5,13 +5,13 @@
  * enhancement: the same data, with labels already resolved, is embedded once
  * as JSON and `client/admin/schema-atlas.ts` turns it into an SVG map. */
 
+import type { JointAnomaly } from "#db/joint-state-scan.ts";
 import { t } from "#i18n";
-import type { JointAnomaly } from "#shared/db/joint-state-scan.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsArticlePage } from "#templates/admin/settings/page-shell.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
+import type { AdminSession, Theme } from "#types";
 
 const ACTOR_CLASS: Record<AtlasActor, string> = {
   owner: "schema-actor-owner",

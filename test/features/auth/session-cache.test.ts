@@ -8,13 +8,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { createSession } from "#db/sessions.ts";
 import {
   getAuthenticatedApiKey,
   getAuthenticatedSession,
 } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { execute } from "#shared/db/client.ts";
-import { createSession } from "#shared/db/sessions.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";

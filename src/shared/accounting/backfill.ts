@@ -21,16 +21,11 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { sumOf } from "#fp";
-import { ATTENDEE } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import {
-  asOrderLegs,
-  mapBooking,
-  mapRefund,
-} from "#shared/accounting/mappers.ts";
-import { accountBalancesForIds } from "#shared/accounting/queries.ts";
-import { insertStatement } from "#shared/accounting/rows.ts";
+import { ATTENDEE } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
+import { accountBalancesForIds } from "#accounting/queries.ts";
+import { insertStatement } from "#accounting/rows.ts";
 import {
   executeBatch,
   inPlaceholders,
@@ -38,7 +33,8 @@ import {
   queryAll,
   queryIdColumn,
   type SqlStatement,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
+import { sumOf } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";

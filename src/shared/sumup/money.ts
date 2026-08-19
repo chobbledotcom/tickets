@@ -1,28 +1,26 @@
 /* jscpd:ignore-start -- imports */
 import type { EventStatus } from "@sumup/sdk";
 import { compact } from "#fp";
-import { toMinorUnits } from "#shared/currency.ts";
-import { isCurrency, money, sameMoney } from "#shared/payment/money.ts";
+import { isCurrency, money, sameMoney } from "#payment/money.ts";
 import {
   mapProviderReader,
   type ProviderRead,
   type ProviderReader,
-} from "#shared/payment/provider-read.ts";
+} from "#payment/provider-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   uncertainRefund,
-} from "#shared/payment/refund-attempt.ts";
-import type {
-  ChargeMoney,
-  RefundObservation,
-} from "#shared/payment/resources.ts";
+} from "#payment/refund-attempt.ts";
 import {
+  type ChargeMoney,
   chargeMoneyRead,
+  type RefundObservation,
   refundMoneyAccountedFor,
   refundMoneyMatchesCapture,
   refundMoneyReturned,
-} from "#shared/payment/resources.ts";
+} from "#payment/resources.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import type { SumupRefundSubmission } from "#shared/sumup/failures.ts";
 import type { SumupTransactionMoney } from "#shared/sumup/transaction.ts";
 import { sumupApi } from "#shared/sumup.ts";

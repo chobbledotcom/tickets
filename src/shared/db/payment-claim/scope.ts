@@ -1,5 +1,5 @@
-import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
-import type { ClaimRequest } from "#shared/payment/claim.ts";
+import type { LoadedRefundAttendee } from "#db/payment-claim/take.ts";
+import type { ClaimRequest } from "#payment/claim.ts";
 
 type ScopedPaymentRow = {
   readonly referenceIndex: string;

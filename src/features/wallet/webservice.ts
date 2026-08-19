@@ -12,6 +12,7 @@
  * so devices re-download the pass on every manual refresh.
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet/index.ts";
@@ -19,7 +20,6 @@ import {
   type SigningCredentials,
   trimAuthToken,
 } from "#shared/apple-wallet.ts";
-import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 

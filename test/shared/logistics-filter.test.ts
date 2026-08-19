@@ -7,7 +7,7 @@ import {
   parseAgentFilter,
   renderAgentFilter,
 } from "#shared/logistics-filter.ts";
-import type { LogisticsAgent } from "#shared/types.ts";
+import type { LogisticsAgent } from "#types";
 
 const agents: LogisticsAgent[] = [
   { id: 1, name: "Van 1" },

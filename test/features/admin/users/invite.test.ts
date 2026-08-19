@@ -9,9 +9,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute, queryOne } from "#db/client.ts";
+import { getUserByUsername } from "#db/users.ts";
 import { t } from "#i18n";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { getUserByUsername } from "#shared/db/users.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -237,8 +237,8 @@ describeWithEnv(
       const user = (await getUserByUsername("ranout"))!;
       // The stored expiry is encrypted per row, so it is written back the same
       // way the invite wrote it.
-      const { encrypt } = await import("#shared/crypto/encryption.ts");
-      const { invalidateUsersCache } = await import("#shared/db/users.ts");
+      const { encrypt } = await import("#crypto/encryption.ts");
+      const { invalidateUsersCache } = await import("#db/users.ts");
       await execute("UPDATE users SET invite_expiry = ? WHERE id = ?", [
         await encrypt(new Date(Date.now() - 1000).toISOString()),
         user.id,
@@ -255,7 +255,7 @@ describeWithEnv(
 describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
   const agentUserWithVan = async (username: string) => {
     const { enableFeature } = await import("#test-utils/settings.ts");
-    const { logisticsAgents } = await import("#shared/db/logistics-agents.ts");
+    const { logisticsAgents } = await import("#db/logistics-agents.ts");
     await enableFeature("logistics");
     const van = await logisticsAgents.table.insert({ name: "Van 1" });
     await adminFormPost(LIST_PATH, {

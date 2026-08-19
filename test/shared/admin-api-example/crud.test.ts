@@ -12,12 +12,12 @@ import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { isOwnerRole } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   AdminGroupSchema,
   AdminListingSchema,
 } from "#test-utils/api-schemas.ts";
+import { isOwnerRole } from "#types";
 import { documented, freshTotals, isBlank, jsonLeaves } from "./helpers.ts";
 
 /** A stored datetime says which timezone it is in. Storage appends "Z" to one

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { getContactRecord, hashPhone } from "#shared/db/contact-preferences.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getDb } from "#db/client.ts";
+import { getContactRecord, hashPhone } from "#db/contact-preferences.ts";
+import { settings } from "#db/settings.ts";
 import {
   getSmsMessageByProviderId,
   recordSmsMessage,
-} from "#shared/db/sms-messages.ts";
+} from "#db/sms-messages.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -11,10 +11,10 @@
 import * as v from "valibot";
 import { compact, mapNotNullish, sort } from "#fp";
 import { isListingFilter, type ListingFilter } from "#shared/listing-filter.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
+import type { ListingWithCount } from "#types";
 
 export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
 export type AttendeeSort = v.InferOutput<typeof AttendeeSortSchema>;

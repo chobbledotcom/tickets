@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, requireOne } from "#shared/db/client.ts";
-import { claimAttendeeRows } from "#shared/db/payment-claim/take.ts";
+import { execute, requireOne } from "#db/client.ts";
+import { claimAttendeeRows } from "#db/payment-claim/take.ts";
 import {
   type StoredPaymentReference,
   storePaymentReference,
-} from "#shared/db/payment-reference-store.ts";
+} from "#db/payment-reference-store.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import {

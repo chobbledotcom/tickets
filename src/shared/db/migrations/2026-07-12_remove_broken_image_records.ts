@@ -1,6 +1,6 @@
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { executeBatch } from "#db/client.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 /**

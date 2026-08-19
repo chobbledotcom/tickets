@@ -25,12 +25,8 @@ import {
 } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { commaParts } from "#shared/split.ts";
-import {
-  isContactField,
-  ListingTypeSchema,
-  MAX_DURATION_DAYS,
-} from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
+import { isContactField, ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 
 /**
  * True when `value` is storable in a datetime column: empty (no value), or a

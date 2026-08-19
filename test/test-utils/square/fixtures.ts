@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
-import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
-import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+import { settings } from "#db/settings.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
-} from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-provider-authorization.ts";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
-import { createMockClient } from "#test/test-utils/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { createMockClient } from "#test-utils/square/harness.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
 type SquareMock = ReturnType<typeof createMockClient>;

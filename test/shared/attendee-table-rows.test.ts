@@ -4,8 +4,8 @@ import {
   attendeeLineRow,
   groupAttendeeRows,
 } from "#shared/attendee-table-rows.ts";
-import type { AttendeeRowListing } from "#shared/types.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { AttendeeRowListing } from "#types";
 
 /** Listings in display order: Gala (3) before Workshop (7) before Zumba (9) */
 const DISPLAY_ORDER: AttendeeRowListing[] = [

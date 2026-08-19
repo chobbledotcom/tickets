@@ -9,8 +9,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { queryOne } from "#db/client.ts";
 import { t } from "#i18n";
-import { queryOne } from "#shared/db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { MANUAL_LISTING_COST } from "#shared/accounting/manual-entries.ts";
-import { postTransferGroups } from "#shared/accounting/store.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { MANUAL_LISTING_COST } from "#accounting/manual-entries.ts";
+import { postTransferGroups } from "#accounting/store.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   listingMoneyLegs,

@@ -2,20 +2,20 @@
  * Ticket-token lookups for attendees.
  */
 
-import { groupToMap, map, unique } from "#fp";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import type {
   AttendeeWithBookings,
   ListingAttendeeRow,
-} from "#shared/db/attendee-types.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { listingAttendeeRowColumnsFrom } from "#shared/db/attendees/queries.ts";
+} from "#db/attendee-types.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { listingAttendeeRowColumnsFrom } from "#db/attendees/queries.ts";
 import {
   pricePaidFromLedger,
   remainingBalanceFromLedger,
-} from "#shared/db/attendees/select.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+} from "#db/attendees/select.ts";
+import { inPlaceholders, queryAll } from "#db/client.ts";
+import { groupToMap, map, unique } from "#fp";
 
 const ATTENDEE_ALIAS = "attendee";
 const LISTING_ATTENDEE_ALIAS = "listingAttendee";

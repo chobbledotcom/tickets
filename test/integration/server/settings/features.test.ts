@@ -2,10 +2,10 @@ import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { execute, getDb, queryOne } from "#db/client.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { execute, getDb, queryOne } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
   expectFlashRedirect,

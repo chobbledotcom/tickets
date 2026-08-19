@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
-import { getAllActivityLog, logActivity } from "#shared/db/activity-log.ts";
+import { ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#crypto/keys.ts";
+import { getAllActivityLog, logActivity } from "#db/activity-log.ts";
 import {
   backfillActivityLogBatch,
   runActivityLogBackfill,
-} from "#shared/db/activity-log-backfill.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/activity-log-backfill.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";

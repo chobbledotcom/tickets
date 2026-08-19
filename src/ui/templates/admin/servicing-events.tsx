@@ -4,10 +4,10 @@
  * dashboard's upcoming-events section itself.
  */
 
+import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
 import { t } from "#i18n";
 import { adminPath } from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 
 /** A link that opens the service event's edit page, labelled with its name. */

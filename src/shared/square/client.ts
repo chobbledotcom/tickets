@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { cachedClientFactory } from "#shared/payment-helpers.ts";
 import {
   parseSquarePaymentResponse,

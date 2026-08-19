@@ -22,15 +22,15 @@ import {
   attendeeAccount,
   modifierAccount,
   revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
+} from "#accounting/accounts.ts";
+import { postWriteoffAdjustmentTx } from "#accounting/adjustments.ts";
 import {
   attendeeOwedTx,
   listingIncomeTx,
   modifierRevenueTx,
-} from "#shared/accounting/queries.ts";
-import { postTransfersTx } from "#shared/accounting/store.ts";
-import { type TxScope, withTransaction } from "#shared/db/client.ts";
+} from "#accounting/queries.ts";
+import { postTransfersTx } from "#accounting/store.ts";
+import { type TxScope, withTransaction } from "#db/client.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 
 /**

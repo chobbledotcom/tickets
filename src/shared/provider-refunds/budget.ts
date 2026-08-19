@@ -1,6 +1,6 @@
 /** Database headroom required by canonical refund authority work. */
 
-import { DATABASE_MAX_ATTEMPTS } from "#shared/db/client.ts";
+import { DATABASE_MAX_ATTEMPTS } from "#db/client.ts";
 import type { SubrequestCounts } from "#shared/subrequest-budget.ts";
 
 /** Statements one live authority request makes: identity load, create, arm,

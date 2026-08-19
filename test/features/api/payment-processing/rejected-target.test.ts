@@ -10,20 +10,17 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
-import {
-  bookingEventGroup,
-  refundEventGroup,
-} from "#shared/accounting/mappers.ts";
-import { transfersByEventGroup } from "#shared/accounting/queries.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { bookingEventGroup, refundEventGroup } from "#accounting/mappers.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { queryAll, queryOne } from "#db/client.ts";
 import {
   finalizeSessionIfUnresolved,
   reserveSession,
-} from "#shared/db/processed-payments.ts";
-import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
-import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
+} from "#db/processed-payments.ts";
+import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
+import { completedAtOf } from "#payment/refund-authority-state.ts";
+import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

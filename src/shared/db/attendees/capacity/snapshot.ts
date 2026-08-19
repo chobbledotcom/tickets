@@ -8,11 +8,11 @@
  * subrequest budget.
  */
 
+import { inPlaceholders, queryAll } from "#db/client.ts";
+import { listingGroups } from "#db/groups.ts";
 import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { clampDurationDays } from "#shared/types.ts";
+import { clampDurationDays } from "#types";
 import {
   getGroupPerDayRemaining,
   getGroupRemainingByGroupId,

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllUsers } from "#shared/db/users.ts";
+import { getAllUsers } from "#db/users.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#db/client.ts";
 import {
   clearLoginAttempts,
   loginLimiter,
   makeIpRateLimiter,
-} from "#shared/db/login-attempts.ts";
+} from "#db/login-attempts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("login attempt limiting", { db: true }, () => {

@@ -6,7 +6,7 @@
 import {
   QUESTION_DISPLAY_TYPES,
   questionDisplayTypeError,
-} from "#shared/db/question-types.ts";
+} from "#db/question-types.ts";
 import { defineForm, defineTextForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";

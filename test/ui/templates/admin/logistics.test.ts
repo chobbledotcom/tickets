@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
   adminLogisticsPage,
@@ -14,6 +13,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { enableFeature } from "#test-utils/settings.ts";
+import type { LogisticsAgent } from "#types";
 
 const agent: LogisticsAgent = { id: 7, name: "Van 1" };
 

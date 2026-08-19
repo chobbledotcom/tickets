@@ -12,7 +12,7 @@
  */
 
 import { t } from "#i18n";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 export type PaymentProviderMeta = {
   /** Human-readable display name — radio label and prose. */

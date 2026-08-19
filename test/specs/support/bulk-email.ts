@@ -8,10 +8,10 @@
  * around.
  */
 
+import { settings } from "#db/settings.ts";
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   ORGANISER,
   openAdminPage,

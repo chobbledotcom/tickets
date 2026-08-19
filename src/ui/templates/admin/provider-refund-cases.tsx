@@ -1,24 +1,25 @@
 /* jscpd:ignore-start -- imports */
-import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
+
 import type {
   ProviderRefundCase,
   ProviderRefundCasePage,
-} from "#shared/db/provider-refund-cases.ts";
-import type { FlashFields } from "#shared/flash-fields.ts";
-import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { Flash } from "#shared/forms/flash.tsx";
-import type { RefundOwnerChoiceName } from "#shared/payment/refund-authority-choice.ts";
-import type { RefundOwnerChoiceReason } from "#shared/payment/refund-authority-state.ts";
+} from "#db/provider-refund-cases.ts";
+import { t } from "#i18n";
+import type { RefundOwnerChoiceName } from "#payment/refund-authority-choice.ts";
+import type { RefundOwnerChoiceReason } from "#payment/refund-authority-state.ts";
 import {
   refundChoiceTarget,
   refundNodeSendsMoney,
-} from "#shared/payment/refund-machine-spec.ts";
+} from "#payment/refund-machine-spec.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import type { FlashFields } from "#shared/flash-fields.ts";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

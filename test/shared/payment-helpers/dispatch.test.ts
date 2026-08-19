@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { validatedPaymentSession } from "#payment/validated-session.ts";
 import { ErrorCode } from "#shared/logger.ts";
-import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   cachedClientFactory,
   createWithClient,

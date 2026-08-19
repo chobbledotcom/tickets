@@ -12,10 +12,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getServicingEvent } from "#shared/db/attendees/servicing.ts";
-import { getDb } from "#shared/db/client.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getServicingEvent } from "#db/attendees/servicing.ts";
+import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

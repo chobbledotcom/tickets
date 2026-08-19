@@ -5,20 +5,14 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { contentFieldValues } from "#routes/admin/content-form-fields.ts";
 import {
   sitePageEditForm,
   sitePageForm,
 } from "#routes/admin/site-pages-form.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type {
-  AdminSession,
-  SitePage,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
 import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
@@ -32,6 +26,12 @@ import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type {
+  AdminSession,
+  SitePage,
+  SitePageItemType,
+  SitePageNavRow,
+} from "#types";
 
 /* jscpd:ignore-end */
 

@@ -1,15 +1,15 @@
-import { decrypt } from "#shared/crypto/encryption.ts";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
-import { paymentClaimRowsSql } from "#shared/db/payment-claim.ts";
-import { settings } from "#shared/db/settings.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { paymentClaimRowsSql } from "#db/payment-claim.ts";
+import { settings } from "#db/settings.ts";
 import {
   assertJointStateLegal,
   authorityFactOf,
   jointRowFactOf,
-} from "#shared/payment/joint-state.ts";
-import { readRowState } from "#shared/payment/row-state.ts";
+} from "#payment/joint-state.ts";
+import { readRowState } from "#payment/row-state.ts";
 
 interface JointRow {
   attendee_id: number | null;

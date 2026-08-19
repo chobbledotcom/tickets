@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute, queryOnePrimary } from "#db/client.ts";
+import { booleanJsonField } from "#db/settings/json-field.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import {
   parseEnabledFeatures,
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
-import { execute, queryOnePrimary } from "#shared/db/client.ts";
-import { booleanJsonField } from "#shared/db/settings/json-field.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const emptyFeatures = serializeEnabledFeatures(parseEnabledFeatures(""));

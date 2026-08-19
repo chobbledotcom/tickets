@@ -1,4 +1,5 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Editor for a single contact_preferences record, keyed by its HMAC blind
  * index (contact_hash). The attendee page's contact-history panel links here so
@@ -9,18 +10,17 @@ import { defineRoutes } from "#routes/router.ts";
  *   POST /admin/history/:hmac — save the edited record
  */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   type ContactRecord,
   fromContactHashParam,
   getContactRecordOrRepair,
   saveContactRecord,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";

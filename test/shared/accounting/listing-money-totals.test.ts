@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
-} from "#shared/accounting/manual-entries.ts";
-import type { LedgerRange } from "#shared/accounting/range.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+} from "#accounting/manual-entries.ts";
+import type { LedgerRange } from "#accounting/range.ts";
+import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 

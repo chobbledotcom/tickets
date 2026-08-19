@@ -3,20 +3,20 @@
  * Uses batch writes for efficient database operations.
  */
 
-import { chunk, map, range, sum } from "#fp";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
-import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
-import { ATTENDEE_BY_TOKEN_SQL } from "#shared/db/attendees/create-batch.ts";
-import { encryptAttendeeFields } from "#shared/db/attendees/pii.ts";
-import { executeBatch, insert, queryAll } from "#shared/db/client.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { generateTicketToken } from "#crypto/utils.ts";
+import { buildAttendeeInsert } from "#db/attendees/create.ts";
+import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
+import { encryptAttendeeFields } from "#db/attendees/pii.ts";
+import { executeBatch, insert, queryAll } from "#db/client.ts";
 import {
   dayCountPriceStatements,
   syncListingPricesForIds,
-} from "#shared/db/listing-prices.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/listing-prices.ts";
+import { settings } from "#db/settings.ts";
+import { chunk, map, range, sum } from "#fp";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   DEMO_ADDRESSES,
   DEMO_EMAILS,

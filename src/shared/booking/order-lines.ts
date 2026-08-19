@@ -1,10 +1,12 @@
-import { sumByKey } from "#fp";
-import { effectivePrice } from "#shared/booking/price-tree.ts";
+/* jscpd:ignore-start -- imports */
+import { effectivePrice } from "#booking/price-tree.ts";
 import {
   type BookingNode,
   type BookingTree,
   nodeFixedQuantity,
-} from "#shared/booking/tree.ts";
+} from "#booking/tree.ts";
+import { sumByKey } from "#fp";
+/* jscpd:ignore-end */
 import type { CheckoutItem } from "#shared/payments.ts";
 
 /**

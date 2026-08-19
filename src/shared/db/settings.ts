@@ -12,34 +12,28 @@
  * `./settings/`, each file named for the job it does.
  */
 
-import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
-import { isAddressLookupSetting } from "#shared/address-lookup/types.ts";
-import {
-  type EnabledFeatures,
-  parseEnabledFeatures,
-} from "#shared/admin-features.ts";
 import {
   boolUpdate,
   rawUpdate,
   stringAccessors,
   timestampUpdate,
-} from "#shared/db/settings/accessors.ts";
+} from "#db/settings/accessors.ts";
 import {
   ALL_SETTINGS_KEYS,
   SNAPSHOT_KEYS,
   TEMPLATE_KEYS,
-} from "#shared/db/settings/apply.ts";
+} from "#db/settings/apply.ts";
 import {
   bumpSettingsVersion,
   getCacheState,
   getCurrentSettingsVersion,
   prefetchVersion,
-} from "#shared/db/settings/cache.ts";
-import { withCurrentTask } from "#shared/db/settings/current-task.ts";
-import { invalidateCache, loadKeys } from "#shared/db/settings/load.ts";
-import { withProperties } from "#shared/db/settings/namespace.ts";
-import { updateUserPassword } from "#shared/db/settings/password.ts";
-import { paymentProviderAccessors } from "#shared/db/settings/payment-provider.ts";
+} from "#db/settings/cache.ts";
+import { withCurrentTask } from "#db/settings/current-task.ts";
+import { invalidateCache, loadKeys } from "#db/settings/load.ts";
+import { withProperties } from "#db/settings/namespace.ts";
+import { updateUserPassword } from "#db/settings/password.ts";
+import { paymentProviderAccessors } from "#db/settings/payment-provider.ts";
 import {
   encryptedUpdate,
   getRawCached,
@@ -47,13 +41,13 @@ import {
   writeEncrypted,
   writeOrDelete,
   writeRaw,
-} from "#shared/db/settings/raw-writes.ts";
+} from "#db/settings/raw-writes.ts";
 import {
   clearSetupCompleteCache,
   completeSetup,
   isSetupComplete,
   SetupAlreadyCompleteError,
-} from "#shared/db/settings/setup.ts";
+} from "#db/settings/setup.ts";
 import {
   clearTestOverrides,
   data,
@@ -61,7 +55,15 @@ import {
   type SettingsData,
   setSnapshotField,
   snap,
-} from "#shared/db/settings/snapshot.ts";
+} from "#db/settings/snapshot.ts";
+import {
+  type AddressLookupSetting,
+  isAddressLookupSetting,
+} from "#shared/address-lookup/types.ts";
+import {
+  type EnabledFeatures,
+  parseEnabledFeatures,
+} from "#shared/admin-features.ts";
 import {
   type ListingDefaults,
   parseListingDefaults,
@@ -75,16 +77,16 @@ import {
   type ListingColumnKey,
 } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import type {
-  EmailTemplateFormat,
-  EmailTemplateType,
-  SuperuserChoice,
-  Theme,
-} from "#shared/types.ts";
-import { isSuperuserChoice } from "#shared/types.ts";
 import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
 import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
+import {
+  type EmailTemplateFormat,
+  type EmailTemplateType,
+  isSuperuserChoice,
+  type SuperuserChoice,
+  type Theme,
+} from "#types";
 
 export type { SettingsData };
 export {

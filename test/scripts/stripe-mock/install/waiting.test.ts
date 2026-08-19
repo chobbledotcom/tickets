@@ -12,7 +12,7 @@ import {
   withFakeCurl,
   withInstallLockHeld,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 
 /**
  * How long the other install keeps hold of the lock before letting go. Long

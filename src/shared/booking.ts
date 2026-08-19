@@ -6,18 +6,18 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
-import { mapBooking } from "#shared/accounting/mappers.ts";
-import { planBookingPayment } from "#shared/booking/payment-plan.ts";
+import { mapBooking } from "#accounting/mappers.ts";
+import { planBookingPayment } from "#booking/payment-plan.ts";
+import { requirePublicStatusId } from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import type { AttendeeCreationWork } from "#db/attendees/create.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
-import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import type { AttendeeCreationWork } from "#shared/db/attendees/create.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
-import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
+import type { Attendee, ContactInfo, ListingWithCount } from "#types";
 
 /**
  * Creation work for a provider-less owed booking: inside the create

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { paymentCompletionEffectsTable } from "#shared/db/migrations/schema/payments/completion-effects.ts";
+import { paymentCompletionEffectsTable } from "#db/migrations/schema/payments/completion-effects.ts";
 
 const [name, table] = paymentCompletionEffectsTable;
 const column = (wanted: string): string =>

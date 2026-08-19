@@ -1,4 +1,6 @@
 /* jscpd:ignore-start -- imports */
+
+import { settings } from "#db/settings.ts";
 import { once, reduce } from "#fp";
 import { withMessageGroups } from "#i18n";
 import {
@@ -22,7 +24,6 @@ import {
 } from "#routes/router.ts";
 import { getPrefix } from "#routes/settings-bundles.ts";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";

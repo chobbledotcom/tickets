@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import contactPreferencesMigration from "#shared/db/migrations/2026-06-18_contact_preferences.ts";
+import { getDb } from "#db/client.ts";
+import contactPreferencesMigration from "#db/migrations/2026-06-18_contact_preferences.ts";
 import {
   applySchemaChanges,
   tableExists as schemaTableExists,
   syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema-sync.ts";
 import {
   columnNames,
   tableExists,
   tableRowCount,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

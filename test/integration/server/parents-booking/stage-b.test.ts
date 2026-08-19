@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectReserved, postBooking } from "#test-utils/parents.ts";
@@ -51,7 +51,7 @@ describeWithEnv(
         const rawToken = location.split("tokens=")[1]!;
         const ticketToken = decodeURIComponent(rawToken);
         const { getAttendeesByTokens } = await import(
-          "#shared/db/attendees/tokens.ts"
+          "#db/attendees/tokens.ts"
         );
         const [attendee] = await getAttendeesByTokens([ticketToken]);
         const bookings = attendee!.bookings;

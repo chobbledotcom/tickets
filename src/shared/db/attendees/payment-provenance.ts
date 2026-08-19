@@ -1,7 +1,7 @@
 /** Atomic proof that an attendee's encrypted payment id has a stored source. */
 
 import type { ResultSet } from "@libsql/client";
-import type { SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#db/client.ts";
 
 interface AttendeePaymentProvenance {
   /** Refuse a batch result that did not record exactly one attendee. */

@@ -2,16 +2,16 @@ import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import {
-  registerTableInvalidation,
-  type Unregister,
-} from "#shared/cache-registry.ts";
-import {
   execute,
   executeBatch,
   executeBatchWithoutCacheInvalidation,
   rowExists,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
+import {
+  registerTableInvalidation,
+  type Unregister,
+} from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";

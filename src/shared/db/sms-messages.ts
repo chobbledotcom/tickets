@@ -14,7 +14,7 @@ import {
   execute,
   insert,
   queryOne,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {

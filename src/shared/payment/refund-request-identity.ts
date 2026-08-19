@@ -1,10 +1,10 @@
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   paymentReferenceIndexInput,
   type TaggedPaymentReference,
-} from "#shared/payment/provider-reference.ts";
-import { requireRefundGeneration } from "#shared/payment/refund-generation.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+} from "#payment/provider-reference.ts";
+import { requireRefundGeneration } from "#payment/refund-generation.ts";
+import type { PaymentProviderType } from "#types";
 
 /** Blind identity of one authorised refund generation. The provider-qualified
  * reference prevents cross-provider collisions; the generation makes an

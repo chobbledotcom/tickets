@@ -2,8 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
-import { groups } from "#shared/db/groups.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
@@ -229,9 +229,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(html).toContain("Thank you for your order");
 
         // Should still only have one attendee
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
+        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       } finally {

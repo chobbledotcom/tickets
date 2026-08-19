@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { makeRenewalTier } from "#test/test-utils/listing-parents/helpers.ts";
 import {
   expectFlash,
   expectRedirectWithFlash,
@@ -15,6 +14,7 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeRenewalTier } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 
 type ListingConfig = Parameters<typeof createTestListing>[0];
@@ -269,9 +269,9 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
 
   test("addIdsTx adds a child under each parent without disturbing others", async () => {
     const { listingChildren, listingParents } = await import(
-      "#shared/db/listing-parents.ts"
+      "#db/listing-parents.ts"
     );
-    const { withTransaction } = await import("#shared/db/client.ts");
+    const { withTransaction } = await import("#db/client.ts");
     const parentA = await createTestListing({ name: "Parent A" });
     const parentB = await createTestListing({ name: "Parent B" });
     const existingChild = await createTestListing({ name: "Existing Child" });

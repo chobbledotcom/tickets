@@ -9,17 +9,17 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptWithKey } from "#shared/crypto/encryption.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { getDb } from "#shared/db/client.ts";
+import { encryptWithKey } from "#crypto/encryption.ts";
+import { unwrapKeyWithToken } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { getDb } from "#db/client.ts";
 import {
   getSealedSumupCheckout,
   getSumupCheckout,
   openSumupCheckout,
   setSumupCheckoutId,
   storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
+} from "#db/sumup-checkouts.ts";
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { rejectedError } from "#test-utils/errors.ts";

@@ -1,14 +1,14 @@
+import { money } from "#payment/money.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { isResourceId } from "#payment/resource-id.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { money } from "#shared/payment/money.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type {
   PaymentProviderType,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import { isPaymentProvider, isRecord } from "#shared/types.ts";
+import { isPaymentProvider, isRecord } from "#types";
 
 /**
  * Why a provider session was refused at the boundary. A `malformed_charge`

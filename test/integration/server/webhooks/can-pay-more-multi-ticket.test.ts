@@ -150,9 +150,7 @@ describeWithEnv(
       );
 
       // Verify one attendee record was created (quantity=2 is stored on the record)
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(1);
       expect(attendees[0]!.quantity).toBe(2);

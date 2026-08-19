@@ -5,8 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingsTable } from "#db/listings/records.ts";
 import { processUploadsAndRedirect } from "#routes/admin/listings-uploads.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import { ATTACHMENT_ERROR_MESSAGES } from "#shared/storage.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";

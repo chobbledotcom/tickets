@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { setupTransactionalTestDb } from "#test-utils/db.ts";
 
 /**

@@ -12,13 +12,13 @@
 import {
   getSealedSumupCheckout,
   openSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
-import { type LogCategory, logDebug } from "#shared/logger.ts";
+} from "#db/sumup-checkouts.ts";
 import {
   isSessionRejection,
   type SessionRejection,
   validatedPaymentSession,
-} from "#shared/payment/validated-session.ts";
+} from "#payment/validated-session.ts";
+import { type LogCategory, logDebug } from "#shared/logger.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";
 import type {
   PaymentStatus,

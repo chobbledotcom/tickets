@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import { handleRequest } from "#routes";
 import {
   attendeeActionUrlWithReturn,
   getReturnUrl,
 } from "#routes/admin/attendees-route-helpers.ts";
-import { getDb } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
 import { setupRefundTest } from "#test/features/admin/refunds-helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

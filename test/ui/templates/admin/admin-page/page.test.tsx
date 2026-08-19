@@ -6,7 +6,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { AdminSession } from "#shared/types.ts";
 import {
   AdminListingLink,
   AdminPage,
@@ -17,6 +16,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import type { AdminSession } from "#types";
 
 const AGENT_SESSION: AdminSession = { adminLevel: "agent" };
 

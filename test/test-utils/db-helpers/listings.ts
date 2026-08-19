@@ -1,14 +1,11 @@
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
-import type { Listing, ListingWithCount } from "#shared/types.ts";
 import {
   resolveTestGroupIds,
   type TestListingOverrides,
   testListingInput,
 } from "#test-utils/factories.ts";
+import type { Listing, ListingWithCount } from "#types";
 import {
   buildCreateListingForm,
   buildUpdateListingForm,
@@ -47,7 +44,7 @@ const applyTestListingGroups = async (
   groupIds: number[],
 ): Promise<void> => {
   if (groupIds.length === 0) return;
-  const { setListingGroups } = await import("#shared/db/groups.ts");
+  const { setListingGroups } = await import("#db/groups.ts");
   await setListingGroups(listingId, groupIds);
 };
 
@@ -59,7 +56,7 @@ export const createTestListing = async (
     "/admin/listing",
     buildCreateListingForm(input),
     async () => {
-      const { getAllListings } = await import("#shared/db/listings/records.ts");
+      const { getAllListings } = await import("#db/listings/records.ts");
       const listings = await getAllListings();
       return listings[0] as ListingWithCount;
     },
@@ -84,7 +81,7 @@ export const duplicateTestListing = async (
     "/admin/listing",
     { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
     async () => {
-      const { getAllListings } = await import("#shared/db/listings/records.ts");
+      const { getAllListings } = await import("#db/listings/records.ts");
       const listings = await getAllListings();
       return listings[0] as ListingWithCount;
     },
@@ -105,9 +102,7 @@ export const updateTestListing = async (
   if (!existing) {
     throw new Error(`Listing not found: ${listingId}`);
   }
-  const { listingGroups, setListingGroups } = await import(
-    "#shared/db/groups.ts"
-  );
+  const { listingGroups, setListingGroups } = await import("#db/groups.ts");
   // The real edit form carries membership as pre-checked group_ids checkboxes;
   // the form helper omits them. Resolve the intended set (requested change, else
   // current membership) and submit its first id so the handler preserves
@@ -168,7 +163,7 @@ export const bookableStartDates = async (
   listingId: number,
 ): Promise<string[]> => {
   const { getBookableStartDates } = await import("#shared/dates.ts");
-  const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+  const { getActiveHolidays } = await import("#db/holidays.ts");
   return getBookableStartDates(
     (await getListingWithCount(listingId))!,
     await getActiveHolidays(),

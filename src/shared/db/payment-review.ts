@@ -1,27 +1,24 @@
 /** Acknowledging exact payment-review cases without resolving their evidence. */
 
-/* jscpd:ignore-start -- imports */
-import { sortStrings } from "#fp";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { withTransaction } from "#shared/db/client.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { withTransaction } from "#db/client.ts";
 import {
   loadAttendeeRowStates,
   type PaymentRowRecord,
   paymentRowStateStatement,
   paymentRowsWith,
   readAttendeeRowStates,
-} from "#shared/db/payment-claim.ts";
-import { nowIso } from "#shared/now.ts";
-import {
-  type PaymentWorkStatus,
-  paymentWorkFor,
-} from "#shared/payment/admit-move.ts";
+} from "#db/payment-claim.ts";
+/* jscpd:ignore-start -- imports */
+import { sortStrings } from "#fp";
+import { type PaymentWorkStatus, paymentWorkFor } from "#payment/admit-move.ts";
 import {
   acknowledgePaymentReview,
   type PaymentReviewCase,
-} from "#shared/payment/review.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#payment/review.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
+import { nowIso } from "#shared/now.ts";
 /* jscpd:ignore-end */
 
 export type AcknowledgePaymentReviewInput = {

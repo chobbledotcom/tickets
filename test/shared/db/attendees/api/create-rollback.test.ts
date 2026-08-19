@@ -1,26 +1,26 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { bookingBatchPlan } from "#shared/checkout-complete.ts";
-import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { revenueAccount } from "#accounting/accounts.ts";
+import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { queryOne } from "#db/client.ts";
 import {
   getContactRecord,
   getVisits,
   hashEmail,
-} from "#shared/db/contact-preferences.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+} from "#db/contact-preferences.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import {
   decryptSessionTokens,
   markSessionFailed,
   reserveSession,
-} from "#shared/db/processed-payments.ts";
+} from "#db/processed-payments.ts";
+import { bookingBatchPlan } from "#shared/checkout-complete.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

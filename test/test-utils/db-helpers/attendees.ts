@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
+import { attendeesApi } from "#db/attendees/api.ts";
+import type { ExistingLine } from "#db/attendees/atomic-update.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import type { ExistingLine } from "#shared/db/attendees/atomic-update.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import type { Attendee, Listing } from "#types";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
 
 export { getAttendeesRaw };
@@ -110,7 +110,7 @@ export const insertOrphanAttendee = async (
   daysAgo: number,
   tokenPrefix: string,
 ): Promise<number> => {
-  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { getDb, insert } = await import("#db/client.ts");
   const { nowMs } = await import("#shared/now.ts");
   const dayMs = 24 * 60 * 60 * 1000;
   const created = new Date(nowMs() - daysAgo * dayMs).toISOString();
@@ -127,7 +127,7 @@ export const insertOrphanAttendee = async (
 /** Check whether an attendee row exists by id. Returns true when the row is
  *  present, false when it has been purged. */
 export const attendeeExists = async (id: number): Promise<boolean> => {
-  const { queryOne } = await import("#shared/db/client.ts");
+  const { queryOne } = await import("#db/client.ts");
   return (
     (await queryOne<{ one: number }>(
       "SELECT 1 AS one FROM attendees WHERE id = ?",
@@ -160,7 +160,7 @@ export const createTestAttendeeDirect = async (
   }
 
   const attendee = result.attendees[0]!;
-  const { logActivity } = await import("#shared/db/activity-log.ts");
+  const { logActivity } = await import("#db/activity-log.ts");
   await logActivity(`Attendee '${name}' created`, listingId, attendee.id);
 
   return {
@@ -208,9 +208,7 @@ const attendeeLineInput = ({
 export const existingAttendeeLines = async (
   attendeeId: number,
 ): Promise<AttendeeLineInput[]> => {
-  const { loadExistingLines } = await import(
-    "#shared/db/attendees/atomic-update.ts"
-  );
+  const { loadExistingLines } = await import("#db/attendees/atomic-update.ts");
   return (await loadExistingLines(attendeeId)).map(attendeeLineInput);
 };
 
@@ -252,9 +250,7 @@ export const buildAttendeeEditForm = async (
   const { resolveSharedDates } = await import(
     "#routes/admin/attendee-form-model.ts"
   );
-  const { loadExistingLines } = await import(
-    "#shared/db/attendees/atomic-update.ts"
-  );
+  const { loadExistingLines } = await import("#db/attendees/atomic-update.ts");
   const existing = await loadExistingLines(attendeeId);
   const shared = resolveSharedDates(existing.map(({ booking }) => booking));
   const lines = overrides.lines ?? existing.map(attendeeLineInput);

@@ -1,14 +1,12 @@
-import type { Money } from "#shared/payment/money.ts";
-import type {
-  ChargeMoney,
-  ProviderRefundResource,
-  RefundObservation,
-  RefundResolution,
-} from "#shared/payment/resources.ts";
+import type { Money } from "#payment/money.ts";
 import {
+  type ChargeMoney,
+  type ProviderRefundResource,
+  type RefundObservation,
+  type RefundResolution,
   refundMoneyMatchesCapture,
   refundMoneyReturned,
-} from "#shared/payment/resources.ts";
+} from "#payment/resources.ts";
 
 /** The provider's own refund, when it has named one. Left out entirely when it
  *  has not, rather than carried as nothing. */

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { paymentCompletionDeliveriesTable } from "#shared/db/migrations/schema/payments/completion-deliveries.ts";
+import { paymentCompletionDeliveriesTable } from "#db/migrations/schema/payments/completion-deliveries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectAccepted, expectRefused } from "./refuses.ts";
 

@@ -1,15 +1,15 @@
 /** Load and prepare exactly one canonical refund target. */
 
 /* jscpd:ignore-start -- imports */
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   bindRefundCallbackIfChargeExists,
   createOrLoadRefundAuthority,
   loadRefundAuthorityByReference,
   type RefundAuthorityRow,
-} from "#shared/db/provider-refund-authority.ts";
-import type { Money } from "#shared/payment/money.ts";
-import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
+} from "#db/provider-refund-authority.ts";
+import type { Money } from "#payment/money.ts";
+import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
 import {
   initialRefundState,
   moveRefundToOwner,

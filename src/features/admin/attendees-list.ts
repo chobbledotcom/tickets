@@ -4,6 +4,13 @@
  * listing detail and attendee edit pages.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesPage } from "#db/attendees/queries.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { loadNotesForAttendees } from "#db/notes/queries.ts";
+import { settings } from "#db/settings.ts";
 import { fieldById, filter, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
@@ -24,19 +31,12 @@ import {
 } from "#shared/attendee-list-controls.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesPage } from "#shared/db/attendees/queries.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { loadNotesForAttendees } from "#shared/db/notes/queries.ts";
-import { settings } from "#shared/db/settings.ts";
 import { type ListingFilter, listingCategory } from "#shared/listing-filter.ts";
 import { readAllPages } from "#shared/paged-read.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
+import type { Attendee, ListingWithCount } from "#types";
 
 /** The browser's controls: every listing, the type filter, sort (newest first
  *  unless the address says otherwise), and paging. */

@@ -15,7 +15,7 @@ import type {
   AdminPatternFor,
 } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
-import type { AdminLevel } from "#shared/types.ts";
+import type { AdminLevel } from "#types";
 
 export type { AdminDestinationId, AdminPathParams, AdminPatternFor };
 

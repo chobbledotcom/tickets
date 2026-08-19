@@ -6,7 +6,7 @@ import {
   providerOrBunny,
   siteAcceptsDeployTier,
   UPDATE_TIERS,
-} from "#shared/db/built-sites/types.ts";
+} from "#db/built-sites/types.ts";
 
 describe("built-site update tiers", () => {
   test("orders channels from most to least eager", () => {

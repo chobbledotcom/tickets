@@ -4,8 +4,9 @@
  */
 
 import * as v from "valibot";
+import { signedEdgeFor } from "#booking/signed-metadata.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { lazyRef, map } from "#fp";
-import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -17,7 +18,6 @@ import type {
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
 import {
   type ErrorCodeType,
@@ -39,7 +39,7 @@ import type {
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import type { ContactInfo, PaymentProviderType } from "#types";
 
 /**
  * Normalise a provider timestamp to the ledger's canonical ISO 8601 form

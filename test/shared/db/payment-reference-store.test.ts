@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   loadPaymentReference,
   paymentReferenceIndex,
   type preparePaymentReferenceWrite,
   storePaymentReference,
   type unclaimedPaymentReference,
-} from "#shared/db/payment-reference-store.ts";
+} from "#db/payment-reference-store.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";

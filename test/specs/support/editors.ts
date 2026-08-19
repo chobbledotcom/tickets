@@ -6,14 +6,10 @@
  * stepped around.
  */
 
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { toMinorUnits } from "#shared/currency.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-} from "#shared/db/listings/records.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import {
   browserSeenBy,
   EDITOR,
@@ -34,7 +30,6 @@ import {
   logStaffIn,
   rememberAcceptedStaffInvite,
 } from "#test/specs/support/staff-accounts.ts";
-
 import {
   type ActOnOnePerson,
   type ActOnOneThing,
@@ -47,6 +42,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { ListingWithCount } from "#types";
 // jscpd:ignore-end
 
 /** Where a listing forwards each booking, names and all. */

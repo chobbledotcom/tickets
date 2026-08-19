@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
   bookingIntent,
   paymentSession,

@@ -21,7 +21,7 @@
  *   deno task backup --out dump.zip  # write a local .zip instead
  */
 
-import { createAndUploadBackup, createBackupZip } from "#shared/db/backup.ts";
+import { createAndUploadBackup, createBackupZip } from "#db/backup.ts";
 
 const outIndex = Deno.args.indexOf("--out");
 

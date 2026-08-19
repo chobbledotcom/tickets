@@ -1,16 +1,16 @@
 /** Listing aggregate inspection, correction, and rebuilding. */
 
-import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
-import { execute, requireOne, resetAggregates } from "#shared/db/client.ts";
+import { inOwnTx, ledgerTx } from "#accounting/ledger-tx.ts";
+import { execute, requireOne, resetAggregates } from "#db/client.ts";
 import type {
   AggregateRecalculation,
   AggregateValues,
-} from "#shared/db/common-schema.ts";
+} from "#db/common-schema.ts";
 import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
-} from "#shared/db/migrations/schema/listing-aggregates.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#db/migrations/schema/listing-aggregates.ts";
+import type { ListingWithCount } from "#types";
 
 export const LISTING_AGGREGATE_FIELDS = [
   "booked_quantity",

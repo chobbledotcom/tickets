@@ -2,6 +2,7 @@
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
+
 /* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
@@ -11,10 +12,6 @@ import { adminPattern } from "#shared/admin-surface.ts";
  * valid, and the last/in-use/default statuses can't be deleted.
  */
 
-/* jscpd:ignore-start */
-import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
-import { OWNER_FORM } from "#routes/auth.ts";
-import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import {
   type AttendeeStatus,
   type AttendeeStatusDeleteError,
@@ -24,14 +21,18 @@ import {
   attendeeStatusOrder,
   attendeeStatusWrites,
   getAttendeeStatus,
-} from "#shared/db/attendee-statuses.ts";
-import { flatCollectionSwap } from "#shared/db/ordered-collection.ts";
+} from "#db/attendee-statuses.ts";
+import { flatCollectionSwap } from "#db/ordered-collection.ts";
+/* jscpd:ignore-start */
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
+/* jscpd:ignore-start */
+import { OWNER_FORM } from "#routes/auth.ts";
+import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { NamedOperations } from "#shared/rest/resource.ts";
-import type { Result } from "#shared/result.ts";
-import { errorResult, okResult } from "#shared/result.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { statusPages } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,

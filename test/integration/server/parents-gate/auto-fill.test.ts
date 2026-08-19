@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookingPageHtml,

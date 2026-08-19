@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hashEmail } from "#db/contact-preferences.ts";
 import {
   AUDIENCES,
   audienceById,
@@ -28,7 +29,6 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

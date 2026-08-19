@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAllListings } from "#shared/db/listings/records.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

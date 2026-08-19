@@ -13,27 +13,26 @@
  * plain "<Entity> #<id>" text with no link, mirroring the activity log.
  */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
 import {
   isRowAccountType,
   isSingletonAccountType,
   type RowAccountType,
   type SingletonAccountType,
-} from "#shared/accounting/accounts.ts";
+} from "#accounting/accounts.ts";
 import {
   isManualLedgerTransfer,
   manualLedgerEntryOptionsFor,
-} from "#shared/accounting/manual-entries.ts";
+} from "#accounting/manual-entries.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
@@ -52,6 +51,7 @@ import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /**

@@ -1,6 +1,6 @@
 /* jscpd:ignore-start -- imports */
-import type { Table } from "#shared/db/migrations/schema/types.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+import type { Table } from "#db/migrations/schema/types.ts";
+import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import {
   alsoAbout,
   madeAndTouched,

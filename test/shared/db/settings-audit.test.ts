@@ -6,7 +6,7 @@ import {
   recordSettingsLoaded,
   runWithSettingsAudit,
   setSettingsAuditEnabled,
-} from "#shared/db/settings-audit.ts";
+} from "#db/settings-audit.ts";
 
 describe("settings-audit", () => {
   afterEach(() => {

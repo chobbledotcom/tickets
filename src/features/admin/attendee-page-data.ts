@@ -6,6 +6,40 @@
  * them, so neither imports the other.
  */
 
+import { getAttendeeActivityLog } from "#db/activity-log.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import {
+  type ExistingLine,
+  loadExistingLines,
+} from "#db/attendees/atomic-update.ts";
+import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
+import { checkLinesCapacity } from "#db/attendees/capacity/checks.ts";
+import {
+  getContactRecordOrRepair,
+  hashEmail,
+  hashPhone,
+  toContactHashParam,
+} from "#db/contact-preferences.ts";
+import {
+  getGroupPackagePricesByGroupIds,
+  groups,
+  packageMemberMaps,
+  readGroupMembersWith,
+} from "#db/groups.ts";
+import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import {
+  getRefundPaymentReferencesForAttendee,
+  type RefundPaymentReferenceSet,
+} from "#db/payment-references.ts";
+import type {
+  QuestionWithAnswers,
+  SelectedQuestionAnswers,
+} from "#db/question-types.ts";
+import {
+  getAttendeeTextAnswers,
+  loadAttendeeQuestionData,
+} from "#db/questions/attendee-answers/reads.ts";
 /* jscpd:ignore-start */
 import { compact, filter, identity, mapById, unique } from "#fp";
 import { t } from "#i18n";
@@ -19,51 +53,14 @@ import {
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
-import { getAttendeeActivityLog } from "#shared/db/activity-log.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import {
-  type ExistingLine,
-  loadExistingLines,
-} from "#shared/db/attendees/atomic-update.ts";
-import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
-import { checkLinesCapacity } from "#shared/db/attendees/capacity/checks.ts";
-import {
-  getContactRecordOrRepair,
-  hashEmail,
-  hashPhone,
-  toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
-import {
-  getGroupPackagePricesByGroupIds,
-  groups,
-  packageMemberMaps,
-  readGroupMembersWith,
-} from "#shared/db/groups.ts";
-import {
-  hydrateListingLinks,
-  listingChildren,
-} from "#shared/db/listing-parents.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import {
-  getRefundPaymentReferencesForAttendee,
-  type RefundPaymentReferenceSet,
-} from "#shared/db/payment-references.ts";
-import type {
-  QuestionWithAnswers,
-  SelectedQuestionAnswers,
-} from "#shared/db/question-types.ts";
-import {
-  getAttendeeTextAnswers,
-  loadAttendeeQuestionData,
-} from "#shared/db/questions/attendee-answers/reads.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import type {
   ContactChannelData,
   ContactRecordsByChannel,
 } from "#templates/admin/attendee-page.tsx";
+import type { Attendee, ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** An attendee plus its listing_attendees rows — the entity the whole page

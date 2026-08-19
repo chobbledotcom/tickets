@@ -1,9 +1,9 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
-import { type Money, MoneySchema, money } from "#shared/payment/money.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import { type Money, MoneySchema, money } from "#payment/money.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import { ResourceIdSchema } from "#payment/resource-id.ts";
+import type { PaymentProviderType } from "#types";
 
 const providerResource = <
   const TProvider extends PaymentProviderType,

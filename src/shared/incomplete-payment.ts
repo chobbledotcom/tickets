@@ -1,4 +1,4 @@
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee } from "#types";
 
 export const isIncompletePayment = (
   attendee: Pick<Attendee, "price_paid" | "refunded" | "remaining_balance">,

@@ -21,11 +21,7 @@ import type {
   TargetKey,
   TargetMap,
 } from "#shared/site-pages/types.ts";
-import type {
-  SitePageItem,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
+import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 const pageTarget = sitePageItemTargets.of("page");
 

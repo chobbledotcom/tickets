@@ -6,7 +6,7 @@
  * pages can't drift.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 /** One "bold label, then value" line. */
 export type LabelledLine = {

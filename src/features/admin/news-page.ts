@@ -6,11 +6,11 @@
  * /admin/site/news/:id/edit resolves to it too.
  */
 
+import { getNewsPostById } from "#db/news-posts.ts";
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { getNewsPostById } from "#shared/db/news-posts.ts";
-import type { NewsPost } from "#shared/types.ts";
 import { newsEditPanel } from "#templates/admin/news.tsx";
+import type { NewsPost } from "#types";
 import { defineSiteContentPage } from "./site-content-page.ts";
 
 /** The tabbed news page. */

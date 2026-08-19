@@ -1,4 +1,4 @@
-import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 export default bareSchemaMigration(

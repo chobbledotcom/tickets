@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { t, withMessageGroups } from "#shared/i18n.ts";
+import { execute } from "#db/client.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { t, withMessageGroups } from "#i18n";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import {
   RegistrationDeliveryError,

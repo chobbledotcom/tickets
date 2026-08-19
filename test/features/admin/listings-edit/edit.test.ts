@@ -5,11 +5,11 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeUpdate } from "#shared/db/client.ts";
+import { executeUpdate } from "#db/client.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirect, parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

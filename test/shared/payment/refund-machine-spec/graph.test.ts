@@ -7,8 +7,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundLifecycleFor } from "#shared/payment/refund-authority-lifecycle.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+import { refundLifecycleFor } from "#payment/refund-authority-lifecycle.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
 import {
   REFUND_EVENTS,
   REFUND_MOVES,
@@ -18,7 +18,7 @@ import {
   type RefundNode,
   type RefundNodeId,
   refundNodeOf,
-} from "#shared/payment/refund-machine-spec.ts";
+} from "#payment/refund-machine-spec.ts";
 import { machineGraph } from "#test-utils/machine-graph.ts";
 
 const graph = machineGraph({

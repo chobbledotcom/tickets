@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute } from "#shared/db/client.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { deleteListing } from "#db/listings/delete.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import {
   expectProcessed,
   expectReplayOutcome,

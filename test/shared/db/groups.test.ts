@@ -3,15 +3,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkBatchAvailabilityImpl as checkBatchAvailability,
   checkListingAvailability as hasAvailableSpots,
-} from "#shared/db/attendees/capacity/checks.ts";
+} from "#db/attendees/capacity/checks.ts";
 import {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
-} from "#shared/db/attendees/capacity/groups.ts";
-import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
-import { getDb } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+} from "#db/attendees/capacity/groups.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
+import { getDb } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,
@@ -27,8 +27,8 @@ import {
   listingGroups,
   resetGroupListings,
   setGroupPackageMembers,
-} from "#shared/db/groups.ts";
-import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
+} from "#db/groups.ts";
+import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {

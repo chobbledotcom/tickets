@@ -1,26 +1,26 @@
-import { lazyRef, ttlCache } from "#fp";
-import { getEffectiveDomain } from "#shared/config.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
-import { wrapDataKeyForPassword } from "#shared/crypto/keys.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hashPassword } from "#crypto/hashing.ts";
+import { wrapDataKeyForPassword } from "#crypto/keys.ts";
+import { settings } from "#db/settings.ts";
 import {
   createUser,
   getUserByUsername,
   onUsersInvalidated,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { lazyRef, ttlCache } from "#fp";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
 import { getEnv } from "#shared/env.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
-import type { SuperuserChoice } from "#shared/types.ts";
 import {
   emailLocalPart,
   parseEmail,
   type ValidEmail,
 } from "#shared/validation/email.ts";
 import { validateUsername } from "#templates/fields/validators.ts";
+import type { SuperuserChoice } from "#types";
 
 export type SuperuserState =
   | {

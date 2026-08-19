@@ -17,7 +17,7 @@
  * so it is safe to persist (it is opaque without the passphrase).
  */
 
-import { fromBase64, getRandomBytes, toBase64 } from "#shared/crypto/utils.ts";
+import { fromBase64, getRandomBytes, toBase64 } from "#crypto/utils.ts";
 
 /** Fixed prefix of the encoded ciphertext, up to and including `i=`. */
 const ALGO_PREFIX = "$aes-256-cbc/pbkdf2-sha1$i=";

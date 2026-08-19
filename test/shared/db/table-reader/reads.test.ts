@@ -6,16 +6,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, resultRows } from "#shared/db/client.ts";
-import {
-  listingOptionColumns,
-  rawListingsTable,
-} from "#shared/db/listings/table.ts";
+import { getDb, resultRows } from "#db/client.ts";
+import { listingOptionColumns, rawListingsTable } from "#db/listings/table.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

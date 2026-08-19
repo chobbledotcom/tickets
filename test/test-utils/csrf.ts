@@ -102,7 +102,7 @@ export const getPageCsrfToken = async (path: string): Promise<string> =>
 export const getCsrfTokenFromCookie = async (
   cookie: string,
 ): Promise<string | null> => {
-  const { getSession } = await import("#shared/db/sessions.ts");
+  const { getSession } = await import("#db/sessions.ts");
   const sessionMatch = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
   );

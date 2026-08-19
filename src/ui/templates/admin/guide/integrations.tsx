@@ -2,6 +2,7 @@
  * Admin guide — Integrations sections.
  */
 
+import type { Child } from "#jsx/jsx-runtime.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,
@@ -11,7 +12,6 @@ import {
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import {
   custom,
   faq,

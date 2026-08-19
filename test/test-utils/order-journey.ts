@@ -17,12 +17,12 @@
 
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { queryAll } from "#db/client.ts";
+import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   PACKAGE_SELECT_PREFIX,
   SELECT_PREFIX,
@@ -31,7 +31,6 @@ import {
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import type { Group, Listing } from "#shared/types.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
@@ -46,6 +45,7 @@ import {
 } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
+import type { Group, Listing } from "#types";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
  * the given price (each `quantity` per package unit, default 1). */

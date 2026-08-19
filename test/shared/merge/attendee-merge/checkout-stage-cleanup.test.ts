@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, insert, queryAll } from "#shared/db/client.ts";
+import { executeBatch, insert, queryAll } from "#db/client.ts";
 import {
   createMergePair,
   runMerge,

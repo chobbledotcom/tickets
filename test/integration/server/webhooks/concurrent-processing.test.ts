@@ -2,9 +2,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -123,7 +123,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
     // Pre-reserve the session to simulate concurrent processing
     const { reserveSession: reserveSessionFn } = await import(
-      "#shared/db/processed-payments.ts"
+      "#db/processed-payments.ts"
     );
     await reserveSessionFn("cs_multi_concurrent");
 
@@ -167,7 +167,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
     // Pre-reserve the session to simulate concurrent processing
     const { reserveSession: reserveSessionFn } = await import(
-      "#shared/db/processed-payments.ts"
+      "#db/processed-payments.ts"
     );
     await reserveSessionFn("cs_single_concurrent");
 

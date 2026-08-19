@@ -15,8 +15,8 @@ import {
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminRecordPath } from "#shared/admin-surface.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import type { ImageUseItemType } from "#shared/types.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
+import type { ImageUseItemType } from "#types";
 import { writeFormTab } from "./entity-write-tab.ts";
 import { loadItemImagesPanel } from "./item-images.ts";
 

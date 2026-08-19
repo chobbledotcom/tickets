@@ -307,7 +307,7 @@ const persistErrorToActivityLog = async (
       // every module's import graph (via env.ts), and a static import here would
       // drag the activity-log table — and the listing helpers it queries with —
       // into every page's graph.
-      const { logActivity } = await import("#shared/db/activity-log.ts");
+      const { logActivity } = await import("#db/activity-log.ts");
       await logActivity(formatErrorMessage(context), context.listingId ?? null);
     } catch {
       // An error log cannot recover when its own durable log is unavailable.

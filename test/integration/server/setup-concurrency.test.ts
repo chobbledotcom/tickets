@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getDb } from "#db/client.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { getSetupCsrfToken } from "#test-utils/csrf.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { mockRequest, mockSetupFormRequest } from "#test-utils/mocks.ts";

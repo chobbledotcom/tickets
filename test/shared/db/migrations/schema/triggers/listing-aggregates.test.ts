@@ -1,28 +1,28 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { allTransfers } from "#shared/accounting/queries.ts";
-import { ATTENDEE_LISTING_CONTRIBUTIONS_SQL } from "#shared/db/attendees/delete.ts";
-import { getDb } from "#shared/db/client.ts";
+import { allTransfers } from "#accounting/queries.ts";
+import { ATTENDEE_LISTING_CONTRIBUTIONS_SQL } from "#db/attendees/delete.ts";
+import { getDb } from "#db/client.ts";
 import {
   adjustListingIncome,
   getListingAggregateRecalculation,
   resetListingAggregateFields,
   updateListingAggregateValues,
-} from "#shared/db/listings/aggregates.ts";
+} from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings/records.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
+} from "#db/listings/records.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
-} from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
-import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema/listing-aggregates.ts";
+import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
+import { BACKFILL_LISTING_AGGREGATES_SQL } from "#db/migrations/schema-sync.ts";
 
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
-import { readListingAggregates as aggregates } from "#test/test-utils/db/migration-test-helpers.ts";
+import { readListingAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";

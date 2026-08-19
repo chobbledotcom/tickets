@@ -12,15 +12,15 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import {
   getListingAggregateRecalculation,
   resetListingAggregateFields,
-} from "#shared/db/listings/aggregates.ts";
+} from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

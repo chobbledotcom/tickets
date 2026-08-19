@@ -7,10 +7,10 @@
  * values as-is, so the table declares them as simple OwnerKeyEncrypted columns.
  */
 
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { countRows } from "#shared/db/client.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { col } from "#shared/db/table.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { countRows } from "#db/client.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { col } from "#db/table.ts";
 
 export type RawEmailTemplate = {
   id: number;

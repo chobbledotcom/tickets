@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { withTransaction } from "#shared/db/client.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { withTransaction } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import {
   getListingDayPrices,
   writeListingDayCounts,
-} from "#shared/db/listing-prices.ts";
+} from "#db/listing-prices.ts";
+import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { standardParentWithDailyChildEdge } from "#test-utils/listing-parents/helpers.ts";
 

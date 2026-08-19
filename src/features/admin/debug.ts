@@ -1,15 +1,19 @@
 /* jscpd:ignore-start */
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /* jscpd:ignore-end */
 /**
  * Admin debug route - shows configuration status for troubleshooting
  * Owner-only access enforced via requireOwnerOr
  */
 
+import { isValidRsaPrivateKey } from "#crypto/rsa-private-key.ts";
+import { databaseHostFor } from "#db/host.ts";
+import { SCHEMA_HASH } from "#db/migrations.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   isValidAppleCertificate,
   isValidCertificate,
@@ -26,10 +30,6 @@ import {
   isPaymentsEnabled,
   providerValue,
 } from "#shared/config.ts";
-import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
-import { databaseHostFor } from "#shared/db/host.ts";
-import { SCHEMA_HASH } from "#shared/db/migrations.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
 import {
   getEnv,

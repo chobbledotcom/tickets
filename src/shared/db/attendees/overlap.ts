@@ -7,9 +7,9 @@
  * capacity checks use (`end_at` is the exclusive end of the booked range).
  */
 
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { queryAll } from "#shared/db/client.ts";
-import type { AssignmentRow } from "#shared/db/logistics.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { queryAll } from "#db/client.ts";
+import type { AssignmentRow } from "#db/logistics.ts";
 
 /** One overlapping booking line: the logistics leg columns plus when and
  * how many. */

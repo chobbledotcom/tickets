@@ -4,25 +4,25 @@
  * only when its tab is opened.
  */
 
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { agentUsers } from "#db/user-agents.ts";
+import {
+  decryptAdminLevel,
+  decryptUsername,
+  getUserDisplayFields,
+} from "#db/users.ts";
 /* jscpd:ignore-start */
 import {
   defineEditEntityPage,
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { agentUsers } from "#shared/db/user-agents.ts";
-import {
-  decryptAdminLevel,
-  decryptUsername,
-  getUserDisplayFields,
-} from "#shared/db/users.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
-import { isDeliveryRole, type LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
   LogisticsAgentEditPanel,
 } from "#templates/admin/logistics.tsx";
+import { isDeliveryRole, type LogisticsAgent } from "#types";
 
 /* jscpd:ignore-end */
 

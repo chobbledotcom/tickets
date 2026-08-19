@@ -1,13 +1,13 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute } from "#db/client.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute } from "#shared/db/client.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";

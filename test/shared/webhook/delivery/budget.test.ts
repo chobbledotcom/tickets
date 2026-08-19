@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";

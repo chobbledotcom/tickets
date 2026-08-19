@@ -19,18 +19,18 @@
  */
 
 import * as v from "valibot";
-import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { decryptWithKey, encryptWithKey } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   generateDataKey,
   unwrapKeyWithToken,
   wrapKeyWithToken,
-} from "#shared/crypto/keys.ts";
-import type { KeyEncrypted, WrappedKey } from "#shared/crypto/sealed.ts";
-import { execute, executeUpdate, insert, queryOne } from "#shared/db/client.ts";
+} from "#crypto/keys.ts";
+import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
+import { execute, executeUpdate, insert, queryOne } from "#db/client.ts";
+import { recoveryMoveTo } from "#payment/sumup-recovery-machine-spec.ts";
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { isoAfter, nowIso } from "#shared/now.ts";
-import { recoveryMoveTo } from "#shared/payment/sumup-recovery-machine-spec.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 type SumupCheckoutRow = {

@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type {
-  ChildAllocation,
-  ListingBooking,
-} from "#shared/db/attendee-types.ts";
+import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
 import {
   annotateOrderParents,
   expandChildAllocations,
-} from "#shared/db/attendees/order-parents.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+} from "#db/attendees/order-parents.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -165,7 +162,7 @@ describe("db > attendees > expandChildAllocations", () => {
   });
 
   test("booking without explicit quantity uses its allocation total", () => {
-    const noQty: import("#shared/db/attendee-types.ts").ListingBooking = {
+    const noQty: import("#db/attendee-types.ts").ListingBooking = {
       listingId: 20,
       pricePaid: 60,
     };

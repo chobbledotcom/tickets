@@ -1,14 +1,14 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
-} from "#shared/db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/questions/attendee-answers/reads.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { handleRequest } from "#routes";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -46,7 +46,7 @@ const expectSharedAttendee = async (
   listing1Id: number,
   listing2Id: number,
 ): Promise<number> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const att1 = await getAttendeesRaw(listing1Id);
   const att2 = await getAttendeesRaw(listing2Id);
   expect(att1.length).toBe(1);
@@ -70,13 +70,11 @@ describeWithEnv(
 
       // Create a question and answer via DB
       const { questionsTable, answersTable } = await import(
-        "#shared/db/questions/tables.ts"
+        "#db/questions/tables.ts"
       );
-      const { listingQuestions } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { listingQuestions } = await import("#db/questions/queries.ts");
       const { getAttendeeAnswersBatch } = await import(
-        "#shared/db/questions/attendee-answers/reads.ts"
+        "#db/questions/attendee-answers/reads.ts"
       );
       const q = await questionsTable.insert({
         displayType: "radio",
@@ -116,9 +114,7 @@ describeWithEnv(
         expect(response.status).toBe(200);
 
         // Verify answers were saved for the created attendee
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
+        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
         const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(1);
         const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id], {

@@ -4,7 +4,7 @@ import {
   encodeNull,
   encodeOid,
   encodeSequence,
-} from "#shared/crypto/der.ts";
+} from "#crypto/der.ts";
 
 export const RSA_ENCRYPTION_OID = "1.2.840.113549.1.1.1";
 

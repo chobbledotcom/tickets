@@ -5,11 +5,11 @@
  * the pure {@link buildForest} core.
  */
 
-import { getAllPageItems } from "#shared/db/site-page-items.ts";
-import { sitePages } from "#shared/db/site-pages.ts";
+import { getAllPageItems } from "#db/site-page-items.ts";
+import { sitePages } from "#db/site-pages.ts";
 import { buildForest } from "#shared/site-pages/core.ts";
 import type { Forest } from "#shared/site-pages/types.ts";
-import type { SitePageItem, SitePageNavRow } from "#shared/types.ts";
+import type { SitePageItem, SitePageNavRow } from "#types";
 
 /** Load the nav rows + item edges once and fold them into the page forest,
  * returning the forest plus the raw rows/items its callers still consume. */

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
+import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import { paymentReviewAtlas } from "#shared/schema-atlas/payment-review.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
 

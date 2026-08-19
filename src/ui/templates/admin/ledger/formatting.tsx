@@ -1,4 +1,3 @@
-import { t } from "#i18n";
 import {
   ATTENDEE,
   COST,
@@ -11,16 +10,13 @@ import {
   type RowAccountType,
   type SingletonAccountType,
   WRITEOFF_TYPE,
-} from "#shared/accounting/accounts.ts";
-import {
-  isTransferKind,
-  KIND,
-  type TransferKind,
-} from "#shared/accounting/kinds.ts";
+} from "#accounting/accounts.ts";
+import { isTransferKind, KIND, type TransferKind } from "#accounting/kinds.ts";
 import {
   isManualLedgerEntryType,
   manualEntrySpecByType,
-} from "#shared/accounting/manual-entries.ts";
+} from "#accounting/manual-entries.ts";
+import { t } from "#i18n";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
 type AccountCell = (account: AccountRef) => JSX.Element | string;

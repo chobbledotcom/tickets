@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { resolveProviderRefundCase } from "#shared/db/provider-refund-case-resolution.ts";
-import { loadProviderRefundCase } from "#shared/db/provider-refund-cases.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { resolveProviderRefundCase } from "#db/provider-refund-case-resolution.ts";
+import { loadProviderRefundCase } from "#db/provider-refund-cases.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

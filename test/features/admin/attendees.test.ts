@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
   setupListingAndAttendee,

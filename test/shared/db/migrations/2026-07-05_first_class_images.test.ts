@@ -1,20 +1,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { getImagesForItem } from "#shared/db/images.ts";
-import firstClassImagesMigration from "#shared/db/migrations/2026-07-05_first_class_images.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import { getImagesForItem } from "#db/images.ts";
+import firstClassImagesMigration from "#db/migrations/2026-07-05_first_class_images.ts";
 import {
   applySchemaChanges,
   recreateTable,
   syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
-import type { MigrationContext } from "#shared/db/migrations/types.ts";
-import { additive } from "#shared/db/migrations/verify.ts";
+} from "#db/migrations/schema-sync.ts";
+import type { MigrationContext } from "#db/migrations/types.ts";
+import { additive } from "#db/migrations/verify.ts";
 import {
   columnNames,
   tableRowCount,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";

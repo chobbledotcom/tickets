@@ -11,8 +11,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { base64ToBase64Url, toBase64 } from "#shared/crypto/utils.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { base64ToBase64Url, toBase64 } from "#crypto/utils.ts";
 import {
   buildQrBookPayload,
   QR_TOKEN_MAX_AGE_S,

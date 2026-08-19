@@ -22,11 +22,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { createBackupZip, restoreFromZip } from "#shared/db/backup.ts";
-import { getDb } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { createBackupZip, restoreFromZip } from "#db/backup.ts";
+import { getDb } from "#db/client.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import { SCHEMA } from "#db/migrations/schema/index.ts";
 
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

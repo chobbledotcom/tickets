@@ -1,13 +1,13 @@
+import { type ActivityToLog, logActivities } from "#db/activity-log.ts";
+import { settings } from "#db/settings.ts";
 import { flatMap, mapNotNullish, unique } from "#fp";
-import { type ActivityToLog, logActivities } from "#shared/db/activity-log.ts";
-import { settings } from "#shared/db/settings.ts";
+import { t, withMessageGroups } from "#i18n";
 import {
   registrationEmailDelivery,
   sendRegistrationEmails,
 } from "#shared/email/registration.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { fetchText, ResponseBodyTooLargeError } from "#shared/fetch.ts";
-import { t, withMessageGroups } from "#shared/i18n.ts";
 import { ErrorCode, logErrorLocal } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";

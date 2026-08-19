@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
+import { unwrapKeyWithToken } from "#crypto/keys.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
 import {
   createApiKey,
   deleteApiKey,
@@ -9,12 +9,12 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
   touchApiKeyLastUsed,
-} from "#shared/db/api-keys.ts";
+} from "#db/api-keys.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { setTouchOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestApiKeyFull } from "#test-utils/session.ts";

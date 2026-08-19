@@ -9,7 +9,7 @@
 
 import { join } from "node:path";
 import { delay } from "#shared/now.ts";
-import { stripeMock } from "#src/shared/stripe/mock.ts";
+import { stripeMock } from "#shared/stripe/mock.ts";
 import { withFileLock } from "./lock-file.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
 import {

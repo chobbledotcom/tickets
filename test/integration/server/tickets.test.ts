@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { groups } from "#db/groups.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { clearTokenAttempts } from "#db/token-attempts.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { groups } from "#shared/db/groups.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { expectHtml, expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -718,7 +718,7 @@ describeWithEnv(
       });
       if (!result.success) throw new Error("booking failed");
       // The widget row is a package member; null the standalone row's package id.
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute({
         args: [standalone.id],
         sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
@@ -734,7 +734,7 @@ describeWithEnv(
       // Drives the public free-checkout path so handleFreePath threads
       // ctx.packageGroupId into createFreeReservation — the standalone-vs-package
       // distinction comes from the persisted id, set here end-to-end.
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
 
       const group = await createTestGroup({
         isPackage: true,

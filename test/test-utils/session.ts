@@ -1,25 +1,25 @@
 import type { Row } from "@libsql/client";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { createApiKey } from "#db/api-keys.ts";
+import { getSession } from "#db/sessions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { createApiKey } from "#shared/db/api-keys.ts";
-import { getSession } from "#shared/db/sessions.ts";
 import {
   runWithSessionContext,
   setCachedSession,
 } from "#shared/session-context.ts";
-import type { Listing } from "#shared/types.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
-import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
+  type AdminTestContext,
   getInternalTestSession,
   setTestSession,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 import { getSetupState } from "#test-utils/test-state.ts";
+import type { Listing } from "#types";
 
 export const loginAsAdmin = async (
   username: string = TEST_ADMIN_USERNAME,
@@ -63,7 +63,7 @@ export const getTestSession = async (): Promise<{
 
   const cached = getSetupState()?.session;
   if (cached) {
-    const { getDb, insert } = await import("#shared/db/client.ts");
+    const { getDb, insert } = await import("#db/client.ts");
     await getDb().execute(insert("sessions", cached.sessionRow));
     const csrfToken = await signCsrfToken();
     const session = { cookie: cached.cookie, csrfToken };
@@ -130,19 +130,19 @@ export const createTestManagerSession = async (
   token = "mgr-session",
   username = "testmanager",
 ): Promise<string> => {
-  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
-  const { hmacHash } = await import("#shared/crypto/hashing.ts");
+  const { encrypt: enc } = await import("#crypto/encryption.ts");
+  const { hmacHash } = await import("#crypto/hashing.ts");
   const { deriveKEKFromPassword, unwrapKey, wrapKeyWithToken } = await import(
-    "#shared/crypto/keys.ts"
+    "#crypto/keys.ts"
   );
-  const { getDb } = await import("#shared/db/client.ts");
-  const { insert } = await import("#shared/db/client.ts");
-  const { createSession } = await import("#shared/db/sessions.ts");
+  const { getDb } = await import("#db/client.ts");
+  const { insert } = await import("#db/client.ts");
+  const { createSession } = await import("#db/sessions.ts");
   const {
     getUserByUsername,
     invalidateUsersCache: invalidateUsers,
     verifyUserPassword,
-  } = await import("#shared/db/users.ts");
+  } = await import("#db/users.ts");
 
   // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
   // is salted with the owner's stored password hash.
@@ -204,22 +204,22 @@ export const createTestAgentSession = async (
 ): Promise<{ cookie: string; userId: number }> => {
   const token = opts.token ?? "agent-session";
   const username = opts.username ?? "testagent";
-  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
-  const { hashPassword, hmacHash } = await import("#shared/crypto/hashing.ts");
+  const { encrypt: enc } = await import("#crypto/encryption.ts");
+  const { hashPassword, hmacHash } = await import("#crypto/hashing.ts");
   const {
     deriveKEK,
     deriveKEKFromPassword,
     unwrapKey,
     wrapKey,
     wrapKeyWithToken,
-  } = await import("#shared/crypto/keys.ts");
-  const { getDb, insert } = await import("#shared/db/client.ts");
-  const { createSession } = await import("#shared/db/sessions.ts");
+  } = await import("#crypto/keys.ts");
+  const { getDb, insert } = await import("#db/client.ts");
+  const { createSession } = await import("#db/sessions.ts");
   const {
     getUserByUsername,
     invalidateUsersCache: invalidateUsers,
     verifyUserPassword,
-  } = await import("#shared/db/users.ts");
+  } = await import("#db/users.ts");
 
   // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
   // is salted with the owner's stored password hash.
@@ -257,7 +257,7 @@ export const createTestAgentSession = async (
   const userId = (await getUserByUsername(username))!.id;
 
   if (opts.agentIds && opts.agentIds.length > 0) {
-    const { userAgents } = await import("#shared/db/user-agents.ts");
+    const { userAgents } = await import("#db/user-agents.ts");
     await userAgents.setIds(userId, opts.agentIds);
   }
 
@@ -287,12 +287,12 @@ export const createTestEditorSession = async (
   // blind-index lookup is case-insensitive; mirror that here.
   const username = (opts.username ?? "testeditor").toLowerCase();
   const password = opts.password ?? "editorpass123";
-  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
-  const { hashPassword, hmacHash } = await import("#shared/crypto/hashing.ts");
-  const { getDb, insert } = await import("#shared/db/client.ts");
-  const { createSession } = await import("#shared/db/sessions.ts");
+  const { encrypt: enc } = await import("#crypto/encryption.ts");
+  const { hashPassword, hmacHash } = await import("#crypto/hashing.ts");
+  const { getDb, insert } = await import("#db/client.ts");
+  const { createSession } = await import("#db/sessions.ts");
   const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
-    await import("#shared/db/users.ts");
+    await import("#db/users.ts");
 
   await getDb().execute(
     insert("users", {
@@ -403,7 +403,7 @@ export const adminFormPost = async (
   path: string,
   data: TestFormValues = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { settings } = await import("#shared/db/settings.ts");
+  const { settings } = await import("#db/settings.ts");
   await settings.loadKeys([]);
   const { cookie, csrfToken } = await getTestSession();
   const { handleRequest } = await import("#routes");

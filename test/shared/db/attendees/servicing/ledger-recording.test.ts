@@ -1,15 +1,15 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { revenueAccount } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import {
   accountBalance,
   allTransfers,
   visibleTransfers,
-} from "#shared/accounting/queries.ts";
-import { emptyRange } from "#shared/accounting/range.ts";
+} from "#accounting/queries.ts";
+import { emptyRange } from "#accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -90,7 +90,7 @@ describeWithEnv(
       await recordBoilerCost(id, listing.id);
 
       const { getListingWithCount, invalidateListingsCache } = await import(
-        "#shared/db/listings/records.ts"
+        "#db/listings/records.ts"
       );
       invalidateListingsCache();
       const row = await getListingWithCount(listing.id);

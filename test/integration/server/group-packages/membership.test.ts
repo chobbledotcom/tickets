@@ -10,9 +10,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getGroupPackagePrices, groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

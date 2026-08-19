@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   assertAdminHtml,
   cachedAdminPage,

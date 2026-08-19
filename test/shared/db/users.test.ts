@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { hashPassword, hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, getDb, insert } from "#shared/db/client.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { hashPassword, hmacHash } from "#crypto/hashing.ts";
+import { execute, getDb, insert } from "#db/client.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -14,7 +14,7 @@ import {
   isInviteExpired,
   isInviteValid,
   verifyUserPassword,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assertAdminPasswordRejects,
@@ -195,7 +195,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         [await encrypt(""), user.id],
       );
 
-      const { getUserById: getUser } = await import("#shared/db/users.ts");
+      const { getUserById: getUser } = await import("#db/users.ts");
       const updatedUser = await getUser(user.id);
       const valid = await isInviteValid(updatedUser!);
       expect(valid).toBe(false);

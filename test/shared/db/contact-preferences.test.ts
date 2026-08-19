@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   contactHash,
   forgetContact,
@@ -20,8 +20,8 @@ import {
   saveContactRecord,
   toContactHashParam,
   unsubscribeHash,
-} from "#shared/db/contact-preferences.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/contact-preferences.ts";
+import { settings } from "#db/settings.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

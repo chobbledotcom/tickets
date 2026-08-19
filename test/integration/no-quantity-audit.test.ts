@@ -7,18 +7,15 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
   hasActiveBookingLine,
-} from "#shared/db/attendees/queries.ts";
-import { getDb } from "#shared/db/client.ts";
-import {
-  getAgentRunSheet,
-  setLegDone,
-} from "#shared/db/logistics-run-sheet.ts";
+} from "#db/attendees/queries.ts";
+import { getDb } from "#db/client.ts";
+import { getAgentRunSheet, setLegDone } from "#db/logistics-run-sheet.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

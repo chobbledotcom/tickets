@@ -2,8 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
 import type { StripeConnectionTestResult } from "#shared/stripe/endpoints.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";

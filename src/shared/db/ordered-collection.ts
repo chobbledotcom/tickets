@@ -5,7 +5,7 @@ import {
   type TxScope,
   useTransaction,
   writeRowInTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string

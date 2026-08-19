@@ -1,6 +1,8 @@
 /** The owner-only tabbed page for one built site. Expensive provider and
  * database checks belong to their own tabs, so ordinary edits do not run them. */
 
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
 /* jscpd:ignore-start */
 import {
   defineEditEntityPage,
@@ -9,8 +11,6 @@ import {
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";

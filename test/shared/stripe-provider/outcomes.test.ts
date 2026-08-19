@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   StripeConnectionError,
   StripeProtocolError,
@@ -9,13 +9,13 @@ import {
 import type { StripeExpandedPaymentIntent } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 import {
   stripeApiError,
   stripeChargeMoney,
   stripeClient,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 type StripeCharge = NonNullable<StripeExpandedPaymentIntent["latest_charge"]>;
 const capturedCharge = (

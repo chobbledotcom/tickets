@@ -14,7 +14,7 @@ import {
   isRemoteDatabase,
   parseBackupTime,
   pruneOldBackups,
-} from "#shared/db/backup-storage.ts";
+} from "#db/backup-storage.ts";
 import { listFiles, uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

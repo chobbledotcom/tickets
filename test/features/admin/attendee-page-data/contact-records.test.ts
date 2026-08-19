@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import {
-  EMPTY_CONTACT_RECORDS,
-  loadContactRecords,
-} from "#routes/admin/attendee-page-data.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   hashEmail,
   hashPhone,
   saveContactRecord,
   toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
+import {
+  EMPTY_CONTACT_RECORDS,
+  loadContactRecords,
+} from "#routes/admin/attendee-page-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import { withTestSession } from "#test-utils/session.ts";

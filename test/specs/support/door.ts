@@ -8,9 +8,9 @@
  */
 
 import { expect } from "@std/expect";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,

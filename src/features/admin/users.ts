@@ -1,11 +1,30 @@
 /* jscpd:ignore-start */
 
 import { fieldById } from "#fp";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin user management routes - owner only
  */
 
+import { unwrapKeyWithToken, wrapKeyWithToken } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { settings } from "#db/settings.ts";
+import { userAgents } from "#db/user-agents.ts";
+import {
+  createInvitedUser,
+  decryptAdminLevel,
+  decryptUsername,
+  deleteUser,
+  getAllUsers,
+  getUserById,
+  hashInviteCode,
+  isInviteExpired,
+  isUsernameTaken,
+} from "#db/users.ts";
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
@@ -22,34 +41,14 @@ import {
 } from "#routes/auth.ts";
 import { idRouteFor, ownerFormById } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
-import { userAgents } from "#shared/db/user-agents.ts";
-import {
-  createInvitedUser,
-  decryptAdminLevel,
-  decryptUsername,
-  deleteUser,
-  getAllUsers,
-  getUserById,
-  hashInviteCode,
-  isInviteExpired,
-  isUsernameTaken,
-} from "#shared/db/users.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
-import type { LogisticsAgent, User } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import {
   adminUserDeletePage,
@@ -65,6 +64,7 @@ import {
   getInviteUserForm,
   type InviteUserFormValues,
 } from "#templates/fields/admin.ts";
+import type { LogisticsAgent, User } from "#types";
 
 /* jscpd:ignore-end */
 

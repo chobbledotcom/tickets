@@ -7,8 +7,8 @@
  * (encrypted) value; otherwise empty.
  */
 
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 
 export type MaskedTextareaProps = {
   /** i18n key for the field label. */

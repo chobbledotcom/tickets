@@ -25,13 +25,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
+import { expandDailyRange, overlapsDay } from "#db/attendees/capacity/range.ts";
+import { dateToRange } from "#db/capacity.ts";
 import { addDays } from "#shared/dates.ts";
-import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
-import {
-  expandDailyRange,
-  overlapsDay,
-} from "#shared/db/attendees/capacity/range.ts";
-import { dateToRange } from "#shared/db/capacity.ts";
 
 // jscpd:ignore-end
 

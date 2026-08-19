@@ -9,7 +9,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
-} from "#shared/db/listings/attendees.ts";
+} from "#db/listings/attendees.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

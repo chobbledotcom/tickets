@@ -8,8 +8,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { expectRedirect, parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

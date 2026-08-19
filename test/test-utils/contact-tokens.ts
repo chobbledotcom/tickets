@@ -1,8 +1,8 @@
-import { executeBatch } from "#shared/db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   type BookingSource,
   orderActivityStatements,
-} from "#shared/db/contact-tokens.ts";
+} from "#db/contact-tokens.ts";
 
 /** Seed order activity through the same statements used by atomic booking. */
 export const seedOrderActivity = async (

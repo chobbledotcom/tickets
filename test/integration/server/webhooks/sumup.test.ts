@@ -2,8 +2,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { queryAll } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { queryAll } from "#shared/db/client.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";

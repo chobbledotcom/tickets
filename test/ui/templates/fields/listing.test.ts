@@ -1,11 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import {
-  CONTACT_FIELDS,
-  ListingTypeSchema,
-  MAX_DURATION_DAYS,
-} from "#shared/types.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { getGroupCreateForm } from "#templates/fields/group.ts";
 import { getListingForm } from "#templates/fields/listing.ts";
@@ -16,6 +11,7 @@ import {
 import { baseListingForm } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
+import { CONTACT_FIELDS, ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 
 const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
   ...baseListingForm,

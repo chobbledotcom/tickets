@@ -4,15 +4,14 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
+import { requireListingWithCount } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { sumupApi } from "#shared/sumup.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import {
   adminBrowser,
   CUSTOMER,
@@ -31,6 +30,7 @@ import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { makeSumupClient, withSumupClient } from "#test-utils/sumup.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { PaymentProviderType } from "#types";
 import { refundSafety, type SafetyBooking, safetyBooking } from "./state.ts";
 
 // jscpd:ignore-end

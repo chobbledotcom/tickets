@@ -1,14 +1,11 @@
 /** Attendee deletion routes and their payment-lifecycle admission. */
 
+import { logActivity } from "#db/activity-log.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
 import { t } from "#i18n";
 import { redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  loadPaymentMoveSnapshot,
-  orRefusal,
-} from "#shared/db/payment-admit-move.ts";
 import {
   adminAttendeeDeletePage,
   adminBlockedAttendeeDeletePage,

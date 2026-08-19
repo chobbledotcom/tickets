@@ -1,7 +1,7 @@
 import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { FakeTime } from "@std/testing/time";
-import { execute, setDb } from "#shared/db/client.ts";
+import { execute, setDb } from "#db/client.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 /** Walk one backoff wait: the attempt count holds until the wait's final

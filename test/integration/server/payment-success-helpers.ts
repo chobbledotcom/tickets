@@ -1,5 +1,5 @@
+import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
-import { groups } from "#shared/db/groups.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { mockRequest } from "#test-utils/mocks.ts";

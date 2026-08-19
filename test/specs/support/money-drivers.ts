@@ -1,12 +1,12 @@
 // jscpd:ignore-start
 import { stub } from "@std/testing/mock";
 import { requiredMapValue } from "#fp";
-import { handleRequest } from "#routes";
 import type {
   RefundAttemptResult,
   RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+} from "#payment/refund-attempt.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
+import { handleRequest } from "#routes";
 import { paymentsApi } from "#shared/payments.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";

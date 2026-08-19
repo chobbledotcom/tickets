@@ -5,9 +5,8 @@
 /* jscpd:ignore-start */
 import { map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
@@ -15,6 +14,7 @@ import {
   capacityLevel,
   capacityMeterText,
 } from "#templates/components/capacity.tsx";
+import { type Attendee, hasTicketQuantity } from "#types";
 /* jscpd:ignore-end */
 
 /** A key/value row for the listing-details-table */

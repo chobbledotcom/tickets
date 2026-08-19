@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { costAccount } from "#shared/accounting/accounts.ts";
+import { costAccount } from "#accounting/accounts.ts";
 import { account } from "#shared/ledger/account.ts";
 
 // jscpd:ignore-end

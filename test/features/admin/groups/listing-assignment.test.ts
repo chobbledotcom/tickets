@@ -2,8 +2,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
-import { getListingsByGroupId } from "#shared/db/groups.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

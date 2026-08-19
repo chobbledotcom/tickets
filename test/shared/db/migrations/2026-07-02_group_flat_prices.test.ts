@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import groupFlatPricesMigration from "#shared/db/migrations/2026-07-02_group_flat_prices.ts";
-import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import groupFlatPricesMigration from "#db/migrations/2026-07-02_group_flat_prices.ts";
+import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

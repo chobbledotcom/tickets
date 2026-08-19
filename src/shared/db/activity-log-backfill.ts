@@ -13,10 +13,10 @@
  */
 
 /* jscpd:ignore-start */
-import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { executeBatch, queryAll, update } from "#shared/db/client.ts";
+import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { executeBatch, queryAll, update } from "#db/client.ts";
 import { ACTIVITY_LOG_BACKFILL_BATCH } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 

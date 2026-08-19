@@ -15,6 +15,7 @@
  * form stash surviving to the follow-up GET. Successes redirect as usual.
  */
 
+import type { ActivityLogEntry } from "#db/activity-log.ts";
 import { type AuthSession, recordPageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -22,7 +23,6 @@ import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminDestination, adminRecordPath } from "#shared/admin-surface.ts";
-import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import {
   resolveTabSlug,
   splitActions,
@@ -31,7 +31,6 @@ import {
   tabPath,
 } from "#shared/entity-pages/core.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { isOwnerRole } from "#shared/types.ts";
 import {
   entityPageView,
   type LoadedSection,
@@ -40,6 +39,7 @@ import {
 } from "#templates/admin/entity-pages.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
+import { isOwnerRole } from "#types";
 
 /** Entity row key: numeric ids for ordinary tables, strings for blind-index
  * keyed pages like /admin/history/:hmac. */

@@ -1,13 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import type {
-  EnvKeyEncrypted,
-  OwnerKeyEncrypted,
-} from "#shared/crypto/sealed.ts";
-import { openNote, openNotes, sealNote } from "#shared/db/notes/sealing.ts";
-import type { SystemNoteRow } from "#shared/db/notes/types.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { openNote, openNotes, sealNote } from "#db/notes/sealing.ts";
+import type { SystemNoteRow } from "#db/notes/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

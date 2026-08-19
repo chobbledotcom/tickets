@@ -18,18 +18,18 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
-import { getDb } from "#shared/db/client.ts";
+import { revenueAccount } from "#accounting/accounts.ts";
+import { accountBalance } from "#accounting/queries.ts";
+import { getDb } from "#db/client.ts";
 import {
   getListingAggregateRecalculation,
   resetListingAggregateFields,
-} from "#shared/db/listings/aggregates.ts";
+} from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings/records.ts";
-import { TICKET_COUNTS_PREDICATE } from "#shared/db/migrations/schema/listing-aggregates.ts";
+} from "#db/listings/records.ts";
+import { TICKET_COUNTS_PREDICATE } from "#db/migrations/schema/listing-aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";

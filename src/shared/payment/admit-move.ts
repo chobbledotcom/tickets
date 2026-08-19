@@ -7,7 +7,7 @@
  * This module is pure: it decides from the records it is shown.
  */
 
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 
 /** The attendee actions that can advance durable payment work. */
 const PAYMENT_RECOVERY_ROUTES = {

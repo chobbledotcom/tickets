@@ -1,17 +1,11 @@
 import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
-import {
-  attendeeAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { type BookingFacts, mapBooking } from "#shared/accounting/mappers.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { getDb, setDb } from "#shared/db/client.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
+import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { getDb, setDb } from "#db/client.ts";
+import type { RefundPaymentReference } from "#db/payment-references.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";

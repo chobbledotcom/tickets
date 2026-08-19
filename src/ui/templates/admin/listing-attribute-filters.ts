@@ -1,7 +1,7 @@
+import type { ListingAttributesById } from "#db/attributes.ts";
 import { t } from "#i18n";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderFilterBar } from "#shared/filter-bar.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import {
   type AttributeFilterGroup,
   attributeFilterParam,

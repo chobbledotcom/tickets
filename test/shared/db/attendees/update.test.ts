@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
@@ -9,8 +9,8 @@ import {
   updateAttendeePII,
   updateAttendeeStatus,
   updateCheckedIn,
-} from "#shared/db/attendees/update.ts";
-import { executeUpdate, queryOne } from "#shared/db/client.ts";
+} from "#db/attendees/update.ts";
+import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {

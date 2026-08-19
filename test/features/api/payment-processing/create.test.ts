@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { encrypt } from "#crypto/encryption.ts";
+import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import { logActivities } from "#db/activity-log.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { queryAll } from "#db/client.ts";
 import {
   alreadyProcessedResult,
   bookingSlot,
@@ -14,22 +19,17 @@ import type {
   ModifierApplication,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { logActivities } from "#shared/db/activity-log.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });

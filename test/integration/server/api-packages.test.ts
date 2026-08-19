@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
+import { queryAll } from "#db/client.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -202,7 +202,7 @@ describeWithEnv("public API packages", { db: true }, () => {
     expect(parentMember.children).toHaveLength(1);
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
-    const { groups } = await import("#shared/db/groups.ts");
+    const { groups } = await import("#db/groups.ts");
     await groups.table.update(group.id, { hidePackageListings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
@@ -260,7 +260,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       unitPrice: 0,
     });
     await listingChildren.setIds(a.id, [child.id]);
-    const { groups } = await import("#shared/db/groups.ts");
+    const { groups } = await import("#db/groups.ts");
     await groups.table.update(group.id, { hidePackageListings: true });
 
     const { package: pkg } = await (
@@ -642,7 +642,7 @@ describeWithEnv("public API packages", { db: true }, () => {
 
     const { group } = await fixedPackage("Paid Kit", "paid-kit");
     const hidden = await fixedPackage("Secret Kit", "secret-kit");
-    const { groups } = await import("#shared/db/groups.ts");
+    const { groups } = await import("#db/groups.ts");
     await groups.table.update(hidden.group.id, { hidePackageListings: true });
 
     const intents: import("#shared/payments.ts").CheckoutIntent[] = [];

@@ -6,9 +6,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { panelTab } from "#routes/admin/entity-write-tab.ts";
 import { defineSiteContentPage } from "#routes/admin/site-content-page.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { withStorageEnabled } from "#test-utils/mocks.ts";

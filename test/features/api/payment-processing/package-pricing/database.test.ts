@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import {
   hasStaleStandaloneChildFromFacts,
   orderEdgeDriftedFromFacts,
@@ -7,8 +9,6 @@ import {
 } from "#routes/api/payment-processing/package-pricing.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { RegistrationPackagePricing as PackagePricing } from "#shared/registration-package-facts.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { listingPair } from "#test/features/api/payment-processing/items/helpers.ts";

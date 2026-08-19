@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { TEMPLATE_KEYS } from "#shared/db/settings/apply.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { TEMPLATE_KEYS } from "#db/settings/apply.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > settings public API", { db: true }, () => {

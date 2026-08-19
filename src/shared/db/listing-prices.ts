@@ -16,7 +16,6 @@
  * writing all of them.
  */
 
-import { chunk, compact, mapNotNullish } from "#fp";
 import {
   execute,
   executeBatch,
@@ -25,9 +24,10 @@ import {
   queryBatchPrimary,
   queryIdColumn,
   type TxScope,
-} from "#shared/db/client.ts";
-import { requireTouchingRelationshipsTx } from "#shared/db/listing-parents.ts";
-import { type DayPrices, parseDayPrices } from "#shared/types.ts";
+} from "#db/client.ts";
+import { requireTouchingRelationshipsTx } from "#db/listing-parents.ts";
+import { chunk, compact, mapNotNullish } from "#fp";
+import { type DayPrices, parseDayPrices } from "#types";
 
 export const PRICE_TYPE_BASE = "base";
 export const PRICE_TYPE_DAY_COUNT = "day_count";

@@ -1,5 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
+import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
   createFreeReservation,
@@ -8,25 +15,11 @@ import {
   loadChildrenByParentId,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
-import {
-  attendeeAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -34,6 +27,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
+import type { ContactInfo, ListingWithCount } from "#types";
 
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
@@ -663,7 +657,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "shared-child",
       });
       // Both parents are wired directly to the shared child.
-      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#db/listing-parents.ts");
       const parentA = await createTestListing({
         maxAttendees: 10,
         maxQuantity: 10,

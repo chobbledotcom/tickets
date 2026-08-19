@@ -8,19 +8,19 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import {
+  getLogisticsAssignments,
+  setLogisticsAssignments,
+} from "#db/logistics.ts";
+import { settings } from "#db/settings.ts";
 import {
   endTimeField,
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import {
-  getLogisticsAssignments,
-  setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

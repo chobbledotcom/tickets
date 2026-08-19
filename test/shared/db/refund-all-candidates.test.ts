@@ -2,21 +2,18 @@
 import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, setDb } from "#shared/db/client.ts";
+import { execute, setDb } from "#db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import {
   getRefundAllSummary,
   loadRefundAllBatch,
-} from "#shared/db/refund-all-candidates.ts";
-import {
-  armRefundSend,
-  readyRefund,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
+} from "#db/refund-all-candidates.ts";
+import { armRefundSend, readyRefund } from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
 import {
   createPaidListing,
   createRefundableAttendee,

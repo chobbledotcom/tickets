@@ -1,11 +1,11 @@
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { setDb } from "#shared/db/client.ts";
+import { setDb } from "#db/client.ts";
 import {
   applySchemaChanges,
   recreateTable,
-} from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema-sync.ts";
 import { resetDb } from "#test-utils/db.ts";
 import {
   cleanupTestDbPath,

@@ -1,8 +1,4 @@
-import {
-  type CrudTable,
-  defineTable,
-  type TableSchema,
-} from "#shared/db/table.ts";
+import { type CrudTable, defineTable, type TableSchema } from "#db/table.ts";
 
 /**
  * Helper for tables whose primary key column is `id`.

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { execute } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
@@ -78,7 +78,7 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     // provider charge reference too — otherwise a provider-less attendee whose
     // only refundable id is this balance charge could no longer be refunded.
     const { getRefundPaymentReferences } = await import(
-      "#shared/db/payment-references.ts"
+      "#db/payment-references.ts"
     );
     const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
     const { requireCompleteRefundReferences } = await import(

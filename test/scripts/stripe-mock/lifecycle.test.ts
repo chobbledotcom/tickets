@@ -5,13 +5,14 @@ import {
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
 } from "#scripts/stripe-mock.ts";
-import type { StartOptions } from "#test/test-utils/stripe-mock/helpers.ts";
+import { pathExists } from "#test-utils/files.ts";
 import {
+  type StartOptions,
   testEnv,
   withFakeCurl,
   withTempStripeMockPaths,
   writeFailingMock,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 import {
   expectPortAvailable,
   expectPortOpen,
@@ -19,8 +20,7 @@ import {
   retryWhilePortTaken,
   withHeldPort,
   withUnusedPort,
-} from "#test/test-utils/stripe-mock/ports.ts";
-import { pathExists } from "#test-utils/files.ts";
+} from "#test-utils/stripe-mock/ports.ts";
 import {
   freePort,
   runsToCompletion,

@@ -2,8 +2,8 @@
  * Attendee phone blind-index reads/writes (see #shared/sms/phone-index.ts).
  */
 
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { executeUpdate, queryOne } from "#shared/db/client.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { executeUpdate, queryOne } from "#db/client.ts";
 
 /**
  * Store the phone blind-index on an attendee, but only if one isn't set yet.

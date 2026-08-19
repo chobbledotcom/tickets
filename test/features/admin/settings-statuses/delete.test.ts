@@ -7,8 +7,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { execute } from "#shared/db/client.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { execute } from "#db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";

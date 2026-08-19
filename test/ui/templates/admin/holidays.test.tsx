@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { Holiday } from "#shared/types.ts";
 import {
   adminHolidaysPage,
   getHolidayPages,
@@ -11,6 +10,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import type { Holiday } from "#types";
 
 const holiday: Holiday = {
   end_date: "2026-12-26",

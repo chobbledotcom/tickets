@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
+import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -1,20 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
+import { getDb } from "#db/client.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { computeSlugIndex, rawListingsTable } from "#db/listings/table.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { getDb } from "#shared/db/client.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
-import {
-  computeSlugIndex,
-  rawListingsTable,
-} from "#shared/db/listings/table.ts";
-import type { DayPrices } from "#shared/types.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   const errors = setupErrorSpy();

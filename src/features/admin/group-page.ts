@@ -26,12 +26,7 @@ import type { AuthSession } from "#routes/auth.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
-import {
-  type Group,
-  isContentRole,
-  isOwnerRole,
-  isStaffRole,
-} from "#shared/types.ts";
+import { type Group, isContentRole, isOwnerRole, isStaffRole } from "#types";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,

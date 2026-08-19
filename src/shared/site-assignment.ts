@@ -4,21 +4,21 @@
  * All assignment logic is gated behind CAN_BUILD_SITES.
  */
 
-import { range, sort } from "#fp";
-import { resolveHostingProvider } from "#shared/builder.ts";
-import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { addMonthsIso, parseDateMs } from "#shared/dates.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   assignBuiltSite,
   getAssignableBuiltSites,
   siteBaseUrl,
   updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/built-sites.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
+import { range, sort } from "#fp";
+import { resolveHostingProvider } from "#shared/builder.ts";
+import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
+import { addMonthsIso, parseDateMs } from "#shared/dates.ts";
 import {
   getEmailConfig,
   getHostEmailConfig,

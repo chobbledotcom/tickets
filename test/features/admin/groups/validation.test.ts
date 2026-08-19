@@ -2,12 +2,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import {
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,

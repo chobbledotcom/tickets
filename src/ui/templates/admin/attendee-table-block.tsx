@@ -1,4 +1,4 @@
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { AttendeeTable } from "#templates/attendee-table/component.tsx";
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 

@@ -10,9 +10,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeAdminPath } from "#shared/attendee-links.ts";
 // jscpd:ignore-end
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { attendeeAdminPath } from "#shared/attendee-links.ts";
 
 describe("servicing §0 — kind-aware ref link routing", () => {
   const cases: [label: string, kind: string, expectedPath: string][] = [

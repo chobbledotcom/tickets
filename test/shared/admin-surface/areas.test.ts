@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ADMIN_AREAS } from "#shared/admin-surface/areas.ts";
 import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
-import { ALL_ADMIN_LEVELS } from "#shared/types.ts";
+import { ALL_ADMIN_LEVELS } from "#types";
 
 const routes = Object.values(ADMIN_SURFACE.destinations);
 

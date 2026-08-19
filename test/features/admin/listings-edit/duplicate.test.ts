@@ -9,10 +9,10 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

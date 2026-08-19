@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setImagesForItem } from "#db/images.ts";
 import { handleRequest } from "#routes";
-import { setImagesForItem } from "#shared/db/images.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {

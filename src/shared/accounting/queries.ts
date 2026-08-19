@@ -11,7 +11,6 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { requiredMapValue, uniqueBy } from "#fp";
 import {
   ATTENDEE,
   COST,
@@ -20,22 +19,22 @@ import {
   MODIFIER,
   REVENUE,
   WRITEOFF_TYPE,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { MANUAL_LISTING_INCOME } from "#shared/accounting/manual-entries.ts";
+} from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { MANUAL_LISTING_INCOME } from "#accounting/manual-entries.ts";
 import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
   signedSumCase,
-} from "#shared/accounting/projection-sql.ts";
-import { type LedgerRange, occurredAtRange } from "#shared/accounting/range.ts";
+} from "#accounting/projection-sql.ts";
+import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
 import {
   fromDb,
   selectByEventGroup,
   selectTransfers,
-} from "#shared/accounting/rows.ts";
+} from "#accounting/rows.ts";
 import {
   inPlaceholders,
   queryAll,
@@ -43,12 +42,9 @@ import {
   resultRows,
   rowExists,
   type TxScope,
-} from "#shared/db/client.ts";
-import {
-  clauseArgs,
-  type WhereClause,
-  whereSql,
-} from "#shared/db/where-clauses.ts";
+} from "#db/client.ts";
+import { clauseArgs, type WhereClause, whereSql } from "#db/where-clauses.ts";
+import { requiredMapValue, uniqueBy } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 

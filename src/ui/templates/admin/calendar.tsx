@@ -2,22 +2,18 @@
  * Admin calendar view template - shows attendees across all daily listings by date
  */
 
+/* jscpd:ignore-start -- imports */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+/* jscpd:ignore-end */
 import { formatDateLabel } from "#shared/dates.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type AgentFilter,
   agentFilterParam,
   renderAgentFilter,
 } from "#shared/logistics-filter.ts";
-import type {
-  AdminSession,
-  Attendee,
-  AttendeeTableRow,
-  LogisticsAgent,
-} from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import {
   AvailabilityChecker,
@@ -29,6 +25,12 @@ import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
+import type {
+  AdminSession,
+  Attendee,
+  AttendeeTableRow,
+  LogisticsAgent,
+} from "#types";
 
 /** Attendee row with listing context for display */
 export type CalendarAttendeeRow = Attendee & {

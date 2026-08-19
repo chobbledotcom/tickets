@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { ensureMessageGroups } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { validateForm } from "#shared/forms/validation.ts";
-import { ensureMessageGroups } from "#shared/i18n.ts";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },

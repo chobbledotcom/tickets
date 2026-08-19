@@ -9,9 +9,9 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import { isUpdateTier } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { isUpdateTier } from "#shared/db/built-sites/types.ts";
 import type {
   ChoiceField,
   Field,
@@ -26,11 +26,11 @@ import {
 } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
-import { isContactField } from "#shared/types.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { isContactField } from "#types";
 /* jscpd:ignore-end */
 
 /**

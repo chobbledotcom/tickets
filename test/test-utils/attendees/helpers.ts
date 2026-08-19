@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
+import type { Answer, Question } from "#db/question-types.ts";
+import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { handleRequest } from "#routes";
-import type { Answer, Question } from "#shared/db/question-types.ts";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
 import {
   expectFlash,
   expectHtmlResponse,
@@ -21,6 +20,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import type { Attendee, Listing } from "#types";
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
  *  Doe" by default). The single most repeated setup across the attendee admin
@@ -221,7 +221,7 @@ export const submitQuestionAnswer = async (
 export const dualPackageRows = async (
   attendeeId: number,
 ): Promise<[number, number][]> => {
-  const { queryAll } = await import("#shared/db/client.ts");
+  const { queryAll } = await import("#db/client.ts");
   const rows = await queryAll<{
     package_group_id: number;
     quantity: number;
@@ -243,7 +243,7 @@ export const createDualPackageAttendee = async (
   name: string,
   email: string,
 ): Promise<Attendee> => {
-  const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+  const { attendeesApi } = await import("#db/attendees/api.ts");
   const made = await attendeesApi.createAttendeeAtomic({
     bookings: [
       { listingId, packageGroupId: groupId, quantity: 2 },

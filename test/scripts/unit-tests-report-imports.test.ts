@@ -13,9 +13,9 @@ import { options } from "./unit-tests-report-fixtures.ts";
 /** A small import map covering an exact alias, nested and general directory
  *  aliases, and a non-source alias, so resolution's branches are all exercised. */
 const importMap: Record<string, string> = {
+  "#db/": "./src/shared/db/",
   "#fp": "./src/fp.ts",
   "#shared/": "./src/shared/",
-  "#shared/db/": "./src/shared/db/",
   "#test-utils/": "./test/test-utils/",
   valibot: "npm:valibot@^1.4.1",
 };
@@ -29,12 +29,12 @@ describe("parseImportSpecifiers", () => {
       'import { a } from "#fp";',
       "import {",
       "  b,",
-      '} from "#shared/db/x.ts";',
+      '} from "#db/x.ts";',
       'export { c } from "#shared/y.ts";',
     ].join("\n");
     expect(parseImportSpecifiers(text)).toEqual([
       "#fp",
-      "#shared/db/x.ts",
+      "#db/x.ts",
       "#shared/y.ts",
     ]);
   });
@@ -68,11 +68,11 @@ describe("parseImportSpecifiers", () => {
 
   test("captures dynamic import() specifiers alongside static ones", () => {
     const text = [
-      'import { settings } from "#shared/db/settings.ts";',
+      'import { settings } from "#db/settings.ts";',
       'const mod = await import("#routes/wallet/google.ts");',
     ].join("\n");
     expect(parseImportSpecifiers(text)).toEqual([
-      "#shared/db/settings.ts",
+      "#db/settings.ts",
       "#routes/wallet/google.ts",
     ]);
   });
@@ -80,8 +80,8 @@ describe("parseImportSpecifiers", () => {
   test("skips type-query dynamic imports (typeof and member access)", () => {
     // Both forms are erased at runtime, so neither names code under test.
     const text = [
-      'type M = typeof import("#shared/db/table.ts");',
-      'const row = {} as import("#shared/db/attendee-types.ts").Row;',
+      'type M = typeof import("#db/table.ts");',
+      'const row = {} as import("#db/attendee-types.ts").Row;',
       'const mod = await import("#routes/wallet/google.ts");',
     ].join("\n");
     expect(parseImportSpecifiers(text)).toEqual(["#routes/wallet/google.ts"]);
@@ -90,7 +90,7 @@ describe("parseImportSpecifiers", () => {
   test("skips type-only import and export statements", () => {
     // A type import is erased at runtime, so it doesn't name the code under test.
     const text = [
-      'import type { Listing } from "#shared/types.ts";',
+      'import type { Listing } from "#types";',
       'export type { Foo } from "#shared/foo.ts";',
       'import { real } from "#shared/real.ts";',
     ].join("\n");
@@ -110,10 +110,10 @@ describe("resolveImportToSourceOrNull", () => {
   });
 
   test("prefers the longest matching alias so a nested dir wins", () => {
-    // Both "#shared/" and "#shared/db/" match; the specific one must win.
-    expect(
-      resolveImportToSourceOrNull("#shared/db/client.ts", importMap, "src"),
-    ).toBe("src/shared/db/client.ts");
+    // Both "#shared/" and "#db/" match; the specific one must win.
+    expect(resolveImportToSourceOrNull("#db/client.ts", importMap, "src")).toBe(
+      "src/shared/db/client.ts",
+    );
   });
 
   test("maps an exact alias to its whole target", () => {
@@ -156,8 +156,8 @@ describe("resolveImportToSourceOrNull", () => {
 describe("resolveTestImports", () => {
   test("resolves, de-duplicates, and drops non-source imports", () => {
     const text = [
-      'import { a } from "#shared/db/client.ts";',
-      'import { b } from "#shared/db/client.ts";', // duplicate
+      'import { a } from "#db/client.ts";',
+      'import { b } from "#db/client.ts";', // duplicate
       'import { c } from "#fp";',
       'import { d } from "valibot";', // non-source, dropped
     ].join("\n");

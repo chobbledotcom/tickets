@@ -1,7 +1,7 @@
 import {
   admitObservedRefund,
   type ObservedRefundAdmission,
-} from "#shared/payment/admit-refund.ts";
+} from "#payment/admit-refund.ts";
 import type { ReadyRefundReference } from "./readiness.ts";
 
 /** Judge one readiness-qualified reference without reading its provider again. */

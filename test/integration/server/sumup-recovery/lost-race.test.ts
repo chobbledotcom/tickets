@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

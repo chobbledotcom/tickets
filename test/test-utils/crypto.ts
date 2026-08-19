@@ -32,7 +32,7 @@ export const getMismatchedAppleWalletKey = (): string => MISMATCHED_SIGNING_KEY;
 /** Configure all Apple Wallet settings in the database using the test certs.
  *  Shared by the apple-wallet settings tests and the wallet webservice tests. */
 export const configureAppleWallet = async (): Promise<void> => {
-  const { settings } = await import("#shared/db/settings.ts");
+  const { settings } = await import("#db/settings.ts");
   const testCerts = generateTestCerts();
   await Promise.all([
     settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
@@ -53,8 +53,8 @@ export const generateGoogleTestCreds = (): GoogleWalletCredentials => ({
 export const getTestDataKey = async (): Promise<CryptoKey> => {
   const { testCookie } = await import("#test-utils/session.ts");
   const { getSessionCookieName } = await import("#shared/cookies.ts");
-  const { unwrapKeyWithToken } = await import("#shared/crypto/keys.ts");
-  const { getSession } = await import("#shared/db/sessions.ts");
+  const { unwrapKeyWithToken } = await import("#crypto/keys.ts");
+  const { getSession } = await import("#db/sessions.ts");
   const cookie = await testCookie();
   const sessionMatch = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),
@@ -65,14 +65,14 @@ export const getTestDataKey = async (): Promise<CryptoKey> => {
 };
 
 export const getTestPrivateKey = async (): Promise<CryptoKey> => {
-  const { decryptWithKey } = await import("#shared/crypto/encryption.ts");
+  const { decryptWithKey } = await import("#crypto/encryption.ts");
   const { deriveKEKFromPassword, importPrivateKey, unwrapKey } = await import(
-    "#shared/crypto/keys.ts"
+    "#crypto/keys.ts"
   );
   const { getUserByUsername, verifyUserPassword } = await import(
-    "#shared/db/users.ts"
+    "#db/users.ts"
   );
-  const { settings } = await import("#shared/db/settings.ts");
+  const { settings } = await import("#db/settings.ts");
   const { TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD } = await import(
     "#test-utils/internal.ts"
   );

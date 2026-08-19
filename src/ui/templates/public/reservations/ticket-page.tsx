@@ -8,33 +8,33 @@
  * per-listing quantity selectors (or package sections).
  */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
-import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
+import type { BuildTreeInput } from "#booking/build-tree.ts";
 import {
   type CartDateItem,
   cartConflictMessages,
-} from "#shared/booking/cart-conflicts.ts";
+} from "#booking/cart-conflicts.ts";
 import {
   bookableChildIds,
   customisableLengthItems,
   type TicketListing,
-} from "#shared/booking/model.ts";
-import { packageLimitInfo } from "#shared/booking/package-cap.ts";
+} from "#booking/model.ts";
+import { packageLimitInfo } from "#booking/package-cap.ts";
 import {
   explicitStandaloneIds,
   type PagePackage,
-} from "#shared/booking/page-packages.ts";
+} from "#booking/page-packages.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { ctxStandInNames } from "#shared/package-privacy.ts";
-import type { ItemImageColumns, ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { PublicNav } from "#templates/public/shared.tsx";
+import type { ItemImageColumns, ListingWithCount } from "#types";
 import {
   buildPageTree,
   headerListing,

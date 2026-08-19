@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import {
   getBookingFee,
   getEffectiveDomain,
@@ -10,7 +11,6 @@ import {
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 

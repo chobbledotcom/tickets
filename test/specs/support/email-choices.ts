@@ -8,13 +8,10 @@
  * around.
  */
 
+import { queryOne } from "#db/client.ts";
+import { hashEmail, isHashUnsubscribed } from "#db/contact-preferences.ts";
 // jscpd:ignore-start
 import { t } from "#i18n";
-import { queryOne } from "#shared/db/client.ts";
-import {
-  hashEmail,
-  isHashUnsubscribed,
-} from "#shared/db/contact-preferences.ts";
 import {
   browserSeenBy,
   openAsNewcomer,

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {

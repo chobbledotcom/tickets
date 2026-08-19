@@ -6,8 +6,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingsTable } from "#db/listings/records.ts";
 import { processUploadsAndRedirect } from "#routes/admin/listings-uploads.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

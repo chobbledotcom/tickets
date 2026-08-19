@@ -9,6 +9,8 @@
  * list, validates drafts, and builds the send payload + unsubscribe footer.
  */
 
+import { decryptPiiBlob } from "#db/attendees/pii.ts";
+import { hashEmail } from "#db/contact-preferences.ts";
 import {
   filter,
   map,
@@ -25,8 +27,6 @@ import {
   isBulkEmailTarget,
 } from "#shared/bulk-email-targets/types.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkBatchResponse,
@@ -35,8 +35,8 @@ import {
 } from "#shared/email/bulk.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { isRecord } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
+import { isRecord } from "#types";
 
 // Re-export the target registry's public API so `#shared/bulk-email.ts` stays
 // the single entry point for callers (routes, templates, tests).

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
+import { tempDir } from "#test-utils/files.ts";
 import {
   createFakeArchive,
   wait,
@@ -14,12 +15,11 @@ import {
   withLockRemovedDuringRead,
   withSecondLockRefreshHeld,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 import {
   expectStartFails,
   expectStripeMockFails,
-} from "#test/test-utils/stripe-mock/ports.ts";
-import { tempDir } from "#test-utils/files.ts";
+} from "#test-utils/stripe-mock/ports.ts";
 import {
   expectDownloadWithLockCleanup,
   expectStaleLockRemoved,

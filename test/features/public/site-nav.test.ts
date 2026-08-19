@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
+import { addPageItem } from "#db/site-page-items.ts";
+import { computeSitePageSlugIndex, sitePages } from "#db/site-pages.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
-import { execute } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
-import { addPageItem } from "#shared/db/site-page-items.ts";
-import { computeSitePageSlugIndex, sitePages } from "#shared/db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

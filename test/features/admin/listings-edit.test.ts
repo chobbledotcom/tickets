@@ -6,8 +6,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingsTable } from "#db/listings/records.ts";
 import { adminLandingPath } from "#routes/auth.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -39,7 +39,7 @@ describeWithEnv("creating a listing", { db: true }, () => {
     expect(expectRedirect(response).split("?")[0]).toBe(
       adminLandingPath("owner"),
     );
-    const { getAllListings } = await import("#shared/db/listings/records.ts");
+    const { getAllListings } = await import("#db/listings/records.ts");
     expect((await getAllListings()).map((one) => one.name)).toContain(
       "Made By Staff",
     );

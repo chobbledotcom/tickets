@@ -2,8 +2,8 @@ import { type Client, createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import { queryOne } from "#shared/db/client.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { queryOne } from "#db/client.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { siteDbApi } from "#shared/site-db.ts";
 import {
   deployAndReport,
@@ -294,7 +294,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
 
   test("swallows database errors so it can never block boot", async () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");
-    const { getDb } = await import("#shared/db/client.ts");
+    const { getDb } = await import("#db/client.ts");
     await getDb().execute("DROP TABLE settings");
     // Reading/writing the missing table throws inside; the call must still resolve.
     await recordScriptVersion();

@@ -6,12 +6,12 @@
  * contact state — link prefetchers and scanners follow GETs).
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { settings } from "#shared/db/settings.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";

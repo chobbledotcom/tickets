@@ -1,8 +1,9 @@
 /* jscpd:ignore-start */
+
+import { initDb } from "#db/migrations.ts";
+import { settings } from "#db/settings.ts";
 import { requestScopedHandler } from "#routes/request-scopes.ts";
 import { loadEffectiveDomain } from "#shared/config.ts";
-import { initDb } from "#shared/db/migrations.ts";
-import { settings } from "#shared/db/settings.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
 import { scheduledResponse } from "#shared/scheduled-access.ts";

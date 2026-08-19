@@ -8,24 +8,21 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { map } from "#fp";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-} from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { generateTicketToken } from "#crypto/utils.ts";
 import type {
   AttendeePii,
   EncryptedAttendeeData,
   EncryptInput,
   UpdateAttendeePIIInput,
-} from "#shared/db/attendee-types.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/attendee-types.ts";
+import { settings } from "#db/settings.ts";
+import { map } from "#fp";
 import { nowIso } from "#shared/now.ts";
-import type { ContactInfo, PiiBlob } from "#shared/types.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import type { ContactInfo, PiiBlob } from "#types";
 /* jscpd:ignore-end */
 
 /** Current PII blob schema version */

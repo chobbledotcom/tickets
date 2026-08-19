@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
+import { checkGroupCapAfterDurationChange } from "#db/attendees/update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
@@ -50,8 +50,8 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       // Book normally (has start_at).
       await bookAttendee(listing, { date: "2026-10-01", quantity: 5 });
       // Simulate a legacy attendee with NULL start_at (pre-daily migration).
-      const { getDb } = await import("#shared/db/client.ts");
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const { getDb } = await import("#db/client.ts");
+      const { attendeesApi } = await import("#db/attendees/api.ts");
       const legacy = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 5 }],
         email: "legacy@example.com",

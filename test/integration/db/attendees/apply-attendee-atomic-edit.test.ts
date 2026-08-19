@@ -1,15 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
+import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
-} from "#shared/db/attendees/atomic-update.ts";
-import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
-import {
-  getAttendeeOrNull,
-  getAttendeesRaw,
-} from "#shared/db/attendees/queries.ts";
+} from "#db/attendees/atomic-update.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
+import { getAttendeeOrNull, getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

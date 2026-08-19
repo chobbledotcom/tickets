@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
+import { revenueAccount } from "#accounting/accounts.ts";
+import { accountBalance } from "#accounting/queries.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   orderCatalog,

@@ -13,11 +13,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { type TxScope, withTransaction } from "#shared/db/client.ts";
+import { inOwnTx, ledgerTx } from "#accounting/ledger-tx.ts";
+import { allTransfers } from "#accounting/queries.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { type TxScope, withTransaction } from "#db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import { nowIso } from "#shared/now.ts";
 import {

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError, SumUpError } from "@sumup/sdk";
-import { settings } from "#shared/db/settings.ts";
-import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import { settings } from "#db/settings.ts";
+import { getSumupCheckout } from "#db/sumup-checkouts.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   expectClosedCheckoutFailure,

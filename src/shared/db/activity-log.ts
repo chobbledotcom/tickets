@@ -15,32 +15,29 @@
  * time.
  */
 
-import { isNullish } from "#fp";
-import { decrypt } from "#shared/crypto/encryption.ts";
+import { decrypt } from "#crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
   HYBRID_PREFIX,
-} from "#shared/crypto/keys.ts";
-import type {
-  EnvKeyEncrypted,
-  OwnerKeyEncrypted,
-} from "#shared/crypto/sealed.ts";
+} from "#crypto/keys.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import {
   executeBatchWithResults,
   queryBatch,
   resultRows,
   type TxScope,
-} from "#shared/db/client.ts";
-import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
-import { decryptListingWithCount } from "#shared/db/listings/records.ts";
-import { listingReader } from "#shared/db/listings/select.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
-import { col, defineTable } from "#shared/db/table.ts";
+} from "#db/client.ts";
+import { idAndCreatedSchema } from "#db/common-schema.ts";
+import { decryptListingWithCount } from "#db/listings/records.ts";
+import { listingReader } from "#db/listings/select.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { col, defineTable } from "#db/table.ts";
+import { isNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /** A stored log message: owner-key ciphertext for rows written since the
  * keypair existed, env-key ciphertext for legacy rows the backfill hasn't

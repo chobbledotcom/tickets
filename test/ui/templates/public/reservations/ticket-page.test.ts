@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AttributeWithOptions } from "#shared/db/attributes.ts";
+import type { AttributeWithOptions } from "#db/attributes.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   clearSavedFormData,

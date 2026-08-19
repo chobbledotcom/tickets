@@ -10,10 +10,7 @@
  *    can be written without a session but read only with the owner private key.
  */
 
-import type {
-  EnvKeyEncrypted,
-  OwnerKeyEncrypted,
-} from "#shared/crypto/sealed.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import type { NoteEntity } from "./target.ts";
 
 export type SystemNoteType = "system" | "owner";

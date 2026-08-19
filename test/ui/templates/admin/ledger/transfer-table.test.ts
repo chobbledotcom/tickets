@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   MANUAL_ATTENDEE_CHARGE,
   MANUAL_ATTENDEE_PAYMENT,
@@ -10,7 +10,7 @@ import {
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
   ManualLedgerEntryTypeSchema,
-} from "#shared/accounting/manual-entries.ts";
+} from "#accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { names, renderLedger, transfer } from "./helpers.ts";

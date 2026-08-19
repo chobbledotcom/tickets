@@ -4,7 +4,7 @@
 import { filter } from "#fp";
 import { t } from "#i18n";
 import { firstReason } from "#shared/reasons.ts";
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 export type GroupListingSettings = {
   id: number;

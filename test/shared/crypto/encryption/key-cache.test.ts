@@ -17,7 +17,7 @@ import {
   getEncryptionKeyBytes,
   getEncryptionKeyString,
   setEncryptionKeyForTest,
-} from "#shared/crypto/encryption.ts";
+} from "#crypto/encryption.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {

@@ -11,7 +11,7 @@ import {
   REVIEW_NODES,
   type ReviewNodeId,
   reviewNodeOf,
-} from "#shared/payment/review-machine-spec.ts";
+} from "#payment/review-machine-spec.ts";
 /* jscpd:ignore-start -- imports */
 import {
   atlasStatesFromSpec,

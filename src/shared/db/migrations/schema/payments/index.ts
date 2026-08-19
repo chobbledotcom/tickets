@@ -1,6 +1,6 @@
 /** Durable payment aggregate: sessions, refundable charge legs, and cases. */
 
-import type { Table } from "#shared/db/migrations/schema/types.ts";
+import type { Table } from "#db/migrations/schema/types.ts";
 import { paymentCaseTable } from "./cases.ts";
 import { paymentChargeTable } from "./charges.ts";
 import { paymentCompletionDeliveriesTable } from "./completion-deliveries.ts";

@@ -8,7 +8,7 @@
 const FIELD = "bookable_alone";
 
 import { expect } from "@std/expect";
-import { groups } from "#shared/db/groups.ts";
+import { groups } from "#db/groups.ts";
 // jscpd:ignore-start
 import {
   type OpensASalesPage,

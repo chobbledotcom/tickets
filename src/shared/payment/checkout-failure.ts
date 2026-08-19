@@ -1,4 +1,4 @@
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 type ProviderCheckoutFailure =
   | { readonly reason: "provider_error"; readonly statusCode: number }

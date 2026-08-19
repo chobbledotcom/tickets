@@ -1,6 +1,6 @@
 import { formatDateLabel } from "#shared/dates.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 export const formatBookableDays = (days: string[]): string => days.join(", ");
 

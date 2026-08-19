@@ -3,9 +3,9 @@
  * Owner-only access enforced via defineProviderCredentialsRoute
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { sumupApi } from "#shared/sumup.ts";

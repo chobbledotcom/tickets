@@ -1,3 +1,4 @@
+import { packageMemberMaps } from "#db/groups.ts";
 import type {
   PaidOrderSnapshot,
   SnapshotDayPriceRow,
@@ -6,11 +7,10 @@ import type {
 } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { ModifierRef } from "#shared/booking-intent.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { packageMemberMaps } from "#shared/db/groups.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import { classifyBookingLedger } from "#shared/session-ledger.ts";
-import type { GroupListing } from "#shared/types.ts";
+import type { GroupListing } from "#types";
 
 const appendToMap = (
   map: Map<number, number[]>,

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllModifiers } from "#db/modifiers.ts";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
-import { getAllModifiers } from "#shared/db/modifiers.ts";
 import { MAX_PERCENT_CHARGE } from "#shared/price-modifier.ts";
 import {
   expectFlashRedirect,

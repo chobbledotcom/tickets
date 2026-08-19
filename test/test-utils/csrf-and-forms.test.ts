@@ -81,7 +81,7 @@ describe("test-utils — csrf & form helpers", () => {
 
     test("returns csrf_token when session exists", async () => {
       await createTestDb();
-      const { createSession } = await import("#shared/db/sessions.ts");
+      const { createSession } = await import("#db/sessions.ts");
       await createSession(
         "test-sess-token",
         "test-csrf-value",
@@ -97,7 +97,7 @@ describe("test-utils — csrf & form helpers", () => {
 
     test("returns an empty stored CSRF token unchanged", async () => {
       await createTestDb();
-      const { createSession } = await import("#shared/db/sessions.ts");
+      const { createSession } = await import("#db/sessions.ts");
       await createSession(
         "empty-csrf-session",
         "",

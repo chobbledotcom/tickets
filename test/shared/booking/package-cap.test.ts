@@ -4,9 +4,9 @@ import {
   childTicketLimit,
   groupCapacityInfo,
   packageLimitInfo,
-} from "#shared/booking/package-cap.ts";
-import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
-import { tl } from "#test/test-utils/package-cap-fixtures.ts";
+} from "#booking/package-cap.ts";
+import { resolved } from "#test-utils/booking-model-fixtures.ts";
+import { tl } from "#test-utils/package-cap-fixtures.ts";
 
 describe("groupCapacityInfo", () => {
   test("wraps the remaining and group-id maps together", () => {

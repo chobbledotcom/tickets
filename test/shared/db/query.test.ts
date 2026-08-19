@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, insert } from "#shared/db/client.ts";
-import {
-  columnMapByIds,
-  mapByIds,
-  nameSource,
-  rowsByIds,
-} from "#shared/db/query.ts";
+import { execute, insert } from "#db/client.ts";
+import { columnMapByIds, mapByIds, nameSource, rowsByIds } from "#db/query.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** Insert one attendee_statuses row with a plaintext name (the query helpers

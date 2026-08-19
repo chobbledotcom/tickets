@@ -1,6 +1,12 @@
 /* jscpd:ignore-start -- imports */
 
 import * as v from "valibot";
+import { logActivity } from "#db/activity-log.ts";
+import {
+  getAdminFeatureUsage,
+  setAdminFeatureEnabled,
+} from "#db/admin-features.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -16,12 +22,6 @@ import {
   enabledFeaturesWithUsage,
   featureBySlug,
 } from "#shared/admin-features.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  getAdminFeatureUsage,
-  setAdminFeatureEnabled,
-} from "#shared/db/admin-features.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
 

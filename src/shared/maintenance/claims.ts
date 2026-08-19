@@ -1,5 +1,5 @@
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { execute, inPlaceholders, queryOne } from "#shared/db/client.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { execute, inPlaceholders, queryOne } from "#db/client.ts";
 
 const DATABASE_NOW_MS =
   "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";

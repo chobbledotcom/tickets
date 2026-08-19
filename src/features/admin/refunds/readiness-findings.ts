@@ -1,5 +1,5 @@
 import { uniqueBy } from "#fp";
-import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
+import { admitObservedRefund } from "#payment/admit-refund.ts";
 import {
   type ProviderRefundResult,
   requestProviderRefund,

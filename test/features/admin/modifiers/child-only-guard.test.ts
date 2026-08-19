@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { handleRequest } from "#routes";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import {
   modifierGroups,
   modifierListings,
   modifiersTable,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
+import { t } from "#i18n";
+import { handleRequest } from "#routes";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -126,9 +126,7 @@ describeWithEnv(
       await expect(
         updateTestListing(child.id, { bookableAlone: false }),
       ).rejects.toThrow();
-      const { getListingWithCount } = await import(
-        "#shared/db/listings/records.ts"
-      );
+      const { getListingWithCount } = await import("#db/listings/records.ts");
       expect((await getListingWithCount(child.id))!.bookable_alone).toBe(true);
     });
 

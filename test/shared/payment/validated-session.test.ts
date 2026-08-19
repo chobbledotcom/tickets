@@ -5,7 +5,7 @@ import {
   paidPaymentReferenceOf,
   paymentReferenceOf,
   validatedPaymentSession,
-} from "#shared/payment/validated-session.ts";
+} from "#payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";

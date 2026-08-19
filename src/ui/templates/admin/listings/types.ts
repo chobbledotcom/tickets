@@ -1,18 +1,13 @@
-import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
+import type { SystemNote } from "#db/notes/types.ts";
 import type {
   AttendeeListSetup,
   AttendeeListState,
 } from "#shared/attendee-list-controls.ts";
-import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
-import type { SystemNote } from "#shared/db/notes/types.ts";
-import type {
-  AdminSession,
-  Attendee,
-  Group,
-  ListingWithCount,
-} from "#shared/types.ts";
 import type { CheckedInStats } from "#templates/admin/detail-rows.tsx";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import type { AdminSession, Attendee, Group, ListingWithCount } from "#types";
 
 export type GroupContext = {
   group: Group;

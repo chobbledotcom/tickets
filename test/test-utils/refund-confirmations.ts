@@ -1,4 +1,4 @@
-import { executeBatch, insert } from "#shared/db/client.ts";
+import { executeBatch, insert } from "#db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 export type RefundConfirmationFixture = {

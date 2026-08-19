@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { listingGroups } from "#db/groups.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { execute } from "#shared/db/client.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

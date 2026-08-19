@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  enableFooterDebug,
-  runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+import { enableFooterDebug, runWithQueryLogContext } from "#db/query-log.ts";
 import {
   adminFooterHtml,
   type DebugFooterData,

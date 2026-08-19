@@ -5,9 +5,9 @@ import {
   countSchemaTableRows,
   createBackup,
   exportTable,
-} from "#shared/db/backup-snapshot.ts";
-import { getDb } from "#shared/db/client.ts";
-import { initDb, SCHEMA_TABLE_NAMES } from "#shared/db/migrations.ts";
+} from "#db/backup-snapshot.ts";
+import { getDb } from "#db/client.ts";
+import { initDb, SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";

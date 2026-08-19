@@ -5,8 +5,8 @@ import {
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
   trackSql,
-} from "#shared/db/query-log.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+} from "#db/query-log.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import {
   bestEffort,
   ErrorCode,

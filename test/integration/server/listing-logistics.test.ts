@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
-import { getDb } from "#shared/db/client.ts";
-import maintenanceCompletionMigration from "#shared/db/migrations/2026-07-22_maintenance_completion.ts";
-import { applySchemaChanges } from "#shared/db/migrations/schema-sync.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
+import { getDb } from "#db/client.ts";
+import maintenanceCompletionMigration from "#db/migrations/2026-07-22_maintenance_completion.ts";
+import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

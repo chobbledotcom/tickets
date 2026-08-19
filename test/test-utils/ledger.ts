@@ -1,13 +1,9 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
-import {
-  asOrderLegs,
-  mapBooking,
-  mapRefund,
-} from "#shared/accounting/mappers.ts";
-import type { RefPart } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { getDb, withTransaction } from "#shared/db/client.ts";
+import { postWriteoffAdjustmentTx } from "#accounting/adjustments.ts";
+import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
+import type { RefPart } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { getDb, withTransaction } from "#db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils/db.ts";

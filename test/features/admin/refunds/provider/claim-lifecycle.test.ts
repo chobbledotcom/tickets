@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
+import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
-import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import {
   recordProviderRefunds,
   requestProviderRefund,

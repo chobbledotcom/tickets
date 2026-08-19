@@ -7,8 +7,8 @@ import {
   accountBalancesOfType,
   transfersByAccount,
   transfersByAccounts,
-} from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+} from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
 import { account, accountKey } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";

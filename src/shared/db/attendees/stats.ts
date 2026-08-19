@@ -2,9 +2,9 @@
  * Aggregated statistics for attendees across listings.
  */
 
+import type { ActiveListingStats } from "#db/attendee-types.ts";
 import { filter, sumOf } from "#fp";
-import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /**
  * Get aggregated statistics for active listings.

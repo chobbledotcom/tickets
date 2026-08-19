@@ -6,8 +6,8 @@
  */
 
 import type { NavNode } from "#shared/site-pages/types.ts";
-import type { SitePage } from "#shared/types.ts";
 import { nodeLis } from "#templates/components/nav.tsx";
+import type { SitePage } from "#types";
 import { seoContentPage } from "./content-page.tsx";
 import { MarkdownProse, PublicImageGallery } from "./shared.tsx";
 

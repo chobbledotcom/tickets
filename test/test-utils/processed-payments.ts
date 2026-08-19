@@ -1,26 +1,25 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
-import { requiredMapValue } from "#fp";
-import { executeBatch, queryOne } from "#shared/db/client.ts";
-import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { executeBatch, queryOne } from "#db/client.ts";
+import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import {
   matchingPaymentReferenceIndexes,
   paymentReferenceIndex,
-} from "#shared/db/payment-reference-store.ts";
+} from "#db/payment-reference-store.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReference,
   type TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
+} from "#db/payment-references.ts";
 import {
   type ProcessedPayment,
   reserveSession,
-} from "#shared/db/processed-payments.ts";
+} from "#db/processed-payments.ts";
+import { requiredMapValue } from "#fp";
 import type {
   PaymentReference,
   TaggedPaymentReference,
-} from "#shared/payment/provider-reference.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+} from "#payment/provider-reference.ts";
 import {
   bookAttendee,
   bookedAttendee,
@@ -28,6 +27,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
+import type { PaymentProviderType } from "#types";
 
 export const getProcessedPayment = (
   sessionId: string,

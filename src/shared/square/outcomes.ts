@@ -3,9 +3,9 @@ import * as v from "valibot";
 import {
   type ProviderFailure,
   providerFailure,
-} from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundProof } from "#shared/payment/refund-attempt.ts";
+} from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundProof } from "#payment/refund-attempt.ts";
 import {
   SquareApiError,
   SquareConnectionError,

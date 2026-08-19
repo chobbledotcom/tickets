@@ -1,6 +1,6 @@
-import { listingGroups } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import { listingGroups } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import type { ListingWithCount } from "#types";
 
 /** Load one listing and use it, or return the caller's documented missing
  * result. The shared singular path behind capacity methods that otherwise work

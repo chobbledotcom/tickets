@@ -1,14 +1,14 @@
 /* jscpd:ignore-start -- imports */
-import { type Money, money, sameMoney } from "#shared/payment/money.ts";
+import { type Money, money, sameMoney } from "#payment/money.ts";
 import type {
   ProviderRead,
   ProviderUnavailableReason,
-} from "#shared/payment/provider-read.ts";
+} from "#payment/provider-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   uncertainRefund,
-} from "#shared/payment/refund-attempt.ts";
+} from "#payment/refund-attempt.ts";
 
 /* jscpd:ignore-end */
 

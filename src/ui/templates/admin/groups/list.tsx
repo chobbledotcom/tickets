@@ -4,12 +4,12 @@ import { entityReturnPath } from "#shared/admin-pages.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession, Group } from "#types";
 
 /* jscpd:ignore-end */
 

@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   loadRefundAuthorityByReference,
   type RefundAuthorityRow,
-} from "#shared/db/provider-refund-authority.ts";
+} from "#db/provider-refund-authority.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
 import {
   observePendingRefund,
   ownerReasonWhenDue,

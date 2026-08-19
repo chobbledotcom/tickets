@@ -3,8 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { stripeCheckoutSession } from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
+import { stripeCheckoutSession } from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe-provider resolveWebhookSession", () => {
   test("throws for an invalid webhook payment status", async () => {

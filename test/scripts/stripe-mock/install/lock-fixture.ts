@@ -12,8 +12,8 @@ import {
   wait,
   withFakeCurl,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
-import { expectStripeMockFails } from "#test/test-utils/stripe-mock/ports.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
+import { expectStripeMockFails } from "#test-utils/stripe-mock/ports.ts";
 
 const oldDate = (): Date => new Date(Date.now() - 1_000);
 

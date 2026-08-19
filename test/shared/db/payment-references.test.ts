@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
-import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
+import { execute } from "#db/client.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
+import { storePaymentReference } from "#db/payment-reference-store.ts";
 import {
   attendeeIdsWithIndexedPaymentReferences,
   getAttendeeIdsWithPaymentReference,
@@ -11,9 +11,9 @@ import {
   hasAnyPaymentReference,
   stillWithTheProvider,
   underRefundClaim,
-} from "#shared/db/payment-references.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import type { RefundState } from "#shared/payment/refund-state.ts";
+} from "#db/payment-references.ts";
+import { reserveSession } from "#db/processed-payments.ts";
+import type { RefundState } from "#payment/refund-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

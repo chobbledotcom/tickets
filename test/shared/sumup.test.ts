@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
 import {

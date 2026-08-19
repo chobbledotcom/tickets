@@ -8,6 +8,25 @@
  */
 
 import type { ResultSet } from "@libsql/client";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { settleAttendeeBalance } from "#db/attendees/balance.ts";
+import { attendeePaymentProvenance } from "#db/attendees/payment-provenance.ts";
+import type { SqlStatement } from "#db/client.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
+import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import {
+  type PreparedSessionFailure,
+  prepareSessionFailure,
+} from "#db/processed-payments.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+  type RefundAlert,
+  type RefundCode,
+} from "#payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import {
   type AttendeeBaseFields,
@@ -32,25 +51,8 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { attendeePaymentProvenance } from "#shared/db/attendees/payment-provenance.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
-import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import type { PreparedSessionFailure } from "#shared/db/processed-payments.ts";
-import { prepareSessionFailure } from "#shared/db/processed-payments.ts";
 import { ErrorCode, type ErrorCodeType } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import {
-  type PlaceholderRefund,
-  placeholderRefund,
-  type RefundAlert,
-  type RefundCode,
-} from "#shared/payment/placeholder-refund.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { requireValue } from "#shared/required-value.ts";
