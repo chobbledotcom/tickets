@@ -170,7 +170,7 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
     ),
     columns: statusColumns,
     guideFooter: (
-      <GuideFooter href="/admin/guide#attendee-statuses">
+      <GuideFooter href={`${adminPattern("guide")}#attendee-statuses`}>
         {t("statuses.guide_link")}
       </GuideFooter>
     ),
