@@ -11,10 +11,10 @@
 
 import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
+/* jscpd:ignore-start -- imports */
 import {
   computeSitePageSlugIndex,
   getSitePageBySlugIndex,
-  /* jscpd:ignore-start -- imports */
 } from "#db/site-pages.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";

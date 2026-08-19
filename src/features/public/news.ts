@@ -8,11 +8,11 @@
  * would render must never 404.
  */
 
+/* jscpd:ignore-start -- imports */
 import {
   computeNewsSlugIndex,
   getNewsPostBySlugIndex,
   getNewsPostCards,
-  /* jscpd:ignore-start -- imports */
 } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";

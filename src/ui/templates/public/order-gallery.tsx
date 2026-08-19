@@ -24,11 +24,11 @@ import {
   MarkdownProse,
   PackagesSection,
   type PublicNavProps,
-  /* jscpd:ignore-end */
   publicPage,
   renderListingImage,
   titleWithSiteName,
 } from "./shared.tsx";
+/* jscpd:ignore-end */
 
 /**
  * The inner content of an `.order-cart` submit button: the leading {@link Icon},

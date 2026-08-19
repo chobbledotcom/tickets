@@ -11,7 +11,6 @@ import { map, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
-  /* jscpd:ignore-end */
   ATTENDEE_CHECKIN_CHOICES,
   type AttendeeListSetup,
   type AttendeeListState,
@@ -23,6 +22,7 @@ import {
   choiceIsActive,
   type ListChoice,
 } from "#shared/attendee-list-controls.ts";
+/* jscpd:ignore-end */
 import { type FilterBarOption, renderFilterBar } from "#shared/filter-bar.ts";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderSelectOptions } from "#shared/forms/rendering.tsx";

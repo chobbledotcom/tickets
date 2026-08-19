@@ -12,10 +12,10 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
-  /* jscpd:ignore-end */
   answerTextForm,
   questionTextForm,
 } from "#routes/admin/questions/forms.ts";
+/* jscpd:ignore-end */
 import { adminPath } from "#shared/admin-surface.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";

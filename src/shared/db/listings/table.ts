@@ -5,10 +5,10 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
-  /* jscpd:ignore-end */
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#db/common-schema.ts";
+/* jscpd:ignore-end */
 import { defineIdTable } from "#db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
 import { col } from "#db/table.ts";

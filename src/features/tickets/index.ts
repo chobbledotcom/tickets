@@ -10,7 +10,6 @@ import { packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
-  /* jscpd:ignore-end */
   createTokenRoute,
   lookupAttendees,
   resolveEntries,
@@ -18,6 +17,7 @@ import {
   type TokenRouteFn,
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
+/* jscpd:ignore-end */
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";

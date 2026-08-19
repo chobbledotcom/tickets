@@ -8,10 +8,10 @@ import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
-  /* jscpd:ignore-end */
   advancedSettingsRoute,
   type ErrorPageFn,
 } from "#routes/admin/settings-helpers.ts";
+/* jscpd:ignore-end */
 import {
   checkSubdomainAvailable,
   registerBunnySubdomain,

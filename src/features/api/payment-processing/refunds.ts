@@ -9,10 +9,10 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
+/* jscpd:ignore-start -- imports */
 import {
   type PreparedRefundAuthority,
   prepareRefundAuthority,
-  /* jscpd:ignore-start -- imports */
 } from "#db/provider-refund-authority.ts";
 import {
   type PlaceholderRefund,

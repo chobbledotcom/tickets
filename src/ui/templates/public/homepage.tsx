@@ -16,10 +16,11 @@ import {
   compareGroupsByName,
   PackagesSection,
   type PublicNavProps,
-  /* jscpd:ignore-end */
   publicPage,
   titleWithSiteName,
 } from "./shared.tsx";
+
+/* jscpd:ignore-end */
 
 /** A red {@link Badge} status line for the two date-search failure messages
  *  ("Sold Out" and "Not available on {date}") — rendered as a paragraph so it

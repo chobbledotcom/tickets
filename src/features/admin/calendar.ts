@@ -8,11 +8,11 @@ import { logActivity } from "#db/activity-log.ts";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
+/* jscpd:ignore-start -- imports */
 import {
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
   getDailyListingAttendeesByDate,
-  /* jscpd:ignore-start -- imports */
 } from "#db/listings/attendees.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
