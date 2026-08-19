@@ -13,7 +13,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
@@ -21,7 +21,10 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
-import { editPanel, successListPage } from "#templates/admin/admin-page.tsx";
+import {
+  recordEditPanel,
+  successListPage,
+} from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
@@ -42,7 +45,7 @@ import { logisticsAgentForm } from "#templates/fields/listing.ts";
 const agentColumns: TableColumn<LogisticsAgent>[] = [
   {
     cell: (agent) => (
-      <WritableLink href={`/admin/logistics/${agent.id}`}>
+      <WritableLink href={adminPath("logisticsAgent", { id: agent.id })}>
         {agent.name}
       </WritableLink>
     ),
@@ -66,7 +69,7 @@ const AgentsSection = ({
     )}
     <WritableOnly>
       <SaveForm
-        action="/admin/logistics"
+        action={adminPattern("logistics")}
         submitIcon="plus"
         submitLabel={t("logistics.add_agent")}
       >
@@ -86,11 +89,11 @@ const AgentsSection = ({
  */
 export const adminLogisticsPage = successListPage<LogisticsAgent[]>(
   "logistics.title",
-  "/admin/logistics",
+  adminPattern("logistics"),
   (agents) => (
     <>
       <AgentsSection agents={agents} />
-      <GuideFooter href="/admin/guide#logistics">
+      <GuideFooter href={`${adminPattern("guide")}#logistics`}>
         {t("logistics.guide_link")}
       </GuideFooter>
     </>
@@ -145,7 +148,7 @@ const AgentUsersSelector = ({
 );
 
 export const logisticsAgentPages = defineAdminResourcePages<LogisticsAgent>({
-  active: "/admin/logistics",
+  active: adminPattern("logistics"),
   basePath: adminPattern("logistics"),
   delete: {
     confirm: (agent) => ({
@@ -190,11 +193,10 @@ export const LogisticsAgentEditPanel = ({
   users: AgentUserOption[];
   values?: LogisticsAgentRenderValues;
 }): JSX.Element =>
-  editPanel(error)(
-    <SaveForm
-      action={`/admin/logistics/${agent.id}/edit`}
-      submitLabel={t("common.save_changes")}
-    >
+  recordEditPanel("logisticsEdit", t("common.save_changes"))(
+    agent.id,
+    error,
+    <>
       <fieldset class="listing-section">
         <legend>{t("logistics.agent_details")}</legend>
         <Raw
@@ -204,5 +206,5 @@ export const LogisticsAgentEditPanel = ({
         />
       </fieldset>
       <AgentUsersSelector selected={selectedUserIds} users={users} />
-    </SaveForm>,
+    </>,
   );

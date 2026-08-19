@@ -184,10 +184,8 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
   destination: "listing",
   load: (id) => loadListingForPage(id),
-  // A single listing is a page *within* the Listings section — highlight the
-  // top link, no "Add"/"Import" sub-nav. (This previously pointed at the Home
-  // route purely to dodge the sub-nav; `{ section }` now expresses the intent
-  // directly and highlights the correct section.)
+  // A single listing is a page *within* the Listings section: `{ section }`
+  // highlights that top link and leaves the "Add"/"Import" sub-nav out.
   navActive: { section: adminPattern("listings") },
   tabs: [
     overviewTab,

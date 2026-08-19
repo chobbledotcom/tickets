@@ -418,9 +418,9 @@ export const requireDeliveryOr = requireRolesOr(DELIVERY_ADMIN_LEVELS);
 
 /**
  * The gates below take the roles they admit from the route the handler serves,
- * so the role is written once — in `admin-surface/areas.ts` — instead of once
- * there and again beside the handler. `test/integration/admin-role-matrix.test.ts`
- * asks every page as every role and proves the two still agree.
+ * so `admin-surface/areas.ts` is the one place a role is written down.
+ * `test/integration/admin-role-matrix.test.ts` asks every page as every role
+ * and proves the gate and the declaration still agree.
  */
 
 /** A GET page's gate, admitting exactly the roles its route declares. */

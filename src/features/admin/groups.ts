@@ -5,7 +5,9 @@ import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
- * Admin group management routes - accessible to owners and managers
+ * Admin group management routes. Each route declares its own audience in
+ * `admin-surface/areas.ts`, so the roles differ across this file: an editor
+ * reaches the list and the record page, but only staff may delete.
  */
 
 import { compact } from "#fp";

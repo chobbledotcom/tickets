@@ -167,6 +167,17 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     return wrong;
   };
 
+  /** The declared routes that also take a write at their own path. */
+  const writableRoutes = (): AdminDestinationDef[] =>
+    declared.filter((one) => methods.has(one.pattern));
+
+  /** The same routes, less the one that ends the session the walk is using.
+   * Asking `POST /admin/logout` as a role it admits succeeds, and every later
+   * request in that walk is then signed out. Logging out is proved by
+   * `test/features/admin/auth/logout.test.ts`. */
+  const insiderWritableRoutes = (): AdminDestinationDef[] =>
+    writableRoutes().filter((one) => one.id !== "logout");
+
   const askOutsiders = async (
     destinations: readonly AdminDestinationDef[],
     methodOf?: (destination: AdminDestinationDef) => string,
@@ -229,17 +240,37 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // The token is real, so a request that gets past the role gate would go
     // on to do the write. Nothing is written while this passes, and a gate
     // that admits too much shows up as an answer that is not a refusal.
-    const writable = declared.filter((one) => methods.has(one.pattern));
     const wrong = await askOutsiders(
-      writable,
+      writableRoutes(),
       (one) => methods.get(one.pattern)!,
     );
     expect(wrong).toEqual([]);
   });
 
+  test("never refuses a write from a role the route does declare", async () => {
+    // The mirror of the walk above. Without it a handler could answer 403 to
+    // every role, and the refusal walk would still pass while the route was
+    // reachable by nobody. What the write then does is each feature's own
+    // suite to prove; here the question is only whether the gate let it in.
+    const refused: string[] = [];
+    for (const destination of insiderWritableRoutes()) {
+      const method = methods.get(destination.pattern)!;
+      const path = oneServedPath(destination.pattern);
+      for (const adminLevel of destination.audience) {
+        const status = await askAs(path, adminLevel, method);
+        if (status === FORBIDDEN) {
+          refused.push(
+            `${method} ${destination.pattern} refused ${adminLevel}`,
+          );
+        }
+      }
+    }
+    expect(refused).toEqual([]);
+  });
+
   test("covers the write routes the surface declares", () => {
-    const covered = declared.filter((one) => methods.has(one.pattern));
-    expect(covered.length).toBe(91);
+    expect(writableRoutes().length).toBe(91);
+    expect(insiderWritableRoutes().length).toBe(90);
   });
 });
 

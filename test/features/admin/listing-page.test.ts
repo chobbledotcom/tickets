@@ -6,10 +6,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
+  adminFormPost,
   adminGet,
   createTestEditorSession,
   createTestManagerSession,
@@ -62,15 +64,26 @@ describeWithEnv("the listing page", { db: true }, () => {
   test("offers deactivate on a live listing and reactivate on a dead one", async () => {
     // The two are opposites, so exactly one is ever offered.
     const listing = await createTestListing({ name: "Lifecycle" });
+    const actions = async () =>
+      await (await adminGet(`/admin/listing/${listing.id}/actions`)).text();
 
-    const live = await (
-      await adminGet(`/admin/listing/${listing.id}/actions`)
-    ).text();
-    await adminGet(`/admin/listing/${listing.id}/deactivate`);
+    const live = await actions();
+    await adminFormPost(`/admin/listing/${listing.id}/deactivate`, {
+      confirm_identifier: listing.name,
+    });
+    const dead = await actions();
 
     expect(live).toContain(`href="/admin/listing/${listing.id}/deactivate"`);
     expect(live).not.toContain(
       `href="/admin/listing/${listing.id}/reactivate"`,
+    );
+    expect(
+      (await listingsTable.read.pick(["active"]).one({ id: listing.id }))!
+        .active,
+    ).toBe(false);
+    expect(dead).toContain(`href="/admin/listing/${listing.id}/reactivate"`);
+    expect(dead).not.toContain(
+      `href="/admin/listing/${listing.id}/deactivate"`,
     );
   });
 

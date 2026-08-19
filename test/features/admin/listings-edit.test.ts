@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { adminLandingPath } from "#routes/auth.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,14 +28,17 @@ const listingForm = (name: string) =>
   buildCreateListingForm(testListingInput({ listingType: "standard", name }));
 
 describeWithEnv("creating a listing", { db: true }, () => {
-  test("sends staff to the page that renders the new listing", async () => {
+  test("sends staff to their own landing page", async () => {
+    // Staff land on the dashboard, which renders the flash the create sets.
     const { response } = await adminMultipartPost(
       "/admin/listing",
       listingForm("Made By Staff"),
     );
 
-    const location = expectRedirect(response);
-    expect(location).toContain("/admin");
+    // The flash marker rides on the query string; the page is the assertion.
+    expect(expectRedirect(response).split("?")[0]).toBe(
+      adminLandingPath("owner"),
+    );
     const { getAllListings } = await import("#shared/db/listings/records.ts");
     expect((await getAllListings()).map((one) => one.name)).toContain(
       "Made By Staff",

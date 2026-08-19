@@ -78,6 +78,15 @@ describe("entityTabRoutes", () => {
       entityTabRoutes("/admin/things/:id/edit", recordingPage()),
     ).toThrow("Entity detail path names no record: /admin/things/:id/edit");
   });
+
+  test("refuses a parameter the router does not read as a number", () => {
+    // The page is handed the record as a number, and the router only converts
+    // a parameter called `id` or ending in `Id`. A `:slug` would arrive as a
+    // string wearing a number's type.
+    expect(() =>
+      entityTabRoutes("/admin/things/:slug", recordingPage()),
+    ).toThrow("Entity detail path names no record: /admin/things/:slug");
+  });
 });
 
 describe("crudRoutes", () => {

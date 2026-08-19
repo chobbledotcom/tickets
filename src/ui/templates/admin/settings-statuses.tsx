@@ -14,7 +14,7 @@ import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
-import { editPanel } from "#templates/admin/admin-page.tsx";
+import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
   writableNameColumn,
@@ -23,7 +23,6 @@ import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.ts
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
@@ -135,13 +134,10 @@ export const AttendeeStatusEditPanel = ({
   error?: string;
   values?: FormParams;
 }): JSX.Element =>
-  editPanel(error)(
-    <SaveForm
-      action={adminPath("statusEdit", { id: status.id })}
-      submitLabel={t("statuses.form_save_button")}
-    >
-      {renderStatusFields(status, values)}
-    </SaveForm>,
+  recordEditPanel("statusEdit", t("statuses.form_save_button"))(
+    status.id,
+    error,
+    renderStatusFields(status, values),
   );
 
 const deleteChildren = (status: AttendeeStatus): JSX.Element => (

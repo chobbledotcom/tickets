@@ -330,10 +330,16 @@ out of scope here.
   the roles they exclude; no record needs to exist, because the gate runs before
   the lookup. The 91 declared paths that also take a write, asked with their own
   method and a real CSRF token, so the role gate is the only thing left that can
-  refuse them.
+  refuse them — first as the roles each route excludes, then as the roles it
+  admits, so a gate that refuses everybody fails as loudly as one that admits
+  everybody. The insider walk leaves `POST /admin/logout` out, because a
+  successful logout ends the session the rest of the walk needs.
 - The declaration's own rules are in `test/shared/admin-surface/`, and the
   navigation model in `test/shared/admin-pages.test.ts`.
-- Every slice runs `deno task precommit` and `deno task precommit:mutation`.
+- Every slice runs `deno task precommit`. The branch mutation gate,
+  `deno task precommit:mutation`, runs once over the whole branch rather than
+  per slice, because it scopes by changed file and these slices changed 40 of
+  them. `TODO.md` records the survivors it found that predate this work.
 
 ## Questions the reviewer answered
 
