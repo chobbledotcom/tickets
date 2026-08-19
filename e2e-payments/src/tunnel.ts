@@ -11,7 +11,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
-import { sleep, stopChild } from "./util.ts";
+import { probeSignal, sleep, stopChild } from "./util.ts";
 /* jscpd:ignore-end */
 
 export interface Tunnel {
@@ -47,10 +47,11 @@ const attemptTunnel = async (localPort: number): Promise<Tunnel | null> => {
   while (Date.now() < deadline) {
     if (publicUrl) {
       // Confirm the tunnel actually routes to the app before returning.
-      // Bounded so one hung probe cannot stall the loop past its deadline.
+      // Bounded by what is left of this attempt's deadline, so one hung probe
+      // cannot carry the attempt past its budget.
       try {
         const res = await fetch(`${publicUrl}/health`, {
-          signal: AbortSignal.timeout(5_000),
+          signal: probeSignal(deadline),
         });
         const ok = res.ok;
         await res.body?.cancel();

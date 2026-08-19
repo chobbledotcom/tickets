@@ -21,13 +21,14 @@ import {
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
-import { readLoggedId } from "#e2e/providers/shared.ts";
+import { lastLoggedMatch } from "#e2e/providers/shared.ts";
 import {
   deliverGenuineCallbackTwice,
   deliverRefusalProbes,
   FIXED_REFUSAL,
 } from "#e2e/providers/sumup-callback.ts";
 import type { PaidSandboxCheckout } from "#e2e/providers/types.ts";
+import { pollUntil } from "#e2e/util.ts";
 import {
   attendeeTabOf,
   bookAsVisitor,
@@ -115,44 +116,55 @@ for (const [text, pay] of HOSTED_PAYMENT_STEPS) {
 }
 
 /**
- * The server-log evidence that the SIGNED webhook itself was verified and
- * processed. The roster alone cannot prove this — the visitor's browser
- * return can book first — but only the webhook route writes `[Webhook]
- * Payment callback …` lines, so one appearing is independent evidence the
- * webhook was delivered through the tunnel, its signature verified, and its
- * session resolved into the payment engine. The "is being processed
- * elsewhere" arm is accepted deliberately: the webhook can race the browser
- * return for the one reservation, and Stripe redelivers its 409 on a slow
- * schedule a nightly cannot wait out — the held line still proves delivery,
- * verification, and resolution.
+ * The webhook route's own words for what one delivered callback amounted to.
+ * Only that route writes `[Webhook] Payment callback …`, so such a line is
+ * independent evidence that the callback arrived through the tunnel, that its
+ * signature verified, and that its session resolved into the payment engine.
+ * The roster alone can never show this, because the visitor's browser return
+ * can book first.
  */
-const WEBHOOK_EVIDENCE = {
-  booked: {
-    expected: "[Webhook] Payment callback booked",
-    pattern:
-      /\[Webhook\] Payment callback (booked|is being processed elsewhere)/g,
-  },
-  settled: {
-    expected: "[Webhook] Payment callback settled without a booking",
-    pattern:
-      /\[Webhook\] Payment callback (settled without a booking|is being processed elsewhere)/g,
-  },
+const WEBHOOK_DID = {
+  booked: "booked",
+  terminalized: "settled without a booking",
 } as const;
 
+/**
+ * The concurrency guard's words. They prove the same delivery, verification
+ * and resolution, but they also say this delivery did NOT do the work:
+ * another request held the reservation. So a held line is accepted only when
+ * the step's own outcome never arrives — Stripe redelivers a 409 on a
+ * schedule a nightly cannot wait out — and it is recorded under its own name,
+ * so the journal never credits a held delivery with work it did not do.
+ */
+const WEBHOOK_HELD = "is being processed elsewhere";
+
+/** The webhook's log line for one outcome, carrying that outcome as its value. */
+const callbackLine = (outcome: string): RegExp =>
+  new RegExp(`\\[Webhook\\] Payment callback (${outcome})`, "g");
+
 /** Build the follow-up check that waits for the signed webhook's own log
- * line — never inferred from pages — then records the step's phase. */
+ * line — never inferred from pages. The step's own outcome is preferred for
+ * the whole window, so a race that is merely slow still proves the real
+ * thing. */
 const webhookEvidenceThen =
-  (evidence: keyof typeof WEBHOOK_EVIDENCE, phase: string) =>
+  (did: keyof typeof WEBHOOK_DID) =>
   async (world: LiveWorld): Promise<void> => {
-    const line = WEBHOOK_EVIDENCE[evidence];
-    const outcome = await readLoggedId(
-      world.resources.server.logPath,
-      line.pattern,
-      line.expected,
-      config.paymentConfirmTimeoutMs,
+    const logPath = world.resources.server.logPath;
+    const processed = await pollUntil(config.paymentConfirmTimeoutMs, () =>
+      Promise.resolve(lastLoggedMatch(logPath, callbackLine(WEBHOOK_DID[did]))),
     );
-    world.recordPhase(`webhook-evidence-${outcome.replace(/[^a-z]+/g, "-")}`);
-    world.recordPhase(phase);
+    if (processed !== null) {
+      world.recordPhase(`webhook-${did}`);
+      return;
+    }
+    if (lastLoggedMatch(logPath, callbackLine(WEBHOOK_HELD)) === null) {
+      throw new Error(
+        `the app server log carries no '[Webhook] Payment callback ` +
+          `${WEBHOOK_DID[did]}' line, so the signed webhook never reached ` +
+          `that outcome (${logPath})`,
+      );
+    }
+    world.recordPhase("webhook-held-by-another-request");
   };
 
 /** Steps that first prove a fact on the scenario's roster, then run a
@@ -167,7 +179,7 @@ const ROSTER_FACT_STEPS: readonly [
     "Stripe's signed webhook confirms the payment",
     (world) =>
       requireSingleBooking(world, "booking created by the signed webhook"),
-    webhookEvidenceThen("booked", "webhook-booked"),
+    webhookEvidenceThen("booked"),
   ],
   [
     "there is still one retained booking and one refund",
@@ -182,7 +194,7 @@ const ROSTER_FACT_STEPS: readonly [
         world.scenario.booker.email,
         "the signed webhook did not retain a booking for the paying visitor",
       ),
-    webhookEvidenceThen("settled", "webhook-terminalized"),
+    webhookEvidenceThen("terminalized"),
   ],
   [
     "the owner sees one retained No quantity booking",

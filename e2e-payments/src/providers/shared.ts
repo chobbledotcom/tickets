@@ -13,6 +13,27 @@ import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 /* jscpd:ignore-end */
 
 /**
+ * The last value the app server has logged for this pattern, or null when its
+ * log carries none — the pattern's first group is the value. A log file that
+ * does not exist yet reads as "nothing logged so far"; any other read failure
+ * is a real fault and is raised rather than polled past.
+ */
+export const lastLoggedMatch = (
+  logPath: string,
+  pattern: RegExp,
+): string | null => {
+  let text = "";
+  try {
+    text = readFileSync(logPath, "utf8");
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ENOENT") throw err;
+  }
+  let last: string | null = null;
+  for (const m of text.matchAll(pattern)) last = m[1] ?? last;
+  return last;
+};
+
+/**
  * Recover a provider-side id the app logged while creating a checkout (e.g.
  * `[Square] Payment link created orderId=…`, `[SumUp] Checkout created id=…`).
  * The database (and so the log) is fresh per scenario, so the id found here
@@ -24,21 +45,10 @@ export const readLoggedId = async (
   logPath: string,
   pattern: RegExp,
   expectedLine: string,
-  timeoutMs = 10_000,
 ): Promise<string> => {
-  const found = await pollUntil(timeoutMs, () => {
-    let text = "";
-    try {
-      text = readFileSync(logPath, "utf8");
-    } catch (err) {
-      // Only "not created yet" is the wait state; any other read failure is
-      // a real fault the run must surface, not poll past.
-      if ((err as { code?: string }).code !== "ENOENT") throw err;
-    }
-    let last: string | null = null;
-    for (const m of text.matchAll(pattern)) last = m[1] ?? last;
-    return Promise.resolve(last);
-  });
+  const found = await pollUntil(10_000, () =>
+    Promise.resolve(lastLoggedMatch(logPath, pattern)),
+  );
   if (found) return found;
   throw new Error(
     `could not find the provider id in the app server log (${logPath}). ` +

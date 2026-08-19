@@ -11,7 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
-import { sleep, stopChild } from "./util.ts";
+import { probeSignal, sleep, stopChild } from "./util.ts";
 
 /* jscpd:ignore-end */
 
@@ -123,9 +123,10 @@ export const startAppServer = async (): Promise<AppServer> => {
   const deadline = Date.now() + config.serverBootTimeoutMs;
   while (Date.now() < deadline) {
     try {
-      // Bounded so one hung probe cannot stall the loop past its deadline.
+      // Bounded by what is left of the boot deadline, so one hung probe
+      // cannot carry the loop past its budget.
       const res = await fetch(`${localBaseUrl}/health`, {
-        signal: AbortSignal.timeout(5_000),
+        signal: probeSignal(deadline),
       });
       if (res.ok) {
         await res.body?.cancel();

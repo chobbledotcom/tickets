@@ -24,6 +24,7 @@ import {
   createListing,
   incomeLedgerText,
   setSelectOrInput,
+  totalIncomeEarnedMinor,
   waitForAppReturn,
   waitForHostedCheckout,
 } from "./flow.ts";
@@ -183,18 +184,7 @@ const fillBookingPage = async (
 const waitForReturn = (session: BrowserSession): Promise<void> =>
   waitForAppReturn(session, /reserved|success|thank/i, "order-no-return");
 
-/** Whether the ledger text carries this exact amount — in either app
- * rendering (decimals kept for broken amounts, stripped for whole ones:
- * "4.00" → "4") — with digit boundaries, so "6" cannot pass by matching the
- * digits inside "16" or "6.50". */
-const ledgerCarriesAmount = (text: string, minor: number): boolean => {
-  const whole = Math.trunc(minor / 100);
-  const cents = (minor % 100).toString().padStart(2, "0");
-  const amount = minor % 100 === 0 ? `${whole}(\\.00)?` : `${whole}\\.${cents}`;
-  return new RegExp(`(^|[^\\d.])${amount}(?![\\d.])`).test(text);
-};
-
-/** Assert a listing's income ledger recognises the given amount. */
+/** Assert a listing's income ledger reports exactly this much earned. */
 const assertListingIncome = async (
   session: BrowserSession,
   listingId: number,
@@ -203,20 +193,18 @@ const assertListingIncome = async (
 ): Promise<void> => {
   await session.goto(`/admin/listing/${listingId}`);
   const text = await incomeLedgerText(session);
-  const problem =
-    text === null
-      ? `no income ledger rendered for ${name}`
-      : ledgerCarriesAmount(text, minor)
-        ? null
-        : `${name}: expected recognised income ${(minor / 100).toFixed(
-            2,
-          )}, ledger says:\n${text.slice(0, 400)}`;
-  if (problem === null) {
+  const earned = text === null ? null : totalIncomeEarnedMinor(text);
+  if (earned === minor) {
     log(`  ✔ ${name} recognised ${(minor / 100).toFixed(2)}`);
     return;
   }
   await session.dumpPage(`order-income-problem-${listingId}`);
-  throw new Error(problem);
+  throw new Error(
+    text === null
+      ? `no income ledger rendered for ${name}`
+      : `${name}: expected ${minor} minor units of income earned, the ledger ` +
+          `reports ${earned}:\n${text.slice(0, 400)}`,
+  );
 };
 
 /** Assert the admin sees the order one line per path: member A twice (via the
@@ -262,7 +250,7 @@ const assertPerPathEditor = async (
     new RegExp(`name="line_key_${index}"[^>]*value="[^"]+"`).test(editor);
   const linesFor = (listingId: number): number =>
     [...editor.matchAll(/name="line_listing_(\d+)"[^>]*value="(\d+)"/g)].filter(
-      (match) => Number(match[2]) === listingId && isStoredLine(match[1] ?? ""),
+      (match) => Number(match[2]) === listingId && isStoredLine(match[1]),
     ).length;
   const expectedLines: [string, number, number][] = [
     [`${catalog.memberA} (via the kit + its own row)`, built.memberAId, 2],
