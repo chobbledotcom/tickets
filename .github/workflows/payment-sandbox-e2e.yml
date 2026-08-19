@@ -76,43 +76,41 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/cloudflared" --version
 
-      - name: Resolve Playwright version
-        id: pw
+      # The ubuntu-latest image ships Google Chrome, so the usual path needs
+      # no browser download and no apt install of OS libraries. If a future
+      # image drops Chrome, fall back to the Playwright-pinned Chromium with
+      # its OS dependencies, resolved from e2e-payments/deno.json.
+      - name: Provide a browser
+        id: browser
         run: |
-          version="$(
-            deno eval '
-          const config = JSON.parse(await Deno.readTextFile("e2e-payments/deno.json"));
-          const spec = config.imports?.playwright;
-          const version = spec?.match(/^npm:playwright@(.+)$/)?.[1];
-          if (!version) {
-            throw new Error(`Expected imports.playwright to be npm:playwright@<version>; got ${spec}`);
-          }
-          console.log(version);
-          '
-          )"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-
-      # On a cache hit the browser binary is already restored, so install only
-      # the OS-level libraries (apt) Chromium needs — those can't be cached. On
-      # a miss, download the browser and its OS deps in one go.
-      - name: Install Playwright Chromium (cache miss)
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: deno run -A npm:playwright@${{ steps.pw.outputs.version }} install --with-deps chromium
-
-      - name: Install Playwright OS dependencies (cache hit)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: deno run -A npm:playwright@${{ steps.pw.outputs.version }} install-deps chromium
+          set -euo pipefail
+          if command -v google-chrome >/dev/null; then
+            echo "executable=$(command -v google-chrome)" >> "$GITHUB_OUTPUT"
+            google-chrome --version
+          else
+            echo "No system Chrome on this image; installing Playwright Chromium."
+            version="$(
+              deno eval '
+            const config = JSON.parse(await Deno.readTextFile("e2e-payments/deno.json"));
+            const spec = config.imports?.playwright;
+            const version = spec?.match(/^npm:playwright@(.+)$/)?.[1];
+            if (!version) {
+              throw new Error(`Expected imports.playwright to be npm:playwright@<version>; got ${spec}`);
+            }
+            console.log(version);
+            '
+            )"
+            deno run -A npm:playwright@"$version" install --with-deps chromium
+            echo "executable=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run ${{ matrix.target }} payment e2e
         id: payment-run
         env:
+          # Empty when the fallback installed Playwright's own Chromium — the
+          # harness treats an empty value as unset and lets Playwright resolve
+          # its bundled browser.
+          CHROMIUM_EXECUTABLE: ${{ steps.browser.outputs.executable }}
           # Throwaway key for the ephemeral local DB — not a real secret.
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
