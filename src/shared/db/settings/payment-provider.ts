@@ -70,7 +70,7 @@ const syncLastActivePaymentProvider = (provider: string): void => {
 const changePaymentProvider = async (
   kind: "activate" | "credentials" | "disable" | "recover",
   provider?: PaymentProviderType,
-  first = false,
+  first?: boolean,
 ): Promise<void> => {
   if (kind !== "disable" && (!provider || !isPaymentProvider(provider))) {
     throw new Error(`Invalid payment provider: ${provider}`);

@@ -597,12 +597,6 @@ a live legacy engine, read-through, dual write, or fallback authority.
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
-- **Payment-provider persistence is out of `src/shared/db/settings.ts` — done.**
-  The provider getters and the `settings.update` methods now live in
-  `src/shared/db/settings/payment-provider.ts`, with mirror tests under
-  `test/shared/db/settings/payment-provider/`. `settings.ts` is back to assembly
-  alone, at 373 lines.
-
 - **Split provider credential routes out of
   `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
   `ProviderCredentialsConfig`, `persistProviderCredentials`, and
@@ -611,10 +605,6 @@ The seven accepted safety rules are recorded as acceptance constraints in
   `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
   This is deferred because doing the move in PR 1 would break the same strict
   800-line source-change limit.
-
-- **`src/features/api/webhooks.ts` is below 400 lines — done.** #2065 moved the
-  payment callback and webhook processing paths into their own modules, and the
-  file went from 494 lines to 333. Nothing further is planned here.
 
 ## Payment aggregate — what the closed rewrite taught us
 
@@ -884,43 +874,28 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
 
 ---
 
-## The shared "reasons" shape for validation failures — shipped
+## Surfaces the shared "reasons" shape now makes cheap
 
-_Origin: reviewing the package-restriction work (PR #1770); built once the
-collect-all need (the multi-item "no shared date" diagnostic) arrived._
+_Origin: the package-restriction work (PR #1770), which built the combinator in
+`src/shared/reasons.ts` and converged the parent/child edge rules
+(`src/shared/listing-parents-rules.ts`), the package member rules
+(`src/shared/package-membership.ts`), and the group homogeneity rules
+(`groupListingTypeError` in `src/shared/db/groups.ts`) onto it._
 
-What shipped:
+Each of these is one rule row plus one surface (see the restrictions audit
+above):
 
-- **The combinator.** `src/shared/reasons.ts`: a `Reason` answers with the
-  message to show or null, and one rule list serves both runners — `firstReason`
-  (fail-fast; list order is precedence) and `allReasons` (name every problem at
-  once).
-- **The converged tables.** The parent/child edge rules
-  (`src/shared/listing-parents-rules.ts`), the package member rules
-  (`src/shared/package-membership.ts` — messages render inside the rules, so the
-  separate block-code layer is gone), and the group homogeneity rules
-  (`groupListingTypeError` in `src/shared/db/groups.ts`). `CAPACITY_RULES`
-  deliberately did NOT converge: it classifies which checks apply, it does not
-  refuse with a message — a genuinely different shape.
-- **The `kind` tag, as a reporter.** `reportInvariant`
-  (`src/shared/invariant-errors.ts`) renders an operator-facing flash whose
-  message means a system promise broke AND reports it through `logError`'s
-  existing fan-out (console, ntfy, activity log, Sentry) under
-  `E_INVARIANT_REPORTED`. `error.refund_not_recorded` is the first tagged key;
-  tag a new key only when the flash means "repair the data by hand".
-- **The first collect-all consumer.** `src/shared/booking/cart-conflicts.ts` +
-  the ticket page name the clashing items when a multi-item page has no shared
-  date or booking length (was: a bare "No dates are currently available").
+- Grey out incompatible listings in the add-listings picker.
+- Disable the two either/or control pairs.
+- Surface the child-duration clash at save time.
+- Warn the operator about the chooser own-cap.
 
-Still correct, unchanged: i18n keys ARE the error codes (no registry needed);
-fail-fast stays the default for forms — `allReasons` is only for surfaces that
-must name every problem at once; ordinary validation failures stay out of
-Sentry.
-
-Follow-ups this mechanism now makes cheap (each is a rule row + a surface, see
-the restrictions audit above): greying out incompatible listings in the add-
-listings picker, the two either/or disabled-control pairs, surfacing the
-child-duration clash at save time, and the chooser own-cap warning.
+Three decisions bound that work. The i18n keys are the error codes, so no
+registry is needed. Fail-fast stays the default for forms, and `allReasons` is
+only for a surface that must name every problem at once. An ordinary validation
+failure stays out of Sentry: `reportInvariant`
+(`src/shared/invariant-errors.ts`) is for a broken system promise, and a new key
+gets its `kind` tag only when the flash means "repair the data by hand".
 
 ## Deferred Codex suggestions from PR #1975 (API documentation examples)
 
@@ -1444,19 +1419,6 @@ stands, so the split can be a pure move.
 
 ---
 
-## Two suites now cover the attendees list — done
-
-_Origin: Codex review of PR #1993 (direct tests for the four testless modules)._
-
-Consolidated. The three suites (the mirrored direct suite plus
-`test/integration/server/attendees-list.test.ts` and
-`test/integration/server/attendees-csv.test.ts`) merged into one mirrored suite
-at `test/features/admin/attendees-list/` (`page`, `filters`, `rows`, `csv`),
-keeping the stronger variant of each duplicated rule and every unique case. The
-two integration files were deleted.
-
----
-
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns
@@ -1701,33 +1663,6 @@ logging one, but pointing is not proving — do not "fix" this one from the shap
 of the test.
 
 ---
-
-## Four feature modules had no test at their mirrored path — now they do
-
-_Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start. Closed by the direct-test pass that followed._
-
-All four now have a direct test at their mirrored path, so the gate no longer
-refuses to start on a branch that touches them:
-
-- `src/features/admin/attendee-page.ts` →
-  `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
-- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list/`
-  (100%)
-- `src/features/admin/listing-page-data.ts` →
-  `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
-- `src/features/api/payment-processing/store-refund.ts` →
-  `test/features/api/payment-processing/store-refund.test.ts` (100%)
-
-Every one of them now catches every mutation the gate demands, so a branch
-touching any of them can pass without first writing the tests that should
-already have existed.
-
-`src/features/admin/attendee-notes.ts` was in the same state and was fixed
-earlier: its route suite drives real pages through the session helpers, so it
-moved from `test/integration/admin/` to `test/features/admin/`, which is where
-that kind of suite belongs (see "Let the misplaced-test list see past request
-helpers" above).
 
 ## Two people setting a site up at the same moment can both succeed
 
@@ -2497,33 +2432,6 @@ they exist in a foreign shape), or give `schemaMigration` a per-migration table
 scope so intermediate applies never touch tables the migration does not declare.
 The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
 keep the loud refusal on non-empty tables.
-
-## A completed Square webhook whose order reads as missing is acked — fixed
-
-_Origin: Codex review on PR #2065 (thread on `src/shared/square-provider.ts`)._
-
-Closed by #2106. `readSessionOrder` now throws when the read comes back
-`missing` under a `paidPaymentId`, so the boundary answers 503 and Square
-delivers the webhook again. A read with no payment id still returns `null`,
-because there a missing order really is not one of ours. The finding as first
-written is kept below.
-
-In `resolveWebhookSession`, a completed payment webhook calls
-`retrieveSession(orderId, paymentId)`. `readSessionOrder` maps a `missing` order
-read to `null` (a debug log), `resolveWebhookSession` turns `null` into
-`"skip"`, and the webhook handler acknowledges 200 — so Square stops
-redelivering. The codebase already treats the adjacent lag windows as retryable:
-malformed metadata for a completed payment throws
-(`UNUSABLE_METADATA.
-retryCompletedWebhook`), and a payment that does not read
-back COMPLETED throws (`readOrderPayment`). A missing order is the same
-eventual-consistency window — the webhook can genuinely arrive before the order
-is readable — and should fail the boundary the same way instead of skipping, so
-Square redelivers and the buyer does not stay charged with no booking and no
-refund.
-
-Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
-`missing` read under a `paidPaymentId` should throw like the malformed case.
 
 ## Harden the live payment harness so green means what it claims
 

@@ -95,6 +95,17 @@ describeWithEnv("db > settings payment credentials", { db: true }, () => {
     });
   });
 
+  describe("the Square access token", () => {
+    test("reports no token on a fresh database", () => {
+      expect(settings.square.hasToken).toBe(false);
+    });
+
+    test("reports a token once one is saved", async () => {
+      await settings.update.square.accessToken("sq_token_123");
+      expect(settings.square.hasToken).toBe(true);
+    });
+  });
+
   describe("clearing a stored credential", () => {
     test("update.stripe.secretKey with empty string sets empty string", async () => {
       await settings.update.stripe.secretKey("sk_test_abc");
