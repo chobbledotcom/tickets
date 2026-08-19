@@ -20,6 +20,7 @@ describeWithEnv("the site page's page", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(html).toContain(`action="/admin/site/pages/${page.id}/edit"`);
     expect(html).toContain("About us");
+    expect(html).toContain('href="/admin/guide#public-site"');
   });
 
   test("titles the page with the page's own name", async () => {

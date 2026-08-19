@@ -194,3 +194,4 @@ src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated"   # the fallback
 src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → ||   # err is a Response object or null, and objects are always truthy
 src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true   # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
 src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → ||   # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
+src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → ||   # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself

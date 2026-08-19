@@ -20,6 +20,7 @@ describeWithEnv("the news post page", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(html).toContain(`action="/admin/site/news/${post.id}/edit"`);
     expect(html).toContain("Summer opening");
+    expect(html).toContain('href="/admin/guide#public-site"');
   });
 
   test("titles the page with the post's own name", async () => {

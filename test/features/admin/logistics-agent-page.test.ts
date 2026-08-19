@@ -10,6 +10,7 @@ import { loadAgentUserOptions } from "#routes/admin/logistics-agent-page.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import {
+  adminFormPost,
   adminGet,
   createTestAgentSession,
   createTestEditorSession,
@@ -48,6 +49,21 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     expect(html).toContain(`href="/admin/logistics/${id}/delete"`);
+  });
+
+  test("keeps the drivers that were ticked when the edit is refused", async () => {
+    const id = await createLogisticsAgent("Refused Van");
+    const { userId } = await createTestAgentSession({ username: "keptdriver" });
+
+    const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
+      name: "",
+      user_ids: [String(userId)],
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(html).toContain(`checked name="user_ids"`);
+    expect(html).toContain(`value="${userId}"`);
   });
 
   test("answers 404 for an agent that is not there", async () => {
