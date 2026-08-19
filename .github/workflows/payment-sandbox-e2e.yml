@@ -15,10 +15,9 @@
 #
 # It is deliberately NOT a PR gate: it needs network to third-party sandboxes
 # and is inherently slower/flakier than mocked tests. It runs nightly and on
-# demand. Square and SumUp skip when unconfigured, so they can be enabled one at
-# a time. The free and Stripe legs must execute; a missing Stripe secret fails.
+# demand. Every leg must execute: a missing provider secret fails its leg.
 #
-# Required repository secrets (add only the providers you use):
+# Required repository secrets:
 #   STRIPE_SECRET_KEY          — sk_test_… (Stripe test mode)
 #   SQUARE_ACCESS_TOKEN        — Square sandbox access token
 #   SQUARE_LOCATION_ID         — Square sandbox location id
@@ -53,15 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: free
-            must_execute: true
-          - target: stripe
-            must_execute: true
-          - target: square
-            must_execute: false
-          - target: sumup
-            must_execute: false
+        target: [free, stripe, square, sumup]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -129,14 +120,9 @@ jobs:
       - name: Verify payment leg execution
         env:
           ACTUAL_RESULT: ${{ steps.payment-run.outputs.result }}
-          MUST_EXECUTE: ${{ matrix.must_execute }}
         run: |
-          if [[ "$ACTUAL_RESULT" != "executed" && "$ACTUAL_RESULT" != "skipped" ]]; then
-            echo "Payment harness did not report whether the leg executed or skipped." >&2
-            exit 1
-          fi
-          if [[ "$MUST_EXECUTE" == "true" && "$ACTUAL_RESULT" != "executed" ]]; then
-            echo "The ${{ matrix.target }} payment leg is configured to run but skipped." >&2
+          if [[ "$ACTUAL_RESULT" != "executed" ]]; then
+            echo "The ${{ matrix.target }} payment leg did not report that it executed." >&2
             exit 1
           fi
 
