@@ -15,7 +15,7 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 
 /** Whether the roster row for one attendee on one listing is checked in. */
 const isCheckedIn = async (
@@ -128,7 +128,13 @@ describeWithEnv("clearing an incomplete payment", { db: true }, () => {
       name: "Fully Booked",
     });
 
-    const response = await submitDeleteIncomplete(listing.id, attendee.id);
+    const { cookie, csrfToken } = await getTestSession();
+    const response = await submitDeleteIncomplete(
+      listing.id,
+      attendee.id,
+      cookie,
+      csrfToken,
+    );
 
     expect(response.status).toBe(302);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
