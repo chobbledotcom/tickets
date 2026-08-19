@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { awaitTestRequest, withStorageEnabled } from "#test-utils/mocks.ts";
 import { adminGet, createTestEditorSession } from "#test-utils/session.ts";
 
 /** One editor session, reused across the requests of a single test. */
@@ -81,6 +81,56 @@ describeWithEnv("the group page", { db: true }, () => {
       `<a aria-current="page" class="active" href="/admin/groups/${group.id}/edit">Edit</a>`,
     );
     expect(attendees.status).toBe(404);
+  });
+
+  test("names each tab by the path it opens", async () => {
+    const group = await createTestGroup({ name: "Tab Paths" });
+
+    const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
+
+    expect(html).toContain(`href="/admin/groups/${group.id}">Overview</a>`);
+    expect(html).toContain(
+      `href="/admin/groups/${group.id}/attendees">Attendees</a>`,
+    );
+    expect(html).toContain(`href="/admin/groups/${group.id}/edit">Edit</a>`);
+    expect(html).toContain(
+      `href="/admin/groups/${group.id}/actions">Actions</a>`,
+    );
+  });
+
+  test("adds the images tab once a storage zone is configured", async () => {
+    // The tab is hidden without one, because the page behind it cannot store
+    // an upload.
+    const group = await createTestGroup({ name: "Has Images" });
+
+    const withoutStorage = await (
+      await adminGet(`/admin/groups/${group.id}`)
+    ).text();
+    const withStorage = await withStorageEnabled(async () =>
+      (await adminGet(`/admin/groups/${group.id}`)).text(),
+    );
+
+    expect(withoutStorage).not.toContain(
+      `href="/admin/groups/${group.id}/images"`,
+    );
+    expect(withStorage).toContain(
+      `href="/admin/groups/${group.id}/images">Images</a>`,
+    );
+  });
+
+  test("keeps the delete apart, in the danger zone", async () => {
+    const group = await createTestGroup({ name: "Danger Zone" });
+
+    const html = await (
+      await adminGet(`/admin/groups/${group.id}/actions`)
+    ).text();
+    const [beforeZone, insideZone] = html.split('class="entity-danger-zone"');
+
+    expect(beforeZone).toContain(
+      `href="/admin/groups/${group.id}/export.json"`,
+    );
+    expect(beforeZone).not.toContain(`href="/admin/groups/${group.id}/delete"`);
+    expect(insideZone).toContain(`href="/admin/groups/${group.id}/delete"`);
   });
 
   test("answers 404 for a group that is not there", async () => {
