@@ -116,14 +116,14 @@ describe("sentry", () => {
     // Constructing DenoClient directly adds no integrations, so the two that
     // put information into a report have to be named. A deployment that loads
     // neither reports wrapper errors with no cause and no console trail.
-    test("loads the integrations that add information to a report", () => {
+    test("loads the integrations that add information to a report", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
-      return initSentry().then(() => {
-        const names = (Sentry.getClient()?.getOptions().integrations ?? []).map(
-          (integration) => integration.name,
-        );
-        expect(names).toEqual(["Breadcrumbs", "LinkedErrors"]);
-      });
+      await initSentry();
+
+      const names = (Sentry.getClient()?.getOptions().integrations ?? []).map(
+        (integration) => integration.name,
+      );
+      expect(names).toEqual(["Breadcrumbs", "LinkedErrors"]);
     });
 
     // Dedupe drops an error that repeats. Two requests hitting one bug are two
@@ -295,7 +295,7 @@ describe("sentry", () => {
       await initSentry();
 
       await runWithRequestId(() =>
-        captureServerError({ code: ErrorCode.DB_QUERY })
+        captureServerError({ code: ErrorCode.DB_QUERY }),
       );
 
       const requestIds =

@@ -12,13 +12,13 @@ import {
   makeSuppressibleLogFlag,
   shouldSuppressDebugLogs,
 } from "#shared/log-settings.ts";
-import { redactPath } from "#shared/redact-path.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   addPendingWork,
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
+import { redactPath } from "#shared/redact-path.ts";
 import {
   createScope,
   createScopedValue,

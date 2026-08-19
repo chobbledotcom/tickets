@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { jsSiblingPath, runCommand } from "#scripts/sentry-debug-ids.ts";
+import { jsSiblingPath, runCommand } from "#scripts/sentry-debug-ids/run.ts";
 
 const BUNDLE = "code;\n//# sourceMappingURL=bundle.ts.map";
 const MAP = '{"version":3,"sources":[],"mappings":""}';
