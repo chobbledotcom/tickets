@@ -105,6 +105,7 @@ describeWithEnv("an edit entity page", { db: true }, () => {
     const html = await (await editPage.renderPage(session, 7, "")).text();
 
     expect(html).toContain("<p>Widget|clean</p>");
+    expect(html).toContain('href="/admin/holidays/7/edit"');
     expect(html).toContain('href="/admin/holidays/7/notes"');
     expect(html).toContain('href="/admin/holidays/7/actions"');
   });

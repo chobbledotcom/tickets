@@ -5,6 +5,8 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPageDef,
+  type PageCtx,
+  prepareOwnerFields,
 } from "#routes/admin/entity-pages.ts";
 import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -25,6 +27,29 @@ const SESSION: AuthSession = {
   userId: 1,
   wrappedDataKey: null,
 };
+
+/** The parts of a page context the owner-fields loader reads. */
+const ctxFor = (adminLevel: AuthSession["adminLevel"]): PageCtx =>
+  ({ session: { ...SESSION, adminLevel } }) as PageCtx;
+
+describe("prepareOwnerFields", () => {
+  const withPaid = prepareOwnerFields<Fixture>((entity) =>
+    Promise.resolve({ paid: !entity.paid }),
+  );
+  const UNPAID: Fixture = { id: 1, name: "Fixture", paid: false };
+
+  test("loads the extra fields for an owner", async () => {
+    expect(await withPaid(UNPAID, ctxFor("owner"))).toEqual({
+      id: 1,
+      name: "Fixture",
+      paid: true,
+    });
+  });
+
+  test("leaves the record alone for every other role", async () => {
+    expect(await withPaid(UNPAID, ctxFor("manager"))).toEqual(UNPAID);
+  });
+});
 
 const ACTIONS: readonly ActionDef<Fixture>[] = [
   {

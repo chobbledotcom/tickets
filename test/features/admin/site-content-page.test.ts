@@ -11,6 +11,7 @@ import { defineSiteContentPage } from "#routes/admin/site-content-page.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { withStorageEnabled } from "#test-utils/mocks.ts";
 import { getTestAuthSession } from "#test-utils/session.ts";
 
 type Leaflet = { id: number; name: string };
@@ -65,6 +66,16 @@ describeWithEnv("a site content page", { db: true }, () => {
     const html = await (await page.renderPage(session, 3, "")).text();
 
     expect(html).not.toContain('href="/admin/site/pages/3/images"');
+  });
+
+  test("adds the images tab once a storage zone is configured", async () => {
+    const session = await getTestAuthSession();
+
+    const html = await withStorageEnabled(async () =>
+      (await page.renderPage(session, 3, "")).text(),
+    );
+
+    expect(html).toContain('href="/admin/site/pages/3/images">Images</a>');
   });
 
   test("links the guide section the page belongs to", async () => {

@@ -359,6 +359,7 @@ const packageListingError = async (
 
 /** Handle POST /admin/groups/:id/add-listings - assign ungrouped listings to group */
 const handleAddListingsToGroup = groupFormPost(async (group, form) => {
+  const groupPath = entityReturnPath(adminPattern("groups"), group.id);
   const listingIds = form
     .getAll("listing_ids")
     .map(Number)
@@ -367,26 +368,25 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     const listings = compact(await getListingsWithCountsByIds(listingIds));
     const packageError = await packageListingError(group, listings);
     if (packageError) {
-      return redirect(`/admin/groups/${group.id}`, packageError, false);
+      return redirect(groupPath, packageError, false);
     }
     const existingListingIds = listings.map((listing) => listing.id);
     const typeError = await assignListingsToGroup(listingIds, group.id);
     if (typeError) {
+      // Another operator can delete the group between the load above and this
+      // write, and the group's own page would then answer 404, so a group that
+      // went missing sends the operator back to the list instead.
       const target =
         typeError === t("error.selected_group_deleted")
-          ? "/admin/groups"
-          : `/admin/groups/${group.id}`;
+          ? adminPattern("groups")
+          : groupPath;
       return redirect(target, typeError, false);
     }
     await logActivity(
       `${existingListingIds.length} listing(s) added to group '${group.name}'`,
     );
   }
-  return redirect(
-    `/admin/groups/${group.id}`,
-    t("success.listings_added_to_group"),
-    true,
-  );
+  return redirect(groupPath, t("success.listings_added_to_group"), true);
 });
 
 const groupImageHandlers = createItemImageHandlers({
