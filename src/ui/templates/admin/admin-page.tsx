@@ -63,7 +63,7 @@ export const AdminPage = ({
   session,
   active,
   bodyClass,
-  contentClassName,
+  contentClassName = "admin-page",
   theme,
   flash,
   actions,
@@ -72,7 +72,7 @@ export const AdminPage = ({
   <Layout
     beforeContent={<AdminNav active={active} session={session} />}
     {...(bodyClass !== undefined ? { bodyClass } : {})}
-    contentClassName={contentClassName ?? "admin-page"}
+    contentClassName={contentClassName}
     {...(theme !== undefined ? { theme } : {})}
     title={title}
   >
