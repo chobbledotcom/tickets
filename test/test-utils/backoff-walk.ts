@@ -39,12 +39,17 @@ export const expectFullBackoffWalk = async (options: {
       return Promise.reject(options.failsWith());
     },
   } as unknown as Client);
-  const done = options.outcome(execute(options.sql));
-  await time.tickAsync(0);
-  expect(attempts).toBe(1);
-  for (const wait of options.waits) {
-    await expectNextAttemptAfter(time, wait, () => attempts);
+  try {
+    const done = options.outcome(execute(options.sql));
+    await time.tickAsync(0);
+    expect(attempts).toBe(1);
+    for (const wait of options.waits) {
+      await expectNextAttemptAfter(time, wait, () => attempts);
+    }
+    expect(attempts).toBe(options.waits.length + 1);
+    await done;
+  } finally {
+    // The rejecting client is this walk's own; no later test may find it.
+    setDb(null);
   }
-  expect(attempts).toBe(options.waits.length + 1);
-  await done;
 };

@@ -70,17 +70,6 @@ describe("sumup recovery machine", () => {
     }
   });
 
-  test("an event that leaves a row where it was checks the schedule too", () => {
-    for (const node of RECOVERY_NODES) {
-      for (const event of RECOVERY_EVENTS) {
-        if (reader.expected(node.id, event.id, "") !== node.id) continue;
-        expect(event.fencesOn, `${node.id} × ${event.id}`).toBe(
-          "state_and_schedule",
-        );
-      }
-    }
-  });
-
   test("the closed nodes are exactly the two that answer nothing", () => {
     expect([...RECOVERY_TERMINAL_NODES].sort()).toEqual(["finished", "unpaid"]);
   });

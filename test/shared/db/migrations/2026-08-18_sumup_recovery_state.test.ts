@@ -66,11 +66,17 @@ describeWithEnv("db > migrations > sumup recovery state", { db: true }, () => {
     // already staged when the site upgraded and were never asked about.
     await insertLegacyRow("idx_live", "co_upgraded");
 
+    const before = Date.now();
     await runMigration();
+    const after = Date.now();
 
     const row = await storedRow("idx_live");
     expect(row.recoveryState).toBe("waiting");
-    expect(row.nextCheckAt).not.toBeNull();
+    // Due the moment the upgrade lands, not at some later hour: nothing
+    // re-stages the backlog, so a delayed start would skip it entirely.
+    const dueAt = Date.parse(row.nextCheckAt!);
+    expect(dueAt).toBeGreaterThanOrEqual(before);
+    expect(dueAt).toBeLessThanOrEqual(after);
   });
 
   test("derives a state the row reader accepts for every row", async () => {

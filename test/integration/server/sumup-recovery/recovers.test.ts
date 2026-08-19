@@ -8,6 +8,7 @@ import { sumupApi } from "#shared/sumup.ts";
 import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  expectBookedExactlyOnce,
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
   sumupRecoveryRow,
@@ -61,7 +62,9 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       );
       await runSumupRecovery();
 
-      expect(await tableRowCount("attendees")).toBe(1);
+      // One ticket and one payment reservation, however many times the work
+      // ran: the reservation row is the key the engine reserves against.
+      await expectBookedExactlyOnce();
       expect((await sumupRecoveryRow("co_twice")).state).toBe("finished");
     } finally {
       restore.restore();

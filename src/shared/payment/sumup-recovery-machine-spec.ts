@@ -8,11 +8,10 @@
  * act on it.
  *
  * The table below IS the production lookup, not a description of one.
- * {@link recoveryMoveTo} reads it, the row writer reads each event's declared
- * writes and fence to build its `UPDATE`, pruning reads each node's
- * `prunable`, and the /admin/schema map derives from the same nodes. A cell
- * the table leaves out is a declared refusal, and the mirror sweep proves it
- * throws. */
+ * {@link recoveryMoveTo} reads it, the queue's write takes its landing state
+ * from it, pruning reads each node's `prunable`, and the /admin/schema map
+ * derives from the same nodes. A cell the table leaves out is a declared
+ * refusal, and the mirror sweep proves it throws. */
 
 import * as v from "valibot";
 import {
@@ -120,16 +119,6 @@ export type RecoveryEventId =
   | "read_pending"
   | "read_unavailable";
 
-/** What an event's `UPDATE` sets. There is deliberately no state-only
- * variant: an edge that moved a row without saying when to look at it again
- * would leave it due forever, so the type refuses to describe one. */
-export type RecoveryWrites = "schedule" | "state_and_schedule";
-
-/** What an event's `UPDATE` matches on, so the loser of a race finds no row
- * to write. Creation is keyed by the staged row itself; every later event
- * must still find the exact state and check time it read. */
-export type RecoveryFence = "reference_index" | "state_and_schedule";
-
 /** Whether an event is the row's creation or one of the checks that asks
  * SumUp what became of it. The queue of rows still worth asking about is
  * derived from this, so a new check event joins the queue by being declared. */
@@ -139,9 +128,7 @@ export type RecoveryMachineEvent = MachineEvent<
   SumupRecoveryRow,
   RecoveryEventId
 > & {
-  readonly fencesOn: RecoveryFence;
   readonly kind: RecoveryEventKind;
-  readonly writes: RecoveryWrites;
 };
 
 /** The node one stored row sits on. Total: a state word and a checkout id
@@ -197,18 +184,14 @@ const moves =
 
 const systemEvent = (
   id: RecoveryEventId,
-  writes: RecoveryWrites,
   kind: RecoveryEventKind = "check",
-  fencesOn: RecoveryFence = "state_and_schedule",
 ): RecoveryMachineEvent => ({
   actor: "system",
-  fencesOn,
   id,
   kind,
   labelKey: `schema.sumup_recovery.edge.${id}`,
   movesMoney: id === "read_paid_settled" || id === "read_paid_unsettled",
   run: moves(id),
-  writes,
 });
 
 /** Every way a staged checkout can move. The five `read_paid_*` events are
@@ -216,20 +199,15 @@ const systemEvent = (
  * and each is named for the money fact it establishes, because that is what
  * decides whether the row may ever be deleted. */
 export const RECOVERY_EVENTS: readonly RecoveryMachineEvent[] = [
-  systemEvent(
-    "checkout_created",
-    "state_and_schedule",
-    "create",
-    "reference_index",
-  ),
-  systemEvent("read_unavailable", "schedule"),
-  systemEvent("read_pending", "schedule"),
-  systemEvent("read_expired_or_failed", "state_and_schedule"),
-  systemEvent("read_paid_booked", "state_and_schedule"),
-  systemEvent("read_paid_settled", "state_and_schedule"),
-  systemEvent("read_paid_unsettled", "state_and_schedule"),
-  systemEvent("read_paid_unreadable", "schedule"),
-  systemEvent("read_paid_contradiction", "state_and_schedule"),
+  systemEvent("checkout_created", "create"),
+  systemEvent("read_unavailable"),
+  systemEvent("read_pending"),
+  systemEvent("read_expired_or_failed"),
+  systemEvent("read_paid_booked"),
+  systemEvent("read_paid_settled"),
+  systemEvent("read_paid_unsettled"),
+  systemEvent("read_paid_unreadable"),
+  systemEvent("read_paid_contradiction"),
 ];
 
 /** The declared machine. Every cell present is a required landing node;

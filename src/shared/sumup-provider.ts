@@ -82,7 +82,8 @@ export const sumupPaymentProvider: PaymentProvider = {
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
   ): Promise<WebhookSessionResult> {
-    return (await resolveSumupCheckoutById(webhookEvent.id)).resolved;
+    return (await resolveSumupCheckoutById(webhookEvent.id, "Webhook"))
+      .resolved;
   },
 
   /* jscpd:ignore-start -- PaymentProvider interface conformance, not

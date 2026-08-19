@@ -13,7 +13,7 @@ import {
   getSealedSumupCheckout,
   openSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
-import { logDebug } from "#shared/logger.ts";
+import { type LogCategory, logDebug } from "#shared/logger.ts";
 import {
   isSessionRejection,
   type SessionRejection,
@@ -50,11 +50,12 @@ const MAX_SUMUP_ID_BYTES = 255;
 const isUsableSumupId = (id: string): boolean =>
   id !== "" && new TextEncoder().encode(id).byteLength <= MAX_SUMUP_ID_BYTES;
 
-/** Refuse a callback retryably with a value-free console line. Forged and
- * unreadable callbacks must not spend alert subrequests, and the fixed words
- * carry the outcome without carrying any value from the payload. */
-const refuseRetryably = (why: string): "retry" => {
-  logDebug("Webhook", `SumUp callback refused retryably: ${why}`);
+/** Refuse a callback retryably with a value-free console line, named for the
+ * runner that asked. Forged and unreadable callbacks must not spend alert
+ * subrequests, and the fixed words carry the outcome without carrying any
+ * value from the payload. */
+const refuseRetryably = (why: string, category: LogCategory): "retry" => {
+  logDebug(category, `SumUp callback refused retryably: ${why}`);
   return "retry";
 };
 
@@ -88,14 +89,19 @@ export type SumupCheckoutResolution = {
 };
 
 /** A read that told us nothing usable — never to be read as "not paid". */
-const unusable = (why: string): SumupCheckoutResolution => ({
+const unusable = (
+  why: string,
+  category: LogCategory,
+): SumupCheckoutResolution => ({
   reading: "unusable",
-  resolved: refuseRetryably(why),
+  resolved: refuseRetryably(why, category),
 });
 
 /**
  * Ask SumUp what became of one checkout we staged, and turn its answer into a
- * session the payment engine can settle.
+ * session the payment engine can settle. `category` names the runner in the
+ * debug log, so an operator can tell a webhook's refusal from a recovery
+ * check's.
  *
  * The webhook reaches this with the id its callback named; the recovery task
  * reaches it with the id off a staged row that nothing has answered for. They
@@ -104,9 +110,10 @@ const unusable = (why: string): SumupCheckoutResolution => ({
  */
 export const resolveSumupCheckoutById = async (
   sumupId: string,
+  category: LogCategory,
 ): Promise<SumupCheckoutResolution> => {
   if (!isUsableSumupId(sumupId)) {
-    return unusable("id is not one we could have staged");
+    return unusable("id is not one we could have staged", category);
   }
   // Unsigned webhooks: only fetch checkouts we created. Spam and other
   // integrations' listings never cost an API call — one indexed read
@@ -116,7 +123,7 @@ export const resolveSumupCheckoutById = async (
   // refusal tells a forger nothing about whether an id exists.
   const sealed = await getSealedSumupCheckout(sumupId);
   if (sealed === null) {
-    return unusable("checkout is not one we staged");
+    return unusable("checkout is not one we staged", category);
   }
   // The staged row already proved this checkout is ours, so anything but a
   // clean read is refused retryably: acknowledging is terminal, and a paid
@@ -127,6 +134,7 @@ export const resolveSumupCheckoutById = async (
       "reason" in read
         ? `read ${read.status} (${read.reason})`
         : "read missing",
+      category,
     );
   }
   const checkout = read.resource;
@@ -143,7 +151,10 @@ export const resolveSumupCheckoutById = async (
   if (metadata === null) {
     return {
       reading,
-      resolved: refuseRetryably("reference does not open the staged row"),
+      resolved: refuseRetryably(
+        "reference does not open the staged row",
+        category,
+      ),
     };
   }
   const session = buildSumupSession(checkout, metadata);

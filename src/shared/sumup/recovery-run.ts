@@ -32,6 +32,7 @@ const recoverOne = async (checkout: DueSumupCheckout): Promise<void> => {
   try {
     const { reading, resolved } = await resolveSumupCheckoutById(
       checkout.sumupId,
+      "SumUp",
     );
     event = sumupRecoveryOutcome(
       reading,

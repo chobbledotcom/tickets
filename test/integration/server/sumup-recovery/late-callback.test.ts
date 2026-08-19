@@ -68,6 +68,8 @@ describeWithEnv("server > SumUp callback after recovery", { db: true }, () => {
       // trying to book it again.
       expect(response.status).toBe(302);
       await expectBookedExactlyOnce();
+      // The return raises no recovery event, so the closed row stays closed.
+      expect((await sumupRecoveryRow("co_late_return")).state).toBe("finished");
     } finally {
       restore.restore();
     }

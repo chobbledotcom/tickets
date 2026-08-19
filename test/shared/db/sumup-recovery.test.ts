@@ -37,7 +37,12 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
     await seedRow("co_due", "waiting", PAST);
 
     expect(await getDueSumupCheckouts()).toEqual([
-      { checkedAt: PAST, state: "waiting", sumupId: "co_due" },
+      {
+        checkedAt: PAST,
+        referenceIndex: "idx_co_due",
+        state: "waiting",
+        sumupId: "co_due",
+      },
     ]);
   });
 
@@ -97,6 +102,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
 
   const due = (id: string, state: string): DueSumupCheckout => ({
     checkedAt: PAST,
+    referenceIndex: `idx_${id}`,
     state: state as DueSumupCheckout["state"],
     sumupId: id,
   });
@@ -137,6 +143,26 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
     expect((await sumupRecoveryRow("co_moved")).nextCheckAt).toBe(
       "2000-01-05T00:00:00.000Z",
     );
+  });
+
+  test("writes only its own row when two rows share a checkout id", async () => {
+    // The provider reusing an id must not let one row's move write the
+    // other's clock too — the write names the row by its own index.
+    await seedRow("co_twin", "waiting", PAST);
+    await seedRow("co_other", "waiting", PAST);
+    await execute(
+      "UPDATE sumup_checkouts SET sumup_id = 'co_twin' WHERE reference_index = 'idx_co_other'",
+    );
+
+    expect(
+      await applySumupRecoveryEvent(due("co_twin", "waiting"), "read_pending"),
+    ).toBe(true);
+
+    // The twin kept the check time it was read with.
+    const twin = await execute(
+      "SELECT next_check_at FROM sumup_checkouts WHERE reference_index = 'idx_co_other'",
+    );
+    expect(String(twin.rows[0]!.next_check_at)).toBe(PAST);
   });
 
   test("refuses a move the machine does not allow", async () => {

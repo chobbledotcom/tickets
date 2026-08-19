@@ -10,6 +10,7 @@ import {
 } from "#shared/sumup/checkout-resolution.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
@@ -20,19 +21,36 @@ import {
 /* jscpd:ignore-end */
 
 describeWithEnv("sumup checkout resolution", { db: true }, () => {
+  const debug = useDebugLogSpy();
+  /** Ask the way the webhook asks. */
+  const resolve = (id: string) => resolveSumupCheckoutById(id, "Webhook");
+
   test("reads a paid checkout back as a session to settle", async () => {
     const { reference } = await stageSignedSumupCheckout("co_ok");
     await makeSumupCheckoutDue("co_ok");
     const restore = withSumupCheckoutStatus(reference, "PAID", "txn_ok");
     try {
-      const { reading, resolved } = await resolveSumupCheckoutById("co_ok");
+      const { reading, resolved } = await resolve("co_ok");
 
       expect(reading).toBe("PAID");
-      expect(resolved).not.toBe("retry");
-      expect(resolved).not.toBe("skip");
+      expect(isSessionRejection(resolved)).toBe(false);
+      expect(resolved).toMatchObject({
+        id: reference,
+        paymentStatus: "paid",
+        provider: "sumup",
+      });
     } finally {
       restore.restore();
     }
+  });
+
+  test("names the runner that asked in a refusal", async () => {
+    // A recovery check's refusal must not read as a webhook's: which one
+    // was running says whether a customer was waiting on the answer.
+    await resolveSumupCheckoutById("", "SumUp");
+
+    expect(debugLogged(debug, "[SumUp]")).toBe(true);
+    expect(debugLogged(debug, "[Webhook]")).toBe(false);
   });
 
   test("keeps SumUp's own word for a checkout nobody has paid", async () => {
@@ -41,8 +59,7 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
     const { reference } = await stageSignedSumupCheckout("co_pending");
     const restore = withSumupCheckoutStatus(reference, "PENDING", "");
     try {
-      const { reading, resolved } =
-        await resolveSumupCheckoutById("co_pending");
+      const { reading, resolved } = await resolve("co_pending");
 
       expect(reading).toBe("PENDING");
       expect(resolved).toBe("skip");
@@ -55,9 +72,7 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
     const { reference } = await stageSignedSumupCheckout("co_expired");
     const restore = withSumupCheckoutStatus(reference, "EXPIRED", "");
     try {
-      expect((await resolveSumupCheckoutById("co_expired")).reading).toBe(
-        "EXPIRED",
-      );
+      expect((await resolve("co_expired")).reading).toBe("EXPIRED");
     } finally {
       restore.restore();
     }
@@ -72,7 +87,7 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
       }),
     );
     try {
-      expect(await resolveSumupCheckoutById("co_down")).toEqual({
+      expect(await resolve("co_down")).toEqual({
         reading: "unusable",
         resolved: "retry",
       });
@@ -84,7 +99,7 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
   test("refuses an id no staging write could have produced", async () => {
     const fetched = stub(sumupApi, "readCheckoutById");
     try {
-      expect(await resolveSumupCheckoutById("")).toEqual({
+      expect(await resolve("")).toEqual({
         reading: "unusable",
         resolved: "retry",
       });
@@ -98,9 +113,7 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
   test("refuses a checkout this site never staged", async () => {
     const fetched = stub(sumupApi, "readCheckoutById");
     try {
-      expect((await resolveSumupCheckoutById("co_stranger")).reading).toBe(
-        "unusable",
-      );
+      expect((await resolve("co_stranger")).reading).toBe("unusable");
       expect(fetched.calls).toHaveLength(0);
     } finally {
       fetched.restore();
@@ -113,7 +126,7 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
     await stageSignedSumupCheckout("co_wrong_ref");
     const restore = withSumupCheckoutStatus("not-our-reference", "PAID", "txn");
     try {
-      expect(await resolveSumupCheckoutById("co_wrong_ref")).toEqual({
+      expect(await resolve("co_wrong_ref")).toEqual({
         reading: "PAID",
         resolved: "retry",
       });

@@ -26,6 +26,9 @@ import {
  * stays sealed: this is the queue, not the opening of a row. */
 export type DueSumupCheckout = {
   readonly checkedAt: string;
+  /** The row's own index — the primary key, so a write can never name two
+   * rows even if the provider reused a checkout id. */
+  readonly referenceIndex: string;
   readonly state: RecoveryNodeId;
   readonly sumupId: string;
 };
@@ -41,10 +44,11 @@ const CHECKABLE_SLOTS = RECOVERY_CHECKABLE_NODES.map(() => "?").join(", ");
 export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
   const rows = await queryAll<{
     next_check_at: string;
+    reference_index: string;
     recovery_state: string;
     sumup_id: string;
   }>(
-    `SELECT sumup_id, recovery_state, next_check_at
+    `SELECT reference_index, sumup_id, recovery_state, next_check_at
        FROM sumup_checkouts
       WHERE recovery_state IN (${CHECKABLE_SLOTS})
         AND next_check_at IS NOT NULL
@@ -57,6 +61,7 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
   // nothing here could have written into a raised error rather than work.
   return rows.map((row) => ({
     checkedAt: row.next_check_at,
+    referenceIndex: row.reference_index,
     state: recoveryNodeOf({
       recoveryState: parseSumupRecoveryState(row.recovery_state),
       sumupId: row.sumup_id,
@@ -66,8 +71,10 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
 };
 
 /** Move a row to a state and a check time, but only where it is still
- * exactly as it was read: two runners that looked at one row cannot both
- * believe they wrote it — the loser finds no row. */
+ * exactly as it was read: the write names the row by its own index and
+ * matches the state and check time it was read with, so two runners that
+ * looked at one row cannot both believe they wrote it — the loser finds no
+ * row. */
 const moveSumupRecoveryRow = async (
   checkout: DueSumupCheckout,
   recoveryState: RecoveryNodeId,
@@ -76,11 +83,11 @@ const moveSumupRecoveryRow = async (
   const result = await execute(
     `UPDATE sumup_checkouts
         SET recovery_state = ?, next_check_at = ?
-      WHERE sumup_id = ? AND recovery_state = ? AND next_check_at = ?`,
+      WHERE reference_index = ? AND recovery_state = ? AND next_check_at = ?`,
     [
       recoveryState,
       nextCheckAt,
-      checkout.sumupId,
+      checkout.referenceIndex,
       checkout.state,
       checkout.checkedAt,
     ],
