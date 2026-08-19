@@ -180,3 +180,7 @@ src/features/admin/listings-form.ts::extractCommonFields.unitPrice~0fxriin  ?? �
 src/features/admin/listings-form.ts::extractCommonFields.closesAt~1ox85dk  closes_at → ""   # the label only appears in normalizeDatetime's throw, and the field's validateDatetime already refused every value localToUtc would reject
 src/features/admin/listings-form.ts::extractCommonFields.date~1ogjyd0  date → ""   # same: the date field is validated by the same parser before toInput runs, so the throw naming it is unreachable
 src/features/admin/listings-form.ts::listingValidate~19dmftv  ?? → ||   # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
+src/features/admin/listings-edit.ts::handleNewListingGet.templateId~06kqyx5  ?? → ||   # gate.template?.id is a TemplateId or undefined, and every TemplateId is a non-empty string, so the fallback runs on exactly the same input either way
+src/features/admin/listings-edit.ts::chosenTemplateOrPicker.template~09uwhwd  ?? → ||   # Array.find returns a template object or undefined, and objects are always truthy
+src/features/admin/listings-edit.ts::resolveErrorTemplateId~1v3vh1c  ?? → ||   # inferTemplate(...)?.id is a TemplateId or undefined, and every TemplateId is a non-empty string
+src/features/admin/listings-edit.ts::parseListingForm~1h0dnu7   → "mutated"   # the editor lock writes use_defaults, which is only ever read through FormParams.getFlag and the form's own `=== "1"` comparison, so every value other than "1" is off
