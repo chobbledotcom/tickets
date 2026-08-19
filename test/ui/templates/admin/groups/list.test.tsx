@@ -46,6 +46,12 @@ describe("admin groups list template", () => {
     expect(html).not.toContain("Packages guide");
   });
 
+  test("marks the groups list as the section the page belongs to", () => {
+    const html = adminGroupsPage([GROUP], OWNER_SESSION);
+
+    expect(html).toContain('<a class="active" href="/admin/groups">');
+  });
+
   test("renders the empty state without an empty table", () => {
     const html = adminGroupsPage([], OWNER_SESSION, "Group deleted.");
 
