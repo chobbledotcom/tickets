@@ -1,5 +1,29 @@
 # TODO — remaining follow-ups
 
+## Surface unknown SumUp recovery states to the operator (from PR #2109)
+
+A `sumup_checkouts` row whose stored `recovery_state` word the machine does not
+know is never selected by the recovery queue (the queue asks only for the
+declared checkable states), never pruned (pruning names the same known states),
+and never raised — the row just sits. CodeRabbit flagged this on #2109 and asked
+for a raised error in the queue read; that would make one bad row brick the
+whole recovery task (the run selects its batch before any row's word is known,
+so a throw there cancels every check, every cycle — the same head-of-line freeze
+the per-row catch in `recovery-run.ts` exists to prevent), which is why the
+queue stays quiet and the row is kept for a person to find.
+
+The deliberate design: the reader (`parseSumupRecoveryState`) raises loudly the
+moment such a row is ever selected, and surfacing stored impossible states to an
+operator is the schema atlas "live check" job
+(`src/shared/db/joint-state-scan.ts` is the pattern — a bounded scan that
+reports hits rather than acting on them). The live check does not yet know about
+recovery states. Starting point: add a scan query for `recovery_state NOT IN`
+the machine's own vocabulary, keyed by the `SumupRecoveryStateSchema` options so
+a new state word must teach the scan, and show hits on `/admin/schema`'s live
+check alongside the payment machines' illegal combinations.
+
+---
+
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
 when the public site is off). It builds the menu with `publicNavProps(null)`
 (`renderCtx` in `src/features/public/ticket-submit.ts`), which takes

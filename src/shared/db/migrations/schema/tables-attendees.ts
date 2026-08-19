@@ -289,11 +289,22 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["metadata", "TEXT NOT NULL"],
         ["sumup_id", "TEXT NOT NULL DEFAULT ''"],
         ["created_at", "TEXT NOT NULL"],
+        // What happened to this checkout, and when to ask SumUp again. The
+        // words and the moves between them are declared in
+        // shared/payment/sumup-recovery-machine-spec.ts; a NULL check time
+        // means nothing will ask again, which is true of a row that has no
+        // checkout id yet and of one that reached a definitive answer.
+        ["recovery_state", "TEXT NOT NULL DEFAULT 'staged'"],
+        ["next_check_at", "TEXT"],
       ],
       indexes: [
         {
           columns: ["sumup_id"],
           name: "idx_sumup_checkouts_sumup_id",
+        },
+        {
+          columns: ["recovery_state", "next_check_at"],
+          name: "idx_sumup_checkouts_next_check",
         },
       ],
     },

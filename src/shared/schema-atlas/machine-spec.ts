@@ -171,15 +171,16 @@ export const atlasStatesFromSpec = <
   State,
   NodeId extends string,
   EventId extends string,
+  Node extends MachineNode<State, NodeId>,
 >(
   machine: {
     readonly events: readonly MachineEvent<State, EventId>[];
     readonly nodeOf: (state: State) => NodeId;
-    readonly nodes: readonly MachineNode<State, NodeId>[];
+    readonly nodes: readonly Node[];
   },
   stateKeyPrefix: string,
   layouts: MachineLayouts<NodeId>,
-  extraOf: (node: MachineNode<State, NodeId>) => AtlasStateExtras,
+  extraOf: (node: Node) => AtlasStateExtras,
 ): AtlasState[] =>
   machine.nodes.map((node) =>
     atlasState(
