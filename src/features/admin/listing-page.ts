@@ -26,9 +26,9 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
-import { type AuthSession, requireContentOr } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
@@ -182,9 +182,7 @@ const ownerFeatureWriteTab = (
 export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   banner: ({ listing }) =>
     Promise.resolve(ListingDeactivatedBanner({ active: listing.active })),
-  basePath: (id) => adminPath("listing", { id }),
-  // Content editors can edit listings, manage their images, and use safe actions.
-  guard: requireContentOr,
+  destination: "listing",
   load: (id) => loadListingForPage(id),
   // A single listing is a page *within* the Listings section — highlight the
   // top link, no "Add"/"Import" sub-nav. (This previously pointed at the Home

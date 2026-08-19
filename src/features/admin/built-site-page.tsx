@@ -8,8 +8,7 @@ import {
   panelTab,
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
@@ -25,8 +24,6 @@ import {
 import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 
 /* jscpd:ignore-end */
-
-const basePath = (id: number): string => adminPath("builtSite", { id });
 
 const renewalTab = panelTab<BuiltSite>(
   "renewal",
@@ -62,14 +59,13 @@ const maintenanceTab = panelTab<BuiltSite>(
 );
 
 export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
-  basePath,
   deleteLabelKey: "built_sites.delete_this_site",
+  destination: "builtSite",
   edit: (site, _ctx, rejected) =>
     Promise.resolve(
       <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,
     ),
   extraTabs: [renewalTab, maintenanceTab, secretsTab, updateTab],
-  guard: requireOwnerOr,
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
   load: (id) => builtSitesCrudTable.read.one({ id }),
   navActive: adminPattern("builtSites"),

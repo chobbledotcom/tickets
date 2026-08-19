@@ -16,7 +16,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import {
-  createOwnerCrudHandlers,
+  createCrudHandlers,
   operationResponse,
 } from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
@@ -82,10 +82,10 @@ const logisticsAgentEditResource = defineNamedResource({
   },
 });
 
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (agent) => agent.name,
-  listPath: adminPattern("logistics"),
+  list: "logistics",
   operations: logisticsAgentsResource,
   renderDelete: logisticsAgentPages.deletePage,
   renderList: adminLogisticsPage,

@@ -24,7 +24,7 @@ import { idRouteFor, ownerFormById } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
@@ -246,8 +246,7 @@ const userActionsTab: TabDef<DisplayUser> = {
 
 /** The owner-only user management and agent-assignment page. */
 const userPage: EntityPage<DisplayUser> = defineEntityPage({
-  basePath: (id) => adminPath("user", { id }),
-  guard: requireOwnerOr,
+  destination: "user",
   load: (id) => loadDisplayUser(id),
   navActive: { section: adminPattern("users") },
   tabs: [

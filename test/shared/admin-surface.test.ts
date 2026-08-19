@@ -5,6 +5,7 @@ import {
   ADMIN_SURFACE,
   adminDestination,
   adminDestinationAllowed,
+  adminDestinationAt,
   adminPath,
   adminPattern,
 } from "#shared/admin-surface.ts";
@@ -21,6 +22,20 @@ describe("the pattern a route declares", () => {
       )
       .map(([id]) => id);
     expect(wrong).toEqual([]);
+  });
+
+  test("says which id was never declared", () => {
+    // Reached only past the types, which is how a page definition naming a
+    // route that does not exist shows itself.
+    expect(() => adminPattern("nowhere" as AdminDestinationId)).toThrow(
+      'No admin route is declared as "nowhere"',
+    );
+  });
+
+  test("says which path has no route", () => {
+    expect(() => adminDestinationAt("/admin/nowhere")).toThrow(
+      'No admin route is declared at "/admin/nowhere"',
+    );
   });
 
   test("keeps the parameters the route takes", () => {

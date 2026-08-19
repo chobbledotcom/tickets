@@ -10,10 +10,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
 
 import { compact } from "#fp";
 import { t } from "#i18n";
-import {
-  createContentCrudHandlers,
-  createCrudHandlers,
-} from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
@@ -271,7 +268,7 @@ const crudConfig = {
   getName: (g: Group) => g.name,
   getRowPath: (g: Group, session: AdminSession) =>
     entityReturnPath("/admin/groups", session.adminLevel, g.id),
-  listPath: adminPattern("groups"),
+  list: "groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
@@ -320,18 +317,15 @@ const groupsResource = defineNamedResource({
   toInput: extractGroupEditInput,
 });
 
-// Editors may create/edit groups, so list/new/create/edit use content-gated
-// handlers; group deletion is destructive and stays staff-only, so its routes
-// come from a staff CRUD below.
-const contentCreate = createContentCrudHandlers({
+// The two bundles differ only in which resource writes the row: creating a
+// group generates its slug, editing one does not. Each route takes its own
+// roles from its declaration, so editors reach the create and edit routes
+// while the destructive delete stays staff-only, from one bundle.
+const create = createCrudHandlers({
   ...crudConfig,
   operations: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
-const content = createContentCrudHandlers({
-  ...crudConfig,
-  operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
-});
-const staffCrud = createCrudHandlers({
+const crud = createCrudHandlers({
   ...crudConfig,
   operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
@@ -409,7 +403,7 @@ const groupImageHandlers = createItemImageHandlers({
 
 /** Group routes */
 export const adminHandlers = defineRoutes({
-  "GET /admin/groups": content.listGet,
+  "GET /admin/groups": crud.listGet,
 
   // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
   // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
@@ -419,13 +413,13 @@ export const adminHandlers = defineRoutes({
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
   ...entityTabRoutes(adminPattern("group"), groupPage),
-  "GET /admin/groups/:id/delete": staffCrud.deleteGet,
+  "GET /admin/groups/:id/delete": crud.deleteGet,
   // Create uses the auto-generated-slug resource.
-  "GET /admin/groups/new": contentCreate.newGet,
-  "POST /admin/groups": contentCreate.createPost,
+  "GET /admin/groups/new": create.newGet,
+  "POST /admin/groups": create.createPost,
   "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
-  "POST /admin/groups/:id/delete": staffCrud.deletePost,
-  "POST /admin/groups/:id/edit": content.editPost,
+  "POST /admin/groups/:id/delete": crud.deletePost,
+  "POST /admin/groups/:id/edit": crud.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
 });

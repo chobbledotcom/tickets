@@ -12,7 +12,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 /* jscpd:ignore-start */
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { OWNER_FORM } from "#routes/auth.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import {
@@ -99,14 +99,14 @@ const statusOperations: NamedOperations<AttendeeStatus> = {
       : saveStatus(id, form),
 };
 
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   activityName: "Attendee status",
   getAll: attendeeStatuses.getAll,
   getCreatePath: () => LIST_PATH,
   getName: (status) => status.name,
   getRowPath: (status) => attendeeStatusPage.path(status.id),
   identifierLabel: "Name",
-  listPath: LIST_PATH,
+  list: "statuses",
   operations: statusOperations,
   renderDelete: statusPages.deletePage,
   renderEditError: attendeeStatusPage.renderEditError,

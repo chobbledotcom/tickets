@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import {
@@ -39,10 +39,10 @@ const crudFor = (
     identifierLabel?: string;
   } = {},
 ) =>
-  createOwnerCrudHandlers({
+  createCrudHandlers({
     getAll: holidays.getAll,
     getName: (row) => row.name,
-    listPath: "/admin/holidays",
+    list: "holidays",
     operations,
     renderDelete: () => "delete",
     renderEditError: (_id, _session, form, error) =>

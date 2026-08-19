@@ -13,12 +13,12 @@ import {
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -311,8 +311,8 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
-  basePath: (id) => adminPath("modifier", { id }),
   deleteLabelKey: "modifiers.delete.submit",
+  destination: "modifier",
   edit: (modifier, ctx, rejected) =>
     loadModifierEditPanel(
       modifier,
@@ -320,7 +320,6 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
       rejected?.error,
       rejected?.form.toRenderValues(),
     ),
-  guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
   navActive: { section: adminPattern("modifiers") },
@@ -331,7 +330,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
-  listPath: adminPattern("modifiers"),
+  list: "modifiers",
   operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,

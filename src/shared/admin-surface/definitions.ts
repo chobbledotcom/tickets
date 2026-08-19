@@ -81,6 +81,7 @@ const groupDestinations = (
 
 export type FoldedAdminSurface = {
   readonly areas: Readonly<Record<string, readonly string[]>>;
+  readonly byPattern: Readonly<Record<string, AdminDestinationDef>>;
   readonly destinations: Readonly<Record<string, AdminDestinationDef>>;
 };
 
@@ -90,6 +91,7 @@ export type FoldedAdminSurface = {
  */
 export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
   const areas: Record<string, readonly string[]> = {};
+  const byPattern: Record<string, AdminDestinationDef> = {};
   const destinations: Record<string, AdminDestinationDef> = {};
 
   for (const [areaId, area] of Object.entries(spec)) {
@@ -112,7 +114,17 @@ export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
             `"${claimed.area}" and "${destination.area}"`,
         );
       }
+      // Two ids at one path would give the page two audiences, and the gate
+      // looked up by path would take whichever was declared second.
+      const sharing = byPattern[destination.pattern];
+      if (sharing) {
+        throw new Error(
+          `Admin path "${destination.pattern}" is declared by both ` +
+            `"${sharing.id}" and "${destination.id}"`,
+        );
+      }
       destinations[destination.id] = destination;
+      byPattern[destination.pattern] = destination;
     }
     areas[areaId] = [
       ...new Set([
@@ -122,5 +134,5 @@ export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
     ];
   }
 
-  return { areas, destinations };
+  return { areas, byPattern, destinations };
 };

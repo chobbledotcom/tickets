@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
@@ -53,11 +53,11 @@ const holidaysResource = wrapResourceForDemo(
   HOLIDAY_DEMO_FIELDS,
 );
 
-export const holidaysCrud = createOwnerCrudHandlers({
+export const holidaysCrud = createCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   getRowPath: (holiday) => holidayPage.path(holiday.id),
-  listPath: adminPattern("holidays"),
+  list: "holidays",
   operations: holidaysResource,
   renderDelete: (...args) => getHolidayPages().deletePage(...args),
   renderEditError: holidayPage.renderEditError,

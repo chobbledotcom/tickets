@@ -8,7 +8,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 /* jscpd:ignore-start */
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
@@ -97,11 +97,11 @@ const builtSitesResource = defineNamedResource({
   toInput: extractBuiltSiteInput,
 });
 
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   getAll: builtSites.getAll,
   getName: (s) => s.name,
   getRowPath: (site) => builtSitePage.path(site.id),
-  listPath: adminPattern("builtSites"),
+  list: "builtSites",
   operations: builtSitesResource,
   renderDelete: adminBuiltSiteDeletePage,
   renderEditError: builtSitePage.renderEditError,

@@ -15,11 +15,13 @@
  * form stash surviving to the follow-up GET. Successes redirect as usual.
  */
 
-import type { AuthSession, SessionGuard } from "#routes/auth.ts";
+import { type AuthSession, recordPageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import { adminDestination, adminRecordPath } from "#shared/admin-surface.ts";
 import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import {
   resolveTabSlug,
@@ -137,10 +139,10 @@ export interface TabDef<E> extends AdminGatedItem<E> {
 export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Always-visible region above the tab strip (alerts, notes, status). */
   banner?: SlotLoader<E>;
-  /** Concrete base URL for an id — URL minting only, never a route pattern. */
-  basePath: (id: Id) => string;
-  /** The GET auth floor — the weakest role that may see any tab. */
-  guard: SessionGuard<AuthSession>;
+  /** The route this page serves. Its declaration gives the page both its URLs
+   * and its GET auth floor — the weakest role that may see any tab — so
+   * neither is written here a second time. */
+  destination: AdminDestinationId;
   /** A guide link rendered at the very bottom of the body via `GuideFooter`,
    *  matching every other admin page (e.g. the Site content editors). */
   guideFooter?: SlotLoader<E>;
@@ -293,7 +295,9 @@ const loadPageSections = async <E>(
 export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
 ): EntityPage<E, Id> => {
-  const path = (id: Id, slug = ""): string => tabPath(def.basePath(id), slug);
+  const basePath = (id: Id): string => adminRecordPath(def.destination, id);
+  const guard = recordPageGuardFor(adminDestination(def.destination));
+  const path = (id: Id, slug = ""): string => tabPath(basePath(id), slug);
 
   const renderPage = async (
     session: AuthSession,
@@ -331,7 +335,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
         proseExtra,
         sections,
         session,
-        tabs: tabLinks(tab.states, def.basePath(id), tab.activeSlug),
+        tabs: tabLinks(tab.states, basePath(id), tab.activeSlug),
         title: def.titleOf(entity),
       }),
       opts.status ?? 200,
@@ -343,7 +347,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     id: Id,
     requestedTab: string,
   ): Promise<Response> =>
-    def.guard(request, (session) => {
+    guard(request, (session) => {
       applyFlash(request);
       return renderPage(session, id, requestedTab, {
         baseUrl: getBaseUrl(request),

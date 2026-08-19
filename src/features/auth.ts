@@ -10,6 +10,8 @@ import { lowerContentType } from "#routes/middleware.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
+import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
+import { adminPageAudience } from "#shared/admin-surface.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
@@ -413,6 +415,45 @@ export const requireSiteOr = requireRolesOr(SITE_ADMIN_LEVELS);
 /** Require a delivery-run-sheet session (staff or agent, NOT editor) — 403
  * outside {@link DELIVERY_ADMIN_LEVELS}. */
 export const requireDeliveryOr = requireRolesOr(DELIVERY_ADMIN_LEVELS);
+
+/**
+ * The gates below take the roles they admit from the route the handler serves,
+ * so the role is written once — in `admin-surface/areas.ts` — instead of once
+ * there and again beside the handler. `test/integration/admin-role-matrix.test.ts`
+ * asks every page as every role and proves the two still agree.
+ */
+
+/** A GET page's gate, admitting exactly the roles its route declares. */
+export const pageGuardFor = (
+  route: AdminDestinationDef,
+): SessionGuard<AuthSession> => requireRolesOr(route.audience);
+
+/** One record page's gate: every role that can reach any route beneath it.
+ * A tab open to a wider role sits under this same path and needs to get in;
+ * the tab's own `visible` is what keeps the narrower tabs shut. */
+export const recordPageGuardFor = (
+  route: AdminDestinationDef,
+): SessionGuard<AuthSession> => requireRolesOr(adminPageAudience(route));
+
+/** A form POST's policy, admitting exactly the roles its route declares. */
+export const formPolicyFor = (
+  route: AdminDestinationDef,
+): AuthPolicy<"form"> => ({ body: "form", roles: route.audience });
+
+/** A file-upload POST's policy, from the roles its route declares. */
+export const multipartPolicyFor = (
+  route: AdminDestinationDef,
+): AuthPolicy<"multipart"> => ({ body: "multipart", roles: route.audience });
+
+/** A JSON API policy, from the roles its route declares. Keeps the API and
+ * the dashboard answering the same question about who may act. */
+export const apiPolicyFor = (
+  route: AdminDestinationDef,
+): AuthPolicy<"json"> => ({
+  allowApiKey: true,
+  body: "json",
+  roles: route.audience,
+});
 
 /** A gate a route runs before its handler: it authenticates/loads whatever
  * the handler needs, then calls it with that data — or answers the request
