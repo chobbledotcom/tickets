@@ -2,11 +2,13 @@
  * Ticket view page template - displays attendee ticket information with QR code
  */
 
+/* jscpd:ignore-start -- imports */
 import type { PackageDisplay } from "#db/groups.ts";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
+/* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
 import {
   bookedRangeLabel,

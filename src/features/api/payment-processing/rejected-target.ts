@@ -21,6 +21,7 @@ import {
   reserveSession,
 } from "#db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
+/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import {
   type PlaceholderRefund,
@@ -28,6 +29,7 @@ import {
 } from "#payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
+/* jscpd:ignore-end */
 import {
   type MalformedRejection,
   rejectedChargeReference,

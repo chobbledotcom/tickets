@@ -1,4 +1,3 @@
-/* jscpd:ignore-end */
 import { logActivity } from "#db/activity-log.ts";
 import {
   createConfirmedHandlers,
@@ -18,7 +17,6 @@ import {
   type SessionGuard,
   withAuth,
 } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { getFlash } from "#shared/flash-context.ts";

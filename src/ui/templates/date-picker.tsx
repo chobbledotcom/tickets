@@ -9,10 +9,12 @@
  * so it works equally for bookings, availability, or any other rule.
  */
 
+/* jscpd:ignore-start -- imports */
 import { compact, map } from "#fp";
 import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
+  /* jscpd:ignore-end */
   calendarGridDates,
   formatMonthLabel,
   monthsAround,

@@ -12,6 +12,7 @@ import { logActivity } from "#db/activity-log.ts";
 import {
   type PreparedRefundAuthority,
   prepareRefundAuthority,
+  /* jscpd:ignore-start -- imports */
 } from "#db/provider-refund-authority.ts";
 import {
   type PlaceholderRefund,
@@ -19,6 +20,7 @@ import {
 } from "#payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
+/* jscpd:ignore-end */
 import {
   paidPaymentReferenceOf,
   rejectedChargeReference,

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { getDb } from "#db/client.ts";
 import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+/* jscpd:ignore-start -- imports */
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
   enableQueryLog,
@@ -17,6 +18,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+/* jscpd:ignore-end */
 import type { ListingWithCount } from "#types";
 
 /** Fetch the listing-with-count row the helper accepts as input. */

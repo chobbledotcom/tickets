@@ -3,6 +3,8 @@
  * alias table, so the IO shell in `run.ts` only has to find the files.
  */
 
+import { byLine } from "#scripts/check-report.ts";
+
 /** One `#` alias from the import map. A name ending in `/` covers a folder. */
 export interface Alias {
   name: string;
@@ -173,7 +175,7 @@ export const findImportIssues = (
   return [
     ...findSplitImports(imports),
     ...findLongSpellings(aliases, imports),
-  ].sort((left, right) => left.line - right.line);
+  ].sort(byLine);
 };
 
 export const formatIssue = (file: string, issue: ImportIssue): string =>

@@ -4,10 +4,12 @@
 
 import type { ActiveListingStats } from "#db/attendee-types.ts";
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
+/* jscpd:ignore-start -- imports */
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
+/* jscpd:ignore-end */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";

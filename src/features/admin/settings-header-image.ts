@@ -3,10 +3,12 @@
  * header image. Owner-only access enforced via settingsRoute / OWNER_MULTIPART.
  */
 
+/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
+/* jscpd:ignore-end */
 import { OWNER_MULTIPART, withAuth } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";

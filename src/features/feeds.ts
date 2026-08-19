@@ -4,6 +4,7 @@
  */
 
 import { decryptAttendees } from "#db/attendees/pii.ts";
+/* jscpd:ignore-start -- imports */
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
@@ -11,6 +12,7 @@ import {
   getLogisticsAssignmentsForAttendees,
 } from "#db/logistics.ts";
 import { getNewsPostSummaries } from "#db/news-posts.ts";
+/* jscpd:ignore-end */
 import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 import { identity, map, mapById, pipe } from "#fp";

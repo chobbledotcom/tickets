@@ -4,9 +4,11 @@
 
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
+/* jscpd:ignore-start -- imports */
 import { lazyRef } from "#fp";
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
+/* jscpd:ignore-end */
 import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";

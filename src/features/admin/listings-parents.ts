@@ -3,7 +3,6 @@
  * section on the listing edit page + its save endpoint).
  */
 
-/* jscpd:ignore-end */
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups.ts";
@@ -27,7 +26,6 @@ import {
 } from "#db/modifier-resolve.ts";
 import { groupToMap, mapNotNullish, unique } from "#fp";
 import { t } from "#i18n";
-/* jscpd:ignore-start */
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";

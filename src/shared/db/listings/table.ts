@@ -1,9 +1,11 @@
 /** Listing table schema and stored-value transforms. */
 
+/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
+  /* jscpd:ignore-end */
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#db/common-schema.ts";

@@ -2,10 +2,12 @@
  * Admin calendar view template - shows attendees across all daily listings by date
  */
 
+/* jscpd:ignore-start -- imports */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
+/* jscpd:ignore-end */
 import { formatDateLabel } from "#shared/dates.ts";
 import {
   type AgentFilter,

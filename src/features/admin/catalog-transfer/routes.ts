@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
@@ -11,6 +12,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { t } from "#i18n";
+/* jscpd:ignore-end */
 import {
   type AuthSession,
   contentMultipartRoute,

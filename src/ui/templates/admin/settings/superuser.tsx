@@ -1,8 +1,10 @@
 import { t } from "#i18n";
+/* jscpd:ignore-start -- imports */
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { SuperuserState } from "#shared/superuser.ts";
+/* jscpd:ignore-end */
 import { SaveButton } from "#templates/components/actions.tsx";
 import type { SuperuserChoice } from "#types";
 

@@ -1,8 +1,10 @@
+/* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
+/* jscpd:ignore-end */
 import { renewalUrlFor } from "#shared/site-assignment.ts";
 import {
   hostInfraSecretNames,

@@ -12,6 +12,7 @@ import {
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
   getDailyListingAttendeesByDate,
+  /* jscpd:ignore-start -- imports */
 } from "#db/listings/attendees.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
@@ -19,6 +20,7 @@ import {
   getLogisticsAssignmentsForAttendees,
 } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+/* jscpd:ignore-end */
 import { loadAttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */

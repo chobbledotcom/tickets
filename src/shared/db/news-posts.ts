@@ -9,10 +9,12 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
+/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
+/* jscpd:ignore-end */
 import {
   executeBatch,
   insertedRowId,
@@ -22,7 +24,6 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-// jscpd:ignore-end
 import { encryptedSlugSchema, idAndCreatedSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
@@ -40,7 +41,6 @@ import {
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { col } from "#db/table.ts";
-// jscpd:ignore-start
 import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";

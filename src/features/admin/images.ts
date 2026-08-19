@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
@@ -6,6 +7,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { groups } from "#db/groups.ts";
+/* jscpd:ignore-end */
 import {
   deleteImageRecord,
   getAllImages,

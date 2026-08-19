@@ -1,4 +1,3 @@
-/* jscpd:ignore-end */
 import { getHiddenPackageMemberIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { clearSessionTokens } from "#db/processed-payments.ts";
@@ -12,7 +11,6 @@ import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
-/* jscpd:ignore-start — coincidental import order shared with checkin.ts */
 import {
   parseTokens,
   verifyTokensWithRealLine,

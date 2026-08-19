@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+/* jscpd:ignore-start -- imports */
 import { checkListingAvailability as hasAvailableSpots } from "#db/attendees/capacity/checks.ts";
 import {
   enableQueryLog,
@@ -14,6 +15,8 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+
+/* jscpd:ignore-end */
 
 const createCappedListingWithJohn = async () => {
   const listing = await createTestListing({ maxAttendees: 2 });

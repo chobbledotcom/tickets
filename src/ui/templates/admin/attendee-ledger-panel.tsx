@@ -10,10 +10,12 @@
  */
 
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+/* jscpd:ignore-start -- imports */
 import type { OrderSummary } from "#db/attendees/balance.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import {
+  /* jscpd:ignore-end */
   type AccountLedgerData,
   AccountStatementSection,
 } from "#templates/admin/ledger/statement.tsx";

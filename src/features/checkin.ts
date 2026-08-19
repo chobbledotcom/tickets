@@ -8,10 +8,12 @@ import { updateCheckedIn } from "#db/attendees/update.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
 import {
   getAgentRunSheetBookings,
+  /* jscpd:ignore-start -- imports */
   runSheetBookingKey,
 } from "#db/logistics-run-sheet.ts";
 import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
+/* jscpd:ignore-end */
 /* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import {

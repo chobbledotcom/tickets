@@ -36,3 +36,7 @@ export const collectFiles = async (
   }
   return files.sort();
 };
+
+/** Every TypeScript file beneath `directory`, sorted. */
+export const collectSourceFiles = (directory: string): Promise<string[]> =>
+  collectFiles(directory, (path) => /\.tsx?$/.test(path));

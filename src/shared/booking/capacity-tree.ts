@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { type TicketListing, ticketsThatFitInPool } from "#booking/model.ts";
 import {
   type BookingNode,
@@ -5,6 +6,7 @@ import {
   nodeFixedQuantity,
 } from "#booking/tree.ts";
 import { sumByKey } from "#fp";
+/* jscpd:ignore-end */
 
 /**
  * Computes package limits from the booking tree.

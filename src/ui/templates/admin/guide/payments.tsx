@@ -3,12 +3,14 @@
  */
 
 import { t } from "#i18n";
+/* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
 import {
   custom,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+/* jscpd:ignore-end */
 import { MAX_DURATION_DAYS } from "#types";
 
 export const paymentsSections = (): GuideSection[] => [

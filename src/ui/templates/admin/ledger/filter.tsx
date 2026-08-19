@@ -1,8 +1,10 @@
 import * as v from "valibot";
+/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
+  /* jscpd:ignore-end */
   ALL_LEDGER_SCOPE,
   type LedgerScope,
   type LedgerScopeOption,

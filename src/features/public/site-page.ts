@@ -11,16 +11,16 @@
 
 import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
-// jscpd:ignore-end
 import {
   computeSitePageSlugIndex,
   getSitePageBySlugIndex,
+  /* jscpd:ignore-start -- imports */
 } from "#db/site-pages.ts";
-// jscpd:ignore-start
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
+/* jscpd:ignore-end */
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import { publicNavProps } from "./site-nav.ts";

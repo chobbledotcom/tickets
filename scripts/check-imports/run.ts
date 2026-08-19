@@ -6,7 +6,7 @@
 import * as v from "valibot";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
-import { collectFiles } from "#scripts/walk-files.ts";
+import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { type Alias, findImportIssues, formatIssue } from "./rules.ts";
 
 /** The trees whose imports resolve through the root `deno.json` alias table. */
@@ -45,7 +45,7 @@ export const runImportCheck = async (
   }
   const found: string[] = [];
   for (const root of roots) {
-    const files = await collectFiles(root, (path) => /\.tsx?$/.test(path));
+    const files = await collectSourceFiles(root);
     for (const file of files) {
       const content = await Deno.readTextFile(file);
       for (const issue of findImportIssues(content, aliases)) {

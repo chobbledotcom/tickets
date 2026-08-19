@@ -4,10 +4,12 @@
  * enforced via the settings-helpers route wrappers.
  */
 
+/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
+  /* jscpd:ignore-end */
   deleteStorageAndResetDatabase,
   demoResetForm,
 } from "#routes/admin/database-reset.ts";

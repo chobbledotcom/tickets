@@ -7,10 +7,12 @@ import type {
   AnswerAggregateField,
   AnswerAggregateRecalculation,
 } from "#db/questions/aggregates.ts";
+/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
+  /* jscpd:ignore-end */
   answerTextForm,
   questionTextForm,
 } from "#routes/admin/questions/forms.ts";

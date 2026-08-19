@@ -6,10 +6,12 @@
  * and both get the sort bar — all linking through the setup's own base path.
  */
 
+/* jscpd:ignore-start -- imports */
 import { map, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
+  /* jscpd:ignore-end */
   ATTENDEE_CHECKIN_CHOICES,
   type AttendeeListSetup,
   type AttendeeListState,

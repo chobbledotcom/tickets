@@ -8,7 +8,6 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-/* jscpd:ignore-end */
 import { updateAttendeePII } from "#db/attendees/update.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
 import { t } from "#i18n";
@@ -33,7 +32,6 @@ import {
 } from "#routes/admin/attendee-page-data.ts";
 import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
 import type { AuthSession } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
