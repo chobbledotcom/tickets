@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { CONFIG_KEYS } from "#db/settings.ts";
 import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
-import { CONFIG_KEYS } from "#shared/db/settings.ts";
 
 describe("settings bundles", () => {
   test("extracts the first path segment without its leading slash", () => {

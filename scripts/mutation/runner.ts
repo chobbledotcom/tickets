@@ -21,7 +21,7 @@ import {
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
-import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
 import {
   createStaticGates,

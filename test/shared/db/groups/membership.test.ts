@@ -5,9 +5,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { withTransaction, writeRowInTransaction } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import { withTransaction, writeRowInTransaction } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -15,10 +14,11 @@ import {
   setGroupPackageMembers,
   setListingGroups,
   setListingGroupsTx,
-} from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+} from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
+import { t } from "#i18n";
 import {
   generateUniqueListingSlug,
   validateListingInput,

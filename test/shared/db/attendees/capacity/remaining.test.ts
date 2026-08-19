@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
-import { getDb } from "#shared/db/client.ts";
-import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
+import { getDb } from "#db/client.ts";
+import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+/* jscpd:ignore-start -- imports */
+import { getListingWithCount } from "#db/listings/records.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -18,6 +18,8 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+/* jscpd:ignore-end */
+import type { ListingWithCount } from "#types";
 
 /** Fetch the listing-with-count row the helper accepts as input. */
 const row = async (id: number): Promise<ListingWithCount> =>

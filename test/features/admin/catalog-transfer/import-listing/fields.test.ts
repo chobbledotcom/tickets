@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

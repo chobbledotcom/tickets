@@ -1,10 +1,10 @@
+import { enabledFeaturesAreValidSql } from "#db/admin-feature-sql.ts";
 import {
   type AdminFeatureKey,
   parseEnabledFeatures,
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
-import { enabledFeaturesAreValidSql } from "#shared/db/admin-feature-sql.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import type { Trigger } from "./types.ts";
 

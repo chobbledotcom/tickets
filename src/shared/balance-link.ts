@@ -9,7 +9,7 @@
  * Format: bal1.{payloadB64url}.{hmacB64url}  ·  HMAC input: "balance:{payload}"
  */
 
-import { defineSignedToken } from "#shared/crypto/define-signed-token.ts";
+import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { expiresIn } from "#shared/now.ts";
 
 /** Balance links last 90 days — long enough to be a "pay when you can" link. */

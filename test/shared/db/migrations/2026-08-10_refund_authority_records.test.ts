@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import refundAuthorityRecords from "#shared/db/migrations/2026-08-10_refund_authority_records.ts";
-import {
-  applySchemaChanges,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import refundAuthorityRecords from "#db/migrations/2026-08-10_refund_authority_records.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

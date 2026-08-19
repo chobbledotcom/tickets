@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import {
-  type BuildTreeInput,
-  buildBookingTree,
-} from "#shared/booking/build-tree.ts";
+import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
 import {
   childSelectableForSpan,
   type FoldBase,
@@ -12,16 +8,14 @@ import {
   foldChild,
   resolveChildSelections,
   resolvedByNodeKey,
-} from "#shared/booking/fold-tree.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+} from "#booking/fold-tree.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import { t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
-import type { Holiday, ListingWithCount } from "#shared/types.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
+import type { Holiday, ListingWithCount } from "#types";
 
 /** A cart line resolved against availability (the shape the fold reads). */
 const tl = (

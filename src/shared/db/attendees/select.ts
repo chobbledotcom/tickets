@@ -5,22 +5,18 @@
  */
 
 /* jscpd:ignore-start */
-import { ATTENDEE, REVENUE } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   accountPredicate,
   attendeeOwedSubquery,
   saleLegPredicate,
-} from "#shared/accounting/projection-sql.ts";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
-import { defineReader } from "#shared/db/read.ts";
-import {
-  inList,
-  inSubquery,
-  type WhereClause,
-} from "#shared/db/where-clauses.ts";
-import type { Attendee } from "#shared/types.ts";
+} from "#accounting/projection-sql.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import type { SqlStatement } from "#db/client.ts";
+import { defineReader } from "#db/read.ts";
+import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
+import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
 /**

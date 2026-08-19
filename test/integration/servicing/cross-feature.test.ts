@@ -65,7 +65,7 @@ describeWithEnv(
       const { id } = await createServicingHold({
         listing: { maxAttendees: 10, name: "Modifier L", unitPrice: 1000 },
       });
-      const { allTransfers } = await import("#shared/accounting/queries.ts");
+      const { allTransfers } = await import("#accounting/queries.ts");
       const kinds = (await allTransfers()).map((t) => t.kind);
       expect(kinds).not.toContain("modifier");
       expect(id).toBeGreaterThan(0);
@@ -83,7 +83,7 @@ describeWithEnv(
       });
       expect(id).toBeGreaterThan(0);
       // No built_sites row should have been created for the servicing event.
-      const { queryOne } = await import("#shared/db/client.ts");
+      const { queryOne } = await import("#db/client.ts");
       const sites = await queryOne<{ count: number }>(
         "SELECT COUNT(*) AS count FROM built_sites WHERE assigned_attendee_id = ?",
         [id],

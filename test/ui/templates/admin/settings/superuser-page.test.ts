@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { adminSettingsPage } from "#templates/admin/settings.tsx";
+import {
+  adminSettingsPage,
+  type SettingsPageState,
+} from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import {
   OWNER_SESSION,

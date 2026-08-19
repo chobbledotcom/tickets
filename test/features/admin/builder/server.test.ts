@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { builtSites } from "#db/built-sites.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { builderForm } from "#routes/admin/builder.ts";
 import { builderApi } from "#shared/builder.ts";
-import { builtSites } from "#shared/db/built-sites.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import {
   MOCK_DB_RESULT,
   stubBuildSiteApis,

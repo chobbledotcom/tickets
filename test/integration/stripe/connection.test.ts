@@ -8,16 +8,16 @@ import {
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import {
   noWebhooks,
   okBalance,
   signedWebhook,
   stripeClient,
   withBalanceAndList,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   /** Stub `balance.retrieve` to fail with `error`, then run `body`. */

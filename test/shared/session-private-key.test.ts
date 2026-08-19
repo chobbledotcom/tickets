@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-} from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { getDb } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { getDb } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import {
   getRequestPrivateKey,
   getSessionPrivateKey,

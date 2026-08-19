@@ -7,10 +7,10 @@ import {
   queryOne,
   resultRows,
   type SqlStatement,
-} from "#shared/db/client.ts";
-import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
-import { type Money, sameMoney } from "#shared/payment/money.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/client.ts";
+import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { type Money, sameMoney } from "#payment/money.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   type RefundAuthorityState,
   readRefundAuthorityState,
@@ -18,10 +18,10 @@ import {
   refundNextActionAt,
   refundStateMirror,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-authority-state.ts";
+import { REFUND_PROVIDER_CAPABILITIES } from "#payment/refund-provider-authorization.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 /* jscpd:ignore-end */
 
 export type RefundAuthorityRow = {

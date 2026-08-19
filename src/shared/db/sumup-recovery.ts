@@ -9,9 +9,7 @@
  * SQL that carries it out.
  */
 
-import { execute, queryAll } from "#shared/db/client.ts";
-import { SUMUP_RECHECK_MS, SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
-import { isoAfter, nowIso } from "#shared/now.ts";
+import { execute, queryAll } from "#db/client.ts";
 import {
   parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,
@@ -20,7 +18,9 @@ import {
   type RecoveryNodeId,
   recoveryMoveTo,
   recoveryNodeOf,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
+import { SUMUP_RECHECK_MS, SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
+import { isoAfter, nowIso } from "#shared/now.ts";
 
 /** One checkout the recovery task is about to ask SumUp about. The metadata
  * stays sealed: this is the queue, not the opening of a row. */

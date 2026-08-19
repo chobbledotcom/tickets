@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { isResourceId } from "#shared/payment/resource-id.ts";
+import { isResourceId } from "#payment/resource-id.ts";
 
 describe("resource id", () => {
   it("accepts a non-empty id with text", () => {

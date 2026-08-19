@@ -1,21 +1,21 @@
 /* jscpd:ignore-start */
-import { fieldById, filter, identity, map, mapById } from "#fp";
-import { t } from "#i18n";
-import type { AuthSession } from "#routes/auth.ts";
-import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
+
 import type {
   ServicingCostRecord,
   ServicingEvent,
   ServicingEventSummary,
-} from "#shared/db/attendees/servicing.ts";
+} from "#db/attendees/servicing.ts";
+import { fieldById, filter, identity, map, mapById } from "#fp";
+import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
+import type { AuthSession } from "#routes/auth.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { isOwnerRole, type ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import {
   ServicingEventEditLink,
@@ -27,6 +27,7 @@ import { PriceInput } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import { isOwnerRole, type ListingWithCount } from "#types";
 import { buildServicingFieldSchema } from "./form-model.ts";
 
 /* jscpd:ignore-end */

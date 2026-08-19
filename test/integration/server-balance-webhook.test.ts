@@ -1,25 +1,22 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { execute } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import { handleRequest } from "#routes";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   createReserved,
   expectSettled,
   stubBalanceSession,
 } from "#test/integration/balance-helpers.ts";
-import { stripeRefundRequestShape } from "#test/test-utils/stripe/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 const stubRefund = (id: string, amount = 1000) => stubRefundPayment(id, amount);

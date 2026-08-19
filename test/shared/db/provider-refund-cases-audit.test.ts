@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activity-log.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { resolveProviderRefundCase } from "#shared/db/provider-refund-case-resolution.ts";
+import { getAllActivityLog } from "#db/activity-log.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { resolveProviderRefundCase } from "#db/provider-refund-case-resolution.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";

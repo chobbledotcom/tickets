@@ -1,5 +1,10 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import {
+  bookingAssignmentKey,
+  type LogisticsAssignment,
+} from "#db/logistics.ts";
 import {
   type CalendarAttendee,
   type CalendarLogisticsCsv,
@@ -9,11 +14,6 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import {
-  bookingAssignmentKey,
-  type LogisticsAssignment,
-} from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 

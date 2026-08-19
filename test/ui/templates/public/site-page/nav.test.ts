@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
-import type { SitePage } from "#shared/types.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import {
   navKey,
   navPage as page,
-} from "#test/test-utils/site-pages/nav-fixtures.ts";
+} from "#test-utils/site-pages/nav-fixtures.ts";
+import type { SitePage } from "#types";
 
 describe("sitePagePage (nav-model race)", () => {
   test("renders without items when the model no longer contains the page", () => {

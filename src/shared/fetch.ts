@@ -7,8 +7,8 @@
  * left open for the Deno runtime to complain about.
  */
 
+import { concatBytes } from "#crypto/utils.ts";
 import { extendedBy } from "#fp";
-import { concatBytes } from "#shared/crypto/utils.ts";
 import { errorResult, type Result } from "#shared/result.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";

@@ -7,13 +7,13 @@
  * can never collide across token types. Payloads are base64url-encoded JSON.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   base64ToBase64Url,
   constantTimeEqual,
   fromBase64Url,
   toBase64Url,
-} from "#shared/crypto/utils.ts";
+} from "#crypto/utils.ts";
 import { nowSeconds } from "#shared/now.ts";
 
 /** Encode a JSON-serializable payload as a base64url string. */

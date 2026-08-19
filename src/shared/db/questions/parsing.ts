@@ -12,7 +12,7 @@ import type {
   ParsedQuestionAnswers,
   QuestionWithAnswers,
   TextAnswer,
-} from "#shared/db/question-types.ts";
+} from "#db/question-types.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 

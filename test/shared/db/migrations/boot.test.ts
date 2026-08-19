@@ -2,8 +2,8 @@ import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import { getDb } from "#db/client.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -11,14 +11,14 @@ import {
   rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+} from "#db/migrations.ts";
+import { runWithQueryLogContext } from "#db/query-log.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { setBuildCommitForTest } from "#shared/update.ts";
 import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {

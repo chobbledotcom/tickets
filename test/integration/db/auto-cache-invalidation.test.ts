@@ -1,16 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import {
   incrementAttachmentDownloads,
   updateCheckedIn,
-} from "#shared/db/attendees/update.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-} from "#shared/db/listings/records.ts";
+} from "#db/attendees/update.ts";
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

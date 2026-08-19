@@ -1,10 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { getDb } from "#shared/db/client.ts";
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtml,
@@ -14,6 +12,8 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {

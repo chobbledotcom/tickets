@@ -3,9 +3,9 @@
  * spare, and a two-listing pair so a filter has something to drop.
  */
 
-import type { ListingWithCount } from "#shared/types.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { ListingWithCount } from "#types";
 
 export const makeListing = (
   name: string,

@@ -13,9 +13,9 @@
  * validated before it is stored, so the calculation path can assume it parses.
  */
 
+import { settings } from "#db/settings.ts";
 import { sum, sumOf } from "#fp";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
-import { settings } from "#shared/db/settings.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttributeWithOptions } from "#shared/db/attributes.ts";
+import { getAttributeWithOptions } from "#db/attributes.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

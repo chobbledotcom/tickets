@@ -1,7 +1,7 @@
 import type { ModifierSpec } from "#shared/payments.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
-import type { GroupListing, ListingWithCount } from "#shared/types.ts";
+import type { GroupListing, ListingWithCount } from "#types";
 
 export interface PaidOrderSnapshot {
   childrenByParentId: ReadonlyMap<number, number[]>;

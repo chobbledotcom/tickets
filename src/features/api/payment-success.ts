@@ -1,3 +1,6 @@
+import { getHiddenPackageMemberIds } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { clearSessionTokens } from "#db/processed-payments.ts";
 import { unique } from "#fp";
 import { validatePaidSession } from "#routes/api/payment-processing/classify.ts";
 import {
@@ -8,16 +11,11 @@ import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
-/* jscpd:ignore-start — coincidental import order shared with checkin.ts */
 import {
   parseTokens,
   verifyTokensWithRealLine,
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
-/* jscpd:ignore-end */
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { successPage } from "#templates/payment.tsx";
 

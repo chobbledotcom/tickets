@@ -7,24 +7,24 @@ import {
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
-import { getDb, insert, setDb } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import { MissingSettingsTableError } from "#shared/db/migrations/errors.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
+import { getDb, insert, setDb } from "#db/client.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import { MissingSettingsTableError } from "#db/migrations/errors.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   resetDatabase,
   SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
+} from "#db/migrations.ts";
+import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
-} from "#test/test-utils/db/migration-test-helpers.ts";
-import { insertBrokenImage } from "#test-utils/admin-images.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   appliedMigrationIds,

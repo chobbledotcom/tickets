@@ -5,8 +5,8 @@
  * and currency symbols. Reads the currency code directly from settings.
  */
 
+import { settings } from "#db/settings.ts";
 import { lazyRef } from "#fp";
-import { settings } from "#shared/db/settings.ts";
 
 type CurrencyFormat = {
   code: string;

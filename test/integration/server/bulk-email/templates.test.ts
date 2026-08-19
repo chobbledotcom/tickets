@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { getDb } from "#shared/db/client.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { getDb } from "#db/client.ts";
 import {
   deleteEmailTemplate,
   getAllRawEmailTemplates,
   getRawEmailTemplate,
   insertEmailTemplate,
   updateEmailTemplate,
-} from "#shared/db/email-templates.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/email-templates.ts";
+import { settings } from "#db/settings.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { seedDraft } from "#test/integration/server/bulk-email/helpers.ts";
 import {

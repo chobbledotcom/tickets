@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   describeCustomDomain,
   expectActivityLogged,

@@ -6,6 +6,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import {
+  getLogisticsAssignments,
+  setLogisticsAssignments,
+} from "#db/logistics.ts";
 import {
   endTimeField,
   startAgentField,
@@ -16,11 +21,6 @@ import {
   overlapsAnyInterval,
 } from "#routes/admin/attendee-logistics-tab.ts";
 import type { LoadedAttendee } from "#routes/admin/attendee-page-data.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import {
-  getLogisticsAssignments,
-  setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { DEMO_ADDRESSES } from "#shared/demo/samples.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

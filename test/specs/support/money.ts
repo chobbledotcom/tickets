@@ -5,11 +5,10 @@
  */
 
 import { expect } from "@std/expect";
+import { WORLD } from "#accounting/accounts.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { WORLD } from "#shared/accounting/accounts.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type { Listing } from "#shared/types.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { correctOnPage } from "#test/specs/support/corrections.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
@@ -29,6 +28,7 @@ import {
   refundIsRejected,
 } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import type { Listing } from "#types";
 // jscpd:ignore-end
 
 /** The booking the story is about. */

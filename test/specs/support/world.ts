@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { CleanupTask } from "#scripts/cleanup.ts";
 import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";

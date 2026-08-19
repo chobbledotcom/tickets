@@ -1,4 +1,4 @@
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { CredentialCheck } from "#shared/payment-helpers.ts";

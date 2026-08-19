@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
-import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -12,6 +11,7 @@ import {
   useSetting,
   withSetting,
 } from "#test-utils/settings.ts";
+import type { AdminLevel } from "#types";
 
 describeWithEnv("AdminNav", {}, () => {
   useSetting(

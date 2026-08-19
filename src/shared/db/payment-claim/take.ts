@@ -6,8 +6,8 @@ import {
   resultRows,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
-import { claimRequestFor } from "#shared/db/payment-claim/scope.ts";
+} from "#db/client.ts";
+import { claimRequestFor } from "#db/payment-claim/scope.ts";
 import {
   asPaymentRowRecord,
   type PaymentRowRecord,
@@ -15,25 +15,22 @@ import {
   paymentRowsWith,
   readPaymentClaimRows,
   type StoredPaymentClaimRow,
-} from "#shared/db/payment-claim.ts";
+} from "#db/payment-claim.ts";
 import {
   paymentReferencesByIndex,
   type TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { isoBefore, nowIso } from "#shared/now.ts";
+} from "#db/payment-references.ts";
 import {
   type ClaimDecision,
   claimLeaseMs,
   decideClaim,
   holdsTheRow,
-} from "#shared/payment/claim.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { RefundClaimPhase } from "#shared/payment/row-state.ts";
-import {
-  checkingClaimFor,
-  grantClaim,
-} from "#shared/payment/row-transitions.ts";
+} from "#payment/claim.ts";
+import type { PaymentReviewReason } from "#payment/review.ts";
+import type { RefundClaimPhase } from "#payment/row-state.ts";
+import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
+import { isoBefore, nowIso } from "#shared/now.ts";
 
 /* jscpd:ignore-end */
 

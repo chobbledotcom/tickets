@@ -5,6 +5,7 @@
  * from the page's {@link AttendeeListSetup}.
  */
 
+import type { SystemNote } from "#db/notes/types.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type {
@@ -12,17 +13,12 @@ import type {
   AttendeeListState,
   AttendeeSort,
 } from "#shared/attendee-list-controls.ts";
-import type { SystemNote } from "#shared/db/notes/types.ts";
-import {
-  type AdminSession,
-  type AttendeeTableRow,
-  isOwnerRole,
-} from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { type AdminSession, type AttendeeTableRow, isOwnerRole } from "#types";
 
 /* jscpd:ignore-end */
 

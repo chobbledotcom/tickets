@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,

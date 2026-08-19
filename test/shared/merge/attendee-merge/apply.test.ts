@@ -1,11 +1,11 @@
 /** Answer and identity behavior for attendee merges. */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#db/client.ts";
 import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
-} from "#shared/db/questions/attendee-answers/reads.ts";
+} from "#db/questions/attendee-answers/reads.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

@@ -11,7 +11,7 @@ import {
   wait,
   withFakeCurl,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 
 /** How many times the lock must be re-written before the install may finish. */
 const REFRESHES_WANTED = 3;

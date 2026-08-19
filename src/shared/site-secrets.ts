@@ -15,13 +15,13 @@
  * would orphan the site's existing encrypted data.
  */
 
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   collectHostSecrets,
   HOST_INFRA_SECRET_KEYS,
   resolveHostingProvider,
   siteHostingAccess,
 } from "#shared/builder.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import type { Result } from "#shared/result.ts";
 import { tryStep } from "#shared/try-step.ts";
 

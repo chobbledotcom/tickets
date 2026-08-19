@@ -14,8 +14,8 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { requireSiteOr } from "#routes/auth.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import type { ImageUseItemType } from "#shared/types.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
+import type { ImageUseItemType } from "#types";
 import { writeFormTab } from "./entity-write-tab.ts";
 import { loadItemImagesPanel } from "./item-images.ts";
 

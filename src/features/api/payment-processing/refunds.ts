@@ -8,29 +8,31 @@
  * stamped PII-free into the ledger reversal and the attendee's system note.
  */
 
-import type {
-  PaymentFailureResult,
-  PaymentResult,
-} from "#routes/api/webhook-types.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
+import { logActivity } from "#db/activity-log.ts";
+/* jscpd:ignore-start -- imports */
 import {
   type PreparedRefundAuthority,
   prepareRefundAuthority,
-} from "#shared/db/provider-refund-authority.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { nowMs } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
+} from "#db/provider-refund-authority.ts";
 import {
   type PlaceholderRefund,
   placeholderRefund,
-} from "#shared/payment/placeholder-refund.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
+} from "#payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
+/* jscpd:ignore-end */
 import {
   paidPaymentReferenceOf,
   rejectedChargeReference,
   type SessionRejection,
-} from "#shared/payment/validated-session.ts";
+} from "#payment/validated-session.ts";
+import type {
+  PaymentFailureResult,
+  PaymentResult,
+} from "#routes/api/webhook-types.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";

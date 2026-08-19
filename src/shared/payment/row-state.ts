@@ -10,8 +10,8 @@
  */
 
 import * as v from "valibot";
-import { RefundCodeSchema } from "#shared/payment/placeholder-refund.ts";
-import { PaymentReviewCaseSchema } from "#shared/payment/review.ts";
+import { RefundCodeSchema } from "#payment/placeholder-refund.ts";
+import { PaymentReviewCaseSchema } from "#payment/review.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 

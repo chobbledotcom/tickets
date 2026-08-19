@@ -1,8 +1,8 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeTables } from "#shared/db/migrations/schema/tables-attendees.ts";
-import { RECOVERY_NODES } from "#shared/payment/sumup-recovery-machine-spec.ts";
+import { attendeeTables } from "#db/migrations/schema/tables-attendees.ts";
+import { RECOVERY_NODES } from "#payment/sumup-recovery-machine-spec.ts";
 
 /* jscpd:ignore-end */
 

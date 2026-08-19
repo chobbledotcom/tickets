@@ -4,15 +4,11 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
-import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import {
-  decryptAttendeeFields,
-  decryptPiiBlob,
-} from "#shared/db/attendees/pii.ts";
+import { saleLegPredicate } from "#accounting/projection-sql.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
@@ -20,17 +16,18 @@ import {
   getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
-} from "#shared/db/attendees/select.ts";
-import type { DayRange } from "#shared/db/capacity.ts";
+} from "#db/attendees/select.ts";
+import type { DayRange } from "#db/capacity.ts";
 import {
   inPlaceholders,
   queryAll,
   queryOne,
   rowExists,
   rowExistsForIdList,
-} from "#shared/db/client.ts";
-import { columnFrom, columnMapByIds, nameSource } from "#shared/db/query.ts";
-import type { Attendee } from "#shared/types.ts";
+} from "#db/client.ts";
+import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
+import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
+import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
 /**

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { getCurrentSettingsVersion, settings } from "#shared/db/settings.ts";
+import { getCurrentSettingsVersion, settings } from "#db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {

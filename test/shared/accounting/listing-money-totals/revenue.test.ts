@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import { revenueAccount } from "#accounting/accounts.ts";
+import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
-} from "#shared/accounting/manual-entries.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
-import { emptyRange } from "#shared/accounting/range.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+} from "#accounting/manual-entries.ts";
+import { accountBalance } from "#accounting/queries.ts";
+import { emptyRange } from "#accounting/range.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

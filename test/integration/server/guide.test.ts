@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { settings } from "#shared/db/settings.ts";
 import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,

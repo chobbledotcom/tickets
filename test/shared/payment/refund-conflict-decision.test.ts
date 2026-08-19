@@ -6,7 +6,7 @@ import {
   ReturnedOrNotSentDecisionSchema,
   refundConflictDecision,
   refundConflictNeedsProviderCheck,
-} from "#shared/payment/refund-conflict-decision.ts";
+} from "#payment/refund-conflict-decision.ts";
 import {
   chargeMoney,
   chargeMoneyWith,

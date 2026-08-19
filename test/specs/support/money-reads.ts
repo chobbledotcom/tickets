@@ -5,12 +5,12 @@ import {
   modifierAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
+} from "#accounting/accounts.ts";
 import {
   accountBalance,
   allTransfers,
   transfersByAccount,
-} from "#shared/accounting/queries.ts";
+} from "#accounting/queries.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";

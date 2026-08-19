@@ -4,9 +4,9 @@
 
 /* jscpd:ignore-start */
 import { asString } from "#fp";
-import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
+  type AuthSession,
   type Guard,
   OWNER_FORM,
   requireOwnerOr,

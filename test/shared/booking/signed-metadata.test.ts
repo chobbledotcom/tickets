@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { buildTicketListing } from "#booking/model.ts";
 import {
   edgeDrifted,
   lineNodeKey,
   signedEdgeFor,
   standaloneLineListingIds,
   treeNodeKeys,
-} from "#shared/booking/signed-metadata.ts";
-import type { BookingTree } from "#shared/booking/tree.ts";
+} from "#booking/signed-metadata.ts";
+import type { BookingTree } from "#booking/tree.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
 import type { BookingItem } from "#shared/booking-intent.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
 
 const resolved = (id: number) =>
   buildTicketListing(testListingWithCount({ id }), false, undefined);

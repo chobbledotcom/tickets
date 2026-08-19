@@ -4,15 +4,15 @@
  * decide whether the provider-imposed email field renders required, present, or
  * not at all — each listing is paid through ANY path this page sells it. */
 
-import { getTicketFieldsSetting } from "#routes/public/ticket-form.ts";
 /* jscpd:ignore-start */
-import type { TicketListing } from "#shared/booking/model.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
-import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
+import type { TicketListing } from "#booking/model.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
+import type { AddOnOption } from "#db/modifier-resolve.ts";
+import { getTicketFieldsSetting } from "#routes/public/ticket-form.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import { isPaidListing } from "#shared/types.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
+import { isPaidListing } from "#types";
 
 /* jscpd:ignore-end */
 

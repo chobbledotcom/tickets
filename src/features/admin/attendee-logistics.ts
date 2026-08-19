@@ -7,22 +7,22 @@
  * template needs to render the selectors (pre-filled from saved assignments).
  */
 
-/* jscpd:ignore-start */
-import { uniqueBy } from "#fp";
-import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
-import {
-  isBookedLine,
-  isNoQuantityLine,
-} from "#routes/admin/attendee-form-model.ts";
 import {
   getLogisticsAssignments,
   type LogisticsAssignment,
-} from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { settings } from "#db/settings.ts";
+/* jscpd:ignore-start */
+import { uniqueBy } from "#fp";
+import {
+  type AttendeeFormLine,
+  isBookedLine,
+  isNoQuantityLine,
+} from "#routes/admin/attendee-form-model.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Attendee, LogisticsAgent } from "#shared/types.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
+import type { Attendee, LogisticsAgent } from "#types";
 /* jscpd:ignore-end */
 
 /** Checkbox field: when "1", each logistics listing carries its own agents. */

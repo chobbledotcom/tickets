@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { paymentChargeTable } from "#shared/db/migrations/schema/payments/charges.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+import { paymentChargeTable } from "#db/migrations/schema/payments/charges.ts";
+import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,

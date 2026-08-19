@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { ensureMessageGroups } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import type {
   ProviderRefundCase,
   ProviderRefundCasePage,
-} from "#shared/db/provider-refund-cases.ts";
-import { money } from "#shared/payment/money.ts";
+} from "#db/provider-refund-cases.ts";
+import { ensureMessageGroups } from "#i18n";
+import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { money } from "#payment/money.ts";
 import {
   adminProviderRefundCasePage,
   ProviderRefundCaseQueue,

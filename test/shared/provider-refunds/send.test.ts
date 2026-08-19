@@ -1,19 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
+import { admitObservedRefund } from "#payment/admit-refund.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import { DAY_MS } from "#shared/now.ts";
-import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import { armReadyRefund } from "#shared/provider-refunds/send.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
-import type {
-  ProviderRefundDependencies,
-  ProviderRefundResult,
-  RefundEngineProvider,
-} from "#shared/provider-refunds.ts";
 import {
+  type ProviderRefundDependencies,
+  type ProviderRefundResult,
+  type RefundEngineProvider,
   recordProviderRefunds,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
@@ -21,13 +19,13 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   chargeMoney,
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
+import type { PaymentProviderType } from "#types";
 import {
   fakeRefundProvider,
   notSentRefundProvider,

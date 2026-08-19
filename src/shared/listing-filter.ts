@@ -7,7 +7,7 @@
 
 import { t } from "#i18n";
 import { renderFilterBar } from "#shared/filter-bar.ts";
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 /** Filter values: "all" plus the three listing categories. */
 export const LISTING_FILTERS = [

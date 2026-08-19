@@ -2,22 +2,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import {
-  configureSquare,
-  squareMoney,
-} from "#test/test-utils/square/fixtures.ts";
-import { squareOrderRead } from "#test/test-utils/square/outcomes.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   mockWebhookRequest,
   withExpectedError,
   withMocks,
 } from "#test-utils/mocks.ts";
+import { configureSquare, squareMoney } from "#test-utils/square/fixtures.ts";
+import { squareOrderRead } from "#test-utils/square/outcomes.ts";
 
 // jscpd:ignore-end
 

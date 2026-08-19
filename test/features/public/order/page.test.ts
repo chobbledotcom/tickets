@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { groups } from "#shared/db/groups.ts";
-import { settings } from "#shared/db/settings.ts";
 import { enablePublicOrder } from "#test/features/public/order/helpers.ts";
 import {
   assertPublicHtml,

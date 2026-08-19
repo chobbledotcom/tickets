@@ -1,12 +1,9 @@
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
-import type {
-  PagePackage,
-  TreePackage,
-} from "#shared/booking/page-packages.ts";
-import type { BookingTree } from "#shared/booking/tree.ts";
-import type { ListingWithCount } from "#shared/types.ts";
-import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import type { TicketListing } from "#booking/model.ts";
+import type { PagePackage, TreePackage } from "#booking/page-packages.ts";
+import type { BookingTree } from "#booking/tree.ts";
+import { resolved } from "#test-utils/booking-model-fixtures.ts";
+import type { ListingWithCount } from "#types";
 
 /** Shared fixtures for the package-cap*.test.ts suite. Not itself a test file. */
 

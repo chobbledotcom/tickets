@@ -1,4 +1,4 @@
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 
 /** Make every sort_order write on the table fail, run the work, then clean up.
  * The rollback tests use this to prove an insert and its order write commit

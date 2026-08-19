@@ -2,6 +2,16 @@
  * Authentication and session utilities
  */
 
+import { unwrapKeyWithToken } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { apiKeyLimiter } from "#db/api-key-attempts.ts";
+import { getApiKeyByToken, touchApiKeyLastUsed } from "#db/api-keys.ts";
+import { deleteSession, getSessionWithUser } from "#db/sessions.ts";
+import {
+  decryptAdminLevel,
+  getUserAuthFieldsById,
+  type UserAuthFields,
+} from "#db/users.ts";
 /* jscpd:ignore-start */
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
@@ -12,17 +22,7 @@ import { htmlResponse, redirectResponse } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
-import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
-import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
-import { deleteSession, getSessionWithUser } from "#shared/db/sessions.ts";
-import {
-  decryptAdminLevel,
-  getUserAuthFieldsById,
-  type UserAuthFields,
-} from "#shared/db/users.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
@@ -42,7 +42,7 @@ import {
   isStaffRole,
   type NagItem,
   SITE_ADMIN_LEVELS,
-} from "#shared/types.ts";
+} from "#types";
 
 /* jscpd:ignore-end */
 

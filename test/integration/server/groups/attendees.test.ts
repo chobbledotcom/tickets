@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
+import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { expectHtmlResponse, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -159,11 +159,9 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         "quentin@test.com",
       );
       const { questionsTable, answersTable } = await import(
-        "#shared/db/questions/tables.ts"
+        "#db/questions/tables.ts"
       );
-      const { listingQuestions } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { listingQuestions } = await import("#db/questions/queries.ts");
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Meal choice",
@@ -200,11 +198,9 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         "dave@test.com",
       );
       const { questionsTable, answersTable } = await import(
-        "#shared/db/questions/tables.ts"
+        "#db/questions/tables.ts"
       );
-      const { listingQuestions } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { listingQuestions } = await import("#db/questions/queries.ts");
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Color",

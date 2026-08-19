@@ -3,10 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import type {
   BatchAvailabilityItem,
   ListingBooking,
-} from "#shared/db/attendee-types.ts";
-import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#shared/db/attendees/capacity/checks.ts";
-import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
-import { queryAll } from "#shared/db/client.ts";
+} from "#db/attendee-types.ts";
+import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#db/attendees/capacity/checks.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
+import { queryAll } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { execute, queryAll } from "#db/client.ts";
 import {
   getAllImages,
   getImageUsesForImage,
   setImagesForItem,
-} from "#shared/db/images.ts";
-import removeBrokenImageRecords from "#shared/db/migrations/2026-07-12_remove_broken_image_records.ts";
+} from "#db/images.ts";
+import removeBrokenImageRecords from "#db/migrations/2026-07-12_remove_broken_image_records.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

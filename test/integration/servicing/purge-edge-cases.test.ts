@@ -14,13 +14,13 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { getDb } from "#db/client.ts";
+import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import {
   countPurgeableOrphanedAttendees,
   purgeOrphanedAttendees,
-} from "#shared/db/orphan-attendees.ts";
+} from "#db/orphan-attendees.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";
@@ -68,7 +68,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
     // Attach an answer so the sweep has something to delete.
-    const { getDb: db } = await import("#shared/db/client.ts");
+    const { getDb: db } = await import("#db/client.ts");
     await db().execute({
       args: [id, 1, 1],
       sql: "INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (?, ?, ?)",
@@ -123,7 +123,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
       occurredAt: "2026-07-01T00:00:00.000Z",
       servicingId: id,
     });
-    const { allTransfers } = await import("#shared/accounting/queries.ts");
+    const { allTransfers } = await import("#accounting/queries.ts");
     const legsBefore = (await allTransfers()).filter(
       (t) => t.kind === "service_cost",
     );

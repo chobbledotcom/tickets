@@ -2,20 +2,20 @@
  * Ticket form parsing and validation utilities
  */
 
+import { bookingError } from "#booking/form.ts";
+import type { TicketListing } from "#booking/model.ts";
+import { quantityFieldName } from "#booking/tree.ts";
+import type { AddOnOption } from "#db/modifier-resolve.ts";
+import type { TextAnswer } from "#db/question-types.ts";
+import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { filter, map } from "#fp";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
-import { bookingError } from "#shared/booking/form.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
-import { quantityFieldName } from "#shared/booking/tree.ts";
-import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type { TextAnswer } from "#shared/db/question-types.ts";
-import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import type { ListingFields } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import type { ListingFields } from "#types";
 import type { ListingQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */

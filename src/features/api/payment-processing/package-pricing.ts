@@ -8,28 +8,25 @@
  * current facts loaded by the paid-order snapshot.
  */
 
-import { uniqueBy } from "#fp";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
-import type { TreePackage } from "#shared/booking/page-packages.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import type { TreePackage } from "#booking/page-packages.ts";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
   type PricedListing,
   packageMemberPriceRule,
-} from "#shared/booking/price-tree.ts";
+} from "#booking/price-tree.ts";
 import {
   edgeDrifted,
   lineGroupId,
   standaloneLineListingIds,
-} from "#shared/booking/signed-metadata.ts";
+} from "#booking/signed-metadata.ts";
+import { uniqueBy } from "#fp";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 const allocatedUnitsByChild = (intent: BookingIntent): Map<number, number> => {
   const allocatedByChild = new Map<number, number>();

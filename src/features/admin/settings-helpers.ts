@@ -9,6 +9,9 @@
  * return SettingsFormHandler for use with settingsRoute/advancedSettingsRoute.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { isMaskSentinel } from "#db/settings/mask.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import {
   type AuthPolicy,
@@ -18,13 +21,10 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { isMaskSentinel } from "#shared/db/settings/mask.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */
 

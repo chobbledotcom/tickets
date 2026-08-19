@@ -1,11 +1,11 @@
-import { nodesDeepestFirst } from "#shared/booking/node-order.ts";
+import { nodesDeepestFirst } from "#booking/node-order.ts";
 import {
   type BookingNode,
   type BookingTree,
   nodeFixedQuantity,
   type PriceRule,
-} from "#shared/booking/tree.ts";
-import { type DayPricedListing, dayPriceFor } from "#shared/types.ts";
+} from "#booking/tree.ts";
+import { type DayPricedListing, dayPriceFor } from "#types";
 
 /** The discriminant of {@link PriceRule} — the set of price tiers. Their
  * precedence is NOT this type's business (a union has no order); it lives in

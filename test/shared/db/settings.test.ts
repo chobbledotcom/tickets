@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import type { PasswordHash, WrappedKey } from "#shared/crypto/sealed.ts";
-import { execute, getDb } from "#shared/db/client.ts";
-import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import type { PasswordHash, WrappedKey } from "#crypto/sealed.ts";
+import { execute, getDb } from "#db/client.ts";
+import { writeRawBatch } from "#db/settings/raw-writes.ts";
 import {
   ALL_SETTINGS_KEYS,
   bumpSettingsVersion,
   CONFIG_KEYS,
   getCurrentSettingsVersion,
   settings,
-} from "#shared/db/settings.ts";
+} from "#db/settings.ts";
 import {
   createUser,
   getUserByUsername,
   verifyUserPassword,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
 import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -405,7 +405,7 @@ describeWithEnv("db > settings", { db: true }, () => {
       const passwordHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(passwordHash).toBeTruthy();
 
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       const result = await s.updateUserPassword(user!.id, {
         newPassword: "newpassword",
         oldKekVersion: user!.kek_version,

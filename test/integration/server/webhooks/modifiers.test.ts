@@ -5,7 +5,7 @@ import {
   modifierGroups,
   modifierListings,
   modifiersTable,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
 import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -88,7 +88,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
         sessionId: "cs_modifier_ok",
       }),
     );
-    const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
     expect((await getAttendeesRaw(listing.id)).length).toBe(1);
   });
 

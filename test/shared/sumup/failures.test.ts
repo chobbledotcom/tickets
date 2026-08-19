@@ -3,8 +3,8 @@ import { assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import {
   sumupReadFailure,
   sumupRefundFailure,

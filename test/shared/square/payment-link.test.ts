@@ -4,17 +4,17 @@ import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { testListing } from "#test-utils/factories.ts";
 import {
   configureSquare,
   expectNoLink,
   linkResult,
   withSquareClient,
-} from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
-import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
-import { testListing } from "#test-utils/factories.ts";
+} from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
   describe("createPaymentLink", () => {
@@ -39,7 +39,7 @@ describeSquare(() => {
     });
 
     test("reports a configured link that has no available client", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
       await settings.update.square.locationId("L_loc_456");
 
       await expectNoLink(checkoutIntent());
@@ -121,7 +121,7 @@ describeSquare(() => {
     });
 
     test("includes booking fee line item when fee is set", async () => {
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       await s.update.bookingFee("2.5");
       await configureSquare({ locationId: "L_loc_456" });
       await withSquareClient(

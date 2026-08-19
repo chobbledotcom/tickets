@@ -11,10 +11,10 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getOverlappingBookings } from "#shared/db/attendees/overlap.ts";
-import { dateToRange } from "#shared/db/capacity.ts";
-import { execute } from "#shared/db/client.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getOverlappingBookings } from "#db/attendees/overlap.ts";
+import { dateToRange } from "#db/capacity.ts";
+import { execute } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,

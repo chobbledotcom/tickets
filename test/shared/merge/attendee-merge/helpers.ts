@@ -2,14 +2,14 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#accounting/accounts.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
+import { queryAll } from "#db/client.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   applyAttendeeMerge,
   buildAttendeeMergeDiff,
@@ -18,10 +18,10 @@ import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
-import type { ContactInfo } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { ContactInfo } from "#types";
 
 /** Create a test attendee on a single listing. */
 export const createAttendee = (

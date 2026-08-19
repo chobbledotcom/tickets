@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#db/client.ts";
 import {
   backfillListingPrices,
   basePriceStatements,
@@ -14,9 +14,9 @@ import {
   sourceRowStatements,
   syncListingPrices,
   syncListingPricesForIds,
-} from "#shared/db/listing-prices.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
+} from "#db/listing-prices.ts";
+import { deleteListing } from "#db/listings/delete.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,

@@ -7,13 +7,13 @@
  * guaranteed to match the result.
  */
 
+import { escapeHtml } from "#jsx/escape-html.ts";
 import {
   buildDuplicatePreview,
   type DuplicateReplacements,
   formatIsoForPreview,
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 
 export const initDuplicatePreview = (): void => {
   const container = document.querySelector<HTMLElement>(

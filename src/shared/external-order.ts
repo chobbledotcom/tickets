@@ -9,7 +9,7 @@
  */
 
 import { isPublicListing } from "#shared/listing-visibility.ts";
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 /** The minimal listing shape the catalog is built from — only the columns the
  * widget serializes, so the public `/order.js` route can load it with a narrow

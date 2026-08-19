@@ -4,16 +4,16 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
+} from "#accounting/accounts.ts";
 import {
   accountBalance,
   allTransfers,
   transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+} from "#accounting/queries.ts";
+import { legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { runWithQueryLogContext } from "#db/query-log.ts";
 import {
   REFUND_LEDGER_BATCH_DATABASE_CALLS,
   recordAttendeeRefund,

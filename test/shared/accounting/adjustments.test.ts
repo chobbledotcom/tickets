@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { revenueAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
-import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import { revenueAccount, WRITEOFF } from "#accounting/accounts.ts";
+import { writeoffAdjustmentInserts } from "#accounting/adjustments.ts";
+import { accountBalance, allTransfers } from "#accounting/queries.ts";
 import { accountKey } from "#shared/ledger/account.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import {

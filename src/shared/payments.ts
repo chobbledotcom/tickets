@@ -2,22 +2,22 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { settings } from "#shared/db/settings.ts";
-import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
-import { logDebug } from "#shared/logger.ts";
-import type { Currency } from "#shared/payment/money.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import { settings } from "#db/settings.ts";
+import type { Currency } from "#payment/money.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import type {
   AuthorizedRefundRequest,
   RefundProviderCapability,
-} from "#shared/payment/refund-provider-authorization.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
+} from "#payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
+import type { SessionRejection } from "#payment/validated-session.ts";
+import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
+import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
-import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import type { ContactInfo, PaymentProviderType } from "#types";
 /* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */

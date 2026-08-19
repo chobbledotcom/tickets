@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { imagesTable, setImagesForItem } from "#shared/db/images.ts";
+import { imagesTable, setImagesForItem } from "#db/images.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 
 /** Insert an image row and link it to a listing, as if it were already

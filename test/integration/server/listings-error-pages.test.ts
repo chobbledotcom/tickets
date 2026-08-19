@@ -2,12 +2,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getDb } from "#shared/db/client.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getDb } from "#db/client.ts";
 import {
   invalidateListingsCache,
   listingsTable,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import {
   expectFlash,
   expectFlashRedirect,

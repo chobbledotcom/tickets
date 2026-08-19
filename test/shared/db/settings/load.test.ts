@@ -1,12 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute, getDb } from "#shared/db/client.ts";
-import {
-  bumpSettingsVersion,
-  CONFIG_KEYS,
-  settings,
-} from "#shared/db/settings.ts";
+import { execute, getDb } from "#db/client.ts";
+import { bumpSettingsVersion, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { statementSql } from "#test-utils/record-queries.ts";

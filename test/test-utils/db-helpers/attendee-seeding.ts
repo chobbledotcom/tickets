@@ -18,7 +18,7 @@ export const seedFillerAttendees = async (
   listingId: number,
   count: number,
 ): Promise<void> => {
-  const { getDb } = await import("#shared/db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   const { attendee } = await createTestAttendeeDirect(
     listingId,
     "Filler",

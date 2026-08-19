@@ -6,8 +6,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { invalidateListingsCache } from "#db/listings/records.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import {
   bookingIntent,
   paymentSession,

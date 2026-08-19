@@ -4,10 +4,10 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { getSetupForm } from "#templates/fields/admin.ts";

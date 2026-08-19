@@ -2,16 +2,15 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
-import { addDays } from "#shared/dates.ts";
+import { generateTicketToken } from "#crypto/utils.ts";
 import type {
   AttendeeInput,
   BuildAttendeeInput,
   CreateAttendeeResult,
   EncryptedAttendeeData,
-} from "#shared/db/attendee-types.ts";
-import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
-import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
+} from "#db/attendee-types.ts";
+import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
+import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
@@ -22,21 +21,15 @@ import {
   writeAsBatch,
   writeAsLedgerBatch,
   writeWithCreationWork,
-} from "#shared/db/attendees/create-batch.ts";
-import { ATTENDEE_KIND, type AttendeeKind } from "#shared/db/attendees/kind.ts";
-import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
-import {
-  contactFields,
-  encryptAttendeeFields,
-} from "#shared/db/attendees/pii.ts";
-import { insert, type SqlStatement } from "#shared/db/client.ts";
-import { orderActivityStatements } from "#shared/db/contact-tokens.ts";
-import { anyModifierSoldOut } from "#shared/db/modifier-usage.ts";
-import {
-  type Attendee,
-  type ContactInfo,
-  clampDurationDays,
-} from "#shared/types.ts";
+} from "#db/attendees/create-batch.ts";
+import { ATTENDEE_KIND, type AttendeeKind } from "#db/attendees/kind.ts";
+import { annotateOrderParents } from "#db/attendees/order-parents.ts";
+import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
+import { insert, type SqlStatement } from "#db/client.ts";
+import { orderActivityStatements } from "#db/contact-tokens.ts";
+import { anyModifierSoldOut } from "#db/modifier-usage.ts";
+import { addDays } from "#shared/dates.ts";
+import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 
 /* jscpd:ignore-end */
 

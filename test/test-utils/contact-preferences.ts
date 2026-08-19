@@ -1,4 +1,4 @@
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 
 /** Seed visit history without exposing a production write API used by no route. */
 export const setContactVisits = async (

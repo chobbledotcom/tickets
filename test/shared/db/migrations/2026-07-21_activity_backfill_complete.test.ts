@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
-import { getDb } from "#shared/db/client.ts";
-import activityBackfillCompleteMigration from "#shared/db/migrations/2026-07-21_activity_backfill_complete.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
+import { getDb } from "#db/client.ts";
+import activityBackfillCompleteMigration from "#db/migrations/2026-07-21_activity_backfill_complete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

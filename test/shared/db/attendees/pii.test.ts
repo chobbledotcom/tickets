@@ -24,12 +24,12 @@ import {
   encryptPiiBlob,
   PII_BLOB_VERSION,
   parsePiiBlob,
-} from "#shared/db/attendees/pii.ts";
-import { settings } from "#shared/db/settings.ts";
-import type { Attendee, PiiBlob } from "#shared/types.ts";
+} from "#db/attendees/pii.ts";
+import { settings } from "#db/settings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { Attendee, PiiBlob } from "#types";
 
 // jscpd:ignore-end
 

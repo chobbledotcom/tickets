@@ -8,10 +8,10 @@
  * session.
  */
 
+import { queryBatch, resultRows } from "#db/client.ts";
 import { uniqueBy } from "#fp";
-import { queryBatch, resultRows } from "#shared/db/client.ts";
-import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
-import { ILLEGAL_JOINT_STATES } from "#shared/payment/joint-state.ts";
+import { CLAIM_MIRROR } from "#payment/admit-move.ts";
+import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
 
 /** Which declared entry a found row breaks, named for the catalog. */
 export type JointAnomalyKey = "armed_without_claim" | "claim_without_charge";

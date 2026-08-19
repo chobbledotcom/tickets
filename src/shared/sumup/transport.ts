@@ -1,5 +1,5 @@
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { fetchText } from "#shared/fetch.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { readJson } from "#shared/read-json.ts";
 
 const SUMUP_API_BASE = "https://api.sumup.com";

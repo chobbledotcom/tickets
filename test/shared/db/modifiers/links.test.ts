@@ -6,7 +6,7 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
   setModifierAnswers,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
 import {
   addAnswer,
   createQuestion,

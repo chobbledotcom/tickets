@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { settings } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
+import { settings } from "#db/settings.ts";
 import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";

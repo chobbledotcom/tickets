@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import type { BookingItem } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   assembleCheckoutMetadata,
   buildItemsMetadata,

@@ -1,8 +1,8 @@
 import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { TxScope } from "#shared/db/client.ts";
-import { insertRefundConfirmation } from "#shared/db/refund-confirmations.ts";
+import type { TxScope } from "#db/client.ts";
+import { insertRefundConfirmation } from "#db/refund-confirmations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const transactionReturning = (results: ResultSet[]): TxScope => ({

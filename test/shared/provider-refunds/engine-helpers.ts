@@ -1,19 +1,19 @@
-import { queryOne } from "#shared/db/client.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import { queryOne } from "#db/client.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type {
   ProviderRefundDependencies,
   ProviderRefundTarget,
   RefundEngineProvider,
 } from "#shared/provider-refunds.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import {
   chargeMoney,
   completedRefund,
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
+import type { PaymentProviderType } from "#types";
 
 export const refundReference = (
   raw: string,

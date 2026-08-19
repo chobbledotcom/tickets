@@ -5,13 +5,13 @@
  * filter — then renders the rows (with question answers) as CSV.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { getAttendeeIdsWithPaymentReference } from "#db/payment-references.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { csvResponse, listingAttendeesLoader } from "#routes/admin/actions.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   completePaymentAttendees,
   filterAttendees,

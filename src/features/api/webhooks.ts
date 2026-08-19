@@ -14,6 +14,8 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
+import { t } from "#i18n";
+import { isSessionRejection } from "#payment/validated-session.ts";
 import {
   type CallbackOutcome,
   settlePaymentCallback,
@@ -28,14 +30,12 @@ import {
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { jsonResponse, plainResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { t } from "#shared/i18n.ts";
 import {
   ErrorCode,
   type ErrorCodeType,
   logDebug,
   logError,
 } from "#shared/logger.ts";
-import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {

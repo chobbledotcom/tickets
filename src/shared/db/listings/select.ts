@@ -14,11 +14,11 @@
 import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
-} from "#shared/accounting/projection-sql.ts";
-import { imageFilenameSubqueries } from "#shared/db/images.ts";
-import { defineReader } from "#shared/db/read.ts";
-import { inList, type WhereClause } from "#shared/db/where-clauses.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#accounting/projection-sql.ts";
+import { imageFilenameSubqueries } from "#db/images.ts";
+import { defineReader } from "#db/read.ts";
+import { inList, type WhereClause } from "#db/where-clauses.ts";
+import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

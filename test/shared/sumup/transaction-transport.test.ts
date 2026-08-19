@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { setupSumupSuite } from "#test-utils/sumup.ts";

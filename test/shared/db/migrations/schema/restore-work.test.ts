@@ -3,8 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import {
   RESTORE_DEFERRED_INDEXES,
   RESTORE_DEFERRED_TRIGGERS,
-} from "#shared/db/migrations/schema/restore-work.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+} from "#db/migrations/schema/restore-work.ts";
+import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 
 test("defers non-unique indexes but keeps unique checks active", () => {
   expect(

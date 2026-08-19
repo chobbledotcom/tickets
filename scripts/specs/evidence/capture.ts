@@ -1,10 +1,10 @@
 import { chromium } from "playwright";
+import { settings } from "#db/settings.ts";
 import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 import { readSpecCatalog } from "#scripts/specs/catalog.ts";
-import { settings } from "#shared/db/settings.ts";
 import { serveHandler } from "#src/serve-app.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { defineEvidenceCapture } from "./capture-flow.ts";

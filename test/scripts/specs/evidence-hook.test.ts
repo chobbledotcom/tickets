@@ -2,15 +2,15 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  captureScenarioEvidence,
-  EVIDENCE_HOOK_TIMEOUT_MS,
-} from "#scripts/specs/evidence/hook.ts";
-import {
   enforceTransactionRoundTripGuard,
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
+import {
+  captureScenarioEvidence,
+  EVIDENCE_HOOK_TIMEOUT_MS,
+} from "#scripts/specs/evidence/hook.ts";
 
 const world = {
   attach: () => Promise.resolve(),

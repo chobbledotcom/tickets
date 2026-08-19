@@ -1,6 +1,6 @@
+import { databaseHostFor } from "#db/host.ts";
 import type { SiteMigrationDeps } from "#scripts/site-migration/run.ts";
 import type { SiteWithHost } from "#scripts/site-migration/sites.ts";
-import { databaseHostFor } from "#shared/db/host.ts";
 import {
   type TursoMigrationCliOptions,
   type TursoMigrationCliState,

@@ -10,31 +10,31 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { compact, mapParallel, sumOf } from "#fp";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   attendeeOwedSubquery,
   externalCashBalanceSubquery,
   orderTotalSubquery,
   reservationSubtotalSubquery,
-} from "#shared/accounting/projection-sql.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { guardedInsertStatement } from "#shared/accounting/rows.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { remainingBalanceFromLedger } from "#shared/db/attendees/select.ts";
+} from "#accounting/projection-sql.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import { guardedInsertStatement } from "#accounting/rows.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { remainingBalanceFromLedger } from "#db/attendees/select.ts";
 import {
   executeBatchWithResults,
   queryBatch,
   queryOne,
   resultRows,
   type SqlStatement,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
+import { compact, mapParallel, sumOf } from "#fp";
+import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
 /* jscpd:ignore-end */
 

@@ -5,10 +5,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
@@ -16,6 +14,7 @@ import {
   type RenderedFieldsSaveForm,
   renderedFieldsSaveForm,
 } from "#templates/components/save-form.tsx";
+import type { AdminLevel, AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

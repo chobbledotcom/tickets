@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
+import { builtSitesCrudTable, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
-import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts";
-import {
-  builtSitesCrudTable,
-  insertBuiltSite,
-} from "#shared/db/built-sites.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";

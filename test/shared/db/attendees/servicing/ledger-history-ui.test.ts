@@ -1,13 +1,13 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { costAccount } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { costAccount } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { getServicingCosts } from "#db/attendees/servicing.ts";
+import { queryAll } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { getServicingCosts } from "#shared/db/attendees/servicing.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {

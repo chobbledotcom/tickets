@@ -7,14 +7,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { invalidateListingsCache } from "#db/listings/records.ts";
 import {
   handleGroupTicketBySlug,
   loadBookablePackageBySlug,
   loadCartPackagesBySlugs,
 } from "#routes/public/groups.ts";
-import { groups } from "#shared/db/groups.ts";
-import { invalidateListingsCache } from "#shared/db/listings/records.ts";
-import type { Group } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -23,6 +22,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import type { Group } from "#types";
 
 /** Enough headroom for the fixed reads, far below what one read per slug costs. */
 const CART_CALL_LIMIT = 8;

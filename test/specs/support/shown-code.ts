@@ -254,7 +254,7 @@ export const meddledWith = (link: string): string => {
 
 /** The organiser takes something off sale after the codes are printed. */
 export const takeOffSale: ActOnOneThing = async (world, name) => {
-  const { listingsTable } = await import("#shared/db/listings/records.ts");
+  const { listingsTable } = await import("#db/listings/records.ts");
   await listingsTable.update(listingIdNamed(world, name), { active: false });
 };
 

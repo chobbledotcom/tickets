@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groupListingAnswerSets } from "#shared/db/questions/attendee-answers/save.ts";
+import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 
 test("groups listing choices and keeps the last text for each attendee question", () => {
   const grouped = groupListingAnswerSets(

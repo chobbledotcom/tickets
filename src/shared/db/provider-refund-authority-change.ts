@@ -1,26 +1,26 @@
 /** Revision-fenced changes to the one provider-refund authority. */
 
 /* jscpd:ignore-start -- imports */
-import { execute, type TxScope } from "#shared/db/client.ts";
+import { execute, type TxScope } from "#db/client.ts";
 import {
   loadRefundAuthorityById,
   REFUND_AUTHORITY_COLUMNS,
   type RefundAuthorityRow,
   type RefundAuthorityVersion,
   refundAuthorityFromResult,
-} from "#shared/db/provider-refund-authority.ts";
-import type { Money } from "#shared/payment/money.ts";
+} from "#db/provider-refund-authority.ts";
+import type { Money } from "#payment/money.ts";
 import {
   markRefundCompleted,
   markRefundLocalRecorded,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   type RefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 /* jscpd:ignore-end */
 
 export type RefundAuthorityMoney = Pick<

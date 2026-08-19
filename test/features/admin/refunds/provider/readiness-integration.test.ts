@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";

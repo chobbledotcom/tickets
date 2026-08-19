@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ALL_ADMIN_LEVELS, isOwnerRole } from "#shared/types.ts";
+import { ALL_ADMIN_LEVELS, isOwnerRole } from "#types";
 
 describe("admin roles", () => {
   test("only the owner role has owner permissions", () => {

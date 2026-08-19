@@ -1,3 +1,6 @@
+import { bookingError } from "#booking/form.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { anyNonStandaloneChild } from "#db/listing-parents.ts";
 import { apiError } from "#routes/api/cors.ts";
 import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import {
@@ -15,17 +18,14 @@ import {
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { bookingError } from "#shared/booking/form.ts";
 import { processBooking } from "#shared/booking.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { anyNonStandaloneChild } from "#shared/db/listing-parents.ts";
-import { isPaidListing, type ListingWithCount } from "#shared/types.ts";
 import {
   extractContact,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
+import { isPaidListing, type ListingWithCount } from "#types";
 
 /** Map a BookingResult to an API JSON response */
 const bookingResultToResponse = (

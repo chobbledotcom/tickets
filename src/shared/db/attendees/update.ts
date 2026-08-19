@@ -2,11 +2,9 @@
  * Update operations for attendees and their per-listing bookings.
  */
 
-import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
-import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
-import { countsPerDate } from "#shared/capacity-rules.ts";
-import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
-import { attendeePiiWriteStatements } from "#shared/db/attendees/pii-write.ts";
+import { ledgerTx } from "#accounting/ledger-tx.ts";
+import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
+import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import {
   execute,
   executeBatch,
@@ -15,8 +13,10 @@ import {
   rawSql,
   update,
   withTransaction,
-} from "#shared/db/client.ts";
-import { clampDurationDays, type ListingType } from "#shared/types.ts";
+} from "#db/client.ts";
+import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
+import { countsPerDate } from "#shared/capacity-rules.ts";
+import { clampDurationDays, type ListingType } from "#types";
 
 /**
  * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it

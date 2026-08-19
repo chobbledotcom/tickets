@@ -7,7 +7,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   placeholderRefund,
   placeholderRefundNote,
-} from "#shared/payment/placeholder-refund.ts";
+} from "#payment/placeholder-refund.ts";
 
 describe("payment > placeholder refund reasons", () => {
   test("every code carries exactly its wording and alert", () => {

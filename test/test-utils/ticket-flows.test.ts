@@ -36,9 +36,7 @@ describe("test-utils — ticket & join flows", () => {
       quantity: number,
     ): Promise<void> => {
       expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(listingId);
       expect(attendees).toHaveLength(1);
       expect(attendees[0]!.quantity).toBe(quantity);
@@ -221,14 +219,14 @@ describe("test-utils — ticket & join flows", () => {
     test("configures Stripe as payment provider", async () => {
       await createTestDbWithSetup();
       await setupStripe();
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       expect(s.paymentProvider).toBe("stripe");
     });
 
     test("accepts a custom key", async () => {
       await createTestDbWithSetup();
       await setupStripe("sk_test_custom");
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       expect(s.paymentProvider).toBe("stripe");
     });
   });

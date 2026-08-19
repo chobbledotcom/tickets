@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
 import {
   type CartFacts,
   cartConflictMessages,
-} from "#shared/booking/cart-conflicts.ts";
+} from "#booking/cart-conflicts.ts";
+import { t } from "#i18n";
 
 /** Facts with no length items unless a test supplies them. */
 const facts = (over: Partial<CartFacts>): CartFacts => ({

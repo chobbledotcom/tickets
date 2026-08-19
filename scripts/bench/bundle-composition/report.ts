@@ -24,8 +24,8 @@ import {
   wasmFilename,
 } from "#scripts/inline-jsquash-wasm.ts";
 import { cleanCdnUrl } from "#scripts/static-cdn.ts";
-import { utf8ByteLength } from "#src/shared/bytes.ts";
-import { ASSETS } from "#src/shared/images/wasm-assets.ts";
+import { utf8ByteLength } from "#shared/bytes.ts";
+import { ASSETS } from "#shared/images/wasm-assets.ts";
 import { countJavaScriptAstNodes } from "./javascript-ast.ts";
 import {
   applicationArea,

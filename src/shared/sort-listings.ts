@@ -6,14 +6,10 @@
  * Tier 2: Daily listings                → sorted by next bookable date ASC, then name
  */
 
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { getNextBookableDate } from "#shared/dates.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import type {
-  Holiday,
-  ListingWithCount,
-  SortableListing,
-} from "#shared/types.ts";
+import type { Holiday, ListingWithCount, SortableListing } from "#types";
 
 export type { ListingWithCount };
 

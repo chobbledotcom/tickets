@@ -1,7 +1,7 @@
 import { t } from "#i18n";
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
-import type { NagItem } from "#shared/types.ts";
 import { ItemList } from "#templates/components/item-list.tsx";
+import type { NagItem } from "#types";
 
 export const SettingsNagBanner = ({
   items = getSettingsNagItems(),

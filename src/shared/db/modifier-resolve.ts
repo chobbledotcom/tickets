@@ -8,28 +8,24 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
-import { unique } from "#fp";
-import { t } from "#i18n";
-import { itemsSubtotal } from "#shared/booking-fee.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
-import {
-  getVisits,
-  hashEmail,
-  hashPhone,
-} from "#shared/db/contact-preferences.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { getVisits, hashEmail, hashPhone } from "#db/contact-preferences.ts";
+import { listingGroups } from "#db/groups.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import {
   getActiveModifiers,
   getModifierGroupListingIdsByModifierId,
   modifierGroups,
   modifierIdsByAnswerId,
   modifierListings,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
+import { unique } from "#fp";
+import { t } from "#i18n";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
+import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
-import type { Modifier } from "#shared/types.ts";
+import type { Modifier } from "#types";
 
 /** The signed pricing value the engine applies, from a modifier's stored
  * magnitude + direction. Multipliers ignore direction (the factor encodes it);

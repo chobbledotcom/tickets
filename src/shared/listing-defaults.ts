@@ -17,9 +17,9 @@
 
 import * as v from "valibot";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import type { Listing } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import type { Listing } from "#types";
 
 /**
  * The operator-configurable defaults. A key is present only when a default is

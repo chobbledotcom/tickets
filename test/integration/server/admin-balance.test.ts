@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { getDb } from "#shared/db/client.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { settleAttendeeBalance } from "#db/attendees/balance.ts";
+import { getDb } from "#db/client.ts";
 import {
   expectHtml,
   expectHtmlResponse,

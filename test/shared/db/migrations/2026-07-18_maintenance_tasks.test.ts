@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { getDb } from "#shared/db/client.ts";
-import maintenanceMigration from "#shared/db/migrations/2026-07-18_maintenance_tasks.ts";
-import {
-  applySchemaChanges,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import maintenanceMigration from "#db/migrations/2026-07-18_maintenance_tasks.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import {
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
   PRUNE_INTERVAL_MS,

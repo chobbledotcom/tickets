@@ -81,14 +81,14 @@ export interface FetchCall {
 }
 
 export type AdminTestContext = {
-  listing: import("#shared/types.ts").Listing;
-  attendee: import("#shared/types.ts").Attendee;
+  listing: import("#types").Listing;
+  attendee: import("#types").Attendee;
   cookie: string;
   csrfToken: string;
 };
 
 export type BookAttendeeOpts = Partial<
-  Omit<import("#shared/db/attendee-types.ts").ListingBooking, "listingId">
+  Omit<import("#db/attendee-types.ts").ListingBooking, "listingId">
 > & {
   name?: string;
   email?: string;
@@ -109,10 +109,10 @@ export type PaymentProviderType =
 
 export type SessionMetadata = import("#shared/payments.ts").SessionMetadata;
 
+export type { HolidayInput } from "#db/holidays.ts";
 export type {
   GroupInput,
   ListingInput,
 } from "#shared/catalog-fields/fields.ts";
-export type { HolidayInput } from "#shared/db/holidays.ts";
 export type { EmailEntry, EmailListing } from "#shared/email.ts";
 export type { WebhookAttendee } from "#shared/webhook.ts";

@@ -2,10 +2,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb } from "#shared/db/client.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
-import { ProviderCheckoutError } from "#shared/payment/checkout-failure.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { getDb } from "#db/client.ts";
+import { modifiersTable } from "#db/modifiers.ts";
+import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";

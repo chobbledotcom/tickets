@@ -3,8 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import * as v from "valibot";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { StripeConnectionError } from "#shared/stripe/request.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -279,7 +279,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
   test("concurrent reservation returns 409 with being-processed message", async () => {
     await setupStripe();
     const l = await createTestListing({ maxAttendees: 50, unitPrice: 500 });
-    const { reserveSession } = await import("#shared/db/processed-payments.ts");
+    const { reserveSession } = await import("#db/processed-payments.ts");
     await reserveSession("cs_409b");
     const [res, verify] = await postWebhook(
       webhookEvent({

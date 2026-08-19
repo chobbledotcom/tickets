@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
-import { appendImageToItem, getImagesForItem } from "#shared/db/images.ts";
+import { queryAll } from "#db/client.ts";
+import { appendImageToItem, getImagesForItem } from "#db/images.ts";
 import {
   computeNewsSlugIndex,
   deleteNewsPostWithImages,
@@ -12,7 +12,7 @@ import {
   getNewsPostSummaries,
   hasNewsPosts,
   updateNewsPost,
-} from "#shared/db/news-posts.ts";
+} from "#db/news-posts.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";

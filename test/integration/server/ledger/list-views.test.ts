@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {

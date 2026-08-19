@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { addMonthsIso } from "#shared/dates.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   builtSites,
   getAssignableBuiltSites,
   insertBuiltSite,
-} from "#shared/db/built-sites.ts";
+} from "#db/built-sites.ts";
+import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { addMonthsIso } from "#shared/dates.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   resetHostEmailConfig,
@@ -70,7 +70,7 @@ const stubEdgeSecretSuccess = () =>
  *  Both the "skips assignment" and "rejects missing renewal tier" tests
  *  need this exact teardown. */
 const deactivateAllTierListings = async (): Promise<void> => {
-  const { getAllListings } = await import("#shared/db/listings/records.ts");
+  const { getAllListings } = await import("#db/listings/records.ts");
   const { deactivateTestListing } = await import(
     "#test-utils/db-helpers/listings.ts"
   );
@@ -362,7 +362,7 @@ describeWithEnv(
       test("uses DB email config when available and includes reply-to", async () => {
         // Configure email via DB settings (not host config) so getEmailConfig()
         // returns non-null, covering the left branch of the ?? operator
-        const { settings } = await import("#shared/db/settings.ts");
+        const { settings } = await import("#db/settings.ts");
         await settings.update.email.provider("resend");
         await settings.update.email.apiKey("re_db_key");
         await settings.update.email.fromAddress("db@example.com");

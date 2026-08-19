@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { settings } from "#shared/db/settings.ts";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
+import { settings } from "#db/settings.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { getSmsGatewayConfig } from "#shared/sms/gateway.ts";
 import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";

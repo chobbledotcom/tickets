@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import {
   getAllModifiers,
   type ModifierInput,
   modifiersTable,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
 export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>

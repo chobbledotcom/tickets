@@ -2,7 +2,7 @@ import { apiError } from "#routes/api/cors.ts";
 import { LISTING_NOT_FOUND, withActiveListing } from "#routes/api/helpers.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import type { ServerContext } from "#routes/types.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /** How a single listing should read on the detail/availability surfaces under
  * the parent/child feature: a child is not standalone-bookable (404, matching

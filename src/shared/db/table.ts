@@ -10,12 +10,6 @@
 
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
-import { compact, filter, mapParallel, reduce } from "#fp";
-import {
-  type DependsOnEntry,
-  registerCache,
-  registerDependencies,
-} from "#shared/cache-registry.ts";
 import {
   execute,
   insertedRowId,
@@ -24,13 +18,15 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import { queryAndMap } from "#shared/db/query.ts";
+} from "#db/client.ts";
+import { queryAndMap } from "#db/query.ts";
+import { byPrimaryKey, readerFor, type TableReader } from "#db/table-reader.ts";
+import { compact, filter, mapParallel, reduce } from "#fp";
 import {
-  byPrimaryKey,
-  readerFor,
-  type TableReader,
-} from "#shared/db/table-reader.ts";
+  type DependsOnEntry,
+  registerCache,
+  registerDependencies,
+} from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 

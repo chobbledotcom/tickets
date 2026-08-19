@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { requiredMapValue } from "#fp";
-import { requireOne } from "#shared/db/client.ts";
-import { claimRequestFor } from "#shared/db/payment-claim/scope.ts";
+import { requireOne } from "#db/client.ts";
+import { claimRequestFor } from "#db/payment-claim/scope.ts";
 import {
   claimAttendeeRows,
   type LoadedRefundAttendee,
-} from "#shared/db/payment-claim/take.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
+} from "#db/payment-claim/take.ts";
+import { getRefundPaymentReferences } from "#db/payment-references.ts";
+import { requiredMapValue } from "#fp";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

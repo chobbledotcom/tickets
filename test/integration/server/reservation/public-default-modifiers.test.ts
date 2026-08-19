@@ -1,15 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  addServiceCharge,
-  attendeeCount,
-  setPublicReservation,
-  setupSoldOutModifierRace,
-  submitBuyerOrder,
-  totalContactActivity,
-} from "#test/test-utils/reservation/helpers.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
@@ -17,6 +9,14 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { modifierUsageAmount } from "#test-utils/modifiers.ts";
+import {
+  addServiceCharge,
+  attendeeCount,
+  setPublicReservation,
+  setupSoldOutModifierRace,
+  submitBuyerOrder,
+  totalContactActivity,
+} from "#test-utils/reservation/helpers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv(

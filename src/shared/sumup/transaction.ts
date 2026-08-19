@@ -1,6 +1,6 @@
 import * as v from "valibot";
-import { malformedProviderRead } from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { malformedProviderRead } from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import { sumupPaymentFields } from "#shared/sumup/wire.ts";
 
 /** One SumUp transaction's charge and refund money in provider major units. */

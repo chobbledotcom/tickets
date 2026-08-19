@@ -1,16 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { buildTicketListing } from "#booking/model.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import {
   finishFoldedBooking,
   processParentApiBooking,
 } from "#routes/api/folded-booking.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
-import { checkoutItem } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
-import type { BookResponseBody } from "#test/test-utils/api/helpers.ts";
+import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
+import type { BookResponseBody } from "#test-utils/api/helpers.ts";
 import {
   expectCapturedItemPriced,
   STUB_CHECKOUT_URL,
@@ -26,6 +24,7 @@ import {
   makeParent,
 } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import type { ListingWithCount } from "#types";
 
 /** Direct, function-level tests of `processParentApiBooking` — the folded
  * parent-booking flow the JSON API's `handleBook` reaches only through the full
@@ -84,9 +83,7 @@ const foldProviderless = async (childUnitPrice: number) => {
   const response = await bookParent(parent, parentBody(child));
   expect(response.status).toBe(200);
   const body = (await response.json()) as BookResponseBody;
-  const { getAttendeesByTokens } = await import(
-    "#shared/db/attendees/tokens.ts"
-  );
+  const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
   const [attendee] = await getAttendeesByTokens([body.booking!.ticketToken!]);
   return { attendee: attendee!, body, child, parent };
 };

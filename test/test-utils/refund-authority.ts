@@ -2,12 +2,12 @@ import {
   armRefundSend,
   markRefundObservationDue,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import type {
   ObservingRefundState,
   ReadyRefundState,
   SendArmedRefundState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 
 export interface ReadyRefundTestOptions {
   readonly evidenceRevision?: number;

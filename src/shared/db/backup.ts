@@ -12,26 +12,24 @@
 
 import { unzipSync, zipSync } from "fflate";
 import * as v from "valibot";
-import { compact, reduce, sum } from "#fp";
-import { utf8ByteLength } from "#shared/bytes.ts";
 import {
   backupDumpDatabaseCalls,
   countSchemaTableRows,
   createBackup,
   type TableBackup,
-} from "#shared/db/backup-snapshot.ts";
+} from "#db/backup-snapshot.ts";
 import {
   backupKey,
   backupTimestamp,
   pruneOldBackups,
-} from "#shared/db/backup-storage.ts";
-import { execute, executeBatch } from "#shared/db/client.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+} from "#db/backup-storage.ts";
+import { execute, executeBatch } from "#db/client.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   RESTORE_DEFERRED_INDEXES,
   RESTORE_DEFERRED_TRIGGERS,
-} from "#shared/db/migrations/schema/restore-work.ts";
-import { noArgStatements } from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema/restore-work.ts";
+import { noArgStatements } from "#db/migrations/schema-sync.ts";
 import {
   clearAllCaches,
   LATEST_UPDATE,
@@ -39,11 +37,13 @@ import {
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
-} from "#shared/db/migrations.ts";
+} from "#db/migrations.ts";
 import {
   dumpMigrationState,
   legacyColumnRestores,
-} from "#shared/db/restore-legacy-columns.ts";
+} from "#db/restore-legacy-columns.ts";
+import { compact, reduce, sum } from "#fp";
+import { utf8ByteLength } from "#shared/bytes.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import { uploadRaw } from "#shared/storage.ts";

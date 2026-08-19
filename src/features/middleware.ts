@@ -2,6 +2,7 @@
  * Middleware functions for request processing
  */
 
+import { settings } from "#db/settings.ts";
 import { encodeBody } from "#routes/response.ts";
 import { ASSET_CDN_ORIGIN } from "#shared/asset-paths.ts";
 import {
@@ -9,9 +10,8 @@ import {
   isBotpoisonEnabled,
   isSecureMode,
 } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 /**
  * Security headers for all responses

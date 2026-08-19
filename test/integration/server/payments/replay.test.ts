@@ -1,11 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getNoteRows } from "#db/notes/queries.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getNoteRows } from "#shared/db/notes/queries.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

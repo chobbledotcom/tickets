@@ -1,10 +1,10 @@
 import { afterEach } from "@std/testing/bdd";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
+import { buildTicketListing } from "#booking/model.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import { pagePackage as sharedPagePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { pagePackage as sharedPagePackage } from "#test-utils/package-cap-fixtures.ts";
 
 /** A ticket-page listing row built from column overrides (not hidden, no
  * per-attendee override) — the shape almost every ticketPage test needs. */

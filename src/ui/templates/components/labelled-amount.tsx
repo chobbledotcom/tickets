@@ -1,5 +1,5 @@
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 
 /** A label (any content) beside a money amount. */
 export type LabelledAmountProps = { label: Child; amount: number };

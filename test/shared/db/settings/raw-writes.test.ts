@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import {
   deleteRaw,
   writeOrDelete,
   writeRaw,
   writeRawBatch,
-} from "#shared/db/settings/raw-writes.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+} from "#db/settings/raw-writes.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import {
   assertSettingsReadsDeclared,
   runWithSettingsAudit,
-} from "#shared/db/settings-audit.ts";
+} from "#db/settings-audit.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { statementSql } from "#test-utils/record-queries.ts";

@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   providerFailure,
   withExactRefundMoney,
-} from "#shared/payment/provider-failures.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+} from "#payment/provider-failures.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import {
   providerReadHttpCases,

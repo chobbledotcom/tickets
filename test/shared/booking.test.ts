@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import {
   type BookingResult,
   listingHasSpots,
   processBooking,
 } from "#shared/booking.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import type { Attendee, ContactInfo } from "#shared/types.ts";
-import { withCheckoutStub } from "#test/test-utils/api/helpers.ts";
+import { withCheckoutStub } from "#test-utils/api/helpers.ts";
 import { STUB_CHECKOUT_URL, stubCheckout } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import type { Attendee, ContactInfo } from "#types";
 
 /** Direct, function-level tests of {@link processBooking} and
  * {@link listingHasSpots} — the single-listing booking core. The route layer

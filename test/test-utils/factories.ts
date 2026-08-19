@@ -1,17 +1,19 @@
-import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import type {
   Answer,
   QuestionDisplayType,
   QuestionWithAnswers,
-} from "#shared/db/question-types.ts";
-import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
+} from "#db/question-types.ts";
+import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import type { TokenEntry } from "#routes/tickets/token-utils.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
+import type { WebhookAttendee } from "#shared/webhook.ts";
+import { generateTestListingName } from "#test-utils/internal.ts";
 import type {
   Attendee,
   Group,
@@ -19,9 +21,7 @@ import type {
   Listing,
   ListingWithCount,
   Modifier,
-} from "#shared/types.ts";
-import type { WebhookAttendee } from "#shared/webhook.ts";
-import { generateTestListingName } from "#test-utils/internal.ts";
+} from "#types";
 
 export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   active: true,

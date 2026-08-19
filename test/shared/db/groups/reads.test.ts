@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getGroupById, getGroupsByIds } from "#shared/db/groups.ts";
+import { getGroupById, getGroupsByIds } from "#db/groups.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";

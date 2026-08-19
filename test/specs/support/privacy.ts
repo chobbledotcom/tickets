@@ -10,12 +10,12 @@
  */
 
 import { expect } from "@std/expect";
-import { t } from "#i18n";
 import {
   type ContactChannel,
   contactHash,
   getVisits,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
+import { t } from "#i18n";
 // jscpd:ignore-start
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import {

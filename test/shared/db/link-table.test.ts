@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withTransaction } from "#shared/db/client.ts";
-import { linkTableSide, selfLinkTableSides } from "#shared/db/link-table.ts";
+import { withTransaction } from "#db/client.ts";
+import { linkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";

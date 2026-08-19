@@ -7,8 +7,8 @@
  * of the evidence, never a row in a state nothing can leave.
  */
 
+import type { RecoveryEventId } from "#payment/sumup-recovery-machine-spec.ts";
 import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
-import type { RecoveryEventId } from "#shared/payment/sumup-recovery-machine-spec.ts";
 import type { SumupCheckoutStatus } from "#shared/sumup-observation.ts";
 
 /** What the checkout read came back as. A read we could not use at all is not

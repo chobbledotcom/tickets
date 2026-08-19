@@ -1,16 +1,16 @@
+import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import type { DayPriceRow } from "#db/listing-prices.ts";
+import { rawListingsTable } from "#db/listings/table.ts";
+import { scopeIsChildDeadEnd } from "#db/modifier-resolve.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { unique } from "#fp";
-import { inPlaceholders, resultRows, type TxScope } from "#shared/db/client.ts";
-import type { DayPriceRow } from "#shared/db/listing-prices.ts";
-import { rawListingsTable } from "#shared/db/listings/table.ts";
-import { scopeIsChildDeadEnd } from "#shared/db/modifier-resolve.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   childAddOnError,
   type EdgeListing,
   edgeFieldError,
   type ParentChildEdge,
 } from "#shared/listing-parents-rules.ts";
-import type { DayPrices } from "#shared/types.ts";
+import type { DayPrices } from "#types";
 
 type EdgeListingRow = Omit<EdgeListing, "day_prices"> & {
   bookable_alone: number;

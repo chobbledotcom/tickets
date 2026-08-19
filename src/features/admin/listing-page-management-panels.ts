@@ -1,17 +1,17 @@
-import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   getAllAttributesWithOptions,
   listingAttributeOptions,
-} from "#shared/db/attributes.ts";
+} from "#db/attributes.ts";
 import {
   getAllQuestionsWithAnswers,
   getListingQuestionIds,
-} from "#shared/db/questions/queries.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#db/questions/queries.ts";
+import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import { ListingAttributesPanel } from "#templates/admin/attributes.tsx";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
+import type { ListingWithCount } from "#types";
 import { loadItemImagesPanel } from "./item-images.ts";
 import type { LoadedListing } from "./listing-page-data.ts";
 import { EMPTY_QR_VALUES, loadQrFormContext } from "./listing-qr.ts";

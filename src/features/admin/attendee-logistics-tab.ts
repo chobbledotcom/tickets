@@ -9,6 +9,13 @@
  * (attendee-page-data.ts / attendee-form-routes.ts).
  */
 
+import {
+  getOverlappingBookings,
+  type OverlappingBooking,
+} from "#db/attendees/overlap.ts";
+import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
+import type { DayRange } from "#db/capacity.ts";
+import { listingNames } from "#db/listings/records.ts";
 import { unique } from "#fp";
 import {
   type AttendeeLogisticsTabData,
@@ -22,13 +29,6 @@ import {
   type LoadedAttendee,
   loadPackagePaths,
 } from "#routes/admin/attendee-page-data.ts";
-import {
-  getOverlappingBookings,
-  type OverlappingBooking,
-} from "#shared/db/attendees/overlap.ts";
-import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
-import type { DayRange } from "#shared/db/capacity.ts";
-import { listingNames } from "#shared/db/listings/records.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
 

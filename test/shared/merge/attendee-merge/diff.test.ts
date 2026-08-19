@@ -1,15 +1,12 @@
 /** Diff behavior for the split attendee merge service test suite. */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  attendeeAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { getDb } from "#shared/db/client.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { getDb } from "#db/client.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -207,7 +204,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // Save the second choice alongside the first — `saveChoice` replaces the
       // attendee's full answer set, so re-save them together.
       const { saveAttendeeAnswers } = await import(
-        "#shared/db/questions/attendee-answers/save.ts"
+        "#db/questions/attendee-answers/save.ts"
       );
       await saveAttendeeAnswers(
         new Map([[target.id, [answers[0]!.id, second.answers[0]!.id]]]),

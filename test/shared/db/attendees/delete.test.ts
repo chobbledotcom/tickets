@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
-import { getDb, queryOne } from "#shared/db/client.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { assignBuiltSite, insertBuiltSite } from "#db/built-sites.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings/records.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
-import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+} from "#db/listings/records.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
+import { getAllModifiers, modifiersTable } from "#db/modifiers.ts";
+import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

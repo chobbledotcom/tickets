@@ -1,6 +1,6 @@
 /** Pure predicates and SQL expressions for the listing count aggregates. */
 
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 
 /**
  * The listing_attendees columns that shift the listing count aggregates

@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { executeBatch } from "#shared/db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   appendImageToItem,
   getImageById,
   getImagesForItem,
-} from "#shared/db/images.ts";
+} from "#db/images.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -15,8 +15,8 @@ import {
   invalidatePageItemsCache,
   removePageItem,
   sitePageItemOrder,
-} from "#shared/db/site-page-items.ts";
-import { getSitePageById } from "#shared/db/site-pages.ts";
+} from "#db/site-page-items.ts";
+import { getSitePageById } from "#db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";

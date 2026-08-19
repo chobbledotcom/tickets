@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
 import {
   listingInputToEdge,
   performListingDelete,

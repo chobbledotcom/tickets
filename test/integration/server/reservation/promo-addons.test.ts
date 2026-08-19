@@ -3,6 +3,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
 import {
   createOptionalAddOn,
   createProgrammeCharge,
@@ -11,14 +18,7 @@ import {
   modifierRefs,
   setupReservationListing,
   stubPaidSession,
-} from "#test/test-utils/reservation/helpers.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  modifierUsageAmount,
-  modifierUsageCount,
-} from "#test-utils/modifiers.ts";
+} from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end

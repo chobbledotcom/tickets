@@ -1,14 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingChildren } from "#db/listing-parents.ts";
 import { DAY_NAMES } from "#shared/day-names.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { weekdayOf } from "#test/test-utils/booking-model-fixtures.ts";
-import {
-  firstBookableDate,
-  makeDailyChildFilledOnDayA,
-  selectOptionsFromHtml,
-} from "#test/test-utils/parents-gate/helpers.ts";
+import { weekdayOf } from "#test-utils/booking-model-fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -17,6 +12,11 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
+import {
+  firstBookableDate,
+  makeDailyChildFilledOnDayA,
+  selectOptionsFromHtml,
+} from "#test-utils/parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

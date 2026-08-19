@@ -1,17 +1,13 @@
 /* jscpd:ignore-start -- imports */
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
-import {
-  resultRows,
-  type SqlStatement,
-  withTransaction,
-} from "#shared/db/client.ts";
-import { settingsVersionIncrement } from "#shared/db/settings/cache.ts";
-import { syncStoredSetting } from "#shared/db/settings/raw-writes.ts";
+import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
+import { settingsVersionIncrement } from "#db/settings/cache.ts";
+import { syncStoredSetting } from "#db/settings/raw-writes.ts";
 import {
   type StringSettingKey,
   setSnapshotField,
-} from "#shared/db/settings/snapshot.ts";
+} from "#db/settings/snapshot.ts";
 
 /* jscpd:ignore-end */
 

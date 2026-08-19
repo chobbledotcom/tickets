@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { handleRequest } from "#routes";
-import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
-import { execute } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+import { setAttendeePhoneIndexIfEmpty } from "#db/attendee-phone-index.ts";
+import { execute } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import {
   getSmsMessageByProviderId,
   recordSmsMessage,
-} from "#shared/db/sms-messages.ts";
+} from "#db/sms-messages.ts";
+import { handleRequest } from "#routes";
 import { encryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import {

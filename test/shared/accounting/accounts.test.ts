@@ -12,7 +12,7 @@ import {
   SINGLETON_ACCOUNTS,
   WORLD,
   WRITEOFF,
-} from "#shared/accounting/accounts.ts";
+} from "#accounting/accounts.ts";
 
 describe("accounting > accounts", () => {
   test("exposes the fixed singleton accounts", () => {

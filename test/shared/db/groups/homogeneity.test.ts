@@ -3,9 +3,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
+import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
-import { checkGroupListingSettings } from "#shared/db/groups/homogeneity.ts";
-import { getListingsByGroupId } from "#shared/db/groups.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

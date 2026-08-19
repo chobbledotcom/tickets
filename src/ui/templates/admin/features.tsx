@@ -9,7 +9,6 @@ import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
@@ -17,6 +16,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
+import type { AdminSession, Theme } from "#types";
 
 /* jscpd:ignore-end */
 

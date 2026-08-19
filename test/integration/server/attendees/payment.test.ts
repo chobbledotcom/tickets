@@ -2,24 +2,24 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getNotesFor } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import { settings } from "#db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 // jscpd:ignore-end
 import { createRefundableAttendee } from "#test/features/admin/refunds-helpers.ts";
-import {
-  expectFlashPage,
-  firstAttendee,
-  refreshPaymentAsStripe,
-  setupListingAndAttendee,
-} from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import {
+  expectFlashPage,
+  firstAttendee,
+  refreshPaymentAsStripe,
+  setupListingAndAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -123,9 +123,7 @@ describeWithEnv(
             quantity: 1,
           }),
         );
-        const { updateCheckedIn } = await import(
-          "#shared/db/attendees/update.ts"
-        );
+        const { updateCheckedIn } = await import("#db/attendees/update.ts");
         const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
         await updateCheckedIn(attendee.id, listing.id, true);
         await postAttendeeRefund({
@@ -194,7 +192,7 @@ describeWithEnv(
 
       test("keeps refresh reachable when attendee has no bookings", async () => {
         const { attendee } = await setupListingAndAttendee();
-        const { getDb: getDbFn } = await import("#shared/db/client.ts");
+        const { getDb: getDbFn } = await import("#db/client.ts");
         const db = getDbFn();
         await db.execute({
           args: [attendee.id],

@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   RECOVERY_NODES,
   type RecoveryNodeId,
-} from "#shared/payment/sumup-recovery-machine-spec.ts";
+} from "#payment/sumup-recovery-machine-spec.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { sumupRecoveryAtlas } from "#shared/schema-atlas/sumup-recovery.ts";
 

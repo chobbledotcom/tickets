@@ -9,20 +9,17 @@
  * can crash anywhere and a later one finishes the job from that point.
  */
 
-import { logActivity } from "#shared/db/activity-log.ts";
-import { withTransaction } from "#shared/db/client.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  type RowSettlement,
-  settleAttendeeRows,
-} from "#shared/db/payment-claim.ts";
-import { insertRefundConfirmation } from "#shared/db/refund-confirmations.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { withTransaction } from "#db/client.ts";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import { type RowSettlement, settleAttendeeRows } from "#db/payment-claim.ts";
+import { insertRefundConfirmation } from "#db/refund-confirmations.ts";
 import {
   type PlaceholderRefund,
   placeholderRefundNote,
-} from "#shared/payment/placeholder-refund.ts";
-import type { PaymentBooksChange } from "#shared/payment/row-transitions.ts";
+} from "#payment/placeholder-refund.ts";
+import type { PaymentBooksChange } from "#payment/row-transitions.ts";
 import {
   type RefundAuthorityReceipt,
   recordProviderRefunds,

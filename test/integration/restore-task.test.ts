@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
+import { inspectBackupZip, PostResetError } from "#db/backup.ts";
+import { SCHEMA_HASH } from "#db/migrations.ts";
 import {
   RESTORE_CONFIRMATION,
   RESTORE_USAGE,
   type RestoreCliDeps,
   runRestoreCli,
 } from "#scripts/restore-lib.ts";
-import { inspectBackupZip, PostResetError } from "#shared/db/backup.ts";
-import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 
 const encoder = new TextEncoder();

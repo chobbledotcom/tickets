@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb, insert } from "#shared/db/client.ts";
+import { getDb, insert } from "#db/client.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
   reserveSession,
   STALE_RESERVATION_MS,
-} from "#shared/db/processed-payments.ts";
+} from "#db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

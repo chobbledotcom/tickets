@@ -6,10 +6,7 @@
  * carries the shared images panel (image_uses with item_type 'news').
  */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
-import { defineRoutes } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
+import { logActivity } from "#db/activity-log.ts";
 import {
   createNewsPost,
   deleteNewsPostWithImages,
@@ -17,14 +14,17 @@ import {
   getNewsPostSummaries,
   type NewsPostWriteInput,
   updateNewsPost,
-} from "#shared/db/news-posts.ts";
+} from "#db/news-posts.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { defineRoutes } from "#routes/router.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type { NewsPost } from "#shared/types.ts";
 import {
   adminNewsDeletePage,
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
+import type { NewsPost } from "#types";
 import { seoContentInput } from "./content-form-fields.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";

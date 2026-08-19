@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 import {
   newWebhookApiCalls,
   webhookEndpointsApi,
-} from "#test/test-utils/stripe/webhook-mocks.ts";
-import { withEnv } from "#test-utils/env.ts";
+} from "#test-utils/stripe/webhook-mocks.ts";
 
 const withStripeClient = async (
   env: Record<string, string | undefined>,

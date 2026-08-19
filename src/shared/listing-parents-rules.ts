@@ -19,7 +19,7 @@ import {
   clampDurationDays,
   type DayPrices,
   dayPriceFor,
-} from "#shared/types.ts";
+} from "#types";
 
 /** The listing fields an edge-compatibility check reasons about. */
 export type EdgeListing = {

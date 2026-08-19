@@ -1,23 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
-import {
-  costAccount,
-  revenueAccount,
-  WORLD,
-} from "#shared/accounting/accounts.ts";
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { execute } from "#shared/db/client.ts";
-import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
-import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { costAccount, revenueAccount, WORLD } from "#accounting/accounts.ts";
+import { bookingEventGroup } from "#accounting/mappers.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { execute } from "#db/client.ts";
+import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
+import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import {
   modifierGroups,
   modifierListings,
   modifiersTable,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

@@ -6,17 +6,17 @@
  * pure functions are the complete set of moves; the database layer only
  * wraps them in the compare-and-swap statement that makes them stick. */
 
-import type { ClaimRequest } from "#shared/payment/claim.ts";
+import type { ClaimRequest } from "#payment/claim.ts";
 import {
   openPaymentReview,
   type PaymentReviewReason,
-} from "#shared/payment/review.ts";
+} from "#payment/review.ts";
 import type {
   PaymentRowState,
   RefundClaim,
   RefundClaimPhase,
   StoredPaymentFailure,
-} from "#shared/payment/row-state.ts";
+} from "#payment/row-state.ts";
 
 export type PaymentReviewChange =
   | { readonly kind: "review"; readonly reason: PaymentReviewReason }

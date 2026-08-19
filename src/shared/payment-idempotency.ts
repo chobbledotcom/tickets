@@ -1,6 +1,6 @@
-import { toBase64Url } from "#shared/crypto/utils.ts";
-import { requireRefundGeneration } from "#shared/payment/refund-generation.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import { toBase64Url } from "#crypto/utils.ts";
+import { requireRefundGeneration } from "#payment/refund-generation.ts";
+import type { PaymentProviderType } from "#types";
 
 /**
  * Stable idempotency key for one durable refund generation. The same provider,

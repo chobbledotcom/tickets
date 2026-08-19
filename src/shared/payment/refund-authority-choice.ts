@@ -1,10 +1,7 @@
 /** Required owner decisions for refund outcomes evidence cannot settle. */
 
-import {
-  markRefundCompleted,
-  readyRefund,
-} from "#shared/payment/refund-authority.ts";
-import { refundEvidenceActionAllowed } from "#shared/payment/refund-authority-lifecycle.ts";
+import { markRefundCompleted, readyRefund } from "#payment/refund-authority.ts";
+import { refundEvidenceActionAllowed } from "#payment/refund-authority-lifecycle.ts";
 import {
   type CompletedRefundState,
   type NeedsOwnerChoiceRefundState,
@@ -15,12 +12,12 @@ import {
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
   validateRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import {
   type RefundConflictDecision,
   type RefundOwnerDecision,
   refundConflictNeedsProviderCheck,
-} from "#shared/payment/refund-conflict-decision.ts";
+} from "#payment/refund-conflict-decision.ts";
 
 const OWNER_CHOICE_FROM = {
   possibly_sent: ["send_armed", "observing"],

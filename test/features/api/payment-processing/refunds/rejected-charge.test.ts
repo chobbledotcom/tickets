@@ -5,10 +5,6 @@ import {
   answerRejectedSession,
   settleRejectedCharge,
 } from "#routes/api/payment-processing/rejected-target.ts";
-import {
-  completedStripeRefund,
-  stripeRefundRequestShape,
-} from "#test/test-utils/stripe/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
@@ -18,6 +14,10 @@ import {
   withStripeProvider,
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
+import {
+  completedStripeRefund,
+  stripeRefundRequestShape,
+} from "#test-utils/stripe/fixtures.ts";
 
 setupTestEncryptionKey();
 

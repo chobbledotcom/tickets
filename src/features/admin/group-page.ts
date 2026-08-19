@@ -25,12 +25,7 @@ import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 /* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
-import {
-  type Group,
-  isContentRole,
-  isOwnerRole,
-  isStaffRole,
-} from "#shared/types.ts";
+import { type Group, isContentRole, isOwnerRole, isStaffRole } from "#types";
 import {
   loadGroupAttendeesPanel,
   loadGroupEditPanel,

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { queryAll } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { queryAll } from "#shared/db/client.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -134,8 +134,8 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // The package page stays live, the full date is still rejected by the
     // date-aware submit gate, and the next day books normally.
     const { group, tent } = await dailyPackage("Tight", "tight-pkg");
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-    const { listingsTable } = await import("#shared/db/listings/records.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
+    const { listingsTable } = await import("#db/listings/records.ts");
     const dateA = bookingDate();
     await listingsTable.update(tent.id, { maxAttendees: 1 });
     const fill = await attendeesApi.createAttendeeAtomic({
@@ -192,7 +192,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Pool Camper",
       unitPrice: 0,
     });
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     const dateA = bookingDate();
     const fill = await attendeesApi.createAttendeeAtomic({
       bookings: [{ date: dateA, listingId: camper.id, quantity: 10 }],
@@ -345,7 +345,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
 
   test("the package page drops day counts no member's required child can serve", async () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
-    const { listingChildren } = await import("#shared/db/listing-parents.ts");
+    const { listingChildren } = await import("#db/listing-parents.ts");
     const { boat, group } = await createFlexPackage("Gated Flex", "gated-flex");
     // The boat's only add-on is a fixed 2-day daily child: a 1-day bundle could
     // never fold, so the shared selector must not offer it even without JS.
@@ -371,7 +371,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
   test("a hidden package's day-count error names the package, not the member", async () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
     const { parseFlashCookie } = await import("#test-utils/assertions.ts");
-    const { groups } = await import("#shared/db/groups.ts");
+    const { groups } = await import("#db/groups.ts");
     const { group } = await createFlexPackage("Hush Kit", "hush-kit");
     await groups.table.update(group.id, { hidePackageListings: true });
 

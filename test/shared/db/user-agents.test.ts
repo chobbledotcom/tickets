@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { agentUsers, userAgents } from "#shared/db/user-agents.ts";
+import { agentUsers, userAgents } from "#db/user-agents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db user-agents", { db: true }, () => {

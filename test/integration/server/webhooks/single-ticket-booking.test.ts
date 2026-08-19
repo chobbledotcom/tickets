@@ -42,11 +42,9 @@ describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
       }),
     );
 
-    const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
-    const { attendeeAccount } = await import("#shared/accounting/accounts.ts");
-    const { transfersByAccount } = await import(
-      "#shared/accounting/queries.ts"
-    );
+    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+    const { attendeeAccount } = await import("#accounting/accounts.ts");
+    const { transfersByAccount } = await import("#accounting/queries.ts");
     const attendees = await getAttendeesRaw(listing.id);
     const legs = await transfersByAccount(attendeeAccount(attendees[0]!.id));
     const expected = new Date(created * 1000).toISOString();

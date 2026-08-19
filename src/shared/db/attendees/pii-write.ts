@@ -1,9 +1,9 @@
 /** One atomic attendee PII save. */
 
-import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
-import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
+import { buildPiiBlob, encryptPiiBlob } from "#db/attendees/pii.ts";
+import type { SqlStatement } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 
 export const attendeePiiWriteStatements = async (
   attendeeId: number,

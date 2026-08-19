@@ -1,14 +1,14 @@
 /* jscpd:ignore-start */
-import { COST, REVENUE, WRITEOFF_TYPE } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { COST, REVENUE, WRITEOFF_TYPE } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
-} from "#shared/accounting/manual-entries.ts";
+} from "#accounting/manual-entries.ts";
 /* jscpd:ignore-end */
-import { type LedgerRange, occurredAtRange } from "#shared/accounting/range.ts";
-import { requireOne } from "#shared/db/client.ts";
-import { clauseArgs, whereSql } from "#shared/db/where-clauses.ts";
+import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
+import { requireOne } from "#db/client.ts";
+import { clauseArgs, whereSql } from "#db/where-clauses.ts";
 
 export type ListingMoneyTotals = {
   externalCosts: number;

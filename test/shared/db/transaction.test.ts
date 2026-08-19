@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { inPlaceholders, withTransaction } from "#shared/db/client.ts";
-import { TransactionValidationError, txIdSet } from "#shared/db/transaction.ts";
+import { inPlaceholders, withTransaction } from "#db/client.ts";
+import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

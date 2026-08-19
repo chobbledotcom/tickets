@@ -2,8 +2,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { transfersByEventGroup } from "#shared/accounting/queries.ts";
-import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
+import { postTransferGroups, postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { saleAndPayment, tx, useTransactionalDb } from "#test-utils/ledger.ts";

@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   refundOutcomeAfterReread,
-} from "#shared/payment/refund-attempt.ts";
+} from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
-} from "#shared/payment/refund-provider-authorization.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+} from "#payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";

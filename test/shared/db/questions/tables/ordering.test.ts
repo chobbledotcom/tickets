@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   getAllQuestionsWithAnswers,
   getQuestionWithAnswers,
-} from "#shared/db/questions/queries.ts";
-import { answersOrder, questionsOrder } from "#shared/db/questions/tables.ts";
+} from "#db/questions/queries.ts";
+import { answersOrder, questionsOrder } from "#db/questions/tables.ts";
 import {
   addAnswer,
   createOrderedQuestionPair,

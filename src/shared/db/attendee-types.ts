@@ -2,11 +2,11 @@
  * Types for attendee operations
  */
 
+import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import type { AttendeeKind } from "#db/attendees/kind.ts";
+import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
-import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
-import type { BookingSource } from "#shared/db/contact-tokens.ts";
-import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
+import type { Attendee, ContactFields, ContactInfo } from "#types";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
  * `childId` chosen under `parentId` in one order. An order where the same child

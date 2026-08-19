@@ -1,11 +1,11 @@
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+import type { SelectedQuestionAnswers } from "#db/question-types.ts";
 import type {
   BalanceNotice,
   ParsedAttendeeForm,
 } from "#routes/admin/attendee-form-model.ts";
 import type { AttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { SelectedQuestionAnswers } from "#shared/db/question-types.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee } from "#types";
 
 /** Everything the editable attendee form needs to render. */
 export interface AttendeeFormTemplateData extends SelectedQuestionAnswers {

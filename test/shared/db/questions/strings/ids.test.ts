@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryAll } from "#shared/db/client.ts";
-import {
-  getOrCreateStringIds,
-  pairStringIds,
-} from "#shared/db/questions/strings.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { queryAll } from "#db/client.ts";
+import { getOrCreateStringIds, pairStringIds } from "#db/questions/strings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("custom questions > shared strings", { db: true }, () => {

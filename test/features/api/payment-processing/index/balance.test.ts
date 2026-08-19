@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { execute } from "#db/client.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withSessionFailureFault } from "#test-utils/db-fault.ts";

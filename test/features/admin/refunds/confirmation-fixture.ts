@@ -1,11 +1,11 @@
 import { assert } from "@std/assert";
+import { queryOne } from "#db/client.ts";
+import type { RefundPaymentReference } from "#db/payment-references.ts";
 import {
   type ConfirmedRefund,
   confirmRefund,
   type RefundConfirmation,
 } from "#routes/admin/refunds/confirmation.ts";
-import { queryOne } from "#shared/db/client.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   bookAttendee,

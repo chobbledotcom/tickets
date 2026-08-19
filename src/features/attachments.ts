@@ -6,14 +6,13 @@
  * Each download increments the attendee's attachment_downloads counter.
  */
 
+import { hasActiveBookingLine } from "#db/attendees/queries.ts";
+import { incrementAttachmentDownloads } from "#db/attendees/update.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { notFoundResponse } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getAttachmentMediaType } from "#shared/attachment-media-type.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
-import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
-import { incrementAttachmentDownloads } from "#shared/db/attendees/update.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   downloadImage,
   getBasename,

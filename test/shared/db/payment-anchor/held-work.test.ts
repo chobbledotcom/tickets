@@ -2,11 +2,11 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#shared/db/payment-anchor/attendee.ts";
-import { loadAnchorRowWork } from "#shared/db/payment-anchor/held-work.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import { execute } from "#db/client.ts";
+import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
+import { loadAnchorRowWork } from "#db/payment-anchor/held-work.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

@@ -3,6 +3,8 @@
  * Owner-only access enforced via settingsHandler
  */
 
+import { isValidRsaPrivateKey } from "#crypto/rsa-private-key.ts";
+import { settings } from "#db/settings.ts";
 import { firstProblem } from "#fp";
 import { t } from "#i18n";
 import {
@@ -16,8 +18,6 @@ import {
   isValidCertificate,
 } from "#shared/apple-wallet/certificate.ts";
 import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
-import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
-import { settings } from "#shared/db/settings.ts";
 
 /**
  * Handle POST /admin/settings/apple-wallet - owner only

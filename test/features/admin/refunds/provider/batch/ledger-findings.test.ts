@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { RowSettlement } from "#db/payment-claim.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
-import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import {
   failingProvider,
   finishedCounts,

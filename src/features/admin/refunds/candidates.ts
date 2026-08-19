@@ -1,14 +1,13 @@
-import { filter, requiredMapValue, uniqueBy } from "#fp";
-import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
+import type { LoadedRefundAttendee } from "#db/payment-claim/take.ts";
 import {
   getRefundPaymentReferences,
   type RefundReferenceProblem,
   stillWithTheProvider,
   type TaggedRefundPaymentReference,
   underRefundClaim,
-} from "#shared/db/payment-references.ts";
-import type { Attendee } from "#shared/types.ts";
-import { hasTicketQuantity } from "#shared/types.ts";
+} from "#db/payment-references.ts";
+import { filter, requiredMapValue, uniqueBy } from "#fp";
+import { type Attendee, hasTicketQuantity } from "#types";
 
 type RefundCandidateAttendee = Pick<
   Attendee,

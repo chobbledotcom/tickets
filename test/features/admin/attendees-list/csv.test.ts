@@ -5,8 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activity-log.ts";
-import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees/queries.ts";
+import { getAllActivityLog } from "#db/activity-log.ts";
+import { ATTENDEES_PAGE_SIZE } from "#db/attendees/queries.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";

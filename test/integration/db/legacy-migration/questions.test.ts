@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { insert } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { initDb } from "#shared/db/migrations.ts";
+import { insert } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
+import { initDb } from "#db/migrations.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,

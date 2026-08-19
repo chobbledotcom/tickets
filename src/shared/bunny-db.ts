@@ -10,11 +10,11 @@ import * as v from "valibot";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { fetchText, jsonHeaders } from "#shared/fetch.ts";
-import type {
-  CreateDatabaseFn,
-  DatabaseProviderApi,
+import {
+  type CreateDatabaseFn,
+  type DatabaseProviderApi,
+  databaseCredentialsFromResponse,
 } from "#shared/provider-types.ts";
-import { databaseCredentialsFromResponse } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";

@@ -1,6 +1,6 @@
 /** Real database failures used by refund recovery stories. */
 
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
 import { refundLedgerFaultTrigger } from "#test-utils/refund-ledger-fault.ts";
 

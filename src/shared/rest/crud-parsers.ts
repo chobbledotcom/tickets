@@ -9,7 +9,7 @@ import {
   parseOptionalResult,
   type Result,
 } from "#shared/result.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession } from "#types";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };

@@ -12,13 +12,13 @@ import {
   encrypt,
   getEncryptionKeyBytes,
   setEncryptionKeyForTest,
-} from "#shared/crypto/encryption.ts";
+} from "#crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
   generateKeyPair,
   importPrivateKey,
-} from "#shared/crypto/keys.ts";
+} from "#crypto/keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { OTHER_TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";

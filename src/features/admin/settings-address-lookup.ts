@@ -8,6 +8,7 @@
  * with a provider that has no credentials.
  */
 
+import { settings } from "#db/settings.ts";
 import {
   processSecretField,
   type SecretFieldResult,
@@ -18,7 +19,6 @@ import {
   type AddressLookupSetting,
   isAddressLookupSetting,
 } from "#shared/address-lookup/types.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 
 type AddressLookupFormData = {

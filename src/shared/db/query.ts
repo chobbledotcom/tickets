@@ -1,14 +1,9 @@
 /* jscpd:ignore-start */
 import type { InValue, Row } from "@libsql/client";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, inPlaceholders, queryAll, resultRows } from "#db/client.ts";
 import { mapParallel } from "#fp";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  execute,
-  inPlaceholders,
-  queryAll,
-  resultRows,
-} from "#shared/db/client.ts";
 /* jscpd:ignore-end */
 
 /**

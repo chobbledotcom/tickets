@@ -8,16 +8,16 @@
  */
 
 import type { InValue, ResultSet } from "@libsql/client";
-import { ATTENDEE } from "#shared/accounting/accounts.ts";
+import { ATTENDEE } from "#accounting/accounts.ts";
 import {
   orIgnore,
   queryBatch,
   resultRows,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import { type Read, readStatement } from "#shared/db/read.ts";
-import { equals, matchesNoRows } from "#shared/db/where-clauses.ts";
+} from "#db/client.ts";
+import { type Read, readStatement } from "#db/read.ts";
+import { equals, matchesNoRows } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,

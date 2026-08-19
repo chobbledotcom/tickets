@@ -1,7 +1,7 @@
 /* jscpd:ignore-start -- imports */
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import { reportProviderWithheldRefund } from "#shared/payment-review.ts";
 import {
   type ProviderRefundResult,

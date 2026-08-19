@@ -6,7 +6,7 @@ import {
   bookListing,
   describePublicApi,
   withCheckoutStub,
-} from "#test/test-utils/api/helpers.ts";
+} from "#test-utils/api/helpers.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -96,9 +96,7 @@ describePublicApi(() => {
       // so the auto-folded child is stored as its own row under the parent.
       const { parent, child } = await freeParentWithChild();
       const { body } = await bookListing(parent.slug);
-      const { getAttendeesByTokens } = await import(
-        "#shared/db/attendees/tokens.ts"
-      );
+      const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
       const [attendee] = await getAttendeesByTokens([
         body.booking!.ticketToken!,
       ]);
@@ -196,9 +194,7 @@ describePublicApi(() => {
     test("books no attendees when conflicting child prices are rejected", async () => {
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       await bookTwoChildEntries(parent.slug, child, [30, 20]);
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });

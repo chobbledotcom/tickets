@@ -3,13 +3,12 @@
  */
 
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import {
   siteContactForm,
   siteHomeForm,
   siteOrderForm,
 } from "#routes/admin/site.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { flashOptsPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
@@ -17,6 +16,7 @@ import {
   renderedFieldsSaveForm,
   SaveForm,
 } from "#templates/components/save-form.tsx";
+import type { AdminLevel, AdminSession } from "#types";
 
 /** The public-site guide footer shared by the home, contact and order editors
  * (all three map to the guide's `#public-site` section). The site editors are

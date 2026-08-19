@@ -2,17 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import {
-  getAllCacheStats,
-  invalidateCachesForTable,
-  resetAllCaches,
-} from "#shared/cache-registry.ts";
-import { hashSessionToken } from "#shared/crypto/hashing.ts";
-import {
-  execute,
-  executeWithoutCacheInvalidation,
-  getDb,
-} from "#shared/db/client.ts";
+import { hashSessionToken } from "#crypto/hashing.ts";
+import { execute, executeWithoutCacheInvalidation, getDb } from "#db/client.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -21,8 +12,13 @@ import {
   getAllSessions,
   getSession,
   getSessionWithUser,
-} from "#shared/db/sessions.ts";
-import { createUser } from "#shared/db/users.ts";
+} from "#db/sessions.ts";
+import { createUser } from "#db/users.ts";
+import {
+  getAllCacheStats,
+  invalidateCachesForTable,
+  resetAllCaches,
+} from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { execute, executeBatch, queryOne } from "#db/client.ts";
+import { CONFIG_KEYS, type SettingsData, settings } from "#db/settings.ts";
 import {
   type AdminFeatureKey,
   type EnabledFeatures,
@@ -7,10 +10,6 @@ import {
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { execute, executeBatch, queryOne } from "#shared/db/client.ts";
-import type { SettingsData } from "#shared/db/settings.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
 import { withMocks } from "./mocks.ts";
@@ -148,7 +147,7 @@ export const testWithSetting = (
 };
 
 export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
-  const { settings: s } = await import("#shared/db/settings.ts");
+  const { settings: s } = await import("#db/settings.ts");
   await s.update.stripe.secretKey(key);
   await s.update.paymentProvider("stripe");
 };
@@ -211,7 +210,7 @@ export const withSuccessfulStripeWebhook = async (
  *  setter dance behind it. The suite-level `afterEach` in
  *  {@link describeWithEnv} rolls the DB back, so the toggle never leaks. */
 export const enablePublicApi = async (): Promise<void> => {
-  const { settings: s } = await import("#shared/db/settings.ts");
+  const { settings: s } = await import("#db/settings.ts");
   await s.update.showPublicApi(true);
 };
 

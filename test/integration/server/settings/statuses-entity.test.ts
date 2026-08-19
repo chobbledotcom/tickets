@@ -1,10 +1,7 @@
 /* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  attendeeStatuses,
-  getAttendeeStatus,
-} from "#shared/db/attendee-statuses.ts";
+import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import {
   expectFlashRedirect,

@@ -5,11 +5,6 @@
 import { t } from "#i18n";
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
-import type {
-  AdminSession,
-  PaymentProviderType,
-  Theme,
-} from "#shared/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
@@ -22,6 +17,7 @@ import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
+import type { AdminSession, PaymentProviderType, Theme } from "#types";
 
 export type AdvancedSettingsPageState = {
   addressLookupProvider: AddressLookupSetting;

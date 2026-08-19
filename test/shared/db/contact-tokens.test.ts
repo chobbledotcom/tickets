@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   forgetContact,
   getContactRecord,
   hashEmail,
   hashPhone,
   recordContacts,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
 import {
   getRecentBookingTokens,
   syncAttendeeContactTokens,
-} from "#shared/db/contact-tokens.ts";
+} from "#db/contact-tokens.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -362,7 +362,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("a real create appends the new attendee's ticket token", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "real-token@example.com",

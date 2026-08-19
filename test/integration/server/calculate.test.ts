@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { hmacHash } from "#crypto/hashing.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { getDb } from "#db/client.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { modifiersTable, setModifierAnswers } from "#db/modifiers.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getDb } from "#shared/db/client.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { settings } from "#shared/db/settings.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -80,7 +80,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       name: "Mystery Box",
       slug: "mystery-box",
     });
-    const { groups } = await import("#shared/db/groups.ts");
+    const { groups } = await import("#db/groups.ts");
     await groups.table.update(group.id, { hidePackageListings: true });
     const member = await createTestListing({
       groupId: group.id,
@@ -418,7 +418,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // Simulate capacity exhausted between page load and the quote (e.g. a dated
     // group day filling up), as the submit path's availability check would catch.
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
       Promise.resolve(false),
     );

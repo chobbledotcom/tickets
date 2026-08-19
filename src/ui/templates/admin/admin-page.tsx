@@ -15,10 +15,9 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { AgentHeader } from "#templates/admin/agent-header.tsx";
 import {
   AdminNav,
@@ -26,6 +25,7 @@ import {
   StaffAdminNav,
 } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
+import type { AdminSession, Theme } from "#types";
 /* jscpd:ignore-end */
 
 export type AdminPageProps = {

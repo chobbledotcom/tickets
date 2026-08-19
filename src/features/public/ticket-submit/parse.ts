@@ -5,6 +5,24 @@
  * form and the resolved page context; nothing prices or persists.
  */
 
+import type { buildBookingTree } from "#booking/build-tree.ts";
+import { parseCustomPrice } from "#booking/form.ts";
+import {
+  aggregateNodeQuantities,
+  nodeQuantitiesFor,
+} from "#booking/order-lines.ts";
+import {
+  packageLimitInfo,
+  pagePackageBundleLimit,
+} from "#booking/package-cap.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
+import {
+  customPriceFieldName,
+  packageQuantityFieldName,
+  quantityFieldName,
+  standaloneListingIds,
+} from "#booking/tree.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import {
   type AnswerInfo,
   getTicketFieldsSetting,
@@ -16,33 +34,15 @@ import {
   REGISTRATION_CLOSED_SUBMIT_MESSAGE,
   type TicketCtx,
 } from "#routes/public/types.ts";
-import type { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { parseCustomPrice } from "#shared/booking/form.ts";
-import {
-  aggregateNodeQuantities,
-  nodeQuantitiesFor,
-} from "#shared/booking/order-lines.ts";
-import {
-  packageLimitInfo,
-  pagePackageBundleLimit,
-} from "#shared/booking/package-cap.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
-import {
-  customPriceFieldName,
-  packageQuantityFieldName,
-  quantityFieldName,
-  standaloneListingIds,
-} from "#shared/booking/tree.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
+import type { ListingWithCount } from "#types";
 
 /** Validate page-level form state before deeper parsing. Returns an error
  * message, or null when the form state is acceptable. */

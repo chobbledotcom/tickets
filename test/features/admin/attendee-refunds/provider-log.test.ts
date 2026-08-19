@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
-import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
+import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
+import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
 import {
   createPaidListing,
   createRefundableAttendee,

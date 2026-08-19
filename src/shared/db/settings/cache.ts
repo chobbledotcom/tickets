@@ -19,18 +19,18 @@
  * reload (and the decryption) entirely on the common no-change path.
  */
 
+import {
+  executeWithoutCacheInvalidation,
+  queryAll,
+  type SqlStatement,
+} from "#db/client.ts";
+import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
+import { recordSettingRead } from "#db/settings-audit.ts";
 import { lazyRef } from "#fp";
 import {
   type CacheInvalidation,
   registerCache,
 } from "#shared/cache-registry.ts";
-import {
-  executeWithoutCacheInvalidation,
-  queryAll,
-  type SqlStatement,
-} from "#shared/db/client.ts";
-import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
-import { recordSettingRead } from "#shared/db/settings-audit.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";

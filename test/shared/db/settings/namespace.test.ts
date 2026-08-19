@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withProperties } from "#shared/db/settings/namespace.ts";
+import { withProperties } from "#db/settings/namespace.ts";
 
 describe("db > settings namespace", () => {
   test("adds every property of the part to the target", () => {

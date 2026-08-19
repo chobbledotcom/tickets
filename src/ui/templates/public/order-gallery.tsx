@@ -1,12 +1,13 @@
 /* jscpd:ignore-start */
+
+import type { TicketListing } from "#booking/model.ts";
+import type { ListingAttributesById } from "#db/attributes.ts";
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
-import type { TicketListing } from "#shared/booking/model.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
 import {
   ORDER_FIELD,
@@ -14,20 +15,20 @@ import {
   SELECT_PREFIX,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
-import type { GroupWithMembers } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
+import type { GroupWithMembers } from "#types";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
   MarkdownProse,
   PackagesSection,
   type PublicNavProps,
-  /* jscpd:ignore-end */
   publicPage,
   renderListingImage,
   titleWithSiteName,
 } from "./shared.tsx";
+/* jscpd:ignore-end */
 
 /**
  * The inner content of an `.order-cart` submit button: the leading {@link Icon},

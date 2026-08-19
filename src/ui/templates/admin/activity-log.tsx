@@ -2,19 +2,19 @@
  * Admin activity log page template
  */
 
+import type { ActivityLogEntry } from "#db/activity-log.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
-import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import type { AdminSession, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

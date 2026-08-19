@@ -109,7 +109,7 @@ describeWithEnv(
 
       test("blocks check-in for refunded attendee", async () => {
         const { getAttendeesByTokens } = await import(
-          "#shared/db/attendees/tokens.ts"
+          "#db/attendees/tokens.ts"
         );
         const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
         const { listing, token, session } = await setupCheckinTest(
@@ -132,7 +132,7 @@ describeWithEnv(
 
       test("blocks check-out for refunded attendee", async () => {
         const { getAttendeesByTokens } = await import(
-          "#shared/db/attendees/tokens.ts"
+          "#db/attendees/tokens.ts"
         );
         const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
         const { listing, token, session } = await setupCheckinTest(
@@ -157,8 +157,8 @@ describeWithEnv(
         // A package/order can mix a checkable member with a No check-in
         // (purchase_only) one on the same token; the token check-in must update
         // only the checkable row.
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-        const { queryAll } = await import("#shared/db/client.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
+        const { queryAll } = await import("#db/client.ts");
         const normal = await createTestListing({ name: "Entry Pass" });
         const merch = await createTestListing({
           name: "Merch Add-on",

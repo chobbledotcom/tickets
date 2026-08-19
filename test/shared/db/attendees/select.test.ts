@@ -10,7 +10,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeField,
@@ -19,7 +19,7 @@ import {
   type AttendeeWhere,
   attendeeBatchStatement,
   attendeeColumns,
-} from "#shared/db/attendees/select.ts";
+} from "#db/attendees/select.ts";
 
 /** The filter and order half of an attendee read — everything from `FROM`
  * onwards — plus its bound values. Field selection is covered separately, so

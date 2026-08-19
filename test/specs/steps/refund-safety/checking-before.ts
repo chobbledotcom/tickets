@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { PaymentProviderSchema } from "#shared/types.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { forgetStoredPaymentProvider } from "#test/specs/support/refund-safety/history.ts";
 import {
@@ -11,6 +10,7 @@ import {
 } from "#test/specs/support/refund-safety/journeys.ts";
 import { safetyBooking } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { PaymentProviderSchema } from "#types";
 import {
   expectNoRefundAction,
   expectOwnerWasTold,

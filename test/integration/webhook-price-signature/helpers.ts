@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { getNoteRows } from "#db/notes/queries.ts";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { getNoteRows } from "#shared/db/notes/queries.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

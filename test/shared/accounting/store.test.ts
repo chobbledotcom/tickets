@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { LedgerConflictError } from "#shared/accounting/conflicts.ts";
+import { LedgerConflictError } from "#accounting/conflicts.ts";
 import {
   allTransfers,
   transfersByAccount,
   transfersByEventGroup,
-} from "#shared/accounting/queries.ts";
+} from "#accounting/queries.ts";
 import {
   postTransferGroupBatches,
   postTransferGroups,
   postTransfers,
   postTransfersTx,
-} from "#shared/accounting/store.ts";
-import { withTransaction } from "#shared/db/client.ts";
+} from "#accounting/store.ts";
+import { withTransaction } from "#db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";

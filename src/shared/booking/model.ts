@@ -1,5 +1,5 @@
 import { intersect } from "@std/collections";
-import type { CartLengthItem } from "#shared/booking/cart-conflicts.ts";
+import type { CartLengthItem } from "#booking/cart-conflicts.ts";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
@@ -11,7 +11,7 @@ import {
   type ListingWithCount,
   PARENT_CHILD_GROUP_UNITS,
   type SharedGroupCapacity,
-} from "#shared/types.ts";
+} from "#types";
 
 /** Listing info with availability ready for ticket display. */
 export type TicketListing = {

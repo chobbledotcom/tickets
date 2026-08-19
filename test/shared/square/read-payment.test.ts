@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import {
@@ -8,10 +8,10 @@ import {
   SquareConnectionError,
   SquareProtocolError,
 } from "#shared/square/transport.ts";
-import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
-import { squareBoundaryValidationError } from "#test/test-utils/square/outcomes.ts";
 import { providerReadHttpCases } from "#test-utils/provider-failure-cases.ts";
+import { withSquareClient } from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
+import { squareBoundaryValidationError } from "#test-utils/square/outcomes.ts";
 
 const readFrom = async (
   payment: unknown,

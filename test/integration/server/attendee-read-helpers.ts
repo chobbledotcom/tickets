@@ -1,4 +1,4 @@
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 
 type RawAttendees = Awaited<ReturnType<typeof getAttendeesRaw>>;
 

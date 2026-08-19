@@ -5,7 +5,7 @@
  */
 
 import { describe } from "@std/testing/bdd";
-import { isContactChannel } from "#shared/db/contact-preferences.ts";
+import { isContactChannel } from "#db/contact-preferences.ts";
 import { checkBothArms } from "#test-utils/picklist-guard.ts";
 
 describe("ContactChannel picklist", () => {

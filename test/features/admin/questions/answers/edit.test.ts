@@ -1,9 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  addAnswer,
-  createQuestion,
-} from "#test/test-utils/questions/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -14,6 +10,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -21,7 +18,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     /** Look up one answer on a question by its id. */
     const findAnswer = async (qId: number, aId: number) => {
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
       return question!.answers.find((a) => a.id === aId)!;
@@ -29,7 +26,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     /** Insert an "answer"-trigger modifier directly and return its id. */
     const createAnswerModifier = async (name: string): Promise<number> => {
-      const { modifiersTable } = await import("#shared/db/modifiers.ts");
+      const { modifiersTable } = await import("#db/modifiers.ts");
       const m = await modifiersTable.insert({
         calcKind: "fixed",
         calcValue: 5,
@@ -56,7 +53,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Invalid modifier"), false);
       const { getAnswerModifierId } = await import(
-        "#shared/db/questions/aggregates.ts"
+        "#db/questions/aggregates.ts"
       );
       expect(await getAnswerModifierId(aId)).toBeNull();
     };
@@ -147,7 +144,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const { getAnswerModifierId } = await import(
-        "#shared/db/questions/aggregates.ts"
+        "#db/questions/aggregates.ts"
       );
       expect(await getAnswerModifierId(aId)).toBe(modifierId);
     });
@@ -158,7 +155,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const modifierId = await createAnswerModifier("Removable");
 
       const { setAnswerModifier, getAnswerModifierId } = await import(
-        "#shared/db/questions/aggregates.ts"
+        "#db/questions/aggregates.ts"
       );
       await setAnswerModifier(aId, modifierId);
       expect(await getAnswerModifierId(aId)).toBe(modifierId);
@@ -192,7 +189,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects linking a modifier that isn't answer-triggered", async () => {
       const qId = await createQuestion("Wrong trigger question");
       const aId = await addAnswer(qId, "Pick");
-      const { modifiersTable } = await import("#shared/db/modifiers.ts");
+      const { modifiersTable } = await import("#db/modifiers.ts");
       const automatic = await modifiersTable.insert({
         calcKind: "fixed",
         calcValue: 5,
@@ -245,7 +242,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const { getAnswerSelectionTotals } = await import(
-        "#shared/db/questions/aggregates.ts"
+        "#db/questions/aggregates.ts"
       );
       expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(15);
     });
@@ -272,9 +269,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       listingId: number,
       answerId: number,
     ): Promise<void> => {
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const { attendeesApi } = await import("#db/attendees/api.ts");
       const { saveAttendeeAnswers } = await import(
-        "#shared/db/questions/attendee-answers/save.ts"
+        "#db/questions/attendee-answers/save.ts"
       );
       const result = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId }],
@@ -309,7 +306,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await bookAnswer(listing.id, aId);
 
       const { updateAnswerAggregateValues } = await import(
-        "#shared/db/questions/aggregates.ts"
+        "#db/questions/aggregates.ts"
       );
       await updateAnswerAggregateValues(aId, { times_selected: 8 });
 
@@ -346,7 +343,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await bookAnswer(listing.id, aId);
 
       const { updateAnswerAggregateValues, getAnswerSelectionTotals } =
-        await import("#shared/db/questions/aggregates.ts");
+        await import("#db/questions/aggregates.ts");
       await updateAnswerAggregateValues(aId, { times_selected: 99 });
 
       const { response } = await adminFormPost(

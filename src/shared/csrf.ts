@@ -7,13 +7,10 @@
  * Instagram) where Safari/WebKit blocks third-party cookies.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
+import { verifySignedValue } from "#crypto/signed-value.ts";
+import { base64ToBase64Url, generateSecureToken } from "#crypto/utils.ts";
 import { t } from "#i18n";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { verifySignedValue } from "#shared/crypto/signed-value.ts";
-import {
-  base64ToBase64Url,
-  generateSecureToken,
-} from "#shared/crypto/utils.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 

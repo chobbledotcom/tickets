@@ -1,8 +1,26 @@
-import { defineRoutes } from "#routes/router.ts";
+/* jscpd:ignore-start -- imports */
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * First-class image library admin routes.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { groups } from "#db/groups.ts";
+/* jscpd:ignore-end */
+import {
+  deleteImageRecord,
+  getAllImages,
+  getImageById,
+  getImageUsesForImage,
+  type ImageUseTarget,
+  imagesTable,
+  imageUseTargets,
+  setItemsForImage,
+} from "#db/images.ts";
+import { getAllListingOptions } from "#db/listings/records.ts";
+import { getNewsPostNames } from "#db/news-posts.ts";
+import { sitePages } from "#db/site-pages.ts";
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
@@ -17,22 +35,6 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { groups } from "#shared/db/groups.ts";
-import {
-  deleteImageRecord,
-  getAllImages,
-  getImageById,
-  getImageUsesForImage,
-  type ImageUseTarget,
-  imagesTable,
-  imageUseTargets,
-  setItemsForImage,
-} from "#shared/db/images.ts";
-import { getAllListingOptions } from "#shared/db/listings/records.ts";
-import { getNewsPostNames } from "#shared/db/news-posts.ts";
-import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { featureGate } from "#shared/response-steps.ts";
 import {
@@ -40,19 +42,19 @@ import {
   isStorageEnabled,
 } from "#shared/storage.ts";
 import {
-  type AdminLevel,
-  type Image,
-  type ImageUseItemType,
-  isImageUseItemType,
-  isSiteRole,
-} from "#shared/types.ts";
-import {
   adminImageDeletePage,
   adminImageEditPage,
   adminImageNewPage,
   adminImagesPage,
   type ImageItemOption,
 } from "#templates/admin/images.tsx";
+import {
+  type AdminLevel,
+  type Image,
+  type ImageUseItemType,
+  isImageUseItemType,
+  isSiteRole,
+} from "#types";
 import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 // jscpd:ignore-end

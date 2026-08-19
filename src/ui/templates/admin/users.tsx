@@ -5,11 +5,6 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { defineTable } from "#shared/tables/definition.ts";
-import type {
-  AdminLevel,
-  AdminSession,
-  LogisticsAgent,
-} from "#shared/types.ts";
 import { errorAdminPage, flashOptsPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
@@ -21,6 +16,7 @@ import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getInviteUserForm } from "#templates/fields/admin.ts";
+import type { AdminLevel, AdminSession, LogisticsAgent } from "#types";
 /* jscpd:ignore-end */
 
 /** Displayable user info (decrypted) */

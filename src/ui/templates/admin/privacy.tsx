@@ -11,16 +11,15 @@
  * HTML there and rendered via <Raw>, matching the admin guide.
  */
 
+import type { OrphanPaymentWorkPage } from "#db/orphan-attendees.ts";
+import type { ProviderRefundCasePage } from "#db/provider-refund-cases.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { OrphanPaymentWorkPage } from "#shared/db/orphan-attendees.ts";
-import type { ProviderRefundCasePage } from "#shared/db/provider-refund-cases.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ProviderRefundCaseQueue } from "#templates/admin/provider-refund-cases.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
@@ -28,6 +27,7 @@ import {
   choiceOptions,
   SelectField,
 } from "#templates/components/select-field.tsx";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 export type PrivacyPageData = {

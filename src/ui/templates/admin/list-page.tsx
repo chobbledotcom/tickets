@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 export const AdminListPage = ({

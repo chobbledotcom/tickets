@@ -15,11 +15,11 @@ import {
   manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
   updateManualLedgerEntry,
-} from "#shared/accounting/manual-entries.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { t } from "#shared/i18n.ts";
+} from "#accounting/manual-entries.ts";
+import { allTransfers } from "#accounting/queries.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { t } from "#i18n";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";

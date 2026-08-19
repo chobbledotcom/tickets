@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
+import { isValidRsaPrivateKey } from "#crypto/rsa-private-key.ts";
 import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
 import {
   buildPkpass,
@@ -11,7 +12,6 @@ import {
   sha1Hex,
   trimAuthToken,
 } from "#shared/apple-wallet.ts";
-import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 import { generateTestCerts } from "#test-utils/crypto.ts";
 

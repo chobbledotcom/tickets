@@ -60,7 +60,7 @@ describeWithEnv(
         });
 
         // Now clear the provider to simulate no provider
-        const { settings: s } = await import("#shared/db/settings.ts");
+        const { settings: s } = await import("#db/settings.ts");
         await s.update.clearPaymentProvider();
 
         const response = await bookOneEachViaTicketForm(
@@ -87,7 +87,7 @@ describeWithEnv(
 
         // Mock attendeesApi to fail (capacity exceeded). A free order with a ledger
         // order uses createBookingAtomic; fail both so the path is covered either way.
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
         const originalFn = attendeesApi.createAttendeeAtomic;
         const originalBooking = attendeesApi.createBookingAtomic;
         const failure = () =>

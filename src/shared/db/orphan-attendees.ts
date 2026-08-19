@@ -16,13 +16,9 @@
  * the ledger UI labels the missing row "Deleted listing".
  */
 
-import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
-import {
-  executeBatchWithResults,
-  queryAll,
-  requireOne,
-} from "#shared/db/client.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
+import { executeBatchWithResults, queryAll, requireOne } from "#db/client.ts";
+import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** The shared database fact behind both kinds of orphan: no booking points at

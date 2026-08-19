@@ -3,14 +3,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#db/client.ts";
 import {
   armRefundSend,
   markRefundCompleted,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
-import { readRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
+} from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
+import { readRefundAuthorityState } from "#payment/refund-authority-state.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {

@@ -56,7 +56,7 @@ describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
     });
 
     test("setting persists in the database", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
       expect(settings.externalOrderEnabled).toBe(false);
 
       await adminFormPost("/admin/settings/external-order", {

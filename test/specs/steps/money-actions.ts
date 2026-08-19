@@ -2,18 +2,15 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
   revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
+} from "#accounting/accounts.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,

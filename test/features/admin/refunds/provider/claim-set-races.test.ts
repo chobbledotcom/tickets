@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { updateAttendeePII } from "#db/attendees/update.ts";
+import { execute, requireOne } from "#db/client.ts";
+import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { updateAttendeePII } from "#shared/db/attendees/update.ts";
-import { execute, requireOne } from "#shared/db/client.ts";
-import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
-import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -16,6 +15,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import type { Attendee } from "#types";
 
 const withStoredRevision = async (
   attendee: Pick<Attendee, "id" | "payment_id">,

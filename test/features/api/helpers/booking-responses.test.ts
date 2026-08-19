@@ -6,7 +6,7 @@ import {
   checkoutResponse,
   soldOutResponse,
 } from "#routes/api/helpers.ts";
-import { expectCorsHeaders } from "#test/test-utils/api/helpers.ts";
+import { expectCorsHeaders } from "#test-utils/api/helpers.ts";
 
 describe("bookingSuccessResponse", () => {
   test("answers with the ticket link and the balance left to collect", async () => {

@@ -11,29 +11,27 @@
 
 import * as v from "valibot";
 
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
-import { boolUpdate, rawUpdate } from "#shared/db/settings/accessors.ts";
-import { keyModeOf } from "#shared/db/settings/constants.ts";
-import { withProperties } from "#shared/db/settings/namespace.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { executeWithoutCacheInvalidation } from "#db/client.ts";
+import { boolUpdate, rawUpdate } from "#db/settings/accessors.ts";
+import { keyModeOf } from "#db/settings/constants.ts";
+import { withProperties } from "#db/settings/namespace.ts";
 import {
   deleteRaw,
   encryptedUpdate,
   plaintextUpdate,
   syncStoredSetting,
   writeRawBatch,
-} from "#shared/db/settings/raw-writes.ts";
-import { data, snap } from "#shared/db/settings/snapshot.ts";
+} from "#db/settings/raw-writes.ts";
+import { data, snap } from "#db/settings/snapshot.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
-import type {
-  PaymentProviderSetting,
-  PaymentProviderType,
-} from "#shared/types.ts";
 import {
   isPaymentProvider,
+  type PaymentProviderSetting,
   PaymentProviderSettingSchema,
-} from "#shared/types.ts";
+  type PaymentProviderType,
+} from "#types";
 
 /** The card-provider getters shared by Stripe and SumUp: whether a secret key
  * is set, and whether that key is a test or live key. `keyName` is the setting

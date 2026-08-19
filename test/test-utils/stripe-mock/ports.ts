@@ -9,7 +9,7 @@ import {
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
 } from "#scripts/stripe-mock.ts";
-import type { StartOptions } from "#test/test-utils/stripe-mock/helpers.ts";
+import type { StartOptions } from "#test-utils/stripe-mock/helpers.ts";
 
 type StartedStripeMock = Awaited<ReturnType<typeof startStripeMock>>;
 

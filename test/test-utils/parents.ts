@@ -14,8 +14,8 @@
  */
 
 import { expect } from "@std/expect";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import type { Group, Listing, ListingWithCount } from "#shared/types.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import type { Group, Listing, ListingWithCount } from "#types";
 import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
 import { createTestGroup } from "./db-helpers/groups.ts";
@@ -232,7 +232,7 @@ export const makeParentWithDeactivatedChild = async (): Promise<{
   const { parent, children } = await makeParent({ children: [{}, {}] });
   const okChild = children[0]!;
   const inactiveChild = children[1]!;
-  const { execute } = await import("#shared/db/client.ts");
+  const { execute } = await import("#db/client.ts");
   await execute("UPDATE listings SET active = 0 WHERE id = ?", [
     inactiveChild.id,
   ]);

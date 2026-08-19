@@ -1,12 +1,12 @@
-import { chunk, requiredMapValue, sumOf } from "#fp";
 import {
   queryAll,
   queryBatch,
   resultRows,
   type SqlStatement,
-} from "#shared/db/client.ts";
-import { SCHEMA_TABLE_NAMES } from "#shared/db/migrations.ts";
-import { queryColumnSet } from "#shared/db/query.ts";
+} from "#db/client.ts";
+import { SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
+import { queryColumnSet } from "#db/query.ts";
+import { chunk, requiredMapValue, sumOf } from "#fp";
 import { readLimit } from "#shared/limits.ts";
 
 /** A single table's backup: table name, the SQL to repopulate it, and row count */

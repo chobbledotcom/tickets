@@ -2,7 +2,7 @@ import { LibsqlError } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute, getDb, queryOne } from "#shared/db/client.ts";
+import { execute, getDb, queryOne } from "#db/client.ts";
 import {
   claimNextMaintenanceTask,
   finishMaintenanceTask,

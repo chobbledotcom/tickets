@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import * as v from "valibot";
-import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
+import { ResourceIdSchema } from "#payment/resource-id.ts";
 import {
   NonEmptyTextSchema,
   OptionalNullableStringSchema,

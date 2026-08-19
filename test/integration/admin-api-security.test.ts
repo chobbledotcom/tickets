@@ -40,7 +40,7 @@ describeWithEnv("admin API security", { db: true }, () => {
     test("malformed JSON on POST does not create an listing", async () => {
       const apiKey = await createTestApiKeyToken();
       const before = await (
-        await import("#shared/db/listings/records.ts")
+        await import("#db/listings/records.ts")
       ).getAllListings();
       const beforeCount = before.length;
 
@@ -53,7 +53,7 @@ describeWithEnv("admin API security", { db: true }, () => {
       );
 
       const after = await (
-        await import("#shared/db/listings/records.ts")
+        await import("#db/listings/records.ts")
       ).getAllListings();
       expect(after.length).toBe(beforeCount);
     });
@@ -71,7 +71,7 @@ describeWithEnv("admin API security", { db: true }, () => {
       );
 
       const refreshed = await (
-        await import("#shared/db/listings/records.ts")
+        await import("#db/listings/records.ts")
       ).getListingWithCount(listing.id);
       expect(refreshed!.name).toBe("Original Name");
     });

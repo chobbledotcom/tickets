@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import type { TargetMap } from "#shared/site-pages/types.ts";
 import {
@@ -12,7 +12,7 @@ import {
   navEdge as edge,
   navKey,
   navPage as page,
-} from "#test/test-utils/site-pages/nav-fixtures.ts";
+} from "#test-utils/site-pages/nav-fixtures.ts";
 
 // ---------------------------------------------------------------------------
 // Pure render tests for the recursive public nav: feed plain NavModel fixtures

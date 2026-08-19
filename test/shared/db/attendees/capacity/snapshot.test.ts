@@ -6,18 +6,17 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { addDays } from "#shared/dates.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
+import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import {
   groupRemainingFromSnapshot,
   loadCapacitySnapshot,
   remainingFromSnapshot,
-} from "#shared/db/attendees/capacity/snapshot.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+} from "#db/attendees/capacity/snapshot.ts";
+import { listingGroups } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { addDays } from "#shared/dates.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookUnits } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -26,6 +25,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import type { ListingWithCount } from "#types";
 
 /** A start date comfortably inside every test listing's booking window. */
 const startDate = (): string => addDays(todayInTz("UTC"), 2);

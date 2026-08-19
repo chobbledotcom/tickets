@@ -6,27 +6,26 @@
  * authenticated request.
  */
 
-import { requiredMapValue } from "#fp";
 /* jscpd:ignore-start */
-import { isAnchorSession } from "#shared/db/payment-anchor/session.ts";
+import { isAnchorSession } from "#db/payment-anchor/session.ts";
 import {
   loadSelectedPaymentReferenceRows,
   MAX_REFUND_REFERENCES_PER_ATTENDEE,
   type PaymentReferenceRow,
   querySelectedPaymentReferenceRows,
-} from "#shared/db/payment-reference-rows.ts";
+} from "#db/payment-reference-rows.ts";
 import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
-} from "#shared/db/payment-reference-store.ts";
-import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
+} from "#db/payment-reference-store.ts";
+import { requiredMapValue } from "#fp";
+import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type {
   PaymentReference,
   TaggedPaymentReference,
   UntaggedPaymentReference,
-} from "#shared/payment/provider-reference.ts";
-import type { RefundState } from "#shared/payment/refund-state.ts";
-import { refundStateOf } from "#shared/payment/refund-state.ts";
+} from "#payment/provider-reference.ts";
+import { type RefundState, refundStateOf } from "#payment/refund-state.ts";
 /* jscpd:ignore-end */
 
 export type RefundPaymentReferenceSource = {

@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import type { Listing } from "#shared/types.ts";
-import { firstBookableDate } from "#test/test-utils/parents-gate/helpers.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -27,6 +25,8 @@ import {
   postCalculate,
   ticketPageStatus,
 } from "#test-utils/parents.ts";
+import { firstBookableDate } from "#test-utils/parents-gate/helpers.ts";
+import type { Listing } from "#types";
 
 /**
  * End-to-end journey for the parent/child (per-unit) booking flow: a daily
@@ -84,7 +84,7 @@ const setupParentWithTwoChildren = async (): Promise<{
 const orderRowsFor = async (
   listingId: number,
 ): Promise<{ order_token: string; parent_listing_id: number }[]> => {
-  const { queryAll } = await import("#shared/db/client.ts");
+  const { queryAll } = await import("#db/client.ts");
   return queryAll<{ order_token: string; parent_listing_id: number }>(
     `SELECT order_token, parent_listing_id FROM listing_attendees
      WHERE listing_id = ? ORDER BY id DESC`,
@@ -99,7 +99,7 @@ const bookingRowsFor = async (
 ): Promise<
   { quantity: number; parent_listing_id: number; package_group_id: number }[]
 > => {
-  const { queryAll } = await import("#shared/db/client.ts");
+  const { queryAll } = await import("#db/client.ts");
   return queryAll(
     `SELECT quantity, parent_listing_id, package_group_id FROM listing_attendees
      WHERE listing_id = ? ORDER BY id DESC`,
@@ -147,9 +147,7 @@ const assertTwoOfOnePersisted = async (childA: Listing, childB: Listing) => {
  * asserts a 200 and returns the rendered HTML for content checks. */
 const attendeeDetailHtml = async (listingId: number): Promise<string> => {
   const { adminGet } = await import("#test-utils/session.ts");
-  const { getAttendeesRaw: rawFor } = await import(
-    "#shared/db/attendees/queries.ts"
-  );
+  const { getAttendeesRaw: rawFor } = await import("#db/attendees/queries.ts");
   const attendeeId = (await rawFor(listingId))[0]!.id;
   const page = await adminGet(`/admin/attendees/${attendeeId}`);
   expect(page.status).toBe(200);
@@ -595,7 +593,7 @@ describeWithEnv(
         unitPrice: 0,
       });
       await listingChildren.setIds(picker.id, [widget.id]);
-      const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+      const { setGroupPackageMembers } = await import("#db/groups.ts");
       await setGroupPackageMembers(group.id, [
         { listingId: picker.id, price: 0 },
         { listingId: base.id, price: 0 },

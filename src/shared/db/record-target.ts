@@ -12,14 +12,14 @@
  * and never touches the database itself.
  */
 
-import type { SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#db/client.ts";
 import {
   deleteWhere,
   equals,
   inList,
   inSubquery,
   type WhereClause,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
 
 /** One record: what kind of thing it is, and which one of that kind. */
 export interface RecordTarget<Kind extends string> {

@@ -2,19 +2,19 @@ import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
-import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
-import type { MigrationLease } from "#shared/db/migrations/lock.ts";
+import { getDb } from "#db/client.ts";
+import { MigrationInProgressError } from "#db/migrations/errors.ts";
 import {
   acquireMigrationLock,
   executeWhileMigrationLockOwned,
+  type MigrationLease,
   migrationLockHeldError,
   releaseAfterMigrationFailure,
   releaseMigrationLock,
   storedLease,
   whileMigrationLockOwned,
-} from "#shared/db/migrations/lock.ts";
-import { MIGRATION_LOCK_KEY } from "#shared/db/migrations/schema/version.ts";
+} from "#db/migrations/lock.ts";
+import { MIGRATION_LOCK_KEY } from "#db/migrations/schema/version.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   freshLockStamp,

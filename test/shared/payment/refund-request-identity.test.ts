@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   refundCallbackReplayIndex,
   refundRequestIdentityIndex,
-} from "#shared/payment/refund-request-identity.ts";
+} from "#payment/refund-request-identity.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const reference = (

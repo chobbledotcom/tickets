@@ -1,6 +1,6 @@
 /** Package booking-flow test helpers. */
 
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type { Group, ListingWithCount } from "#types";
 
 /**
  * Drive the public checkout submit for a package group: GET the package page
@@ -27,7 +27,7 @@ export const submitPackageBooking = async (
 /** The package-building pieces both factories below load lazily, so importing
  * this module never pulls the app graph in on its own. */
 const packageParts = async () => {
-  const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+  const { setGroupPackageMembers } = await import("#db/groups.ts");
   const { createTestGroup } = await import("#test-utils/db-helpers/groups.ts");
   const { createTestListing } = await import(
     "#test-utils/db-helpers/listings.ts"

@@ -1,4 +1,5 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin routes for per-attendee operator notes.
  *
@@ -14,6 +15,10 @@ import { defineRoutes } from "#routes/router.ts";
  * list a `×` was clicked from).
  */
 
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { createOwnerNote, deleteNotes, getNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import type { SystemNote } from "#db/notes/types.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
@@ -21,23 +26,14 @@ import { AUTH_FORM, formGuard, requireSessionOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import {
-  createOwnerNote,
-  deleteNotes,
-  getNote,
-} from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import type { SystemNote } from "#shared/db/notes/types.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { AdminSession, Attendee } from "#shared/types.ts";
 import {
   adminNoteDeletePage,
   adminNoteNewPage,
 } from "#templates/admin/attendee-notes.tsx";
+import type { AdminSession, Attendee } from "#types";
 
 /* jscpd:ignore-end */
 

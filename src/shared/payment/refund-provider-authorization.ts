@@ -1,9 +1,9 @@
 /** The unforgeable permit carried by every provider refund call. */
 
 import * as v from "valibot";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
-import { requireRefundGeneration } from "#shared/payment/refund-generation.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
+import { requireRefundGeneration } from "#payment/refund-generation.ts";
+import type { PaymentProviderType } from "#types";
 
 /** Whether one exact provider request may safely be repeated. */
 export const RefundProviderCapabilitySchema = v.picklist(["keyed", "keyless"]);

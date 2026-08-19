@@ -10,11 +10,11 @@ import {
   pageDayCounts,
   type TicketListing,
   updateForMembersWithChildren,
-} from "#shared/booking/model.ts";
+} from "#booking/model.ts";
 import {
   oneChildSupportingDayTwo,
   resolved,
-} from "#test/test-utils/booking-model-fixtures.ts";
+} from "#test-utils/booking-model-fixtures.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — day-count support", () => {

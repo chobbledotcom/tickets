@@ -12,21 +12,21 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   mirroredMoveRefusalOrNull,
   type PaymentWork,
   paymentWorkForMirrors,
   type RowMove,
-} from "#shared/payment/admit-move.ts";
+} from "#payment/admit-move.ts";
 import {
   refundLifecycleFor,
   refundMoveRefusalOrNull,
-} from "#shared/payment/refund-authority-lifecycle.ts";
+} from "#payment/refund-authority-lifecycle.ts";
 import {
   type RefundAuthorityState,
   readRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 interface StoredMoveWork {

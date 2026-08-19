@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   configureSquare,
   oneLocation,
   withSquareClient,
-} from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
-import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+} from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
   describe("getSquareClient", () => {

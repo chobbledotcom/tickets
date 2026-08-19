@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
-import { generateDataKey, wrapKeyWithToken } from "#shared/crypto/keys.ts";
-import { execute } from "#shared/db/client.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hashPassword } from "#crypto/hashing.ts";
+import { generateDataKey, wrapKeyWithToken } from "#crypto/keys.ts";
+import { execute } from "#db/client.ts";
 import {
   acceptInvite,
   activateKeylessUser,
@@ -25,7 +24,8 @@ import {
   isUsernameTaken,
   migrateUserToV2Kek,
   verifyUserPassword,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";

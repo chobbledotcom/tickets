@@ -1,19 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import {
-  resetEffectiveDomain,
-  setEffectiveDomainForTest,
-} from "#shared/config.ts";
-import { getPbkdf2Iterations, hashPassword } from "#shared/crypto/hashing.ts";
-import { generateDataKey } from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
+import { getPbkdf2Iterations, hashPassword } from "#crypto/hashing.ts";
+import { generateDataKey } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/query-log.ts";
+import { settings } from "#db/settings.ts";
 import {
   createUser,
   decryptAdminLevel,
@@ -21,7 +17,11 @@ import {
   getUserByUsername,
   invalidateUsersCache,
   verifyUserPassword,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import {
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
+} from "#shared/config.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
   createActivatedSuperuser,

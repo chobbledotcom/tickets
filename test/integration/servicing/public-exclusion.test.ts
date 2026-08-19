@@ -10,9 +10,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { settings } from "#shared/db/settings.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

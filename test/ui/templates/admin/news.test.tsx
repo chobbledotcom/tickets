@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { settings } from "#shared/db/settings.ts";
-import type { NewsPost, NewsPostSummary } from "#shared/types.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { settings } from "#db/settings.ts";
 import {
   adminNewsDeletePage,
   adminNewsListPage,
@@ -14,6 +13,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import type { NewsPost, NewsPostSummary } from "#types";
 
 const summary: NewsPostSummary = {
   created: "2026-01-02T03:04:00.000Z",

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
-import { transitionRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
-import { readyRefund } from "#shared/payment/refund-authority.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
+import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
+import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
+import { readyRefund } from "#payment/refund-authority.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import {
   type OwnerRecoveryRefundTarget,
   type RefundAuthorityReceipt,

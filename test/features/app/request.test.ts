@@ -1,13 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { buildFlashCookie } from "#shared/cookies.ts";
-import {
-  ALL_SETTINGS_KEYS,
-  CONFIG_KEYS,
-  settings,
-} from "#shared/db/settings.ts";
 import { getHeader } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -19,7 +15,7 @@ import { testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 const deleteSetting = async (key: string): Promise<void> => {
-  const { getDb } = await import("#shared/db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   await getDb().execute({
     args: [key],
     sql: "DELETE FROM settings WHERE key = ?",
@@ -94,9 +90,9 @@ describeWithEnv("request pipeline", { db: true }, () => {
   });
 
   test("serves the migration page while another request owns the lock", async () => {
-    const { getDb } = await import("#shared/db/client.ts");
+    const { getDb } = await import("#db/client.ts");
     const { invalidateInitDbCache, SCHEMA_HASH } = await import(
-      "#shared/db/migrations.ts"
+      "#db/migrations.ts"
     );
     const db = getDb();
     try {
@@ -123,10 +119,8 @@ describeWithEnv("request pipeline", { db: true }, () => {
   });
 
   test("rethrows unexpected errors in test mode", async () => {
-    const { getDb } = await import("#shared/db/client.ts");
-    const { invalidateListingsCache } = await import(
-      "#shared/db/listings/records.ts"
-    );
+    const { getDb } = await import("#db/client.ts");
+    const { invalidateListingsCache } = await import("#db/listings/records.ts");
     invalidateListingsCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
     using _env = withEnv({ TEST_EXPECT_ERROR: undefined });
@@ -144,7 +138,7 @@ describeWithEnv("request pipeline", { db: true }, () => {
   });
 
   test("turns a busy database error into the retry page", async () => {
-    const { DatabaseBusyError, getDb } = await import("#shared/db/client.ts");
+    const { DatabaseBusyError, getDb } = await import("#db/client.ts");
     const executeStub = stub(getDb(), "execute", () => {
       throw new DatabaseBusyError();
     });

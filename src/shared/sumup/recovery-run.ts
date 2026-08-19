@@ -7,17 +7,17 @@
  * answer from one to the next.
  */
 
-import { settlePaymentCallback } from "#routes/api/payment-callback.ts";
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
   delaySumupRecoveryCheck,
   getDueSumupCheckouts,
-} from "#shared/db/sumup-recovery.ts";
+} from "#db/sumup-recovery.ts";
+import type { RecoveryEventId } from "#payment/sumup-recovery-machine-spec.ts";
+import { settlePaymentCallback } from "#routes/api/payment-callback.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import type { RecoveryEventId } from "#shared/payment/sumup-recovery-machine-spec.ts";
 import { resolveSumupCheckoutById } from "#shared/sumup/checkout-resolution.ts";
 import { sumupRecoveryOutcome } from "#shared/sumup/recovery.ts";
 

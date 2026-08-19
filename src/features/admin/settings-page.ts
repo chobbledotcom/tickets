@@ -4,6 +4,8 @@
  * Owner-only access enforced via ownerPage.
  */
 
+import { getAdminFeatureUsage } from "#db/admin-features.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { type AuthSession, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -14,8 +16,6 @@ import {
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
-import { getAdminFeatureUsage } from "#shared/db/admin-features.ts";
-import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";

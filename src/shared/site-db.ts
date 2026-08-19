@@ -13,9 +13,9 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { wrapExecute } from "#shared/db/libsql-call.ts";
-import { countDatabaseRoundTrip } from "#shared/db/query-log.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { wrapExecute } from "#db/libsql-call.ts";
+import { countDatabaseRoundTrip } from "#db/query-log.ts";
 import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */

@@ -1,24 +1,26 @@
 /* jscpd:ignore-start */
+
+import type { TicketListing } from "#booking/model.ts";
+import type { ListingAttributesById } from "#db/attributes.ts";
 import { joinStrings, partition } from "#fp";
 import { t } from "#i18n";
-import type { TicketListing } from "#shared/booking/model.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import type { Group } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
+import type { Group } from "#types";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
   PackagesSection,
   type PublicNavProps,
-  /* jscpd:ignore-end */
   publicPage,
   titleWithSiteName,
 } from "./shared.tsx";
+
+/* jscpd:ignore-end */
 
 /** A red {@link Badge} status line for the two date-search failure messages
  *  ("Sold Out" and "Not available on {date}") — rendered as a paragraph so it

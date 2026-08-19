@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
-import { queryAll } from "#shared/db/client.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { queryAll } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import type { stripeApi } from "#shared/stripe.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
+import type { Group, ListingWithCount } from "#types";
 
 interface PackageWithChild {
   child: ListingWithCount;
@@ -118,7 +118,7 @@ export const capAddonsAtThree = async (
   childId: number,
   childBId: number,
 ): Promise<void> => {
-  const { listingsTable } = await import("#shared/db/listings/records.ts");
+  const { listingsTable } = await import("#db/listings/records.ts");
   await listingsTable.update(childId, { maxAttendees: 2, maxQuantity: 2 });
   await listingsTable.update(childBId, { maxAttendees: 1, maxQuantity: 1 });
 };
@@ -129,7 +129,7 @@ export const makePackageFree = async (
   memberIds: [number, number],
   childIds: number[],
 ): Promise<void> => {
-  const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+  const { setGroupPackageMembers } = await import("#db/groups.ts");
   const { updateTestListing } = await import(
     "#test-utils/db-helpers/listings.ts"
   );

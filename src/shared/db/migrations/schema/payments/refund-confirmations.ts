@@ -1,4 +1,4 @@
-import type { Table } from "#shared/db/migrations/schema/types.ts";
+import type { Table } from "#db/migrations/schema/types.ts";
 import { keyWords, wholeNumber, words } from "./columns.ts";
 
 /** One durable operator-visible completion for an exact returned payment set. */

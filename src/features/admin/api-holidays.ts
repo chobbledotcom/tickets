@@ -2,10 +2,10 @@
  * Admin JSON API routes for holidays — accessible via API key or cookie+CSRF.
  */
 
+import { type HolidayInput, holidays } from "#db/holidays.ts";
 import { isNotNullish } from "#fp";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
-import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   type DeleteBody,
@@ -13,7 +13,7 @@ import {
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
-import type { Holiday } from "#shared/types.ts";
+import type { Holiday } from "#types";
 
 /** JSON body accepted by POST /api/admin/holidays */
 export type CreateHolidayBody = {

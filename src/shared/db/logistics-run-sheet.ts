@@ -6,16 +6,16 @@
  * "Modularised" in AGENTS.md.
  */
 
-import { compact, flatMap, uniqueBy } from "#fp";
-import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
-import { execute, inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { bookingSlotKey } from "#db/attendees/booking-slot.ts";
+import { execute, inPlaceholders, queryAll } from "#db/client.ts";
 import {
   type AssignmentRow,
   bookingAssignmentKey,
   type DeliveryBookingRef,
   mapBookingRows,
-} from "#shared/db/logistics.ts";
-import { columnFrom } from "#shared/db/query.ts";
+} from "#db/logistics.ts";
+import { columnFrom } from "#db/query.ts";
+import { compact, flatMap, uniqueBy } from "#fp";
 
 /** Which leg of a delivery a run-sheet entry represents. */
 export type DeliveryLegKind = "start" | "end";

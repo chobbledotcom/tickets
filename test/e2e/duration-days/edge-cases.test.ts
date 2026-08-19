@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { checkGroupCapAfterDurationChange } from "#db/attendees/update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

@@ -18,13 +18,13 @@ import {
   listingDefaultHintKey,
   listingDefaultLabelKey,
 } from "#shared/listing-defaults.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { ListingSectionFieldset } from "#templates/admin/money-summary.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

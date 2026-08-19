@@ -6,33 +6,26 @@
  * 2. applyAttendeeMerge: apply explicit decisions from the admin
  */
 
-import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
-import {
-  attendeeAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { transfersByEventGroup } from "#shared/accounting/queries.ts";
-import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
+import { writeoffAdjustmentInserts } from "#accounting/adjustments.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
+import { repointAttendeeStatements } from "#accounting/repoint.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import {
   attendeeRemovalStatements,
   checkoutStageDeleteStatements,
   repointAttendeeDependents,
-} from "#shared/db/attendees/delete.ts";
-import {
-  insert,
-  type SqlStatement,
-  withTransaction,
-} from "#shared/db/client.ts";
-import { assertRowsFreeToMove } from "#shared/db/payment-admit-move.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+} from "#db/attendees/delete.ts";
+import { insert, type SqlStatement, withTransaction } from "#db/client.ts";
+import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
-} from "#shared/db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+} from "#db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import type {

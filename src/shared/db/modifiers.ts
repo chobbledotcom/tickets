@@ -8,9 +8,9 @@
  */
 
 /* jscpd:ignore-start */
-import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
-import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { inOwnTx, ledgerTx } from "#accounting/ledger-tx.ts";
+import { accountBalanceSubquery } from "#accounting/projection-sql.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   executeBatch,
   executeUpdate,
@@ -21,34 +21,34 @@ import {
   requireOne,
   resetAggregates,
   update,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
   idAndEncryptedNameSchema,
-} from "#shared/db/common-schema.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { linkTableSide } from "#shared/db/link-table.ts";
+} from "#db/common-schema.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { linkTableSide } from "#db/link-table.ts";
 import {
   columnMapByIds,
   envNameSource,
   type ListsByIds,
   queryAndMap,
-} from "#shared/db/query.ts";
-import { col } from "#shared/db/table.ts";
+} from "#db/query.ts";
+import { col } from "#db/table.ts";
 import {
   clauseArgs,
   equals,
   type WhereClause,
   whereSql,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
 import type {
   CalcKind,
   ModifierDirection,
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
-import type { Modifier } from "#shared/types.ts";
+import type { Modifier } from "#types";
 /* jscpd:ignore-end */
 
 /** The stored modifier row. `total_revenue` is NOT a column — it is projected

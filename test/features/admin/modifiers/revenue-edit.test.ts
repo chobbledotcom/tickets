@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import {
   getAllModifiers,
   getModifier,
   modifiersTable,
   updateModifierAggregateValues,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
+import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

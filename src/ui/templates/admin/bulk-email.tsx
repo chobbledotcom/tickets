@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
   type BulkEmailDraft,
   type ComposeControl,
@@ -13,10 +14,8 @@ import {
 } from "#shared/bulk-email.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
@@ -26,6 +25,7 @@ import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

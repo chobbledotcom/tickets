@@ -1,9 +1,9 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
-import { settings } from "#shared/db/settings.ts";
-import { notInSubquery } from "#shared/db/where-clauses.ts";
+import { settings } from "#db/settings.ts";
+import { notInSubquery } from "#db/where-clauses.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
-import type { Listing } from "#shared/types.ts";
+import type { Listing } from "#types";
 import { rawListingsTable } from "./table.ts";
 
 export type ListingOfferFlags = Pick<

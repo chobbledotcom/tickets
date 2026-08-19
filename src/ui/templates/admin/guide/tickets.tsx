@@ -2,7 +2,7 @@
  * Admin guide — Tickets sections.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import {
   custom,
   faq,
