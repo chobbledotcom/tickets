@@ -16,7 +16,7 @@
  * never touches the database.
  */
 
-import { type ListingType, ListingTypeSchema } from "#shared/types.ts";
+import { type ListingType, ListingTypeSchema } from "#types";
 
 /** The two listing facts that decide which capacity checks apply. */
 export type CapacityFacet = {

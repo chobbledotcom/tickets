@@ -5,9 +5,9 @@ import {
   attendeeAccount,
   revenueAccount,
   WRITEOFF,
-} from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getDb } from "#shared/db/client.ts";
+} from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { getDb } from "#db/client.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

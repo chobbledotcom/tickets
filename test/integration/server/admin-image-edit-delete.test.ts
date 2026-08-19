@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
 import {
   getImageById,
   getImageUsesForImage,
   setImagesForItem,
   setItemsForImage,
-} from "#shared/db/images.ts";
+} from "#db/images.ts";
+import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   adminGet,

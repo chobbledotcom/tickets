@@ -14,12 +14,12 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { AdminSession } from "#shared/types.ts";
 import { flashProps, staffAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /** The date-picker context shown to staff so they can open any delivery date.

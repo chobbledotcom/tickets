@@ -13,10 +13,10 @@
  * can be booked beyond stock.
  */
 
+import { getListingsBySlugs } from "#db/listings/records.ts";
 import { unique, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
-import { getListingsBySlugs } from "#shared/db/listings/records.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type { Group, ListingWithCount } from "#types";
 import { dropHiddenPackageMembers } from "./discovery.ts";
 import { type GroupWithListings, loadCartPackagesBySlugs } from "./groups.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";

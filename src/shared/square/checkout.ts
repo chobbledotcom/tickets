@@ -1,8 +1,9 @@
 /* jscpd:ignore-start */
+
+import { settings } from "#db/settings.ts";
+import { checkoutFailure } from "#payment/checkout-failure.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
-import { checkoutFailure } from "#shared/payment/checkout-failure.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,

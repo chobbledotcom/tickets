@@ -1,10 +1,10 @@
 // deno-fmt-ignore-file
 
-import { groups } from "#shared/db/groups.ts";
-import type { Group } from "#shared/types.ts";
+import { groups } from "#db/groups.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import type { Group } from "#types";
 
 /** Find a group by name from the live group set. Returns `undefined` when no
  *  group with that name exists. Searches the cache rather than remembering an

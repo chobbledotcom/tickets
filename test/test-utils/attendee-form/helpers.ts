@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getDb } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getDb } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

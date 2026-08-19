@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { getLogisticsAssignments } from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { agentUsers } from "#shared/db/user-agents.ts";
-import { getAllUsers } from "#shared/db/users.ts";
+import { getDb } from "#db/client.ts";
+import { getLogisticsAssignments } from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { agentUsers } from "#db/user-agents.ts";
+import { getAllUsers } from "#db/users.ts";
 import {
   expectFlash,
   expectFlashRedirect,

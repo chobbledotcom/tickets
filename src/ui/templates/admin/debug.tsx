@@ -2,17 +2,17 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
+import type { DatabaseHost } from "#db/host.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { DatabaseHost } from "#shared/db/host.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
+import type { AdminSession, Theme } from "#types";
 /* jscpd:ignore-end */
 
 export type DebugPageState = {

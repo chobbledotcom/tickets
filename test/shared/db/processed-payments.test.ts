@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { getDb, insert } from "#shared/db/client.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
-import { createTableSql } from "#shared/db/migrations/schema-sync.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { getDb, insert } from "#db/client.ts";
+import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { createTableSql } from "#db/migrations/schema-sync.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
@@ -16,12 +16,12 @@ import {
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
-} from "#shared/db/processed-payments.ts";
-import { nowMs } from "#shared/now.ts";
+} from "#db/processed-payments.ts";
 import {
   type StoredPaymentFailure,
   writeRowState,
-} from "#shared/payment/row-state.ts";
+} from "#payment/row-state.ts";
+import { nowMs } from "#shared/now.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

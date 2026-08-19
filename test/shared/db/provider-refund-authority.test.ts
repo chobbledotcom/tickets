@@ -1,30 +1,30 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
-import type { CreateRefundAuthority } from "#shared/db/provider-refund-authority.ts";
+import { getDb } from "#db/client.ts";
 import {
   bindRefundCallbackIfChargeExists,
+  type CreateRefundAuthority,
   createOrLoadRefundAuthority,
   loadRefundAuthorityById,
   loadRefundAuthorityByReference,
-} from "#shared/db/provider-refund-authority.ts";
+} from "#db/provider-refund-authority.ts";
 import {
   completeRefundAuthority,
   markRefundAuthorityRecorded,
   transitionRefundAuthority,
-} from "#shared/db/provider-refund-authority-change.ts";
+} from "#db/provider-refund-authority-change.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/query-log.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { gbp } from "#test-utils/payment-state.ts";

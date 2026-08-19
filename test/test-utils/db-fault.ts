@@ -1,4 +1,4 @@
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 
 /**
  * Run `body` with one database fault installed — a trigger that makes a

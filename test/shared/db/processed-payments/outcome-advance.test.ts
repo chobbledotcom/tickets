@@ -4,15 +4,15 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   advanceSessionFailure,
   advanceStoredOutcomeOnce,
   parseSessionFailure,
   prepareSessionFailure,
   reserveSession,
-} from "#shared/db/processed-payments.ts";
-import type { StoredPaymentFailure } from "#shared/payment/row-state.ts";
+} from "#db/processed-payments.ts";
+import type { StoredPaymentFailure } from "#payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 

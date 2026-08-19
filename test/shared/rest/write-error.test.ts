@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 
 test("returns the message for transaction validation errors", () => {

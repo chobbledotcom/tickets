@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { addPageItem } from "#db/site-page-items.ts";
 import { handleRequest } from "#routes";
-import { groups } from "#shared/db/groups.ts";
-import { appendImageToItem, imagesTable } from "#shared/db/images.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { addPageItem } from "#shared/db/site-page-items.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,

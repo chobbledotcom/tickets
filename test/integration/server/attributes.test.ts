@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { listingAttributeOptions } from "#db/attributes.ts";
 import { handleRequest } from "#routes";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { listingAttributeOptions } from "#shared/db/attributes.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

@@ -2,6 +2,14 @@
  * Shared image-tab loaders and handlers for image_uses-backed entities.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import {
+  appendImageToItem,
+  getAllImages,
+  getImagesForItem,
+  imageUseTargets,
+  setImagesForItem,
+} from "#db/images.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
@@ -14,18 +22,10 @@ import {
 import { createEntityHandler, withEntity } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  appendImageToItem,
-  getAllImages,
-  getImagesForItem,
-  imageUseTargets,
-  setImagesForItem,
-} from "#shared/db/images.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import type { ImageUseItemType } from "#shared/types.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
+import type { ImageUseItemType } from "#types";
 import { withUploadedImage } from "./image-upload.ts";
 
 /* jscpd:ignore-end */

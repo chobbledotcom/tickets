@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { resolveRefund } from "#shared/payment/refund.ts";
-import type {
-  ChargeMoney,
-  RefundResolution,
-} from "#shared/payment/resources.ts";
+import { resolveRefund } from "#payment/refund.ts";
+import type { ChargeMoney, RefundResolution } from "#payment/resources.ts";
 import {
   chargeMoneyWith,
   gbp,

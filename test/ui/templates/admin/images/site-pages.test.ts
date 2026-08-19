@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   appendImageToItem,
   getImageById,
   getImageUsesForImage,
-} from "#shared/db/images.ts";
+} from "#db/images.ts";
+import { handleRequest } from "#routes";
+import { signCsrfToken } from "#shared/csrf.ts";
 import {
   formRequest,
   imageNamesForItem,

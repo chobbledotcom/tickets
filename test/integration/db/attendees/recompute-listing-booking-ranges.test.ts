@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { recomputeListingBookingRanges } from "#shared/db/attendees/update.ts";
-import { getDb } from "#shared/db/client.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { recomputeListingBookingRanges } from "#db/attendees/update.ts";
+import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,

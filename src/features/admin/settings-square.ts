@@ -4,13 +4,13 @@
  * defineProviderCredentialsRoute / settingsSecret.
  */
 
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
 import {
   defineProviderCredentialsRoute,
   settingsSecret,
 } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { squareApi } from "#shared/square/api.ts";
 /* jscpd:ignore-end */

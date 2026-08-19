@@ -1,4 +1,4 @@
-import { executeBatch, queryBatchPrimary } from "#shared/db/client.ts";
+import { executeBatch, queryBatchPrimary } from "#db/client.ts";
 import { noArgStatements } from "./schema-sync.ts";
 import type { MigrationBuilder } from "./types.ts";
 

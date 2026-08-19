@@ -12,7 +12,7 @@ import {
   wholeNumberOrNull,
   words,
   wordsOrNull,
-} from "#shared/db/migrations/schema/payments/columns.ts";
+} from "#db/migrations/schema/payments/columns.ts";
 
 describe("the kinds of column a payment record is built from", () => {
   // These say what a column is, and nothing about what a payment may say —

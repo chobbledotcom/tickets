@@ -1,17 +1,14 @@
 /** Durable refund identity attached to an attendee. */
 
-import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
+import { inPlaceholders, type SqlStatement } from "#db/client.ts";
 import {
   paymentRowStateValues,
   type RowSettlement,
-} from "#shared/db/payment-claim.ts";
+} from "#db/payment-claim.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { EMPTY_ROW_STATE } from "#payment/row-state.ts";
+import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
 import { nowIso } from "#shared/now.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { EMPTY_ROW_STATE } from "#shared/payment/row-state.ts";
-import {
-  checkingClaimFor,
-  grantClaim,
-} from "#shared/payment/row-transitions.ts";
 import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
 

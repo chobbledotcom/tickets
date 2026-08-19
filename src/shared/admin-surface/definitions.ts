@@ -9,7 +9,7 @@
  */
 
 import type { EnabledFeatures } from "#shared/admin-features.ts";
-import type { AdminLevel } from "#shared/types.ts";
+import type { AdminLevel } from "#types";
 
 export interface AdminSurfaceContext {
   readonly active: string;

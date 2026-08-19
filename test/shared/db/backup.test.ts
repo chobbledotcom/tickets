@@ -12,17 +12,17 @@ import {
   restoreFromSql,
   restoreFromZip,
   splitStatements,
-} from "#shared/db/backup.ts";
-import { exportTable } from "#shared/db/backup-snapshot.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+} from "#db/backup.ts";
+import { exportTable } from "#db/backup-snapshot.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import {
   initDb,
   LATEST_UPDATE,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
-} from "#shared/db/migrations.ts";
+} from "#db/migrations.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,

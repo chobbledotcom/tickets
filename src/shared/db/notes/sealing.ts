@@ -5,16 +5,10 @@
  * is named once here and everything else works in terms of a sealed note.
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-} from "#shared/crypto/keys.ts";
-import type {
-  EnvKeyEncrypted,
-  OwnerKeyEncrypted,
-} from "#shared/crypto/sealed.ts";
-import { settings } from "#shared/db/settings.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { settings } from "#db/settings.ts";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 
 type SealedNote = OwnerKeyEncrypted | EnvKeyEncrypted;

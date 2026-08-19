@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { map } from "#fp";
 import { t } from "#i18n";
-import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
+import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
   ALL_LEDGER_SCOPE,
   type LedgerScope,

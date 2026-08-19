@@ -3,10 +3,10 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
+import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { sitePages } from "#shared/db/site-pages.ts";
 import {
   findsTheWayInFrom,
   newcomerReading,

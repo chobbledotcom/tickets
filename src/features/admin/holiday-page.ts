@@ -3,6 +3,7 @@
  * /admin/holidays/:id. Mutation handlers stay in holidays.ts.
  */
 
+import { holidays } from "#db/holidays.ts";
 /* jscpd:ignore-start */
 import {
   defineEditEntityPage,
@@ -10,9 +11,8 @@ import {
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
-import { holidays } from "#shared/db/holidays.ts";
-import type { Holiday } from "#shared/types.ts";
 import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
+import type { Holiday } from "#types";
 
 /* jscpd:ignore-end */
 

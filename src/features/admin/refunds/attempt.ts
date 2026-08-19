@@ -2,7 +2,7 @@
 import type {
   ObservedRefundAdmission,
   WithheldRefund,
-} from "#shared/payment/admit-refund.ts";
+} from "#payment/admit-refund.ts";
 import {
   reportProviderWithheldRefund,
   reportWithheldRefund,

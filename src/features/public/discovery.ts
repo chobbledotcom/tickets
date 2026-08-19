@@ -6,8 +6,6 @@
  * booked. The final date-specific check still happens when the buyer submits.
  */
 
-import { identity, mapById, mapNotNullish, unique } from "#fp";
-import { isRegistrationClosed } from "#routes/format.ts";
 import {
   buildTicketListing,
   childActive,
@@ -16,26 +14,28 @@ import {
   fixedParentDays,
   parentAndChildFitGroup,
   type TicketListing,
-} from "#shared/booking/model.ts";
-import { childIdsMatching } from "#shared/child-parents.ts";
-import { getBookableStartDates } from "#shared/dates.ts";
+} from "#booking/model.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
-} from "#shared/db/attendees/capacity/groups.ts";
-import { getHiddenPackageMemberIds, listingGroups } from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
+} from "#db/attendees/capacity/groups.ts";
+import { getHiddenPackageMemberIds, listingGroups } from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
 import {
   getNonStandaloneChildIds,
   listingIdsWithLinks,
   loadParentAndChildLinks,
-} from "#shared/db/listing-parents.ts";
+} from "#db/listing-parents.ts";
+import { identity, mapById, mapNotNullish, unique } from "#fp";
+import { isRegistrationClosed } from "#routes/format.ts";
+import { childIdsMatching } from "#shared/child-parents.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import {
   availableDayCounts,
   type Holiday,
   type ListingWithCount,
   sharedGroupCapacity,
-} from "#shared/types.ts";
+} from "#types";
 
 /**
  * Drop members of a HIDDEN package from a buyer-facing listing set: such a

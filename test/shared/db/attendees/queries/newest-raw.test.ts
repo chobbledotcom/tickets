@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getNewestAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

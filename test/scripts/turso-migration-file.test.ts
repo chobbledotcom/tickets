@@ -1,8 +1,11 @@
 // test-groups: run-alone
 
 import { EventEmitter } from "node:events";
-import type { ClientRequest, IncomingMessage } from "node:http";
-import { request as httpRequest } from "node:http";
+import {
+  type ClientRequest,
+  request as httpRequest,
+  type IncomingMessage,
+} from "node:http";
 import { Writable } from "node:stream";
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";

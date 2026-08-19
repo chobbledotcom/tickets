@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
+import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import {
   EXPECTED_MOVES,
   REVIEW_EVENTS,
@@ -16,12 +16,12 @@ import {
   REVIEW_REASONS,
   type ReviewSlot,
   reviewNodeOf,
-} from "#shared/payment/review-machine-spec.ts";
+} from "#payment/review-machine-spec.ts";
 import {
   registerConformanceSweep,
   registerDrivenExportsCheck,
   registerTableChecks,
-} from "#test/test-utils/machine-spec.ts";
+} from "#test-utils/machine-spec.ts";
 
 const REVIEW_SPEC = {
   events: REVIEW_EVENTS,

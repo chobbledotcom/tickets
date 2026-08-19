@@ -8,22 +8,22 @@
  * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
+import { getFirstBooking } from "#db/attendees/queries.ts";
+/* jscpd:ignore-end */
+import {
+  getRefundPaymentReferencesForAttendee,
+  type TaggedRefundPaymentReference,
+} from "#db/payment-references.ts";
 import { t } from "#i18n";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getFirstBooking } from "#shared/db/attendees/queries.ts";
-/* jscpd:ignore-end */
-import {
-  getRefundPaymentReferencesForAttendee,
-  type TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 /* jscpd:ignore-start */
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 import { attendeeActions } from "./attendees-route-helpers.ts";
 import { refundReferenceProblemMessage } from "./refunds/readiness-problem.ts";

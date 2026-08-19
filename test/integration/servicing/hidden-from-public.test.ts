@@ -17,7 +17,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeePiiBlobForToken } from "#shared/db/attendees/queries.ts";
+import { getAttendeePiiBlobForToken } from "#db/attendees/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";

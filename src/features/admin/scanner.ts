@@ -1,11 +1,19 @@
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * QR scanner routes for admin check-in
  * GET /admin/listing/:id/scanner - Scanner page with camera UI
  * POST /admin/listing/:id/scan - JSON API for processing scanned tokens
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import type { AttendeeWithBookings } from "#db/attendee-types.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import { updateCheckedIn } from "#db/attendees/update.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { filter, map, pipe } from "#fp";
 import { requireSessionOr, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
@@ -15,20 +23,13 @@ import {
   resolveEntries,
   type TokenEntry,
 } from "#routes/tickets/token-utils.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import type { AttendeeWithBookings } from "#shared/db/attendee-types.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   getRequestPrivateKey,
   requireRequestPrivateKey,
 } from "#shared/session-private-key.ts";
-import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
+import { type Attendee, hasTicketQuantity } from "#types";
 
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
 const handleScannerGet: IdRouteHandler = createIdEntityHandler<

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
 import {
   appendImageToItem,
   clearImageUsesForItemStatement,
@@ -13,16 +13,16 @@ import {
   imageUseTargets,
   setImagesForItem,
   setItemsForImage,
-} from "#shared/db/images.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+} from "#db/images.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
-import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import type { Image } from "#types";
 
 const makeImage = (
   name: string,

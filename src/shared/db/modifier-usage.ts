@@ -9,8 +9,8 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { queryOnePrimary, type SqlStatement } from "#shared/db/client.ts";
-import { mapByIds } from "#shared/db/query.ts";
+import { queryOnePrimary, type SqlStatement } from "#db/client.ts";
+import { mapByIds } from "#db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount

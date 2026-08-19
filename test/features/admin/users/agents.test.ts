@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { userAgents } from "#db/user-agents.ts";
+import { deleteUser, getUserByUsername } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { userAgents } from "#shared/db/user-agents.ts";
-import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
 import { expectHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";

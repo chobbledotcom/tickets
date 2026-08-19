@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { transitionRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
+import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 

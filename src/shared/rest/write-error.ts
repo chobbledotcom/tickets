@@ -1,5 +1,5 @@
+import { TransactionValidationError } from "#db/transaction.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
 
 export const transactionValidationMessageOrRethrow = (
   error: unknown,

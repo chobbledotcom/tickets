@@ -120,7 +120,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "Orphan",
         "orphan@test.com",
       );
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute({
         args: [listing.id],
         sql: "DELETE FROM listing_attendees WHERE listing_id = ?",

@@ -6,15 +6,15 @@
  * owner-only, matching the money-exposing standalone /admin/ledger routes.
  */
 
-import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { signBalanceToken } from "#shared/balance-link.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
-import { getAttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { getAttendeeStatus } from "#db/attendee-statuses.ts";
 import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
-} from "#shared/db/attendees/balance.ts";
+} from "#db/attendees/balance.ts";
+import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
+import { signBalanceToken } from "#shared/balance-link.ts";
+import { isPaymentsEnabled } from "#shared/config.ts";
 import { computeReservationDeposit } from "#shared/reservation-amount.ts";
 import { AttendeeLedgerPanel } from "#templates/admin/attendee-ledger-panel.tsx";
 

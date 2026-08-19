@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { groups, setGroupPackageMembers } from "#shared/db/groups.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { execute } from "#db/client.ts";
+import { groups, setGroupPackageMembers } from "#db/groups.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import {
   expectPackageRefund,
   expectProcessed,

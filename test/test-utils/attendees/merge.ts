@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import type { Answer, Question } from "#shared/db/question-types.ts";
-import { getAttendeeAnswersByQuestion } from "#shared/db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import type { Answer, Question } from "#db/question-types.ts";
+import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import type { Attendee, Listing } from "#types";
 
 /** A slot for one of the optional contact fields on a direct attendee booking. */
 type DirectBooking = {

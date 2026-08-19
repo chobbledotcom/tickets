@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { col } from "#shared/db/table.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { col } from "#db/table.ts";
 
 describe("defineIdTable", () => {
   const table = defineIdTable<{ id: number; name: string }, { name: string }>(

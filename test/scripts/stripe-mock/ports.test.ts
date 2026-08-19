@@ -15,14 +15,14 @@ import {
   writeFailingMock,
   writePortThief,
   writeTermIgnoringMock,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
   withHeldPort,
   withUnusedPort,
-} from "#test/test-utils/stripe-mock/ports.ts";
+} from "#test-utils/stripe-mock/ports.ts";
 
 describe("stripe-mock ports and environment", () => {
   test("keeps a reserved port unavailable until release", () => {

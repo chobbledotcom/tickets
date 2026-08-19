@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 import {
   squareRefundRequest,
   withSquareClient,
-} from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
-import { gbp } from "#test-utils/payment-state.ts";
+} from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
 
 const refundRequest = (
   paymentReference = "pay_refund_me",

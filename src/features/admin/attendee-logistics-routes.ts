@@ -7,6 +7,10 @@
  * at 400, like the Edit tab; a success PRG-redirects back to this tab.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+/* jscpd:ignore-end */
+import { updateAttendeePII } from "#db/attendees/update.ts";
+import { setLogisticsAssignments } from "#db/logistics.ts";
 import { t } from "#i18n";
 import {
   ATTENDEE_LOGISTICS_FORM_ID,
@@ -32,10 +36,6 @@ import type { AuthSession } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-/* jscpd:ignore-end */
-import { updateAttendeePII } from "#shared/db/attendees/update.ts";
-import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import {
   LOGISTICS_DEMO_FIELDS,
   loadAfterDemoOverrides,

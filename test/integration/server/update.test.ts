@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { backupKey, backupTimestamp } from "#db/backup-storage.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { backupKey, backupTimestamp } from "#shared/db/backup-storage.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
-import { useLocalStoragePath } from "#test/test-utils/_shared-site-update.ts";
+import { useLocalStoragePath } from "#test-utils/_shared-site-update.ts";
 import {
   expectFlash,
   expectHtmlResponse,

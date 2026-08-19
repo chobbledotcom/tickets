@@ -5,7 +5,7 @@ import {
   PORT_STEAL_TRIES,
   retryWhilePortTaken,
   startFailedOrPortTaken,
-} from "#test/test-utils/stripe-mock/ports.ts";
+} from "#test-utils/stripe-mock/ports.ts";
 
 /** Stands in for a mock that started, which is what a taken port looks like. */
 const startedMock = () =>

@@ -4,12 +4,12 @@ import { stub } from "@std/testing/mock";
 import type { StripeClient } from "#shared/stripe/client.ts";
 import { cleanupOldWebhookEndpoints } from "#shared/stripe/endpoints.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
+import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 import {
   cleanupWithWebhookApi,
   newWebhookApiCalls,
-} from "#test/test-utils/stripe/webhook-mocks.ts";
-import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
+} from "#test-utils/stripe/webhook-mocks.ts";
 
 const listedEndpoint = (id: string, url: string) => ({
   enabled_events: ["checkout.session.completed"],

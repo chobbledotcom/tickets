@@ -10,6 +10,10 @@
  */
 
 import {
+  isSessionRejection,
+  type SessionRejection,
+} from "#payment/validated-session.ts";
+import {
   classifySessionIntent,
   type SessionIntentResult,
 } from "#routes/api/payment-processing/classify.ts";
@@ -17,10 +21,6 @@ import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
-import {
-  isSessionRejection,
-  type SessionRejection,
-} from "#shared/payment/validated-session.ts";
 import type {
   ValidatedPaymentSession,
   WebhookSessionResult,

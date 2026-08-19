@@ -11,14 +11,14 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import {
   type AddressMatch,
   AddressMatchSchema,
 } from "#shared/address-lookup/types.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryOne, type SqlStatement } from "#shared/db/client.ts";
 import { ADDRESS_CACHE_MS, MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
 import { isoBefore, nowMs } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";

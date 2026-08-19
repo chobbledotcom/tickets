@@ -3,9 +3,8 @@
  * the two settings rows naming the schema this build expects.
  */
 
-import type { SqlStatement } from "#shared/db/client.ts";
-import { executeBatch, getDb } from "#shared/db/client.ts";
-import { stringColumnSet } from "#shared/db/query.ts";
+import { executeBatch, getDb, type SqlStatement } from "#db/client.ts";
+import { stringColumnSet } from "#db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
 import {

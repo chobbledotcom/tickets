@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ChildAllocation } from "#db/attendee-types.ts";
 import {
   bookingsForOrder,
   checkoutBookingLines,
 } from "#shared/booking-lines.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 

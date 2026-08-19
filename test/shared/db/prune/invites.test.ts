@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { executeBatch, getDb, setDb } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
+import { createInvitedUser, getAllUsers } from "#db/users.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { executeBatch, getDb, setDb } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
-import { createInvitedUser, getAllUsers } from "#shared/db/users.ts";
 import { MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

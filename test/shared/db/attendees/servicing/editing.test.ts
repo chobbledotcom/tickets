@@ -15,7 +15,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -174,7 +174,7 @@ describeWithEnv(
       // from a partial failure or direct DB edit) must not be silently hidden:
       // the edit page surfaces a "will be removed on save" indicator so the
       // operator sees the repair instead of a form that quietly drops it.
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       const listing = await createDailyTestListing({
         maxAttendees: 10,
         name: "Doomed Room",

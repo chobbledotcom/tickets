@@ -202,6 +202,21 @@ GitHub.
   "compatibility" shims. Keep adapters only at true external boundaries
   (provider APIs, serialized data/import formats, browser/platform contracts) or
   for an explicitly staged data migration with a named removal path.
+- **Imports name a module one way**: A module has one spelling, and every file
+  reaches it with one statement. The spelling is the shortest alias in the
+  `deno.json` import map that reaches the file, so `#db/client.ts` beats
+  `#shared/db/client.ts` and `#types` beats `#shared/types.ts`. A file must not
+  import the same module twice: put the type-only names in the same statement
+  with an inline `type`, as in
+  `import { type Result, okResult } from "#shared/result.ts"`. A namespace
+  import beside named ones is the one allowed pair, because it reads the whole
+  module on purpose. `deno task check:imports` enforces both rules, and reads
+  the alias table out of `deno.json`, so a new alias enforces itself.
+
+  An alias is a build-time rename with no runtime cost, but it is also a second
+  name for a folder everybody already knows. Add one only when the measured
+  saving pays for that: each alias in the table today removes 50 or more wrapped
+  import lines. Below that bar, leave the module under `#shared/`.
 - **Remove dead code — always the answer**: When code has no production caller —
   an unused export, an unreferenced helper, a guard/page whose only consumer is
   itself unused, an unreachable branch — delete it. Removal is _always_ the

@@ -11,13 +11,13 @@
 
 import { compact, map } from "#fp";
 import { t } from "#i18n";
+import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
   calendarGridDates,
   formatMonthLabel,
   monthsAround,
   shiftMonth,
 } from "#shared/dates.ts";
-import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 
 /** A single date offered by the picker. */
 export type DatePickerDate = {

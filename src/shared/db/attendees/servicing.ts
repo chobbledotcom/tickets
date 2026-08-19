@@ -1,54 +1,52 @@
 /* jscpd:ignore-start */
-import { sumByKey, sumOf, unique } from "#fp";
-import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import type { TransferEndpoints } from "#shared/accounting/rows.ts";
-import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
-import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
+
+import { costAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import type { TransferEndpoints } from "#accounting/rows.ts";
+import { postTransfers, postTransfersTx } from "#accounting/store.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { logActivity } from "#db/activity-log.ts";
 import type {
   AttendeeInput,
   DesiredListingLine,
   ListingAttendeeRow,
   ListingBooking,
   UpdateAttendeePIIInput,
-} from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
+} from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import {
   type ExistingLine,
   loadExistingLines,
-} from "#shared/db/attendees/atomic-update.ts";
-import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
-import { loadAttendeeRows } from "#shared/db/attendees/queries.ts";
-import {
-  type AttendeeRowFor,
-  getAttendees,
-} from "#shared/db/attendees/select.ts";
+} from "#db/attendees/atomic-update.ts";
+import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { decryptAttendeeFields } from "#db/attendees/pii.ts";
+import { loadAttendeeRows } from "#db/attendees/queries.ts";
+import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
 import {
   inPlaceholders,
   queryAll,
   queryOne,
   requireOne,
   withTransaction,
-} from "#shared/db/client.ts";
-import { listingNames } from "#shared/db/listings/records.ts";
+} from "#db/client.ts";
+import { listingNames } from "#db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
-} from "#shared/db/questions/attendee-answers/reads.ts";
+} from "#db/questions/attendee-answers/reads.ts";
 import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers/save.ts";
+} from "#db/questions/attendee-answers/save.ts";
+import { sumByKey, sumOf, unique } from "#fp";
+import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
-import { type Attendee, clampDurationDays } from "#shared/types.ts";
+import { type Attendee, clampDurationDays } from "#types";
 /* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`

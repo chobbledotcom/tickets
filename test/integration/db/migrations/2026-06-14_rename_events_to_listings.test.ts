@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { initDb, SCHEMA_HASH } from "#shared/db/migrations.ts";
+import { getDb } from "#db/client.ts";
+import { initDb, SCHEMA_HASH } from "#db/migrations.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
@@ -11,7 +11,7 @@ import {
   seedListingDomainRows,
   tableExists,
   tableRowCount,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

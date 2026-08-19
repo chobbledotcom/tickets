@@ -9,8 +9,8 @@
 
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { encrypt, parseEncryptedPayload } from "#shared/crypto/encryption.ts";
-import { toBase64 } from "#shared/crypto/utils.ts";
+import { encrypt, parseEncryptedPayload } from "#crypto/encryption.ts";
+import { toBase64 } from "#crypto/utils.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const PREFIX = "enc:1:";

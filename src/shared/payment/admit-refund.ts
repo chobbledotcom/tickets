@@ -6,12 +6,11 @@
  * themselves; SumUp has no idempotency key and would pay twice.
  */
 
-import type { PaymentConflict } from "#shared/payment/conflict.ts";
-import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
-import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { PaymentConflict } from "#payment/conflict.ts";
+import { type ObservationOutcome, refundOutcomeOf } from "#payment/diagnose.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 
 /** What to do about a refund somebody asked for. Only `send` reaches a
  *  provider; the rest are answers we already have. */

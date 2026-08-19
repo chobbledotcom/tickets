@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#db/client.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
   groups,
-} from "#shared/db/groups.ts";
+} from "#db/groups.ts";
 import {
   getAllListings,
   getStoredListingWithCount,
-} from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -316,7 +316,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
     test("copies the package flag, hide option, and remapped member overrides", async () => {
       const { getGroupDayPrices, getListingDayPrices } = await import(
-        "#shared/db/listing-prices.ts"
+        "#db/listing-prices.ts"
       );
       const group = await createTestGroup({
         isPackage: true,

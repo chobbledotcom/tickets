@@ -1,16 +1,16 @@
-import { getDb, insert } from "#shared/db/client.ts";
-import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
-import { armRefundSend } from "#shared/payment/refund-authority.ts";
-import { markRefundOwnerChoiceNeeded } from "#shared/payment/refund-authority-choice.ts";
+import { getDb, insert } from "#db/client.ts";
+import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { armRefundSend } from "#payment/refund-authority.ts";
+import { markRefundOwnerChoiceNeeded } from "#payment/refund-authority-choice.ts";
 import {
   type RefundAuthorityState,
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+} from "#payment/refund-authority-state.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
+import type { PaymentProviderType } from "#types";
 
 export const readyRefundTestState = (identity: string): RefundAuthorityState =>
   readyRefundForTest("keyless", {

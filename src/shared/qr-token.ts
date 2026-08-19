@@ -9,7 +9,7 @@
  * HMAC input: "qr-book:{slug}:{payloadB64url}"
  */
 
-import { defineSignedToken } from "#shared/crypto/define-signed-token.ts";
+import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { expiresIn } from "#shared/now.ts";
 
 /** QR token expiry in seconds from generation */

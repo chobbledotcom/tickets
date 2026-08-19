@@ -1,6 +1,6 @@
 import * as v from "valibot";
+import { type DatabaseHost, databaseHostFor } from "#db/host.ts";
 import { secureUrlCheck } from "#scripts/secure-url.ts";
-import { type DatabaseHost, databaseHostFor } from "#shared/db/host.ts";
 
 /** One site as the main instance reports it, with its database credentials. */
 const SiteCredentialsSchema = v.object({

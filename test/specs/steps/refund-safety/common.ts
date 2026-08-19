@@ -1,13 +1,12 @@
 // jscpd:ignore-start
 import { Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { getRefundPaymentReferencesForAttendee } from "#shared/db/payment-references.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   openActionsAsOwner,
@@ -26,6 +25,7 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
+import type { PaymentProviderType } from "#types";
 // jscpd:ignore-end
 
 /** The provider boundary shared by one safety scenario. */

@@ -6,17 +6,17 @@
  * current password).
  */
 
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { hashPassword } from "#crypto/hashing.ts";
 import {
   deriveKEK,
   deriveKEKFromPassword,
   unwrapKey,
   wrapDataKeyForPassword,
-} from "#shared/crypto/keys.ts";
-import type { PasswordHash, WrappedKey } from "#shared/crypto/sealed.ts";
-import { execute } from "#shared/db/client.ts";
-import { deleteAllSessions } from "#shared/db/sessions.ts";
+} from "#crypto/keys.ts";
+import type { PasswordHash, WrappedKey } from "#crypto/sealed.ts";
+import { execute } from "#db/client.ts";
+import { deleteAllSessions } from "#db/sessions.ts";
 
 export const updateUserPassword = async (
   userId: number,

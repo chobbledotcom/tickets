@@ -2,11 +2,11 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getNotesFor } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import { handleRequest } from "#routes";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

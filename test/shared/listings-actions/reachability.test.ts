@@ -1,12 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   deactivationOrphanedAddOnError,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   groupRescuedChildAddOn,
   groupScopedAddOn,
@@ -14,10 +17,7 @@ import {
   linkGroupAddOn,
   rescuingPageSetup,
   soloChildAddOn,
-} from "#test/test-utils/listing-parents/helpers.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+} from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 
 const childAddOnError = (name: string): string =>

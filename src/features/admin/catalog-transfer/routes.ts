@@ -1,4 +1,5 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin routes for catalog import/export.
  *
@@ -8,6 +9,7 @@ import { defineRoutes } from "#routes/router.ts";
  * groups).
  */
 
+import { logActivity } from "#db/activity-log.ts";
 import { t } from "#i18n";
 import {
   type AuthSession,
@@ -23,8 +25,6 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { slugify } from "#shared/slug.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";

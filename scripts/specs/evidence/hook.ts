@@ -1,6 +1,6 @@
 import type { Buffer } from "node:buffer";
 import type { GherkinDocument, Pickle } from "@cucumber/messages";
-import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
+import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 
 export const SPEC_EVIDENCE_ENV = "TICKETS_SPEC_EVIDENCE";
 export const EVIDENCE_HOOK_TIMEOUT_MS = 120_000;

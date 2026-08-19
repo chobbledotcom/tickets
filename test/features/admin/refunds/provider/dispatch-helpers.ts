@@ -1,10 +1,8 @@
-import type {
-  CandidateRefund,
-  ReferenceRefund,
-} from "#routes/admin/refunds/attempt.ts";
 import {
+  type CandidateRefund,
   finishPreparedCandidate,
   prepareReadyCandidate,
+  type ReferenceRefund,
 } from "#routes/admin/refunds/attempt.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";

@@ -11,23 +11,23 @@
  * `EncryptedUpdateFn`).
  */
 
-import { encrypt } from "#shared/crypto/encryption.ts";
+import { encrypt } from "#crypto/encryption.ts";
 import {
   executeBatchWithoutCacheInvalidation,
   executeWithoutCacheInvalidation,
   type SqlStatement,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   bumpSettingsVersion,
   getRawCached,
   settingsVersionIncrement,
   syncCache,
-} from "#shared/db/settings/cache.ts";
+} from "#db/settings/cache.ts";
 import {
   type StringSettingKey,
   setSnapshotField,
-} from "#shared/db/settings/snapshot.ts";
-import { recordSettingsLoaded } from "#shared/db/settings-audit.ts";
+} from "#db/settings/snapshot.ts";
+import { recordSettingsLoaded } from "#db/settings-audit.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 
 export { getRawCached };

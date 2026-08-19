@@ -1,11 +1,10 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import {
   defineLedgerEntryAddForm,
@@ -20,6 +19,7 @@ import {
 } from "#templates/admin/ledger.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

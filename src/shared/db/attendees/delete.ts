@@ -7,10 +7,10 @@ import {
   queryAll,
   type SqlStatement,
   withTransaction,
-} from "#shared/db/client.ts";
-import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { noteDeleteStatement } from "#shared/db/notes/queries.ts";
-import { assertRowsFreeToMove } from "#shared/db/payment-admit-move.ts";
+} from "#db/client.ts";
+import { ticketCountSumExpr } from "#db/migrations/schema/listing-aggregates.ts";
+import { noteDeleteStatement } from "#db/notes/queries.ts";
+import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
 import {
   ATTENDEE_DATA_RULES,
   type AttendeeDataRule,

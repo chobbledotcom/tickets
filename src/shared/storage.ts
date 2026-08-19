@@ -5,8 +5,8 @@
  * Files are encrypted with DB_ENCRYPTION_KEY before upload.
  */
 
+import { decryptBytes, encryptBytes } from "#crypto/encryption.ts";
 import { lazyRef, once, sort } from "#fp";
-import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
 import {
   canDecodeImageMime,

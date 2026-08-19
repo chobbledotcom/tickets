@@ -4,9 +4,9 @@
  */
 
 import { renderSVG } from "uqr";
-import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
+import { getQuestionsForListing } from "#db/questions/queries.ts";
 import { parseListingFields } from "#shared/listing-fields.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /**
  * Generate an SVG string for a QR code encoding the given text.

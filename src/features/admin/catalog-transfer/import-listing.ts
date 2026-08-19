@@ -1,37 +1,38 @@
 /* jscpd:ignore-start */
-import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
-import { writeRowInTransaction } from "#shared/db/client.ts";
+
+import { writeRowInTransaction } from "#db/client.ts";
 import {
   type ListingGroupMembershipValidation,
   packageGroupIdsTx,
   validateListingGroupMembershipsTx,
-} from "#shared/db/groups/membership.ts";
-import { getGroupsById, groups, listingGroups } from "#shared/db/groups.ts";
+} from "#db/groups/membership.ts";
+import { getGroupsById, groups, listingGroups } from "#db/groups.ts";
 import {
   addParentEdgesWithPackageCheckTx,
   listingParents,
-} from "#shared/db/listing-parents.ts";
+} from "#db/listing-parents.ts";
 import {
   syncListingPrices,
   writeListingDayCounts,
-} from "#shared/db/listing-prices.ts";
-import { getListingsById, listingsTable } from "#shared/db/listings/records.ts";
+} from "#db/listing-prices.ts";
+import { getListingsById, listingsTable } from "#db/listings/records.ts";
 import {
   childOnlyAddOnCheckerForListings,
   type ListingGroupMembership,
   toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
   matchName,
   type NameIndex,
   normalizeEntityName,
-} from "#shared/db/name-registry.ts";
-import { settings } from "#shared/db/settings.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+} from "#db/name-registry.ts";
+import { settings } from "#db/settings.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
+import { t } from "#i18n";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import {
   childAddOnError,
   type EdgeListing,
@@ -53,7 +54,7 @@ import {
   type Group,
   type Listing,
   parseDayPrices,
-} from "#shared/types.ts";
+} from "#types";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
 import type { ListingData, ListingTransfer } from "./schema.ts";
 

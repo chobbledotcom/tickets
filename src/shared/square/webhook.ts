@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   computeHmacSha256,

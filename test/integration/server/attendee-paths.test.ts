@@ -1,13 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import type { Group, Listing } from "#shared/types.ts";
+import { revenueAccount } from "#accounting/accounts.ts";
+import { accountBalance } from "#accounting/queries.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { loadExistingLines } from "#db/attendees/atomic-update.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { queryAll } from "#db/client.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -21,6 +20,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import type { Group, Listing } from "#types";
 
 /**
  * The row-per-path attendee editor: every stored booking row renders as its
@@ -334,7 +334,7 @@ describeWithEnv(
       expect(made.success).toBe(true);
       // Deleting the parent removes only ITS rows; the child row keeps the
       // stale parent id, so the label falls back to the id.
-      const { deleteListing } = await import("#shared/db/listings/delete.ts");
+      const { deleteListing } = await import("#db/listings/delete.ts");
       await deleteListing(parent.id);
 
       const html = await firstAttendeeEditHtml(made);

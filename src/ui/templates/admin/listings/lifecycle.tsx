@@ -1,10 +1,10 @@
 import { t } from "#i18n";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import {
   entityDeletePage,
   type TCall,
 } from "#templates/admin/confirm-page.tsx";
+import type { AdminSession, ListingWithCount } from "#types";
 
 /** The parts of the confirm page each lifecycle action words differently. */
 type ListingConfirmOptions = {

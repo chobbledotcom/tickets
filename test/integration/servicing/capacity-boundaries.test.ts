@@ -9,7 +9,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
+import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold, expectRejects } from "#test-utils/servicing.ts";

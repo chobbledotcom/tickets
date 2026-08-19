@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { requirePublicStatusId } from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   placeholderBookings,
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
-import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectLegalJointStates } from "#test-utils/joint-state.ts";
 import { bookingIntent, trustedPayment } from "./index/helpers.ts";

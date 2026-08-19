@@ -1,7 +1,7 @@
+import { isServicing } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
-import { isServicing } from "#shared/db/attendees/kind.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -10,8 +10,6 @@ import {
   configurableTableLayouts,
 } from "#shared/tables/configurable.ts";
 import { attachTableRenderers } from "#shared/tables/definition.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
-import { hasTicketQuantity } from "#shared/types.ts";
 import { noQuantityIndicator } from "#templates/attendee-table/status.tsx";
 import type { AttendeeColumnOpts } from "#templates/attendee-table/types.ts";
 import {
@@ -20,6 +18,7 @@ import {
   getAnswerDisplay,
 } from "#templates/attendee-table/values.ts";
 import { tableColumnText } from "#templates/components/table.tsx";
+import { type AttendeeTableRow, hasTicketQuantity } from "#types";
 
 type AttendeeRenderer = Omit<
   TableColumn<AttendeeTableRow, AttendeeColumnOpts, AttendeeColumnKey>,

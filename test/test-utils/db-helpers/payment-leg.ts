@@ -1,5 +1,5 @@
-import { mapBooking } from "#shared/accounting/mappers.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+import { mapBooking } from "#accounting/mappers.ts";
+import { postTransfers } from "#accounting/store.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 

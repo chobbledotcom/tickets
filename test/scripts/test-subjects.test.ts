@@ -177,8 +177,8 @@ describe("test subjects", () => {
           `import { describeWithEnv } from "#test-utils/db.ts";`,
         ].join("\n"),
         "test/test-utils/db.ts": [
-          `import { getDb } from "#shared/db/client.ts";`,
-          `import { settings } from "#shared/db/settings.ts";`,
+          `import { getDb } from "#db/client.ts";`,
+          `import { settings } from "#db/settings.ts";`,
         ].join("\n"),
       };
       const read = readerFor(files);

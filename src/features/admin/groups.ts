@@ -1,35 +1,19 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin group management routes - accessible to owners and managers
  */
 
-import { compact } from "#fp";
-import { t } from "#i18n";
-import {
-  createContentCrudHandlers,
-  createCrudHandlers,
-} from "#routes/admin/owner-crud.ts";
-import { redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { entityReturnPath } from "#shared/admin-pages.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import type {
-  GroupInput,
-  PackageMemberInput,
-} from "#shared/catalog-fields/fields.ts";
-import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   assignListingsToGroup,
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
-} from "#shared/db/groups/membership.ts";
+} from "#db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
@@ -40,14 +24,26 @@ import {
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
-} from "#shared/db/groups.ts";
+} from "#db/groups.ts";
+import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { getListingsWithCountsByIds } from "#db/listings/records.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import { clearItemEdgesStatement } from "#db/site-page-items.ts";
+import { compact } from "#fp";
+import { t } from "#i18n";
 import {
-  clearImageUsesForItemStatement,
-  imageUseTargets,
-} from "#shared/db/images.ts";
-import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
-import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
-import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
+  createContentCrudHandlers,
+  createCrudHandlers,
+} from "#routes/admin/owner-crud.ts";
+import { redirect } from "#routes/response.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
+import {
+  type GroupInput,
+  groupCatalogFields,
+  type PackageMemberInput,
+} from "#shared/catalog-fields/fields.ts";
 import {
   GROUP_DEMO_FIELDS,
   wrapResourceForDemo,
@@ -57,12 +53,6 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type {
-  AdminSession,
-  DayPrices,
-  Group,
-  ListingWithCount,
-} from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
@@ -73,6 +63,7 @@ import {
   getGroupCreateForm,
   getGroupForm,
 } from "#templates/fields/group.ts";
+import type { AdminSession, DayPrices, Group, ListingWithCount } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";

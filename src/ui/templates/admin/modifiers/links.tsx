@@ -5,12 +5,12 @@
  */
 
 import { t } from "#i18n";
-import type { Modifier } from "#shared/types.ts";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import type { Modifier } from "#types";
 
 /** Each linkable scope kind → the form field its checkboxes post under and the
  * term key for its plural type name. Adding a scope kind is one self-contained

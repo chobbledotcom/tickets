@@ -1,8 +1,8 @@
 import type {
   AttributeWithOptions,
   ListingAttributesById,
-} from "#shared/db/attributes.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
+} from "#db/attributes.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
 
 const attributeOptionsText = (attribute: AttributeWithOptions): string =>
   attribute.options.map((option) => option.text).join(", ");

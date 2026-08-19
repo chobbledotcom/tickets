@@ -8,7 +8,7 @@ import {
   createFakeArchive,
   withFakeCurl,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 
 /** Long ago, so any sane staleness rule counts it as abandoned. */
 const LONG_AGO = new Date(Date.now() - 60 * 60 * 1000);

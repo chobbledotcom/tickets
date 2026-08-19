@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllImages, setItemsForImage } from "#db/images.ts";
 import { handleRequest } from "#routes";
-import { getAllImages, setItemsForImage } from "#shared/db/images.ts";
 import {
   adminGet,
   formRequest,

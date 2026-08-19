@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

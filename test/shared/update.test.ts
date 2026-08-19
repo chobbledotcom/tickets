@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { execute, getDb, queryAll, queryOne } from "#db/client.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { execute, getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   getSubrequestUsage,

@@ -1,7 +1,7 @@
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
 import {

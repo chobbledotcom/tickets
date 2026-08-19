@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { settleAttendeeBalance } from "#db/attendees/balance.ts";
+import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { routeBalance } from "#routes/public/balance.ts";
-import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { getDb } from "#shared/db/client.ts";
 import {
   createNonReservation,
   createReserved,

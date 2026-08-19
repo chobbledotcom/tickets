@@ -6,8 +6,8 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { WRITEOFF } from "#shared/accounting/accounts.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
+import { WRITEOFF } from "#accounting/accounts.ts";
+import { accountBalance } from "#accounting/queries.ts";
 import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { worldBalance } from "#test/specs/support/money-reads.ts";

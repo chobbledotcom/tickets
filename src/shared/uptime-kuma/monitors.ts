@@ -1,6 +1,6 @@
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { bearerAuthorization } from "#shared/bearer.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   type UptimeKumaClient,

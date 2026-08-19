@@ -1,17 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { mapBooking } from "#accounting/mappers.ts";
+import { postTransfers } from "#accounting/store.ts";
+import type { ActivityLogEntry } from "#db/activity-log.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { execute } from "#db/client.ts";
+import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import { filter, map, pipe } from "#fp";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { mapBooking } from "#shared/accounting/mappers.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
-import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -36,6 +35,7 @@ import {
   withRefreshPaymentProbe,
 } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import type { Attendee } from "#types";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 

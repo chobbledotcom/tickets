@@ -11,22 +11,19 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
-import { t } from "#i18n";
 import {
   inPlaceholders,
   queryIdColumn,
   resultRows,
   type TxScope,
-} from "#shared/db/client.ts";
-import {
-  type LinkTableSide,
-  selfLinkTableSides,
-} from "#shared/db/link-table.ts";
-import { guardEdgeWriteTx } from "#shared/db/listing-edge-write.ts";
-import { relationshipErrorTx } from "#shared/db/listing-relationship-validation.ts";
-import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+} from "#db/client.ts";
+import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
+import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
+import { relationshipErrorTx } from "#db/listing-relationship-validation.ts";
+import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
+import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
+import { t } from "#i18n";
 import {
   type EdgeListing,
   edgeFieldError,
@@ -35,7 +32,7 @@ import {
   type PackageChildEdgeBlock,
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /** Both directions of the edge table. Parents and children are both listings,
  * so one read answers "who are my children" and "whose child am I" together —

@@ -3,12 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   LedgerConflictError,
   reversalConflict,
-} from "#shared/accounting/conflicts.ts";
-import {
-  allTransfers,
-  transfersByEventGroup,
-} from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+} from "#accounting/conflicts.ts";
+import { allTransfers, transfersByEventGroup } from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {

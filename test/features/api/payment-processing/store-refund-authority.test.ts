@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   loadPaymentMoveSnapshot,
   PaymentRowsBusyError,
-} from "#shared/db/payment-admit-move.ts";
-import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
+} from "#db/payment-admit-move.ts";
+import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
+import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { protectedStateOf } from "#test-utils/payment-claim.ts";

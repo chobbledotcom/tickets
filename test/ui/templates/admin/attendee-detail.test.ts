@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { ActivityLogEntry } from "#db/activity-log.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
-import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,

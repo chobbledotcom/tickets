@@ -7,7 +7,7 @@
  * user's delivery run sheet (`/admin/deliveries`).
  */
 
-import { linkTableSide } from "#shared/db/link-table.ts";
+import { linkTableSide } from "#db/link-table.ts";
 
 /** The logistics agents assigned to a user, keyed by user id: read with
  * `getIds` (ascending), replace with `setIds` (deduped). */

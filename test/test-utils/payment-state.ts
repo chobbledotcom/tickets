@@ -1,16 +1,16 @@
 import type {
   RefundPaymentReference,
   TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
-import type { Money } from "#shared/payment/money.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+} from "#db/payment-references.ts";
+import type { Money } from "#payment/money.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import type {
   ChargeMoney,
   ProviderRefundResource,
   RefundObservation,
-} from "#shared/payment/resources.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+} from "#payment/resources.ts";
+import type { PaymentProviderType } from "#types";
 
 /** Money in the currency these tests use throughout. */
 export const gbp = (amount: number): Money => ({ amount, currency: "GBP" });

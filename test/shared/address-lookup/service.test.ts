@@ -5,13 +5,13 @@
 
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { lookupAddresses } from "#shared/address-lookup/service.ts";
 import {
   computeAddressSearchIndex,
   getCachedAddresses,
   storeCachedAddresses,
-} from "#shared/db/address-cache.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/address-cache.ts";
+import { settings } from "#db/settings.ts";
+import { lookupAddresses } from "#shared/address-lookup/service.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";

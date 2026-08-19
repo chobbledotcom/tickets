@@ -1,7 +1,4 @@
-import type {
-  BuiltSite,
-  BuiltSiteFormInput,
-} from "#shared/db/built-sites/types.ts";
+import type { BuiltSite, BuiltSiteFormInput } from "#db/built-sites/types.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
@@ -24,9 +21,7 @@ export const provisionTestBuiltSite = async (
   opts: { readOnlyFrom?: string } = {},
 ): Promise<{ token: string; tokenIndex: string }> => {
   const { generateRenewalToken } = await import("#shared/site-assignment.ts");
-  const { updateBuiltSiteRenewalState } = await import(
-    "#shared/db/built-sites.ts"
-  );
+  const { updateBuiltSiteRenewalState } = await import("#db/built-sites.ts");
   const { index, token } = await generateRenewalToken();
   await updateBuiltSiteRenewalState(siteId, {
     renewalToken: token,
@@ -70,7 +65,7 @@ export const createTestBuiltSite = (
         ...(input.updates ? { updates: input.updates } : {}),
       },
       async () => {
-        const { builtSites } = await import("#shared/db/built-sites.ts");
+        const { builtSites } = await import("#db/built-sites.ts");
         const sites = await builtSites.getAll();
         return sites[sites.length - 1] as BuiltSite;
       },
@@ -83,7 +78,7 @@ export const updateTestBuiltSite = async (
   siteId: number,
   updates: Partial<BuiltSiteFormInput>,
 ): Promise<BuiltSite> => {
-  const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
+  const { builtSitesCrudTable } = await import("#db/built-sites.ts");
   const existing = (await builtSitesCrudTable.read.one({
     id: siteId,
   })) as BuiltSite;
@@ -111,7 +106,7 @@ export const updateTestBuiltSite = async (
 };
 
 export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
-  const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
+  const { builtSitesCrudTable } = await import("#db/built-sites.ts");
   const existing = (await builtSitesCrudTable.read.one({
     id: siteId,
   })) as BuiltSite;

@@ -2,7 +2,7 @@ import {
   fromBase64Url,
   generateSecureToken,
   toBase64Url,
-} from "#shared/crypto/utils.ts";
+} from "#crypto/utils.ts";
 import { getEnv } from "#shared/env.ts";
 
 export const SCHEDULED_TASK_KEY_ENV = "SCHEDULED_TASK_KEY";

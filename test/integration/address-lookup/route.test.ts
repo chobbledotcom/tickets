@@ -7,9 +7,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { execute } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";

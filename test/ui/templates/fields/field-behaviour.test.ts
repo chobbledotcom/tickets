@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
 import type { Field } from "#shared/forms/field.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import { getGroupCreateForm } from "#templates/fields/group.ts";
@@ -15,6 +14,7 @@ import { getTicketFields } from "#templates/fields/ticket.ts";
 import { getSlugField } from "#templates/fields/validators.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { byName } from "#test-utils/fields.ts";
+import { MAX_DURATION_DAYS } from "#types";
 
 /** Run a field's `validate` (present on the fields under test here). */
 const runValidate = (field: Field, value: string): string | null => {

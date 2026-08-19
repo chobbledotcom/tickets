@@ -11,12 +11,8 @@ import {
   wouldCreateCycle,
 } from "#shared/site-pages/core.ts";
 import type { TargetKey, TargetMap } from "#shared/site-pages/types.ts";
-import type {
-  SitePageItem,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
-import { navKey } from "#test/test-utils/site-pages/nav-fixtures.ts";
+import { navKey } from "#test-utils/site-pages/nav-fixtures.ts";
+import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 const page = (id: number, sort_order = id): SitePageNavRow => ({
   id,

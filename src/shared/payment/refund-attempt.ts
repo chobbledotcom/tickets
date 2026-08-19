@@ -1,18 +1,15 @@
-import {
-  type ObservationOutcome,
-  refundOutcomeOf,
-} from "#shared/payment/diagnose.ts";
-import { type Money, sameMoney } from "#shared/payment/money.ts";
+import { type ObservationOutcome, refundOutcomeOf } from "#payment/diagnose.ts";
+import { type Money, sameMoney } from "#payment/money.ts";
 import type {
   ProviderInvalidReason,
   ProviderRead,
   ProviderReader,
   ProviderUnavailableReason,
-} from "#shared/payment/provider-read.ts";
+} from "#payment/provider-read.ts";
 import type {
   ChargeMoney,
   ProviderRefundResource,
-} from "#shared/payment/resources.ts";
+} from "#payment/resources.ts";
 
 /** Evidence that identifies the refund or the provider reading that confirms
  * it. SumUp names no refund resource in its answer, so only its fresh charge

@@ -2,13 +2,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getGroupPackagePrices } from "#shared/db/groups.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import type { GroupListing, ListingWithCount } from "#shared/types.ts";
+import { getGroupPackagePrices } from "#db/groups.ts";
+import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
+import type { GroupListing, ListingWithCount } from "#types";
 import { adminPost } from "./helpers.ts";
 
 describeWithEnv("admin package member overrides", { db: true }, () => {

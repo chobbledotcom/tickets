@@ -11,14 +11,11 @@ import * as v from "valibot";
 import {
   mapProviderReader,
   type ProviderRead,
-} from "#shared/payment/provider-read.ts";
-import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
-import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
-import {
-  type ChargeMoney,
-  chargeMoneyRead,
-} from "#shared/payment/resources.ts";
-import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+} from "#payment/provider-read.ts";
+import { refundWithOneReread } from "#payment/refund-attempt.ts";
+import { requireProviderRefundAuthorization } from "#payment/refund-provider-authorization.ts";
+import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
+import { validatedPaymentSession } from "#payment/validated-session.ts";
 /* jscpd:ignore-end */
 import {
   hasRequiredSessionMetadata,

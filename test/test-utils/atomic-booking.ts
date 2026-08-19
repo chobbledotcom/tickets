@@ -1,4 +1,4 @@
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 
 const withBookingWriteTrigger = async (
   triggerName: string,

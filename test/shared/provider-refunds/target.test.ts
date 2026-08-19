@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { refundCallbackReplayIndex } from "#shared/payment/refund-request-identity.ts";
+import { queryAll } from "#db/client.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
 import {
   type ProviderRefundDependencies,

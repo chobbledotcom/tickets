@@ -6,17 +6,14 @@
  * row functions. This module adds layout, wording keys, and the lifecycle
  * facts for the worst work each node carries. */
 
-import {
-  PAYMENT_ROW_LIFECYCLE,
-  paymentWorkFor,
-} from "#shared/payment/admit-move.ts";
+import { PAYMENT_ROW_LIFECYCLE, paymentWorkFor } from "#payment/admit-move.ts";
 import {
   ROW_EVENTS,
   ROW_NODES,
   type RowNodeId,
   rowNodeOf,
-} from "#shared/payment/row-machine-spec.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#payment/row-machine-spec.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import {
   atlasStatesFromSpec,
   factsAndStart,

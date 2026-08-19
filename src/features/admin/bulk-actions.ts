@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { identity, mapById, requiredMapValue } from "#fp";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /* jscpd:ignore-end */
 /**
  * Bulk actions for groups.
@@ -12,21 +13,8 @@ import { defineRoutes } from "#routes/router.ts";
  * derived from two reference dates.
  */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
-import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
-import { groupFormPost, withGroup } from "#routes/admin/groups.ts";
-import { requireSessionOr } from "#routes/auth.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import {
-  applyNameReplacement,
-  computeDayOffset,
-  shiftUtcIsoByDays,
-} from "#shared/bulk-replace.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   cloneGroupMembershipStatement,
   generateUniqueGroupSlug,
@@ -36,22 +24,31 @@ import {
   getListingsByGroupId,
   groups,
   setGroupListingsActive,
-} from "#shared/db/groups.ts";
+} from "#db/groups.ts";
 import {
   dayCountPriceStatements,
   getGroupDayPrices,
   groupDayPriceStatements,
   groupFlatPriceStatements,
   syncListingPricesForIds,
-} from "#shared/db/listing-prices.ts";
+} from "#db/listing-prices.ts";
 import {
   getStoredListingsWithCountsByIds,
   listingsTable,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
+import { isNameTakenAnywhere, normalizeEntityName } from "#db/name-registry.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
+import { groupFormPost, withGroup } from "#routes/admin/groups.ts";
+import { requireSessionOr } from "#routes/auth.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import {
-  isNameTakenAnywhere,
-  normalizeEntityName,
-} from "#shared/db/name-registry.ts";
+  applyNameReplacement,
+  computeDayOffset,
+  shiftUtcIsoByDays,
+} from "#shared/bulk-replace.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   buildDuplicateListingInput,
@@ -59,13 +56,13 @@ import {
 } from "#shared/listings-actions.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import {
   adminBulkActionsPage,
   adminDeactivateGroupPage,
   adminDuplicateGroupPage,
   adminReactivateGroupPage,
 } from "#templates/admin/bulk-actions.tsx";
+import type { AdminSession, Group, ListingWithCount } from "#types";
 import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
 /* jscpd:ignore-end */

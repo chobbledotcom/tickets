@@ -1,11 +1,11 @@
 import { stub } from "@std/testing/mock";
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import { bearerAuthorization } from "#shared/bearer.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import type {
-  UptimeKumaClient,
-  UptimeKumaMonitor,
+import {
+  type UptimeKumaClient,
+  type UptimeKumaMonitor,
+  uptimeKumaClientApi,
 } from "#shared/uptime-kuma/client.ts";
-import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { safeMonitorFields } from "#test/shared/uptime-kuma/support.ts";

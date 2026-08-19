@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { paymentAnchorReference } from "#shared/db/payment-anchor/reference.ts";
+import { paymentAnchorReference } from "#db/payment-anchor/reference.ts";
 import {
   loadPaymentReference,
   paymentReferenceIndex,
-} from "#shared/db/payment-reference-store.ts";
-import type { PaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/payment-reference-store.ts";
+import type { PaymentReference } from "#payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";

@@ -6,7 +6,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { getAllAttributesWithOptions } from "#shared/db/attributes.ts";
+import { getAllAttributesWithOptions } from "#db/attributes.ts";
 import {
   openAdminPage,
   openAsNewcomer,

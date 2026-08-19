@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
-import { col, defineTable } from "#shared/db/table.ts";
+import { chooseColumns } from "#db/chosen-columns.ts";
+import { col, defineTable } from "#db/table.ts";
 
 type SampleRow = {
   active: boolean;

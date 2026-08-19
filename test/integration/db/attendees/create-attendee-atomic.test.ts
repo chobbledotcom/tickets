@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import {
-  getAttendeeRaw,
-  getAttendeesRaw,
-} from "#shared/db/attendees/queries.ts";
-import { dateToRange } from "#shared/db/capacity.ts";
-import { getDb } from "#shared/db/client.ts";
-import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeeRaw, getAttendeesRaw } from "#db/attendees/queries.ts";
+import { dateToRange } from "#db/capacity.ts";
+import { getDb } from "#db/client.ts";
+import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
@@ -98,9 +95,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("records a contact visit for a real booking", async () => {
-    const { getVisits, hashEmail } = await import(
-      "#shared/db/contact-preferences.ts"
-    );
+    const { getVisits, hashEmail } = await import("#db/contact-preferences.ts");
     const listing = await createTestListing({ maxAttendees: 5 });
     const result = await createAttendeeAtomic({
       bookings: [{ listingId: listing.id, quantity: 1 }],
@@ -115,9 +110,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     // A placeholder/cancelled (quantity-0-only) order is not a real visit —
     // counting it would let a ghost-only contact qualify as returning via the
     // min_visits modifier gating.
-    const { getVisits, hashEmail } = await import(
-      "#shared/db/contact-preferences.ts"
-    );
+    const { getVisits, hashEmail } = await import("#db/contact-preferences.ts");
     const listing = await createTestListing({ maxAttendees: 5 });
     const result = await createAttendeeAtomic({
       allowOverbook: true,
@@ -421,7 +414,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     expect([a.success, b.success].filter(Boolean).length).toBe(1);
     // Exactly one bundle's rows exist — one row per member, never a stray
     // half-bundle row from the loser.
-    const { queryAll } = await import("#shared/db/client.ts");
+    const { queryAll } = await import("#db/client.ts");
     for (const member of [memberA, memberB]) {
       const rows = await queryAll<{ quantity: number }>(
         "SELECT quantity FROM listing_attendees WHERE listing_id = ?",

@@ -16,10 +16,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { type CheckoutSessionResult, paymentsApi } from "#shared/payments.ts";
 import {
   buildQrBookPayload,
@@ -457,7 +457,7 @@ describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
   const parentChildToken = async (
     slug: (ids: { parent: string; child: string }) => string,
   ) => {
-    const { listingChildren } = await import("#shared/db/listing-parents.ts");
+    const { listingChildren } = await import("#db/listing-parents.ts");
     const parent = await createTestListing({
       fields: "",
       maxAttendees: 10,

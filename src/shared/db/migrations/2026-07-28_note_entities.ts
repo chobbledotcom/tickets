@@ -1,4 +1,4 @@
-import { queryBatchPrimary } from "#shared/db/client.ts";
+import { queryBatchPrimary } from "#db/client.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { bareSchemaMigration } from "./define.ts";
 

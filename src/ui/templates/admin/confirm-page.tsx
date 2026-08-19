@@ -9,13 +9,12 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

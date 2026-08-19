@@ -1,26 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { buildTicketListing } from "#booking/model.ts";
+import {
+  aggregateNodeQuantities,
+  buildOrderLines,
+  nodeQuantitiesFor,
+} from "#booking/order-lines.ts";
+import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { settings } from "#db/settings.ts";
 import {
   getTicketContext,
   loadPagePackage,
   ticketGalleryTarget,
 } from "#routes/public/ticket-payment.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import {
-  aggregateNodeQuantities,
-  buildOrderLines,
-  nodeQuantitiesFor,
-} from "#shared/booking/order-lines.ts";
-import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
+import type { ListingWithCount } from "#types";
 
 /** Per-path line assembly and the package-aware ticket context, split from
  * ticket-payment.test.ts to stay under the file-size lint. */

@@ -9,7 +9,7 @@
  * as their own two-arm component.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 /** The badge styles in use; each maps to the exact class string emitted. */
 export type BadgeVariant = "default" | "ok" | "missing" | "alert" | "danger";

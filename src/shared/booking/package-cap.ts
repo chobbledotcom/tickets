@@ -1,5 +1,4 @@
-import { sumByKey, sumOf } from "#fp";
-import { packageQuantityLimit } from "#shared/booking/capacity-tree.ts";
+import { packageQuantityLimit } from "#booking/capacity-tree.ts";
 import {
   type ChildrenByParent,
   childCanBeBooked,
@@ -7,18 +6,16 @@ import {
   membersWithChildren,
   type TicketListing,
   ticketsThatFitInPool,
-} from "#shared/booking/model.ts";
-import type { TreePackage } from "#shared/booking/page-packages.ts";
+} from "#booking/model.ts";
+import type { TreePackage } from "#booking/page-packages.ts";
 import {
   type BookingTree,
   fixedQuantitiesByListingId,
   packageSubTree,
-} from "#shared/booking/tree.ts";
+} from "#booking/tree.ts";
+import { sumByKey, sumOf } from "#fp";
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
-import {
-  PARENT_CHILD_GROUP_UNITS,
-  sharedGroupRemaining,
-} from "#shared/types.ts";
+import { PARENT_CHILD_GROUP_UNITS, sharedGroupRemaining } from "#types";
 
 /** Spots still free in each capacity group, keyed by group id. */
 type GroupRemaining = ReadonlyMap<number, number>;

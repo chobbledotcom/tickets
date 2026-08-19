@@ -1,14 +1,13 @@
 /* jscpd:ignore-start */
+
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isContactFormActive } from "#shared/contact-form.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
-import type { Group, Image, ItemImageColumns } from "#shared/types.ts";
 import {
   LabelledAmount,
   type LabelledAmountProps,
@@ -19,6 +18,7 @@ import {
   nodeLis,
 } from "#templates/components/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
+import type { Group, Image, ItemImageColumns } from "#types";
 /* jscpd:ignore-end */
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the

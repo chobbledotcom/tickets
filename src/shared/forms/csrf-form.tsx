@@ -1,6 +1,6 @@
+import { settings } from "#db/settings.ts";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   flashConsumed,
   getFlash,

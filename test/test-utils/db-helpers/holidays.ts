@@ -1,5 +1,5 @@
-import type { HolidayInput } from "#shared/db/holidays.ts";
-import type { Holiday } from "#shared/types.ts";
+import type { HolidayInput } from "#db/holidays.ts";
+import type { Holiday } from "#types";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
 export const createTestHoliday = (
@@ -19,7 +19,7 @@ export const createTestHoliday = (
       start_date: input.startDate,
     },
     async () => {
-      const { holidays } = await import("#shared/db/holidays.ts");
+      const { holidays } = await import("#db/holidays.ts");
       const all = await holidays.getAll();
       return all[all.length - 1] as Holiday;
     },
@@ -31,7 +31,7 @@ export const updateTestHoliday = async (
   holidayId: number,
   updates: Partial<HolidayInput>,
 ): Promise<Holiday> => {
-  const { holidays } = await import("#shared/db/holidays.ts");
+  const { holidays } = await import("#db/holidays.ts");
   const existing = (await holidays.table.read.one({
     id: holidayId,
   })) as Holiday;
@@ -52,7 +52,7 @@ export const updateTestHoliday = async (
 };
 
 export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
-  const { holidays } = await import("#shared/db/holidays.ts");
+  const { holidays } = await import("#db/holidays.ts");
   const existing = (await holidays.table.read.one({
     id: holidayId,
   })) as Holiday;

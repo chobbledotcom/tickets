@@ -1,6 +1,6 @@
 /* jscpd:ignore-start -- imports */
-import { malformedProviderRead } from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { malformedProviderRead } from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import { squareReadFailure } from "#shared/square/outcomes.ts";
 
 /* jscpd:ignore-end */

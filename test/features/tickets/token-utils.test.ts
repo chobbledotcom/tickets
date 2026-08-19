@@ -1,5 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import { getDb } from "#db/client.ts";
+import { isTokenRateLimited, recordTokenFailure } from "#db/token-attempts.ts";
 import {
   buildWalletPassData,
   lookupAttendees,
@@ -9,12 +12,6 @@ import {
   verifyTokensWithRealLine,
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { getDb } from "#shared/db/client.ts";
-import {
-  isTokenRateLimited,
-  recordTokenFailure,
-} from "#shared/db/token-attempts.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";

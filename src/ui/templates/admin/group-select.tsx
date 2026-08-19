@@ -3,8 +3,8 @@
  */
 
 import { t } from "#i18n";
-import type { Group } from "#shared/types.ts";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
+import type { Group } from "#types";
 
 interface ListingGroupSelectProps {
   groups: Group[];

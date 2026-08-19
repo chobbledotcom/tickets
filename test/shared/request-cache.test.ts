@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { holidays } from "#db/holidays.ts";
+import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
-import { holidays } from "#shared/db/holidays.ts";
-import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

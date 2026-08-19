@@ -6,17 +6,17 @@
  */
 
 import { expect } from "@std/expect";
-import { mapNotNullish } from "#fp";
-// jscpd:ignore-start
-import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   type ContactRecord,
   getContactRecord,
   hashEmail,
   saveContactRecord,
   toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
+import { mapNotNullish } from "#fp";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";

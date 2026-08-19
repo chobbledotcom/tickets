@@ -1,20 +1,20 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { getDb, update } from "#shared/db/client.ts";
-import { storePaymentReference } from "#shared/db/payment-reference-store.ts";
-import { resolveProviderRefundCase } from "#shared/db/provider-refund-case-resolution.ts";
+import { getDb, update } from "#db/client.ts";
+import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { resolveProviderRefundCase } from "#db/provider-refund-case-resolution.ts";
 import {
   listProviderRefundCases,
   loadProviderRefundCase,
-} from "#shared/db/provider-refund-cases.ts";
+} from "#db/provider-refund-cases.ts";
 import {
   armRefundSend,
   markRefundCompleted,
   markRefundLocalRecorded,
   markRefundObservationDue,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
+} from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";

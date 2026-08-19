@@ -4,7 +4,7 @@ import {
   createPrimaryCacheRefill,
   mustReadFromPrimary,
   runWithPrimaryReads,
-} from "#shared/db/primary-reads.ts";
+} from "#db/primary-reads.ts";
 
 describe("db > primary reads", () => {
   test("uses the primary only inside its async scope", async () => {

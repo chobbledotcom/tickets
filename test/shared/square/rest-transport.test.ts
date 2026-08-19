@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { squareApi } from "#shared/square/api.ts";
 import {
   type FetchCall,
   installMockFetch,
   jsonResponse,
 } from "#test/shared/square/mock-fetch.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
   describe("Square REST client transport", () => {

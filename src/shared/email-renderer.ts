@@ -7,25 +7,22 @@
  */
 
 import type { Liquid } from "liquidjs";
+import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
+import { settings } from "#db/settings.ts";
 import { lazyRef, map, mapNotNullish, sumOf } from "#fp";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
-import {
-  type PackageDisplay,
-  packageDisplaysForRows,
-} from "#shared/db/groups.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { nameList } from "#shared/name-list.ts";
+import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 import {
   type ContactInfo,
   clampDurationDays,
   type EmailTemplateType,
   isPaidListing,
-} from "#shared/types.ts";
-import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
-import type { EmailContent } from "#templates/email/shared.ts";
+} from "#types";
 
 /** Create a configured Liquid engine with custom filters */
 const createEngine = (): Liquid => {

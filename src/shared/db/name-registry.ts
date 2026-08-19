@@ -18,9 +18,9 @@
  * are pure functions over the loaded rows.
  */
 
-import { groups } from "#shared/db/groups.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import type { SitePageItemType } from "#shared/types.ts";
+import { groups } from "#db/groups.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import type { SitePageItemType } from "#types";
 
 /** The two entity kinds that share the catalog name namespace. Derived from
  *  {@link SitePageItemType} (the slug-owning union) by excluding `"page"` —

@@ -13,12 +13,9 @@
 /* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activity-log.ts";
-import {
-  attendeeStatuses,
-  getAttendeeStatus,
-} from "#shared/db/attendee-statuses.ts";
-import { getDb } from "#shared/db/client.ts";
+import { getAllActivityLog } from "#db/activity-log.ts";
+import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
+import { getDb } from "#db/client.ts";
 import {
   expectFlashRedirect,
   testRequiresAuth,

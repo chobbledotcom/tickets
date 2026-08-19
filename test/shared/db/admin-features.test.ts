@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import {
   getAdminFeatureUsage,
   setAdminFeatureEnabled,
-} from "#shared/db/admin-features.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+} from "#db/admin-features.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   SEEDED_FEATURE_RECORDS,

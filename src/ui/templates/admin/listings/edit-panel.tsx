@@ -8,7 +8,6 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { inferTemplate } from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
@@ -20,6 +19,7 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
+import type { ListingWithCount } from "#types";
 import {
   ListingAggregateMismatchNotice,
   listingAggregateToFieldValues,

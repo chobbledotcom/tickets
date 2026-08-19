@@ -1,16 +1,16 @@
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import {
+  builtSites,
+  builtSitesCrudTable,
+  insertBuiltSite,
+} from "#db/built-sites.ts";
+import { initDb } from "#db/migrations.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
 import {
   type BuildSiteInput,
   type BuildSiteResult,
   builderApi,
 } from "#shared/builder.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import {
-  builtSites,
-  builtSitesCrudTable,
-  insertBuiltSite,
-} from "#shared/db/built-sites.ts";
-import { initDb } from "#shared/db/migrations.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
 const nextSiteName = async (): Promise<string> =>

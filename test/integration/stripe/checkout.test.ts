@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { testListing } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 import {
   lineFor,
   okBalance,
   stripeClient,
   withBalanceAndList,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { testListing } from "#test-utils/factories.ts";
-import { withMocks } from "#test-utils/mocks.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   const expectSessionCreated = async (

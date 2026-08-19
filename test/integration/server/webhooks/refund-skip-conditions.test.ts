@@ -2,12 +2,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import {
-  ALL_SETTINGS_KEYS,
-  CONFIG_KEYS,
-  settings,
-} from "#shared/db/settings.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -235,9 +231,7 @@ describeWithEnv(
       expect(mockRefund.calls.length).toBe(0);
 
       // No attendees created (the session is ignored before any creation pass)
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(listing1.id);
       expect(attendees.length).toBe(0);
     });

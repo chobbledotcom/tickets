@@ -7,24 +7,20 @@
  * with the token's values pre-filled.
  */
 
+import { buildTicketListing } from "#booking/model.ts";
+import { getGroupRemainingForListing } from "#db/attendees/capacity/groups.ts";
+import { isHiddenPackageMember } from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { anyNonStandaloneChild, listingChildren } from "#db/listing-parents.ts";
+import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForListing } from "#shared/db/attendees/capacity/groups.ts";
-import { isHiddenPackageMember } from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import {
-  anyNonStandaloneChild,
-  listingChildren,
-} from "#shared/db/listing-parents.ts";
-import { getListingWithCountBySlug } from "#shared/db/listings/records.ts";
 import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import {
   qrBookCheckoutErrorPage,
   qrBookErrorPage,
@@ -33,6 +29,7 @@ import type {
   BookingPrefill,
   TicketPrefill,
 } from "#templates/public/reservations/types.ts";
+import type { ListingWithCount } from "#types";
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 

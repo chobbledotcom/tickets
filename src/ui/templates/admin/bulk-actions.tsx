@@ -8,6 +8,7 @@
  * the preview as the user types.
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
@@ -16,10 +17,8 @@ import {
   formatIsoForPreview,
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
@@ -28,6 +27,7 @@ import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession, Group, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

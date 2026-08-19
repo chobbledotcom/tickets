@@ -6,7 +6,7 @@
  * `sms:received` events cannot create duplicate activity-log entries.
  */
 
-import { execute, executeBatch, insert, orIgnore } from "#shared/db/client.ts";
+import { execute, executeBatch, insert, orIgnore } from "#db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Claim an inbound webhook id. Returns false when it was already processed. */

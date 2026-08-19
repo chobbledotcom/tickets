@@ -1,5 +1,5 @@
-import { toBase64 } from "#shared/crypto/utils.ts";
-import { settings } from "#shared/db/settings.ts";
+import { toBase64 } from "#crypto/utils.ts";
+import { settings } from "#db/settings.ts";
 import {
   deliverRegistrationEmail,
   type EmailAttachment,

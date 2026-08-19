@@ -3,9 +3,9 @@
  */
 
 import * as v from "valibot";
+import { settings } from "#db/settings.ts";
 import { lazyRef } from "#fp";
 import { t } from "#i18n";
-import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";

@@ -5,8 +5,8 @@
  * its DDL.
  */
 
-import { getDb } from "#shared/db/client.ts";
-import { col, defineTable, type Table } from "#shared/db/table.ts";
+import { getDb } from "#db/client.ts";
+import { col, defineTable, type Table } from "#db/table.ts";
 
 export type IdNameRow = { id: number; name: string };
 export type IdNameInput = { name: string };

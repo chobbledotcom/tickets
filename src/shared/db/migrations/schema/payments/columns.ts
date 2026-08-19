@@ -1,4 +1,4 @@
-import type { Table } from "#shared/db/migrations/schema/types.ts";
+import type { Table } from "#db/migrations/schema/types.ts";
 
 /**
  * The kinds of column a payment record is built from.

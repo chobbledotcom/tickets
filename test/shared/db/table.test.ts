@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -18,7 +18,7 @@ const assertEncRoundTrip = async (def: EncryptedColumnLike) => {
   expect(await def.read?.("enc:hello")).toBe("hello");
 };
 
-type TableModule = typeof import("#shared/db/table.ts");
+type TableModule = typeof import("#db/table.ts");
 const buildListingsTestTable = <TInput>(
   col: TableModule["col"],
   defineTable: TableModule["defineTable"],
@@ -34,7 +34,7 @@ const buildListingsTestTable = <TInput>(
 
 describeWithEnv("db > table utilities", { db: true }, () => {
   test("toCamelCase converts snake_case to camelCase", async () => {
-    const { toCamelCase } = await import("#shared/db/table.ts");
+    const { toCamelCase } = await import("#db/table.ts");
     expect(toCamelCase("max_attendees")).toBe("maxAttendees");
     expect(toCamelCase("thank_you_url")).toBe("thankYouUrl");
     expect(toCamelCase("name")).toBe("name");
@@ -42,7 +42,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("toSnakeCase converts camelCase to snake_case", async () => {
-    const { toSnakeCase } = await import("#shared/db/table.ts");
+    const { toSnakeCase } = await import("#db/table.ts");
     expect(toSnakeCase("maxAttendees")).toBe("max_attendees");
     expect(toSnakeCase("thankYouUrl")).toBe("thank_you_url");
     expect(toSnakeCase("name")).toBe("name");
@@ -50,7 +50,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("buildInputKeyMap creates mapping from DB columns to input keys", async () => {
-    const { buildInputKeyMap } = await import("#shared/db/table.ts");
+    const { buildInputKeyMap } = await import("#db/table.ts");
     const columns = ["max_attendees", "thank_you_url", "name"];
     const map = buildInputKeyMap(columns);
     expect(map).toEqual({
@@ -61,25 +61,25 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.generated creates generated column definition", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.generated<number>();
     expect(def.generated).toBe(true);
   });
 
   test("col.withDefault creates column with default", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.withDefault(() => "default-value");
     expect(def.default?.()).toBe("default-value");
   });
 
   test("col.simple creates empty column definition", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.simple<string>();
     expect(def).toEqual({});
   });
 
   test("col.boolean converts between booleans and stored integers", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.boolean(false);
     expect(def.default?.()).toBe(false);
     expect(await def.read?.(0 as unknown as boolean)).toBe(false);
@@ -89,7 +89,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.json validates physical column reads and writes with row context", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.json(v.array(v.string()), {
       context: "records.items",
       default: () => [],
@@ -113,7 +113,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.json gives a missing projection its declared value", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.json(v.array(v.string()), {
       context: "records.items",
       projected: true,
@@ -127,7 +127,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.transform creates column with custom transforms", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const write = (v: string) => v.toUpperCase();
     const read = (v: string) => v.toLowerCase();
     const def = col.transform(write, read);
@@ -136,12 +136,12 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.encrypted creates column with encrypt/decrypt transforms", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     await assertEncRoundTrip(col.encrypted(enc, dec));
   });
 
   test("col.encryptedText passes through empty strings without encrypting", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.encryptedText(enc, dec);
     expect(def.default?.()).toBe("");
     expect(await def.write?.("")).toBe("");
@@ -150,14 +150,14 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.encryptedNullable(col.simple<string>());
     expect(def.write).toBeUndefined();
     expect(def.read).toBeUndefined();
   });
 
   test("col.encryptedNullable handles null values", async () => {
-    const { col } = await import("#shared/db/table.ts");
+    const { col } = await import("#db/table.ts");
     const def = col.encryptedNullable(col.encrypted(enc, dec));
     expect(await def.write?.(null)).toBe(null);
     expect(await def.read?.(null)).toBe(null);
@@ -165,7 +165,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("readColumn runs the column's read transform on one stored value", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     type Row = { id: number; text: string };
     const table = defineTable<Row, { text: string }>({
       name: "listings",
@@ -179,7 +179,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("readColumn returns the value as-is for null values and columns with no read transform", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     type Row = { id: number; note: string | null };
     const table = defineTable<Row, { note: string | null }>({
       name: "listings",
@@ -194,7 +194,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable reads back every row", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     const testTable = buildListingsTestTable<{ name: string }>(
       col,
       defineTable,
@@ -216,7 +216,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable reads one id and a list of them the same way", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     const first = await createTestListing({ name: "First" });
     const second = await createTestListing({ name: "Second" });
     const table = buildListingsTestTable<{ name: string }>(col, defineTable);
@@ -230,7 +230,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable keeps optional misses nullable", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     const table = buildListingsTestTable<{ name: string }>(col, defineTable);
     expect(await table.read.one({ id: 999_999 })).toBeNull();
     expect(await table.findByIdPrimary!(999_999)).toBeNull();
@@ -238,7 +238,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable.update with no changes returns existing row", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
 
     const listing = await createTestListing({
       maxAttendees: 10,
@@ -256,7 +256,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("defineTable with write transform transforms values on insert", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     type TestRow = {
       id: number;
       slug: string;
@@ -316,8 +316,8 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("insert with non-generated primary key uses empty initial row", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
-    const { getDb } = await import("#shared/db/client.ts");
+    const { col, defineTable } = await import("#db/table.ts");
+    const { getDb } = await import("#db/client.ts");
 
     await getDb().execute(`
       CREATE TABLE IF NOT EXISTS kv_store (
@@ -350,7 +350,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("inputKeyMap maps single-word columns to themselves", async () => {
-    const { buildInputKeyMap } = await import("#shared/db/table.ts");
+    const { buildInputKeyMap } = await import("#db/table.ts");
     const map = buildInputKeyMap(["name", "max_attendees"]);
     expect(map.name).toBe("name");
     expect(map.max_attendees).toBe("maxAttendees");
@@ -382,7 +382,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   });
 
   test("rowToInput skips undefined row fields", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
+    const { col, defineTable } = await import("#db/table.ts");
     type Row = { id: number; max_attendees: number; thank_you_url: string };
     type Input = { maxAttendees: number; thankYouUrl?: string };
     const table = defineTable<Row, Input>({

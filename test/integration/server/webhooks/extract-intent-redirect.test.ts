@@ -2,8 +2,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -99,7 +99,7 @@ describeWithEnv(
       });
 
       const { insertBuiltSite, builtSites } = await import(
-        "#shared/db/built-sites.ts"
+        "#db/built-sites.ts"
       );
       const { provisionTestBuiltSite } = await import(
         "#test-utils/db-helpers/built-sites.ts"
@@ -220,9 +220,9 @@ describeWithEnv(
       });
 
       const { addMonthsIso } = await import("#shared/dates.ts");
-      const { getAllListings } = await import("#shared/db/listings/records.ts");
+      const { getAllListings } = await import("#db/listings/records.ts");
       const { insertBuiltSite, builtSites } = await import(
-        "#shared/db/built-sites.ts"
+        "#db/built-sites.ts"
       );
       const { provisionTestBuiltSite } = await import(
         "#test-utils/db-helpers/built-sites.ts"

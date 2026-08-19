@@ -9,7 +9,9 @@
  * renders through the shared `leveledNav` renderer the public nav uses.
  */
 
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   type NavLink,
   type NavSection,
@@ -18,17 +20,14 @@ import {
 } from "#shared/admin-pages.ts";
 import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   getReadOnlyCutoffIso,
   getRenewalUrl,
   isReadOnly,
   isReadOnlyWarning,
 } from "#shared/env.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { isSupportEnabled } from "#shared/support.ts";
-import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
 import {
@@ -37,6 +36,7 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
+import type { AdminLevel, AdminSession } from "#types";
 
 /**
  * What the admin nav should mark active for the current page.

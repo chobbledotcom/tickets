@@ -2,12 +2,14 @@
 
 // jscpd:ignore-start
 import { t } from "#i18n";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
 import { loggedInAdminBrowser } from "#test-utils/e2e.ts";
-import type { FormEntry } from "#test-utils/test-browser/forms.ts";
-import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
+import {
+  extractFormEntries,
+  type FormEntry,
+} from "#test-utils/test-browser/forms.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { PausedProviderRefund } from "./provider-script.ts";
 

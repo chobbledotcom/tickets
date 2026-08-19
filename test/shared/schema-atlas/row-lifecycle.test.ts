@@ -5,7 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PAYMENT_ROW_LIFECYCLE } from "#shared/payment/admit-move.ts";
+import { PAYMENT_ROW_LIFECYCLE } from "#payment/admit-move.ts";
 import { rowLifecycleAtlas } from "#shared/schema-atlas/row-lifecycle.ts";
 import { indexMachine } from "#test/shared/schema-atlas/helpers.ts";
 

@@ -11,8 +11,8 @@ import {
   decryptPiiBlob,
   encryptPiiBlob,
   parsePiiBlob,
-} from "#shared/db/attendees/pii.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/attendees/pii.ts";
+import { settings } from "#db/settings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

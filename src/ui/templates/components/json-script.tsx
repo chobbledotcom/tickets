@@ -1,7 +1,7 @@
 /** Embed data for a client script to read. The JSON has `<` escaped so no
  * payload text can close the script tag. */
 
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 
 export const JsonScript = ({
   id,

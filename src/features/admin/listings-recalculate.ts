@@ -5,6 +5,13 @@
  * income, tickets count) for a listing back to a freshly computed value.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import {
+  getListingAggregateRecalculation,
+  LISTING_AGGREGATE_FIELDS,
+  resetListingAggregateFields,
+} from "#db/listings/aggregates.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
@@ -12,13 +19,6 @@ import {
   createRecalculatePageRenderer,
 } from "#routes/admin/aggregate-recalculation.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  getListingAggregateRecalculation,
-  LISTING_AGGREGATE_FIELDS,
-  resetListingAggregateFields,
-} from "#shared/db/listings/aggregates.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 

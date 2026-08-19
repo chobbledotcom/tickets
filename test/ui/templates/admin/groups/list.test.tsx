@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#shared/types.ts";
 import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testGroup } from "#test-utils/factories.ts";
+import type { AdminSession } from "#types";
 
 const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 const GROUP = testGroup({

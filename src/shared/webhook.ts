@@ -3,16 +3,16 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { sumOf } from "#fp";
 import {
   effectivePrice,
   NO_CUSTOM_PRICES,
   packageMemberPriceRule,
-} from "#shared/booking/price-tree.ts";
+} from "#booking/price-tree.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
+import { settings } from "#db/settings.ts";
+import { sumOf } from "#fp";
 import { bookedSpanDays } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -24,11 +24,7 @@ import {
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
-import {
-  type ContactInfo,
-  type DayPrices,
-  isPaidListing,
-} from "#shared/types.ts";
+import { type ContactInfo, type DayPrices, isPaidListing } from "#types";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {

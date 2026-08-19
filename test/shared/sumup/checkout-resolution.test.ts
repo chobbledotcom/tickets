@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { isSessionRejection } from "#shared/payment/validated-session.ts";
+import { isSessionRejection } from "#payment/validated-session.ts";
 import {
   buildSumupSession,
   resolveSumupCheckoutById,

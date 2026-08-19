@@ -2,13 +2,13 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { FakeTime } from "@std/testing/time";
+import { claimLeaseMs } from "#payment/claim.ts";
+import type { ProviderRefundResource } from "#payment/resources.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { claimLeaseMs } from "#shared/payment/claim.ts";
-import type { ProviderRefundResource } from "#shared/payment/resources.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import { safetyBooking } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { refundObservation } from "#test-utils/payment-state.ts";
+import type { PaymentProviderType } from "#types";
 import {
   expectOwnerWasTold,
   expectProviderSendCount,

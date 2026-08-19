@@ -7,6 +7,20 @@
  * HTTP redirect and webhook handling lives in `webhooks.ts`.
  */
 
+import { eventGroupHasLegs } from "#accounting/queries.ts";
+import { generateTicketToken } from "#crypto/utils.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
+import {
+  finalizeSessionIfUnresolved,
+  markSessionFailed,
+  type ProcessedPayment,
+  parseSessionFailure,
+  releaseReservation,
+  reserveSession,
+} from "#db/processed-payments.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { sessionAnswerOf } from "#payment/row-state.ts";
+import { paymentReferenceOf } from "#payment/validated-session.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import {
   alreadyProcessedResult,
@@ -38,22 +52,8 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import {
-  finalizeSessionIfUnresolved,
-  markSessionFailed,
-  type ProcessedPayment,
-  parseSessionFailure,
-  releaseReservation,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { sessionAnswerOf } from "#shared/payment/row-state.ts";
-import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid

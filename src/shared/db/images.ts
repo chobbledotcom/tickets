@@ -3,34 +3,30 @@
  */
 
 /* jscpd:ignore-start */
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
-import {
-  executeBatch,
-  type SqlStatement,
-  useTransaction,
-} from "#shared/db/client.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { StoredRowOf } from "#db/chosen-columns.ts";
+import { executeBatch, type SqlStatement, useTransaction } from "#db/client.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { type Read, readOneRow, readRows } from "#db/read.ts";
 import {
   defineRecordTarget,
   ITEM_TARGET_COLUMNS,
   type RecordTarget,
   type RecordTargets,
-} from "#shared/db/record-target.ts";
-import { type ColumnDef, col } from "#shared/db/table.ts";
-import { equals } from "#shared/db/where-clauses.ts";
+} from "#db/record-target.ts";
+import { type ColumnDef, col } from "#db/table.ts";
+import { equals } from "#db/where-clauses.ts";
 
 import { decryptImageFilename } from "#shared/images/broken.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
   type Image,
   type ImageUse,
   type ImageUseItemType,
   ImageUseItemTypeSchema,
   type ItemImageColumns,
-} from "#shared/types.ts";
-import type { NonEmptyString } from "#shared/validation/string.ts";
+} from "#types";
 /* jscpd:ignore-end */
 
 export type ImageInput = {

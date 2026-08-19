@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 type CheckoutFailureReason =
   | "invalid_response"

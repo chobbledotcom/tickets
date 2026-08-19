@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { buildTicketListing } from "#booking/model.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import {
   checkAvailability,
   runCheckoutFlow,
 } from "#routes/public/ticket-payment.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   type CheckoutIntent,

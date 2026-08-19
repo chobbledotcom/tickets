@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   getRefundPaymentReferences,
   type RefundPaymentReferenceSet,
-} from "#shared/db/payment-references.ts";
-import type { UntaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/payment-references.ts";
+import type { UntaggedPaymentReference } from "#payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

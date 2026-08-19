@@ -1,3 +1,5 @@
+/* jscpd:ignore-end */
+import { logActivity } from "#db/activity-log.ts";
 import {
   createConfirmedHandlers,
   type FormGuard,
@@ -19,15 +21,13 @@ import {
 /* jscpd:ignore-start */
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-/* jscpd:ignore-end */
-import { logActivity } from "#shared/db/activity-log.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type {
   DeleteResult,
   NamedOperations,
   UpdateResult,
 } from "#shared/rest/resource.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession } from "#types";
 
 type OperationFailure = Exclude<
   DeleteResult | UpdateResult<unknown>,

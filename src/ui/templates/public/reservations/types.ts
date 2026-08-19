@@ -1,22 +1,15 @@
 /** Shared types for the reservations (ticket page) rendering pipeline. */
 
 /* jscpd:ignore-start */
-import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
-import type {
-  ChildDatesByDayCount,
-  TicketListing,
-} from "#shared/booking/model.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
-import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import type {
-  GroupIdsByListingId,
-  Image,
-  ItemImageColumns,
-} from "#shared/types.ts";
+import type { CartDateItem } from "#booking/cart-conflicts.ts";
+import type { ChildDatesByDayCount, TicketListing } from "#booking/model.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
+import type { ListingAttributesById } from "#db/attributes.ts";
+import type { AddOnOption } from "#db/modifier-resolve.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { QuestionListingMap } from "#db/questions/queries.ts";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
+import type { GroupIdsByListingId, Image, ItemImageColumns } from "#types";
 /* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */

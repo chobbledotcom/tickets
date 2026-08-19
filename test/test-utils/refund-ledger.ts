@@ -1,4 +1,4 @@
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { RefundPaymentReference } from "#db/payment-references.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 
 type IndexedRefundReference = Pick<RefundPaymentReference, "index">;

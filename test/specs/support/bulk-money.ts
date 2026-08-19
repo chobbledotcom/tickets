@@ -5,9 +5,9 @@
  */
 
 import { expect } from "@std/expect";
+import { execute } from "#db/client.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { execute } from "#shared/db/client.ts";
 import {
   browserSeenBy,
   ORGANISER,

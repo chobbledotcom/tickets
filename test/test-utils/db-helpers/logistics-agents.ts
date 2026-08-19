@@ -1,4 +1,4 @@
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 export const createLogisticsAgent = async (name: string): Promise<number> => {

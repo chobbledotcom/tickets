@@ -1,4 +1,5 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Bulk email routes — compose, preview, send, and template management.
  * Owner-only.
@@ -14,6 +15,23 @@ import { defineRoutes } from "#routes/router.ts";
  * button (formaction="/admin/emails/templates") creates or updates a template.
  */
 
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import { logActivity } from "#db/activity-log.ts";
+import {
+  getContactCounts,
+  getUnsubscribedHashSet,
+  hashEmail,
+  recordContacts,
+} from "#db/contact-preferences.ts";
+import {
+  countEmailTemplates,
+  deleteEmailTemplate,
+  getAllRawEmailTemplates,
+  getRawEmailTemplate,
+  insertEmailTemplate,
+  updateEmailTemplate,
+} from "#db/email-templates.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
@@ -49,26 +67,6 @@ import {
   targetQuery,
   validateDraftInput,
 } from "#shared/bulk-email.ts";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-} from "#shared/crypto/keys.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  getContactCounts,
-  getUnsubscribedHashSet,
-  hashEmail,
-  recordContacts,
-} from "#shared/db/contact-preferences.ts";
-import {
-  countEmailTemplates,
-  deleteEmailTemplate,
-  getAllRawEmailTemplates,
-  getRawEmailTemplate,
-  insertEmailTemplate,
-  updateEmailTemplate,
-} from "#shared/db/email-templates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { sendBulkEmails } from "#shared/email/bulk.ts";
 import {
   EMAIL_PROVIDER_LABELS,

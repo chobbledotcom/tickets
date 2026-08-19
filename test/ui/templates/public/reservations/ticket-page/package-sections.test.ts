@@ -6,12 +6,12 @@
 
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import { buildTicketListing } from "#booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import { pagePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { pagePackage } from "#test-utils/package-cap-fixtures.ts";
+import type { ListingWithCount } from "#types";
 
 const ticketListing = (over: Partial<ListingWithCount>) =>
   buildTicketListing(

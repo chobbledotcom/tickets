@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { execute, queryAll } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
   getListingChoiceAnswerMap,
-} from "#shared/db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
+} from "#db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   addAnswer,

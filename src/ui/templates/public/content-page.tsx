@@ -5,7 +5,7 @@
  * so each template file is just one `seoContentPage(...)` call.
  */
 
-import type { Image } from "#shared/types.ts";
+import type { Image } from "#types";
 import { type PublicNavProps, publicSeoPage } from "./shared.tsx";
 
 /** What the SEO shell reads off a content row. */

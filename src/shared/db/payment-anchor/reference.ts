@@ -4,8 +4,8 @@ import {
   matchingPaymentReferenceIndexes,
   type StoredPaymentReference,
   storePaymentReference,
-} from "#shared/db/payment-reference-store.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/payment-reference-store.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 
 export interface PaymentAnchorReference {
   readonly matchingIndexes: readonly string[];

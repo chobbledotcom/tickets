@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { stripeClient } from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withFetchMock, withMocks } from "#test-utils/mocks.ts";
+import { stripeClient } from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("Stripe client configuration", () => {
   const errors = setupErrorSpy();

@@ -1,6 +1,6 @@
+import { inspectBackupZip, restoreFromZip } from "#db/backup.ts";
 import { type RestoreCliDeps, runRestoreCli } from "#scripts/restore-lib.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
-import { inspectBackupZip, restoreFromZip } from "#shared/db/backup.ts";
 import { readRecordedScriptCommit } from "#shared/update.ts";
 
 type RestoreTaskDeps = Omit<RestoreCliDeps, keyof ScriptIo>;

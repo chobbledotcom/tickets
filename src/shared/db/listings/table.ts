@@ -1,24 +1,24 @@
 /** Listing table schema and stored-value transforms. */
 
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
+import {
+  encryptedNameSchema,
+  idAndEncryptedSlugSchema,
+} from "#db/common-schema.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
+import { col } from "#db/table.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type ListingInput,
   listingCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  encryptedNameSchema,
-  idAndEncryptedSlugSchema,
-} from "#shared/db/common-schema.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
-import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import type { Listing } from "#shared/types.ts";
+import type { Listing } from "#types";
 
 /** Compute the blind index used for listing slug lookups. */
 export const computeSlugIndex = (slug: string): Promise<BlindIndex> =>

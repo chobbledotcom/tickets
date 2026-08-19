@@ -6,6 +6,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
 import {
   dateOptionsFor,
   filterByDate,
@@ -14,10 +17,6 @@ import {
   loadListingQuestionData,
   rosterListSetup,
 } from "#routes/admin/listings-view.ts";
-import { groups } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { createQuestionWithAnswers } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -29,6 +28,7 @@ import {
 import { mockRequest } from "#test-utils/mocks.ts";
 import { getTestAuthSession, withTestSession } from "#test-utils/session.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import type { Attendee, ListingWithCount } from "#types";
 
 /** Enough for the fixed reads, far below one read per group. */
 const GROUP_CONTEXT_CALL_LIMIT = 4;

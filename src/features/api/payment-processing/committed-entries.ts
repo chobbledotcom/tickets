@@ -1,3 +1,10 @@
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { contactFields } from "#db/attendees/pii.ts";
+import {
+  pricePaidFromLedger,
+  remainingBalanceFromLedger,
+} from "#db/attendees/select.ts";
+import { queryBatchPrimary, resultRows } from "#db/client.ts";
 import {
   type CreatedEntry,
   pairEntriesByListing,
@@ -5,13 +12,6 @@ import {
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { contactFields } from "#shared/db/attendees/pii.ts";
-import {
-  pricePaidFromLedger,
-  remainingBalanceFromLedger,
-} from "#shared/db/attendees/select.ts";
-import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
 
 type CommittedBookingRow = {
   created: string;

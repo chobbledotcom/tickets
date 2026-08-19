@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
+import { hashPassword } from "#crypto/hashing.ts";
+import { getDb, insert } from "#db/client.ts";
+import { createSession } from "#db/sessions.ts";
+import { getUserByUsername, invalidateUsersCache } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
-import { getDb, insert } from "#shared/db/client.ts";
-import { createSession } from "#shared/db/sessions.ts";
-import { getUserByUsername, invalidateUsersCache } from "#shared/db/users.ts";
 import {
   assertAdminHtmlWithCookie,
   expectFlashRedirect,
@@ -166,7 +166,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("utils.ts edge cases", () => {
     test("withOwnerAuthForm returns 403 for manager role", async () => {
-      const { hmacHash } = await import("#shared/crypto/hashing.ts");
+      const { hmacHash } = await import("#crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute(
         insert("users", {

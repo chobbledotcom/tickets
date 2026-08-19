@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { AttributeOption } from "#db/attributes.ts";
+import type { ListingOption } from "#db/listings/table.ts";
 import {
   attributeListingRows,
   optionListingCounts,
 } from "#routes/admin/attribute-page-data.ts";
-import type { AttributeOption } from "#shared/db/attributes.ts";
-import type { ListingOption } from "#shared/db/listings/table.ts";
 
 const option = (id: number, text: string): AttributeOption => ({
   attribute_id: 1,

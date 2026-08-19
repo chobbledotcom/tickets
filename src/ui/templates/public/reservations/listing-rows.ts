@@ -3,21 +3,21 @@
  * package section, and the top-level builder that lays out a single-package
  * page, a multi-package page, or standalone rows beside packages. */
 
-/* jscpd:ignore-start */
-import { t } from "#i18n";
-import type { TicketListing } from "#shared/booking/model.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
+import type { TicketListing } from "#booking/model.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
 import {
   type BookingNode,
   nodePriceFieldName,
   nodeQuantityFieldName,
   packageQuantityFieldName,
-} from "#shared/booking/tree.ts";
+} from "#booking/tree.ts";
 import type {
   AttributeWithOptions,
   ListingAttributesById,
-} from "#shared/db/attributes.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
+} from "#db/attributes.ts";
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";

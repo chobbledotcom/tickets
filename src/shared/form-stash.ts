@@ -18,8 +18,8 @@
  * count to bound memory and limit abuse.
  */
 
+import { generateSecureToken } from "#crypto/utils.ts";
 import { registerCache } from "#shared/cache-registry.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import {
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,

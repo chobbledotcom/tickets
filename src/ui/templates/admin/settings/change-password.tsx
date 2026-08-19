@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { getChangePasswordForm } from "#templates/fields/admin.ts";
 

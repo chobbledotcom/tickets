@@ -11,7 +11,7 @@
  * never persisted in cleartext.
  */
 
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import { DEFAULT_PBKDF2_ITERATIONS, encryptField } from "#shared/sms/e2e.ts";

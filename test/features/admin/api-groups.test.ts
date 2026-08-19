@@ -5,10 +5,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getDb } from "#db/client.ts";
+import { groups, listingGroups } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { getDb } from "#shared/db/client.ts";
-import { groups, listingGroups } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertApiDeleteOk,
   assertJson,

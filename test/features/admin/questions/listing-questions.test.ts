@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { handleRequest } from "#routes";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import {
-  addAnswer,
-  createQuestion,
-} from "#test/test-utils/questions/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -17,6 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import {
   adminFormPost,
   adminGet,
@@ -59,9 +56,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Listings updated",
       )(response);
 
-      const { questionListings } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { questionListings } = await import("#db/questions/queries.ts");
       expect(await questionListings.getIds(qId)).toEqual([listing.id]);
     });
 
@@ -69,9 +64,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const listing = await createTestListing({ name: "Unassign listing" });
       const qId = await createQuestion("Unassign me?");
 
-      const { questionListings } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { questionListings } = await import("#db/questions/queries.ts");
       await questionListings.setIds(qId, [listing.id]);
 
       const { response } = await adminFormPost(
@@ -92,7 +85,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
 
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
 
@@ -119,7 +112,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       ).rejects.toThrow("link insert failed");
 
       const { getQuestionWithAnswers, questionListings } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(false);
       expect(await questionListings.getIds(qId)).toEqual([]);
@@ -236,9 +229,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Shirt size?");
 
       // Assign the question to the listing
-      const { listingQuestions } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { listingQuestions } = await import("#db/questions/queries.ts");
       await listingQuestions.setIds(listing.id, [qId]);
 
       const response = await adminGet(`/admin/listing/${listing.id}/questions`);
@@ -276,7 +267,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expected: number[],
     ): Promise<void> => {
       const { getListingQuestionIds } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       expect(await getListingQuestionIds(listingId)).toEqual(expected);
     };
@@ -334,9 +325,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const q2 = await createQuestion("New question?");
 
       // Assign q1 first
-      const { listingQuestions } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { listingQuestions } = await import("#db/questions/queries.ts");
       await listingQuestions.setIds(listing.id, [q1]);
 
       // Now assign q2 via the route

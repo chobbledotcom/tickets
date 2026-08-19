@@ -1,18 +1,18 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { queryOne } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { queryOne } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -86,7 +86,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
           thankYouUrl: "https://example.com",
         },
       });
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute(
         "DELETE FROM listing_attendees WHERE attendee_id = ?",
         [attendee.id],
@@ -225,9 +225,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       )(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeeRaw } = await import("#db/attendees/queries.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
       expect(await getListingWithCount(listing.id)).toMatchObject({
@@ -316,9 +314,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       )(response);
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeeRaw } = await import("#db/attendees/queries.ts");
       const deletedAttendee = await getAttendeeRaw(1);
       expect(deletedAttendee).toBeNull();
     });

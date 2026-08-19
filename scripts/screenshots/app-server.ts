@@ -77,7 +77,7 @@ const startAppServer = async ({
       await enableStripeMock();
       Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
       Deno.env.set("DB_URL", dbUrl);
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
       await settings.update.stripe.configure({
         secretKey: STRIPE_KEY,
         webhookEndpointId: "we_screenshots",

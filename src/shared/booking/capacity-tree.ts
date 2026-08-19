@@ -1,13 +1,10 @@
-import { sumByKey } from "#fp";
-import {
-  type TicketListing,
-  ticketsThatFitInPool,
-} from "#shared/booking/model.ts";
+import { type TicketListing, ticketsThatFitInPool } from "#booking/model.ts";
 import {
   type BookingNode,
   type BookingTree,
   nodeFixedQuantity,
-} from "#shared/booking/tree.ts";
+} from "#booking/tree.ts";
+import { sumByKey } from "#fp";
 
 /**
  * Computes package limits from the booking tree.

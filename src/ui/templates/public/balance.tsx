@@ -4,9 +4,9 @@
  * personal details.
  */
 
+import type { OrderLine, OrderSummary } from "#db/attendees/balance.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { OrderLine, OrderSummary } from "#shared/db/attendees/balance.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";

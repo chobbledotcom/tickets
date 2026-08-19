@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import { prepareRefundReadiness } from "#routes/admin/refunds/readiness.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 import {
   candidate,
   charge,

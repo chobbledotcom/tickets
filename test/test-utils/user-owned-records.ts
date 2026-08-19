@@ -1,8 +1,8 @@
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { getDb, insert, queryAll } from "#shared/db/client.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { createSession } from "#shared/db/sessions.ts";
-import { userAgents } from "#shared/db/user-agents.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { getDb, insert, queryAll } from "#db/client.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { createSession } from "#db/sessions.ts";
+import { userAgents } from "#db/user-agents.ts";
 
 export const addUserOwnedAccessRecords = async (
   userId: number,

@@ -2,13 +2,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#db/client.ts";
+import { expectFlash } from "#test-utils/assertions.ts";
 import {
   getMergeVersion,
   mergePair,
   submitMerge,
-} from "#test/test-utils/attendees/merge.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+} from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,

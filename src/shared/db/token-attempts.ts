@@ -17,12 +17,12 @@
  */
 
 /* jscpd:ignore-start */
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   clearAttemptsFor,
   isIpLockedOut,
   makeAttemptRecorder,
-} from "#shared/db/attempt-lockout.ts";
+} from "#db/attempt-lockout.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,

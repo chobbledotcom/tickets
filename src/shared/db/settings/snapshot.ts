@@ -8,9 +8,9 @@
  * of the request sees the change without re-loading.
  */
 
+import type { KeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { recordSettingRead } from "#db/settings-audit.ts";
 import { DEFAULT_COUNTRY } from "#shared/countries.ts";
-import type { KeyEncrypted, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { recordSettingRead } from "#shared/db/settings-audit.ts";
 /* jscpd:ignore-start — the orphan-retention → CONFIG_KEYS → registry key lists
    are the same triad apply.ts loads; shared infrastructure, not code that
    changes per file. */
@@ -28,7 +28,7 @@ import type {
   PaymentProviderType,
   SuperuserChoice,
   Theme,
-} from "#shared/types.ts";
+} from "#types";
 
 export type { StringSettingKey };
 

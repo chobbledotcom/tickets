@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import {
   isContactFormActive,
   sendContactMessage,
 } from "#shared/contact-form.ts";
-import { settings } from "#shared/db/settings.ts";
 import { setHostEmailConfigForTest } from "#shared/email.ts";
 import {
   emailTestSandbox,

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { modifiersTable } from "#db/modifiers.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

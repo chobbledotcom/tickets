@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { testListing } from "#test-utils/factories.ts";
 import {
   availableDayCounts,
   dayPriceFor,
   isPaidListing,
   parseDayPrices,
-} from "#shared/types.ts";
-import { testListing } from "#test-utils/factories.ts";
+} from "#types";
 
 describe("parseDayPrices", () => {
   test("keeps whole-number day counts mapped to whole-number minor prices", () => {

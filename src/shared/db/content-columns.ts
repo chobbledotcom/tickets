@@ -1,7 +1,7 @@
 import {
   encryptedNameSchema,
   encryptedSeoContentSchema,
-} from "#shared/db/common-schema.ts";
+} from "#db/common-schema.ts";
 
 /**
  * The encrypted name + SEO/content columns shared by every content table (news

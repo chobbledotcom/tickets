@@ -1,15 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { queryOne } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import { listProviderRefundCases } from "#shared/db/provider-refund-cases.ts";
-import type { Attendee } from "#shared/types.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { queryOne } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
+import { reserveSession } from "#db/processed-payments.ts";
+import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -26,6 +25,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import type { Attendee } from "#types";
 
 /** Submit the refresh-payment route with a stubbed provider. */
 const submitRefreshPayment = async (

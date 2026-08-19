@@ -1,6 +1,6 @@
 import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 
 /** Runs a write the tables are meant to turn away, naming the kind of rule
  *  that has to be the one turning it away. Takes a statement with values

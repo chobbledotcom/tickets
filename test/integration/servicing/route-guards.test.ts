@@ -125,7 +125,7 @@ describeWithEnv(
       expect(response.status).toBe(404);
       response.body?.cancel();
       // No cost leg was posted for the phantom cost id.
-      const { allTransfers } = await import("#shared/accounting/queries.ts");
+      const { allTransfers } = await import("#accounting/queries.ts");
       expect(
         (await allTransfers()).filter((t) => t.kind === "service_cost").length,
       ).toBe(0);

@@ -5,7 +5,7 @@ import {
   getSmsMessageByProviderId,
   pruneSmsMessagesBefore,
   recordSmsMessage,
-} from "#shared/db/sms-messages.ts";
+} from "#db/sms-messages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const record = (over: Partial<Parameters<typeof recordSmsMessage>[0]> = {}) =>

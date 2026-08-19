@@ -2,7 +2,7 @@ import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { DatabaseBusyError, execute, setDb } from "#shared/db/client.ts";
+import { DatabaseBusyError, execute, setDb } from "#db/client.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";

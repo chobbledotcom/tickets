@@ -6,18 +6,17 @@
  * attendee-specific content it composes.
  */
 
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+import type { ContactRecord } from "#db/contact-preferences.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { ContactRecord } from "#shared/db/contact-preferences.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { Attendee } from "#shared/types.ts";
 import {
   AttendeeNotesSection,
   type NotesViewProps,
@@ -33,6 +32,7 @@ import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
+import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its

@@ -2,6 +2,8 @@
  *  Extracted from `api.ts` so that route file stays focused. */
 
 import * as v from "valibot";
+import { listingGroups } from "#db/groups.ts";
+import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { reduce } from "#fp";
 import {
   type CatalogApiBody,
@@ -11,8 +13,6 @@ import {
   type ListingInput,
   listingCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { getStoredListingWithCount } from "#shared/db/listings/records.ts";
 import {
   generateUniqueListingSlug,
   parseUpdatedListingSlug,
@@ -23,7 +23,7 @@ import {
   parseUpdateName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /** JSON body accepted by POST /api/admin/listings. */
 export type CreateListingBody = Omit<

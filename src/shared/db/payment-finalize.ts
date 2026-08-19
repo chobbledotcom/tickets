@@ -1,13 +1,13 @@
 import type { InValue } from "@libsql/client";
-import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
-import { preparePaymentReferenceWrite } from "#shared/db/payment-reference-store.ts";
+import { attendeeOwedSubquery } from "#accounting/projection-sql.ts";
+import type { SqlStatement } from "#db/client.ts";
+import { preparePaymentReferenceWrite } from "#db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
-} from "#shared/db/processed-payments.ts";
-import { CLAIM_MIRROR } from "#shared/payment/admit-move.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/processed-payments.ts";
+import { CLAIM_MIRROR } from "#payment/admit-move.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 
 /** Abort a batch unless the immediately preceding finalize updated one row.
  * `requiredWhen` lets a conditional operation remain a normal no-op when its

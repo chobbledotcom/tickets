@@ -1,8 +1,24 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin dashboard route
  */
 
+import {
+  type ActivityLogEntry,
+  getAllActivityLog,
+  logActivity,
+} from "#db/activity-log.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
+import { getUpcomingServicingEvents } from "#db/attendees/servicing.ts";
+import { getActiveListingStats } from "#db/attendees/stats.ts";
+import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import { getHiddenPackageMemberIds } from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
+import { getAllListings, listingNames } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { compact, filter, unique } from "#fp";
 import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
@@ -16,22 +32,6 @@ import {
 import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
-import type { TypedRouteHandler } from "#routes/router.ts";
-import {
-  type ActivityLogEntry,
-  getAllActivityLog,
-  logActivity,
-} from "#shared/db/activity-log.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getNewestAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getUpcomingServicingEvents } from "#shared/db/attendees/servicing.ts";
-import { getActiveListingStats } from "#shared/db/attendees/stats.ts";
-import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
-import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import { getAllListings, listingNames } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   attributeFilterGroupsForListings,
@@ -45,7 +45,6 @@ import {
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { loadSortedListings, sortListings } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import {
   type ActivityLogRefs,
@@ -57,6 +56,7 @@ import {
 } from "#templates/admin/dashboard.tsx";
 import type { ListingAttributeFilterView } from "#templates/admin/listing-attribute-filters.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
+import type { ListingWithCount } from "#types";
 
 /** Login page response helper */
 export const loginResponse = async (

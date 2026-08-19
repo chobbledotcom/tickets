@@ -12,4 +12,4 @@ export * from "#shared/config.ts";
 export * from "#shared/cookies.ts";
 export * from "#shared/env.ts";
 export * from "#shared/session-context.ts";
-export * from "#shared/types.ts";
+export * from "#types";

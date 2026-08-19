@@ -1,13 +1,7 @@
 /** Admin backup routes. Restores run out of band through `deno task restore`. */
 
-import { t } from "#i18n";
-import { createActionHandler } from "#routes/admin/actions.ts";
-import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
-import { downloadResponse, htmlResponse } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
-import { formatDatetimeLabel } from "#shared/dates.ts";
-import { backupBudget, createAndUploadBackup } from "#shared/db/backup.ts";
+import { getEncryptionKeyString } from "#crypto/encryption.ts";
+import { backupBudget, createAndUploadBackup } from "#db/backup.ts";
 import {
   backupDir,
   backupTimestamp,
@@ -15,7 +9,13 @@ import {
   isBackupPath,
   isRemoteDatabase,
   parseBackupTime,
-} from "#shared/db/backup-storage.ts";
+} from "#db/backup-storage.ts";
+import { t } from "#i18n";
+import { createActionHandler } from "#routes/admin/actions.ts";
+import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
+import { downloadResponse, htmlResponse } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { formatDatetimeLabel } from "#shared/dates.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
 import {

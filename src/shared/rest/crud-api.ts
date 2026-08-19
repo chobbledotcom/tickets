@@ -19,19 +19,19 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { logActivity } from "#db/activity-log.ts";
+import { byPrimaryKey } from "#db/table-reader.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { parseAndValidate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

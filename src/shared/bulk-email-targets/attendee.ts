@@ -1,7 +1,7 @@
 /** The single-attendee target: one person, reached from their own edit page by
  * ticket token. The only target that always means one recipient. */
 
-import { getAttendeePiiBlobForToken } from "#shared/db/attendees/queries.ts";
+import { getAttendeePiiBlobForToken } from "#db/attendees/queries.ts";
 import {
   type AttendeeTarget,
   fixedControl,

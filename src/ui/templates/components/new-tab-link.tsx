@@ -3,7 +3,7 @@
  * so the opened page cannot reach back into ours.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 export const NewTabLink = ({
   href,

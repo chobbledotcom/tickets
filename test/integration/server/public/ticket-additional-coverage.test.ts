@@ -2,10 +2,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { hashPhone } from "#db/contact-preferences.ts";
+import { modifiersTable } from "#db/modifiers.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { hashPhone } from "#shared/db/contact-preferences.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   expectAttendeeCounts,
   expectCheckoutRedirect,

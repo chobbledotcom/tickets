@@ -9,12 +9,12 @@
  * `last_attempt` stamp so pruning can remove the stale ones.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   clearAttemptsFor,
   isIpLockedOut,
   makeAttemptRecorder,
-} from "#shared/db/attempt-lockout.ts";
+} from "#db/attempt-lockout.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 

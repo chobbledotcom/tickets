@@ -1,11 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   COST_REPLAY_MISMATCH,
   getServicingCosts,
-} from "#shared/db/attendees/servicing.ts";
+} from "#db/attendees/servicing.ts";
 import {
   expectFlashError,
   expectFlashSuccess,

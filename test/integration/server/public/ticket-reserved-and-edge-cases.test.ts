@@ -224,7 +224,7 @@ describeWithEnv(
         });
 
         // Mock atomic create to fail (simulates race condition / capacity exceeded)
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
         // A free order with a ledger order goes through createBookingAtomic; a plain
         // one through createAttendeeAtomic. Fail both so the create-fails path is
         // exercised regardless of which the free reservation picks.

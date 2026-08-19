@@ -6,6 +6,20 @@
  * dynamic `day_price_*` inputs can be read alongside the validated values.
  */
 
+import { listingAttributeOptions } from "#db/attributes.ts";
+import type { TxScope } from "#db/client.ts";
+import {
+  copyPackageMemberOverridesTx,
+  setListingGroupsTx,
+} from "#db/groups.ts";
+import {
+  syncListingPrices,
+  writeListingDayCounts,
+} from "#db/listing-prices.ts";
+import type { ListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { computeSlugIndex } from "#db/listings/table.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { range } from "#fp";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
@@ -16,20 +30,6 @@ import {
 import { isBuilderEnabled } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
-import { listingAttributeOptions } from "#shared/db/attributes.ts";
-import type { TxScope } from "#shared/db/client.ts";
-import {
-  copyPackageMemberOverridesTx,
-  setListingGroupsTx,
-} from "#shared/db/groups.ts";
-import {
-  syncListingPrices,
-  writeListingDayCounts,
-} from "#shared/db/listing-prices.ts";
-import type { ListingAggregateValues } from "#shared/db/listings/aggregates.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { computeSlugIndex } from "#shared/db/listings/table.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -39,11 +39,6 @@ import {
 import { defineResource } from "#shared/rest/resource.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
-import {
-  type DayPrices,
-  type ListingType,
-  parseDayPrices,
-} from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
   getListingEditForm,
@@ -51,6 +46,7 @@ import {
   type ListingEditFormValues,
   type ListingFormValues,
 } from "#templates/fields/listing.ts";
+import { type DayPrices, type ListingType, parseDayPrices } from "#types";
 
 /* jscpd:ignore-end */
 

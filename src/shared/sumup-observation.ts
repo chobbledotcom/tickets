@@ -18,13 +18,13 @@
  */
 
 import * as v from "valibot";
-import { toMinorUnits } from "#shared/currency.ts";
-import { isCurrency } from "#shared/payment/money.ts";
+import { isCurrency } from "#payment/money.ts";
 import type {
   ProviderInvalidReason,
   ProviderRead,
-} from "#shared/payment/provider-read.ts";
-import { isResourceId } from "#shared/payment/resource-id.ts";
+} from "#payment/provider-read.ts";
+import { isResourceId } from "#payment/resource-id.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import {
   SumupWireTransactionSchema,
   sumupPaymentFields,

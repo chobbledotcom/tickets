@@ -9,11 +9,11 @@
  * built-site Update button.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { resolveHostingProvider } from "#shared/builder.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import type { Result } from "#shared/result.ts";
 import { hasSiteDbCredentials, readSiteSetting } from "#shared/site-db.ts";

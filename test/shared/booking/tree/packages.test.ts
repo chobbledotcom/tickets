@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { packageSubTree } from "#shared/booking/tree.ts";
-import { twoPackageCart } from "#test/test-utils/package-cap-fixtures.ts";
+import { packageSubTree } from "#booking/tree.ts";
+import { twoPackageCart } from "#test-utils/package-cap-fixtures.ts";
 
 describe("packageSubTree", () => {
   test("keeps just one package's member nodes", () => {

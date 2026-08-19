@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { apiKeyLimiter } from "#db/api-key-attempts.ts";
+import { getDb, insert } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
-import { getDb, insert } from "#shared/db/client.ts";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -10,14 +10,16 @@
  * without a page of its own, such as a POST-only endpoint.
  */
 
-import type { AdminAreasSpec } from "#shared/admin-surface/definitions.ts";
-import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
+import {
+  type AdminAreasSpec,
+  OWNER_AUDIENCE,
+} from "#shared/admin-surface/definitions.ts";
 import {
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
   SITE_ADMIN_LEVELS,
   STAFF_ADMIN_LEVELS,
-} from "#shared/types.ts";
+} from "#types";
 
 export const ADMIN_AREAS = {
   apiKeys: {

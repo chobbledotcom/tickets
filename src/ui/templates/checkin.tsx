@@ -10,9 +10,9 @@ import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { AttendeeTableRow } from "#shared/types.ts";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { Layout } from "#templates/layout.tsx";
+import type { AttendeeTableRow } from "#types";
 import { simplePublicPage } from "./public/prose-page.tsx";
 import { SubmitWithHidden } from "./public/unsubscribe.tsx";
 

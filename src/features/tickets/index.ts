@@ -4,6 +4,9 @@
  * The SVG endpoint serves individual QR codes for CDN caching.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
+import { packageDisplaysForRows } from "#db/groups.ts";
+import { settings } from "#db/settings.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
@@ -14,9 +17,6 @@ import {
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { packageDisplaysForRows } from "#shared/db/groups.ts";
-import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";

@@ -1,20 +1,10 @@
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { compact } from "#fp";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import {
-  hydrateListingLinks,
-  listingChildren,
-} from "#shared/db/listing-parents.ts";
-import {
-  availableDayCounts,
-  dayPriceFor,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 
 /** The plain listing fields shared by the public API shape and the syndication
  * feed item — name, slug, description, and the optional event date. */

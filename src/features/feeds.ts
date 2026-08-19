@@ -3,7 +3,18 @@
  * Gated behind the Site feature.
  */
 
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import {
+  bookingAssignmentKey,
+  getLogisticsAssignmentsForAttendees,
+} from "#db/logistics.ts";
+import { getNewsPostSummaries } from "#db/news-posts.ts";
+import { settings } from "#db/settings.ts";
+import { userAgents } from "#db/user-agents.ts";
 import { identity, map, mapById, pipe } from "#fp";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import type { CoreListingFields } from "#routes/api/public-listing.ts";
 import { withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
@@ -20,17 +31,6 @@ import {
 import { icsResponse, rssResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import {
-  bookingAssignmentKey,
-  getLogisticsAssignmentsForAttendees,
-} from "#shared/db/logistics.ts";
-import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
-import { settings } from "#shared/db/settings.ts";
-import { userAgents } from "#shared/db/user-agents.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { nowIso } from "#shared/now.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
@@ -39,7 +39,7 @@ import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
-import type { Attendee, NewsPostSummary } from "#shared/types.ts";
+import type { Attendee, NewsPostSummary } from "#types";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
 export const escapeIcs = (text: string): string =>

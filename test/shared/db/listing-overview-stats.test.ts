@@ -1,18 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
-import { emptyRange } from "#shared/accounting/range.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { execute } from "#shared/db/client.ts";
-import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import { isPaidListing } from "#shared/types.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import { emptyRange } from "#accounting/range.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { execute } from "#db/client.ts";
+import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   overviewStatsFromAttendees,
   overviewStatsFromDbStats,
@@ -29,6 +28,7 @@ import {
   finalizeReservedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { isPaidListing } from "#types";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(

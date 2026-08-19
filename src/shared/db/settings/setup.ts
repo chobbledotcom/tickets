@@ -8,20 +8,20 @@
  * flag in one guarded transaction — no half-initialised site can result.
  */
 
-import { lazyRef } from "#fp";
-import { registerCacheReset } from "#shared/cache-registry.ts";
-import { encryptWithKey } from "#shared/crypto/encryption.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
+import { encryptWithKey } from "#crypto/encryption.ts";
+import { hashPassword } from "#crypto/hashing.ts";
 import {
   generateDataKey,
   generateKeyPair,
   wrapDataKeyForPassword,
-} from "#shared/crypto/keys.ts";
-import { type SqlStatement, withTransaction } from "#shared/db/client.ts";
-import { bumpSettingsVersion } from "#shared/db/settings/cache.ts";
-import { invalidateCache, loadKeys } from "#shared/db/settings/load.ts";
-import { getRawCached, settingUpsert } from "#shared/db/settings/raw-writes.ts";
-import { buildCreateUserStatement } from "#shared/db/users.ts";
+} from "#crypto/keys.ts";
+import { type SqlStatement, withTransaction } from "#db/client.ts";
+import { bumpSettingsVersion } from "#db/settings/cache.ts";
+import { invalidateCache, loadKeys } from "#db/settings/load.ts";
+import { getRawCached, settingUpsert } from "#db/settings/raw-writes.ts";
+import { buildCreateUserStatement } from "#db/users.ts";
+import { lazyRef } from "#fp";
+import { registerCacheReset } from "#shared/cache-registry.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 const [getSetupCompleteCache, setSetupCompleteCache] = lazyRef<boolean>(

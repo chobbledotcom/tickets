@@ -1,4 +1,4 @@
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import type { IconName } from "#templates/components/actions.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
 

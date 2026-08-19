@@ -1,31 +1,28 @@
 /** Group membership checks and writes that must see one transaction-local view. */
 
-import { mapNotNullish } from "#fp";
-import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   checkGroupListingSettings,
   type GroupListingSettings,
   groupListingSettingsError,
-} from "#shared/db/groups/homogeneity.ts";
-import {
-  hasPackageBookingsTx,
-  setGroupPackageMembers,
-} from "#shared/db/groups.ts";
-import { TransactionValidationError, txIdSet } from "#shared/db/transaction.ts";
+} from "#db/groups/homogeneity.ts";
+import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
+import { mapNotNullish } from "#fp";
+import { t } from "#i18n";
+import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
   memberBlockKey,
   packageMemberMessage,
 } from "#shared/package-membership.ts";
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 type GroupStateRow = {
   group_id: number;

@@ -1,15 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { execute, getDb } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
+import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { execute, getDb } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
-import {
-  setSumupCheckoutId,
-  storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";

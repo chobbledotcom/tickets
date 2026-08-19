@@ -8,7 +8,7 @@ import {
   type RefundRequestGeneration,
   type SendArmedRefundState,
   validateRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 
 export type ActiveSentRefundState = SendArmedRefundState | ObservingRefundState;
 type AutomaticRefundState = ReadyRefundState | ActiveSentRefundState;

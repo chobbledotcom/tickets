@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
 import {
   anyNonStandaloneChild,
   edgeIncompatibilityAfterChange,
@@ -10,13 +9,14 @@ import {
   listingIdsWithLinks,
   listingParents,
   type TouchingEdge,
-} from "#shared/db/listing-parents.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
+} from "#db/listing-parents.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
+import { t } from "#i18n";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

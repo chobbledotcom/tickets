@@ -2,12 +2,12 @@
  *  stays under the line target. See {@link crud-api.ts} for the factory itself. */
 
 import type { InValue } from "@libsql/client";
+import type { TransactionStateReader, TxScope } from "#db/client.ts";
+import type { Table } from "#db/table.ts";
 import type { AuthPolicy } from "#routes/auth.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import type { TransactionStateReader, TxScope } from "#shared/db/client.ts";
-import type { Table } from "#shared/db/table.ts";
 import type { Result } from "#shared/result.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession } from "#types";
 
 /** An atomic body-only side effect (e.g. relationship edges) for a create/update.
  *  Two-phase so the whole write is all-or-nothing:

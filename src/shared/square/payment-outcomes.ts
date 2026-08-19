@@ -1,15 +1,15 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import { withExactRefundMoney } from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { withExactRefundMoney } from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   uncertainRefund,
-} from "#shared/payment/refund-attempt.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
-import { ResourceIdSchema } from "#shared/payment/resource-id.ts";
+} from "#payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import { ResourceIdSchema } from "#payment/resource-id.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   namedSquareRefund,
   squareRefundFailure,

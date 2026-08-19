@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { fromBase64 } from "#shared/crypto/utils.ts";
+import { fromBase64 } from "#crypto/utils.ts";
 import {
   DEFAULT_PBKDF2_ITERATIONS,
   decryptField,

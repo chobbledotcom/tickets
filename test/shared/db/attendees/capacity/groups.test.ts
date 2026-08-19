@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { addDays } from "#shared/dates.ts";
 import {
   getDatelessGroupRemaining,
   getGroupPerDayRemaining,
@@ -8,8 +7,9 @@ import {
   getGroupRemainingByListingId,
   getGroupStaticCapByGroupId,
   remainingByListingOverGroups,
-} from "#shared/db/attendees/capacity/groups.ts";
-import { listingGroups } from "#shared/db/groups.ts";
+} from "#db/attendees/capacity/groups.ts";
+import { listingGroups } from "#db/groups.ts";
+import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookUnits } from "#test-utils/db-helpers/attendees.ts";

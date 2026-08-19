@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import type { FetchResult } from "#shared/fetch.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import {

@@ -5,6 +5,14 @@
  * decides which path the priced total demands.
  */
 
+import type { OrderSpan } from "#booking/order-span.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { requirePublicDefaultStatus } from "#db/attendee-statuses.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import {
+  groupListingAnswerSets,
+  saveAttendeeAnswers,
+} from "#db/questions/attendee-answers/save.ts";
 import {
   type AnswerInfo,
   type extractContact,
@@ -18,19 +26,11 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { redirectResponse } from "#routes/response.ts";
-import type { OrderSpan } from "#shared/booking/order-span.ts";
 import type {
   ModifierApplication,
   PricedOrder,
   TicketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { requirePublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import {
-  groupListingAnswerSets,
-  saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers/save.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { computeListingTextAnswerIdMap } from "./parse.ts";

@@ -1,12 +1,12 @@
+import { encrypt } from "#crypto/encryption.ts";
+import { execute } from "#db/client.ts";
+import { getImagesForItem, imagesTable } from "#db/images.ts";
 import { handleRequest } from "#routes";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { execute } from "#shared/db/client.ts";
-import { getImagesForItem, imagesTable } from "#shared/db/images.ts";
-import type { Image, ImageUseItemType } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
+import type { Image, ImageUseItemType } from "#types";
 
 export const makeImage = (name: string): Promise<Image> =>
   imagesTable.insert({

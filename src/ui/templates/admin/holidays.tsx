@@ -9,13 +9,12 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, Holiday } from "#shared/types.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
@@ -25,6 +24,7 @@ import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
+import type { AdminSession, Holiday } from "#types";
 
 /* jscpd:ignore-end */
 

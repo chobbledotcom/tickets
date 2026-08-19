@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -131,7 +131,7 @@ describeWithEnv(
       // placeholder records neither, so the refunded order leaves no phantom
       // history on the buyer's contact.
       const { getContactRecord, getVisits, hashEmail } = await import(
-        "#shared/db/contact-preferences.ts"
+        "#db/contact-preferences.ts"
       );
       const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
       const buyerHash = await hashEmail("mod@example.com");

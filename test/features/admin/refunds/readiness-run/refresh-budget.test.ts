@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { refundReadinessSubrequestCost } from "#routes/admin/refunds/budget.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { refreshClaimedPayment } from "#routes/admin/refunds/refresh.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   countSubrequest,
   getSubrequestRemaining,

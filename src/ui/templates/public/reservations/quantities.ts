@@ -8,7 +8,7 @@ import {
   childQuantityFieldName,
   packageQuantityFieldName,
   quantityFieldName,
-} from "#shared/booking/tree.ts";
+} from "#booking/tree.ts";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import type { TicketPrefill } from "./types.ts";
 /* jscpd:ignore-end */

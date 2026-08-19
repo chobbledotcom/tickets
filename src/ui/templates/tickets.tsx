@@ -2,7 +2,10 @@
  * Ticket view page template - displays attendee ticket information with QR code
  */
 
+import type { PackageDisplay } from "#db/groups.ts";
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
@@ -10,17 +13,14 @@ import {
   formatDatetimeLabel,
   widestDatedEntry,
 } from "#shared/dates.ts";
-import type { PackageDisplay } from "#shared/db/groups.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import {
   namesConcealed,
   packagePrivacyOfDisplay,
 } from "#shared/package-privacy.ts";
-import { clampDurationDays } from "#shared/types.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
+import { clampDurationDays } from "#types";
 
 /** Alias export used by ticket templates */
 export type { TokenEntry as TicketEntry };

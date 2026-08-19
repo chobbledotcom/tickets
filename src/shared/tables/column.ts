@@ -12,7 +12,7 @@
  * markup.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type { ReorderProps } from "#templates/components/reorder.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
 

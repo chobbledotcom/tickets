@@ -1,5 +1,5 @@
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 
 /**
  * Decrypt a stored encrypted-text value, honouring the `''` = "no value"

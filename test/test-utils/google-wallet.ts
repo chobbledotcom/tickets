@@ -4,7 +4,7 @@
  * host env vars, with the once()-cached test credentials.
  */
 
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 

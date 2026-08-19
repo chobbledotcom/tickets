@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { createInvitedUser, getUserByUsername } from "#db/users.ts";
 import { handleRequest } from "#routes";
-import { createInvitedUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   assertPublicHtml,
   expectAdminLoginSuccess,
@@ -153,9 +153,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       // Simulate another isolate consuming the invite without invalidating our
       // cache: clear the handoff straight on the row, leaving our view stale.
-      const { executeWithoutCacheInvalidation } = await import(
-        "#shared/db/client.ts"
-      );
+      const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       const consumed = (await getUserByUsername("stale-replay"))!;
       await executeWithoutCacheInvalidation(
         "UPDATE users SET invite_wrapped_data_key = NULL WHERE id = ?",
@@ -215,7 +213,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("join flow (expired invite)", () => {
     test("GET /join/:code returns 410 for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const { hashInviteCode } = await import("#shared/db/users.ts");
+      const { hashInviteCode } = await import("#db/users.ts");
       const codeHash = await hashInviteCode("expired-code-123");
       await createInvitedUser("expired-join", "manager", codeHash, expiry);
 
@@ -227,7 +225,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("POST /join/:code returns 410 for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const { hashInviteCode } = await import("#shared/db/users.ts");
+      const { hashInviteCode } = await import("#db/users.ts");
       const codeHash = await hashInviteCode("expired-post-123");
       await createInvitedUser("expired-post-user", "manager", codeHash, expiry);
 

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { WithheldRefund } from "#shared/payment/admit-refund.ts";
+import type { WithheldRefund } from "#payment/admit-refund.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";

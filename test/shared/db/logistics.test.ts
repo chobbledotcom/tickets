@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#db/client.ts";
 import {
   bookingAssignmentKey,
   clearLogisticsAgentReferences,
   getLogisticsAssignments,
   getLogisticsAssignmentsForAttendees,
   setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
+} from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
 import {
   getAgentRunSheetBookings,
   runSheetBookingKey,
-} from "#shared/db/logistics-run-sheet.ts";
+} from "#db/logistics-run-sheet.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

@@ -1,13 +1,13 @@
 /** The named-audience target: "everyone booked onto an active listing", and
  * its two siblings. The catch-all target, so its parsers always produce one. */
 
-import { filter, map } from "#fp";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobsForListings,
-} from "#shared/db/attendees/queries.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+} from "#db/attendees/queries.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { filter, map } from "#fp";
+import type { ListingWithCount } from "#types";
 import {
   AUDIENCES,
   type AudienceId,

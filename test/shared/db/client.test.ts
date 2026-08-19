@@ -2,7 +2,6 @@ import type { InStatement, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   andConditions,
   deleteByFieldStatement,
@@ -24,8 +23,9 @@ import {
   rowExists,
   setDb,
   update,
-} from "#shared/db/client.ts";
-import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
+} from "#db/client.ts";
+import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 

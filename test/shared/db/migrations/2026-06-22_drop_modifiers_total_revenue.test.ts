@@ -1,14 +1,11 @@
-import { getDb } from "#shared/db/client.ts";
-import dropModifiersTotalRevenueMigration from "#shared/db/migrations/2026-06-22_drop_modifiers_total_revenue.ts";
-import {
-  recreateTable,
-  syncTriggers,
-} from "#shared/db/migrations/schema-sync.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { getDb } from "#db/client.ts";
+import dropModifiersTotalRevenueMigration from "#db/migrations/2026-06-22_drop_modifiers_total_revenue.ts";
+import { recreateTable, syncTriggers } from "#db/migrations/schema-sync.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import {
   readModifierAggregates as modifierAggregates,
   runAggregateColumnDropTests,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

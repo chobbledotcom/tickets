@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import { settings } from "#db/settings.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
@@ -15,13 +15,6 @@ import {
 } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import {
-  lineFor,
-  stripeCheckoutSession,
-  stripeClient,
-  stripeRefundRequest,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   expectClosedCheckoutFailure,
@@ -30,6 +23,13 @@ import {
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import {
+  lineFor,
+  stripeCheckoutSession,
+  stripeClient,
+  stripeRefundRequest,
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   describe("client", () => {
@@ -364,7 +364,7 @@ describeStripe("stripe", () => {
     });
 
     test("includes booking fee line item when fee is set", async () => {
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       await s.update.bookingFee("5");
       const client = await stripeClient();
 
@@ -405,7 +405,7 @@ describeStripe("stripe", () => {
     });
 
     test("charges the deposit per ticket but the fee on the full order", async () => {
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       await s.update.bookingFee("5");
       const client = await stripeClient();
 

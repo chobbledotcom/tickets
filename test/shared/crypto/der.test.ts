@@ -16,7 +16,7 @@ import {
   readDerSequence,
   requireDerTag,
   sortDerValues,
-} from "#shared/crypto/der.ts";
+} from "#crypto/der.ts";
 import { thrownError } from "#test-utils/errors.ts";
 
 const bytes = (...values: number[]): Uint8Array => new Uint8Array(values);

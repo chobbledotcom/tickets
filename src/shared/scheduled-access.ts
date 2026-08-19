@@ -1,5 +1,5 @@
+import { constantTimeEqual } from "#crypto/utils.ts";
 import { bearerTokenOrNull } from "#shared/bearer.ts";
-import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import { getEnv } from "#shared/env.ts";
 import { normalizePath } from "#shared/path.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";

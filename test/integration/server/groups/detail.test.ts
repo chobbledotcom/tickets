@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { MANUAL_LISTING_COST } from "#shared/accounting/manual-entries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { MANUAL_LISTING_COST } from "#accounting/manual-entries.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
@@ -202,9 +202,7 @@ describeWithEnv(
         const { bookAttendee } = await import(
           "#test-utils/db-helpers/attendee-payments.ts"
         );
-        const { deleteAttendee } = await import(
-          "#shared/db/attendees/delete.ts"
-        );
+        const { deleteAttendee } = await import("#db/attendees/delete.ts");
         const group = await createTestGroup({ name: "Rev", slug: "rev-group" });
         const listing = await createTestListing({
           groupId: group.id,

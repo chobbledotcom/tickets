@@ -2,20 +2,20 @@
  * Base layout and common template utilities
  */
 
+import { settings } from "#db/settings.ts";
 import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
   CSS_PATH,
   IFRAME_RESIZER_CHILD_JS_PATH,
   JS_PATH,
 } from "#shared/asset-paths.ts";
-import { settings } from "#shared/db/settings.ts";
 import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import type { Theme } from "#shared/types.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
+import type { Theme } from "#types";
 
 interface LayoutProps {
   /** Page parts that must stay directly inside main, such as the navigation

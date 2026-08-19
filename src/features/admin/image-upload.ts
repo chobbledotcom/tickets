@@ -2,10 +2,10 @@
  * Shared first-class image form handling.
  */
 
+import { imagesTable } from "#db/images.ts";
 import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
-import { imagesTable } from "#shared/db/images.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   FULL_IMAGE_TARGET,
@@ -21,11 +21,11 @@ import {
   uploadImageTargets,
   validateImage,
 } from "#shared/storage.ts";
-import type { Image } from "#shared/types.ts";
 import {
   type NonEmptyString,
   nonEmptyString,
 } from "#shared/validation/string.ts";
+import type { Image } from "#types";
 
 type ImageMetadata = {
   name: string;

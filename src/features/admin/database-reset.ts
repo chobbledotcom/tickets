@@ -3,15 +3,15 @@
  * Access is strictly restricted to demo mode (DEMO_MODE=true).
  */
 
+import { getAllImages } from "#db/images.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { resetDatabase } from "#db/migrations.ts";
 import { t } from "#i18n";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
 import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { getAllImages } from "#shared/db/images.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { resetDatabase } from "#shared/db/migrations.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";

@@ -13,12 +13,12 @@ import type {
   TableColumn,
 } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

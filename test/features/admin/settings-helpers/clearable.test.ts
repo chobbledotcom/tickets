@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
-import { clearableFieldHandler } from "#routes/admin/settings-helpers.ts";
+import {
+  clearableFieldHandler,
+  type ErrorPageFn,
+} from "#routes/admin/settings-helpers.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

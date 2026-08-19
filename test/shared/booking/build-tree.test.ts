@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import type { TreePackage } from "#shared/booking/page-packages.ts";
-import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import type { TreePackage } from "#booking/page-packages.ts";
+import { resolved } from "#test-utils/booking-model-fixtures.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
 
 describe("buildBookingTree — root ref", () => {
   test("defaults to a listing root using the given slugs when no root is given", () => {

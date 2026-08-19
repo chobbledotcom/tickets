@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
   MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
-} from "#shared/db/migrations/schema/version.ts";
-import { SCHEMA_HASH } from "#shared/db/migrations.ts";
+} from "#db/migrations/schema/version.ts";
+import { SCHEMA_HASH } from "#db/migrations.ts";
 
 describe("db > migrations > schema change guard", () => {
   // If this test fails, SCHEMA was changed. Existing production databases

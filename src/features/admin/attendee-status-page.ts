@@ -1,15 +1,15 @@
 /** The owner-only attendee-status Edit / Actions entity page. */
 
+import {
+  type AttendeeStatus,
+  getAttendeeStatus,
+} from "#db/attendee-statuses.ts";
 /* jscpd:ignore-start */
 import {
   defineEditEntityPage,
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
-import {
-  type AttendeeStatus,
-  getAttendeeStatus,
-} from "#shared/db/attendee-statuses.ts";
 import { AttendeeStatusEditPanel } from "#templates/admin/settings-statuses.tsx";
 
 /* jscpd:ignore-end */

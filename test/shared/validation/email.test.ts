@@ -1,12 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
-import {
-  ALL_SETTINGS_KEYS,
-  CONFIG_KEYS,
-  settings,
-} from "#shared/db/settings.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { executeWithoutCacheInvalidation } from "#db/client.ts";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

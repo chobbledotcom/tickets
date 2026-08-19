@@ -3,8 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import {
   findAttendeeIdByPhoneIndex,
   setAttendeePhoneIndexIfEmpty,
-} from "#shared/db/attendee-phone-index.ts";
-import { queryOne } from "#shared/db/client.ts";
+} from "#db/attendee-phone-index.ts";
+import { queryOne } from "#db/client.ts";
 import {
   computePhoneIndex,
   normalizeForIndex,

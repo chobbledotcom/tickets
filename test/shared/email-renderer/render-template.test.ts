@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { TemplateData } from "#shared/email-renderer.ts";
-import { renderTemplate } from "#shared/email-renderer.ts";
+import { renderTemplate, type TemplateData } from "#shared/email-renderer.ts";
 import {
   describeEmailRenderer,
   sampleData,

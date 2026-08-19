@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { buildTicketListing } from "#shared/booking/model.ts";
+import { buildTicketListing } from "#booking/model.ts";
+import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 describe("ticketPage listing date and location", () => {
   beforeAll(setupAdminPageTest);

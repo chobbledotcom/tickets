@@ -1,16 +1,17 @@
 /* jscpd:ignore-start */
+
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** The "read more" footer link shared by the built-sites list and builder pages. */
