@@ -127,10 +127,9 @@ Then(
     const made = await listingSoldAsOrNull(name);
     if (!made) throw new Error(`The site sells no ${name}`);
     // Back on the thing they just made, so the next edit needs no hunting and
-    // the site has somewhere to say it worked.
-    expect(editorBrowser(this).currentUrl).toBe(
-      `/admin/listing/${made.id}/edit`,
-    );
+    // the site has somewhere to say it worked. The page opens on the first tab
+    // its reader can see, which for an editor is the edit form.
+    expect(editorBrowser(this).currentUrl).toBe(`/admin/listing/${made.id}`);
     expect(editorBrowser(this).pageText).toContain(
       t("success.listing_created"),
     );
