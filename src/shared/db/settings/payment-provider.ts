@@ -82,14 +82,16 @@ const CREDENTIAL_KEYS = PAYMENT_PROVIDER_IDS.map((id) => CREDENTIAL_KEY_OF[id]);
 /** Numbered parameters, so a value the statement reads seven times is still
  * bound once. The slots run in the order `changePaymentProvider` passes them:
  * the kind of change, the provider it names, whether this is a first
- * credential save, then one slot per provider id and one per credential key. */
+ * credential save, the credential key of the provider it names, then one slot
+ * per provider id and one per credential key. */
 const slot = (index: number): string => `?${index + 1}`;
 const KIND = slot(0);
 const CHOSEN = slot(1);
 const FIRST_CREDENTIAL = slot(2);
-const PROVIDER_ID_SLOTS = PAYMENT_PROVIDER_IDS.map((_, i) => slot(3 + i));
+const CHOSEN_CREDENTIAL_KEY = slot(3);
+const PROVIDER_ID_SLOTS = PAYMENT_PROVIDER_IDS.map((_, i) => slot(4 + i));
 const CREDENTIAL_KEY_SLOTS = CREDENTIAL_KEYS.map((_, i) =>
-  slot(3 + PAYMENT_PROVIDER_IDS.length + i),
+  slot(4 + PAYMENT_PROVIDER_IDS.length + i),
 );
 
 /** What the two rows hold right now. A row that does not exist yet reads as
@@ -144,11 +146,6 @@ const NEXT_VERSION = `CAST(
       COALESCE((SELECT value FROM settings WHERE key = 'settings_version'), '0') AS INTEGER
     ) + 1`;
 
-/** The credential key belonging to the provider this change names. */
-const CHOSEN_CREDENTIAL_KEY = `CASE ${CHOSEN}
-${PROVIDER_ID_SLOTS.map((id, i) => `          WHEN ${id} THEN ${CREDENTIAL_KEY_SLOTS[i]}`).join("\n")}
-        END`;
-
 /** Recovery is only for a site that lost its choice and still holds the named
  * provider's credential. Nothing else qualifies for it. */
 const RECOVERY_ALLOWED = `${KIND} <> 'recover' OR (
@@ -194,10 +191,14 @@ const changePaymentProvider = async (
   }
   const chosen = provider ?? "";
   const firstCredential = kind === "credentials" && first ? 1 : 0;
+  // Empty only when the change names no provider, which is switching sales
+  // off — and that path never reads the key.
+  const chosenCredentialKey = provider ? CREDENTIAL_KEY_OF[provider] : "";
   const args = [
     kind,
     chosen,
     firstCredential,
+    chosenCredentialKey,
     ...PAYMENT_PROVIDER_IDS,
     ...CREDENTIAL_KEYS,
   ];
