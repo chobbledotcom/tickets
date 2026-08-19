@@ -14,6 +14,7 @@ import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
+import { oneServedPath } from "#test-utils/admin-surface.ts";
 
 const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
   const routesByArea = new Map<string, string[]>();
@@ -28,15 +29,6 @@ const routeParts = (route: string): readonly [method: string, path: string] => {
   if (boundary === -1) throw new Error(`Invalid route: ${route}`);
   return [route.slice(0, boundary), route.slice(boundary + 1)];
 };
-
-/** One path a pattern can serve, so a route pattern and a destination pattern
- * can be compared even when the route names the last part `:tab`. */
-const oneServedPath = (pattern: string): string =>
-  pattern
-    .replace(/:(\w+)/g, (_, name: string) =>
-      name === "id" || name.endsWith("Id") ? "1" : "value",
-    )
-    .replace(/\/$/, "");
 
 const getRoutesOf = (routes: readonly string[]): readonly string[] =>
   routes.filter((route) => routeParts(route)[0] === "GET");

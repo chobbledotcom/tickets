@@ -1,6 +1,8 @@
+/* jscpd:ignore-start */
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
+/* jscpd:ignore-end */
 /**
  * Admin API key management routes
  */
