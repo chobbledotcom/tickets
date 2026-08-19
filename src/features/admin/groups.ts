@@ -55,12 +55,7 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type {
-  AdminSession,
-  DayPrices,
-  Group,
-  ListingWithCount,
-} from "#shared/types.ts";
+import type { DayPrices, Group, ListingWithCount } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
@@ -266,8 +261,7 @@ const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
   getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
-  getRowPath: (g: Group, session: AdminSession) =>
-    entityReturnPath("/admin/groups", session.adminLevel, g.id),
+  getRowPath: (g: Group) => entityReturnPath("/admin/groups", g.id),
   list: "groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,

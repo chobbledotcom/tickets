@@ -12,15 +12,8 @@ import { translatedTableHeader } from "#templates/components/translated-table-co
 
 /* jscpd:ignore-end */
 
-const groupLink = (
-  group: Group,
-  adminLevel: AdminSession["adminLevel"],
-): JSX.Element => (
-  // Staff open the detail page; editors can't (it decrypts attendee PII), so
-  // they link straight to the edit form.
-  <a href={entityReturnPath("/admin/groups", adminLevel, group.id)}>
-    {group.name}
-  </a>
+const groupLink = (group: Group): JSX.Element => (
+  <a href={entityReturnPath("/admin/groups", group.id)}>{group.name}</a>
 );
 
 const groupColumns: readonly TableColumn<Group, AdminSession["adminLevel"]>[] =

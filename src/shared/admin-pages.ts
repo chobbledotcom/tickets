@@ -8,7 +8,6 @@ import {
   adminDestination,
   adminPath,
 } from "#shared/admin-surface.ts";
-import type { AdminLevel } from "#shared/types.ts";
 
 export interface NavLink {
   readonly href: string;
@@ -69,20 +68,15 @@ export const visibleSections = (ctx: AdminSurfaceContext): NavSection[] =>
       topHref: landingPattern(section),
     }));
 
-/** Where a role lands after acting on one of a section's records: the record's
- * page when the role may open it, and the edit form when it may not. */
-export const entityReturnPath = (
-  sectionPath: string,
-  adminLevel: AdminLevel,
-  id: number,
-): string => {
+/** Where a reader lands after acting on one of a section's records: the
+ * record's own page, or the section's list when it has no record page. The
+ * page opens on the first tab its viewer can see, so every role that reaches
+ * this has somewhere to land. */
+export const entityReturnPath = (sectionPath: string, id: number): string => {
   const section = ADMIN_SURFACE.sections.find(
     (candidate) => landingPattern(candidate) === sectionPath,
   );
-  if (!section?.detail) return sectionPath;
-  const { editForm, page } = section.detail;
-  const opens = adminDestination(page).audience.includes(adminLevel);
-  return adminPath(opens ? page : editForm, { id });
+  return section?.detail ? adminPath(section.detail, { id }) : sectionPath;
 };
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>

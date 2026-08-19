@@ -66,8 +66,6 @@ const FEATURE_OFF_AREAS = new Set(["builder", "builtSites"]);
  * here rather than passing as some other kind of refusal.
  */
 const HIDDEN_TABS = new Set([
-  "group:editor",
-  "listing:editor",
   "listingAttributes:editor",
   "listingAttributes:manager",
   "listingQr:editor",

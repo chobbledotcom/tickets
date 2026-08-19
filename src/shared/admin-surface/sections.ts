@@ -24,16 +24,10 @@ export type AdminNavEntry = {
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
 
-/** The page for one of a section's records, and where a role that cannot open
- * it goes instead. Both are declared routes, so the audience on the page is
- * what decides which one a reader is sent to. */
-export type AdminSectionDetail = {
-  readonly editForm: AdminRecordDestinationId;
-  readonly page: AdminRecordDestinationId;
-};
-
 export type AdminSectionDef = {
-  readonly detail?: AdminSectionDetail;
+  /** The page for one of this section's records, where a link from the list
+   * and a redirect after a save both land. */
+  readonly detail?: AdminRecordDestinationId;
   readonly id: string;
   readonly labelKey: string;
   readonly landing: AdminDestinationId;
@@ -49,7 +43,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     nav: [{ id: "home", kind: "landing", labelKey: "nav.public.home" }],
   },
   {
-    detail: { editForm: "listingEdit", page: "listing" },
+    detail: "listing",
     id: "listings",
     labelKey: "terms.listings",
     landing: "listings",
@@ -109,7 +103,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     ],
   },
   {
-    detail: { editForm: "groupEdit", page: "group" },
+    detail: "group",
     id: "groups",
     labelKey: "terms.groups",
     landing: "groups",

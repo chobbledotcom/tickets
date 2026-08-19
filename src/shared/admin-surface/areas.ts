@@ -181,9 +181,9 @@ export const ADMIN_AREAS = {
   groups: {
     audience: CONTENT_ADMIN_LEVELS,
     view: {
-      // Every tab of one group is staff-only, so an editor following a link
-      // here would meet a 404. They are sent to the edit form instead.
-      group: { audience: STAFF_ADMIN_LEVELS, pattern: "/admin/groups/:id" },
+      // A record page opens on the first tab its viewer can see, so an editor
+      // reaches it and lands on Edit. The staff-only tabs stay shut.
+      group: "/admin/groups/:id",
       groups: "/admin/groups",
     },
     write: {
@@ -249,9 +249,12 @@ export const ADMIN_AREAS = {
   listings: {
     audience: STAFF_ADMIN_LEVELS,
     view: {
-      // Every tab of one listing is staff-only except the edit and images
-      // tabs, which declare the wider role themselves.
-      listing: "/admin/listing/:id",
+      // A record page opens on the first tab its viewer can see, so an editor
+      // reaches it and lands on Edit. The staff-only tabs stay shut.
+      listing: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/listing/:id",
+      },
       listingAttendeesCsv: "/admin/listing/:id/attendees.csv",
       listingExport: "/admin/listing/:id/export",
     },

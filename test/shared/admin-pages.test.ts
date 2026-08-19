@@ -96,38 +96,14 @@ describe("admin navigation", () => {
   });
 });
 
-describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
-  // Which page a role lands on is decided by the audience the record page
-  // declares, not by naming one role. Only content roles reach these two
-  // call sites, so those are the roles the cases below cover.
-  test("sends a role that cannot open the record page to its edit form", () => {
-    expect(entityReturnPath("/admin/listings", "editor", 5)).toBe(
-      "/admin/listing/5/edit",
-    );
-    expect(entityReturnPath("/admin/groups", "editor", 7)).toBe(
-      "/admin/groups/7/edit",
-    );
+describe("entityReturnPath", () => {
+  test("sends a reader to the record's own page", () => {
+    expect(entityReturnPath("/admin/listings", 5)).toBe("/admin/listing/5");
+    expect(entityReturnPath("/admin/groups", 7)).toBe("/admin/groups/7");
   });
 
-  test("sends a role that can open the record page to the page", () => {
-    expect(entityReturnPath("/admin/listings", "owner", 5)).toBe(
-      "/admin/listing/5",
-    );
-    expect(entityReturnPath("/admin/listings", "manager", 5)).toBe(
-      "/admin/listing/5",
-    );
-    expect(entityReturnPath("/admin/groups", "owner", 7)).toBe(
-      "/admin/groups/7",
-    );
-    expect(entityReturnPath("/admin/groups", "manager", 7)).toBe(
-      "/admin/groups/7",
-    );
-  });
-
-  test("a section with no detail page falls back to its list page", () => {
-    expect(entityReturnPath("/admin/settings", "owner", 1)).toBe(
-      "/admin/settings",
-    );
+  test("falls back to the list when a section has no record page", () => {
+    expect(entityReturnPath("/admin/settings", 1)).toBe("/admin/settings");
   });
 });
 

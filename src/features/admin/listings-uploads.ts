@@ -146,13 +146,8 @@ const handleFileDelete = (
   getUrl: (e: ListingWithCount) => string,
   clearFields: Partial<ListingInput>,
 ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
-  listingUploadHandler(async (listing, session, _form, _request, { id }) => {
-    // Staff return to the detail page; editors (who can't open it) to edit.
-    const returnPath = entityReturnPath(
-      "/admin/listings",
-      session.adminLevel,
-      id,
-    );
+  listingUploadHandler(async (listing, _session, _form, _request, { id }) => {
+    const returnPath = entityReturnPath("/admin/listings", id);
     const url = getUrl(listing);
     if (url) {
       const [deleteResult] = await Promise.allSettled([deleteFile(url)]);

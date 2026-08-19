@@ -136,44 +136,29 @@ describe("the sections that own a record page", () => {
     ]);
   });
 
-  test("name the record page and the form to fall back to", () => {
-    expect(
-      withDetail.map((section) => [
-        adminPattern(section.detail!.page),
-        adminPattern(section.detail!.editForm),
-      ]),
-    ).toEqual([
-      ["/admin/listing/:id", "/admin/listing/:id/edit"],
-      ["/admin/groups/:id", "/admin/groups/:id/edit"],
+  test("name the route one record opens at", () => {
+    expect(withDetail.map((section) => adminPattern(section.detail!))).toEqual([
+      "/admin/listing/:id",
+      "/admin/groups/:id",
     ]);
   });
 
-  test("point both routes at one record", () => {
+  test("point that route at one record", () => {
     const wrong = withDetail
-      .filter(({ detail }) =>
-        [detail!.page, detail!.editForm].some(
-          (id) => !adminPattern(id).includes(":id"),
-        ),
-      )
+      .filter(({ detail }) => !adminPattern(detail!).includes(":id"))
       .map((section) => section.id);
     expect(wrong).toEqual([]);
   });
 
-  test("keep the record page out of an editor's reach", () => {
-    // Every tab of both pages is staff-only, so an editor following the link
-    // would meet a 404. entityReturnPath reads this audience to send them to
-    // the edit form instead, which is why the two must stay apart.
-    const open = withDetail.filter(({ detail }) =>
-      adminDestination(detail!.page).audience.includes("editor"),
+  test("open the record page to everyone the list is open to", () => {
+    // A list that links to a record page must not link its readers somewhere
+    // they are refused, and a record page opens on the first tab its viewer
+    // can see, so the two audiences match.
+    const narrower = withDetail.filter(({ detail, landing }) =>
+      adminDestination(landing).audience.some(
+        (level) => !adminDestination(detail!).audience.includes(level),
+      ),
     );
-    expect(open.map((section) => section.id)).toEqual([]);
-  });
-
-  test("keep the edit form within an editor's reach", () => {
-    const shut = withDetail.filter(
-      ({ detail }) =>
-        !adminDestination(detail!.editForm).audience.includes("editor"),
-    );
-    expect(shut.map((section) => section.id)).toEqual([]);
+    expect(narrower.map((section) => section.id)).toEqual([]);
   });
 });
