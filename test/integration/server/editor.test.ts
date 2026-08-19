@@ -361,9 +361,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         editBody,
       );
       expect(editorResp.status).toBe(302);
-      expect(editorResp.headers.get("location")).toContain(
-        `/admin/listing/${listing.id}`,
-      );
+      // The record page itself, not the edit form under it, which the
+      // substring of the one is a substring of the other.
+      expect(
+        new URL(editorResp.headers.get("location") ?? "", "http://localhost")
+          .pathname,
+      ).toBe(`/admin/listing/${listing.id}`);
       expect(await bookedQuantity(listing.id)).toBe(0);
 
       // The same body submitted by the owner DOES apply the aggregate — proving

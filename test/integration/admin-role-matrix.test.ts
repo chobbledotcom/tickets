@@ -22,6 +22,7 @@
 
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { requiredMapValue } from "#fp";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
@@ -123,7 +124,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   ): Promise<number> => {
     const { handleRequest } = await import("#routes");
     const headers: Record<string, string> = {
-      cookie: cookies.get(adminLevel)!,
+      cookie: requiredMapValue(
+        cookies,
+        adminLevel,
+        `No session for ${adminLevel}`,
+      ),
       host: "localhost",
     };
     if (method === "GET") {
@@ -239,9 +244,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // The token is real, so a request that gets past the role gate would go
     // on to do the write. Nothing is written while this passes, and a gate
     // that admits too much shows up as an answer that is not a refusal.
-    const wrong = await askOutsiders(
-      writableRoutes(),
-      (one) => methods.get(one.pattern)!,
+    const wrong = await askOutsiders(writableRoutes(), (one) =>
+      requiredMapValue(methods, one.pattern, `No method for ${one.pattern}`),
     );
     expect(wrong).toEqual([]);
   });
@@ -253,7 +257,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // suite to prove; here the question is only whether the gate let it in.
     const refused: string[] = [];
     for (const destination of insiderWritableRoutes()) {
-      const method = methods.get(destination.pattern)!;
+      const method = requiredMapValue(
+        methods,
+        destination.pattern,
+        `No method for ${destination.pattern}`,
+      );
       const path = oneServedPath(destination.pattern);
       for (const adminLevel of destination.audience) {
         const status = await askAs(path, adminLevel, method);

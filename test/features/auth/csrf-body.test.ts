@@ -34,13 +34,8 @@ const run = async (
   policy: Parameters<typeof withAuth>[1],
   request: Request,
 ): Promise<Response> =>
-  await withAuth(
-    policy.body === "json" ? request : request,
-    policy,
-    (_session, body) =>
-      Promise.resolve(
-        Response.json({ body: JSON.parse(JSON.stringify(body)) }),
-      ),
+  await withAuth(request, policy, (_session, body) =>
+    Promise.resolve(Response.json({ body: JSON.parse(JSON.stringify(body)) })),
   );
 
 const jsonRequest = async (

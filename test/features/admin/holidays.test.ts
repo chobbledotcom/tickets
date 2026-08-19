@@ -39,7 +39,7 @@ describeWithEnv("holidays", { db: true }, () => {
       `/admin/holidays/${holiday.id}`,
       "Holiday updated",
     )(response);
-    expect((await holidays.table.read.one({ id: holiday.id }))!.name).toBe(
+    expect((await holidays.table.read.one({ id: holiday.id }))?.name).toBe(
       "Renamed",
     );
   });

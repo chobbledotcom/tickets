@@ -278,8 +278,7 @@ export const adminQuestionPage = (
           {reorderCountTable({
             count: (a) => answerCounts?.get(a.id) ?? 0,
             countHeader: t("questions.selected_column"),
-            editHref: (a) =>
-              adminPath("answerEdit", { answerId: a.id, id: question.id }),
+            editHref: (a) => answerPath("answerEdit", question.id, a.id),
             emptyText: t("questions.edit.no_answers"),
             items: question.answers,
             label: (a) => a.text,

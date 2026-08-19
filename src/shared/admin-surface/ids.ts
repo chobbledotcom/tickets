@@ -55,16 +55,26 @@ export type AdminPatternFor<Id extends AdminDestinationId> = Id extends unknown
   ? PatternOfSpec<SpecFor<Id>>
   : never;
 
+/** The parameter names one route's path carries, or `never` when it carries
+ * none. Named so the two checks below read it without repeating the lookup. */
+type ParamNamesOf<Id extends AdminDestinationId> = RouteParamNames<
+  AdminPatternFor<Id> & string
+>;
+
 /**
  * A route addressed by one plain `:id` and nothing else. A section's record
  * page and the form a reader falls back to must both be of this kind, so
  * `entityReturnPath` can build either from the same id.
+ *
+ * Both directions are checked. A path with no parameter at all resolves to
+ * `never`, which is assignable to `"id"`, so the second check alone would let
+ * `/admin/` in and build a record link that names no record.
  */
 export type AdminRecordDestinationId = {
-  [Id in AdminDestinationId]: RouteParamNames<
-    AdminPatternFor<Id> & string
-  > extends "id"
-    ? Id
+  [Id in AdminDestinationId]: "id" extends ParamNamesOf<Id>
+    ? ParamNamesOf<Id> extends "id"
+      ? Id
+      : never
     : never;
 }[AdminDestinationId];
 

@@ -62,6 +62,8 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       const html = await (await adminGet("/admin/attendees?filter=in")).text();
 
       expect(html).not.toContain("filter=in");
+      // Alice is not checked in, so a filter that took hold would drop her.
+      expect(html).toContain("Alice");
     });
 
     test("ignores a date asked for in the address", async () => {
@@ -74,6 +76,8 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       ).text();
 
       expect(html).not.toContain("date=2026-01-01");
+      // Alice booked no day in 2026, so a date that took hold would drop her.
+      expect(html).toContain("Alice");
     });
 
     test("flags a deactivated listing in the filter dropdown", async () => {

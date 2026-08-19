@@ -340,10 +340,18 @@ out of scope here.
   `deno task precommit:mutation`, runs once over the whole branch rather than
   per slice, because it scopes by changed file and these slices changed 40 of
   them. The first run found 246 survivors, 244 of them older gaps in the files
-  the slices touched. All are closed. The gate now reports 2,250 mutants, 2,205
-  killed and 42 suppressed, which is a 100% kill rate. The 28 mutants this
-  branch added to `scripts/mutation/equivalent-mutants/` each carry a proof that
-  no input can tell them from the original.
+  the slices touched. All are closed. The last whole-branch run reported 2,250
+  mutants: 2,205 killed, 42 suppressed as known-equivalent, and 3 survivors, all
+  three in `idParamOf`. Those three are closed too, by a dead check removed, one
+  test added, and one more recorded equivalent, and a run of that file alone
+  scores 100%. The 28 mutants this branch added to
+  `scripts/mutation/equivalent-mutants/` each carry a proof that no input can
+  tell them from the original.
+
+  Note that the gate has a fixed one-hour deadline, which this branch's file set
+  now exceeds. A run that hits it reports no score at all. Read the selection
+  out of `.mutation-runs/<id>/run.json` and pass it to `deno task mutation` with
+  a longer `--deadline` to see the result.
 
 ## Questions the reviewer answered
 

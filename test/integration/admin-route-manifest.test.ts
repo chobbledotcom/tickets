@@ -10,6 +10,7 @@
 
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { requiredMapValue } from "#fp";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
@@ -85,7 +86,13 @@ describe("admin route manifest", () => {
     for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
       const servedPath = oneServedPath(destination.pattern);
       expect(
-        getRoutesOf(routesByArea.get(destination.area)!).some((route) =>
+        getRoutesOf(
+          requiredMapValue(
+            routesByArea,
+            destination.area,
+            `No routes loaded for area ${destination.area}`,
+          ),
+        ).some((route) =>
           routePathPatternToRegex(routeParts(route)[1]).test(servedPath),
         ),
         `${destination.id}: GET ${destination.pattern}`,
