@@ -20,29 +20,47 @@ import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
+  retryWhilePortTaken,
   withHeldPort,
   withUnusedPort,
 } from "#test-utils/stripe-mock/ports.ts";
 
 describe("stripe-mock ports and environment", () => {
-  test("keeps a reserved port unavailable until release", () => {
-    const reserved = reserveAvailablePort();
-    let listener: Deno.Listener | undefined;
-    try {
-      expect(() => {
-        listener = Deno.listen({ hostname: "127.0.0.1", port: reserved.port });
-      }).toThrow();
-      reserved.release();
-      reserved.release();
-      listener = Deno.listen({
-        hostname: "127.0.0.1",
-        port: reserved.port,
-      });
-    } finally {
-      listener?.close();
-      reserved.release();
-    }
-  });
+  test("keeps a reserved port unavailable until release", () =>
+    retryWhilePortTaken(
+      // deno-lint-ignore require-await -- retryWhilePortTaken awaits the attempt
+      async () => {
+        const reserved = reserveAvailablePort();
+        let listener: Deno.Listener | undefined;
+        try {
+          expect(() => {
+            listener = Deno.listen({
+              hostname: "127.0.0.1",
+              port: reserved.port,
+            });
+          }).toThrow(Deno.errors.AddrInUse);
+          reserved.release();
+          reserved.release();
+          try {
+            listener = Deno.listen({
+              hostname: "127.0.0.1",
+              port: reserved.port,
+            });
+          } catch (error) {
+            // Released means free to the whole machine, so a suite running
+            // beside this one can be handed the same number before this line.
+            // Ask again on a fresh reservation rather than call that a failure.
+            if (!(error instanceof Deno.errors.AddrInUse)) throw error;
+            return true;
+          }
+          return false;
+        } finally {
+          listener?.close();
+          reserved.release();
+        }
+      },
+      () => "The released port kept being taken before it could be re-bound",
+    ));
 
   test("uses the default port when the env var is absent", () => {
     expect(stripeMockPortFromEnv(testEnv({}))).toBe(stripeMock.defaultPort);
