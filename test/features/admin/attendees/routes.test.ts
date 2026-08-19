@@ -31,8 +31,8 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
   });
 
   test("takes that form back", async () => {
-    // Nothing is filled in, so the form comes straight back at 400 with the
-    // reason on it, rather than the submission going through.
+    // Nothing is filled in, so the form comes straight back with the reason on
+    // it, rather than the submission going through.
     const { response } = await adminFormPost("/admin/attendees/new", {});
 
     expect(response.status).toBe(200);
