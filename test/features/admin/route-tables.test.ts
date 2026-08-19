@@ -53,6 +53,18 @@ describe("entityTabRoutes", () => {
     ]);
   });
 
+  test("finds the record parameter however short the path before it", () => {
+    // The helper makes no assumption about what precedes the parameter, so a
+    // one-character base binds exactly like an /admin/... one.
+    const page = recordingPage();
+    const routes = entityTabRoutes("x/:thingId", page);
+
+    expect(Object.keys(routes).toSorted()).toEqual([
+      "GET x/:thingId",
+      "GET x/:thingId/:tab",
+    ]);
+  });
+
   test("refuses a path that names no record", () => {
     // Binding a list path here would serve the whole collection's URL to a
     // handler that wants one record's id, and read undefined for it.

@@ -219,3 +219,4 @@ src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1
 src/shared/listings-actions.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/listings-actions.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? → ||   # input.groupIds is an array when present, and arrays are always truthy
+src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → ||   # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
