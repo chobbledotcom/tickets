@@ -2,6 +2,7 @@
 import type { InValue } from "@libsql/client";
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
  * Admin group management routes - accessible to owners and managers
@@ -417,7 +418,7 @@ export const adminHandlers = defineRoutes({
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
-  ...entityTabRoutes("/admin/groups", groupPage),
+  ...entityTabRoutes(adminPattern("group"), groupPage),
   "GET /admin/groups/:id/delete": staffCrud.deleteGet,
   // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": contentCreate.newGet,

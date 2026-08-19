@@ -1,5 +1,6 @@
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /**
  * Admin API key management routes
  */
@@ -158,7 +159,7 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   );
 
 export const adminHandlers = defineRoutes({
-  ...entityTabRoutes("/admin/api-keys", apiKeyPage, "apiKeyId"),
+  ...entityTabRoutes(adminPattern("apiKey"), apiKeyPage),
   "GET /admin/api-keys": handleApiKeysGet,
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),

@@ -3,6 +3,7 @@
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { ownerFormById } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -111,7 +112,7 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
 /** Logistics settings + agent routes. The agent edit POST restates the
  * standard key with its own handler. */
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/logistics", crud),
-  ...entityTabRoutes("/admin/logistics", logisticsAgentPage),
+  ...crudRoutes(adminPattern("logistics"), crud),
+  ...entityTabRoutes(adminPattern("logisticsAgent"), logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

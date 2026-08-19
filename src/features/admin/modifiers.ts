@@ -18,6 +18,7 @@ import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -506,8 +507,8 @@ const handleAnswerLinks: TypedRouteHandler<
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/modifiers", crud),
-  ...entityTabRoutes("/admin/modifiers", modifierPage),
+  ...crudRoutes(adminPattern("modifiers"), crud),
+  ...entityTabRoutes(adminPattern("modifier"), modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,

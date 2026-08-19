@@ -36,7 +36,9 @@ type SpecFor<Id extends AdminDestinationId> = {
       : never;
 }[keyof Areas];
 
-type PatternFor<Id extends AdminDestinationId> =
+/** The exact path a route declares, as a literal type. Route tables keyed by
+ * a pattern stay typed because this keeps the string, not `string`. */
+export type AdminPatternFor<Id extends AdminDestinationId> =
   SpecFor<Id> extends string
     ? SpecFor<Id>
     : SpecFor<Id> extends { readonly pattern: infer Pattern }
@@ -44,6 +46,6 @@ type PatternFor<Id extends AdminDestinationId> =
       : never;
 
 export type AdminPathParams<Id extends AdminDestinationId> = Record<
-  RouteParamNames<PatternFor<Id> & string>,
+  RouteParamNames<AdminPatternFor<Id> & string>,
   string | number
 >;

@@ -2,6 +2,7 @@ import { mapValues } from "@std/collections";
 import { t } from "#i18n";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /**
  * Admin built site management routes - owner only
  */
@@ -369,8 +370,8 @@ const gateOnBuilder = <Key extends string>(
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineRoutes({
-    ...crudRoutes("/admin/built-sites", crud),
-    ...entityTabRoutes("/admin/built-sites", builtSitePage),
+    ...crudRoutes(adminPattern("builtSites"), crud),
+    ...entityTabRoutes(adminPattern("builtSite"), builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,

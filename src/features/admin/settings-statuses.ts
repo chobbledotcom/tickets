@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
@@ -127,8 +128,8 @@ const statusOrder = createOrderedCollectionHandlers({
 });
 
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/settings/statuses", crud),
-  ...entityTabRoutes("/admin/settings/statuses", attendeeStatusPage),
+  ...crudRoutes(adminPattern("statuses"), crud),
+  ...entityTabRoutes(adminPattern("status"), attendeeStatusPage),
   "POST /admin/settings/statuses/:id/move-down": statusOrder.down,
   "POST /admin/settings/statuses/:id/move-up": statusOrder.up,
 });

@@ -10,39 +10,47 @@ import type { EntityPage } from "#routes/admin/entity-pages.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
+import type { RouteParamNames } from "#shared/route-pattern.ts";
 
-/** The two GET routes every entity page owns: the bare detail path (default
- * tab) and its `/:tab` variant. */
-export type EntityTabRoutes<Base extends string, Param extends string> = {
-  [K in
-    | `GET ${Base}/:${Param}`
-    | `GET ${Base}/:${Param}/:tab`]: TypedRouteHandler<K>;
+/** The two GET routes every entity page owns: the declared detail path (its
+ * default tab) and the `/:tab` variant beneath it. */
+export type EntityTabRoutes<Pattern extends string> = {
+  [K in `GET ${Pattern}` | `GET ${Pattern}/:tab`]: TypedRouteHandler<K>;
 };
 
-/** Bind an entity page's two GET routes, ready to spread into the section's
- * route table. `param` is the route's id parameter name; it must keep the
- * router's numeric-param convention (`id` or `…Id`) so the page receives a
- * parsed number. */
-export const entityTabRoutes = <
-  Base extends string,
-  Param extends "id" | `${string}Id` = "id",
->(
-  base: Base,
+/** Which parameter of the detail path holds the record's id. */
+type IdParamOf<Pattern extends string> = RouteParamNames<Pattern>;
+
+/** The id parameter a detail path ends with. It must keep the router's
+ * numeric-param convention (`id` or `…Id`) so the page receives a number. */
+const idParamOf = (pattern: string): string => {
+  const marker = pattern.lastIndexOf("/:");
+  const name = marker === -1 ? "" : pattern.slice(marker + 2);
+  if (name === "" || name.includes("/")) {
+    throw new Error(`Entity detail path names no record: ${pattern}`);
+  }
+  return name;
+};
+
+/** Bind an entity page's two GET routes under the path its destination
+ * declares, ready to spread into the area's route table. */
+export const entityTabRoutes = <Pattern extends string>(
+  pattern: Pattern,
   page: Pick<EntityPage<never>, "renderTab">,
-  param?: Param,
-): EntityTabRoutes<Base, Param> => {
-  const name: Param = param ?? ("id" as Param);
-  const idOf = (params: Record<Param, number>): number => params[name];
+): EntityTabRoutes<Pattern> => {
+  const name = idParamOf(pattern) as IdParamOf<Pattern>;
+  const idOf = (params: Record<IdParamOf<Pattern>, number>): number =>
+    params[name];
   return {
-    [`GET ${base}/:${name}`]: (
+    [`GET ${pattern}`]: (
       request: Request,
-      params: Record<Param, number>,
+      params: Record<IdParamOf<Pattern>, number>,
     ) => page.renderTab(request, idOf(params), ""),
-    [`GET ${base}/:${name}/:tab`]: (
+    [`GET ${pattern}/:tab`]: (
       request: Request,
-      params: Record<Param, number> & { tab: string },
+      params: Record<IdParamOf<Pattern>, number> & { tab: string },
     ) => page.renderTab(request, idOf(params), params.tab),
-  } as EntityTabRoutes<Base, Param>;
+  } as EntityTabRoutes<Pattern>;
 };
 
 /** The handler bundle a CRUD factory returns, bindable via

@@ -1,10 +1,33 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import {
+  ADMIN_SURFACE,
   adminDestination,
   adminDestinationAllowed,
   adminPath,
+  adminPattern,
 } from "#shared/admin-surface.ts";
+
+describe("the pattern a route declares", () => {
+  test("is the one the surface holds, for every route", () => {
+    // adminPattern names the literal its declaration wrote, which the fold
+    // cannot carry through as a type. This reads all of them back, so the
+    // name and the value can never drift apart unnoticed.
+    const wrong = Object.entries(ADMIN_SURFACE.destinations)
+      .filter(
+        ([id, destination]) =>
+          adminPattern(id as AdminDestinationId) !== destination.pattern,
+      )
+      .map(([id]) => id);
+    expect(wrong).toEqual([]);
+  });
+
+  test("keeps the parameters the route takes", () => {
+    expect(adminPattern("holiday")).toBe("/admin/holidays/:id");
+    expect(adminPattern("holidays")).toBe("/admin/holidays");
+  });
+});
 
 describe("admin surface paths", () => {
   test("fills every named route parameter", () => {

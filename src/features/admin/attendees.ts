@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /**
  * Admin attendee management routes
  */
@@ -324,7 +325,7 @@ const handleResendNotification = attendeeActions[
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineRoutes({
-  ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
+  ...entityTabRoutes(adminPattern("attendee"), attendeePage),
   ...paymentReviewHandlers,
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,

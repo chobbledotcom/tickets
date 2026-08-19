@@ -7,6 +7,7 @@ import { t } from "#i18n";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import {
   HOLIDAY_DEMO_FIELDS,
@@ -66,6 +67,6 @@ export const holidaysCrud = createOwnerCrudHandlers({
 });
 
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/holidays", holidaysCrud),
-  ...entityTabRoutes("/admin/holidays", holidayPage),
+  ...crudRoutes(adminPattern("holidays"), holidaysCrud),
+  ...entityTabRoutes(adminPattern("holiday"), holidayPage),
 });

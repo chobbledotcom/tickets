@@ -12,17 +12,31 @@ import {
 import type {
   AdminDestinationId,
   AdminPathParams,
+  AdminPatternFor,
 } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
-export type { AdminDestinationId, AdminPathParams };
+export type { AdminDestinationId, AdminPathParams, AdminPatternFor };
 
 const folded = foldAdminAreas(ADMIN_AREAS);
 
 /** The id type comes from the same table, so the lookup cannot miss. */
 export const adminDestination = (id: AdminDestinationId): AdminDestinationDef =>
   folded.destinations[id]!;
+
+/**
+ * The path a route declares, keeping the literal type the table wrote. This is
+ * what a route table binds its handlers under, so the pattern the router serves
+ * and the pattern the surface promises are the same string.
+ *
+ * The declared type says which literal it is; the fold that produced it works
+ * over plain data and cannot carry that through, so the value is named here
+ * and the test reads every id back to prove the two agree.
+ */
+export const adminPattern = <Id extends AdminDestinationId>(
+  id: Id,
+): AdminPatternFor<Id> => adminDestination(id).pattern as AdminPatternFor<Id>;
 
 export const adminPath = <Id extends AdminDestinationId>(
   id: Id,
