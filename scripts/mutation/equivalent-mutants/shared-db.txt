@@ -84,3 +84,23 @@ src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement los
 src/shared/db/backup-snapshot.ts::exportTable.colList~1el369a   → "mutated"   # colList is only read when INSERT statements are built, which happens after the first non-empty page assigned it in the rowCount === 0 branch; the initializer is overwritten before every read (an empty table breaks out before any read)
 src/shared/db/backup-snapshot.ts::exportTable.rows~0k5qahc  ?? → ||   # suppliedPage is BackupRow[] | undefined: an array (even an empty one) is truthy and undefined is falsy, so ?? and || pick the same side for every possible value
 src/shared/db/backup-snapshot.ts::exportTable.colList~0ou5ceg  = → +=   # the rowCount === 0 branch runs at most once (rowCount grows past zero with the same page that enters it), so this appends to the initial empty string, and "" + x === x
+
+# settings/payment-provider.ts — `changePaymentProvider` binds `chosen` for all
+# four kinds, but only three of them can read it. The guard above it throws
+# unless `kind === "disable"`, so `provider` is a valid PaymentProviderType for
+# activate, credentials, and recover. Only `disable` reaches the fallback, and
+# `disable` is the one kind whose statement never reads the bound value: its
+# `payment_provider` CASE stops at the first WHEN, its
+# `last_active_payment_provider` CASE takes the `= 'disable'` branch, and both
+# WHERE terms are already true before the `CASE ?` that spells the credential
+# key is reached.
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u  ?? → ||   # provider is PaymentProviderType | undefined, and no provider id is the empty string, so ?? and || pick the same side
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u   → "mutated"   # only kind "disable" takes this fallback, and the disable statement never evaluates a placeholder bound to chosen
+
+# settings/payment-provider.ts — the same shape one line down. The chosen
+# provider's credential key fills slot ?4, which the statement reads in exactly
+# one place: inside RECOVERY_ALLOWED, behind `?1 <> 'recover'`. Only the
+# disable call omits the provider and so takes this empty fallback, and for
+# that kind the guard's left side is already true, so the row set is the same
+# whatever the key holds.
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosenCredentialKey~1lnjyfd  → "mutated"   # only kind "disable" takes this fallback, and for that kind RECOVERY_ALLOWED is satisfied before the key is read

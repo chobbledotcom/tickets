@@ -27,6 +27,7 @@ import {
   refundAuthorityPrunableSql,
   refundAuthorityWorkSql,
 } from "#shared/payment/refund-authority-lifecycle.ts";
+import { RECOVERY_PRUNABLE_NODES } from "#shared/payment/sumup-recovery-machine-spec.ts";
 import type { User } from "#shared/types.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
@@ -52,6 +53,12 @@ const boundedDelete = (
 
 const isoCutoff = (retentionMs: number): string =>
   new Date(nowMs() - retentionMs).toISOString();
+
+/** The states a staged SumUp checkout may be deleted in, as SQL literals.
+ * They are the machine's own words, so a node that stops being prunable stops
+ * being deleted without this query being touched. */
+const prunableSumupStates = (): string =>
+  RECOVERY_PRUNABLE_NODES.map((state) => `'${state}'`).join(", ");
 
 const paymentStatement = (): PruneStatement => ({
   args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
@@ -112,9 +119,14 @@ const paymentStatement = (): PruneStatement => ({
 
 const pruneStatements = (): PruneStatement[] => [
   paymentStatement(),
-  boundedDelete("sumup_checkouts", "created_at < ?", [
-    isoCutoff(PRUNE_SUMUP_RETENTION_MS),
-  ]),
+  // Only the rows the machine says may go. A checkout that may be holding
+  // money nobody has accounted for is kept however old it gets — deleting it
+  // is the exact harm the recovery task exists to prevent.
+  boundedDelete(
+    "sumup_checkouts",
+    `created_at < ? AND recovery_state IN (${prunableSumupStates()})`,
+    [isoCutoff(PRUNE_SUMUP_RETENTION_MS)],
+  ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),

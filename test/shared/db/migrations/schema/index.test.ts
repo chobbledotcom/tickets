@@ -47,6 +47,6 @@ describe("db > migrations > schema assembly", () => {
     // A site whose stored hash differs from this one gets migrated, so the
     // value is pinned. The schema change guard pins the same value beside the
     // migration list; this one keeps the stamp tied to the schema it is of.
-    expect(SCHEMA_HASH).toBe("1wprqda");
+    expect(SCHEMA_HASH).toBe("g0zsbw");
   });
 });

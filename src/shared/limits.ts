@@ -383,6 +383,57 @@ export const PRUNE_SUMUP_RETENTION_HOURS = limit(
 );
 
 /**
+ * How long after a SumUp checkout is created before we ask SumUp what became
+ * of it (default: 3 hours). SumUp's hosted checkout expires after 30 minutes
+ * and its callback retries stop after 2 hours, so by three hours anything
+ * that was going to arrive has, and SumUp's answer is settled rather than
+ * still pending.
+ */
+export const SUMUP_FIRST_CHECK_HOURS = limit(
+  "SUMUP_FIRST_CHECK_HOURS",
+  3,
+  "SumUp recovery: first check after creation",
+  "hours",
+);
+
+/**
+ * How long to wait before asking again about a checkout the last check could
+ * not settle (default: 6 hours) — SumUp was unreachable, or the payment is
+ * paid but not yet accounted for. Rows that reached a definitive answer are
+ * never asked again.
+ */
+export const SUMUP_RECHECK_HOURS = limit(
+  "SUMUP_RECHECK_HOURS",
+  6,
+  "SumUp recovery: wait before asking again",
+  "hours",
+);
+
+/**
+ * How often the SumUp recovery task looks for checkouts whose check time has
+ * come (default: 30 minutes). The check times themselves are hours apart, so
+ * this only decides how promptly a due row is picked up.
+ */
+export const SUMUP_RECOVERY_INTERVAL_MINUTES = limit(
+  "SUMUP_RECOVERY_INTERVAL_MINUTES",
+  30,
+  "SumUp recovery: how often to look for due checkouts",
+  "minutes",
+);
+
+/**
+ * How many checkouts one SumUp recovery run may take (default: 3). Each costs
+ * one SumUp read, and a paid one can also spend the refund path's calls, so
+ * this is what keeps the task inside the edge subrequest budget.
+ */
+export const SUMUP_RECOVERY_BATCH = limit(
+  "SUMUP_RECOVERY_BATCH",
+  3,
+  "SumUp recovery: checkouts per run",
+  "checkouts",
+);
+
+/**
  * Retention (days) for encrypted string rows that have not been attached to an
  * attendee answer (default: 7). These are usually abandoned paid checkouts:
  * short-lived enough to avoid retaining free-text PII indefinitely, but long
@@ -495,6 +546,10 @@ export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
+export const SUMUP_FIRST_CHECK_MS = SUMUP_FIRST_CHECK_HOURS * 60 * 60 * 1000;
+export const SUMUP_RECHECK_MS = SUMUP_RECHECK_HOURS * 60 * 60 * 1000;
+export const SUMUP_RECOVERY_INTERVAL_MS =
+  SUMUP_RECOVERY_INTERVAL_MINUTES * 60 * 1000;
 export const PRUNE_UNUSED_STRINGS_RETENTION_MS =
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_CONTACTS_RETENTION_MS =
