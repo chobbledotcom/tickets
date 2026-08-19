@@ -72,9 +72,8 @@ src/features/admin/attendees-merge.ts::toBookingChoice~033wh8z  skip_source → 
 src/shared/db/contact-tokens.ts::loadTokenBlob~0hgbweg  ?? → ||   # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
 src/shared/db/contact-tokens.ts::syncChannelToken~07hz79m  ?? → ||   # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
 
-# Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
-# from the routeAdmin/adminPathSegment run over the manifest + footer suites.
-src/features/admin/index.ts::adminPathSegment~1hrcxzo  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+# Admin segment dispatch (admin/index.ts) — one provably-equivalent survivor
+# from the routeAdmin run over the manifest + footer suites.
 src/features/admin/index.ts::buildSegmentRouters.areas~1hp6gg8  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from

@@ -17,14 +17,11 @@ import {
 import { isJsonApiPath } from "#routes/middleware.ts";
 import { createRouter } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
-import type { AdminAreaId } from "#shared/admin-surface/definitions.ts";
+import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
+import type { AdminAreaId } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { enableFooterDebug } from "#shared/db/query-log.ts";
 import { isStaffRole } from "#shared/types.ts";
-
-/** The `/admin/<segment>` part of a path, or "" for `/admin`. */
-export const adminPathSegment = (path: string): string =>
-  path.split("/")[2] ?? "";
 
 type AdminSegment = {
   load: () => Promise<PathMethodRoute>;

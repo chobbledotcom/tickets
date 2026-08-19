@@ -69,6 +69,9 @@ src/shared/bunny-cdn.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → ||   
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → ||   # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
+src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → ||   # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
