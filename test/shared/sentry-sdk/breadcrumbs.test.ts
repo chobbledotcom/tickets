@@ -3,7 +3,7 @@
 // another suite decide that before this file installs its fetch stub.
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { ErrorCode } from "#shared/logger.ts";
+import { ErrorCode, logDebug, runWithRequestId } from "#shared/logger.ts";
 import { captureServerError, initSentry } from "#shared/sentry.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -51,5 +51,26 @@ describe("report breadcrumbs", () => {
 
     const body = String((fetchStub.calls[1]!.args[1] as RequestInit).body);
     expect(body).not.toContain('"category":"sentry"');
+  });
+
+  // The SDK collects console lines onto one shared scope and ships no
+  // async-context strategy for Deno, so a report on a busy isolate would
+  // otherwise carry whatever ran beside it and none of its own.
+  test("carries the lines of its own request and no other", async () => {
+    using _env = withEnv({ SENTRY_URL: DSN });
+    using fetchStub = stubFetch(() => new Response("{}", { status: 200 }));
+    await initSentry();
+
+    await runWithRequestId(async () => {
+      logDebug("Setup", "the neighbouring request");
+    });
+    await runWithRequestId(async () => {
+      logDebug("Setup", "the reporting request");
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+    });
+
+    const body = String((fetchStub.calls.at(-1)!.args[1] as RequestInit).body);
+    expect(body).toContain("the reporting request");
+    expect(body).not.toContain("the neighbouring request");
   });
 });

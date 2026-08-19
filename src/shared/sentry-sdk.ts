@@ -5,6 +5,7 @@
  * unused Sentry exports without evaluating the SDK during module load.
  */
 
+import type { ErrorEvent } from "@sentry/core";
 import {
   createStackParser,
   createTransport,
@@ -23,6 +24,7 @@ import {
   isInitialized,
   linkedErrorsIntegration,
 } from "@sentry/deno";
+import { linesForRequest } from "#shared/sentry-breadcrumbs.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 type InitOptions = {
@@ -74,9 +76,30 @@ const eventShapingIntegrations = [
   linkedErrorsIntegration(),
 ];
 
+/**
+ * Drop the console lines that belong to other requests. The SDK collects them
+ * onto one shared scope, so without this a report on a busy isolate carries
+ * whatever ran beside it. `requestId` is the tag the reporter sets.
+ */
+const keepOwnBreadcrumbs = (event: ErrorEvent): ErrorEvent => {
+  // A tag is typed as any primitive, but the reporter only ever sets strings.
+  // Anything else leaves no id to match on, so every line is kept.
+  const requestId = event.tags?.requestId;
+  return event.breadcrumbs === undefined
+    ? event
+    : {
+        ...event,
+        breadcrumbs: linesForRequest(
+          typeof requestId === "string" ? requestId : undefined,
+          event.breadcrumbs,
+        ),
+      };
+};
+
 const init = (options: InitOptions): DenoClient => {
   const client = new DenoClient({
     ...options,
+    beforeSend: keepOwnBreadcrumbs,
     integrations: eventShapingIntegrations,
     stackParser: createStackParser(nodeStackLineParser()),
     tracesSampleRate: 0,
