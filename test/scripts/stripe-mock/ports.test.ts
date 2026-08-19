@@ -38,7 +38,7 @@ describe("stripe-mock ports and environment", () => {
               hostname: "127.0.0.1",
               port: reserved.port,
             });
-          }).toThrow();
+          }).toThrow(Deno.errors.AddrInUse);
           reserved.release();
           reserved.release();
           try {
