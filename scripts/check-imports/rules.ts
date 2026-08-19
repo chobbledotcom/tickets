@@ -91,34 +91,30 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null => {
 /**
  * Every top-level import in `content`. A line that starts in column 0 is the
  * only one that counts, so an example import quoted inside a string is not
- * mistaken for the real thing.
+ * mistaken for the real thing. The module name is read from the line that ends
+ * the statement, which is the line carrying `from`, and the shape from the line
+ * that opens it.
  */
 export const topLevelImports = (content: string): ImportLine[] => {
   const found: ImportLine[] = [];
-  const lines = content.split("\n");
-  let start = -1;
-  let buffer: string[] = [];
-  for (const [index, line] of lines.entries()) {
-    if (start < 0 && /^import[\s{"']/.test(line)) {
-      start = index;
-      buffer = [];
+  let open: { head: string; line: number } | null = null;
+  for (const [index, line] of content.split("\n").entries()) {
+    if (open === null && /^import[\s{"']/.test(line)) {
+      open = { head: line, line: index + 1 };
     }
-    if (start < 0) continue;
-    buffer.push(line);
+    if (open === null) continue;
     const isEnd =
       /from\s+["']/.test(line) || /^import\s+["'][^"']*["']/.test(line);
     if (!isEnd) continue;
-    const statement = buffer.join("\n");
-    const specifier = statement.match(/from\s+["']([^"']+)["']/)?.[1];
+    const specifier = line.match(/from\s+["']([^"']+)["']/)?.[1];
     if (specifier !== undefined) {
-      const head = statement.slice(0, statement.indexOf(" from ")).trim();
       found.push({
-        line: start + 1,
-        namesOnly: /^import\s+(type\s+)?\{/.test(head),
+        line: open.line,
+        namesOnly: /^import\s+(type\s+)?\{/.test(open.head),
         specifier,
       });
     }
-    start = -1;
+    open = null;
   }
   return found;
 };
@@ -153,7 +149,6 @@ const findLongSpellings = (
 ): ImportIssue[] => {
   const issues: ImportIssue[] = [];
   for (const entry of imports) {
-    if (!entry.specifier.startsWith("#")) continue;
     const path = resolveSpecifier(aliases, entry.specifier);
     if (path === null) continue;
     const best = bestSpelling(aliases, path);

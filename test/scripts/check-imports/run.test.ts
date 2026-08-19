@@ -79,6 +79,26 @@ describe("runImportCheck", () => {
     expect(run.errors[0]).toContain('imports "#types" again');
   });
 
+  test("names the count and the rule it enforced", async () => {
+    await run.write("deno.json", CONFIG);
+    await run.write("src/a.ts", 'import { a } from "#shared/types.ts";\n');
+    expect(await check(`${run.path}/src`)).toBe(1);
+    expect(run.errors.at(-1)).toContain("1 import issue(s) found");
+    expect(run.errors.at(-1)).toContain(
+      '"Imports name a module one way" in AGENTS.md',
+    );
+  });
+
+  test("lists every root it checked in the success line", async () => {
+    await run.write("deno.json", CONFIG);
+    await run.write("src/a.ts", 'import { a } from "#db/client.ts";\n');
+    await run.write("test/b.ts", 'import { b } from "#db/client.ts";\n');
+    expect(await check(`${run.path}/src`, `${run.path}/test`)).toBe(0);
+    expect(run.logs).toEqual([
+      `Every import in ${run.path}/src, ${run.path}/test names its module once, by its shortest alias.`,
+    ]);
+  });
+
   test("checks every root it is given", async () => {
     await run.write("deno.json", CONFIG);
     await run.write("src/a.ts", 'import { a } from "#db/client.ts";\n');

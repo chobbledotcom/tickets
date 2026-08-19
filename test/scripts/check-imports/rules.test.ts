@@ -73,6 +73,14 @@ describe("bestSpelling", () => {
     expect(bestSpelling(aliases, "./x/f.ts")).toBe("#aa/f.ts");
   });
 
+  test("keeps the shortest alias over an alphabetically earlier longer one", () => {
+    const aliases: Alias[] = [
+      { name: "#z/", target: "./x/" },
+      { name: "#aaa/", target: "./x/" },
+    ];
+    expect(bestSpelling(aliases, "./x/f.ts")).toBe("#z/f.ts");
+  });
+
   test("returns null when no alias reaches the file", () => {
     expect(bestSpelling(ALIASES, "./elsewhere/f.ts")).toBeNull();
   });
