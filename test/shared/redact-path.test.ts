@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { redactPath } from "#shared/logger.ts";
+import { redactPath } from "#shared/redact-path.ts";
 
 describe("redactPath", () => {
   test("redacts ticket slugs", () => {
@@ -67,5 +67,24 @@ describe("redactPath", () => {
 
   test("handles trailing slashes with IDs", () => {
     expect(redactPath("/admin/listings/123/")).toBe("/admin/listings/[id]/");
+  });
+
+  // Regression: the live ticket route is `/t/:token`, not `/ticket/:slug`.
+  // The token is the whole credential for that ticket, and it was reaching the
+  // logs and the error reporter in full.
+  test("redacts the token on the live ticket route", () => {
+    expect(redactPath("/t/9D5F57B232")).toBe("/t/[redacted]");
+  });
+
+  test("redacts every token on a multi-ticket URL", () => {
+    expect(redactPath("/t/9D5F57B232+A1B2C3D4E5")).toBe("/t/[redacted]");
+  });
+
+  test("keeps the bare ticket route, which carries no token", () => {
+    expect(redactPath("/t")).toBe("/t");
+  });
+
+  test("leaves routes that only start with the same letter alone", () => {
+    expect(redactPath("/terms")).toBe("/terms");
   });
 });

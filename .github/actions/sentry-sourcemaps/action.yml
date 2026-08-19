@@ -37,12 +37,32 @@ runs:
     # that actually runs in Bunny carries the IDs Sentry matches maps by. This
     # is filename-independent, which matters because we can't predict the path
     # the edge runtime reports in stack frames.
+    #
+    # The CLI injects only files it reads as JavaScript, and merely prints
+    # "Nothing to inject" for a `.ts` bundle, so the work happens on a `.js`
+    # copy. `prepare` writes that copy and `adopt` puts the injected code back
+    # on the deployed bundle. The copy stays on disk for the upload step, which
+    # must send the same pair the debug IDs were written into.
     - name: Inject debug IDs
       if: ${{ inputs.command == 'inject' && inputs.auth_token != '' }}
       shell: bash
-      run: npx @sentry/cli@^2 sourcemaps inject "${{ inputs.file }}" "${{ inputs.file }}.map"
+      run: |
+        js="$(deno run --allow-read --allow-write \
+          scripts/sentry-debug-ids.ts prepare "${{ inputs.file }}")"
+        npx @sentry/cli@^2 sourcemaps inject "$js" "$js.map"
+        grep -q "_sentryDebugIds" "$js" || {
+          echo "::error::sentry-cli injected no debug ID into $js"
+          exit 1
+        }
+        deno run --allow-read --allow-write \
+          scripts/sentry-debug-ids.ts adopt "${{ inputs.file }}"
+        grep -q "_sentryDebugIds" "${{ inputs.file }}" || {
+          echo "::error::the deployed bundle carries no debug ID"
+          exit 1
+        }
 
-    # Upload the bundle + map for this release *after* deploy.
+    # Upload the injected `.js` pair *after* deploy. It carries the same debug
+    # IDs as the deployed bundle, which is what Sentry matches a map by.
     - name: Upload source maps
       if: ${{ inputs.command == 'upload' && inputs.auth_token != '' }}
       shell: bash
@@ -52,6 +72,8 @@ runs:
         SENTRY_ORG: ${{ inputs.org }}
         SENTRY_PROJECT: ${{ inputs.project }}
       run: |
+        js="$(deno run --allow-read scripts/sentry-debug-ids.ts \
+          js-path "${{ inputs.file }}")"
         npx @sentry/cli@^2 sourcemaps upload \
           --release "${{ inputs.release }}" \
-          "${{ inputs.file }}" "${{ inputs.file }}.map"
+          "$js" "$js.map"

@@ -10,16 +10,29 @@
  * named-import adapter is dynamically imported on the first `initSentry` call
  * with a DSN configured, never at module load. The adapter lets the production
  * build remove unused SDK exports while a deployment without `SENTRY_URL`
- * skips evaluating the retained code entirely. All default integrations are
- * disabled (`integrations: []`): they read Deno-specific globals and source files we
- * don't need, and turning them off keeps the SDK to its core capture + fetch
- * transport, which is exactly what the edge runtime supports.
+ * skips evaluating the retained code entirely. It also names the handful of
+ * integrations a report needs, because constructing the client directly adds
+ * none of them.
+ *
+ * Every report names the site it came from, the route it happened on, and the
+ * request id the console lines carry, so one Sentry endpoint can serve many
+ * sites and a report still leads back to the request that made it.
  */
 
 import { lazyRef } from "#fp";
 import { BUILD_COMMIT } from "#shared/build-info.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { getEnv } from "#shared/env.ts";
-import { type ErrorContext, formatErrorMessage } from "#shared/logger.ts";
+import {
+  type ErrorContext,
+  formatErrorMessage,
+  getRequestId,
+} from "#shared/logger.ts";
+import {
+  getRequestTrace,
+  getTracedRoute,
+  getTracedUrl,
+} from "#shared/request-trace.ts";
 
 type SentrySdk = typeof import("#shared/sentry-sdk.ts")["sentrySdk"];
 type LoadedSentry = {
@@ -100,16 +113,48 @@ export const sendSentryTest = async (): Promise<boolean> => {
   });
 };
 
-/** Per-event tags so errors can be filtered by class in the Sentry UI. */
-const eventTags = (context: ErrorContext): Record<string, string> => {
-  const tags: Record<string, string> = { code: context.code };
-  if (context.listingId !== undefined) {
-    tags.listingId = String(context.listingId);
-  }
-  if (context.attendeeId !== undefined) {
-    tags.attendeeId = String(context.attendeeId);
-  }
-  return tags;
+/**
+ * Per-event tags, so a report can be filtered by class, by site, and by
+ * request. `site` names which of our sites reported it, because many sites
+ * share one Sentry endpoint. `requestId` is the same four characters the
+ * console lines carry, so a report leads back to the log beside it. Empty and
+ * missing values are dropped rather than sent as blanks.
+ */
+const eventTags = (context: ErrorContext): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries({
+      attendeeId: context.attendeeId,
+      code: context.code,
+      listingId: context.listingId,
+      requestId: getRequestId(),
+      // The host the visitor actually asked for. Outside a request — boot, a
+      // scheduled run — fall back to the site's own configured domain, the
+      // same one the ntfy notification titles use.
+      site: getRequestTrace()?.host ?? getEffectiveDomain(),
+      url: getTracedUrl(),
+    })
+      .filter(
+        ([, value]) => value !== undefined && value !== null && value !== "",
+      )
+      .map(([key, value]) => [key, String(value)]),
+  );
+
+/**
+ * How to group a report that carries no exception.
+ *
+ * A message report has no stack, so Sentry groups it by the message text — and
+ * our text ends with a detail that names the image, the session, or the
+ * amount. That made one issue per detail: forty separate "Broken image"
+ * issues, none of them a place to look. Grouping by the error code and the
+ * route puts every one of them in a single issue with forty events.
+ *
+ * A report that carries an exception keeps the SDK's own stack grouping, which
+ * is already the right answer.
+ */
+const messageFingerprint = (context: ErrorContext): string[] => {
+  if (context.error !== undefined) return [];
+  const trace = getRequestTrace();
+  return trace ? [context.code, trace.method, trace.route] : [context.code];
 };
 
 /**
@@ -125,17 +170,14 @@ export const captureServerError = async (
   if (!loaded?.sdk.isInitialized()) return;
   const Sentry = loaded.sdk;
 
-  const captureContext = {
-    ...(context.detail ? { extra: { detail: context.detail } } : {}),
-    level: "error" as const,
+  Sentry.captureReport({
+    error: context.error,
+    extra: context.detail ? { detail: context.detail } : {},
+    fingerprint: messageFingerprint(context),
+    message: formatErrorMessage(context),
     tags: eventTags(context),
-  };
-
-  if (context.error !== undefined) {
-    Sentry.captureException(context.error, captureContext);
-  } else {
-    Sentry.captureMessage(formatErrorMessage(context), captureContext);
-  }
+    transactionName: getTracedRoute() ?? undefined,
+  });
 
   await Sentry.flush(FLUSH_TIMEOUT_MS);
 };

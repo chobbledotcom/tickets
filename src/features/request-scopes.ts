@@ -10,6 +10,7 @@ import { runWithSavedFormContext } from "#shared/forms/saved-data.ts";
 import { runWithIframeContext } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
+import { runWithRequestTrace } from "#shared/request-trace.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { runWithAdminFooterContext } from "#templates/admin/footer.tsx";
@@ -26,6 +27,7 @@ export const runWithRequestScopes = (
     (next) => runWithClientIp(getClientIp(request, server), next),
     runWithSubrequestBudget,
     runWithRequestId,
+    (next) => runWithRequestTrace(request, next),
     runWithRequestCache,
     runWithQueryLogContext,
     runWithFlashContext,
