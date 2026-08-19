@@ -23,11 +23,7 @@ export type EntityTabRoutes<Pattern extends string> = {
 const idParamOf = (pattern: string): string => {
   const marker = pattern.lastIndexOf("/:");
   const name = marker === -1 ? "" : pattern.slice(marker + 2);
-  if (
-    name === "" ||
-    name.includes("/") ||
-    !(name === "id" || name.endsWith("Id"))
-  ) {
+  if (name.includes("/") || !(name === "id" || name.endsWith("Id"))) {
     throw new Error(`Entity detail path names no record: ${pattern}`);
   }
   return name;

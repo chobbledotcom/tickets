@@ -79,6 +79,14 @@ describe("entityTabRoutes", () => {
     ).toThrow("Entity detail path names no record: /admin/things/:id/edit");
   });
 
+  test("refuses a path whose last part only looks like the parameter", () => {
+    // The tail after the last `:` crosses a slash here, so `subId` is a fixed
+    // part of the path and not the parameter the page would be handed.
+    expect(() =>
+      entityTabRoutes("/admin/things/:id/subId", recordingPage()),
+    ).toThrow("Entity detail path names no record: /admin/things/:id/subId");
+  });
+
   test("refuses a parameter the router does not read as a number", () => {
     // The page is handed the record as a number, and the router only converts
     // a parameter called `id` or ending in `Id`. A `:slug` would arrive as a
