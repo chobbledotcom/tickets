@@ -44,10 +44,16 @@ describe("runImportCheck", () => {
   const check = (...roots: string[]) =>
     runImportCheck(`${run.path}/deno.json`, roots, run.output);
 
-  test("passes a clean tree and says what it enforced", async () => {
+  /** Set the tree up with `source` as its only file, then check `src`. */
+  const checkOnly = async (source: string) => {
     await run.write("deno.json", CONFIG);
-    await run.write("src/a.ts", 'import { a } from "#db/client.ts";\n');
-    expect(await check(`${run.path}/src`)).toBe(0);
+    await run.write("src/a.ts", source);
+    return await check(`${run.path}/src`);
+  };
+  const LONG_SPELLING = 'import { a } from "#shared/types.ts";\n';
+
+  test("passes a clean tree and says what it enforced", async () => {
+    expect(await checkOnly('import { a } from "#db/client.ts";\n')).toBe(0);
     expect(run.logs).toEqual([
       `Every import in ${run.path}/src names its module once, by its shortest alias.`,
     ]);
@@ -55,9 +61,7 @@ describe("runImportCheck", () => {
   });
 
   test("fails and names the file, line, and the spelling to use", async () => {
-    await run.write("deno.json", CONFIG);
-    await run.write("src/a.ts", 'import { a } from "#shared/types.ts";\n');
-    expect(await check(`${run.path}/src`)).toBe(1);
+    expect(await checkOnly(LONG_SPELLING)).toBe(1);
     expect(run.errors[0]).toBe(
       `${run.path}/src/a.ts:1 imports "#shared/types.ts" — write "#types" instead`,
     );
@@ -65,24 +69,18 @@ describe("runImportCheck", () => {
   });
 
   test("reports a file that imports one module twice", async () => {
-    await run.write("deno.json", CONFIG);
-    await run.write(
-      "src/a.ts",
-      [
-        'import type { A } from "#types";',
-        'import { b } from "#types";',
-        "",
-      ].join("\n"),
-    );
-    expect(await check(`${run.path}/src`)).toBe(1);
+    const twice = [
+      'import type { A } from "#types";',
+      'import { b } from "#types";',
+      "",
+    ].join("\n");
+    expect(await checkOnly(twice)).toBe(1);
     expect(run.errors[0]).toContain(`${run.path}/src/a.ts:2`);
     expect(run.errors[0]).toContain('imports "#types" again');
   });
 
   test("names the count and the rule it enforced", async () => {
-    await run.write("deno.json", CONFIG);
-    await run.write("src/a.ts", 'import { a } from "#shared/types.ts";\n');
-    expect(await check(`${run.path}/src`)).toBe(1);
+    expect(await checkOnly(LONG_SPELLING)).toBe(1);
     expect(run.errors.at(-1)).toContain("1 import issue(s) found");
     expect(run.errors.at(-1)).toContain(
       '"Imports name a module one way" in AGENTS.md',
@@ -109,7 +107,7 @@ describe("runImportCheck", () => {
 
   test("skips a file that is not TypeScript", async () => {
     await run.write("deno.json", CONFIG);
-    await run.write("src/a.md", 'import { a } from "#shared/types.ts";\n');
+    await run.write("src/a.md", LONG_SPELLING);
     expect(await check(`${run.path}/src`)).toBe(0);
   });
 
