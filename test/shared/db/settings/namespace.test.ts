@@ -8,6 +8,9 @@ describe("db > settings namespace", () => {
 
     const merged = withProperties(target, { added: "new" });
 
+    // The settings namespace merges its parts one after another, each onto the
+    // object the last one returned.
+    expect(merged).toBe(target);
     expect({ added: merged.added, alreadyHere: merged.alreadyHere }).toEqual({
       added: "new",
       alreadyHere: "kept",
