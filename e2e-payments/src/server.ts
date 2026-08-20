@@ -16,7 +16,7 @@ import { probeSignal, sleep, stopChild } from "./util.ts";
 /* jscpd:ignore-end */
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const repoRoot = resolve(here, "..", "..");
+const repoRoot = resolve(here, "..", "..");
 
 /** The one artifact root every harness module writes under — screenshots,
  * journals, Cucumber reports, and server logs all derive from the configured

@@ -2485,6 +2485,31 @@ scope so intermediate applies never touch tables the migration does not declare.
 The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
 keep the loud refusal on non-empty tables.
 
+## Split the three oversized e2e-payments files
+
+_Origin: a self-review of PR #2116 against AGENTS.md._
+
+Three harness files are above the ~400-line guideline, and two of them crossed
+it in that pull request:
+
+| File                                         | Lines |
+| -------------------------------------------- | ----- |
+| `e2e-payments/src/cucumber/steps/booking.ts` | 484   |
+| `e2e-payments/src/browser.ts`                | 430   |
+| `e2e-payments/src/flow.ts`                   | 404   |
+
+The splits are already visible in the code. `browser.ts` carries the
+click-witness helpers (`armClickWitness`, `armWitnessedAttempt`, and the
+`Witnessed` shape) above `launchAppBrowser`, and they depend on nothing else in
+the file, so they move to their own module whole. `booking.ts` carries the
+webhook-evidence block (`WEBHOOK_DID`, `WEBHOOK_HELD`, `callbackLine`,
+`webhookEvidenceThen`), which is one concept and reads as one. `flow.ts` is four
+lines over, so it needs no split of its own once the ledger reader has somewhere
+better to live.
+
+Do this when the harness is next open for other work, so the split lands with a
+real run rather than on its own.
+
 ## Give the live payment harness direct tests through injectable seams
 
 _Origin: the coverage-exclusion thread of the Codex review on PR #2065._
