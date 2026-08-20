@@ -7,6 +7,7 @@
 
 import { getSitePageById } from "#db/site-pages.ts";
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import {
   sitePageEditPanel,
   sitePageItemsPanel,
@@ -27,13 +28,13 @@ const itemsTab = writeFormTab<SitePage>(
 /** The tabbed site-page page. */
 export const sitePageEntityPage: EntityPage<SitePage> =
   defineSiteContentPage<SitePage>({
-    basePath: (id) => `/admin/site/pages/${id}`,
     deleteLabelKey: "site.pages.delete_submit",
+    destination: "sitePage",
     editPanel: sitePageEditPanel,
     extraTabs: [itemsTab],
     guideAnchor: "public-site",
     itemType: "page",
     load: (id) => getSitePageById(id),
-    navActive: "/admin/site/pages",
+    navActive: adminPattern("sitePages"),
     titleOf: (page) => page.name,
   });

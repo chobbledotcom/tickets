@@ -46,6 +46,40 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       await assertAdminHtml("/admin/attendees", "No attendees yet");
     });
 
+    test("links to the spreadsheet of every attendee", async () => {
+      await makeListing("Gala Night");
+
+      await assertAdminHtml("/admin/attendees", 'href="/admin/attendees/csv"');
+    });
+
+    test("ignores a check-in filter asked for in the address", async () => {
+      // Checking in belongs to one listing's own attendee list. The browser
+      // spans every listing, so it offers no check-in filter and drops one
+      // that arrives in the address.
+      const listing = await makeListing("Gala Night");
+      await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+
+      const html = await (await adminGet("/admin/attendees?filter=in")).text();
+
+      expect(html).not.toContain("filter=in");
+      // Alice is not checked in, so a filter that took hold would drop her.
+      expect(html).toContain("Alice");
+    });
+
+    test("ignores a date asked for in the address", async () => {
+      // The browser has no day picker, so no link it renders carries a date.
+      const listing = await makeListing("Gala Night");
+      await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+
+      const html = await (
+        await adminGet("/admin/attendees?date=2026-01-01")
+      ).text();
+
+      expect(html).not.toContain("date=2026-01-01");
+      // Alice booked no day in 2026, so a date that took hold would drop her.
+      expect(html).toContain("Alice");
+    });
+
     test("flags a deactivated listing in the filter dropdown", async () => {
       // A second listing keeps the dropdown rendered (one listing hides it).
       await makeListing("Live Show");

@@ -401,7 +401,7 @@ export const setupListingAndLogin = async (
 
 export const adminFormPost = async (
   path: string,
-  data: Record<string, string> = {},
+  data: TestFormValues = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { settings } = await import("#db/settings.ts");
   await settings.loadKeys([]);

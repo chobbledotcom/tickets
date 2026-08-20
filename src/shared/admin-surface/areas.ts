@@ -15,6 +15,7 @@ import {
   OWNER_AUDIENCE,
 } from "#shared/admin-surface/definitions.ts";
 import {
+  ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
   DELIVERY_ADMIN_LEVELS,
   SITE_ADMIN_LEVELS,
@@ -25,6 +26,8 @@ export const ADMIN_AREAS = {
   apiKeys: {
     audience: OWNER_AUDIENCE,
     view: {
+      apiKey: "/admin/api-keys/:apiKeyId",
+      apiKeyDocs: "/admin/api-keys/docs",
       apiKeys: "/admin/api-keys",
     },
     write: {
@@ -49,7 +52,9 @@ export const ADMIN_AREAS = {
     audience: STAFF_ADMIN_LEVELS,
     segments: ["listing"],
     view: {
+      attendee: "/admin/attendees/:attendeeId",
       attendees: "/admin/attendees",
+      attendeesCsv: "/admin/attendees/csv",
     },
     write: {
       attendeeActions: "/admin/attendees/:attendeeId/actions",
@@ -68,6 +73,7 @@ export const ADMIN_AREAS = {
     audience: OWNER_AUDIENCE,
     segments: ["listing"],
     view: {
+      attribute: "/admin/attributes/:id",
       attributes: "/admin/attributes",
     },
     write: {
@@ -77,20 +83,30 @@ export const ADMIN_AREAS = {
     },
   },
   auth: {
-    segments: ["login", "logout"],
+    // Signing in and out is how every role reaches, or leaves, the rest.
+    audience: ALL_ADMIN_LEVELS,
+    view: {
+      login: "/admin/login",
+      logout: "/admin/logout",
+    },
   },
   backup: {
     audience: OWNER_AUDIENCE,
     view: {
       backup: "/admin/backup",
+      backupDownload: "/admin/backup/download/:filename",
     },
   },
   builder: {
-    segments: ["builder"],
+    audience: OWNER_AUDIENCE,
+    view: {
+      builder: "/admin/builder",
+    },
   },
   builtSites: {
     audience: OWNER_AUDIENCE,
     view: {
+      builtSite: "/admin/built-sites/:id",
       builtSites: "/admin/built-sites",
     },
     write: {
@@ -111,6 +127,7 @@ export const ADMIN_AREAS = {
   bulkEmail: {
     audience: OWNER_AUDIENCE,
     view: {
+      emailPreview: "/admin/emails/preview",
       emails: "/admin/emails",
     },
     write: {
@@ -121,24 +138,32 @@ export const ADMIN_AREAS = {
     audience: STAFF_ADMIN_LEVELS,
     view: {
       calendar: "/admin/calendar",
+      calendarExport: "/admin/calendar/export",
     },
   },
   catalogTransfer: {
     audience: CONTENT_ADMIN_LEVELS,
-    segments: ["groups", "listing"],
+    view: {
+      groupExportJson: "/admin/groups/:id/export.json",
+      listingExportJson: "/admin/listing/:id/export.json",
+    },
     write: {
       catalogImport: "/admin/catalog/import",
     },
   },
   contactHistory: {
-    segments: ["history"],
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      contactHistory: "/admin/history/:hmac",
+    },
   },
   dashboard: {
     audience: STAFF_ADMIN_LEVELS,
-    segments: ["log"],
     view: {
       home: "/admin/",
       listings: { audience: CONTENT_ADMIN_LEVELS, pattern: "/admin/listings" },
+      listingsCsv: "/admin/listings/csv",
+      log: "/admin/log",
     },
   },
   debug: {
@@ -158,6 +183,9 @@ export const ADMIN_AREAS = {
   groups: {
     audience: CONTENT_ADMIN_LEVELS,
     view: {
+      // A record page opens on the first tab its viewer can see, so an editor
+      // reaches it and lands on Edit. The staff-only tabs stay shut.
+      group: "/admin/groups/:id",
       groups: "/admin/groups",
     },
     write: {
@@ -171,11 +199,19 @@ export const ADMIN_AREAS = {
     },
   },
   guide: {
-    segments: ["formatting", "guide"],
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      formatting: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/formatting",
+      },
+      guide: "/admin/guide",
+    },
   },
   holidays: {
     audience: OWNER_AUDIENCE,
     view: {
+      holiday: "/admin/holidays/:id",
       holidays: "/admin/holidays",
     },
     write: {
@@ -199,6 +235,7 @@ export const ADMIN_AREAS = {
     audience: OWNER_AUDIENCE,
     view: {
       ledger: "/admin/ledger",
+      ledgerAccount: "/admin/ledger/:type/:ref",
     },
     write: {
       ledgerAdd: "/admin/ledger/:type/:ref/add",
@@ -206,10 +243,23 @@ export const ADMIN_AREAS = {
     },
   },
   listingQr: {
-    segments: ["listing"],
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      listingQrJson: "/admin/listing/:id/qr.json",
+    },
   },
   listings: {
     audience: STAFF_ADMIN_LEVELS,
+    view: {
+      // A record page opens on the first tab its viewer can see, so an editor
+      // reaches it and lands on Edit. The staff-only tabs stay shut.
+      listing: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/listing/:id",
+      },
+      listingAttendeesCsv: "/admin/listing/:id/attendees.csv",
+      listingExport: "/admin/listing/:id/export",
+    },
     write: {
       listingAttributes: {
         audience: OWNER_AUDIENCE,
@@ -248,6 +298,7 @@ export const ADMIN_AREAS = {
   modifiers: {
     audience: STAFF_ADMIN_LEVELS,
     view: {
+      modifier: "/admin/modifiers/:id",
       modifiers: "/admin/modifiers",
     },
     write: {
@@ -261,6 +312,7 @@ export const ADMIN_AREAS = {
     audience: SITE_ADMIN_LEVELS,
     view: {
       news: "/admin/site/news",
+      newsPost: "/admin/site/news/:id",
     },
     write: {
       newsActions: "/admin/site/news/:id/actions",
@@ -274,12 +326,14 @@ export const ADMIN_AREAS = {
     audience: OWNER_AUDIENCE,
     view: {
       privacy: "/admin/privacy",
+      privacyRefund: "/admin/privacy/refunds/:id",
     },
   },
   questions: {
     audience: OWNER_AUDIENCE,
     segments: ["listing"],
     view: {
+      question: "/admin/questions/:id",
       questions: "/admin/questions",
     },
     write: {
@@ -290,7 +344,10 @@ export const ADMIN_AREAS = {
     },
   },
   scanner: {
-    segments: ["listing"],
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      listingScanner: "/admin/listing/:id/scanner",
+    },
   },
   schemaAtlas: {
     audience: OWNER_AUDIENCE,
@@ -299,7 +356,10 @@ export const ADMIN_AREAS = {
     },
   },
   seeds: {
-    segments: ["seeds"],
+    audience: OWNER_AUDIENCE,
+    view: {
+      seeds: "/admin/seeds",
+    },
   },
   servicing: {
     audience: STAFF_ADMIN_LEVELS,
@@ -319,8 +379,8 @@ export const ADMIN_AREAS = {
   },
   settings: {
     audience: OWNER_AUDIENCE,
-    segments: ["features"],
     view: {
+      feature: "/admin/features/:slug",
       listingDefaults: "/admin/listing-defaults",
       settings: "/admin/settings",
       settingsAdvanced: "/admin/settings-advanced",
@@ -330,6 +390,7 @@ export const ADMIN_AREAS = {
     audience: OWNER_AUDIENCE,
     view: {
       logistics: "/admin/logistics",
+      logisticsAgent: "/admin/logistics/:id",
     },
     write: {
       logisticsDelete: "/admin/logistics/:id/delete",
@@ -340,6 +401,7 @@ export const ADMIN_AREAS = {
   settingsStatuses: {
     audience: OWNER_AUDIENCE,
     view: {
+      status: "/admin/settings/statuses/:id",
       statuses: "/admin/settings/statuses",
     },
     write: {
@@ -359,6 +421,7 @@ export const ADMIN_AREAS = {
   sitePages: {
     audience: SITE_ADMIN_LEVELS,
     view: {
+      sitePage: "/admin/site/pages/:id",
       sitePages: "/admin/site/pages",
     },
     write: {
@@ -371,7 +434,10 @@ export const ADMIN_AREAS = {
     },
   },
   sms: {
-    segments: ["sms"],
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      sms: "/admin/sms",
+    },
   },
   support: {
     audience: OWNER_AUDIENCE,
@@ -388,6 +454,7 @@ export const ADMIN_AREAS = {
   users: {
     audience: OWNER_AUDIENCE,
     view: {
+      user: "/admin/users/:id",
       users: "/admin/users",
     },
     write: {

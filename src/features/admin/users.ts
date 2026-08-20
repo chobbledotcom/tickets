@@ -42,6 +42,7 @@ import {
 import { idRouteFor, ownerFormById } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -245,10 +246,9 @@ const userActionsTab: TabDef<DisplayUser> = {
 
 /** The owner-only user management and agent-assignment page. */
 const userPage: EntityPage<DisplayUser> = defineEntityPage({
-  basePath: (id) => `/admin/users/${id}`,
-  guard: requireOwnerOr,
+  destination: "user",
   load: (id) => loadDisplayUser(id),
-  navActive: { section: "/admin/users" },
+  navActive: { section: adminPattern("users") },
   tabs: [
     userOverviewTab,
     {

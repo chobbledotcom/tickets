@@ -57,7 +57,7 @@ import {
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -313,12 +313,11 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
       ),
       statuses: await attendeeStatuses.getAll(),
     }),
-  basePath: (id) => `/admin/attendees/${id}`,
-  guard: requireSessionOr,
+  destination: "attendee",
   load: (id) => loadAttendeePageEntity(id),
   // A single attendee is a page *within* the Attendees section: highlight the
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
-  navActive: { section: "/admin/attendees" },
+  navActive: { section: adminPattern("attendees") },
   proseExtra: ({ attendee }) =>
     Promise.resolve(
       isReadOnly() ? null : AddNoteLink({ attendeeId: attendee.id }),

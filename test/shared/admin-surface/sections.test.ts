@@ -7,7 +7,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
-import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
+import {
+  ADMIN_SURFACE,
+  adminDestination,
+  adminPattern,
+} from "#shared/admin-surface.ts";
 
 const navEntries = ADMIN_SECTIONS.flatMap((section) =>
   section.nav.map((entry) => ({ entry, section })),
@@ -122,7 +126,7 @@ describe("the words the navigation shows", () => {
 
 describe("the sections that own a record page", () => {
   const withDetail = ADMIN_SECTIONS.filter(
-    (section) => section.detailPath !== undefined,
+    (section) => section.detail !== undefined,
   );
 
   test("cover listings and groups", () => {
@@ -132,30 +136,29 @@ describe("the sections that own a record page", () => {
     ]);
   });
 
-  test("point at one record", () => {
+  test("name the route one record opens at", () => {
+    expect(withDetail.map((section) => adminPattern(section.detail!))).toEqual([
+      "/admin/listing/:id",
+      "/admin/groups/:id",
+    ]);
+  });
+
+  test("point that route at one record", () => {
     const wrong = withDetail
-      .filter(
-        (section) =>
-          !section.detailPath!.startsWith("/admin/") ||
-          !section.detailPath!.includes(":id"),
-      )
+      .filter(({ detail }) => !adminPattern(detail!).includes(":id"))
       .map((section) => section.id);
     expect(wrong).toEqual([]);
   });
 
-  test("keep the record page for staff only", () => {
-    // An editor cannot open either detail page, so entityReturnPath sends
-    // them to the edit form instead. Both flags carry that.
-    const open = withDetail
-      .filter((section) => section.staffOnlyDetail !== true)
-      .map((section) => section.id);
-    expect(open).toEqual([]);
-  });
-
-  test("keep the exact paths entityReturnPath rewrites", () => {
-    expect(withDetail.map((section) => section.detailPath)).toEqual([
-      "/admin/listing/:id",
-      "/admin/groups/:id",
-    ]);
+  test("open the record page to everyone the list is open to", () => {
+    // A list that links to a record page must not link its readers somewhere
+    // they are refused, and a record page opens on the first tab its viewer
+    // can see, so the two audiences match.
+    const narrower = withDetail.filter(({ detail, landing }) =>
+      adminDestination(landing).audience.some(
+        (level) => !adminDestination(detail!).audience.includes(level),
+      ),
+    );
+    expect(narrower.map((section) => section.id)).toEqual([]);
   });
 });

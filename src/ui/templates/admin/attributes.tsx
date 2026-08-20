@@ -8,7 +8,7 @@ import {
   attributeNameForm,
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -45,7 +45,7 @@ const AttributeListingLink = ({
 }): JSX.Element => (
   <a
     class={listing.active ? undefined : "muted"}
-    href={`/admin/listing/${listing.id}`}
+    href={adminPath("listing", { id: listing.id })}
   >
     {listing.name}
   </a>
@@ -66,6 +66,13 @@ const attributeListingColumns: readonly TableColumn<AttributeListingRow>[] = [
 
 const attributeListingsTable = defineTable(attributeListingColumns);
 
+/** Where one of an attribute's options is edited or deleted. */
+const optionPath = (
+  route: "attributeOptionDelete" | "attributeOptionEdit",
+  attributeId: number,
+  optionId: number,
+): string => adminPath(route, { id: attributeId, optionId });
+
 export const adminAttributesPage = (
   attributes: AttributeWithOptions[],
   session: AdminSession,
@@ -74,11 +81,11 @@ export const adminAttributesPage = (
   reorderableListPage({
     addFormHtml: attributeNameForm.render(),
     addLabel: t("attributes.add_submit"),
-    basePath: "/admin/attributes",
+    basePath: adminPattern("attributes"),
     columns: [
       {
         cell: (attribute) => (
-          <a href={`/admin/attributes/${attribute.id}`}>
+          <a href={adminPath("attribute", { id: attribute.id })}>
             {attributeNameFlat(attribute.name)}
           </a>
         ),
@@ -94,7 +101,7 @@ export const adminAttributesPage = (
     ],
     emptyText: t("attributes.none"),
     error,
-    guideHref: "/admin/guide#listings",
+    guideHref: `${adminPattern("guide")}#listings`,
     guideLabel: t("attributes.guide_link"),
     items: attributes,
     newFormId: "new-attribute",
@@ -137,7 +144,7 @@ export const adminAttributePage = (
 ): string =>
   errorAdminPage(
     t("attributes.detail_title", { name: attributeNameFlat(attribute.name) }),
-    "/admin/attributes",
+    adminPattern("attributes"),
   )(
     session,
     error,
@@ -170,10 +177,7 @@ export const adminAttributePage = (
         count: (option) => data.listingCounts.get(option.id) ?? 0,
         countHeader: t("attributes.listings_column"),
         editHref: (option) =>
-          adminPath("attributeOptionEdit", {
-            id: attribute.id,
-            optionId: option.id,
-          }),
+          optionPath("attributeOptionEdit", attribute.id, option.id),
         emptyText: t("attributes.no_options"),
         items: attribute.options,
         label: (option) => option.text,
@@ -209,13 +213,13 @@ export const adminAttributeOptionEditPage = (
   listings: AttributeListingRow[],
 ): string =>
   childEditPage({
-    active: "/admin/attributes",
-    backHref: `/admin/attributes/${attribute.id}`,
+    active: adminPattern("attributes"),
+    backHref: adminPath("attribute", { id: attribute.id }),
     backLabel: t("attributes.edit_option.back_to_attribute"),
     context: t("attributes.edit_option.attribute_context", {
       name: attributeNameFlat(attribute.name),
     }),
-    formAction: `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
+    formAction: optionPath("attributeOptionEdit", attribute.id, option.id),
     heading: t("attributes.edit_option.heading"),
     title: t("attributes.edit_option.title"),
   })(
@@ -245,7 +249,7 @@ export const adminAttributeOptionEditPage = (
       <p>
         <a
           class="danger"
-          href={`/admin/attributes/${attribute.id}/options/${option.id}/delete`}
+          href={optionPath("attributeOptionDelete", attribute.id, option.id)}
         >
           {t("attributes.delete_option.link")}
         </a>
@@ -254,7 +258,7 @@ export const adminAttributeOptionEditPage = (
   );
 
 /** The warning-led delete page on the attributes nav. */
-const attributeDeletePage = warningDeletePage("/admin/attributes");
+const attributeDeletePage = warningDeletePage(adminPattern("attributes"));
 
 export const adminAttributeDeletePage = (
   attribute: AttributeWithOptions,
@@ -264,7 +268,7 @@ export const adminAttributeDeletePage = (
   const name = attributeNameFlat(attribute.name);
   return attributeDeletePage(
     {
-      action: `/admin/attributes/${attribute.id}/delete`,
+      action: adminPath("attributeDelete", { id: attribute.id }),
       buttonText: t("attributes.delete.submit"),
       heading: t("attributes.delete.heading"),
       label: t("attributes.delete.confirm_label"),
@@ -288,7 +292,7 @@ export const adminAttributeOptionDeletePage = (
 ): string =>
   attributeDeletePage(
     {
-      action: `/admin/attributes/${attribute.id}/options/${option.id}/delete`,
+      action: optionPath("attributeOptionDelete", attribute.id, option.id),
       buttonText: t("attributes.delete_option.submit"),
       heading: t("attributes.delete_option.heading"),
       label: t("attributes.delete_option.confirm_label"),
@@ -322,7 +326,7 @@ export const ListingAttributesPanel = (
   return listingChoicePanel(
     t("attributes.listing.heading", { listing: listing.name }),
     <p>
-      <BackButton href="/admin/attributes">
+      <BackButton href={adminPattern("attributes")}>
         {t("attributes.listing.manage")}
       </BackButton>
     </p>,
@@ -330,7 +334,10 @@ export const ListingAttributesPanel = (
     () => (
       <p>
         {t("attributes.listing.none")}{" "}
-        <a href="/admin/attributes">{t("attributes.listing.create_first")}</a>.
+        <a href={adminPattern("attributes")}>
+          {t("attributes.listing.create_first")}
+        </a>
+        .
       </p>
     ),
     (availableAttributes) => (

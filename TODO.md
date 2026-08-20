@@ -2582,3 +2582,27 @@ This is a payment behaviour change, so it needs its own small PR with the test.
 Starting points: `src/shared/square-provider.ts:241`,
 `src/shared/payment-helpers.ts:455-501`, the Square checkout tests under
 `test/`.
+
+---
+
+## One admin form POST helper, not three
+
+_Origin: widening `adminFormPost` to accept repeated fields (PR #2115)._
+
+`adminFormPost` in `test/test-utils/session.ts` now takes the same
+`TestFormValues` its underlying `mockFormRequest` always accepted, so it can
+post a repeated field such as `user_ids`. That makes two local helpers close to
+redundant: `adminPost` in `test/features/admin/groups/helpers.ts` (13 call
+sites) and the `adminPost` in `test/test-utils/servicing.ts`. Each signs in,
+adds the CSRF token, and posts a form.
+
+The two differ from the shared helper in small ways. `adminFormPost` also loads
+the settings keys and sends `settings_version`, and it returns the cookie and
+the token beside the response, where the local helpers return the raw
+`Response`. Fold the call sites onto `adminFormPost` and delete the local
+helpers, rather than leaving one operation with three names. Do it in its own
+pull request, because a form that starts sending `settings_version` can change
+what a version-guarded save does.
+
+Starting points: `test/test-utils/session.ts:402`,
+`test/features/admin/groups/helpers.ts:19`, `test/test-utils/servicing.ts`.

@@ -24,8 +24,8 @@ import {
 import type { ParamsRoute, RequestRoute } from "#shared/response-steps.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession, ImageUseItemType } from "#types";
+import type { CollectionRenderers } from "./crud-handlers.ts";
 import { createItemImageHandlers } from "./item-images.ts";
-import type { CollectionRenderers } from "./owner-crud.ts";
 
 /* jscpd:ignore-end */
 

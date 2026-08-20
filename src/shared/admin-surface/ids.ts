@@ -36,14 +36,49 @@ type SpecFor<Id extends AdminDestinationId> = {
       : never;
 }[keyof Areas];
 
-type PatternFor<Id extends AdminDestinationId> =
-  SpecFor<Id> extends string
-    ? SpecFor<Id>
-    : SpecFor<Id> extends { readonly pattern: infer Pattern }
-      ? Pattern
-      : never;
+/** The path out of one route's entry, whichever of the two forms it took. */
+type PatternOfSpec<Spec> = Spec extends string
+  ? Spec
+  : Spec extends { readonly pattern: infer Pattern }
+    ? Pattern
+    : never;
+
+/**
+ * The exact path a route declares, as a literal type. Route tables keyed by a
+ * pattern stay typed because this keeps the string, not `string`.
+ *
+ * `Id extends unknown` looks like nothing, and is the whole point: it takes
+ * each id of a union on its own. Without it a caller holding two ids resolves
+ * to `never`, and `AdminPathParams` below then asks for no parameters at all.
+ */
+export type AdminPatternFor<Id extends AdminDestinationId> = Id extends unknown
+  ? PatternOfSpec<SpecFor<Id>>
+  : never;
+
+/** The parameter names one route's path carries, or `never` when it carries
+ * none. Named so the two checks below read it without repeating the lookup. */
+type ParamNamesOf<Id extends AdminDestinationId> = RouteParamNames<
+  AdminPatternFor<Id> & string
+>;
+
+/**
+ * A route addressed by one plain `:id` and nothing else. A section's record
+ * page and the form a reader falls back to must both be of this kind, so
+ * `entityReturnPath` can build either from the same id.
+ *
+ * Both directions are checked. A path with no parameter at all resolves to
+ * `never`, which is assignable to `"id"`, so the second check alone would let
+ * `/admin/` in and build a record link that names no record.
+ */
+export type AdminRecordDestinationId = {
+  [Id in AdminDestinationId]: "id" extends ParamNamesOf<Id>
+    ? ParamNamesOf<Id> extends "id"
+      ? Id
+      : never
+    : never;
+}[AdminDestinationId];
 
 export type AdminPathParams<Id extends AdminDestinationId> = Record<
-  RouteParamNames<PatternFor<Id> & string>,
+  RouteParamNames<AdminPatternFor<Id> & string>,
   string | number
 >;

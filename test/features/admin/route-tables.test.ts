@@ -17,9 +17,9 @@ const recordingPage = () => {
 };
 
 describe("entityTabRoutes", () => {
-  test("binds the detail and tab routes under the default id param", async () => {
+  test("binds the detail and tab routes under the declared path", async () => {
     const page = recordingPage();
-    const routes = entityTabRoutes("/admin/things", page);
+    const routes = entityTabRoutes("/admin/things/:id", page);
     expect(Object.keys(routes).toSorted()).toEqual([
       "GET /admin/things/:id",
       "GET /admin/things/:id/:tab",
@@ -35,9 +35,9 @@ describe("entityTabRoutes", () => {
     ]);
   });
 
-  test("binds under a custom id param name", async () => {
+  test("reads the record from whichever parameter the path names", async () => {
     const page = recordingPage();
-    const routes = entityTabRoutes("/admin/things", page, "thingId");
+    const routes = entityTabRoutes("/admin/things/:thingId", page);
     expect(Object.keys(routes).toSorted()).toEqual([
       "GET /admin/things/:thingId",
       "GET /admin/things/:thingId/:tab",
@@ -51,6 +51,49 @@ describe("entityTabRoutes", () => {
       [3, ""],
       [3, "activity"],
     ]);
+  });
+
+  test("finds the record parameter however short the path before it", () => {
+    // The helper makes no assumption about what precedes the parameter, so a
+    // one-character base binds exactly like an /admin/... one.
+    const page = recordingPage();
+    const routes = entityTabRoutes("x/:thingId", page);
+
+    expect(Object.keys(routes).toSorted()).toEqual([
+      "GET x/:thingId",
+      "GET x/:thingId/:tab",
+    ]);
+  });
+
+  test("refuses a path that names no record", () => {
+    // Binding a list path here would serve the whole collection's URL to a
+    // handler that wants one record's id, and read undefined for it.
+    expect(() => entityTabRoutes("/admin/things", recordingPage())).toThrow(
+      "Entity detail path names no record: /admin/things",
+    );
+  });
+
+  test("refuses a path whose parameter is not its last part", () => {
+    expect(() =>
+      entityTabRoutes("/admin/things/:id/edit", recordingPage()),
+    ).toThrow("Entity detail path names no record: /admin/things/:id/edit");
+  });
+
+  test("refuses a path whose last part only looks like the parameter", () => {
+    // The tail after the last `:` crosses a slash here, so `subId` is a fixed
+    // part of the path and not the parameter the page would be handed.
+    expect(() =>
+      entityTabRoutes("/admin/things/:id/subId", recordingPage()),
+    ).toThrow("Entity detail path names no record: /admin/things/:id/subId");
+  });
+
+  test("refuses a parameter the router does not read as a number", () => {
+    // The page is handed the record as a number, and the router only converts
+    // a parameter called `id` or ending in `Id`. A `:slug` would arrive as a
+    // string wearing a number's type.
+    expect(() =>
+      entityTabRoutes("/admin/things/:slug", recordingPage()),
+    ).toThrow("Entity detail path names no record: /admin/things/:slug");
   });
 });
 

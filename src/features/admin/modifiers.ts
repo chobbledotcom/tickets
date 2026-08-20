@@ -38,16 +38,17 @@ import {
   createRecalculatePageRenderer,
   parseEditableAggregateForm,
 } from "#routes/admin/aggregate-recalculation.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
   defineEditEntityPage,
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -310,8 +311,8 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
-  basePath: (id) => `/admin/modifiers/${id}`,
   deleteLabelKey: "modifiers.delete.submit",
+  destination: "modifier",
   edit: (modifier, ctx, rejected) =>
     loadModifierEditPanel(
       modifier,
@@ -319,10 +320,9 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
       rejected?.error,
       rejected?.form.toRenderValues(),
     ),
-  guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
-  navActive: { section: "/admin/modifiers" },
+  navActive: { section: adminPattern("modifiers") },
 });
 
 // The list and entity page load the ledger-projected Modifier; writes and the
@@ -330,7 +330,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
-  listPath: "/admin/modifiers",
+  list: "modifiers",
   operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,
@@ -506,8 +506,8 @@ const handleAnswerLinks: TypedRouteHandler<
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/modifiers", crud),
-  ...entityTabRoutes("/admin/modifiers", modifierPage),
+  ...crudRoutes(adminPattern("modifiers"), crud),
+  ...entityTabRoutes(adminPattern("modifier"), modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,

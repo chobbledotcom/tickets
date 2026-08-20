@@ -21,6 +21,7 @@ import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 import {
   type AttendeeListSetup,
@@ -42,7 +43,7 @@ import type { Attendee, ListingWithCount } from "#types";
 const browserListSetup = (
   listings: ListingWithCount[],
 ): AttendeeListSetup<AttendeeSort> => ({
-  basePath: "/admin/attendees",
+  basePath: adminPattern("attendees"),
   csvPath: "/admin/attendees/csv",
   dates: [],
   defaultSort: "newest",

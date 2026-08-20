@@ -1,6 +1,8 @@
+/* jscpd:ignore-start */
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-
+import { adminPattern } from "#shared/admin-surface.ts";
+/* jscpd:ignore-end */
 /**
  * Admin API key management routes
  */
@@ -129,12 +131,11 @@ const overviewTab: TabDef<ApiKeyDisplay> = {
 
 /** The owner-only API key summary and actions page. */
 const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
-  basePath: (id) => `/admin/api-keys/${id}`,
-  guard: requireOwnerOr,
+  destination: "apiKey",
   load: async (id, session) =>
     (await getApiKeysForUser(session.userId)).find((key) => key.id === id) ??
     null,
-  navActive: "/admin/api-keys",
+  navActive: adminPattern("apiKeys"),
   tabs: [
     overviewTab,
     deleteActionTab(
@@ -158,7 +159,7 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   );
 
 export const adminHandlers = defineRoutes({
-  ...entityTabRoutes("/admin/api-keys", apiKeyPage, "apiKeyId"),
+  ...entityTabRoutes(adminPattern("apiKey"), apiKeyPage),
   "GET /admin/api-keys": handleApiKeysGet,
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),
