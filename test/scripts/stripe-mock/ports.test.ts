@@ -40,6 +40,7 @@ describe("stripe-mock ports and environment", () => {
             });
           }).toThrow(Deno.errors.AddrInUse);
           reserved.release();
+          // Releasing twice is safe: the second call has nothing left to close.
           reserved.release();
           try {
             listener = Deno.listen({

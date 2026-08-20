@@ -8,11 +8,14 @@ import { execute, queryOne } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import {
   SEEDED_FEATURE_RECORDS,
   seedFeatureRecords,
   settingValue,
 } from "#test-utils/settings.ts";
+
+const DEFAULTS_FAULT = "test_listing_defaults_fault";
 
 const storedFeatures = async () =>
   parseEnabledFeatures(await settingValue(CONFIG_KEYS.ENABLED_FEATURES));
@@ -248,6 +251,96 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       parseEnabledFeatures(await settingValue(CONFIG_KEYS.ENABLED_FEATURES))
         .modifiers,
     ).toBe(true);
+  });
+
+  test("refuses to turn Logistics off while a listing still uses it", async () => {
+    await setAdminFeatureEnabled("logistics", true);
+    await execute(
+      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
+    );
+
+    expect(await setAdminFeatureEnabled("logistics", false)).toBe(false);
+    expect((await storedFeatures()).logistics).toBe(true);
+  });
+
+  test("clears the stored Logistics listing default, not just the snapshot", async () => {
+    await settings.update.listingDefaults({
+      hidden: true,
+      usesLogistics: true,
+    });
+    await setAdminFeatureEnabled("logistics", true);
+    const before = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
+
+    expect(await setAdminFeatureEnabled("logistics", false)).toBe(true);
+
+    // The stored value itself has to move: reading it back through a fresh
+    // cache is what proves the default was rewritten and not only forgotten
+    // in memory.
+    expect(await settingValue(CONFIG_KEYS.LISTING_DEFAULTS)).not.toBe(before);
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.LISTING_DEFAULTS]);
+    expect(settings.listingDefaults).toEqual({ hidden: true });
+  });
+
+  test("tries again when the listing defaults move under the disable", async () => {
+    // Two different stored defaults, both real: the disable reads the first,
+    // and the second lands before its write. Its write is guarded on the
+    // value it read, so it is refused, and it must read the moved value and
+    // try again rather than reporting a refusal.
+    await settings.update.listingDefaults({
+      hidden: true,
+      usesLogistics: true,
+    });
+    const read = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
+    await settings.update.listingDefaults({ usesLogistics: true });
+    const moved = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
+    await execute("UPDATE settings SET value = ? WHERE key = ?", [
+      read,
+      CONFIG_KEYS.LISTING_DEFAULTS,
+    ]);
+    settings.invalidateCache();
+    await setAdminFeatureEnabled("logistics", true);
+
+    // Statements run in the order they are handed to the database, so this
+    // one lands after the disable's read of the defaults and before its
+    // write — the move it has to survive.
+    const disabling = setAdminFeatureEnabled("logistics", false);
+    await execute("UPDATE settings SET value = ? WHERE key = ?", [
+      moved,
+      CONFIG_KEYS.LISTING_DEFAULTS,
+    ]);
+
+    expect(await disabling).toBe(true);
+    expect((await storedFeatures()).logistics).toBe(false);
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.LISTING_DEFAULTS]);
+    // The moved value is the one that was cleaned, so the retry worked from
+    // what it re-read rather than from the value it first saw.
+    expect(settings.listingDefaults).toEqual({});
+  });
+
+  test("a write refused for another reason is not read as a defaults clash", async () => {
+    await settings.update.listingDefaults({
+      hidden: true,
+      usesLogistics: true,
+    });
+    await setAdminFeatureEnabled("logistics", true);
+
+    await withDbFault(
+      `CREATE TRIGGER ${DEFAULTS_FAULT}
+        BEFORE UPDATE ON settings
+        WHEN NEW.key = '${CONFIG_KEYS.LISTING_DEFAULTS}'
+        BEGIN
+          SELECT RAISE(ABORT, 'listing defaults are not writable');
+        END`,
+      DEFAULTS_FAULT,
+      async () => {
+        await expect(
+          setAdminFeatureEnabled("logistics", false),
+        ).rejects.toThrow("listing defaults are not writable");
+      },
+    );
+    expect((await storedFeatures()).logistics).toBe(true);
   });
 
   test("rejects malformed stored feature JSON after a field write", async () => {

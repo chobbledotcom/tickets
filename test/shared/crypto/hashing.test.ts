@@ -42,6 +42,36 @@ describe("password hashing", () => {
       expect(iterations).toBe(getPbkdf2Iterations());
     });
 
+    it("names the scheme it used, so a reader knows how to check it", async () => {
+      const hash = await hashPassword("password");
+      expect(hash.startsWith("pbkdf2:")).toBe(true);
+    });
+
+    it("reads the iteration count as decimal, so a hex count never passes", async () => {
+      const [prefix, iterations, salt, digest] = (
+        await hashPassword("password")
+      ).split(":");
+      // The same count written as hex. Read as decimal it is 0, which PBKDF2
+      // refuses outright; read as hex it would be the real count and this
+      // stored digest would match, letting a hand-edited hash through.
+      const asHex = `0x${Number(iterations).toString(16)}`;
+      expect(
+        await verifyPassword(
+          "password",
+          `${prefix}:${asHex}:${salt}:${digest}`,
+        ),
+      ).toBe(false);
+    });
+
+    it("refuses a stored hash whose round count is zero", async () => {
+      const [prefix, , salt, digest] = (await hashPassword("password")).split(
+        ":",
+      );
+      expect(
+        await verifyPassword("password", `${prefix}:0:${salt}:${digest}`),
+      ).toBe(false);
+    });
+
     it("uses the OWASP production iteration count when the test override is off", () => {
       setFastPbkdf2ForTest(null);
       try {

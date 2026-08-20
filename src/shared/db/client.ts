@@ -23,10 +23,7 @@ import {
   trackSql,
 } from "#db/query-log.ts";
 import { lazyRef } from "#fp";
-import {
-  invalidateCachesForWrite,
-  type WriteVerb,
-} from "#shared/cache-registry.ts";
+import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
 import { namedError } from "#shared/named-error.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
@@ -114,21 +111,12 @@ const invalidateForSql = (sql: string): void => {
   if (!match) return;
   const table = match[1]!.toLowerCase();
   const firstWord = writeSql.trimStart().split(/\s/)[0]!.toLowerCase();
-  const verb: WriteVerb =
-    firstWord === "delete" || firstWord === "update" || firstWord === "replace"
-      ? (firstWord as WriteVerb)
-      : "insert";
-  if (verb === "update") {
-    const columns = extractUpdateColumns(writeSql);
-    if (columns === null) {
-      // Parse failure: fall back to unconditional (treat as INSERT-like)
-      invalidateCachesForWrite(table, { columns: new Set(), verb: "insert" });
-    } else {
-      invalidateCachesForWrite(table, { columns, verb: "update" });
-    }
-  } else {
-    invalidateCachesForWrite(table, { columns: new Set(), verb });
-  }
+  // Only an UPDATE is narrowed by what it assigns. Every other write, and an
+  // UPDATE whose SET clause cannot be read, invalidates unconditionally.
+  invalidateCachesForWrite(table, {
+    updatedColumns:
+      firstWord === "update" ? extractUpdateColumns(writeSql) : null,
+  });
 };
 
 const createDbClient = (): Client => {

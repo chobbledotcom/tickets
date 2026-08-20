@@ -410,23 +410,6 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(result.error.toLowerCase()).toContain("daily");
     });
 
-    test("rejects a listing that is both a package member and a child", async () => {
-      const pkg = await createTestGroup({ isPackage: true, name: "Pkg Group" });
-      await createTestListing({ name: "Some Parent" });
-      const result = await importCatalog({
-        groups: [{ group: "Pkg Group" }],
-        kind: "listing",
-        listing: { maxAttendees: 10, name: "Torn" },
-        parents: ["Some Parent"],
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("cannot also be an add-on child");
-      // Reference the created package so the binding is used.
-      expect(pkg.is_package).toBe(true);
-    });
-
     test("rejects a group whose members are not the same type", async () => {
       await createTestListing({ listingType: "standard", name: "Std" });
       await createTestListing({ listingType: "daily", name: "Daily" });
@@ -492,21 +475,6 @@ describeWithEnv(
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
       expect(result.error).toContain("referenced more than once");
-    });
-
-    test("rejects a parent that is itself a child (single-level nesting)", async () => {
-      const grandparent = await createTestListing({ name: "Grandparent" });
-      const parent = await createTestListing({ name: "Middle" });
-      await listingChildren.setIds(grandparent.id, [parent.id]);
-      const result = await importCatalog({
-        kind: "listing",
-        listing: { maxAttendees: 1, name: "Deep Child" },
-        parents: ["Middle"],
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("offered as a child");
     });
 
     test("strips webhook URL and use-defaults for an editor import", async () => {

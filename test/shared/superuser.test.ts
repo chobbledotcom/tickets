@@ -421,6 +421,25 @@ describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
     });
   });
 
+  test("keeps the cached account state warm as time passes", async () => {
+    await withAdminEmailQueryLog(async () => {
+      const base = Date.now();
+      let offset = 0;
+      const clock = stub(Date, "now", () => base + offset);
+      try {
+        await expectLoggedSuperuserStateRead();
+        enableQueryLog();
+        // A second later is still well inside the cache's life, so this read
+        // must not go back to the database.
+        offset = 1_000;
+        await getSuperuserState();
+        expect(getQueryLog().length).toBe(0);
+      } finally {
+        clock.restore();
+      }
+    });
+  });
+
   test("re-queries after a user write invalidates the cache", async () => {
     await withAdminEmail(async () => {
       // Warm the cache with the not-yet-created state.
@@ -537,6 +556,63 @@ describe("generateSuperuserPassword", () => {
       expect(spyCrypto.calls.length).toBeGreaterThan(0);
     } finally {
       spyCrypto.restore();
+    }
+  });
+
+  // How many times the generator may draw before it gives up. Written out
+  // rather than imported: the production constant is private, and an export
+  // whose only reader is a test is what the dead-export check refuses.
+  const DRAWS_ALLOWED = 100;
+
+  test("uses every draw it is allowed before building the password", () => {
+    // Every draw but the last hands back only rejected bytes, so the password
+    // can only be finished on the hundredth. One draw fewer and this same run
+    // would be refused, which is what pins how many draws are allowed.
+    let draws = 0;
+    const randomStub = stub(
+      crypto,
+      "getRandomValues",
+      <A extends ArrayBufferView | null>(array: A): A => {
+        draws++;
+        // 255 sits in the rejected tail; 0 is the first alphabet character.
+        if (array instanceof Uint8Array) {
+          array.fill(draws < DRAWS_ALLOWED ? 255 : 0);
+        }
+        return array;
+      },
+    );
+    try {
+      expect(generateSuperuserPassword(12).length).toBe(12);
+      expect(draws).toBe(DRAWS_ALLOWED);
+    } finally {
+      randomStub.restore();
+    }
+  });
+
+  test("randomness that never yields a usable byte fails after its last draw", () => {
+    // 255 sits in the rejected tail for a 58-character alphabet, so every draw
+    // contributes nothing and the password can never fill. Without a ceiling on
+    // the draws this spins the CPU forever instead of failing. Counting the
+    // draws pins the ceiling from the other side: the test above proves the
+    // hundredth draw is still allowed, this one proves there is no hundred-and-
+    // first.
+    let draws = 0;
+    const randomStub = stub(
+      crypto,
+      "getRandomValues",
+      <A extends ArrayBufferView | null>(array: A): A => {
+        draws++;
+        if (array instanceof Uint8Array) array.fill(255);
+        return array;
+      },
+    );
+    try {
+      expect(() => generateSuperuserPassword(12)).toThrow(
+        "Could not draw enough random characters for a password",
+      );
+      expect(draws).toBe(DRAWS_ALLOWED);
+    } finally {
+      randomStub.restore();
     }
   });
 });
@@ -660,6 +736,19 @@ describe("sendSuperuserCredentialsEmail", () => {
     resetEffectiveDomain();
 
     await expectEmailBodyContains("text")("https://localhost/admin/")();
+  });
+
+  test("email text body opens by saying what happened", async () => {
+    await expectEmailBodyContains("text")(
+      "A superuser account has been enabled for this ticket platform.",
+    )();
+  });
+
+  test("email html body escapes an apostrophe in the username", async () => {
+    const { body } = await sendAndCapture({ username: "o'brien" });
+    const html = String(body.html);
+    expect(html).toContain("o&#39;brien");
+    expect(html).not.toContain("o'brien");
   });
 
   test("email text body contains a security warning", async () => {

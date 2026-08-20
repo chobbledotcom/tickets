@@ -44,6 +44,32 @@ describe("route matching", () => {
     expect(await response?.text()).toBe("complete");
   });
 
+  test("prefers the route with more literal text, whichever order they are declared in", async () => {
+    // Both patterns match "/x/end" and both take one parameter, so the tie is
+    // broken by how much of the path is spelled out. Declaration order must
+    // not matter — that is the promise that lets tooling sort route files.
+    const headEnd: [string, () => Response] = [
+      "GET /:head/end",
+      () => new Response("head-end"),
+    ];
+    const xTail: [string, () => Response] = [
+      "GET /x/:tail",
+      () => new Response("x-tail"),
+    ];
+    for (const entries of [
+      [headEnd, xTail],
+      [xTail, headEnd],
+    ]) {
+      const router = createRouter(Object.fromEntries(entries));
+      const response = await router(
+        new Request("http://localhost/x/end"),
+        "/x/end",
+        "GET",
+      );
+      expect(await response?.text()).toBe("head-end");
+    }
+  });
+
   test("returns null when the method or path does not match", async () => {
     const router = createRouter({ "GET /known": () => new Response("ok") });
     const request = new Request("http://localhost/unknown");

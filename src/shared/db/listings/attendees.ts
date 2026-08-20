@@ -98,7 +98,7 @@ type ListingAttendeeFilter = {
 };
 
 const listingAttendeeFilter = (
-  filter: boolean | ListingAttendeeFilter = false,
+  filter: boolean | ListingAttendeeFilter,
 ): Required<ListingAttendeeFilter> =>
   typeof filter === "boolean"
     ? { activeOnly: filter, kindScope: "attendees" }

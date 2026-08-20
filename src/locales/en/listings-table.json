@@ -184,6 +184,7 @@
   "error.child_listing_nested": "A selected child now has its own children. Please reload and try again.",
   "error.listing_deleted": "This listing was deleted. Please go back and try again.",
   "error.parent_listing_nested": "This listing is now a child of another listing. Please reload and try again.",
+  "error.parent_is_already_a_child": "A listing you named as a parent is itself a child of another listing. A listing cannot be both.",
   "error.selected_group_deleted": "The selected group was deleted. Please try again.",
   "error.selected_listing_deleted": "A selected listing was deleted. Please try again.",
   "listings_table.duplicate_children_dropped": "Listing duplicated, but its required children weren't copied: {reason}",

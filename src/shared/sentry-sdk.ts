@@ -5,10 +5,10 @@
  * unused Sentry exports without evaluating the SDK during module load.
  */
 
-import type { ErrorEvent } from "@sentry/core";
 import {
   createStackParser,
   createTransport,
+  type ErrorEvent,
   nodeStackLineParser,
   type Scope,
 } from "@sentry/core";

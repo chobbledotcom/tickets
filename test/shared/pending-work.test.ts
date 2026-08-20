@@ -7,6 +7,21 @@ import {
   runWithPendingWork,
 } from "#shared/pending-work.ts";
 
+// Waits for a fresh task, not just a microtask, so a piece of work always
+// settles after the flush's own bookkeeping and each round advances exactly
+// one piece. A message port is a task like a timer is, without the
+// millisecond a `setTimeout` would really spend waiting.
+const nextTask = (): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      channel.port2.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+
 describe("pending-work", () => {
   test("has a scope inside runWithPendingWork and none outside", async () => {
     expect(hasPendingWorkScope()).toBe(false);
@@ -72,10 +87,42 @@ describe("pending-work", () => {
     });
   });
 
+  test("work that finishes on the last allowed round still succeeds", async () => {
+    // Each piece yields to the event loop before queueing the next, so the
+    // flush advances exactly one piece per round. That makes this the largest
+    // chain the round cap admits: one more and the flush refuses it. Sitting on
+    // the edge is what pins the size of the cap.
+    const TOTAL_WORK = 999;
+    let made = 0;
+    const queueAgain = (): void => {
+      if (made >= TOTAL_WORK) return;
+      made++;
+      addPendingWork(
+        (async () => {
+          await nextTask();
+          queueAgain();
+        })(),
+      );
+    };
+    await runWithPendingWork(async () => {
+      queueAgain();
+      await flushPendingWork();
+      expect(made).toBe(TOTAL_WORK);
+    });
+  });
+
   test("work that queues fresh work forever fails loudly instead of spinning", async () => {
+    // The chain feeds itself, so it needs its own ceiling as well as the flag:
+    // if the assertion below throws, `finally` still lowers the flag, and if
+    // something stops the flush from ever throwing, this ceiling stops the
+    // chain rather than letting it spin the event loop forever. It sits far
+    // above the flush's own round cap so the real failure still happens first.
+    const QUEUE_CEILING = 5_000;
+    let queued = 0;
     let keepQueueing = true;
     const queueAgain = (): void => {
-      if (!keepQueueing) return;
+      if (!keepQueueing || queued >= QUEUE_CEILING) return;
+      queued++;
       addPendingWork(
         (async () => {
           await Promise.resolve();
@@ -85,13 +132,17 @@ describe("pending-work", () => {
     };
     await runWithPendingWork(async () => {
       queueAgain();
-      await expect(flushPendingWork()).rejects.toThrow(
-        "Pending work kept queueing more work instead of finishing",
-      );
-      // Stop the chain and drain its tail so the scope can end cleanly.
-      keepQueueing = false;
-      await flushPendingWork();
+      try {
+        await expect(flushPendingWork()).rejects.toThrow(
+          "Pending work kept queueing more work instead of finishing",
+        );
+      } finally {
+        // Stop the chain and drain its tail so the scope can end cleanly.
+        keepQueueing = false;
+        await flushPendingWork();
+      }
     });
+    expect(queued).toBeLessThan(QUEUE_CEILING);
   });
 
   test("flushPendingWork outside a scope is a no-op", async () => {

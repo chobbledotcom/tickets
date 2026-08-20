@@ -72,10 +72,7 @@ describe("cache-registry", () => {
   describe("registerTableInvalidation / invalidateCachesForWrite", () => {
     test("does not fire for a table with no registrations", () => {
       expect(() =>
-        invalidateCachesForWrite("untouched", {
-          columns: new Set(),
-          verb: "insert",
-        }),
+        invalidateCachesForWrite("untouched", { updatedColumns: null }),
       ).not.toThrow();
     });
 
@@ -86,10 +83,7 @@ describe("cache-registry", () => {
           calls++;
         }),
       );
-      invalidateCachesForWrite("listings", {
-        columns: new Set(),
-        verb: "insert",
-      });
+      invalidateCachesForWrite("listings", { updatedColumns: null });
       expect(calls).toBe(1);
     });
 
@@ -100,10 +94,7 @@ describe("cache-registry", () => {
           calls++;
         }),
       );
-      invalidateCachesForWrite("attendees", {
-        columns: new Set(),
-        verb: "insert",
-      });
+      invalidateCachesForWrite("attendees", { updatedColumns: null });
       expect(calls).toBe(0);
     });
 
@@ -116,14 +107,8 @@ describe("cache-registry", () => {
         },
       );
       unregister();
-      invalidateCachesForWrite("listings", {
-        columns: new Set(),
-        verb: "insert",
-      });
-      invalidateCachesForWrite("attendees", {
-        columns: new Set(),
-        verb: "insert",
-      });
+      invalidateCachesForWrite("listings", { updatedColumns: null });
+      invalidateCachesForWrite("attendees", { updatedColumns: null });
       expect(calls).toBe(0);
     });
 
@@ -134,14 +119,8 @@ describe("cache-registry", () => {
           calls++;
         }),
       );
-      invalidateCachesForWrite("listings", {
-        columns: new Set(),
-        verb: "insert",
-      });
-      invalidateCachesForWrite("attendees", {
-        columns: new Set(),
-        verb: "insert",
-      });
+      invalidateCachesForWrite("listings", { updatedColumns: null });
+      invalidateCachesForWrite("attendees", { updatedColumns: null });
       expect(calls).toBe(2);
     });
 
@@ -158,10 +137,7 @@ describe("cache-registry", () => {
           secondCalls++;
         }),
       );
-      invalidateCachesForWrite("listings", {
-        columns: new Set(),
-        verb: "insert",
-      });
+      invalidateCachesForWrite("listings", { updatedColumns: null });
       expect(firstCalls).toBe(1);
       expect(secondCalls).toBe(1);
     });
@@ -171,7 +147,7 @@ describe("cache-registry", () => {
        * times it fired for a single update touching `updatedColumns`. */
       const callsForGatedUpdate = (
         whenColumns: readonly string[],
-        updatedColumns: readonly string[],
+        assigned: readonly string[],
       ): number => {
         let calls = 0;
         track(
@@ -184,8 +160,7 @@ describe("cache-registry", () => {
           ),
         );
         invalidateCachesForWrite("listings", {
-          columns: new Set(updatedColumns),
-          verb: "update",
+          updatedColumns: new Set(assigned),
         });
         return calls;
       };
@@ -198,8 +173,7 @@ describe("cache-registry", () => {
           }),
         );
         invalidateCachesForWrite("listings", {
-          columns: new Set(["unrelated_column"]),
-          verb: "update",
+          updatedColumns: new Set(["unrelated_column"]),
         });
         expect(calls).toBe(1);
       });
@@ -213,22 +187,22 @@ describe("cache-registry", () => {
         expect(callsForGatedUpdate([], ["name"])).toBe(0);
       });
 
-      for (const verb of ["insert", "delete", "replace"] as const) {
-        test(`a gated dependency always fires on ${verb}, regardless of columns`, () => {
-          let calls = 0;
-          track(
-            registerTableInvalidation(
-              ["listings"],
-              () => {
-                calls++;
-              },
-              { whenColumns: ["price"] },
-            ),
-          );
-          invalidateCachesForWrite("listings", { columns: new Set(), verb });
-          expect(calls).toBe(1);
-        });
-      }
+      test("a gated dependency always fires on a write that assigns nothing", () => {
+        // No assigned columns means the write is not an UPDATE the gate can
+        // narrow — a row entering or leaving always shifts the aggregates.
+        let calls = 0;
+        track(
+          registerTableInvalidation(
+            ["listings"],
+            () => {
+              calls++;
+            },
+            { whenColumns: ["price"] },
+          ),
+        );
+        invalidateCachesForWrite("listings", { updatedColumns: null });
+        expect(calls).toBe(1);
+      });
     });
   });
 
@@ -273,8 +247,7 @@ describe("cache-registry", () => {
         }),
       );
       invalidateCachesForWrite("listings", {
-        columns: new Set(["unrelated"]),
-        verb: "update",
+        updatedColumns: new Set(["unrelated"]),
       });
       expect(calls).toBe(1);
     });
@@ -287,8 +260,7 @@ describe("cache-registry", () => {
         }),
       );
       invalidateCachesForWrite("listing_attendees", {
-        columns: new Set(["unrelated"]),
-        verb: "update",
+        updatedColumns: new Set(["unrelated"]),
       });
       expect(calls).toBe(1);
     });
@@ -305,14 +277,12 @@ describe("cache-registry", () => {
         ),
       );
       invalidateCachesForWrite("listing_prices", {
-        columns: new Set(["unrelated"]),
-        verb: "update",
+        updatedColumns: new Set(["unrelated"]),
       });
       expect(calls).toBe(0);
 
       invalidateCachesForWrite("listing_prices", {
-        columns: new Set(["amount"]),
-        verb: "update",
+        updatedColumns: new Set(["amount"]),
       });
       expect(calls).toBe(1);
     });
@@ -345,8 +315,7 @@ describe("cache-registry", () => {
       invalidateCachesForTable("listings");
       invalidateCachesForTable("listing_attendees");
       invalidateCachesForWrite("listing_prices", {
-        columns: new Set(["amount"]),
-        verb: "update",
+        updatedColumns: new Set(["amount"]),
       });
       expect(calls).toBe(0);
     });

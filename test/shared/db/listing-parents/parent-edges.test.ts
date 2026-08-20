@@ -72,7 +72,7 @@ describeWithEnv(
             t("catalog_transfer.parent_missing"),
           ),
         ),
-      ).rejects.toThrow(t("error.parent_listing_nested"));
+      ).rejects.toThrow(t("error.parent_is_already_a_child"));
       expect(await listingParents.getIds(child.id)).toEqual([]);
     });
 
