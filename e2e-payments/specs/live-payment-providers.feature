@@ -77,6 +77,7 @@ Feature: Real sandbox payments finish safely
       And Refresh is reachable while observation is unfinished
       When the owner refreshes the payment without submitting Refund again
       Then the provider's returned amount and Money refund count do not grow
+      And no second Refund action is available
 
   @rule:payments.live-sumup-refund-is-safe @surface:admin @surface:public @surface:return @surface:webhook
   Rule: A SumUp callback and refund reach a safe durable result
@@ -102,6 +103,7 @@ Feature: Real sandbox payments finish safely
       And Refresh is reachable while observation is unfinished
       When the owner refreshes the payment without submitting Refund again
       Then the provider's returned amount and Money refund count do not grow
+      And no second Refund action is available
 
   @rule:payments.live-invalidated-checkout-is-refunded @surface:admin @surface:public @surface:return @surface:webhook
   Rule: A checkout invalidated while the visitor pays is retained and refunded

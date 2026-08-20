@@ -145,6 +145,32 @@ export const incomeLedgerText = async (
   return (await ledger.count()) === 0 ? null : await ledger.innerText();
 };
 
+/** The income ledger's own label for what a listing earned before refunds. */
+const TOTAL_INCOME_EARNED = "Total income earned";
+
+/**
+ * What the ledger's "Total income earned" row reports, in minor units, or
+ * null when the ledger carries no such row. Read from that one labelled row
+ * rather than from the ledger text at large: the ledger also lists gross
+ * sales, costs and refunds, so a plain search for an amount could be
+ * satisfied by a different row that happens to carry the same figure. The
+ * app writes a negative amount as U+2212 before the currency symbol
+ * ("−£9.00"), so the sign is normalised and kept — a refund row can never
+ * answer for income.
+ */
+export const totalIncomeEarnedMinor = (ledger: string): number | null => {
+  const row = ledger
+    .split("\n")
+    .find((line) => line.includes(TOTAL_INCOME_EARNED));
+  if (row === undefined) return null;
+  const amount = row
+    .slice(row.indexOf(TOTAL_INCOME_EARNED) + TOTAL_INCOME_EARNED.length)
+    .replace(/−/g, "-")
+    .replace(/[^\d.-]/g, "");
+  const minor = Math.round(Number(amount) * 100);
+  return amount === "" || Number.isNaN(minor) ? null : minor;
+};
+
 /**
  * Fill and submit the public booking form. For a free listing this lands on the
  * app's thank-you page; for a paid listing the browser is redirected to the
@@ -250,12 +276,12 @@ const failWith = async (
 };
 
 /** Assert a listing recognised no income: its ledger either does not render,
- * or renders with every total at zero. */
+ * or reports exactly zero earned. */
 export const requireNoRecognisedIncome = async (
   session: BrowserSession,
 ): Promise<void> => {
   const ledger = await incomeLedgerText(session);
-  if (ledger !== null && !/Total income earned\s*[^0-9-]*0\b/.test(ledger)) {
+  if (ledger !== null && totalIncomeEarnedMinor(ledger) !== 0) {
     await failWith(
       session,
       "unexpected-income",

@@ -26,7 +26,7 @@ import { runSpecs } from "#scripts/specs/run.ts";
 import { providerSecrets } from "./config.ts";
 import { fail, log, step } from "./log.ts";
 import { notifyFailure } from "./notify.ts";
-import { buildStaticAssets, repoRoot } from "./server.ts";
+import { artifactsRoot, buildStaticAssets } from "./server.ts";
 import {
   caseExpression,
   LIVE_FEATURE_PATH,
@@ -37,7 +37,10 @@ import {
   verifyExecutedCases,
 } from "./targets.ts";
 
-const artifactsRoot = join(repoRoot, "e2e-payments", "artifacts");
+/** The target string this run was asked for, for the failure notification
+ * even when parsing it (or anything after it) throws. */
+const requestedTarget = (): string =>
+  process.argv[2] ?? process.env.E2E_PROVIDER ?? "free";
 
 interface JournalSummary {
   caseId: string;
@@ -84,9 +87,7 @@ const publishResult = (): void => {
 };
 
 const run = async (): Promise<void> => {
-  const target = parseLiveTarget(
-    process.argv[2] ?? process.env.E2E_PROVIDER ?? "free",
-  );
+  const target = parseLiveTarget(requestedTarget());
   step(`Payment sandbox e2e — target: ${target}`);
 
   // A paid target without its secrets is a failed nightly contract, not a
@@ -130,7 +131,10 @@ const run = async (): Promise<void> => {
   step(`PASS — ${target}: ${cases.length} case(s) executed`);
 };
 
-run().catch((err) => {
+run().catch(async (err) => {
   fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
+  // A failure before the summary — missing credentials, a broken build, a
+  // runner crash — must ping like a failed run, not vanish from ntfy.
+  await notifyFailure(requestedTarget()).catch(() => {});
   process.exitCode = 1;
 });

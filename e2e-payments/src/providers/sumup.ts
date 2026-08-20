@@ -48,7 +48,7 @@ const SUMUP_API_BASE = "https://api.sumup.com";
 /** The id line createCheckout logs once the staged row carries the SumUp id. */
 const SUMUP_ID_LINE = {
   expected: "[SumUp] Checkout created id=…",
-  pattern: /\[SumUp\] Checkout created id=(\S+)/g,
+  pattern: "\\[SumUp\\] Checkout created id=(\\S+)",
 } as const;
 
 /** Authenticated SumUp REST call; throws with the status on a non-2xx. */

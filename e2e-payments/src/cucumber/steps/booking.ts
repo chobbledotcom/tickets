@@ -21,12 +21,14 @@ import {
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
+import { lastLoggedMatch } from "#e2e/providers/shared.ts";
 import {
   deliverGenuineCallbackTwice,
   deliverRefusalProbes,
   FIXED_REFUSAL,
 } from "#e2e/providers/sumup-callback.ts";
 import type { PaidSandboxCheckout } from "#e2e/providers/types.ts";
+import { pollUntil } from "#e2e/util.ts";
 import {
   attendeeTabOf,
   bookAsVisitor,
@@ -114,59 +116,102 @@ for (const [text, pay] of HOSTED_PAYMENT_STEPS) {
 }
 
 /**
- * Steps that wait for exactly one booking on the roster: the step text, the
- * failure wording, and the follow-up check after the booking is confirmed.
+ * The webhook route's own words for what one delivered callback amounted to.
+ * Only that route writes `[Webhook] Payment callback …`, so such a line is
+ * independent evidence that the callback arrived through the tunnel, that its
+ * signature verified, and that its session resolved into the payment engine.
+ * The roster alone can never show this, because the visitor's browser return
+ * can book first.
  */
-const SINGLE_BOOKING_STEPS: readonly [
+const WEBHOOK_DID = {
+  booked: "booked",
+  terminalized: "settled without a booking",
+} as const;
+
+/**
+ * The concurrency guard's words. They prove the same delivery, verification
+ * and resolution, but they also say this delivery did NOT do the work:
+ * another request held the reservation. So a held line is accepted only when
+ * the step's own outcome never arrives — Stripe redelivers a 409 on a
+ * schedule a nightly cannot wait out — and it is recorded under its own name,
+ * so the journal never credits a held delivery with work it did not do.
+ */
+const WEBHOOK_HELD = "is being processed elsewhere";
+
+/** The webhook's log line for one outcome, carrying that outcome as its value. */
+const callbackLine = (outcome: string): string =>
+  `\\[Webhook\\] Payment callback (${outcome})`;
+
+/** Build the follow-up check that waits for the signed webhook's own log
+ * line — never inferred from pages. The step's own outcome is preferred for
+ * the whole window, so a race that is merely slow still proves the real
+ * thing. */
+const webhookEvidenceThen =
+  (did: keyof typeof WEBHOOK_DID) =>
+  async (world: LiveWorld): Promise<void> => {
+    const logPath = world.resources.server.logPath;
+    const processed = await pollUntil(config.paymentConfirmTimeoutMs, () =>
+      Promise.resolve(lastLoggedMatch(logPath, callbackLine(WEBHOOK_DID[did]))),
+    );
+    if (processed !== null) {
+      world.recordPhase(`webhook-${did}`);
+      return;
+    }
+    if (lastLoggedMatch(logPath, callbackLine(WEBHOOK_HELD)) === null) {
+      throw new Error(
+        `the app server log carries no '[Webhook] Payment callback ` +
+          `${WEBHOOK_DID[did]}' line, so the signed webhook never reached ` +
+          `that outcome (${logPath})`,
+      );
+    }
+    world.recordPhase("webhook-held-by-another-request");
+  };
+
+/** Steps that first prove a fact on the scenario's roster, then run a
+ * follow-up check: the step text, the roster fact to prove, and the
+ * follow-up once the fact holds. */
+const ROSTER_FACT_STEPS: readonly [
   string,
-  string,
+  (world: LiveWorld) => Promise<void>,
   (world: LiveWorld) => Promise<void>,
 ][] = [
   [
     "Stripe's signed webhook confirms the payment",
-    "booking created by the signed webhook",
-    async (world) => world.recordPhase("webhook-booked"),
+    (world) =>
+      requireSingleBooking(world, "booking created by the signed webhook"),
+    webhookEvidenceThen("booked"),
   ],
   [
     "there is still one retained booking and one refund",
-    "retained booking after the replay",
-    async (world) => await requireMoneyRefunds(world, 1, "Money refund"),
+    (world) => requireSingleBooking(world, "retained booking after the replay"),
+    (world) => requireMoneyRefunds(world, 1, "Money refund"),
   ],
-];
-
-for (const [text, what, after] of SINGLE_BOOKING_STEPS) {
-  Then(text, async function (this: LiveWorld) {
-    await requireSingleBooking(this, what);
-    await after(this);
-  });
-}
-
-/** Steps that assert a specific fact appears on the scenario's roster: the
- * step text, what to look for, the failure wording, and the journal phase. */
-const ROSTER_CHECK_STEPS: readonly [
-  string,
-  (world: LiveWorld) => string,
-  string,
-  string,
-][] = [
   [
     "Stripe's signed webhook processes the payment",
-    (world) => world.scenario.booker.email,
-    "the signed webhook did not retain a booking for the paying visitor",
-    "webhook-terminalized",
+    (world) =>
+      requireOnScenarioRoster(
+        world,
+        world.scenario.booker.email,
+        "the signed webhook did not retain a booking for the paying visitor",
+      ),
+    webhookEvidenceThen("terminalized"),
   ],
   [
     "the owner sees one retained No quantity booking",
-    () => "No quantity",
-    "the retained booking does not show the No quantity indicator",
-    "retained-no-quantity-checked",
+    (world) =>
+      requireOnScenarioRoster(
+        world,
+        "No quantity",
+        "the retained booking does not show the No quantity indicator",
+      ),
+    async (world) => world.recordPhase("retained-no-quantity-checked"),
   ],
 ];
 
-for (const [text, expectedOf, missing, phase] of ROSTER_CHECK_STEPS) {
+for (const [text, prove, after] of ROSTER_FACT_STEPS) {
   Then(text, async function (this: LiveWorld) {
-    await requireOnScenarioRoster(this, expectedOf(this), missing);
-    this.recordPhase(phase);
+    await prove(this);
+    await after(this);
   });
 }
 
@@ -413,6 +458,7 @@ Then(
       // listing, not skipped.
       for (const listingId of [
         this.builtOrderCatalog.memberAId,
+        this.builtOrderCatalog.memberBId,
         this.builtOrderCatalog.plainId,
       ]) {
         await owner.goto(`/admin/listing/${listingId}`);
