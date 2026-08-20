@@ -6,17 +6,13 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import {
-  getGroupById,
-  getGroupPackagePrices,
-  groups,
-} from "#shared/db/groups.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getGroupById, getGroupPackagePrices, groups } from "#db/groups.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import type { Group, ListingWithCount } from "#types";
 
 // jscpd:ignore-end
 
@@ -68,7 +64,7 @@ export const sellPackageTicket = async (
 export const loadListing = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
-  const m = await import("#shared/db/listings/records.ts");
+  const m = await import("#db/listings/records.ts");
   return m.getListingWithCount(id);
 };
 

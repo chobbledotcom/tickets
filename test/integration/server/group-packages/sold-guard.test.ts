@@ -10,9 +10,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { groups } from "#db/groups.ts";
 import { t } from "#i18n";
-import { execute } from "#shared/db/client.ts";
-import { groups } from "#shared/db/groups.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

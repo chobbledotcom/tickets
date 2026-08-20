@@ -6,8 +6,10 @@
  * and both get the sort bar — all linking through the setup's own base path.
  */
 
+/* jscpd:ignore-start -- imports */
 import { map, sort, unique } from "#fp";
 import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
   ATTENDEE_CHECKIN_CHOICES,
   type AttendeeListSetup,
@@ -20,23 +22,23 @@ import {
   choiceIsActive,
   type ListChoice,
 } from "#shared/attendee-list-controls.ts";
+/* jscpd:ignore-end */
 import { type FilterBarOption, renderFilterBar } from "#shared/filter-bar.ts";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderSelectOptions } from "#shared/forms/rendering.tsx";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type ListingFilter,
   listingCategory,
   listingFilterLabel,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
+import type { ListingWithCount } from "#types";
 
 /** One attendee list's controls and choices, handed around as a pair. */
 export type AttendeeListView = {

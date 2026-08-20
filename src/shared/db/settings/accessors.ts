@@ -14,22 +14,20 @@ import {
   encryptedUpdate,
   plaintextUpdate,
   writeRaw,
-} from "#shared/db/settings/raw-writes.ts";
+} from "#db/settings/raw-writes.ts";
 import {
   type BoolSettingKey,
   type SettingsData,
   setSnapshotField,
   snap,
-} from "#shared/db/settings/snapshot.ts";
+} from "#db/settings/snapshot.ts";
 import { nowIso } from "#shared/now.ts";
-import type {
-  AccessorSpec,
-  StringAccessors,
-} from "#shared/settings/registry.ts";
 import {
+  type AccessorSpec,
   ENCRYPTED_KEYS,
   PLAINTEXT_KEYS,
   STRING_ACCESSORS,
+  type StringAccessors,
 } from "#shared/settings/registry.ts";
 
 /** Sync getter per accessor entry, typed by the underlying snapshot field so

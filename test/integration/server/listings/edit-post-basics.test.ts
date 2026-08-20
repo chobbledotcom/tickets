@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectFlashRedirect,

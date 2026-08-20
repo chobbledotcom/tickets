@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { execute } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

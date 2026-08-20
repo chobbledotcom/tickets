@@ -9,10 +9,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getDb } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getDb } from "#db/client.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import { SCHEMA } from "#db/migrations/schema/index.ts";
 
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -116,9 +116,7 @@ describeWithEnv(
       const { id } = await createServicingHold({ listing: { name: "L" } });
       // Take a backup, drop the kind column from the live DB (simulating a
       // pre-migration restore source), restore, and re-apply the migration.
-      const { createBackupZip, restoreFromZip } = await import(
-        "#shared/db/backup.ts"
-      );
+      const { createBackupZip, restoreFromZip } = await import("#db/backup.ts");
       const zip = await createBackupZip();
       // The restore path itself runs the migration markers; the kind column
       // must survive (either the schema has it, or the migration re-adds it).

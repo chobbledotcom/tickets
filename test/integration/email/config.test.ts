@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

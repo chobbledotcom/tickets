@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
 import { DEMO_NAMES } from "#shared/demo/samples.ts";
 import {
   assertAdminHtml,

@@ -1,5 +1,5 @@
+import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
 import { compact } from "#fp";
-import { fullSchemaCreateStatements } from "#shared/db/migrations/schema-sync.ts";
 import { TRIGGERS } from "./triggers.ts";
 import type { Trigger } from "./types.ts";
 

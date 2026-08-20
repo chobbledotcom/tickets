@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { addDays } from "#shared/dates.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";

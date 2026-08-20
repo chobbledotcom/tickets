@@ -2,6 +2,17 @@
  * Admin JSON API routes for groups — accessible via API key or cookie+CSRF.
  */
 
+import {
+  type PackageFlags,
+  readPackageFlagsTxOrNull,
+  writePackageMembersTx,
+} from "#db/groups/membership.ts";
+import {
+  computeGroupSlugIndex,
+  generateUniqueGroupSlug,
+  groups,
+  loadPackageMemberPricingByGroupIds,
+} from "#db/groups.ts";
 import { isNotNullish, requiredMapValue } from "#fp";
 import {
   deleteGroup,
@@ -18,17 +29,6 @@ import {
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
-import {
-  type PackageFlags,
-  readPackageFlagsTxOrNull,
-  writePackageMembersTx,
-} from "#shared/db/groups/membership.ts";
-import {
-  computeGroupSlugIndex,
-  generateUniqueGroupSlug,
-  groups,
-  loadPackageMemberPricingByGroupIds,
-} from "#shared/db/groups.ts";
 import { packageGroups } from "#shared/package-membership.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
@@ -50,7 +50,7 @@ import {
   type DayPrices,
   type Group,
   type GroupListing,
-} from "#shared/types.ts";
+} from "#types";
 
 /** A package member override in a JSON request body. `price` is minor units:
  * `null` means no override (use the listing's own price), `0` means free in the

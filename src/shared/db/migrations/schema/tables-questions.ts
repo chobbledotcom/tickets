@@ -1,6 +1,6 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
-import { NOTE_ENTITIES } from "#shared/db/notes/target.ts";
+import { NOTE_ENTITIES } from "#db/notes/target.ts";
 import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 

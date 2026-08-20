@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
   buildCreateForm,
   buildTemplateData,
 } from "#routes/admin/attendee-page-data.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const blankForm = () => buildCreateForm([], [], new Map(), "");

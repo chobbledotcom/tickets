@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
-import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import {
   adminBrowser,
   browserSeenBy,

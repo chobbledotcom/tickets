@@ -1,13 +1,14 @@
 /* jscpd:ignore-start -- imports */
+
+import { logActivity } from "#db/activity-log.ts";
+import { withTransaction } from "#db/client.ts";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import { assertRefundRowsHeld } from "#db/payment-claim.ts";
+import { insertRefundConfirmation } from "#db/refund-confirmations.ts";
 import { requiredMapValue, sortStrings, unique } from "#fp";
 import { t } from "#i18n";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { withTransaction } from "#shared/db/client.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { assertRefundRowsHeld } from "#shared/db/payment-claim.ts";
-import { insertRefundConfirmation } from "#shared/db/refund-confirmations.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee } from "#types";
 import type { HeldRefundClaim } from "./claim.ts";
 import type { ReadyRefundReference } from "./readiness.ts";
 

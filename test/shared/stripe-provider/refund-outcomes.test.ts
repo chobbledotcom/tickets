@@ -1,23 +1,23 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import {
   StripeConnectionError,
   StripeProtocolError,
 } from "#shared/stripe/request.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 import {
   stripeApiError,
   stripeChargeMoney,
   stripeClient,
   stripeRefund,
   stripeRefundRequest,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { gbp } from "#test-utils/payment-state.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("Stripe refund outcomes", () => {
   test("names an unconfigured provider without sending", async () => {

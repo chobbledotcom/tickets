@@ -1,8 +1,8 @@
 import type { InValue, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
-import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
+import { executeBatch, getDb, queryBatch } from "#db/client.ts";
+import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Run many plain SQL strings as a single batched write round-trip. */

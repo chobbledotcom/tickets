@@ -1,12 +1,15 @@
+import { isServicing } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
-import { isServicing } from "#shared/db/attendees/kind.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { requireValue } from "#shared/required-value.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
-import type { AttendeeTableRow, DisplayAttendee } from "#shared/types.ts";
-import { hasTicketQuantity } from "#shared/types.ts";
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
+import {
+  type AttendeeTableRow,
+  type DisplayAttendee,
+  hasTicketQuantity,
+} from "#types";
 
 /** A no-quantity row has no live customer ticket and cannot be checked in. */
 export const noQuantityIndicator = (): JSX.Element => (

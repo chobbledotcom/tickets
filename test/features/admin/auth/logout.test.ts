@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getSession } from "#db/sessions.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { getSession } from "#shared/db/sessions.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

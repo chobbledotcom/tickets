@@ -1,25 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
-import {
-  decryptWithKey,
-  encrypt,
-  encryptWithKey,
-} from "#shared/crypto/encryption.ts";
-import { hashPassword, hmacHash } from "#shared/crypto/hashing.ts";
+import { decryptWithKey, encrypt, encryptWithKey } from "#crypto/encryption.ts";
+import { hashPassword, hmacHash } from "#crypto/hashing.ts";
 import {
   deriveKEK,
   deriveKEKFromPassword,
   unwrapKey,
   wrapKey,
   wrapKeyWithToken,
-} from "#shared/crypto/keys.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { getDb, insert } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
-import { createSession } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#crypto/keys.ts";
+import { getDb, insert } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
+import { createSession } from "#db/sessions.ts";
+import { settings } from "#db/settings.ts";
 import {
   acceptInvite,
   createInvitedUser,
@@ -28,8 +21,10 @@ import {
   invalidateUsersCache,
   migrateUserToV2Kek,
   verifyUserPassword,
-} from "#shared/db/users.ts";
-import type { User } from "#shared/types.ts";
+} from "#db/users.ts";
+import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { submitJoinForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestInvite } from "#test-utils/db-helpers/misc.ts";
@@ -42,6 +37,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import type { User } from "#types";
 
 /** Unwrap a v2 user's DATA_KEY with the per-user-salted password KEK. The salt
  * folds in the account's stored hash, so we re-derive it from the password. */

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   AttendeeStatusEditPanel,

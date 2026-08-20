@@ -5,8 +5,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingsNotInGroup } from "#shared/db/groups/candidates.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getListingsNotInGroup } from "#db/groups/candidates.ts";
+import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

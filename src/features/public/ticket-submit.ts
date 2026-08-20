@@ -2,6 +2,16 @@
  * Core ticket submission orchestrator
  */
 
+import type { TicketListing } from "#booking/model.ts";
+import {
+  getGroupRemainingByListingId,
+  getSharedGroupCapacities,
+} from "#db/attendees/capacity/groups.ts";
+import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import { listingGroups } from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getImagesForItem } from "#db/images.ts";
+import { settings } from "#db/settings.ts";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -9,7 +19,6 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   priceCheckout,
@@ -19,15 +28,6 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { parseIsoDateParam } from "#shared/dates.ts";
-import {
-  getGroupRemainingByListingId,
-  getSharedGroupCapacities,
-} from "#shared/db/attendees/capacity/groups.ts";
-import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getImagesForItem } from "#shared/db/images.ts";
-import { settings } from "#shared/db/settings.ts";
 /* jscpd:ignore-start */
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -37,7 +37,6 @@ import type { FormParams } from "#shared/form-data.ts";
 import { getIframeMode } from "#shared/iframe.ts";
 /* jscpd:ignore-end */
 import type { CheckoutIntent } from "#shared/payments.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   orderSummary,
@@ -47,6 +46,7 @@ import type {
   BookingPrefill,
   TicketPrefill,
 } from "#templates/public/reservations/types.ts";
+import type { Group, ListingWithCount } from "#types";
 import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,

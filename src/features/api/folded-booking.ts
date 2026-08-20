@@ -1,5 +1,9 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import type { FoldBase, FoldChildrenResult } from "#booking/fold-tree.ts";
+import { buildOrderLines, nodeQuantitiesFor } from "#booking/order-lines.ts";
+import type { BookingTree } from "#booking/tree.ts";
 import { sumOf } from "#fp";
 import { apiError } from "#routes/api/cors.ts";
 import {
@@ -25,16 +29,6 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import type {
-  FoldBase,
-  FoldChildrenResult,
-} from "#shared/booking/fold-tree.ts";
-import {
-  buildOrderLines,
-  nodeQuantitiesFor,
-} from "#shared/booking/order-lines.ts";
-import type { BookingTree } from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
@@ -45,17 +39,13 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
-import {
-  type ContactInfo,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import {
   extractContact,
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
+import { type ContactInfo, isPaidListing, type ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 /** Parse the `children` array of a booking body against `schema`, or null (the

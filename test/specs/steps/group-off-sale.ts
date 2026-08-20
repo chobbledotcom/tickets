@@ -3,8 +3,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {

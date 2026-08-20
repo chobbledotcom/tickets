@@ -9,21 +9,21 @@
 
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
-import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { queryOne } from "#shared/db/client.ts";
-import { anchorSessionId } from "#shared/db/payment-anchor/session.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { queryOne } from "#db/client.ts";
+import { anchorSessionId } from "#db/payment-anchor/session.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   loadRefundAuthorityById,
   loadRefundAuthorityByReference,
-} from "#shared/db/provider-refund-authority.ts";
-import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
-import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
-import { readRowState } from "#shared/payment/row-state.ts";
-import { rejectedChargeReference } from "#shared/payment/validated-session.ts";
+} from "#db/provider-refund-authority.ts";
+import { placeholderRefund } from "#payment/placeholder-refund.ts";
+import { completedAtOf } from "#payment/refund-authority-state.ts";
+import { readRowState } from "#payment/row-state.ts";
+import { rejectedChargeReference } from "#payment/validated-session.ts";
+import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
+import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 /* jscpd:ignore-start -- imports */
 import {

@@ -2,13 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import {
-  lineFor,
-  stripeApiError,
-  stripeCheckoutSession,
-  stripeClient,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -16,6 +9,13 @@ import {
   asSession,
   BLANK_SESSION_METADATA,
 } from "#test-utils/payment-session.ts";
+import {
+  lineFor,
+  stripeApiError,
+  stripeCheckoutSession,
+  stripeClient,
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe-provider", () => {
   test("identifies its Stripe webhook contract", () => {

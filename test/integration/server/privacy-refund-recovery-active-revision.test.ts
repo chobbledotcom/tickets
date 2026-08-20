@@ -3,10 +3,10 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
-import { transitionRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
-import { armRefundSend } from "#shared/payment/refund-authority.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
+import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
+import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
+import { armRefundSend } from "#payment/refund-authority.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   addProviderRefundTestCase,

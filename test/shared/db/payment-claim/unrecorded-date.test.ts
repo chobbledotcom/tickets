@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { withTransaction } from "#shared/db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import {
   readAttendeeRowStates,
   settleAttendeeRows,
-} from "#shared/db/payment-claim.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#db/payment-claim.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";

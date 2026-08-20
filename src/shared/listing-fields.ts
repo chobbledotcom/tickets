@@ -9,7 +9,7 @@ import {
   type ContactField,
   isContactField,
   type ListingFields,
-} from "#shared/types.ts";
+} from "#types";
 
 /** Parse a comma-separated fields string into individual ContactField names */
 export const parseListingFields = (fields: ListingFields): ContactField[] =>

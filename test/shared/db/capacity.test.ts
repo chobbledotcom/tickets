@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import {
   buildBatchCapacitySql,
   buildCapacityCondition,
   buildListingCountSql,
   type CapacityBucket,
   dateToRange,
-} from "#shared/db/capacity.ts";
+} from "#db/capacity.ts";
+import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 
 /**
  * Pure unit tests for the SQL capacity builders. Behaviour against a real

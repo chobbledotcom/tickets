@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { paymentTables } from "#shared/db/migrations/schema/payments/index.ts";
+import { getDb } from "#db/client.ts";
+import { paymentTables } from "#db/migrations/schema/payments/index.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonHash } from "#test-utils/hash.ts";
 

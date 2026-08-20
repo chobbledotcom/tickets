@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  type BuildTreeInput,
-  buildBookingTree,
-} from "#shared/booking/build-tree.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
+import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
+import { buildTicketListing } from "#booking/model.ts";
 import {
   type BookingNode,
   childNodeKey,
@@ -18,9 +15,9 @@ import {
   packageMemberNodeKey,
   packageQuantityFieldName,
   quantityFieldName,
-} from "#shared/booking/tree.ts";
-import { treePackage as pkg } from "#test/test-utils/package-cap-fixtures.ts";
+} from "#booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage as pkg } from "#test-utils/package-cap-fixtures.ts";
 
 const resolved = (overrides = {}, closed = false, groupRemaining?: number) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);

@@ -7,7 +7,7 @@ import {
   describePublicApi,
   expectCorsHeaders,
   rawPostRequest,
-} from "#test/test-utils/api/helpers.ts";
+} from "#test-utils/api/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -59,9 +59,7 @@ describePublicApi(() => {
       // one-ticket booking.
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/quantity/i);
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 

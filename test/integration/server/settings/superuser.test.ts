@@ -1,20 +1,20 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { lazyRef } from "#fp";
-import { handleRequest } from "#routes";
-import { buildSessionCookie } from "#shared/cookies.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { createSession } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hashPassword } from "#crypto/hashing.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { createSession } from "#db/sessions.ts";
+import { settings } from "#db/settings.ts";
 import {
   createUser,
   getUserByUsername,
   verifyUserPassword,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { lazyRef } from "#fp";
+import { handleRequest } from "#routes";
+import { buildSessionCookie } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { setHostEmailConfigForTest } from "#shared/email.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -223,7 +223,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     test("created user's admin level decrypts to 'owner'", () =>
       withEnableSuperuser(async () => {
         const user = await getUserByUsername("admin");
-        const { decryptAdminLevel } = await import("#shared/db/users.ts");
+        const { decryptAdminLevel } = await import("#db/users.ts");
         const level = await decryptAdminLevel(user!);
         expect(level).toBe("owner");
       }));
@@ -391,7 +391,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     for (const { name, rejection } of DELETE_FAILURES) {
       test(name, async () => {
         await setupForEnable("admin@example.com");
-        const { getDb: getDbFn } = await import("#shared/db/client.ts");
+        const { getDb: getDbFn } = await import("#db/client.ts");
         const db = getDbFn();
         const batch = db.batch.bind(db);
         await withMocks(

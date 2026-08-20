@@ -8,11 +8,7 @@
  * beyond infra. The whole set is fetched in one `WHERE key IN (...)` query.
  */
 
-import {
-  CONFIG_KEYS,
-  EMAIL_BODY_KEYS,
-  SNAPSHOT_KEYS,
-} from "#shared/db/settings.ts";
+import { CONFIG_KEYS, EMAIL_BODY_KEYS, SNAPSHOT_KEYS } from "#db/settings.ts";
 
 /** Extract first path segment for O(1) prefix dispatch */
 export const getPrefix = (path: string): string => {

@@ -1,14 +1,14 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
-} from "#shared/db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/questions/attendee-answers/reads.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -31,9 +31,7 @@ describeWithEnv(
     // Fetches a listing's attendees and returns the sole one's id, confirming
     // exactly one booking was made before a test reads its saved answers.
     const soleAttendeeId = async (listingId: number): Promise<number> => {
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(listingId);
       expect(attendees.length).toBe(1);
       return attendees[0]!.id;

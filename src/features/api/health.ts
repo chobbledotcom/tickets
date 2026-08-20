@@ -8,10 +8,10 @@
  * site is on) without exposing anything private.
  */
 
+import { constantTimeEqual } from "#crypto/utils.ts";
 import { encodeBody } from "#routes/response.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { getDebugKey } from "#shared/config.ts";
-import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Header carrying the diagnostic key. */

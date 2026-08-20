@@ -6,10 +6,10 @@
  */
 
 import { t } from "#i18n";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
+import type { AdminSession, Theme } from "#types";
 
 /** Open a settings page: pass the title (and optional nav path), then the
  * session and the site's saved theme, then the page body. The settings guide

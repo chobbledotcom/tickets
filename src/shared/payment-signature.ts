@@ -19,10 +19,7 @@
  * place both sides derive the signed bytes, so they cannot drift apart.
  */
 
-import {
-  constantTimeEqualBytes,
-  hmacHashSync,
-} from "#shared/crypto/hashing.ts";
+import { constantTimeEqualBytes, hmacHashSync } from "#crypto/hashing.ts";
 
 /** The logical checkout metadata a price signature is computed over — every
  *  field optional, since any may be omitted at signing or "" at verification. */

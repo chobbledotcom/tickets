@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingsTable } from "#db/listings/records.ts";
+import { getLogisticsAssignments } from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
 import {
@@ -11,10 +15,6 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { getLogisticsAssignments } from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

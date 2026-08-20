@@ -4,10 +4,19 @@ import {
   attendeeAccount,
   modifierAccount,
   revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { mapBooking } from "#shared/accounting/mappers.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+} from "#accounting/accounts.ts";
+import { mapBooking } from "#accounting/mappers.ts";
+import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
+import {
+  type BookingBatchPlan,
+  createBookingAtomic,
+} from "#db/attendees/create.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { queryOne, withTransaction } from "#db/client.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
+import { modifiersTable } from "#db/modifiers.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   bookingBatchPlan,
   postBookingLegsTx,
@@ -17,15 +26,6 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import {
-  type BookingBatchPlan,
-  createBookingAtomic,
-} from "#shared/db/attendees/create.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { queryOne, withTransaction } from "#shared/db/client.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

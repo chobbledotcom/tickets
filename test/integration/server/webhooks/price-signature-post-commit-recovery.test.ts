@@ -1,25 +1,25 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
-import { legReference } from "#shared/accounting/refs.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
-import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { bookingEventGroup } from "#accounting/mappers.ts";
+import { allTransfers } from "#accounting/queries.ts";
+import { legReference } from "#accounting/refs.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
+import { getRecentBookingTokens } from "#db/contact-tokens.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import {
   decryptSessionTokens,
   releaseReservation,
-} from "#shared/db/processed-payments.ts";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/processed-payments.ts";
+import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { handleRequest } from "#routes";
 import {
   redirectRequest,
   runWebhook,

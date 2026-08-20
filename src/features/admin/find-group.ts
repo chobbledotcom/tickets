@@ -1,4 +1,4 @@
-import { getGroupById } from "#shared/db/groups.ts";
+import { getGroupById } from "#db/groups.ts";
 import { type FindByIdThen, findByIdThen } from "#shared/find-by-id.ts";
 
 /** The stored group row as loaded from the table. */

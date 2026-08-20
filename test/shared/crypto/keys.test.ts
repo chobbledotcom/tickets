@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
+import { decryptWithKey, encryptWithKey } from "#crypto/encryption.ts";
 import {
   deriveKEK,
   deriveKEKFromPassword,
@@ -16,13 +16,13 @@ import {
   wrapDataKeyForPassword,
   wrapKey,
   wrapKeyWithToken,
-} from "#shared/crypto/keys.ts";
+} from "#crypto/keys.ts";
 import type {
   OwnerKeyEncrypted,
   PasswordHash,
   WrappedKey,
-} from "#shared/crypto/sealed.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
+} from "#crypto/sealed.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 // Two stored-password-hash stand-ins. The v2 KEK folds the account's password

@@ -6,8 +6,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { addDays } from "#shared/dates.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
   enablePublicOrder,
   fetchAvailability,

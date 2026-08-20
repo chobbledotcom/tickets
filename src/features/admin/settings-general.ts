@@ -4,11 +4,15 @@
  * enforced via the settings-helpers route wrappers.
  */
 
+/* jscpd:ignore-start -- imports */
+import { logActivity } from "#db/activity-log.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   deleteStorageAndResetDatabase,
   demoResetForm,
 } from "#routes/admin/database-reset.ts";
+/* jscpd:ignore-end */
 import {
   advancedSettingsRoute,
   settingsClearable,
@@ -18,8 +22,6 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { redirect } from "#routes/response.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
   TERMS_DEMO_FIELDS,
@@ -38,12 +40,12 @@ import {
   type SingleFieldSettingsForm,
 } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
+import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 import {
   isPaymentProvider,
   type PaymentProviderType,
   type Theme,
-} from "#shared/types.ts";
-import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
+} from "#types";
 
 const formRoute = (definition: SingleFieldSettingsForm) => ({
   advanced: definition.page === "advanced",

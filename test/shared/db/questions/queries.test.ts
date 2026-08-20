@@ -5,8 +5,8 @@ import {
   getQuestionsForListing,
   listingQuestions,
   questionListings,
-} from "#shared/db/questions/queries.ts";
-import { questionsOrder } from "#shared/db/questions/tables.ts";
+} from "#db/questions/queries.ts";
+import { questionsOrder } from "#db/questions/tables.ts";
 import {
   createOrderedQuestionPair,
   createQuestion,

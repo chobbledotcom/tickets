@@ -5,21 +5,21 @@
  * contact's aggregated history directly — the hidden DB row made malleable.
  */
 
+import type { ContactRecord } from "#db/contact-preferences.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { renderField } from "#shared/forms/rendering.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { AttendeesPage } from "#templates/admin/attendee-form.tsx";
 import { ContactNotes } from "#templates/admin/attendee-page.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { TextField } from "#templates/components/text-field.tsx";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 export type ContactHistoryPageData = {

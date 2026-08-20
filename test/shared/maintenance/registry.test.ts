@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
-import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import { ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#crypto/keys.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   MAINTENANCE_PRUNE_BATCH,
@@ -49,7 +50,7 @@ const runTask = (
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded local pruning and activity backfill", () => {
+  test("declares only bounded pruning, activity backfill and SumUp recovery", () => {
     expect(
       MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
         ...task,
@@ -86,7 +87,64 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         name: "activity_log_backfill",
         wakePolicy: "organic_safe",
       },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: ["sumup_api_key", "sumup_merchant_code"],
+        },
+        deadlineMs: 20_000,
+        failureRetryIntervalMs: 300_000,
+        intervalMs: 1_800_000,
+        maxDatabaseCalls: 19,
+        maxExternalCalls: 6,
+        name: "sumup_checkout_recovery",
+        wakePolicy: "organic_safe",
+      },
     ]);
+  });
+
+  test("the SumUp recovery task runs its check and asks for more when full", async () => {
+    // Driving the declared task, not the function behind it: the wiring in
+    // the registry is what the scheduler actually calls.
+    const { makeSumupCheckoutDue, stageSignedSumupCheckout } = await import(
+      "#test-utils/sumup.ts"
+    );
+    const { sumupApi } = await import("#shared/sumup.ts");
+    const { SUMUP_RECOVERY_BATCH } = await import("#shared/limits.ts");
+    for (let index = 0; index < SUMUP_RECOVERY_BATCH; index++) {
+      const id = `co_task_${index}`;
+      await stageSignedSumupCheckout(id);
+      await makeSumupCheckoutDue(id);
+    }
+    const read = stub(sumupApi, "readCheckoutById", () =>
+      Promise.resolve({
+        reason: "provider_error" as const,
+        status: "unavailable" as const,
+      }),
+    );
+    let followUps = 0;
+    try {
+      await runTask(taskNamed("sumup_checkout_recovery"), {
+        requestFollowUp: () => {
+          followUps += 1;
+        },
+      });
+    } finally {
+      read.restore();
+    }
+    expect(read.calls.length).toBe(SUMUP_RECOVERY_BATCH);
+    // A full batch means there may be more waiting behind it.
+    expect(followUps).toBe(1);
+  });
+
+  test("the SumUp recovery task is off until SumUp is connected", async () => {
+    // A site with no SumUp key stages no checkouts, so there is nothing to
+    // ask about and syncMaintenanceTaskRows drops the row entirely.
+    expect(await taskNamed("sumup_checkout_recovery").check.enabled()).toBe(
+      false,
+    );
   });
 
   test("the pruning task runs one bounded database batch", async () => {

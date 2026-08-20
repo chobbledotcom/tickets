@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin SMS page — text an attendee via the gateway queue.
  *
@@ -15,6 +16,10 @@ import { defineRoutes } from "#routes/router.ts";
  * gateway ids to attendees for status webhooks.
  */
 
+import { getAttendeeActivityLog, logActivity } from "#db/activity-log.ts";
+import { setAttendeePhoneIndexIfEmpty } from "#db/attendee-phone-index.ts";
+import { hashPhone, recordContacts } from "#db/contact-preferences.ts";
+import { countSmsMessages, recordSmsMessage } from "#db/sms-messages.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -23,13 +28,6 @@ import {
 } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import {
-  getAttendeeActivityLog,
-  logActivity,
-} from "#shared/db/activity-log.ts";
-import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
-import { hashPhone, recordContacts } from "#shared/db/contact-preferences.ts";
-import { countSmsMessages, recordSmsMessage } from "#shared/db/sms-messages.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { bestEffort } from "#shared/logger.ts";

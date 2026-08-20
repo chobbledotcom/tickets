@@ -8,10 +8,10 @@ import {
   illegalJointReasonOrNull,
   type JointRowFact,
   jointRowFactOf,
-} from "#shared/payment/joint-state.ts";
-import { openPaymentReview } from "#shared/payment/review.ts";
-import { ROW_NODES } from "#shared/payment/row-machine-spec.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#payment/joint-state.ts";
+import { openPaymentReview } from "#payment/review.ts";
+import { ROW_NODES } from "#payment/row-machine-spec.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 
 const HELD: PaymentRowState = {
   claim: {

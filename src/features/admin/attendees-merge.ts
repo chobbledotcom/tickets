@@ -2,6 +2,19 @@
  * Admin attendee merge routes
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { decryptAttendeeOrNull, decryptAttendees } from "#db/attendees/pii.ts";
+import {
+  getAttendeeRaw,
+  LISTING_ATTENDEE_ROW_COLS,
+} from "#db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import { updateAttendeePII } from "#db/attendees/update.ts";
+import { queryAll } from "#db/client.ts";
+import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
+import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
+import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 /* jscpd:ignore-start */
 import { filter, map, pipe, unique } from "#fp";
 import { AUTH_FORM, formGuard } from "#routes/auth.ts";
@@ -10,25 +23,6 @@ import {
   createEntityHandler,
 } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import {
-  decryptAttendeeOrNull,
-  decryptAttendees,
-} from "#shared/db/attendees/pii.ts";
-import {
-  getAttendeeRaw,
-  LISTING_ATTENDEE_ROW_COLS,
-} from "#shared/db/attendees/queries.ts";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { updateAttendeePII } from "#shared/db/attendees/update.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
-import {
-  loadPaymentMoveSnapshot,
-  orRefusal,
-} from "#shared/db/payment-admit-move.ts";
-import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   applyAttendeeMerge,
@@ -46,8 +40,8 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee, ContactInfo } from "#shared/types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
+import type { Attendee, ContactInfo } from "#types";
 
 /* jscpd:ignore-end */
 

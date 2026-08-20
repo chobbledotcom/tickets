@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { imagesTable, setItemsForImage } from "#db/images.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { imagesTable, setItemsForImage } from "#shared/db/images.ts";
-import { settings } from "#shared/db/settings.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

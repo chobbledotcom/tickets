@@ -1,24 +1,24 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
+} from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
 import {
   type DeliveryLegKind,
   getAgentRunSheet,
   getAgentRunSheetDates,
   setLegDone,
-} from "#shared/db/logistics-run-sheet.ts";
+} from "#db/logistics-run-sheet.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

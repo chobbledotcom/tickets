@@ -1,11 +1,11 @@
 /** The listings a group's "add listings" form can offer. */
 
-import { LISTING_ORDER_SQL } from "#shared/db/listings/select.ts";
-import { rawListingsTable } from "#shared/db/listings/table.ts";
-import { settings } from "#shared/db/settings.ts";
-import { notInSubquery } from "#shared/db/where-clauses.ts";
+import { LISTING_ORDER_SQL } from "#db/listings/select.ts";
+import { rawListingsTable } from "#db/listings/table.ts";
+import { settings } from "#db/settings.ts";
+import { notInSubquery } from "#db/where-clauses.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
-import type { SortableListing } from "#shared/types.ts";
+import type { SortableListing } from "#types";
 
 /** A candidate listing for the form: enough to sort it, name it, and show
  * whether it is active. The form shows nothing else, so this read skips the

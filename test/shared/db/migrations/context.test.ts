@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
+import { getDb } from "#db/client.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import {
   loadMigrations,
   renameEventsToListings,
-} from "#shared/db/migrations/context.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+} from "#db/migrations/context.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
   tableNames,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";

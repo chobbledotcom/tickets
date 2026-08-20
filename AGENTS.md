@@ -202,6 +202,21 @@ GitHub.
   "compatibility" shims. Keep adapters only at true external boundaries
   (provider APIs, serialized data/import formats, browser/platform contracts) or
   for an explicitly staged data migration with a named removal path.
+- **Imports name a module one way**: A module has one spelling, and every file
+  reaches it with one statement. The spelling is the shortest alias in the
+  `deno.json` import map that reaches the file, so `#db/client.ts` beats
+  `#shared/db/client.ts` and `#types` beats `#shared/types.ts`. A file must not
+  import the same module twice: put the type-only names in the same statement
+  with an inline `type`, as in
+  `import { type Result, okResult } from "#shared/result.ts"`. A namespace
+  import beside named ones is the one allowed pair, because it reads the whole
+  module on purpose. `deno task check:imports` enforces both rules, and reads
+  the alias table out of `deno.json`, so a new alias enforces itself.
+
+  An alias is a build-time rename with no runtime cost, but it is also a second
+  name for a folder everybody already knows. Add one only when the measured
+  saving pays for that: each alias in the table today removes 50 or more wrapped
+  import lines. Below that bar, leave the module under `#shared/`.
 - **Remove dead code — always the answer**: When code has no production caller —
   an unused export, an unreferenced helper, a guard/page whose only consumer is
   itself unused, an unreachable branch — delete it. Removal is _always_ the
@@ -251,6 +266,18 @@ GitHub.
   already correct while leaving the real hazard in place. When you find one
   wrong, correct the note in the same change — leaving it sends the next person
   down the same path.
+- **A finished job leaves `TODO.md`**: `TODO.md` holds work that is still open.
+  When you complete an entry, delete it in the same change. Never leave it in
+  place marked "done", "fixed", or "shipped". A reader must be able to trust
+  that every entry is work somebody can still pick up, so a list of finished
+  ones costs every later reader the time to work out which is which. The commit
+  message and the pull request are the record of what you did, and git history
+  holds the entry itself. The same applies to an entry you did not write: when
+  you find one the code already answers, check it against the current source,
+  then delete it. An entry stays only when part of it is still open, and then
+  only that part stays. The one exception is an entry this file cites as a
+  worked example, such as the stripe-mock port-steal note. That entry is
+  documentation, not a job.
 - **Stage what you changed, never `git add -A`**: Name the files you meant to
   touch, and read `git status --short` before committing. A blanket add cannot
   tell your work from a stray tool run, a build artefact, or a formatter that

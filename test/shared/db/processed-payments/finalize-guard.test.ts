@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch } from "#shared/db/client.ts";
-import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { executeBatch } from "#db/client.ts";
+import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import {
   decryptSessionTokens,
   reserveSession,
-} from "#shared/db/processed-payments.ts";
+} from "#db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

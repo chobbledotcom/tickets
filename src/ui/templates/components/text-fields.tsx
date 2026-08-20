@@ -6,7 +6,7 @@
  * each mapping over it themselves.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { TextField } from "#templates/components/text-field.tsx";
 
 /** One labelled text input, described as data. */

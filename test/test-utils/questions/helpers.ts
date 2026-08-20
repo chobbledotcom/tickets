@@ -12,7 +12,7 @@ export const createQuestion = async (text: string): Promise<number> => {
   expectFlash(response, "Question created");
   // Get the ID from the DB
   const { getAllQuestionsWithAnswers } = await import(
-    "#shared/db/questions/queries.ts"
+    "#db/questions/queries.ts"
   );
   const questions = await getAllQuestionsWithAnswers();
   const found = questions.find((q) => q.text === text);
@@ -32,9 +32,7 @@ export const addAnswer = async (
   expect(response.status).toBe(302);
   expectFlash(response, "Answer added");
   // Get the answer ID from the DB
-  const { getQuestionWithAnswers } = await import(
-    "#shared/db/questions/queries.ts"
-  );
+  const { getQuestionWithAnswers } = await import("#db/questions/queries.ts");
   const question = await getQuestionWithAnswers(questionId);
   const found = question!.answers.find((a) => a.text === text);
   expect(found).toBeTruthy();

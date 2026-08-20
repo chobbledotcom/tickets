@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { readyRefund } from "#shared/payment/refund-authority.ts";
+import { readyRefund } from "#payment/refund-authority.ts";
 import { withRefundWorkFacts } from "#shared/provider-refunds/work.ts";
 import type { ProviderRefundWork } from "#shared/provider-refunds.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";

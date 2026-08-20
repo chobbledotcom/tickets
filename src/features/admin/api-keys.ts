@@ -1,9 +1,18 @@
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin API key management routes
  */
 
+import { unwrapSessionDataKey } from "#crypto/keys.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import {
+  createApiKey,
+  deleteApiKey,
+  getApiKeyForUser,
+  getApiKeysForUser,
+} from "#db/api-keys.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
@@ -18,17 +27,8 @@ import { withOwnerData } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
-import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import {
-  createApiKey,
-  deleteApiKey,
-  getApiKeyForUser,
-  getApiKeysForUser,
-} from "#shared/db/api-keys.ts";
 import {
   type ApiKeyDisplay,
   adminApiDocsPage,

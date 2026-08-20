@@ -15,7 +15,7 @@ import {
   writeFailingMock,
   writePortThief,
   writeTermIgnoringMock,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 import {
   expectPortAvailable,
   expectPortOpen,
@@ -23,15 +23,13 @@ import {
   retryWhilePortTaken,
   withHeldPort,
   withUnusedPort,
-} from "#test/test-utils/stripe-mock/ports.ts";
+} from "#test-utils/stripe-mock/ports.ts";
 
 describe("stripe-mock ports and environment", () => {
   test("keeps a reserved port unavailable until release", () =>
-    // The release hands the port back to the machine, so anything else
-    // starting at that moment can take it before the listen below. That is
-    // not this test's answer, so it asks again on a fresh reservation.
     retryWhilePortTaken(
-      () => {
+      // deno-lint-ignore require-await -- retryWhilePortTaken awaits the attempt
+      async () => {
         const reserved = reserveAvailablePort();
         let listener: Deno.Listener | undefined;
         try {
@@ -40,7 +38,7 @@ describe("stripe-mock ports and environment", () => {
               hostname: "127.0.0.1",
               port: reserved.port,
             });
-          }).toThrow();
+          }).toThrow(Deno.errors.AddrInUse);
           reserved.release();
           // Releasing twice is safe: the second call has nothing left to close.
           reserved.release();
@@ -49,16 +47,20 @@ describe("stripe-mock ports and environment", () => {
               hostname: "127.0.0.1",
               port: reserved.port,
             });
-          } catch {
-            return Promise.resolve(true);
+          } catch (error) {
+            // Released means free to the whole machine, so a suite running
+            // beside this one can be handed the same number before this line.
+            // Ask again on a fresh reservation rather than call that a failure.
+            if (!(error instanceof Deno.errors.AddrInUse)) throw error;
+            return true;
           }
-          return Promise.resolve(false);
+          return false;
         } finally {
           listener?.close();
           reserved.release();
         }
       },
-      () => "A released port kept being taken before it could be listened on",
+      () => "The released port kept being taken before it could be re-bound",
     ));
 
   test("uses the default port when the env var is absent", () => {

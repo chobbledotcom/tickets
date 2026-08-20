@@ -4,8 +4,11 @@
  * holding it.
  */
 
-import type { SqlStatement } from "#shared/db/client.ts";
-import { executeBatchWithResults, getDb } from "#shared/db/client.ts";
+import {
+  executeBatchWithResults,
+  getDb,
+  type SqlStatement,
+} from "#db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";

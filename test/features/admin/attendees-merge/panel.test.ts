@@ -1,17 +1,17 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setupListingAndDirectAttendee } from "#test/test-utils/attendees/helpers.ts";
-import {
-  assignMergeAnswers,
-  mergePair,
-  mergePairWithQuestion,
-} from "#test/test-utils/attendees/merge.ts";
 import {
   expectHtmlResponse,
   tableRowContaining,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { setupListingAndDirectAttendee } from "#test-utils/attendees/helpers.ts";
+import {
+  assignMergeAnswers,
+  mergePair,
+  mergePairWithQuestion,
+} from "#test-utils/attendees/merge.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

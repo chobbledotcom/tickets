@@ -1,11 +1,11 @@
 /** The declared exit and destructive-write policy for every refund state. */
 
-import type { RowMove } from "#shared/payment/admit-move.ts";
+import type { RowMove } from "#payment/admit-move.ts";
 import type {
   NeedsProviderCheckRefundState,
   RefundAuthorityState,
   RefundAuthorityStateName,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 
 type LifecycleExit =
   | {

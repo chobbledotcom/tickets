@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
+import { builtSites } from "#db/built-sites.ts";
 import {
   type BuildSiteResult,
   builderApi,
   type PreparedBuildSite,
 } from "#shared/builder.ts";
-import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
-import { builtSites } from "#shared/db/built-sites.ts";
 import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";

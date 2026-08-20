@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { squareApi } from "#shared/square/api.ts";
@@ -9,19 +9,19 @@ import {
   SquareConnectionError,
   SquareProtocolError,
 } from "#shared/square/transport.ts";
-import {
-  configureSquare,
-  squareRefundRequest,
-  withSquareClient,
-} from "#test/test-utils/square/fixtures.ts";
-import { describeSquare } from "#test/test-utils/square/harness.ts";
-import { squareBoundaryValidationError } from "#test/test-utils/square/outcomes.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { providerRefundHttpCases } from "#test-utils/provider-failure-cases.ts";
 import { resetSentry, sentryRequestBody } from "#test-utils/sentry.ts";
+import {
+  configureSquare,
+  squareRefundRequest,
+  withSquareClient,
+} from "#test-utils/square/fixtures.ts";
+import { describeSquare } from "#test-utils/square/harness.ts";
+import { squareBoundaryValidationError } from "#test-utils/square/outcomes.ts";
 
 const PRIVATE_REFERENCE = "PRIVATE_REFERENCE";
 

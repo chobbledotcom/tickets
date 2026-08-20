@@ -6,7 +6,7 @@
  */
 
 import { t } from "#i18n";
-import type { NewsPost } from "#shared/types.ts";
+import type { NewsPost } from "#types";
 import {
   contentFieldValues,
   defineContentForms,

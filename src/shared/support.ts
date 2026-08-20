@@ -11,9 +11,9 @@
  * sends to discourage duplicates.
  */
 
+import { settings } from "#db/settings.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatTimeAgo } from "#shared/dates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import {
   deliverMessage,

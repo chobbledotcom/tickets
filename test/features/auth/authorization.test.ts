@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { AuthSession } from "#routes/auth.ts";
 import {
+  type AuthSession,
   anyUserPage,
   requireAdminApiOr,
   requireContentOr,

@@ -9,9 +9,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getDb } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,

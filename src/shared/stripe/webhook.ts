@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 import type Stripe from "stripe";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";

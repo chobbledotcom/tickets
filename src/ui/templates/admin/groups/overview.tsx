@@ -1,16 +1,10 @@
+import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import type { GroupListingCandidate } from "#db/groups/candidates.ts";
+import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
-import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
-import type { GroupListingCandidate } from "#shared/db/groups/candidates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
-import {
-  type Attendee,
-  type Group,
-  hasTicketQuantity,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
   buildSharedDetailRows,
@@ -40,6 +34,12 @@ import {
   PageRegions,
 } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import {
+  type Attendee,
+  type Group,
+  hasTicketQuantity,
+  type ListingWithCount,
+} from "#types";
 
 const totalAttendeeCount = sumOf(
   (listing: ListingWithCount) => listing.attendee_count,

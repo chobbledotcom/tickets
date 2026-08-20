@@ -9,15 +9,15 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminListingLink, AdminPage } from "#templates/admin/admin-page.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import type { AdminSession, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

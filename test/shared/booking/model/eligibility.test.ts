@@ -12,13 +12,13 @@ import {
   childOpen,
   childPassesAllChecks,
   childUsesSameDays,
-} from "#shared/booking/model.ts";
+} from "#booking/model.ts";
 import {
   dailyOverrides,
   resolved,
   today,
   weekdayOf,
-} from "#test/test-utils/booking-model-fixtures.ts";
+} from "#test-utils/booking-model-fixtures.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — child eligibility", () => {

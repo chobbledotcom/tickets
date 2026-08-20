@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { releaseMigrationLock } from "#shared/db/migrations/lock.ts";
+import { getDb } from "#db/client.ts";
+import { releaseMigrationLock } from "#db/migrations/lock.ts";
 import {
   applyMigrationWithRetry,
   runPendingMigrations,
   verifyMigrationWithRetry,
-} from "#shared/db/migrations/runner.ts";
-import type { Migration } from "#shared/db/migrations/types.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+} from "#db/migrations/runner.ts";
+import type { Migration } from "#db/migrations/types.ts";
+import { runWithQueryLogContext } from "#db/query-log.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { takeMigrationLock } from "#test-utils/migrations.ts";

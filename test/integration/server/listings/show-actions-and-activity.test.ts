@@ -1,10 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import { addDays } from "#shared/dates.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/listings/_shared-setup.ts";
 import { logActivity } from "#test-utils/activity-log.ts";

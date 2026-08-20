@@ -1,7 +1,7 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { MANUAL_ATTENDEE_PAYMENT } from "#accounting/manual-entries.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";

@@ -223,7 +223,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     test("is marked as a child", async () => {
       const parent = await createTestListing({ name: "The Package" });
       const child = await createTestListing({ name: "The Member" });
-      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#db/listing-parents.ts");
       await listingChildren.setIds(parent.id, [child.id]);
 
       expect((await loaded(child.id)).isChild).toBe(true);
@@ -232,7 +232,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     test("names its children on the parent's roster", async () => {
       const parent = await createTestListing({ name: "The Package" });
       const child = await createTestListing({ name: "Distinctive Child" });
-      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#db/listing-parents.ts");
       await listingChildren.setIds(parent.id, [child.id]);
 
       const html = await withTestSession(async () =>
@@ -254,7 +254,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       if (day === undefined) throw new Error("the listing has no bookable day");
       // Book the day directly, since the roster's date options come from the
       // dates on the booking rows.
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const { attendeesApi } = await import("#db/attendees/api.ts");
       const booked = await attendeesApi.createAttendeeAtomic({
         bookings: [{ date: day, listingId: listing.id, quantity: 1 }],
         email: "day@example.com",
@@ -284,8 +284,8 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         "Noted Person",
         "noted@example.com",
       );
-      const { createSystemNote } = await import("#shared/db/notes/queries.ts");
-      const { attendeeNotes } = await import("#shared/db/notes/target.ts");
+      const { createSystemNote } = await import("#db/notes/queries.ts");
+      const { attendeeNotes } = await import("#db/notes/target.ts");
       await withTestSession(() =>
         createSystemNote(attendeeNotes(attendee.id), "Called about parking"),
       );
@@ -304,7 +304,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       );
       const questionId = await createQuestion(text);
       await addAnswer(questionId, "Blue");
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute(
         "UPDATE questions SET assign_all = 1 WHERE id = ?",
         [questionId],

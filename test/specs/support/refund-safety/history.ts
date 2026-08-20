@@ -1,11 +1,11 @@
 /** Historical payment shapes used only after a real customer has paid. */
 
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
-import { loadIndexedPaymentReference } from "#shared/db/payment-reference-store.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { loadIndexedPaymentReference } from "#db/payment-reference-store.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
+import type { PaymentProviderType } from "#types";
 
 type StoredReferenceRow = {
   readonly payment_reference: string;

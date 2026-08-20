@@ -2,12 +2,12 @@
  * Admin holiday management routes - owner only
  */
 
+import { type HolidayInput, holidays } from "#db/holidays.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import {
   HOLIDAY_DEMO_FIELDS,
   wrapResourceForDemo,

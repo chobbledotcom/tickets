@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import type { ListingWithCount } from "#shared/types.ts";
-import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
+import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
+import { resolved } from "#test-utils/booking-model-fixtures.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
+import type { ListingWithCount } from "#types";
 
 /** A parent (id 1) with one required child (id 9), for tests that only need
  * to vary the child's own listing fields or the surrounding tree input. */

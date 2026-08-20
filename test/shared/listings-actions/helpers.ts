@@ -1,10 +1,7 @@
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { listingGroups } from "#db/groups.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 
 /** Build a complete listing input from the fields a behavior test varies. */

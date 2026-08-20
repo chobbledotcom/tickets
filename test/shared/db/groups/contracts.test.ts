@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   computeGroupSlugIndex,
   getAllGroupNames,
@@ -15,8 +13,10 @@ import {
   packageMembersError,
   setGroupListingsActive,
   setGroupPackageMembers,
-} from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+} from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { t } from "#i18n";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,

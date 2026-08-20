@@ -5,17 +5,13 @@
  * so that the route handlers remain thin response formatters.
  */
 
-import { firstProblem, requiredMapValue } from "#fp";
-import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { checkGroupListingSettings } from "#shared/db/groups/homogeneity.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
 import {
   getGroupsById,
   getListingsByGroupIds,
   listingGroups,
-} from "#shared/db/groups.ts";
+} from "#db/groups.ts";
 import {
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
@@ -23,27 +19,32 @@ import {
   listingChildren,
   listingIdsWithLinks,
   listingParents,
-} from "#shared/db/listing-parents.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
+} from "#db/listing-parents.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import {
   getAllListings,
   getListingWithCount,
   isSlugTaken,
   listingsTable,
-} from "#shared/db/listings/records.ts";
-import { computeSlugIndex } from "#shared/db/listings/table.ts";
+} from "#db/listings/records.ts";
+import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,
   type ListingGroupMembership,
   toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
-import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
+} from "#db/modifier-resolve.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import { firstProblem, requiredMapValue } from "#fp";
+import { t } from "#i18n";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
+import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
   clampDurationDays,
@@ -51,8 +52,7 @@ import {
   type Group,
   type Listing,
   type ListingWithCount,
-} from "#shared/types.ts";
-import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
+} from "#types";
 
 /** Generate a unique listing slug, retrying on collision */
 export const generateUniqueListingSlug = (excludeListingId?: number) =>

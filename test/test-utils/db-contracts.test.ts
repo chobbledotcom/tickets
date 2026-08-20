@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { getListingWithActivityLogOrNull } from "#test-utils/activity-log.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
@@ -96,9 +96,7 @@ describe("test-utils — db-backed & settings contracts", () => {
       const { listingId } = await createReservedAttendee(1500, {
         listingName: "Reserved Helper Listing",
       });
-      const { getListingWithCount } = await import(
-        "#shared/db/listings/records.ts"
-      );
+      const { getListingWithCount } = await import("#db/listings/records.ts");
       const listing = await getListingWithCount(listingId);
 
       expect(listing!.name).toBe("Reserved Helper Listing");

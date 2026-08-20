@@ -14,7 +14,6 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { once } from "#fp";
 import {
   type ChosenColumns,
   type ChosenRow,
@@ -22,16 +21,12 @@ import {
   chooseColumns,
   type ReadableTable,
   type StoredRowOf,
-} from "#shared/db/chosen-columns.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
-import {
-  type Read,
-  readOneRow,
-  readRows,
-  readStatement,
-} from "#shared/db/read.ts";
-import type { TableSchema } from "#shared/db/table.ts";
-import { equals, inList, type WhereClause } from "#shared/db/where-clauses.ts";
+} from "#db/chosen-columns.ts";
+import type { SqlStatement } from "#db/client.ts";
+import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
+import type { TableSchema } from "#db/table.ts";
+import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
+import { once } from "#fp";
 
 /**
  * Which rows to keep, written as the row itself: a value means "equals this",

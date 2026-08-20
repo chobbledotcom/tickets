@@ -17,9 +17,9 @@
  */
 
 import type { Client } from "@libsql/client";
+import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
-import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";

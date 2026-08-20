@@ -1,12 +1,12 @@
 /** Owner acknowledgement of the exact durable payment-review work they saw. */
 
+import { acknowledgeCurrentPaymentReview } from "#db/payment-review.ts";
 /* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
+import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { acknowledgeCurrentPaymentReview } from "#shared/db/payment-review.ts";
-import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
   attendeeActions,

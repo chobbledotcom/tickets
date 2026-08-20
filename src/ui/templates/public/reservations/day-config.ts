@@ -9,13 +9,13 @@ import {
   type ChildDatesByDayCount,
   pageDayCounts,
   type TicketListing,
-} from "#shared/booking/model.ts";
-import { packageBundleTotal } from "#shared/booking/price-tree.ts";
-import type { BookingTree } from "#shared/booking/tree.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
+} from "#booking/model.ts";
+import { packageBundleTotal } from "#booking/price-tree.ts";
+import type { BookingTree } from "#booking/tree.ts";
+import type { ListingAttributesById } from "#db/attributes.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { QuestionListingMap } from "#db/questions/queries.ts";
+import { dayPriceFor, type ListingWithCount } from "#types";
 import { foldReserveByChildId } from "./child-pricing.ts";
 import type { ChildRenderCtx } from "./types.ts";
 

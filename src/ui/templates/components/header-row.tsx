@@ -5,7 +5,7 @@
  */
 
 import { t } from "#i18n";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { colClass } from "#templates/components/table-columns.ts";
 
 /** A right-aligned quantity/count column header (`col-quantity`), labelled by a

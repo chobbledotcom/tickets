@@ -24,6 +24,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
 import { QTY_PREFIX } from "#routes/admin/attendee-form-lines.ts";
 import {
@@ -37,7 +38,6 @@ import {
   normalizeServicingForSave,
   parseServicingForm,
 } from "#routes/admin/servicing/form-model.ts";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 

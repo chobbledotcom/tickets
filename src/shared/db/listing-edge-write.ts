@@ -16,9 +16,9 @@
  * the check list, layered on a transaction-local read of the endpoints.
  */
 
+import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
-import { inPlaceholders, resultRows, type TxScope } from "#shared/db/client.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   type PackageChildEdgeBlock,
   packageChildEdgeConflict,

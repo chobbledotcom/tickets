@@ -1,13 +1,13 @@
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { sort } from "#fp";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { nonBlankLines } from "#shared/split.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
 import type {
   AttendeeColumnOpts,
   AttendeeTableOptions,
   TableQuestionData,
 } from "#templates/attendee-table/types.ts";
+import type { AttendeeTableRow } from "#types";
 
 /** Format a multi-line address for inline display. */
 export const formatAddressInline = (address: string): string => {

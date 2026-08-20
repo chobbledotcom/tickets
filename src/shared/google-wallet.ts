@@ -9,9 +9,9 @@
  * The resulting URL format: https://pay.google.com/gp/v/save/{jwt}
  */
 
+import { importRsaPrivateKey } from "#crypto/rsa-private-key.ts";
 import { t } from "#i18n";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
-import { importRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { startOfHour } from "#shared/dates.ts";
 

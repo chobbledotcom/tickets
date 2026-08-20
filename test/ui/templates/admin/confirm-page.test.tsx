@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#shared/types.ts";
 import {
   ConfirmPage,
   warningDeletePage,
 } from "#templates/admin/confirm-page.tsx";
+import type { AdminSession } from "#types";
 
 const OWNER: AdminSession = {
   adminLevel: "owner",

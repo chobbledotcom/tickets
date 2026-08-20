@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import { t } from "#i18n";
-import { getNoteRows, getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, it } from "@std/testing/bdd";
 import {
   getEncryptionKeyBytes,
   setEncryptionKeyForTest,
-} from "#shared/crypto/encryption.ts";
+} from "#crypto/encryption.ts";
 import {
   constantTimeEqualBytes,
   getPbkdf2Iterations,
@@ -12,8 +12,8 @@ import {
   hmacHash,
   setFastPbkdf2ForTest,
   verifyPassword,
-} from "#shared/crypto/hashing.ts";
-import { toBase64 } from "#shared/crypto/utils.ts";
+} from "#crypto/hashing.ts";
+import { toBase64 } from "#crypto/utils.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 

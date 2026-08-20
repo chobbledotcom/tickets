@@ -11,6 +11,30 @@
  * against.
  */
 
+import { requirePublicStatusId } from "#db/attendee-statuses.ts";
+import type { RowSettlement } from "#db/payment-claim.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import {
+  type ProcessedPayment,
+  prepareSessionFailure,
+  releaseReservation,
+  reserveSession,
+} from "#db/processed-payments.ts";
+import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
+/* jscpd:ignore-start -- imports */
+import { t } from "#i18n";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+} from "#payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { completedAtOf } from "#payment/refund-authority-state.ts";
+/* jscpd:ignore-end */
+import {
+  type MalformedRejection,
+  rejectedChargeReference,
+  type SessionRejection,
+} from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
@@ -29,29 +53,7 @@ import {
   storeClaimedPlaceholder,
 } from "#routes/api/payment-processing/store-refund.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
-import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
-import type { RowSettlement } from "#shared/db/payment-claim.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import {
-  type ProcessedPayment,
-  prepareSessionFailure,
-  releaseReservation,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
-import { loadRefundAuthorityById } from "#shared/db/provider-refund-authority.ts";
-import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  type PlaceholderRefund,
-  placeholderRefund,
-} from "#shared/payment/placeholder-refund.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { completedAtOf } from "#shared/payment/refund-authority-state.ts";
-import {
-  type MalformedRejection,
-  rejectedChargeReference,
-  type SessionRejection,
-} from "#shared/payment/validated-session.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */

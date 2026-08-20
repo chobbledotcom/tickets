@@ -4,7 +4,7 @@
  * frame their content the same way.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { PageHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 

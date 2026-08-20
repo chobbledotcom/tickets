@@ -2,6 +2,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import {
+  placeholderRefund,
+  placeholderRefundNote,
+  type RefundCode,
+} from "#payment/placeholder-refund.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { handleRequest } from "#routes";
 import {
   chargeMismatchSpec,
@@ -11,12 +17,6 @@ import {
   validationFailure,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentFailureResult } from "#routes/api/webhook-types.ts";
-import {
-  placeholderRefund,
-  placeholderRefundNote,
-  type RefundCode,
-} from "#shared/payment/placeholder-refund.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

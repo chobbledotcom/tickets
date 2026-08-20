@@ -11,8 +11,7 @@
  */
 
 import { capacityDateFor } from "#shared/capacity-rules.ts";
-import type { ListingWithCount } from "#shared/types.ts";
-import { clampDurationDays } from "#shared/types.ts";
+import { clampDurationDays, type ListingWithCount } from "#types";
 
 /** The listing facts the row builder reads to derive a booking's date and
  *  duration. Narrower than the full listing so the helper stays pure over the

@@ -1,5 +1,21 @@
 /** Admin servicing-event route shell. */
 
+import {
+  costBelongsToServicing,
+  createServicingEvent,
+  deleteServicingEvent,
+  duplicateServicingEvent,
+  editServiceCost,
+  getAllServicingEvents,
+  getServicingCosts,
+  getServicingEvent,
+  recordServiceCost,
+  type ServicingCostRecord,
+  type ServicingEvent,
+  servicingHoldsListing,
+  updateServicingEvent,
+} from "#db/attendees/servicing.ts";
+import { getAllListings, listingNames } from "#db/listings/records.ts";
 import { identity, map, mapById, unique } from "#fp";
 import { t } from "#i18n";
 import {
@@ -24,24 +40,7 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
-import {
-  costBelongsToServicing,
-  createServicingEvent,
-  deleteServicingEvent,
-  duplicateServicingEvent,
-  editServiceCost,
-  getAllServicingEvents,
-  getServicingCosts,
-  getServicingEvent,
-  recordServiceCost,
-  type ServicingCostRecord,
-  type ServicingEvent,
-  servicingHoldsListing,
-  updateServicingEvent,
-} from "#shared/db/attendees/servicing.ts";
-import { getAllListings, listingNames } from "#shared/db/listings/records.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -53,9 +52,9 @@ import {
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
+import type { ListingWithCount } from "#types";
 
 const createPrefillFromRequest = (request: Request): ServicingPrefill => {
   const params = new URL(request.url).searchParams;

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
-import { loginLimiter } from "#shared/db/login-attempts.ts";
+import { apiKeyLimiter } from "#db/api-key-attempts.ts";
+import { loginLimiter } from "#db/login-attempts.ts";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

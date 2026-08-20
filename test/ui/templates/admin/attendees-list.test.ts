@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { SystemNote } from "#db/notes/types.ts";
 import type {
   AttendeeListSetup,
   AttendeeListState,
   AttendeeSort,
 } from "#shared/attendee-list-controls.ts";
-import type { SystemNote } from "#shared/db/notes/types.ts";
-import type { AttendeeTableRow, ListingWithCount } from "#shared/types.ts";
 import {
   type AttendeesListPageProps,
   adminAttendeesListPage,
@@ -16,6 +15,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import type { AttendeeTableRow, ListingWithCount } from "#types";
 
 /** The browser's setup over the given listings. */
 const buildSetup = (

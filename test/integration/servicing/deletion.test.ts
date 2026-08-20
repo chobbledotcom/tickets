@@ -16,12 +16,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getDb } from "#shared/db/client.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getDb } from "#db/client.ts";
 import {
   countPurgeableOrphanedAttendees,
   purgeOrphanedAttendees,
-} from "#shared/db/orphan-attendees.ts";
+} from "#db/orphan-attendees.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";

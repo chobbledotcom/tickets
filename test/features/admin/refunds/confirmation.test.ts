@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute, queryAll, queryOne } from "#db/client.ts";
+import { createSystemNote, getNotesFor } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
-import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { releaseClaimRows } from "#test-utils/payment-claim.ts";

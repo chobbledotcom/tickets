@@ -9,21 +9,15 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
-import {
-  execute,
-  getDb,
-  insert,
-  queryOne,
-  requireOne,
-} from "#shared/db/client.ts";
-import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { assignBuiltSite, insertBuiltSite } from "#db/built-sites.ts";
+import { execute, getDb, insert, queryOne, requireOne } from "#db/client.ts";
+import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import {
   countPurgeableOrphanedAttendees,
   getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
-} from "#shared/db/orphan-attendees.ts";
+} from "#db/orphan-attendees.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -20,6 +20,15 @@ export interface CheckReport extends CheckOutput {
   success: string;
 }
 
+/** Anything a check found at a known line of a file. */
+export interface LineIssue {
+  line: number;
+}
+
+/** Sorts a check's findings the way a reader reads the file. */
+export const byLine = (left: LineIssue, right: LineIssue): number =>
+  left.line - right.line;
+
 /** The console, which is where both entry scripts send their output. */
 export const consoleOutput: CheckOutput = {
   log: console.log,

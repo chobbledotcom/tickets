@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { col, defineCachedListTable } from "#shared/db/table.ts";
+import { execute } from "#db/client.ts";
+import { col, defineCachedListTable } from "#db/table.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

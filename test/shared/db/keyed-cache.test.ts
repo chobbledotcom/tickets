@@ -4,8 +4,8 @@ import {
   createKeyedCache,
   type KeyedCache,
   type KeyedCacheConfig,
-} from "#shared/db/keyed-cache.ts";
-import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
+} from "#db/keyed-cache.ts";
+import { mustReadFromPrimary } from "#db/primary-reads.ts";
 
 /** A minimal cached row: a numeric id and a secondary string key. */
 type Row = { id: number; key: string };

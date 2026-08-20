@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import {
   type AdminResourcePagesConfig,
   defineAdminResourcePages,

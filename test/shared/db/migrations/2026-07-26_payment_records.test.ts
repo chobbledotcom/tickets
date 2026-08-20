@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import paymentRecords from "#shared/db/migrations/2026-07-26_payment_records.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
-import { paymentTables } from "#shared/db/migrations/schema/payments/index.ts";
+import paymentRecords from "#db/migrations/2026-07-26_payment_records.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
+import { paymentTables } from "#db/migrations/schema/payments/index.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const migration = paymentRecords(buildMigrationContext());

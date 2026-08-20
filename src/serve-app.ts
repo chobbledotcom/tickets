@@ -10,12 +10,12 @@
  * logic-free one-liners.
  */
 
+import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
 import { seedEffectiveDomainHost } from "#shared/config.ts";
-import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import {
   ErrorCode,

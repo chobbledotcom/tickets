@@ -24,7 +24,7 @@ import type {
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import type { AdminListing } from "#shared/types.ts";
+import type { AdminListing } from "#types";
 import { type EndpointDoc, json } from "./admin-api-example/endpoint-doc.ts";
 
 /** The running totals a listing carries. Only a booking can move them, so a

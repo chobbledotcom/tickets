@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { queryOne, withTransaction } from "#shared/db/client.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { queryOne, withTransaction } from "#db/client.ts";
 import {
   assertRowsFreeToMove,
   loadPaymentMoveSnapshot,
   orRefusal,
   PaymentRowsBusyError,
-} from "#shared/db/payment-admit-move.ts";
+} from "#db/payment-admit-move.ts";
 import {
   armRefundSend,
   markRefundCompleted,
   markRefundLocalRecorded,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,

@@ -2,21 +2,13 @@
 
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeFilter } from "#shared/attendee-list-controls.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  type Attendee,
-  type AttendeeTableRow,
-  availableDayCounts,
-  hasTicketQuantity,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { attendeeTableOptions } from "#templates/admin/attendee-table-block.tsx";
 import { sumQuantity } from "#templates/admin/detail-rows.tsx";
 import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
@@ -27,6 +19,14 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { TableScroll } from "#templates/components/table-scroll.tsx";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
+import {
+  type Attendee,
+  type AttendeeTableRow,
+  availableDayCounts,
+  hasTicketQuantity,
+  isPaidListing,
+  type ListingWithCount,
+} from "#types";
 import type { RosterListView } from "./types.ts";
 
 /* jscpd:ignore-end */

@@ -52,7 +52,7 @@ const expectLoginRejectedWithWrappedKey = async (
   wrappedDataKey: string | null,
   message: string,
 ): Promise<void> => {
-  const { getDb } = await import("#shared/db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   await getDb().execute({
     args: [wrappedDataKey],
     sql: "UPDATE users SET wrapped_data_key = ? WHERE id = 1",

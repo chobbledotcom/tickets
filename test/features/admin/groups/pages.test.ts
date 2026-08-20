@@ -3,9 +3,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { queryAll } from "#db/client.ts";
+import { groups, listingGroups } from "#db/groups.ts";
 import { deleteGroup } from "#routes/admin/groups.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { groups, listingGroups } from "#shared/db/groups.ts";
 import {
   imageNamesForItem,
   makeImage,

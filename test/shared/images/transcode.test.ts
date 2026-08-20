@@ -10,7 +10,7 @@ import {
   expectWebpContainer,
   makeTestPng,
   testJpeg,
-} from "#test/test-utils/test-image.ts";
+} from "#test-utils/test-image.ts";
 
 /** Assert bytes are a WebP container, then return its decoded dimensions. */
 const webpDims = async (

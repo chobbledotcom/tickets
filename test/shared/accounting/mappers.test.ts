@@ -6,12 +6,12 @@ import {
   modifierAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
+} from "#accounting/accounts.ts";
 import {
   type BookingFacts,
   mapBooking,
   mapRefund,
-} from "#shared/accounting/mappers.ts";
+} from "#accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { rejectionMessage } from "#test-utils/assertions.ts";

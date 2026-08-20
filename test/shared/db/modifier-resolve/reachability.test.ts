@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  reachablePageIds,
-  scopeIsChildDeadEnd,
-} from "#shared/db/modifier-resolve.ts";
+import { reachablePageIds, scopeIsChildDeadEnd } from "#db/modifier-resolve.ts";
 
 /**
  * The two pure rules behind the child-only add-on block. An add-on dead-ends

@@ -1,36 +1,36 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { identity, mapById } from "#fp";
-import { t } from "#i18n";
-import type { GroupInput } from "#shared/catalog-fields/fields.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
   type TxScope,
   writeRowInTransaction,
-} from "#shared/db/client.ts";
-import { validateListingGroupMembershipsTx } from "#shared/db/groups/membership.ts";
+} from "#db/client.ts";
+import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
 import {
   generateUniqueGroupSlug,
   groups,
   packageMembersError,
-} from "#shared/db/groups.ts";
-import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+} from "#db/groups.ts";
+import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
-} from "#shared/db/name-registry.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+} from "#db/name-registry.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
+import { identity, mapById } from "#fp";
+import { t } from "#i18n";
+import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import { okResult, type Result } from "#shared/result.ts";
-import type {
-  AdminLevel,
-  DayPricedListing,
-  ListingType,
-  ListingWithCount,
-} from "#shared/types.ts";
-import { parseDayPrices } from "#shared/types.ts";
+import {
+  type AdminLevel,
+  type DayPricedListing,
+  type ListingType,
+  type ListingWithCount,
+  parseDayPrices,
+} from "#types";
 import {
   fail,
   type ImportedEntity,

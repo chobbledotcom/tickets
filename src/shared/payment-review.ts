@@ -8,12 +8,9 @@
  * person. A debug line reaches nobody.
  */
 
+import { admissionReason, type WithheldRefund } from "#payment/admit-refund.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import {
-  admissionReason,
-  type WithheldRefund,
-} from "#shared/payment/admit-refund.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 /** Where the refund was withheld, for the report's tags. */
 type WithheldContext = {

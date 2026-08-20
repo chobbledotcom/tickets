@@ -2,6 +2,8 @@
  * Setup routes - initial system configuration
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { SetupAlreadyCompleteError, settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { applyFlash, parseFormWithCsrf } from "#routes/csrf.ts";
@@ -13,8 +15,6 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { isValidCountry } from "#shared/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { SetupAlreadyCompleteError, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";
 import { getSetupForm } from "#templates/fields/admin.ts";

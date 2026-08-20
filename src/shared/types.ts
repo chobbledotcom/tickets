@@ -10,7 +10,7 @@ import type {
   PasswordHash,
   TokenHash,
   WrappedKey,
-} from "#shared/crypto/sealed.ts";
+} from "#crypto/sealed.ts";
 import type {
   CalcKind,
   ModifierDirection,

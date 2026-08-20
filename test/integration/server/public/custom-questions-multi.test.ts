@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   expectAttendeeCounts,
   expectFlash,
@@ -21,7 +21,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 const getSharedAttendeeAnswers = async (
   listingId: number,
 ): Promise<number[]> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   const attendeeId = attendees[0]!.id;
   const batch = await getAttendeeAnswersBatch([attendeeId], { texts: false });

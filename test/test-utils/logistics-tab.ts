@@ -4,12 +4,12 @@
  */
 
 import { expect } from "@std/expect";
+import type { ListingBooking } from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";

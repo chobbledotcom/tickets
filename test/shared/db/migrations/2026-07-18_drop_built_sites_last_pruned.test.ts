@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import dropLastPrunedMigration from "#shared/db/migrations/2026-07-18_drop_built_sites_last_pruned.ts";
-import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import dropLastPrunedMigration from "#db/migrations/2026-07-18_drop_built_sites_last_pruned.ts";
+import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

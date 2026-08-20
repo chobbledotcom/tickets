@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import type { ReferenceRefund } from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
 import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
 import type {
   ProviderRefundResult,
   ProviderRefundTarget,

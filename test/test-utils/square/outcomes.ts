@@ -1,6 +1,6 @@
 import { assertThrows } from "@std/assert";
 import * as v from "valibot";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import type { SquareOrder } from "#shared/square/order.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";

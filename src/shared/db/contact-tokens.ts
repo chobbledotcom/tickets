@@ -6,18 +6,12 @@
  * contact's other bookings without decrypting every attendee.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import {
-  decryptWithOwnerKey,
-  encryptWithOwnerKey,
-} from "#shared/crypto/keys.ts";
-import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryOne, type SqlStatement } from "#shared/db/client.ts";
-import {
-  type ContactChannel,
-  contactHash,
-} from "#shared/db/contact-preferences.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, queryOne, type SqlStatement } from "#db/client.ts";
+import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
+import { settings } from "#db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is

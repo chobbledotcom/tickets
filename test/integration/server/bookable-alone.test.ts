@@ -14,10 +14,10 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingChildren } from "#db/listing-parents.ts";
+import { listingsTable } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {

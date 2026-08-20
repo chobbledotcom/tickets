@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
+import { hashEmail } from "#db/contact-preferences.ts";
 import {
   buyerVisits,
   getOptionalAddOns,
   oversubscribedAnswerTiers,
   resolveModifiers,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

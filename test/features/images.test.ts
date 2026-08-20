@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encryptBytes } from "#crypto/encryption.ts";
 import { handleRequest } from "#routes";
-import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import {
   expectBrokenImageResponse,

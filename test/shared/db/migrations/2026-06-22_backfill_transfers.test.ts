@@ -1,20 +1,14 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import {
-  attendeeAccount,
-  revenueAccount,
-} from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import backfillTransfersMigration from "#shared/db/migrations/2026-06-22_backfill_transfers.ts";
-import {
-  applySchemaChanges,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
+import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
+import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import backfillTransfersMigration from "#db/migrations/2026-06-22_backfill_transfers.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";

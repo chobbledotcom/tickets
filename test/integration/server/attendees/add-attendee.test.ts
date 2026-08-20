@@ -1,13 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
-// jscpd:ignore-end
-import {
-  expectAttendeeAdded,
-  expectFlashPage,
-  submitAddAttendee,
-} from "#test/test-utils/attendees/helpers.ts";
+import { settings } from "#db/settings.ts";
 import {
   assertAdminHtml,
   expectFlash,
@@ -15,6 +9,12 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import {
+  expectAttendeeAdded,
+  expectFlashPage,
+  submitAddAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
 import {
   createTestAttendee,

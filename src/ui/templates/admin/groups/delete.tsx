@@ -1,7 +1,7 @@
 import { t } from "#i18n";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import type { Group } from "#shared/types.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
+import type { Group } from "#types";
 
 /** Admin group delete confirmation page. */
 export const adminGroupDeletePage = entityDeletePage((group: Group) => ({

@@ -6,7 +6,6 @@ import {
   type ListingColumnKey,
 } from "#shared/tables/configurable.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import {
   ListingsTableBlock,
   listingTable,
@@ -15,6 +14,7 @@ import {
 import { AttendeeTable } from "#templates/attendee-table/component.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 const rawValue = (
   key: ListingColumnKey,

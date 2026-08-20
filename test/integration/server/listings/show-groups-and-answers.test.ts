@@ -1,11 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { addDays } from "#shared/dates.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

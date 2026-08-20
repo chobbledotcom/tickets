@@ -4,7 +4,7 @@ import type {
   AdminSectionDef,
 } from "#shared/admin-surface/sections.ts";
 import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
-import type { AdminLevel } from "#shared/types.ts";
+import type { AdminLevel } from "#types";
 
 export interface NavLink {
   readonly href: string;

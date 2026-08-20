@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import {
   buildCreateForm,
   buildEditFormFromAttendee,
@@ -8,7 +9,6 @@ import {
   type PackagePath,
   packagesByListingIdFrom,
 } from "#routes/admin/attendee-page-data.ts";
-import type { ExistingLine } from "#shared/db/attendees/atomic-update.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

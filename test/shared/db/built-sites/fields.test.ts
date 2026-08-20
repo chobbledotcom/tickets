@@ -9,7 +9,7 @@ import {
   emptyBuiltSiteFormInput,
   mapPlainFields,
   plainSiteInput,
-} from "#shared/db/built-sites/fields.ts";
+} from "#db/built-sites/fields.ts";
 
 const plainFields = {
   assignable: true,

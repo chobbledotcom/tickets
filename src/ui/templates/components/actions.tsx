@@ -10,7 +10,7 @@
 import { t } from "#i18n";
 import { type Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
-import { type AdminLevel, isStaffRole } from "#shared/types.ts";
+import { type AdminLevel, isStaffRole } from "#types";
 
 /**
  * Icon ids available in the sprite (src/ui/static/icons.svg).

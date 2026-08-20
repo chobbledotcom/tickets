@@ -2,27 +2,24 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
-import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
-import type {
-  ChildDatesByDayCount,
-  TicketListing,
-} from "#shared/booking/model.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
-import type { ListingAttributesById } from "#shared/db/attributes.ts";
-import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import type {
-  Image,
-  ImageUseItemType,
-  ItemImageColumns,
-  ListingWithCount,
-} from "#shared/types.ts";
+import type { CartDateItem } from "#booking/cart-conflicts.ts";
+import type { ChildDatesByDayCount, TicketListing } from "#booking/model.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
+import type { ListingAttributesById } from "#db/attributes.ts";
+import type { AddOnOption } from "#db/modifier-resolve.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { QuestionListingMap } from "#db/questions/queries.ts";
 import type {
   BookingPrefill,
   GroupAvailability,
 } from "#templates/public/reservations/types.ts";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
+import type {
+  Image,
+  ImageUseItemType,
+  ItemImageColumns,
+  ListingWithCount,
+} from "#types";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is

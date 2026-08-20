@@ -1,7 +1,6 @@
 import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
-import type { Browser, Page } from "playwright";
-import { chromium } from "playwright";
+import { type Browser, chromium, type Page } from "playwright";
 import sharp from "sharp";
 import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";

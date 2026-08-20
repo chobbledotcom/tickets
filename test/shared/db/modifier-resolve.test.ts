@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { toMinorUnits } from "#shared/currency.ts";
-import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import {
   ADDON_MAX_QUANTITY,
   type AddOnReachabilityCheck,
@@ -13,12 +12,10 @@ import {
   hasPromoCodeModifiers,
   oversubscribedAnswerTiers,
   resolveModifiers,
-} from "#shared/db/modifier-resolve.ts";
-import {
-  getModifierAnswerIds,
-  setModifierAnswers,
-} from "#shared/db/modifiers.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/modifier-resolve.ts";
+import { getModifierAnswerIds, setModifierAnswers } from "#db/modifiers.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";

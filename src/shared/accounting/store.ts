@@ -18,12 +18,11 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { identity, mapById, mapNotNullish, unique } from "#fp";
 import {
   eventMatchConflict,
   LedgerConflictError,
   reversalConflict,
-} from "#shared/accounting/conflicts.ts";
+} from "#accounting/conflicts.ts";
 import {
   fromDb,
   fromTx,
@@ -31,14 +30,15 @@ import {
   type RowReader,
   selectTransfersMany,
   type TransferRead,
-} from "#shared/accounting/rows.ts";
+} from "#accounting/rows.ts";
 import {
   executeBatch,
   orIgnore,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import { inList } from "#shared/db/where-clauses.ts";
+} from "#db/client.ts";
+import { inList } from "#db/where-clauses.ts";
+import { identity, mapById, mapNotNullish, unique } from "#fp";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";

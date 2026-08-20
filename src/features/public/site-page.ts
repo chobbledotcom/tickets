@@ -9,18 +9,18 @@
  * so one pure computation feeds both the nav and the body item list.
  */
 
-// jscpd:ignore-start
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
-import { getImagesForItem } from "#shared/db/images.ts";
-import { settings } from "#shared/db/settings.ts";
-// jscpd:ignore-end
+import { getImagesForItem } from "#db/images.ts";
+import { settings } from "#db/settings.ts";
+/* jscpd:ignore-start -- imports */
 import {
   computeSitePageSlugIndex,
   getSitePageBySlugIndex,
-} from "#shared/db/site-pages.ts";
+} from "#db/site-pages.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
+/* jscpd:ignore-end */
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import { publicNavProps } from "./site-nav.ts";

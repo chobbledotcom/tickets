@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
+import { buildTicketListing } from "#booking/model.ts";
+import { settings } from "#db/settings.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   CSS_PATH,
   IFRAME_RESIZER_CHILD_JS_PATH,
   JS_PATH,
 } from "#shared/asset-paths.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   consumeFlash,
@@ -14,8 +15,6 @@ import {
   setFlashContext,
 } from "#shared/flash-context.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -28,6 +27,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
+import type { AdminSession } from "#types";
 
 const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 

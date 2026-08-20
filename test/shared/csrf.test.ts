@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { base64ToBase64Url } from "#shared/crypto/utils.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
   getCurrentCsrfToken,
   isSignedCsrfToken,

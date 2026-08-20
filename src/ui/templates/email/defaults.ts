@@ -3,8 +3,8 @@
  * These are the built-in templates used when the admin has not customised them.
  */
 
-import type { EmailTemplateType } from "#shared/types.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
+import type { EmailTemplateType } from "#types";
 
 export const DEFAULT_CONFIRMATION_SUBJECT =
   "Your tickets for {{ listing_names }}";

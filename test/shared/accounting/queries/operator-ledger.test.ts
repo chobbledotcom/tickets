@@ -4,19 +4,19 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
-} from "#shared/accounting/manual-entries.ts";
+} from "#accounting/manual-entries.ts";
 import {
   ledgerTotals,
   transferActivityBounds,
   visibleTransfers,
-} from "#shared/accounting/queries.ts";
-import { emptyRange, type LedgerRange } from "#shared/accounting/range.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+} from "#accounting/queries.ts";
+import { emptyRange, type LedgerRange } from "#accounting/range.ts";
+import { postTransfers } from "#accounting/store.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 

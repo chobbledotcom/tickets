@@ -1,11 +1,11 @@
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { t } from "#i18n";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
-import type { Attendee } from "#shared/types.ts";
 import { MergeDecisionTables } from "#templates/admin/attendees/merge-tables.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import type { Attendee } from "#types";
 
 type MergeSourceInfo = {
   id: number;

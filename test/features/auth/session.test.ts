@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { createTestManagerSession, testCookie } from "#test-utils/session.ts";

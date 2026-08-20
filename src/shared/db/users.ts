@@ -2,23 +2,19 @@
  * Users table operations
  */
 
-import type { CacheInvalidation } from "#shared/cache-registry.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   hashPassword,
   hashSessionToken,
   hmacHash,
   verifyPassword,
-} from "#shared/crypto/hashing.ts";
-import {
-  unwrapKeyWithToken,
-  wrapDataKeyForPassword,
-} from "#shared/crypto/keys.ts";
+} from "#crypto/hashing.ts";
+import { unwrapKeyWithToken, wrapDataKeyForPassword } from "#crypto/keys.ts";
 import type {
   EnvKeyEncrypted,
   PasswordHash,
   WrappedKey,
-} from "#shared/crypto/sealed.ts";
+} from "#crypto/sealed.ts";
 import {
   deleteByFieldBatch,
   execute,
@@ -26,14 +22,15 @@ import {
   insert,
   insertedRowId,
   queryAll,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   createKeyedCache,
   registerCache,
   registerTableInvalidation,
-} from "#shared/db/common-schema.ts";
+} from "#db/common-schema.ts";
+import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
-import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
+import { type AdminLevel, isAdminLevel, type User } from "#types";
 
 const USER_COLUMNS =
   "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key";

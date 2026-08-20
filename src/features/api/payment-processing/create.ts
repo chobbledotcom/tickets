@@ -7,7 +7,20 @@
  */
 
 import * as v from "valibot";
+/* jscpd:ignore-start */
+import { lineGroupId } from "#booking/signed-metadata.ts";
+import type { ActivityToLog } from "#db/activity-log.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import {
+  decryptSessionTokens,
+  type ProcessedPayment,
+} from "#db/processed-payments.ts";
+import {
+  groupListingAnswerSets,
+  saveAttendeeAnswers,
+} from "#db/questions/attendee-answers/save.ts";
 import { requiredMapValue } from "#fp";
+import { paymentReferenceOf } from "#payment/validated-session.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
@@ -15,15 +28,13 @@ import {
   paidByItem,
 } from "#routes/api/payment-processing/pricing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
-/* jscpd:ignore-start */
-import { lineGroupId } from "#shared/booking/signed-metadata.ts";
-import type {
-  BookingIntent,
-  BookingItem,
-  StoredTextAnswerRef,
-  TextAnswerRef,
+import {
+  type BookingIntent,
+  type BookingItem,
+  type StoredTextAnswerRef,
+  StoredTextAnswerRefSchema,
+  type TextAnswerRef,
 } from "#shared/booking-intent.ts";
-import { StoredTextAnswerRefSchema } from "#shared/booking-intent.ts";
 import {
   bookingsForOrder,
   checkoutBookingLines,
@@ -35,24 +46,13 @@ import type {
 } from "#shared/checkout-pricing.ts";
 /* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
-import type { ActivityToLog } from "#shared/db/activity-log.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import {
-  decryptSessionTokens,
-  type ProcessedPayment,
-} from "#shared/db/processed-payments.ts";
-import {
-  groupListingAnswerSets,
-  saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { paymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /** The listing id + package path shared by every booking row we build from a
  * signed line — a fresh booking, a quantity-0 placeholder, or a dateless ghost.

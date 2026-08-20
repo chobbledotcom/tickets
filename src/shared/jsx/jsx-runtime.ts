@@ -3,7 +3,7 @@
  * No React required - just compiles JSX to string concatenation
  */
 
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
 
 /**
  * Wrapper for HTML that should not be escaped.

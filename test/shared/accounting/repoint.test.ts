@@ -4,14 +4,11 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { executeBatch } from "#shared/db/client.ts";
+} from "#accounting/accounts.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { repointAttendeeStatements } from "#accounting/repoint.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { executeBatch } from "#db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 

@@ -1,4 +1,3 @@
-import { mapNotNullish } from "#fp";
 import {
   type BookingNode,
   type BookingTree,
@@ -6,9 +5,10 @@ import {
   groupMemberNodeKey,
   listingNodeKey,
   packageMemberNodeKey,
-} from "#shared/booking/tree.ts";
+} from "#booking/tree.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import { mapNotNullish } from "#fp";
 import type { BookingItem } from "#shared/booking-intent.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 
 /**
  * Signed-metadata edge provenance.

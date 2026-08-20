@@ -4,6 +4,16 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
+import { updateCheckedIn } from "#db/attendees/update.ts";
+import type { DeliveryBookingRef } from "#db/logistics.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  getAgentRunSheetBookings,
+  runSheetBookingKey,
+} from "#db/logistics-run-sheet.ts";
+import { settings } from "#db/settings.ts";
+import { userAgents } from "#db/user-agents.ts";
+/* jscpd:ignore-end */
 /* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import {
@@ -29,19 +39,11 @@ import {
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { addDays } from "#shared/dates.ts";
-import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import type { DeliveryBookingRef } from "#shared/db/logistics.ts";
-import {
-  getAgentRunSheetBookings,
-  runSheetBookingKey,
-} from "#shared/db/logistics-run-sheet.ts";
-import { settings } from "#shared/db/settings.ts";
-import { userAgents } from "#shared/db/user-agents.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { type Attendee, isStaffRole } from "#shared/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
+import { type Attendee, isStaffRole } from "#types";
 
 /* jscpd:ignore-end */
 

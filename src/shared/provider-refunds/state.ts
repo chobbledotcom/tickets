@@ -4,41 +4,38 @@
 import {
   loadRefundAuthorityById,
   type RefundAuthorityRow,
-} from "#shared/db/provider-refund-authority.ts";
+} from "#db/provider-refund-authority.ts";
 import {
   completeRefundAuthority,
   transitionRefundAuthority,
-} from "#shared/db/provider-refund-authority-change.ts";
-import { type Money, sameMoney } from "#shared/payment/money.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/provider-refund-authority-change.ts";
+import { type Money, sameMoney } from "#payment/money.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
   mayReplaceRefundWithFreshEvidence,
-} from "#shared/payment/refund-authority-choice.ts";
-import { refundEvidenceActionAllowed } from "#shared/payment/refund-authority-lifecycle.ts";
+} from "#payment/refund-authority-choice.ts";
+import { refundEvidenceActionAllowed } from "#payment/refund-authority-lifecycle.ts";
 import type {
   RefundAuthorityState,
   RefundOwnerChoiceReason,
   RefundRequestGeneration,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import {
   type RefundConflictDecision,
   refundConflictDecision,
-} from "#shared/payment/refund-conflict-decision.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
-import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
-import {
-  type ChargeMoney,
-  returnedRefundMoney,
-} from "#shared/payment/resources.ts";
+} from "#payment/refund-conflict-decision.ts";
+import { REFUND_PROVIDER_CAPABILITIES } from "#payment/refund-provider-authorization.ts";
+import { refundReplayUntil } from "#payment/refund-replay-window.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
+import { type ChargeMoney, returnedRefundMoney } from "#payment/resources.ts";
 import type {
   ProviderRefundResult,
   ProviderRefundTarget,

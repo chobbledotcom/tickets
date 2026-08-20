@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateOptionsFor, filterByDate } from "#routes/admin/listings-view.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import type { Attendee, ListingWithCount } from "#types";
 
 const booking = (
   name: string,

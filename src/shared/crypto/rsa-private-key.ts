@@ -7,8 +7,8 @@ import {
   encodeSequence,
   readDerSequence,
   requireDerTag,
-} from "#shared/crypto/der.ts";
-import { readPem } from "#shared/crypto/pem.ts";
+} from "#crypto/der.ts";
+import { readPem } from "#crypto/pem.ts";
 
 // PKCS #1 rsaEncryption. PKCS #8 requires this OID followed by DER NULL.
 const RSA_ENCRYPTION_OID = "1.2.840.113549.1.1.1";

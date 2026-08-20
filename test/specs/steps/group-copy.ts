@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
-import { getListingsByGroupId } from "#shared/db/groups.ts";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {

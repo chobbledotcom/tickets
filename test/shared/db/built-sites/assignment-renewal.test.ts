@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts";
-import { parseSiteDataBlob } from "#shared/db/built-sites/blob.ts";
+import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
+import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import {
   assignBuiltSite,
   builtSites,
@@ -10,7 +10,7 @@ import {
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
+} from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("assignable built sites", { db: true }, () => {

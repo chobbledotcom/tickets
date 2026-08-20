@@ -1,6 +1,6 @@
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import type { StripeExpandedPaymentIntent } from "#shared/stripe/schemas.ts";
-import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
+import { stripeRefund } from "#test-utils/stripe/fixtures.ts";
 
 const checkout = {
   amount_total: 1000,

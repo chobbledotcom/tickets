@@ -4,7 +4,7 @@ import type {
   AttributeOption,
   AttributeWithOptions,
   ListingAttributesById,
-} from "#shared/db/attributes.ts";
+} from "#db/attributes.ts";
 import {
   attributeFilterGroupsForListings,
   attributeFilterParam,

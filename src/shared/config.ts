@@ -4,7 +4,7 @@
  * Payment provider and keys are configured via admin settings (stored encrypted in DB)
  */
 
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { getEnv, requireEnv } from "#shared/env.ts";
 import { slugify } from "#shared/slug.ts";
 

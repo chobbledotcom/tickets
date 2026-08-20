@@ -6,15 +6,15 @@
  * method from this object at call time so those replacements take effect.
  */
 
-import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/db/attendees/atomic-update.ts";
+import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#db/attendees/atomic-update.ts";
 import {
   checkBatchAvailabilityImpl,
   checkListingAvailability,
-} from "#shared/db/attendees/capacity/checks.ts";
+} from "#db/attendees/capacity/checks.ts";
 import {
   createAttendeeAtomicImpl,
   createBookingAtomic as createBookingAtomicImpl,
-} from "#shared/db/attendees/create.ts";
+} from "#db/attendees/create.ts";
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {

@@ -1,5 +1,5 @@
 import { DAY_MS } from "#shared/now.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 type ReplayWindowPolicy = (now: number) => number;
 

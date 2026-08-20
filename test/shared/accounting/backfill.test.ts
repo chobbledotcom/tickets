@@ -4,28 +4,28 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
-import { backfillTransfers } from "#shared/accounting/backfill.ts";
-import { type BookingFacts, mapBooking } from "#shared/accounting/mappers.ts";
+} from "#accounting/accounts.ts";
+import { backfillTransfers } from "#accounting/backfill.ts";
+import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
 import {
   accountBalance,
   allTransfers,
   transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getDb } from "#shared/db/client.ts";
+} from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
+import type { ListingBooking } from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getDb } from "#db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

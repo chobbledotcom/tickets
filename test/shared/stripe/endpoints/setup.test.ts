@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import {
-  newWebhookApiCalls,
-  setupWithWebhookApi,
-} from "#test/test-utils/stripe/webhook-mocks.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
+import {
+  newWebhookApiCalls,
+  setupWithWebhookApi,
+} from "#test-utils/stripe/webhook-mocks.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 const setupWhileFetchThrows = (thrown: unknown, url: string) =>

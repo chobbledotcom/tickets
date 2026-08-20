@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
 import {
   attendeeStatuses,
   requirePaidDefaultStatus,
-} from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { getDb } from "#shared/db/client.ts";
+} from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
+import { getDb } from "#db/client.ts";
 import {
   getContactRecord,
   hashEmail,
   saveContactRecord,
   toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { hasSelectedOption } from "#test-utils/csrf.ts";
@@ -393,8 +393,8 @@ describeWithEnv(
           "Noted",
           "noted@example.com",
         );
-        const { createOwnerNote } = await import("#shared/db/notes/queries.ts");
-        const { attendeeNotes } = await import("#shared/db/notes/target.ts");
+        const { createOwnerNote } = await import("#db/notes/queries.ts");
+        const { attendeeNotes } = await import("#db/notes/target.ts");
         await createOwnerNote(
           attendeeNotes(attendee.id),
           "Allergic to peanuts",

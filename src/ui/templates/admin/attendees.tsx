@@ -2,22 +2,16 @@
  * Admin attendee page templates
  */
 
-/* jscpd:ignore-start */
-import { compact } from "#fp";
-import { t } from "#i18n";
-import { formatCurrency } from "#shared/currency.ts";
-import { formatDatetimeShort } from "#shared/dates.ts";
 import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
-} from "#shared/db/question-types.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type {
-  AdminSession,
-  Attendee,
-  ListingWithCount,
-} from "#shared/types.ts";
+} from "#db/question-types.ts";
+/* jscpd:ignore-start */
+import { compact } from "#fp";
+import { t } from "#i18n";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { formatDatetimeShort } from "#shared/dates.ts";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import {
@@ -28,6 +22,7 @@ import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { questionControl } from "#templates/components/question-controls.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import type { AdminSession, Attendee, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

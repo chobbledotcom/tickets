@@ -12,7 +12,38 @@
  * runs it again from wherever a crash stopped it.
  */
 
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
+import {
+  type AnchorRowWork,
+  loadAnchorRowWork,
+} from "#db/payment-anchor/held-work.ts";
+import {
+  type PaymentRowRecord,
+  paymentRowsWith,
+  type RowSettlement,
+  settleAttendeeRows,
+} from "#db/payment-claim.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { advanceSessionFailure } from "#db/processed-payments.ts";
 import { sortStrings, unique } from "#fp";
+import {
+  assertJointStateLegal,
+  authorityFactOf,
+  jointRowFactOf,
+} from "#payment/joint-state.ts";
+import {
+  type PlaceholderRefund,
+  placeholderRefund,
+  placeholderRefundNote,
+} from "#payment/placeholder-refund.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import {
+  type RefundClaim,
+  type StoredPaymentFailure,
+  sessionAnswerOf,
+} from "#payment/row-state.ts";
+import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import {
@@ -28,38 +59,7 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  type AnchorRowWork,
-  loadAnchorRowWork,
-} from "#shared/db/payment-anchor/held-work.ts";
-import {
-  type PaymentRowRecord,
-  paymentRowsWith,
-  type RowSettlement,
-  settleAttendeeRows,
-} from "#shared/db/payment-claim.ts";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { advanceSessionFailure } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import {
-  assertJointStateLegal,
-  authorityFactOf,
-  jointRowFactOf,
-} from "#shared/payment/joint-state.ts";
-import {
-  type PlaceholderRefund,
-  placeholderRefund,
-  placeholderRefundNote,
-} from "#shared/payment/placeholder-refund.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import {
-  type RefundClaim,
-  type StoredPaymentFailure,
-  sessionAnswerOf,
-} from "#shared/payment/row-state.ts";
-import { paidPaymentReferenceOf } from "#shared/payment/validated-session.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 

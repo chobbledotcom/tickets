@@ -10,8 +10,8 @@ import {
   booleanToCheckbox,
   entityToFieldValues,
 } from "#shared/forms/values.ts";
-import type { Modifier } from "#shared/types.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
+import type { Modifier } from "#types";
 
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 export const ruleSummary = (m: Modifier): string => {

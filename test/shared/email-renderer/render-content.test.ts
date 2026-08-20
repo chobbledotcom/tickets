@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { renderEmailContent } from "#shared/email-renderer.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import {

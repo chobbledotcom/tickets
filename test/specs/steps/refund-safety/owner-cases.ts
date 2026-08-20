@@ -1,11 +1,11 @@
 // jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
-import { loadRefundAuthorityByReference } from "#shared/db/provider-refund-authority.ts";
-import type { ProviderRefundTarget } from "#shared/provider-refunds.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
 import {
   type ProviderRefundDependencies,
+  type ProviderRefundTarget,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";

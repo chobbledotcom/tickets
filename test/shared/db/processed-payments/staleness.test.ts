@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#shared/db/client.ts";
+import { getDb, insert } from "#db/client.ts";
 import {
   deleteAllStaleReservations,
   releaseReservation,
   reserveSession,
   STALE_RESERVATION_MS,
-} from "#shared/db/processed-payments.ts";
+} from "#db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { referenceIndexOf } from "#test-utils/payment-claim.ts";

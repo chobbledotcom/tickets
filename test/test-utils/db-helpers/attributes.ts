@@ -5,7 +5,7 @@ import {
   attributesOrder,
   attributesTable,
   listingAttributeOptions,
-} from "#shared/db/attributes.ts";
+} from "#db/attributes.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 

@@ -1,8 +1,24 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin authentication routes - login and logout
  */
 
+import {
+  deriveKEK,
+  deriveKEKFromPassword,
+  unwrapKey,
+  wrapKeyWithToken,
+} from "#crypto/keys.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
+import { createSession, deleteSession } from "#db/sessions.ts";
+import {
+  decryptAdminLevel,
+  getUserByUsername,
+  migrateUserToV2Kek,
+  verifyUserPassword,
+} from "#db/users.ts";
 import { t } from "#i18n";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
@@ -21,28 +37,13 @@ import {
   clearSessionCookie,
   getSessionCookieName,
 } from "#shared/cookies.ts";
-import {
-  deriveKEK,
-  deriveKEKFromPassword,
-  unwrapKey,
-  wrapKeyWithToken,
-} from "#shared/crypto/keys.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { verifySignedCsrfToken } from "#shared/csrf.ts";
-import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
-import { createSession, deleteSession } from "#shared/db/sessions.ts";
-import {
-  decryptAdminLevel,
-  getUserByUsername,
-  migrateUserToV2Kek,
-  verifyUserPassword,
-} from "#shared/db/users.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
-import type { AdminLevel } from "#shared/types.ts";
 import { adminLogoutPage } from "#templates/admin/logout.tsx";
 import { getLoginForm } from "#templates/fields/admin.ts";
+import type { AdminLevel } from "#types";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>

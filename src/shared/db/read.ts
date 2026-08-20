@@ -10,13 +10,13 @@
  * one sentence, just a longer one.
  */
 
-import { queryAll, type SqlStatement } from "#shared/db/client.ts";
+import { queryAll, type SqlStatement } from "#db/client.ts";
 import {
   clauseArgs,
   rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
 
 /** A read, said rather than written. */
 export type Read = {

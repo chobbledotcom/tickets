@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import { settings } from "#db/settings.ts";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
-import { settings } from "#shared/db/settings.ts";
 import { parseOrNull } from "./parse.ts";
 
 /* jscpd:ignore-end */

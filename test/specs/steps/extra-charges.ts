@@ -6,12 +6,9 @@ import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
   modifierAccount,
-} from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#accounting/accounts.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { settings } from "#db/settings.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   bookingId,

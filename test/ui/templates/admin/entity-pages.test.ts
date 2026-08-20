@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   entityPageView,
   renderSection,

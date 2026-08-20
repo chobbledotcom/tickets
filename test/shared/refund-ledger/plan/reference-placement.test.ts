@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { accountBalance, allTransfers } from "#accounting/queries.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import {
   legacyReference,

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
-import { getDb } from "#shared/db/client.ts";
-import { acquireMigrationLock } from "#shared/db/migrations/lock.ts";
+import { getDb } from "#db/client.ts";
+import { acquireMigrationLock } from "#db/migrations/lock.ts";
 import type {
   AdditiveMigration,
   Migration,
   MigrationContext,
   SchemaRequirement,
-} from "#shared/db/migrations/types.ts";
+} from "#db/migrations/types.ts";
 
 /**
  * Stub used for every migration-context member a particular migration's `up()`
@@ -115,7 +115,7 @@ const verifyRequirement = (_req: SchemaRequirement) => async () => {};
  * the members the migration under test uses:
  *
  * ```ts
- * import { applySchemaChanges, syncIndexes } from "#shared/db/migrations/schema-sync.ts";
+ * import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
  *
  * const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
  * ```

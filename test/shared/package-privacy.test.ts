@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { groups } from "#shared/db/groups.ts";
+import { buildTicketListing } from "#booking/model.ts";
+import { groups } from "#db/groups.ts";
 import {
   concealLineNames,
   concealMemberNames,
@@ -13,10 +13,10 @@ import {
   packageStandIns,
   resolveNamesConcealed,
 } from "#shared/package-privacy.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
 
 const HIDDEN = packagePrivacy(true, "Welcome Pack");
 const SHOWN = packagePrivacy(false, "Welcome Pack");

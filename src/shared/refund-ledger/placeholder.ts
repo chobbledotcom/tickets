@@ -1,11 +1,7 @@
 /** Store the cash round-trip for a booking that could not be honoured. */
 
-import {
-  asOrderLegs,
-  mapBooking,
-  mapRefund,
-} from "#shared/accounting/mappers.ts";
-import { postTransferGroups } from "#shared/accounting/store.ts";
+import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
+import { postTransferGroups } from "#accounting/store.ts";
 import { logRefundLedgerError } from "./log.ts";
 
 type PlaceholderRefundFacts = {

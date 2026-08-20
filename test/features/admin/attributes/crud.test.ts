@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import {
+  getAllAttributesWithOptions,
+  getAttributeWithOptions,
+} from "#db/attributes.ts";
 import {
   attributeNameForm,
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import {
-  getAllAttributesWithOptions,
-  getAttributeWithOptions,
-} from "#shared/db/attributes.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

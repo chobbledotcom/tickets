@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { refundReplayUntil } from "#payment/refund-replay-window.ts";
 import { DAY_MS } from "#shared/now.ts";
-import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
 
 describe("refund provider replay windows", () => {
   test("keeps Stripe's documented exact-key promise for 24 hours", () => {

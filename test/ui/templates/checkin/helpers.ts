@@ -1,8 +1,8 @@
 import { handleRequest } from "#routes";
-import type { Listing } from "#shared/types.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import type { Listing } from "#types";
 
 interface CheckinSession {
   cookie: string;

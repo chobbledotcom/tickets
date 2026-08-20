@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { questionTables } from "#shared/db/migrations/schema/tables-questions.ts";
+import { questionTables } from "#db/migrations/schema/tables-questions.ts";
 import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete question and built-site schema exact", async () => {

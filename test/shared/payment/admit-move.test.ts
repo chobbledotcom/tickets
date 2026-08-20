@@ -8,8 +8,8 @@ import {
   paymentWorkForMirrors,
   type RowMove,
   rowWorkMirrorSql,
-} from "#shared/payment/admit-move.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#payment/admit-move.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import { reviewCase } from "#test-utils/payment-claim.ts";
 
 /** What the operator is told, word for word. Pinned here because these

@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 
 /**
  * Email validation — the single source of truth for what counts as a valid

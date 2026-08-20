@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import {
-  addAnswer,
-  createQuestion,
-} from "#test/test-utils/questions/helpers.ts";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -15,6 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import {
   adminFormPost,
   adminGet,
@@ -51,9 +48,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("shows a Listings cell titled with the assigned listing names", async () => {
       const qId = await createQuestion("Listings column?");
       const listing = await createTestListing({ name: "Gala Night" });
-      const { questionListings } = await import(
-        "#shared/db/questions/queries.ts"
-      );
+      const { questionListings } = await import("#db/questions/queries.ts");
       await questionListings.setIds(qId, [listing.id]);
 
       const response = await adminGet("/admin/questions");
@@ -95,7 +90,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         }),
       ).rejects.toThrow("feature enable failed");
       const { getAllQuestionsWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       expect(await getAllQuestionsWithAnswers()).toEqual([]);
     });
@@ -106,7 +101,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         text: "Redirect target?",
       });
       const { getAllQuestionsWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const questions = await getAllQuestionsWithAnswers();
       const found = questions.find((q) => q.text === "Redirect target?")!;
@@ -150,7 +145,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         text: "Choose one?",
       });
       const { getAllQuestionsWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const question = (await getAllQuestionsWithAnswers()).find(
         (q) => q.text === "Choose one?",
@@ -209,7 +204,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
 
       const { getAllQuestionsWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       expect(await getAllQuestionsWithAnswers()).toHaveLength(0);
     });
@@ -226,7 +221,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       await expectFlashRedirect("/admin/questions", "Question moved")(response);
       const { getAllQuestionsWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       expect(
         (await getAllQuestionsWithAnswers()).map((question) => question.text),
@@ -286,13 +281,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the question was updated
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       const updated = await questionsTable.read.one({ id: id });
       expect(updated!.text).toBe("After edit");
     });
 
     test("does not update a question when enabling the feature fails", async () => {
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       const question = await questionsTable.insert({
         displayType: "radio",
         text: "Before?",
@@ -342,7 +337,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       const q = await questionsTable.insert({
         displayType: "free_text",
         text: "Notes?",
@@ -362,7 +357,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("does not let a choice question be converted to free-text", async () => {
       const id = await createQuestion("Colour?");
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       await adminFormPost(`/admin/questions/${id}/edit`, {
         display_type: "free_text",
         text: "Colour?",

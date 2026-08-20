@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { PRICE_TYPE_GROUP_DAY } from "#shared/db/listing-prices.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { PRICE_TYPE_GROUP_DAY } from "#db/listing-prices.ts";
 import {
   loadRegistrationPackageFacts,
   RegistrationDeliveryError,

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hasNewsPosts } from "#shared/db/news-posts.ts";
-import { sitePages } from "#shared/db/site-pages.ts";
+import { hasNewsPosts } from "#db/news-posts.ts";
+import { sitePages } from "#db/site-pages.ts";
 import {
   expectHtmlResponse,
   expectRedirectWithFlash,

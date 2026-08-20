@@ -9,9 +9,9 @@
  */
 
 import { t } from "#i18n";
-import type { EmailTemplateType } from "#shared/types.ts";
 import { TextField } from "#templates/components/text-field.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
+import type { EmailTemplateType } from "#types";
 
 /** A textarea body field (html or text), with its "edit default" link. */
 const BodyField = ({

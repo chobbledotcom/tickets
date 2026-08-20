@@ -5,20 +5,16 @@
  * to the store.
  */
 
-import { sumByKey } from "#fp";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
   modifierAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import {
-  eventGroup,
-  legReference,
-  type RefPart,
-} from "#shared/accounting/refs.ts";
+} from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
+import { sumByKey } from "#fp";
 import type {
   AccountRef,
   Transfer,

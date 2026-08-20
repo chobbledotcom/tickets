@@ -12,7 +12,7 @@ import {
   fakeCommand,
   withFakeCurl,
   withTempStripeMockPaths,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test-utils/stripe-mock/helpers.ts";
 
 const withFakeTar = fakeCommand("tar");
 const withFakeChmod = fakeCommand("chmod");

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { groups } from "#shared/db/groups.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   bookListing,
   describePublicApi,
@@ -11,7 +11,7 @@ import {
   fetchAvailability,
   fetchListingBySlug,
   fetchListingsList,
-} from "#test/test-utils/api/helpers.ts";
+} from "#test-utils/api/helpers.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { jsonRequest } from "#test-utils/mocks.ts";
@@ -101,9 +101,7 @@ describePublicApi(() => {
       expect(response.status).toBe(404);
 
       // Verify no booking was created
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees.length).toBe(0);
     });

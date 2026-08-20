@@ -6,14 +6,14 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
   getDailyListingAttendeesByDate,
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
-} from "#shared/db/listings/attendees.ts";
+} from "#db/listings/attendees.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

@@ -2,10 +2,6 @@
  * Join routes - public invite acceptance flow
  */
 
-import { t } from "#i18n";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
-import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import {
   acceptInvite,
   activateKeylessUser,
@@ -13,11 +9,15 @@ import {
   decryptUsername,
   getUserByInviteCode,
   isInviteValid,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { t } from "#i18n";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
+import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import type { User } from "#shared/types.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
+import type { User } from "#types";
 
 export const joinForm = defineForm({
   fields: [

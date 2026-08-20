@@ -1,4 +1,4 @@
-import { fromBase64 } from "#shared/crypto/utils.ts";
+import { fromBase64 } from "#crypto/utils.ts";
 
 export interface PemValue {
   bytes: Uint8Array;

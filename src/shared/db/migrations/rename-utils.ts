@@ -1,4 +1,4 @@
-import { countRows, getDb } from "#shared/db/client.ts";
+import { countRows, getDb } from "#db/client.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import {
   currentSchemaColumnsPresentIn,

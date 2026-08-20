@@ -7,7 +7,7 @@ import { commandExitCode } from "#scripts/deno-command.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { isFeaturePath } from "#scripts/specs/paths.ts";
 import { stripeMockEnv, stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
-import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, envWith } from "./child-process.ts";
 import { planIsolateEntries } from "./isolate-entry.ts";

@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { execute } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
-import { groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

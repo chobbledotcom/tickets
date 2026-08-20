@@ -6,8 +6,8 @@
  */
 
 import { describe } from "@std/testing/bdd";
-import { isEmailTemplateFormat, isEmailTemplateType } from "#shared/types.ts";
 import { checkBothArms } from "#test-utils/picklist-guard.ts";
+import { isEmailTemplateFormat, isEmailTemplateType } from "#types";
 
 describe("EmailTemplateType picklist", () => {
   checkBothArms(

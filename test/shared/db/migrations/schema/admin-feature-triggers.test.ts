@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ADMIN_FEATURE_TRIGGERS } from "#shared/db/migrations/schema/admin-feature-triggers.ts";
+import { ADMIN_FEATURE_TRIGGERS } from "#db/migrations/schema/admin-feature-triggers.ts";
 
 const SETTINGS_USE = { settings: ["key", "value"] } as const;
 

@@ -7,7 +7,7 @@
  * an email per checkout — `withRequiredEmail` upgrades the parsed list.
  */
 
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { validateForm } from "#shared/forms/validation.ts";
@@ -15,11 +15,6 @@ import {
   parseListingFields,
   withRequiredEmail,
 } from "#shared/listing-fields.ts";
-import type {
-  ContactField,
-  ContactInfo,
-  ListingFields,
-} from "#shared/types.ts";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import {
   MAX_ADDRESS_LENGTH,
@@ -29,6 +24,7 @@ import {
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
+import type { ContactField, ContactInfo, ListingFields } from "#types";
 
 /** Typed values from the public ticket form (field presence varies by listing config). */
 export type TicketFormValues = {

@@ -10,14 +10,15 @@ import {
   queryBatchPrimary,
   type SqlStatement,
   setDb,
-} from "#shared/db/client.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+} from "#db/client.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
+} from "#db/migrations.ts";
+import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 /**
@@ -108,26 +109,28 @@ describe("db > client transient upstream retry", () => {
     expect(attempts).toBe(2);
   });
 
-  test("an upstream hiccup that outlasts the retries rethrows the original error", async () => {
-    using time = new FakeTime();
-    let attempts = 0;
+  test("a remote database exhausts its retries and rethrows the original error", () => {
     const failure = upstreamError(504);
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return Promise.reject(failure);
-      }),
-    );
     // Identity: the original error propagates unswapped — a sustained outage
     // is reported as itself, not disguised as write-lock contention.
-    const outcome = expect(execute("SELECT 1")).rejects.toBe(failure);
-    await time.tickAsync(50);
-    expect(attempts).toBe(2);
-    await time.tickAsync(150);
-    expect(attempts).toBe(3);
-    await time.tickAsync(350);
-    expect(attempts).toBe(4);
-    await outcome;
+    return expectFullBackoffWalk({
+      dbUrl: "libsql://upstream-ladder.example.turso.io",
+      failsWith: () => failure,
+      outcome: (operation) => expect(operation).rejects.toBe(failure),
+      sql: "SELECT 1",
+      waits: [50, 150, 350],
+    });
+  });
+
+  test("a file database exhausts its longer ladder and rethrows the original error", () => {
+    const failure = upstreamError(504);
+    return expectFullBackoffWalk({
+      dbUrl: "file:/tmp/upstream-ladder.db",
+      failsWith: () => failure,
+      outcome: (operation) => expect(operation).rejects.toBe(failure),
+      sql: "SELECT 1",
+      waits: [50, 150, 350, 700, 1400],
+    });
   });
 
   test("a non-transient upstream status is not retried", async () => {

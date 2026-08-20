@@ -1,13 +1,11 @@
+/* jscpd:ignore-start -- imports */
+import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import {
-  type BuiltSite,
-  DEFAULT_UPDATE_TIER,
-} from "#shared/db/built-sites/types.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
+/* jscpd:ignore-end */
 import { booleanToCheckbox } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import {
   BuiltSitesGuideFooter,
@@ -19,6 +17,7 @@ import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
+import type { AdminSession, ListingWithCount } from "#types";
 
 export const adminBuiltSitesPage = (
   sites: BuiltSite[],

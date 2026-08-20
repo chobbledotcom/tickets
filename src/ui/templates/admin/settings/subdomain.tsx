@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { SafeHtml } from "#jsx/jsx-runtime";
+import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";

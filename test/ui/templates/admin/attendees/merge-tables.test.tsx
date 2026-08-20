@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import type {
   AttendeeMergeDiff,
   AttendeeMergeDiffBookingItem,

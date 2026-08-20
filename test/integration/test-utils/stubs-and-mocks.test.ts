@@ -138,7 +138,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
   describe("createTestDb", () => {
     test("creates an in-memory database that can execute queries", async () => {
       await createTestDb();
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       const result = await getDb().execute("SELECT 1 as test");
       expect(result.rows.length).toBe(1);
       expect(result.columns).toContain("test");
@@ -154,7 +154,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
 
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
-      const { getDb, insert } = await import("#shared/db/client.ts");
+      const { getDb, insert } = await import("#db/client.ts");
       // Insert data into the first DB
       await getDb().execute(
         insert("listings", {
@@ -185,7 +185,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
       const url = requireEnv("DB_URL");
       expect(url.startsWith("file:")).toBe(true);
       const path = url.slice("file:".length);
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       using _close = stub(getDb(), "close", () => {
         throw new Error("close failed");
       });

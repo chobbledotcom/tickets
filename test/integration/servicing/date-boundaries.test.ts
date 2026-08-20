@@ -8,8 +8,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
-import { getDb } from "#shared/db/client.ts";
+import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
+import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,

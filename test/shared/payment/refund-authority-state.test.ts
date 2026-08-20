@@ -3,11 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   markRefundCompleted,
   markRefundLocalRecorded,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
-} from "#shared/payment/refund-authority-choice.ts";
+} from "#payment/refund-authority-choice.ts";
 import {
   completedAtOf,
   readRefundAuthorityState,
@@ -16,7 +16,7 @@ import {
   refundStateMirror,
   validateRefundAuthorityState,
   writeRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import {
   keyedObservingRefundForTest,
   keylessArmedRefundForTest,

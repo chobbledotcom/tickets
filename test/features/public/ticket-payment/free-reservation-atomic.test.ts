@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { buildTicketListing } from "#booking/model.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { createFreeReservation } from "#routes/public/ticket-payment.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
-import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { withRejectedBookingWrite } from "#test-utils/atomic-booking.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { ContactInfo, ListingWithCount } from "#types";
 
 const contact: ContactInfo = {
   address: "",

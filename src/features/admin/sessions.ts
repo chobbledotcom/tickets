@@ -1,14 +1,14 @@
 /* jscpd:ignore-start */
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin session management routes
  */
 
+import { hashSessionToken } from "#crypto/hashing.ts";
+import { deleteOtherSessions, getAllSessions } from "#db/sessions.ts";
 import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { hashSessionToken } from "#shared/crypto/hashing.ts";
-import { deleteOtherSessions, getAllSessions } from "#shared/db/sessions.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /* jscpd:ignore-end */

@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import type { SitePage, SitePageNavRow } from "#shared/types.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   adminSitePageDeletePage,
   adminSitePageNewPage,
@@ -14,6 +13,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
+import type { SitePage, SitePageNavRow } from "#types";
 
 const PAGE: SitePage = {
   content: "Welcome **inside**.",

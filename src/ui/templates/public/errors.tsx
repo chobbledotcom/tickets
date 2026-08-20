@@ -1,9 +1,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getRenewalUrl } from "#shared/env.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   ProseHeading,
   RawParagraph,

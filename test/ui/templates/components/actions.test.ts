@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { jsx } from "#jsx/jsx-runtime.ts";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
-import type { AdminLevel } from "#shared/types.ts";
 import {
   ActionButton,
   BackButton,
@@ -16,6 +15,7 @@ import {
   SpanOrLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import type { AdminLevel } from "#types";
 
 describe("Icon", () => {
   test("renders a sprite reference sized via the icon class", () => {

@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { queryAll } from "#db/client.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { handleRequest } from "#routes";
-import { queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import type { Group, Listing } from "#shared/types.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -13,6 +12,7 @@ import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
+import type { Group, Listing } from "#types";
 
 /**
  * Paid orders booking the SAME listing through two paths at once — a package
@@ -182,7 +182,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     // tagged line shares its listing id — saved and refunded (one quantity-0
     // placeholder per path), never a standalone ticket for a concealed
     // listing.
-    const { groups } = await import("#shared/db/groups.ts");
+    const { groups } = await import("#db/groups.ts");
     await groups.table.update(group.id, { hidePackageListings: true });
 
     await expectDualPathRefused(listing, group, stubs);
@@ -217,7 +217,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     // operator record must keep one quantity-0 ghost per signed line — the
     // bundle line under its package id and the deleted line under its own id —
     // never a single ghost pinned to the first item's (surviving) listing.
-    const { deleteListing } = await import("#shared/db/listings/delete.ts");
+    const { deleteListing } = await import("#db/listings/delete.ts");
     await deleteListing(doomed.id);
 
     try {
@@ -264,7 +264,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       thankYouUrl: "",
       unitPrice: 300,
     });
-    const { listingChildren } = await import("#shared/db/listing-parents.ts");
+    const { listingChildren } = await import("#db/listing-parents.ts");
     await listingChildren.setIds(parent.id, [addon.id]);
     const { mockRefund, mockVerify } = await paidSession(
       "legit_surplus",
@@ -339,7 +339,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       thankYouUrl: "",
       unitPrice: 300,
     });
-    const { listingChildren } = await import("#shared/db/listing-parents.ts");
+    const { listingChildren } = await import("#db/listing-parents.ts");
     await listingChildren.setIds(parent.id, [addon.id]);
     await setGroupPackageMembers(group.id, [
       { listingId: parent.id, price: 1000 },
@@ -364,7 +364,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     // itself" mid-payment: those standalone units now lead to a 404 page, so
     // the order must be saved-and-refunded — the package allocation must not
     // exempt the line's surplus from the stale check.
-    const { listingsTable } = await import("#shared/db/listings/records.ts");
+    const { listingsTable } = await import("#db/listings/records.ts");
     await listingsTable.update(addon.id, { bookableAlone: false });
 
     try {

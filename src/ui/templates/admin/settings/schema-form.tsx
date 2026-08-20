@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type {
   BooleanSettingsFormConfig,

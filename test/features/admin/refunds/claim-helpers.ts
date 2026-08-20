@@ -1,9 +1,9 @@
-import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type {
   ClaimResult,
   LoadedRefundAttendee,
-} from "#shared/db/payment-claim/take.ts";
-import type { RowSettlement } from "#shared/db/payment-claim.ts";
+} from "#db/payment-claim/take.ts";
+import type { RowSettlement } from "#db/payment-claim.ts";
+import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 
 export type ClaimedRows = Extract<ClaimResult, { kind: "claimed" }>;
 

@@ -1,5 +1,5 @@
+import type { RefundReferenceProblem } from "#db/payment-references.ts";
 import { t } from "#i18n";
-import type { RefundReferenceProblem } from "#shared/db/payment-references.ts";
 import type { RefundReadinessRead } from "./readiness.ts";
 
 const REFERENCE_PROBLEM_MESSAGE = {

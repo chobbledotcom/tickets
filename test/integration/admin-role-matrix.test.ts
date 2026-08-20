@@ -21,8 +21,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
-import type { AdminLevel } from "#shared/types.ts";
-import { ALL_ADMIN_LEVELS } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAgentSession,
@@ -30,6 +28,7 @@ import {
   createTestManagerSession,
   getTestSession,
 } from "#test-utils/session.ts";
+import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
 const FORBIDDEN = 403;
 const SERVED = 200;

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import {
   formatCurrency,
   formatSignedCurrency,
@@ -7,7 +8,6 @@ import {
   toMajorUnits,
   toMinorUnits,
 } from "#shared/currency.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testWithSetting } from "#test-utils/settings.ts";

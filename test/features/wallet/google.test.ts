@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { expectHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

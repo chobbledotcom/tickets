@@ -1,8 +1,28 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin calendar view routes
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  getAttendeesByListingIds,
+  getDailyListingAttendeeDates,
+  getDailyListingAttendeesByDate,
+} from "#db/listings/attendees.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import {
+  bookingAssignmentKey,
+  getLogisticsAssignmentsForAttendees,
+} from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+/* jscpd:ignore-end */
+import { loadAttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import {
   fieldById,
@@ -34,23 +54,6 @@ import {
   getAvailableDates,
   listingDateToCalendarDate,
 } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import {
-  getAttendeesByListingIds,
-  getDailyListingAttendeeDates,
-  getDailyListingAttendeesByDate,
-} from "#shared/db/listings/attendees.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import {
-  bookingAssignmentKey,
-  getLogisticsAssignmentsForAttendees,
-} from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { loadAttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   type AgentFilter,
   assignmentMatchesAgentFilter,
@@ -59,18 +62,18 @@ import {
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import {
-  type Attendee,
-  isPaidListing,
-  type ListingWithCount,
-  type LogisticsAgent,
-} from "#shared/types.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,
 } from "#templates/admin/calendar.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
+import {
+  type Attendee,
+  isPaidListing,
+  type ListingWithCount,
+  type LogisticsAgent,
+} from "#types";
 
 /* jscpd:ignore-end */
 

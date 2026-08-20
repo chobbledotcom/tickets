@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withTransaction } from "#shared/db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import {
   asPaymentRowRecord,
   assertRefundRowsHeld,
   readAttendeeRowStates,
-} from "#shared/db/payment-claim.ts";
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
+} from "#db/payment-claim.ts";
+import type { PaymentReviewReason } from "#payment/review.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,

@@ -1,6 +1,6 @@
-import type { NewsPostWriteInput } from "#shared/db/news-posts.ts";
-import type { SitePageWriteInput } from "#shared/db/site-pages.ts";
-import type { NewsPost, SitePage } from "#shared/types.ts";
+import type { NewsPostWriteInput } from "#db/news-posts.ts";
+import type { SitePageWriteInput } from "#db/site-pages.ts";
+import type { NewsPost, SitePage } from "#types";
 import { createTestListing } from "./listings.ts";
 
 export const createTestInvite = async (
@@ -46,7 +46,7 @@ export const getEmbeddableTicketResponse = async (): Promise<Response> => {
 export const assertAdminPasswordVerifies = async (): Promise<void> => {
   const { expect } = await import("@std/expect");
   const { getUserByUsername, verifyUserPassword } = await import(
-    "#shared/db/users.ts"
+    "#db/users.ts"
   );
   const { TEST_ADMIN_PASSWORD, TEST_ADMIN_USERNAME } = await import(
     "#test-utils/internal.ts"
@@ -62,7 +62,7 @@ export const assertAdminPasswordVerifies = async (): Promise<void> => {
 export const assertAdminPasswordRejects = async (): Promise<void> => {
   const { expect } = await import("@std/expect");
   const { getUserByUsername, verifyUserPassword } = await import(
-    "#shared/db/users.ts"
+    "#db/users.ts"
   );
   const { TEST_ADMIN_USERNAME } = await import("#test-utils/internal.ts");
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
@@ -78,7 +78,7 @@ export const createTestSitePage = async (
   slug: string,
   extra: Partial<Omit<SitePageWriteInput, "slug">> = {},
 ): Promise<SitePage> => {
-  const { createSitePage } = await import("#shared/db/site-pages.ts");
+  const { createSitePage } = await import("#db/site-pages.ts");
   const result = await createSitePage({
     content: extra.content ?? "",
     metaDescription: extra.metaDescription ?? "",
@@ -96,7 +96,7 @@ export const createTestNewsPost = async (
   name: string,
   extra: Partial<Omit<NewsPostWriteInput, "name">> & { created?: string } = {},
 ): Promise<NewsPost> => {
-  const { createNewsPost } = await import("#shared/db/news-posts.ts");
+  const { createNewsPost } = await import("#db/news-posts.ts");
   return createNewsPost({
     content: extra.content ?? "",
     ...(extra.created !== undefined ? { created: extra.created } : {}),

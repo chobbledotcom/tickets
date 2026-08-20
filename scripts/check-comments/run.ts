@@ -3,8 +3,12 @@
  * pure rules in `rules.ts` flag. Kept thin so the logic stays testable.
  */
 
-import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
-import { collectFiles } from "#scripts/walk-files.ts";
+import {
+  byLine,
+  type CheckOutput,
+  reportCheck,
+} from "#scripts/check-report.ts";
+import { collectSourceFiles } from "#scripts/walk-files.ts";
 import {
   type CommentLimits,
   findCommentIssues,
@@ -45,8 +49,8 @@ const isExempt = (relative: string): boolean =>
   );
 
 /**
- * The part of `path` below `root`. `collectFiles` joins every path it yields
- * from `root`, so the prefix is always there to drop.
+ * The part of `path` below `root`. `collectSourceFiles` joins every path from
+ * `root`, so the prefix is always there to drop.
  */
 const relativeTo = (root: string, path: string): string =>
   path.slice(root.length + 1);
@@ -60,7 +64,7 @@ export const runCommentCheck = async (
   limits: CommentLimits,
   output: CheckOutput,
 ): Promise<number> => {
-  const files = await collectFiles(root, (path) => /\.tsx?$/.test(path));
+  const files = await collectSourceFiles(root);
   const sources = await Promise.all(
     files.map(async (file) => ({
       content: await Deno.readTextFile(file),
@@ -80,7 +84,7 @@ export const runCommentCheck = async (
         ? []
         : findCommentIssues(content, limits)),
       ...findDeadLinks(content, known),
-    ].sort((left, right) => left.line - right.line);
+    ].sort(byLine);
     for (const issue of issues) found.push(formatIssue(file, issue));
   }
   return reportCheck({

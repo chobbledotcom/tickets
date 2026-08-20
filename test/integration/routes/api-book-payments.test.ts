@@ -8,7 +8,7 @@ import {
   describePublicApi,
   fetchListingBySlug,
   withCheckoutStub,
-} from "#test/test-utils/api/helpers.ts";
+} from "#test-utils/api/helpers.ts";
 import { PublicListingDetailSchema } from "#test-utils/api-schemas.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
@@ -58,9 +58,7 @@ describePublicApi(() => {
       // The response surfaces the owed amount so integrations can collect it.
       expect(body.booking?.amountOwed).toBe(1000);
 
-      const { getAttendeesByTokens } = await import(
-        "#shared/db/attendees/tokens.ts"
-      );
+      const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
       const [attendee] = await getAttendeesByTokens([token!]);
       // Nothing collected up front, full £10.00 booking value owed. price_paid
       // projects the gross sale leg (£10 billed), not cash collected — the
@@ -70,7 +68,7 @@ describePublicApi(() => {
       // The booking carries the public-default status, matching the web free
       // path so a balance-carrying attendee is never left status-less.
       const { requirePublicStatusId } = await import(
-        "#shared/db/attendee-statuses.ts"
+        "#db/attendee-statuses.ts"
       );
       expect(attendee?.status_id).toBe(await requirePublicStatusId());
     });
@@ -87,9 +85,7 @@ describePublicApi(() => {
       const token = body.booking?.ticketToken;
       expect(body.booking?.checkoutUrl).toBeUndefined();
 
-      const { getAttendeesByTokens } = await import(
-        "#shared/db/attendees/tokens.ts"
-      );
+      const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
       const [attendee] = await getAttendeesByTokens([token!]);
       expect(attendee?.remaining_balance).toBe(0);
     });
@@ -240,9 +236,7 @@ describePublicApi(() => {
       });
       expect(response.status).toBe(200);
 
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
+      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees[0]!.quantity).toBe(1);
     });

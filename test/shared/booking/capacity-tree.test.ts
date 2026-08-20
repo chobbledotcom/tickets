@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { packageQuantityLimit } from "#shared/booking/capacity-tree.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
-import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
-import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { packageQuantityLimit } from "#booking/capacity-tree.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import type { BookingNode, BookingTree } from "#booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { treePackage } from "#test-utils/package-cap-fixtures.ts";
 
 /** A resolved package-member line for buildBookingTree inputs. */
 const resolved = (id: number): TicketListing =>

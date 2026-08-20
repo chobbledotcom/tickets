@@ -12,9 +12,9 @@
  * `<input step="0.01" type="number">`.
  */
 
+import { settings } from "#db/settings.ts";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
-import { settings } from "#shared/db/settings.ts";
 
 /** How many decimal places the active currency uses (0 for JPY, 2 for most). */
 const currencyPlaces = (): number => getDecimalPlaces(settings.currency);

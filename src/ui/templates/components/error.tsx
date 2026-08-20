@@ -19,7 +19,7 @@
  * when an error is present, or it would win that race.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 /** The shared shape of both error boxes: just the message to show inside. */
 type ErrorBoxProps = { children?: Child };

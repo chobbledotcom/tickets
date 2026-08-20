@@ -5,10 +5,12 @@
  * never disagree with the reading it claims to come from.
  */
 
-import type { PaymentConflict } from "#shared/payment/conflict.ts";
-import { resolveRefund } from "#shared/payment/refund.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import { refundMoneyMatchesCapture } from "#shared/payment/resources.ts";
+import type { PaymentConflict } from "#payment/conflict.ts";
+import { resolveRefund } from "#payment/refund.ts";
+import {
+  type ChargeMoney,
+  refundMoneyMatchesCapture,
+} from "#payment/resources.ts";
 
 /** What a reading comes to once it has been looked at. Only "conflict" is a
  *  problem for the owner; the rest are where the payment has got to. */

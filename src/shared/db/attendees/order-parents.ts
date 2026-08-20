@@ -19,12 +19,9 @@
  * remainder row, so no unit — or its price — is ever dropped.
  */
 
+import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
+import { listingParents } from "#db/listing-parents.ts";
 import { reduce } from "#fp";
-import type {
-  ChildAllocation,
-  ListingBooking,
-} from "#shared/db/attendee-types.ts";
-import { listingParents } from "#shared/db/listing-parents.ts";
 
 /** The first parent of each child that is itself booked in this order, keyed by
  * child listing id. Children with no in-order parent are omitted. */

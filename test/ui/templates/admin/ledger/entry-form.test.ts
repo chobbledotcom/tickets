@@ -4,7 +4,7 @@ import {
   MANUAL_ATTENDEE_CHARGE,
   MANUAL_ATTENDEE_PAYMENT,
   MANUAL_ATTENDEE_WRITEOFF,
-} from "#shared/accounting/manual-entries.ts";
+} from "#accounting/manual-entries.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   defineLedgerEntryAddForm,

@@ -6,14 +6,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import type { Trigger } from "#shared/db/migrations/schema/types.ts";
-import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
+import { getDb } from "#db/client.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import type { Trigger } from "#db/migrations/schema/types.ts";
+import { assertLiveTableColumns } from "#db/migrations/schema-assertions.ts";
 import {
   currentSchemaColumnsPresentIn,
   runMigration,
-} from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema-sync.ts";
 
 import {
   additiveMigrations,
@@ -25,7 +25,7 @@ import {
 import {
   downgradeListingDomainToLegacyNames,
   tableRowCount,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 

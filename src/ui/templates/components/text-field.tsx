@@ -11,7 +11,7 @@
  * script, which finds inputs by their `data-duplicate-field` name.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 export const TextField = ({
   label,

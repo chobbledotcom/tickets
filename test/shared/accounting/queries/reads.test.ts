@@ -1,11 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  recentTransfers,
-  transfersByEventGroup,
-} from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+import { recentTransfers, transfersByEventGroup } from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 

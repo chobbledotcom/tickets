@@ -14,7 +14,7 @@
  *   back out of the digest, so the retained ledger holds no provider ids or PII.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 
 /** A component of a reference tuple. Numbers are JSON-encoded as-is. */
 export type RefPart = string | number;

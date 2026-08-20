@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlash,

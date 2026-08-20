@@ -57,9 +57,9 @@ const attachTextAndChoiceQuestions = async (
   choiceAnswerId: number;
 }> => {
   const { answersTable, questionsTable } = await import(
-    "#shared/db/questions/tables.ts"
+    "#db/questions/tables.ts"
   );
-  const { questionListings } = await import("#shared/db/questions/queries.ts");
+  const { questionListings } = await import("#db/questions/queries.ts");
   const textQuestion = await questionsTable.insert({
     assignAll: false,
     displayType: "free_text",
@@ -100,10 +100,10 @@ describeWithEnv(
       const { textQuestionId, choiceAnswerId } =
         await attachTextAndChoiceQuestions(listing.id);
       const { saveAttendeeAnswers } = await import(
-        "#shared/db/questions/attendee-answers/save.ts"
+        "#db/questions/attendee-answers/save.ts"
       );
       const { getAttendeeTextAnswers } = await import(
-        "#shared/db/questions/attendee-answers/reads.ts"
+        "#db/questions/attendee-answers/reads.ts"
       );
       // Seed a free-text answer on the servicing event.
       await saveAttendeeAnswers(
@@ -159,7 +159,7 @@ describeWithEnv(
       // The compensating delete removed the attendee and its booking, so no
       // half-saved service event holds the listing's capacity.
       expect((await servicingRowsForListing(listing.id)).length).toBe(0);
-      const { queryOne } = await import("#shared/db/client.ts");
+      const { queryOne } = await import("#db/client.ts");
       const row = await queryOne<{ c: number }>(
         "SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'",
       );

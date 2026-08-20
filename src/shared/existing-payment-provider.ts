@@ -1,8 +1,8 @@
+import { settings } from "#db/settings.ts";
 import { compact, map, pipe } from "#fp";
-import { settings } from "#shared/db/settings.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
+import type { PaymentProviderType } from "#types";
 
 const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
   square: () => settings.square.hasToken,

@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getDb } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import {
   decryptAdminLevel,
   getUserByInviteCode,
   getUserByUsername,
   invalidateUsersCache,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
@@ -106,7 +106,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toContain("/admin/listings");
-      const { getAllListings } = await import("#shared/db/listings/records.ts");
+      const { getAllListings } = await import("#db/listings/records.ts");
       expect(
         (await getAllListings()).some((l) => l.name === "Editor Import"),
       ).toBe(true);

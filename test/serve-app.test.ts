@@ -12,12 +12,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getEffectiveDomain } from "#shared/config.ts";
 import {
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
   trackSql,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { devServerPort, serveHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

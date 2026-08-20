@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
 import { testStripeConnection } from "#shared/stripe/endpoints.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 const configureOwnEndpoint = () =>
   settings.update.stripe.configure({

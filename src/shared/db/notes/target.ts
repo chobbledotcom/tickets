@@ -12,7 +12,7 @@ import {
   defineRecordTarget,
   type RecordTarget,
   type RecordTargets,
-} from "#shared/db/record-target.ts";
+} from "#db/record-target.ts";
 
 /** The kinds of record a note can be about. Adding one here is what lets a
  *  page carry notes; the stored values are checked against this list. */

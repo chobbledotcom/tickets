@@ -12,8 +12,7 @@
  */
 
 import { expect } from "@std/expect";
-import { bookingError } from "#shared/booking/form.ts";
-import type { Listing } from "#shared/types.ts";
+import { bookingError } from "#booking/form.ts";
 // jscpd:ignore-start
 import {
   CUSTOMER,
@@ -24,6 +23,7 @@ import { optionsOffered } from "#test/specs/support/form-controls/reading.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Listing } from "#types";
 // jscpd:ignore-end
 
 /** What somebody fills in to book a place — a visitor on the public page, or

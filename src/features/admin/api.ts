@@ -7,6 +7,14 @@
  *   - Session cookie + x-csrf-token header
  */
 
+import { listingGroups } from "#db/groups.ts";
+import { syncListingPrices } from "#db/listing-prices.ts";
+import {
+  getAllListings,
+  getListingWithCount,
+  getListingWithCountPrimary,
+  listingsTable,
+} from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { mapById } from "#fp";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
@@ -16,14 +24,6 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { syncListingPrices } from "#shared/db/listing-prices.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-  getListingWithCountPrimary,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
 import {
   deleteOrphanedAddOnError,
   performListingDelete,
@@ -32,7 +32,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { type DeleteBody, withApiEntity } from "#shared/rest/crud-parsers.ts";
-import type { AdminListing, Listing, ListingWithCount } from "#shared/types.ts";
+import type { AdminListing, Listing, ListingWithCount } from "#types";
 
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {

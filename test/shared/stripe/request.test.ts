@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import {
   createStripeClient,
   type StripeCheckoutSessionCreateParams,
@@ -17,7 +17,7 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { refundHeaderProbe } from "#test/shared/stripe/refund-header-probe.ts";
 import { unreadableResponse } from "#test/shared/stripe/request/fixtures.ts";
-import { stripeCheckoutSession } from "#test/test-utils/stripe/fixtures.ts";
+import { stripeCheckoutSession } from "#test-utils/stripe/fixtures.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",

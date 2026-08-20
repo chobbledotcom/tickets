@@ -15,11 +15,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#db/client.ts";
 import {
   getQuestionsWithListingIds,
   questionListings,
-} from "#shared/db/questions/queries.ts";
+} from "#db/questions/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -34,7 +34,7 @@ const attachQuestion = async (
   listingId: number,
 ): Promise<{ questionId: number; answerId: number }> => {
   const { answersTable, questionsTable } = await import(
-    "#shared/db/questions/tables.ts"
+    "#db/questions/tables.ts"
   );
   const question = await questionsTable.insert({
     assignAll: false,

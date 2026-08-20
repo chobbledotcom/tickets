@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { holidays } from "#db/holidays.ts";
 import { handleRequest } from "#routes";
-import { holidays } from "#shared/db/holidays.ts";
 import {
   assertApiDeleteOk,
   assertJson,

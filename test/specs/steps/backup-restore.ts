@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { restoreFromZip } from "#db/backup.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { restoreFromZip } from "#shared/db/backup.ts";
 import {
   adminBrowser,
   resetScenarioBrowser,
@@ -46,7 +46,7 @@ const useLocalBackupStorage = (world: TicketsWorld): void => {
 /** Empty the site and walk the fresh-install setup wizard again. The old
  * session died with the old database, so this is a brand new browser. */
 const emptyAndSetUpAgain = async (world: TicketsWorld): Promise<void> => {
-  const { initDb, resetDatabase } = await import("#shared/db/migrations.ts");
+  const { initDb, resetDatabase } = await import("#db/migrations.ts");
   await resetDatabase();
   await initDb({ allowMissingSettings: true });
   invalidateAllCaches();

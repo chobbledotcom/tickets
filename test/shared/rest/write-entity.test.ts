@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { resultRows, type TxScope } from "#shared/db/client.ts";
-import type { Table } from "#shared/db/table.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
+import type { Table } from "#db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import {

@@ -1,15 +1,16 @@
+import { runWithQueryLogContext } from "#db/query-log.ts";
+import { runWithSettingsAudit } from "#db/settings-audit.ts";
 import { parseAcceptLanguage, runWithLocale } from "#i18n";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { runWithClientIp } from "#shared/client-context.ts";
 import { runWithCsrfContext } from "#shared/csrf.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
-import { runWithSettingsAudit } from "#shared/db/settings-audit.ts";
 import { runWithFlashContext } from "#shared/flash-context.ts";
 import { runWithSavedFormContext } from "#shared/forms/saved-data.ts";
 import { runWithIframeContext } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
+import { runWithRequestTrace } from "#shared/request-trace.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
 import { runWithAdminFooterContext } from "#templates/admin/footer.tsx";
@@ -26,6 +27,7 @@ export const runWithRequestScopes = (
     (next) => runWithClientIp(getClientIp(request, server), next),
     runWithSubrequestBudget,
     runWithRequestId,
+    (next) => runWithRequestTrace(request, next),
     runWithRequestCache,
     runWithQueryLogContext,
     runWithFlashContext,

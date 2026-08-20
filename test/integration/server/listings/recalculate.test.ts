@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

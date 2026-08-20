@@ -38,10 +38,10 @@ const log = console.log.bind(console);
 /** Add the public catalogue whose group count makes query scaling visible. */
 const seedCatalogue = async (): Promise<void> => {
   const { computeGroupSlugIndex, groups, setListingGroups } = await import(
-    "#shared/db/groups.ts"
+    "#db/groups.ts"
   );
-  const { listingsTable } = await import("#shared/db/listings/records.ts");
-  const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
+  const { listingsTable } = await import("#db/listings/records.ts");
+  const { computeSlugIndex } = await import("#db/listings/table.ts");
 
   const addGroupWithListing = async (
     number: number,
@@ -78,14 +78,12 @@ const seedCatalogue = async (): Promise<void> => {
 const prepareDatabase = async (): Promise<void> => {
   // Dynamic imports: nothing may read the environment before main sets it.
   const { createClient } = await import("@libsql/client");
-  const { setAdminFeatureEnabled } = await import(
-    "#shared/db/admin-features.ts"
-  );
-  const { setDb } = await import("#shared/db/client.ts");
-  const { initDb } = await import("#shared/db/migrations.ts");
-  const { settings } = await import("#shared/db/settings.ts");
-  const { setFastPbkdf2ForTest } = await import("#shared/crypto/hashing.ts");
-  const { setRsaKeySizeForTest } = await import("#shared/crypto/keys.ts");
+  const { setAdminFeatureEnabled } = await import("#db/admin-features.ts");
+  const { setDb } = await import("#db/client.ts");
+  const { initDb } = await import("#db/migrations.ts");
+  const { settings } = await import("#db/settings.ts");
+  const { setFastPbkdf2ForTest } = await import("#crypto/hashing.ts");
+  const { setRsaKeySizeForTest } = await import("#crypto/keys.ts");
   const { setSuppressDebugLogs } = await import("#shared/log-settings.ts");
   const {
     recordScriptVersion,

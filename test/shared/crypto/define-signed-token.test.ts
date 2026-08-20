@@ -3,11 +3,8 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   defineSignedToken,
   type ExpiringPayload,
-} from "#shared/crypto/define-signed-token.ts";
-import {
-  buildSignedToken,
-  encodeTokenPayload,
-} from "#shared/crypto/signed-token.ts";
+} from "#crypto/define-signed-token.ts";
+import { buildSignedToken, encodeTokenPayload } from "#crypto/signed-token.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 // A minimal scheme exercising the factory directly: the payload has one extra

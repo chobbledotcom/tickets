@@ -5,9 +5,9 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { invalidateInitDbCache } from "#db/migrations.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { invalidateInitDbCache } from "#shared/db/migrations.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   setBuildCommitForTest,
   setBuildTimestampForTest,

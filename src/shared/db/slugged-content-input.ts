@@ -1,4 +1,4 @@
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 
 /** The create/update fields shared by every slugged content record (site pages
  * and news posts): its slug and slug blind-index, its name, and the optional

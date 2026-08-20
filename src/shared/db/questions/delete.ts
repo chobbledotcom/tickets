@@ -2,7 +2,7 @@
  * Deletion for questions and answers (and their dependent rows).
  */
 
-import { deleteByFieldBatch } from "#shared/db/client.ts";
+import { deleteByFieldBatch } from "#db/client.ts";
 
 /** Delete a question and all related data in a single batch, child rows before
  * the question itself. Every attendee_answers row carries question_id (choice

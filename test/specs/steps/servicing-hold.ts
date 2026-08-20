@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,

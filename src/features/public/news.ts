@@ -8,18 +8,18 @@
  * would render must never 404.
  */
 
-// jscpd:ignore-start
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import { createRouter, defineRoutes } from "#routes/router.ts";
-// jscpd:ignore-end
+/* jscpd:ignore-start -- imports */
 import {
   computeNewsSlugIndex,
   getNewsPostBySlugIndex,
   getNewsPostCards,
-} from "#shared/db/news-posts.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/news-posts.ts";
+import { settings } from "#db/settings.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
+/* jscpd:ignore-end */
 import { publicNavProps } from "./site-nav.ts";
 import { publicSlugRoute, renderContentPage } from "./site-page.ts";
 

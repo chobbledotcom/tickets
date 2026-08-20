@@ -5,8 +5,8 @@ import {
   groupNotesByTargetId,
   NOTE_ENTITIES,
   noteTargets,
-} from "#shared/db/notes/target.ts";
-import { clauseArgs, whereSql } from "#shared/db/where-clauses.ts";
+} from "#db/notes/target.ts";
+import { clauseArgs, whereSql } from "#db/where-clauses.ts";
 
 describe("what a note is about", () => {
   test("names a record by its kind and its id", () => {

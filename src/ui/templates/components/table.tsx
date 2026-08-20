@@ -10,15 +10,18 @@
 /* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type {
   ReorderColumnOptions,
   TableAttrs,
   TableColumn,
 } from "#shared/tables/column.ts";
-import type { TableDefinition } from "#shared/tables/definition.ts";
-import { columnOrThrow, defineTable } from "#shared/tables/definition.ts";
+import {
+  columnOrThrow,
+  defineTable,
+  type TableDefinition,
+} from "#shared/tables/definition.ts";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,

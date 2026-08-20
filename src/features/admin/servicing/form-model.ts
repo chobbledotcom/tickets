@@ -1,5 +1,7 @@
 /** Form model for admin servicing events. */
 
+import type { ListingBooking } from "#db/attendee-types.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { t } from "#i18n";
 import {
   LINE_LISTING_PREFIX,
@@ -13,12 +15,10 @@ import {
   START_DATE_FIELD,
   toCreateInput,
 } from "#routes/admin/attendee-form-model.ts";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
+import type { ListingWithCount } from "#types";
 
 export type ServicingCreateInput = {
   bookings: ListingBooking[];

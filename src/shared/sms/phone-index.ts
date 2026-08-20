@@ -8,7 +8,7 @@
  * significant number) so "+447700900123" and "07700 900123" match.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 
 /** Reduce a phone number to a stable form: digits only, last 9. */
 export const normalizeForIndex = (phone: string): string =>

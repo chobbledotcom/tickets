@@ -3,8 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type AttributeWithOptions,
   getSelectedAttributesForListings,
-} from "#shared/db/attributes.ts";
-import type { Listing } from "#shared/types.ts";
+} from "#db/attributes.ts";
 import {
   expectHtmlResponse,
   expectStatus,
@@ -17,6 +16,7 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import type { Listing } from "#types";
 
 /** One attribute ("Difficulty": Easy/Hard) and one listing that selected only
  * the Easy option — the fixture both detail pages are asserted against. */

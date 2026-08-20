@@ -14,39 +14,33 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
+import { t } from "#i18n";
+import { isSessionRejection } from "#payment/validated-session.ts";
+import {
+  type CallbackOutcome,
+  settlePaymentCallback,
+} from "#routes/api/payment-callback.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
-import {
-  classifySessionIntent,
-  paymentSessionErrorLogger,
-} from "#routes/api/payment-processing/classify.ts";
-import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
-import {
-  answerRejectedSession,
-  settleRejectedCharge,
-} from "#routes/api/payment-processing/rejected-target.ts";
+import { paymentSessionErrorLogger } from "#routes/api/payment-processing/classify.ts";
+import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
 import {
   handlePaymentSuccess,
   paymentSessionId,
 } from "#routes/api/payment-success.ts";
-import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { jsonResponse, plainResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { t } from "#shared/i18n.ts";
 import {
   ErrorCode,
   type ErrorCodeType,
   logDebug,
   logError,
 } from "#shared/logger.ts";
-import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
-  type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
 
@@ -120,36 +114,67 @@ const handlePaymentCancel = withSessionId(async (sid) => {
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
   jsonResponse({ received: true, ...extra });
 
-/**
- * Map a processed-payment result to the webhook's HTTP response.
- *  - success → 200 ack (processed).
- *  - another request holds the reservation (transient lock, no refund) → 409 so
- *    the provider retries.
- *  - a refund of a real payment failed → 503 (reservation left retryable) so the
- *    provider re-delivers and we re-attempt; guarded on a payment reference so a
- *    session with nothing to refund can't trigger a retry loop.
- *  - any other handled failure (refund issued, or nothing to retry) → 200 ack.
+/** The answers that carry nothing from the outcome but its kind. Exhaustive
+ * over everything except the three that report an error, so a new outcome
+ * stops this compiling until someone says what the provider is told. */
+const PLAIN_RESPONSES: Record<
+  Exclude<CallbackOutcome["kind"], "held" | "settled" | "unsettled">,
+  () => Response
+> = {
+  booked: () => webhookAckResponse({ processed: true }),
+  not_yet: () => webhookAckResponse({ status: "pending" }),
+  refused: () => plainResponse("Payment verification failed", 503),
+  unpaid: () => webhookAckResponse({ status: "pending" }),
+  unreadable: () => plainResponse("Payment verification failed", 503),
+  unrecognised: () => webhookAckResponse(),
+  unverifiable: () => webhookAckResponse(),
+};
+
+/** Turn what a callback amounted to into the answer the provider gets.
+ *
+ * A 200 is terminal — the provider stops telling us — so it is only ever
+ * given where nothing is left owing. Anything still owed, or still unknown,
+ * answers 503 or 409 so the provider tells us again.
  */
-const webhookResultResponse = (
-  result: PaymentResult,
-  session: ValidatedPaymentSession,
-  listingIdForLog: number | undefined,
-): Response => {
-  if (result.success) return webhookAckResponse({ processed: true });
-  // Log once at the boundary — inner functions pass structured context via detail.
-  logError({
-    code: ErrorCode.PAYMENT_SESSION,
-    detail: failureDetail(result),
-    listingId: listingIdForLog,
-  });
-  logDebug("Webhook", "Payment callback processing failed");
-  if (result.status === 409 && result.refunded === undefined) {
-    return plainResponse(result.error, 409);
+const callbackResponse = (outcome: CallbackOutcome): Response => {
+  switch (outcome.kind) {
+    case "held":
+      return plainResponse(outcome.error, 409);
+    case "unsettled":
+      return plainResponse(outcome.error, 503);
+    case "settled":
+      return webhookAckResponse({ error: outcome.error, processed: false });
+    default:
+      return PLAIN_RESPONSES[outcome.kind]();
   }
-  if (result.refunded === false && session.paymentReference) {
-    return plainResponse(result.error, 503);
+};
+
+/** The one line a callback worth recording writes, and the console note that
+ * goes with it. Outcomes carrying no detail are ordinary traffic. */
+const logCallbackOutcome = (outcome: CallbackOutcome): void => {
+  if ("detail" in outcome) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: outcome.detail,
+      ...("listingId" in outcome ? { listingId: outcome.listingId } : {}),
+    });
   }
-  return webhookAckResponse({ error: result.error, processed: false });
+  logDebug("Webhook", CALLBACK_NOTES[outcome.kind]);
+};
+
+/** What each answer is called in the debug log. Fixed words: a forged or
+ * unreadable callback must not learn why it was refused. */
+const CALLBACK_NOTES: Record<CallbackOutcome["kind"], string> = {
+  booked: "Payment callback booked",
+  held: "Payment callback is being processed elsewhere",
+  not_yet: "Waiting for a completed payment",
+  refused: "Refused a payment callback retryably",
+  settled: "Payment callback settled without a booking",
+  unpaid: "Waiting for a completed payment",
+  unreadable: "Refusing an unreadable signed booking retryably",
+  unrecognised: "Ignoring webhook for unrecognized payment session",
+  unsettled: "Payment callback left money unaccounted for",
+  unverifiable: "Ignoring webhook for unverifiable session",
 };
 
 /** Detect which provider sent the webhook based on request headers. Reads the
@@ -244,80 +269,14 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   // Delegate session extraction to the provider — each provider knows how to
-  // resolve a session from its own webhook listing structure.
-  const sessionResult = await provider.resolveWebhookSession(listing);
-
-  if (sessionResult === "retry") {
-    // Fixed, value-free refusal: a forged or unreadable callback must not
-    // learn why verification failed or spend alert subrequests, and the
-    // provider redelivers on a 503 where an acknowledgement is terminal.
-    logDebug("Webhook", "Refused a payment callback retryably");
-    return plainResponse("Payment verification failed", 503);
-  }
-
-  if (sessionResult === "skip") {
-    return webhookAckResponse({ status: "pending" });
-  }
-
-  // A charge the boundary could not read: a paid one with a usable reference
-  // is refunded rather than acked into limbo — the money was captured, so it
-  // must not disappear. A blank-reference rejection cannot be refunded.
-  if (isSessionRejection(sessionResult)) {
-    const outcome = await settleRejectedCharge(sessionResult);
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
-    });
-    // A required refund that failed must retry: acknowledging would strand the
-    // captured charge with no redelivery.
-    if (!outcome.settled) return plainResponse("Refund failed", 503);
-    return webhookAckResponse({ error: "rejected", processed: false });
-  }
-
-  if (!sessionResult) {
-    logDebug("Webhook", "Ignoring webhook for unrecognized payment session");
-    return webhookAckResponse();
-  }
-
-  const session = sessionResult;
-
-  // Verify payment is complete before classifying — an unpaid session may carry
-  // a charge amount that would otherwise classify as trusted.
-  if (session.paymentStatus !== "paid") {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Webhook session not yet paid (status=${session.paymentStatus})`,
-    });
-    logDebug("Webhook", "Waiting for a completed payment");
-    return webhookAckResponse({ status: "pending" });
-  }
-
-  // A valid price proof is the only signal that the session is ours: it cannot
-  // be forged without our key, and our checkout always attaches one. Without it
-  // we cannot prove ownership (a different application sharing the provider
-  // account, or replayed/corrupt data), so we acknowledge without processing or
-  // refunding — refunding an unverifiable session could refund another
-  // instance's payment.
-  const classified = await classifySessionIntent(session);
-  switch (classified.kind) {
-    case "unverifiable":
-      logDebug("Webhook", "Ignoring webhook for unverifiable session");
-      return webhookAckResponse();
-    case "unreadable":
-      logDebug("Webhook", "Refusing an unreadable signed booking retryably");
-      return plainResponse("Payment verification failed", 503);
-    case "ready":
-      break;
-  }
-
-  const { intent, verdict } = classified;
-  const listingIdForLog = intent.items[0]?.e;
-  const result = await processPaymentSession(session.id, {
-    intent,
-    session,
-    verdict,
-  });
-  return webhookResultResponse(result, session, listingIdForLog);
+  // resolve a session from its own webhook listing structure — then settle it
+  // through the engine the SumUp recovery task also runs.
+  const outcome = await settlePaymentCallback(
+    await provider.resolveWebhookSession(listing),
+    "Webhook",
+  );
+  logCallbackOutcome(outcome);
+  return callbackResponse(outcome);
 };
 
 /** Payment routes definition */

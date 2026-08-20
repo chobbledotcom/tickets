@@ -7,7 +7,7 @@
  * This module is pure: it decides from the claim and the time it is shown.
  */
 
-import type { RefundClaim } from "#shared/payment/row-state.ts";
+import type { RefundClaim } from "#payment/row-state.ts";
 
 /** A run asking to work on one reference group. Only the same sorted set of
  *  initiating attendees may resume its crashed command. */

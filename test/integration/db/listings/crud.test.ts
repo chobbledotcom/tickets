@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   getAllListings,
   getListingWithCount,
   isSlugTaken,
   listingsTable,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

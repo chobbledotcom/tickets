@@ -3,9 +3,9 @@
  * connection test. Owner-only access enforced via defineProviderCredentialsRoute.
  */
 
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";

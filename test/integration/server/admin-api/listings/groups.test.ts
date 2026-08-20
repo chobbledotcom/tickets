@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingGroups } from "#shared/db/groups.ts";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
+import { listingGroups } from "#db/groups.ts";
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

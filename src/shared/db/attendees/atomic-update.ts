@@ -19,23 +19,23 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { unique } from "#fp";
-import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
   UpdateAttendeePIIInput,
-} from "#shared/db/attendee-types.ts";
-import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
+} from "#db/attendee-types.ts";
+import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
   checkLinesCapacity,
-} from "#shared/db/attendees/capacity/checks.ts";
-import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
-import { attendeePiiWriteStatements } from "#shared/db/attendees/pii-write.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
-import { buildCapacityCondition } from "#shared/db/capacity.ts";
-import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
+} from "#db/attendees/capacity/checks.ts";
+import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
+import { buildCapacityCondition } from "#db/capacity.ts";
+import { executeBatchWithResults, queryAll } from "#db/client.ts";
+import { unique } from "#fp";
+import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
  * A guard statement that aborts the whole write batch when the immediately

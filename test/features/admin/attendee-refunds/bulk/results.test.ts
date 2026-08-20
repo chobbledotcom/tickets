@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 import { resetI18nForTest } from "#i18n";
-import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import {
   createPaidListing,
   createRefundableAttendee,

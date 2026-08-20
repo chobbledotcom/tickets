@@ -12,9 +12,9 @@ import {
   type Transaction,
   type TransactionMode,
 } from "@libsql/client";
+import { setDb } from "#db/client.ts";
+import { beginTransaction, wrapExecute } from "#db/libsql-call.ts";
 import { timedRunner } from "#scripts/timed-run.ts";
-import { setDb } from "#shared/db/client.ts";
-import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { setSuppressRequestLogs } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";

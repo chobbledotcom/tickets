@@ -1,10 +1,10 @@
 import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { invalidateInitDbCache, resetDatabase } from "#db/migrations.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { getDb } from "#shared/db/client.ts";
-import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
-import { settings } from "#shared/db/settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertPublicHtml,
@@ -454,7 +454,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ returns 503 when completeSetup fails", async () => {
         const { stub } = await import("@std/testing/mock");
-        const { settings } = await import("#shared/db/settings.ts");
+        const { settings } = await import("#db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(await getResponse.text());

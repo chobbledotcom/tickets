@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { markRefundCompleted } from "#shared/payment/refund-authority.ts";
+import { markRefundCompleted } from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
   mayReplaceRefundWithFreshEvidence,
   refundOwnerChoices,
   resolveRefundOwnerChoice,
-} from "#shared/payment/refund-authority-choice.ts";
-import { validateRefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-choice.ts";
+import { validateRefundAuthorityState } from "#payment/refund-authority-state.ts";
 import {
   keyedObservingRefundForTest,
   keylessArmedRefundForTest,

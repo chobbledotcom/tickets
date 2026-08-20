@@ -9,9 +9,9 @@ import {
   computeAddressSearchIndex,
   getCachedAddresses,
   storeCachedAddresses,
-} from "#shared/db/address-cache.ts";
-import { queryOne } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
+} from "#db/address-cache.ts";
+import { queryOne } from "#db/client.ts";
+import { runDatabasePruning } from "#db/prune.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,7 +27,7 @@ const ADDRESSES = [
 
 /** Backdate a cached row's created stamp by `ageMs`. */
 const backdateRow = async (searchIndex: string, ageMs: number) => {
-  const { execute } = await import("#shared/db/client.ts");
+  const { execute } = await import("#db/client.ts");
   await execute("UPDATE address_cache SET created = ? WHERE search_index = ?", [
     new Date(nowMs() - ageMs).toISOString(),
     searchIndex,

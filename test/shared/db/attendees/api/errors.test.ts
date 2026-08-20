@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { oneLineAttendeeForm } from "#test/test-utils/attendee-form/_shared-setup.ts";
-import { attendeeWithNoBookings } from "#test/test-utils/attendee-form/helpers.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
+import { attendeeWithNoBookings } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,

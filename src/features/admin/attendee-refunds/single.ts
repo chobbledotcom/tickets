@@ -1,8 +1,15 @@
 /** Single-attendee refund routes. */
 
+import { logActivity } from "#db/activity-log.ts";
+import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
+import {
+  getRefundPaymentReferences,
+  type TaggedRefundPaymentReference,
+} from "#db/payment-references.ts";
 /* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
+import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import {
   type AttendeeWithBooking,
   attendeeActions,
@@ -13,19 +20,12 @@ import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-p
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
-import {
-  getRefundPaymentReferences,
-  type TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
-import type { PaymentWorkStatus } from "#shared/payment/admit-move.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
 import {
   adminBlockedRefundAttendeePage,
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
+import type { Attendee } from "#types";
 import { refundError, singleRefundResultError } from "./single-result.ts";
 
 /* jscpd:ignore-end */

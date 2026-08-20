@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import builtSitesUpdatesMigration from "#shared/db/migrations/2026-06-24_built_sites_updates.ts";
-import { applySchemaChanges } from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import builtSitesUpdatesMigration from "#db/migrations/2026-06-24_built_sites_updates.ts";
+import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

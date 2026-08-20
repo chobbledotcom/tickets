@@ -4,12 +4,11 @@
  * totals recounted from attendee records.
  */
 
-import { t } from "#i18n";
 import type {
   ModifierAggregateField,
   ModifierAggregateRecalculation,
-} from "#shared/db/modifiers.ts";
-import type { Modifier } from "#shared/types.ts";
+} from "#db/modifiers.ts";
+import { t } from "#i18n";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
 import {
@@ -19,6 +18,7 @@ import {
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
 import { getModifierAggregateFields } from "#templates/fields/aggregate.ts";
+import type { Modifier } from "#types";
 import { modifierAggregateToFieldValues } from "./values.ts";
 
 const modifierRunningTotalsConfig = (

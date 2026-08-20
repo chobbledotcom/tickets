@@ -6,7 +6,7 @@ import {
   isMissingSettingsTableError,
   MigrationInProgressError,
   MissingSettingsTableError,
-} from "#shared/db/migrations/errors.ts";
+} from "#db/migrations/errors.ts";
 
 describe("migration errors", () => {
   test("names a missing settings table with its default message", () => {

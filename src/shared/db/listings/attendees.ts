@@ -1,21 +1,21 @@
 /** Listing reads batched with attendee data and daily attendee queries. */
 
 import type { ResultSet } from "@libsql/client";
-import { flatMap, sortStrings, unique } from "#fp";
-import { coveredDays } from "#shared/dates.ts";
 import {
   ATTENDEE_FIELDS,
   attendeeBatchStatement,
   getAttendees,
-} from "#shared/db/attendees/select.ts";
-import { dateToRange } from "#shared/db/capacity.ts";
+} from "#db/attendees/select.ts";
+import { dateToRange } from "#db/capacity.ts";
 import {
   queryAll,
   queryBatch,
   resultRows,
   type SqlStatement,
-} from "#shared/db/client.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+} from "#db/client.ts";
+import { flatMap, sortStrings, unique } from "#fp";
+import { coveredDays } from "#shared/dates.ts";
+import type { Attendee, ListingWithCount } from "#types";
 import { decryptListingWithCount } from "./records.ts";
 import { type ListingRecordRow, listingReader } from "./select.ts";
 

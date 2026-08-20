@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms/field.ts";
-import { AdminLevelSchema } from "#shared/types.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
   getChangePasswordForm,
@@ -19,6 +18,7 @@ import {
 } from "#templates/fields/ticket.ts";
 import { byName, hasField } from "#test-utils/fields.ts";
 import { expectInvalid } from "#test-utils/validation.ts";
+import { AdminLevelSchema } from "#types";
 
 describe("fields contracts", () => {
   describe("field lookup helpers", () => {

@@ -1,8 +1,4 @@
-import {
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#shared/db/client.ts";
+import { resultRows, type SqlStatement, type TxScope } from "#db/client.ts";
 import { namedError } from "#shared/named-error.ts";
 
 /** Runs a transaction-local ID lookup for one deduplicated input set. */

@@ -1,15 +1,16 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin guide route
  */
 
+import { settings } from "#db/settings.ts";
 import { contentPage, sessionPage } from "#routes/auth.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   isBuilderEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import {
   adminFormattingHelpPage,

@@ -2,9 +2,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { settings } from "#db/settings.ts";
+import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
-import type { RefundRequest } from "#shared/payment/refund-attempt.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

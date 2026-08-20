@@ -8,19 +8,19 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
+import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import {
   EXPECTED_MOVES,
   ROW_EVENTS,
   ROW_NODES,
   rowNodeOf,
-} from "#shared/payment/row-machine-spec.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#payment/row-machine-spec.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import {
   registerConformanceSweep,
   registerDrivenExportsCheck,
   registerTableChecks,
-} from "#test/test-utils/machine-spec.ts";
+} from "#test-utils/machine-spec.ts";
 
 /** What every successful move must keep: the first found-at date on
  * unrecorded money, and the exact case the owner already saw when the

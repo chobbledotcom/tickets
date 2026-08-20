@@ -116,7 +116,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
      *  actually sends. Shared by every test in this describe — only the
      *  `withMocks` stub (and the expected flash) varies. */
     const configureEmailForTest = async (): Promise<void> => {
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import(
         "#shared/validation/email.ts"
       );
@@ -140,7 +140,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     });
 
     test("shows error when no business email set", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
 
       await settings.update.email.provider("resend");
       await settings.update.email.apiKey("re_test_key");
@@ -200,7 +200,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
 
   describe("settings-advanced page email provider display", () => {
     test("shows email provider when configured", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
+      const { settings } = await import("#db/settings.ts");
 
       await settings.update.email.provider("resend");
       await settings.update.email.fromAddress("from@test.com");

@@ -1,4 +1,4 @@
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
 const LISTING_AGGREGATE_TRIGGER_NAMES = [

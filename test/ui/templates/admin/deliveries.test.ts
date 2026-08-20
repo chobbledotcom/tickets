@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#shared/types.ts";
 import {
   agentDeliveriesPage,
   type DeliveriesDateNav,
@@ -9,6 +8,7 @@ import {
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import type { AdminSession } from "#types";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
 const agentSession: AdminSession = { adminLevel: "agent" };

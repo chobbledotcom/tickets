@@ -15,8 +15,8 @@
  * document an operator could smuggle something into.
  */
 
+import { settings } from "#db/settings.ts";
 import { encodeBody } from "#routes/response.ts";
-import { settings } from "#shared/db/settings.ts";
 
 export const CSS_CONTENT_TYPE = "text/css; charset=utf-8";
 

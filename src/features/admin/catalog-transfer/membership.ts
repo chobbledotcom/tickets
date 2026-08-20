@@ -13,20 +13,9 @@
  */
 
 import type { InValue } from "@libsql/client";
-import {
-  queryAll,
-  type SqlStatement,
-  type TxScope,
-} from "#shared/db/client.ts";
-import {
-  PRICE_TYPE_GROUP,
-  PRICE_TYPE_GROUP_DAY,
-} from "#shared/db/listing-prices.ts";
-import {
-  type DayPrices,
-  type GroupListing,
-  parseDayPrices,
-} from "#shared/types.ts";
+import { queryAll, type SqlStatement, type TxScope } from "#db/client.ts";
+import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/listing-prices.ts";
+import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
  * and quantity — the membership facet a catalog export captures for one listing.

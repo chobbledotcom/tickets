@@ -5,7 +5,7 @@
  * primitive.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 /** Shared prop shape for {@link RadioOption} and attendee merge decisions. */
 export type RadioOptionProps = {

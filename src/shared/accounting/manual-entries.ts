@@ -8,11 +8,11 @@
  */
 
 import * as v from "valibot";
-import { WORLD, WRITEOFF } from "#shared/accounting/accounts.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { fromDb, selectById } from "#shared/accounting/rows.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { execute, executeUpdate } from "#shared/db/client.ts";
+import { WORLD, WRITEOFF } from "#accounting/accounts.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import { fromDb, selectById } from "#accounting/rows.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { execute, executeUpdate } from "#db/client.ts";
 import type {
   AccountRef,
   Transfer,

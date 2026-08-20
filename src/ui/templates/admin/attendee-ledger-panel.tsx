@@ -9,14 +9,16 @@
  * place, with the statement as the single source of truth.
  */
 
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+/* jscpd:ignore-start -- imports */
+import type { OrderSummary } from "#db/attendees/balance.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import {
   type AccountLedgerData,
   AccountStatementSection,
 } from "#templates/admin/ledger/statement.tsx";
+/* jscpd:ignore-end */
 import { LabelledAmount } from "#templates/components/labelled-amount.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";

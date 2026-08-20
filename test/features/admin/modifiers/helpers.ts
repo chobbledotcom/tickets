@@ -1,5 +1,5 @@
-import { getAllModifiers } from "#shared/db/modifiers.ts";
-import type { Modifier } from "#shared/types.ts";
+import { getAllModifiers } from "#db/modifiers.ts";
+import type { Modifier } from "#types";
 
 /** Default valid create payload; override per test. */
 export const createData = (

@@ -9,13 +9,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { queryOne } from "#db/client.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
   recordTokenFailure,
-} from "#shared/db/token-attempts.ts";
+} from "#db/token-attempts.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,

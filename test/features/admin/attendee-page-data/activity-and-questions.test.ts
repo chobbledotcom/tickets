@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { logActivity } from "#db/activity-log.ts";
+import { loadExistingLines } from "#db/attendees/atomic-update.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import {
   emptySelectedQuestionAnswers,
   loadAttendeeActivity,
   loadAttendeeActivityPreview,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { assignQuestion } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";

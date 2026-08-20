@@ -3,15 +3,15 @@ import type {
   CreateAttendeeResult,
   ListingBooking,
   UpdateAttendeePIIInput,
-} from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { updateAttendeePII } from "#shared/db/attendees/update.ts";
+} from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { updateAttendeePII } from "#db/attendees/update.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
+} from "#db/logistics.ts";
 import type { BookAttendeeOpts } from "#test-utils/internal.ts";
+import type { Attendee, Listing } from "#types";
 import { createTestAttendee } from "./attendees.ts";
 import { createTestListing } from "./listings.ts";
 

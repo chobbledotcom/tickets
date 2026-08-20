@@ -4,20 +4,17 @@
  * dates, parent allocations, and inherited package paths.
  */
 
-import { requiredMapValue } from "#fp";
 import {
   soleParentPackageIds,
   stampChildRowPackages,
-} from "#shared/booking/page-packages.ts";
+} from "#booking/page-packages.ts";
+import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
+import { expandChildAllocations } from "#db/attendees/order-parents.ts";
+import { requiredMapValue } from "#fp";
 import {
   type BookingDateSource,
   bookingDateFields,
 } from "#shared/booking-date-fields.ts";
-import type {
-  ChildAllocation,
-  ListingBooking,
-} from "#shared/db/attendee-types.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 
 type BookingLine = {

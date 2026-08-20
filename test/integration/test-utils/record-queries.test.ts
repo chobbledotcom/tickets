@@ -2,7 +2,7 @@
  *  shape would silently corrupt the exact-query assertions built on this. */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { recordQueries, statementSql } from "#test-utils/record-queries.ts";
 

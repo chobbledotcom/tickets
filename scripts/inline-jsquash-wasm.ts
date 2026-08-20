@@ -3,7 +3,7 @@ import { fromFileUrl } from "@std/path";
 import type { OnLoadResult, OnResolveResult, Plugin } from "esbuild";
 import { map } from "#fp";
 import { normalizePath } from "#scripts/path.ts";
-import { ASSETS, readAsset } from "#src/shared/images/wasm-assets.ts";
+import { ASSETS, readAsset } from "#shared/images/wasm-assets.ts";
 import { STATIC_CDN_REQUEST_TIMEOUT_MS } from "./static-cdn.ts";
 
 type ExportAsset = Pick<(typeof ASSETS)[number], "exportName">;

@@ -15,8 +15,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createRealAttendee,

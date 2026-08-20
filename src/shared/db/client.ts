@@ -15,15 +15,15 @@ import {
   type Transaction,
   type TransactionMode,
 } from "@libsql/client";
-import { lazyRef } from "#fp";
-import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
-import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
-import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
+import { beginTransaction, wrapExecute } from "#db/libsql-call.ts";
+import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import {
   countDatabaseRoundTrip,
   enforceTransactionRoundTripGuard,
   trackSql,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
+import { lazyRef } from "#fp";
+import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
 import { namedError } from "#shared/named-error.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";

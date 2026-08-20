@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import { settings } from "#db/settings.ts";
 import { routeMainApp } from "#routes/app/routes.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
