@@ -139,8 +139,8 @@ const WEBHOOK_DID = {
 const WEBHOOK_HELD = "is being processed elsewhere";
 
 /** The webhook's log line for one outcome, carrying that outcome as its value. */
-const callbackLine = (outcome: string): RegExp =>
-  new RegExp(`\\[Webhook\\] Payment callback (${outcome})`, "g");
+const callbackLine = (outcome: string): string =>
+  `\\[Webhook\\] Payment callback (${outcome})`;
 
 /** Build the follow-up check that waits for the signed webhook's own log
  * line — never inferred from pages. The step's own outcome is preferred for

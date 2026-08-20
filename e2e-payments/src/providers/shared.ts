@@ -6,6 +6,7 @@ import type { ProviderName } from "#e2e/config.ts";
 import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
+import { mapNotNullish } from "#fp";
 import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
@@ -14,13 +15,15 @@ import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
 /**
  * The last value the app server has logged for this pattern, or null when its
- * log carries none — the pattern's first group is the value. A log file that
- * does not exist yet reads as "nothing logged so far"; any other read failure
- * is a real fault and is raised rather than polled past.
+ * log carries none — the pattern's first group is the value. The pattern is
+ * source text, not a `RegExp`, so a caller cannot hand over the one shape
+ * `matchAll` refuses (a non-global pattern): this compiles it global itself.
+ * A log file that does not exist yet reads as "nothing logged so far"; any
+ * other read failure is a real fault and is raised rather than polled past.
  */
 export const lastLoggedMatch = (
   logPath: string,
-  pattern: RegExp,
+  pattern: string,
 ): string | null => {
   let text = "";
   try {
@@ -28,9 +31,10 @@ export const lastLoggedMatch = (
   } catch (err) {
     if ((err as { code?: string }).code !== "ENOENT") throw err;
   }
-  let last: string | null = null;
-  for (const m of text.matchAll(pattern)) last = m[1] ?? last;
-  return last;
+  const values = mapNotNullish((match: RegExpMatchArray) => match[1])([
+    ...text.matchAll(new RegExp(pattern, "g")),
+  ]);
+  return values.at(-1) ?? null;
 };
 
 /**
@@ -43,7 +47,7 @@ export const lastLoggedMatch = (
  */
 export const readLoggedId = async (
   logPath: string,
-  pattern: RegExp,
+  pattern: string,
   expectedLine: string,
 ): Promise<string> => {
   const found = await pollUntil(10_000, () =>

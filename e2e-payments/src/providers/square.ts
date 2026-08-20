@@ -69,7 +69,7 @@ type SquareRequest = { method?: string; body?: unknown };
 const readOrderId = (logPath: string): Promise<string> =>
   readLoggedId(
     logPath,
-    /\[Square\] Payment link created orderId=(\S+)/g,
+    "\\[Square\\] Payment link created orderId=(\\S+)",
     "[Square] Payment link created orderId=…",
   );
 
