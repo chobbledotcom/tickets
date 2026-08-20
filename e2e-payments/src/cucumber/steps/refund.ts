@@ -187,14 +187,24 @@ When(
   },
 );
 
-/** The two owner-refresh Whens: the recovery refresh and the
- * observation-only refresh both wait for the app's answer. */
-for (const text of [
-  "the owner refreshes the payment",
-  "the owner refreshes the payment without submitting Refund again",
-]) {
+/** Every owner-refresh When and the SPECIFIC app answer it requires — the
+ * rendered "Refresh payment status" button must never satisfy one of these.
+ * The recovery refresh must actually record the already-returned refund.
+ * The observation-only refresh has exactly two honest answers: nothing new,
+ * or a provider-settled refund the refresh just recorded. The exact-payment
+ * refresh runs before any refund, so only "up to date" is right. */
+const REFRESH_STEPS: readonly [string, string | RegExp][] = [
+  ["the owner refreshes the payment", "Payment status updated: refunded"],
+  [
+    "the owner refreshes the payment without submitting Refund again",
+    /Payment status (is up to date|updated: refunded)/,
+  ],
+  ["the owner refreshes the exact payment", "Payment status is up to date"],
+];
+
+for (const [text, answer] of REFRESH_STEPS) {
   When(text, async function (this: LiveWorld) {
-    await refreshPayment(this, /payment status/i);
+    await refreshPayment(this, answer);
   });
 }
 
@@ -213,13 +223,6 @@ Then(
 );
 
 /** The shared single-refund journey (Square and SumUp scenarios). */
-
-When(
-  "the owner refreshes the exact payment",
-  async function (this: LiveWorld): Promise<void> {
-    await refreshPayment(this, "Payment status is up to date");
-  },
-);
 
 /** The one rendered Refund submission: open the form, submit it, and mark
  * that a refund may have landed from here on. */
@@ -324,11 +327,14 @@ Then(
   async function (this: LiveWorld): Promise<void> {
     const after = await observeRefund(this);
     const moneyAfter = await moneyRefundCountOf(this);
-    const tooMuchReturned =
-      after.kind === "completed" && after.returnedAmount > config.unitPrice;
-    if (tooMuchReturned || moneyAfter > 1) {
+    // A completed final observation must show EXACTLY the captured amount:
+    // a partial return is as wrong as an excess one, so equality is
+    // required here, not merely a no-growth ceiling.
+    const inexactReturn =
+      after.kind === "completed" && after.returnedAmount !== config.unitPrice;
+    if (inexactReturn || moneyAfter > 1) {
       throw new Error(
-        "the observation-only refresh moved more money: " +
+        "the final observation is not one exact refund: " +
           `${JSON.stringify(after)} (captured ${config.unitPrice}), ` +
           `${moneyAfter} Money refund(s)`,
       );

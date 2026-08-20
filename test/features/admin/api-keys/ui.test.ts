@@ -13,6 +13,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   inputNamed,
+  parseFlashCookie,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -162,12 +163,18 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const locationUrl = new URL(location, "http://localhost");
       locationUrl.searchParams.delete("flash");
       expect(locationUrl.pathname).toBe("/admin/api-keys");
-      // The whole flash is the fixed sentence plus the bare key — a corrupted
-      // key (e.g. an "undefined" prefix) fails the exact shape.
+      // The whole flash is the fixed sentence plus the bare key.
       expectFlash(
         response,
         expect.stringMatching(/^API key created\n[A-Za-z0-9_-]+$/),
       );
+
+      // The key it shows must be the key that works. A shape check cannot say
+      // so: a corrupted token like "undefined" + the real key is still all
+      // word characters, and only the lookup tells the two apart.
+      const shownKey = parseFlashCookie(response).success!.split("\n")[1]!;
+      const { getApiKeyByToken } = await import("#shared/db/api-keys.ts");
+      expect(await getApiKeyByToken(shownKey)).not.toBe(null);
 
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers

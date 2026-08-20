@@ -32,7 +32,7 @@ export const FIXED_REFUSAL = {
 /** The id line createCheckout logs once the staged row carries the SumUp id. */
 const SUMUP_ID_LINE = {
   expected: "[SumUp] Checkout created id=…",
-  pattern: /\[SumUp\] Checkout created id=(\S+)/g,
+  pattern: "\\[SumUp\\] Checkout created id=(\\S+)",
 } as const;
 
 /** Server-log lines that show what a callback cost. The app writes

@@ -296,12 +296,12 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       form,
       result.row.id,
     );
-    // Staff land on the dashboard (which renders flashes); editors can't open
-    // it, so they go to the new listing's edit page — which renders Flash, so
-    // the success message and any upload caveats are surfaced, not swallowed.
+    // Staff land on the dashboard, which renders flashes. An editor cannot
+    // open the dashboard, so they go to the new listing's own page, which
+    // renders Flash too: the success message and any upload caveats show.
     const createdRedirect =
       session.adminLevel === "editor"
-        ? entityReturnPath("/admin/listings", session.adminLevel, result.row.id)
+        ? entityReturnPath("/admin/listings", result.row.id)
         : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
@@ -438,7 +438,6 @@ const handleListingEditSuccess = async (
   aggregateValues: ListingAggregateValues | null,
   formData: FormData,
   id: number,
-  session: AdminSession,
 ): Promise<Response> => {
   if (aggregateValues) {
     await updateListingAggregateValues(id, aggregateValues);
@@ -451,7 +450,7 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    entityReturnPath("/admin/listings", session.adminLevel, row.id),
+    entityReturnPath("/admin/listings", row.id),
     `Listing updated${durationWarning}`,
     existing.attachment_url,
   );
@@ -506,7 +505,6 @@ export const handleAdminListingEditPost: TypedRouteHandler<
           aggregates.input,
           formData,
           id,
-          session,
         );
       }
       if ("notFound" in result) return notFoundResponse();

@@ -2,6 +2,7 @@ import { mapValues } from "@std/collections";
 import { t } from "#i18n";
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
  * Admin built site management routes - owner only
@@ -17,12 +18,13 @@ import {
 } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 /* jscpd:ignore-start */
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
+/* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
@@ -96,11 +98,11 @@ const builtSitesResource = defineNamedResource({
   toInput: extractBuiltSiteInput,
 });
 
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   getAll: builtSites.getAll,
   getName: (s) => s.name,
   getRowPath: (site) => builtSitePage.path(site.id),
-  listPath: "/admin/built-sites",
+  list: "builtSites",
   operations: builtSitesResource,
   renderDelete: adminBuiltSiteDeletePage,
   renderEditError: builtSitePage.renderEditError,
@@ -369,8 +371,8 @@ const gateOnBuilder = <Key extends string>(
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineRoutes({
-    ...crudRoutes("/admin/built-sites", crud),
-    ...entityTabRoutes("/admin/built-sites", builtSitePage),
+    ...crudRoutes(adminPattern("builtSites"), crud),
+    ...entityTabRoutes(adminPattern("builtSite"), builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,

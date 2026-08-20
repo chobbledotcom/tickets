@@ -12,7 +12,10 @@ import {
   type AdminSurfaceContext,
   featureVisible,
 } from "#shared/admin-surface/definitions.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import type {
+  AdminDestinationId,
+  AdminRecordDestinationId,
+} from "#shared/admin-surface/ids.ts";
 
 export type AdminNavEntry = {
   readonly id: AdminDestinationId;
@@ -22,12 +25,13 @@ export type AdminNavEntry = {
 };
 
 export type AdminSectionDef = {
-  readonly detailPath?: string;
+  /** The page for one of this section's records, where a link from the list
+   * and a redirect after a save both land. */
+  readonly detail?: AdminRecordDestinationId;
   readonly id: string;
   readonly labelKey: string;
   readonly landing: AdminDestinationId;
   readonly nav: readonly AdminNavEntry[];
-  readonly staffOnlyDetail?: boolean;
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
 
@@ -39,7 +43,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     nav: [{ id: "home", kind: "landing", labelKey: "nav.public.home" }],
   },
   {
-    detailPath: "/admin/listing/:id",
+    detail: "listing",
     id: "listings",
     labelKey: "terms.listings",
     landing: "listings",
@@ -48,7 +52,6 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "listingNew", kind: "create", labelKey: "nav.sub.add" },
       { id: "catalogImport", kind: "import", labelKey: "nav.sub.import" },
     ],
-    staffOnlyDetail: true,
   },
   {
     id: "calendar",
@@ -100,7 +103,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     ],
   },
   {
-    detailPath: "/admin/groups/:id",
+    detail: "group",
     id: "groups",
     labelKey: "terms.groups",
     landing: "groups",
@@ -108,7 +111,6 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "groups", kind: "landing", labelKey: "terms.groups" },
       { id: "groupNew", kind: "create", labelKey: "nav.sub.add" },
     ],
-    staffOnlyDetail: true,
   },
   {
     id: "images",

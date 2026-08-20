@@ -12,7 +12,8 @@ import {
   type EntityPage,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
-import { requireSiteOr } from "#routes/auth.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import { adminRecordPath } from "#shared/admin-surface.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
 import type { ImageUseItemType } from "#types";
@@ -30,9 +31,9 @@ const imagesVisible = (): boolean => isStorageEnabled();
  * carries its own numeric `id`); `extraTabs` slot in between Edit and Images
  * (Pages uses this for its Items manager). */
 export interface SiteContentPageDef<E extends { id: number }> {
-  basePath: (id: number) => string;
   /** The locale key for the delete action on the Actions tab. */
   deleteLabelKey: string;
+  destination: AdminDestinationId;
   /** The Edit tab's fields form. */
   editPanel: (entity: E) => JSX.Element;
   extraTabs?: readonly TabDef<E>[];
@@ -56,7 +57,11 @@ export const defineSiteContentPage = <E extends { id: number }>(
     "images",
     "entity.tab.images",
     (entity) =>
-      loadItemImagesPanel(def.itemType, entity.id, def.basePath(entity.id)),
+      loadItemImagesPanel(
+        def.itemType,
+        entity.id,
+        adminRecordPath(def.destination, entity.id),
+      ),
     imagesVisible,
   );
   // Delete is the only action, and the delete confirmation GET is itself
@@ -64,11 +69,10 @@ export const defineSiteContentPage = <E extends { id: number }>(
   // makes the whole tab write-only.
   const actionsTab = deleteActionTab<E>(
     def.deleteLabelKey,
-    (entity) => `${def.basePath(entity.id)}/delete`,
+    (entity) => `${adminRecordPath(def.destination, entity.id)}/delete`,
   );
   return defineEntityPage({
-    basePath: def.basePath,
-    guard: requireSiteOr,
+    destination: def.destination,
     guideFooter: (_entity, ctx) =>
       Promise.resolve(
         contentGuideFooter(def.guideAnchor, ctx.session.adminLevel),

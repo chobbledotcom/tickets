@@ -180,6 +180,22 @@ src/features/admin/listings-form.ts::extractCommonFields.unitPrice~0fxriin  ?? �
 src/features/admin/listings-form.ts::extractCommonFields.closesAt~1ox85dk  closes_at → ""   # the label only appears in normalizeDatetime's throw, and the field's validateDatetime already refused every value localToUtc would reject
 src/features/admin/listings-form.ts::extractCommonFields.date~1ogjyd0  date → ""   # same: the date field is validated by the same parser before toInput runs, so the throw naming it is unreachable
 src/features/admin/listings-form.ts::listingValidate~19dmftv  ?? → ||   # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
+src/features/admin/listings-edit.ts::handleNewListingGet.templateId~06kqyx5  ?? → ||   # gate.template?.id is a TemplateId or undefined, and every TemplateId is a non-empty string, so the fallback runs on exactly the same input either way
+src/features/admin/listings-edit.ts::chosenTemplateOrPicker.template~09uwhwd  ?? → ||   # Array.find returns a template object or undefined, and objects are always truthy
+src/features/admin/listings-edit.ts::resolveErrorTemplateId~1v3vh1c  ?? → ||   # inferTemplate(...)?.id is a TemplateId or undefined, and every TemplateId is a non-empty string
+src/features/admin/listings-edit.ts::parseListingForm~1h0dnu7   → "mutated"   # the editor lock writes use_defaults, which is only ever read through FormParams.getFlag and the form's own `=== "1"` comparison, so every value other than "1" is off
+src/features/auth.ts::loadAuthUserFields~0qjvs2i  ?? → ||   # getUserAuthFieldsById gives back a user-fields object or null, and objects are always truthy
+src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → ||   # getAuthenticatedSession gives back an AuthSession object or null, and objects are always truthy
+src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → ||   # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/auth.ts::parseCsrfBody.err~0lmzdfk   → "mutated"   # the fallback is only reached when the header is absent, and every value that is not a signed token fails verification the same way
+src/features/auth.ts::parseCsrfBody~091hnp4  ?? → ||   # err is a Response object or null, and objects are always truthy
+src/features/auth.ts::parseCsrfBody.err~0mxpuuo  ?? → ||   # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
+src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated"   # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
+src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → ||   # err is a Response object or null, and objects are always truthy
+src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true   # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
+src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → ||   # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
+src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → ||   # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated"   # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
 
 # Route ordering (router.ts) — two array fallbacks, and a replacement string
 # whose length cancels out of the only comparison that reads it.

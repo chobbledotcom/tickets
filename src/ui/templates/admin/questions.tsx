@@ -16,7 +16,7 @@ import {
   questionTextForm,
 } from "#routes/admin/questions/forms.ts";
 /* jscpd:ignore-end */
-import { adminPath } from "#shared/admin-surface.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -150,6 +150,13 @@ const QuestionListingAssignment = ({
 /** List all questions in a reorderable table, mirroring the listings table:
  * reorder arrows in the first column, then the question, its answer count, and
  * the listings it applies to. */
+/** Where one of a question's answers is edited, deleted, or recalculated. */
+const answerPath = (
+  route: "answerDelete" | "answerEdit" | "answerRecalculate",
+  questionId: number,
+  answerId: number,
+): string => adminPath(route, { answerId, id: questionId });
+
 export const adminQuestionsPage = (
   questions: QuestionWithAnswers[],
   session: AdminSession,
@@ -160,11 +167,11 @@ export const adminQuestionsPage = (
   reorderableListPage({
     addFormHtml: questionTextForm.render(),
     addLabel: t("questions.add_submit"),
-    basePath: "/admin/questions",
+    basePath: adminPattern("questions"),
     columns: [
       {
         cell: (question) => (
-          <a href={`/admin/questions/${question.id}`}>
+          <a href={adminPath("question", { id: question.id })}>
             {questionTextFlat(question.text)}
           </a>
         ),
@@ -191,7 +198,7 @@ export const adminQuestionsPage = (
     ],
     emptyText: t("questions.no_questions"),
     error,
-    guideHref: "/admin/guide#questions",
+    guideHref: `${adminPattern("guide")}#questions`,
     guideLabel: "Questions guide",
     items: questions,
     newFormId: "new-question",
@@ -211,7 +218,7 @@ export const adminQuestionPage = (
 ): string =>
   errorAdminPage(
     `Question: ${questionTextFlat(question.text)}`,
-    "/admin/questions",
+    adminPattern("questions"),
   )(
     session,
     error,
@@ -271,8 +278,7 @@ export const adminQuestionPage = (
           {reorderCountTable({
             count: (a) => answerCounts?.get(a.id) ?? 0,
             countHeader: t("questions.selected_column"),
-            editHref: (a) =>
-              adminPath("answerEdit", { answerId: a.id, id: question.id }),
+            editHref: (a) => answerPath("answerEdit", question.id, a.id),
             emptyText: t("questions.edit.no_answers"),
             items: question.answers,
             label: (a) => a.text,
@@ -304,7 +310,7 @@ export type AnswerModifierOption = { id: number; name: string };
 
 /** Path to an answer's running-total recalculation page. */
 const answerRecalculatePath = (questionId: number, answerId: number): string =>
-  `/admin/questions/${questionId}/answers/${answerId}/recalculate`;
+  answerPath("answerRecalculate", questionId, answerId);
 
 /** Build the recalculate table rows comparing the stored selection total with
  * the value rebuilt from attendee answers. */
@@ -373,13 +379,13 @@ export const adminAnswerEditPage = (
   modifierId: number | null,
 ): string =>
   childEditPage({
-    active: "/admin/questions",
-    backHref: `/admin/questions/${question.id}`,
+    active: adminPattern("questions"),
+    backHref: adminPath("question", { id: question.id }),
     backLabel: t("questions.edit_answer.back_to_question"),
     context: t("questions.edit_answer.question_context", {
       text: questionTextFlat(question.text),
     }),
-    formAction: `/admin/questions/${question.id}/answers/${answer.id}/edit`,
+    formAction: answerPath("answerEdit", question.id, answer.id),
     heading: t("questions.edit_answer.heading"),
     title: t("questions.edit_answer.title"),
   })(
@@ -423,7 +429,7 @@ export const adminAnswerEditPage = (
     <p>
       <a
         class="danger"
-        href={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
+        href={answerPath("answerDelete", question.id, answer.id)}
       >
         {t("questions.delete_answer.submit")}
       </a>
@@ -442,7 +448,7 @@ export const adminAnswerRecalculatePage = (
 ): string =>
   adminRecalculatePage({
     action: answerRecalculatePath(question.id, answer.id),
-    active: "/admin/questions",
+    active: adminPattern("questions"),
     currentLabel: t("questions.recalculate.current"),
     description: t("questions.recalculate.description"),
     error,
@@ -455,7 +461,7 @@ export const adminAnswerRecalculatePage = (
   });
 
 /** The warning-led delete page on the questions nav. */
-const questionsDeletePage = warningDeletePage("/admin/questions");
+const questionsDeletePage = warningDeletePage(adminPattern("questions"));
 
 /** The question and answer delete pages differ only in action URL, confirmed
  *  name, page title, and warning copy — the rest of their wording comes from
@@ -498,7 +504,7 @@ export const adminQuestionDeletePage = (
 ): string =>
   questionDeleteConfirmPage(
     {
-      action: `/admin/questions/${question.id}/delete`,
+      action: adminPath("questionDelete", { id: question.id }),
       name: questionTextFlat(question.text),
       prefix: "questions.delete",
       session,
@@ -525,7 +531,7 @@ export const adminAnswerDeletePage = (
   );
   return questionDeleteConfirmPage(
     {
-      action: `/admin/questions/${question.id}/answers/${answer.id}/delete`,
+      action: answerPath("answerDelete", question.id, answer.id),
       name: answer.text,
       prefix: "questions.delete_answer",
       session,
@@ -553,13 +559,13 @@ export const ListingQuestionsPanel = (
   return listingChoicePanel(
     t("questions.listing.heading", { listing: listing.name }),
     <p>
-      <a href="/admin/questions">{t("questions.listing.manage")}</a>
+      <a href={adminPattern("questions")}>{t("questions.listing.manage")}</a>
     </p>,
     allQuestions,
     () => (
       <p>
         No questions created yet.{" "}
-        <a href="/admin/questions">Create questions</a> first.
+        <a href={adminPattern("questions")}>Create questions</a> first.
       </p>
     ),
     (questions) => (

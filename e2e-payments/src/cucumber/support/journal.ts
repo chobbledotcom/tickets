@@ -6,8 +6,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { config } from "#e2e/config.ts";
-import { repoRoot } from "#e2e/server.ts";
+import { artifactsRoot } from "#e2e/server.ts";
 
 export interface JournalPhase {
   at: string;
@@ -29,12 +28,7 @@ export interface ScenarioJournal {
 }
 
 export const journalPath = (caseId: string): string =>
-  join(
-    repoRoot,
-    "e2e-payments",
-    config.artifactsDir,
-    `${caseId.replace(/[^a-z0-9-]/gi, "-")}-journal.json`,
-  );
+  join(artifactsRoot, `${caseId.replace(/[^a-z0-9-]/gi, "-")}-journal.json`);
 
 export const newJournal = (
   runId: string,

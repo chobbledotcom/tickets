@@ -284,3 +284,17 @@ export const expectAttendeeAdded = async (
   expect(attendees.length).toBe(1);
   return attendees[0]!;
 };
+
+/** Empty a roster row's quantity, leaving the ghost line a booking leaves
+ * behind when every place on it is given up. The attendee actions refuse such
+ * a line, so each refusal test starts here. */
+export const emptyBookingLine = async (
+  listingId: number,
+  attendeeId: number,
+): Promise<void> => {
+  const { execute } = await import("#shared/db/client.ts");
+  await execute(
+    "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
+    [listingId, attendeeId],
+  );
+};

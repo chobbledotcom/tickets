@@ -6,12 +6,18 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPageDef,
+  type PageCtx,
+  prepareOwnerFields,
 } from "#routes/admin/entity-pages.ts";
 import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import {
+  createTestManagerSession,
+  withTestSession,
+} from "#test-utils/session.ts";
 
 type Fixture = { id: number; name: string; paid: boolean };
 
@@ -22,31 +28,49 @@ const SESSION: AuthSession = {
   wrappedDataKey: null,
 };
 
-/** A guard that always admits the fixture session (renderTab plumbing). */
-const passGuard = (
-  _request: Request,
-  handler: ResponseHandler<[session: AuthSession]>,
-): Promise<Response> => Promise.resolve(handler(SESSION));
+/** The parts of a page context the owner-fields loader reads. */
+const ctxFor = (adminLevel: AuthSession["adminLevel"]): PageCtx =>
+  ({ session: { ...SESSION, adminLevel } }) as PageCtx;
+
+describe("prepareOwnerFields", () => {
+  const withPaid = prepareOwnerFields<Fixture>((entity) =>
+    Promise.resolve({ paid: !entity.paid }),
+  );
+  const UNPAID: Fixture = { id: 1, name: "Fixture", paid: false };
+
+  test("loads the extra fields for an owner", async () => {
+    expect(await withPaid(UNPAID, ctxFor("owner"))).toEqual({
+      id: 1,
+      name: "Fixture",
+      paid: true,
+    });
+  });
+
+  test("leaves the record alone for every other role", async () => {
+    expect(await withPaid(UNPAID, ctxFor("manager"))).toEqual(UNPAID);
+  });
+});
 
 const ACTIONS: readonly ActionDef<Fixture>[] = [
   {
     href: (entity, ctx) =>
-      `/admin/widgets/${entity.id}/refund?return_url=${encodeURIComponent(ctx.returnUrl)}`,
+      `/admin/holidays/${entity.id}/refund?return_url=${encodeURIComponent(ctx.returnUrl)}`,
     labelKey: "attendee_form.action_refund",
     visible: (entity) => entity.paid,
   },
   {
     danger: true,
-    href: (entity) => `/admin/widgets/${entity.id}/delete`,
+    href: (entity) => `/admin/holidays/${entity.id}/delete`,
     intent: "write-form",
     labelKey: "attendee_form.action_delete",
   },
 ];
 
-/** A minimal def with no banner, exercising every non-DB section kind. */
+/** A minimal def with no banner, exercising every non-DB section kind. It
+ * names a real owner-only record page, because a page takes both its URLs and
+ * its auth floor from the route it declares. */
 const def: EntityPageDef<Fixture> = {
-  basePath: (id) => `/admin/widgets/${id}`,
-  guard: passGuard,
+  destination: "holiday",
   load: (id) =>
     Promise.resolve(id === 404 ? null : { id, name: "Widget", paid: false }),
   navActive: "/admin/attendees",
@@ -121,8 +145,8 @@ describe("defineEntityPage", () => {
   });
 
   test("path mints the base and tab URLs", () => {
-    expect(page.path(7)).toBe("/admin/widgets/7");
-    expect(page.path(7, "actions")).toBe("/admin/widgets/7/actions");
+    expect(page.path(7)).toBe("/admin/holidays/7");
+    expect(page.path(7, "actions")).toBe("/admin/holidays/7/actions");
   });
 
   test("renderPage 404s for an unknown id", async () => {
@@ -148,11 +172,11 @@ describe("defineEntityPage", () => {
     // Summary row + activity preview with a view-all link into the full tab.
     expect(html).toContain('<th scope="row">Name</th>');
     expect(html).toContain("made");
-    expect(html).toContain('href="/admin/widgets/7/activity"');
+    expect(html).toContain('href="/admin/holidays/7/activity"');
     // The hidden tab is absent from the strip; the actions tab's content is
     // not rendered on this tab (per-tab loading).
-    expect(html).not.toContain("/admin/widgets/7/hidden");
-    expect(html).not.toContain("/admin/widgets/7/refund");
+    expect(html).not.toContain("/admin/holidays/7/hidden");
+    expect(html).not.toContain("/admin/holidays/7/refund");
   });
 
   test("the full activity tab renders without a view-all link", async () => {
@@ -209,19 +233,19 @@ describe("defineEntityPage", () => {
   test("actions filter on their visible predicate and custom sections get ctx", async () => {
     const html = await (await page.renderPage(SESSION, 7, "actions")).text();
     // paid=false hides the refund action but keeps the danger delete.
-    expect(html).not.toContain("/admin/widgets/7/refund");
-    expect(html).toContain('href="/admin/widgets/7/delete"');
+    expect(html).not.toContain("/admin/holidays/7/refund");
+    expect(html).toContain('href="/admin/holidays/7/delete"');
     expect(html).toContain("entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
     expect(html).toContain(
-      '<p data-from="">Widget @ /admin/widgets/7/actions from </p>',
+      '<p data-from="">Widget @ /admin/holidays/7/actions from </p>',
     );
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const actions = await page.renderPage(SESSION, 7, "actions");
-    expect(await actions.text()).not.toContain("/admin/widgets/7/delete");
+    expect(await actions.text()).not.toContain("/admin/holidays/7/delete");
     expect((await page.renderPage(SESSION, 7, "edit")).status).toBe(404);
   });
 
@@ -267,18 +291,6 @@ describe("defineEntityPage", () => {
     ).rejects.toThrow();
   });
 
-  test("renderTab passes the request origin and query to the active section", async () => {
-    const response = await page.renderTab(
-      new Request("https://tickets.example/admin/widgets/7/actions?from=queue"),
-      7,
-      "actions",
-    );
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
-      '<p data-from="queue">Widget @ /admin/widgets/7/actions from https://tickets.example</p>',
-    );
-  });
-
   test("tab labels render translated, never as raw locale keys", async () => {
     const html = await (await page.renderPage(SESSION, 7, "")).text();
     expect(html).toContain(">Overview</a>");
@@ -293,12 +305,12 @@ describe("defineEntityPage", () => {
       tabs: [
         deleteActionTab<Fixture>(
           "common.delete",
-          (entity) => `/admin/widgets/${entity.id}/delete`,
+          (entity) => `/admin/holidays/${entity.id}/delete`,
         ),
       ],
     });
     const html = await (await deletePage.renderPage(SESSION, 7, "")).text();
-    expect(html).toContain('href="/admin/widgets/7/delete"');
+    expect(html).toContain('href="/admin/holidays/7/delete"');
     expect(html).toContain("Delete");
     expect(html).toContain("entity-danger-zone");
     expect((await deletePage.renderPage(SESSION, 7, "actions")).status).toBe(
@@ -311,8 +323,8 @@ describe("defineEntityPage", () => {
 
   test("an edit page preserves the submitted form at status 400", async () => {
     const editPage = defineEditEntityPage({
-      basePath: def.basePath,
       deleteLabelKey: "common.delete",
+      destination: def.destination,
       edit: (entity, ctx, rejected) =>
         Promise.resolve(
           Raw({
@@ -320,7 +332,6 @@ describe("defineEntityPage", () => {
           }),
         ),
       editSlug: "",
-      guard: passGuard,
       load: def.load,
       navActive: def.navActive,
     });
@@ -332,7 +343,41 @@ describe("defineEntityPage", () => {
     );
     expect(response.status).toBe(400);
     expect(await response.text()).toContain(
-      "<p>Widget|/admin/widgets/7|Submitted|Invalid</p>",
+      "<p>Widget|/admin/holidays/7|Submitted|Invalid</p>",
     );
+  });
+});
+
+describeWithEnv("an entity page serving a request", { db: true }, () => {
+  test("passes the request origin and query to the active section", async () => {
+    // renderTab is the route-facing entry: it runs the page's auth floor, then
+    // hands the section the origin and query string off the real request.
+    const response = await withTestSession(() =>
+      page.renderTab(
+        new Request(
+          "https://tickets.example/admin/holidays/7/actions?from=queue",
+        ),
+        7,
+        "actions",
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      '<p data-from="queue">Widget @ /admin/holidays/7/actions from https://tickets.example</p>',
+    );
+  });
+
+  test("refuses a role the page does not admit", async () => {
+    // The floor comes from the declaration, so a role outside it never gets
+    // as far as loading the record.
+    const cookie = await createTestManagerSession("entity-page-manager");
+    const response = await page.renderTab(
+      new Request("https://tickets.example/admin/holidays/7", {
+        headers: { cookie },
+      }),
+      7,
+      "",
+    );
+    expect(response.status).toBe(403);
   });
 });

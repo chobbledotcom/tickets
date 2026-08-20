@@ -16,6 +16,7 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { adminRecordPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 
 export interface RejectedEdit {
@@ -133,7 +134,7 @@ export const defineEditEntityPage = <
       ...extraTabs,
       deleteActionTab<Entity>(
         deleteLabelKey,
-        (entity) => `${page.basePath(entity.id)}/delete`,
+        (entity) => `${adminRecordPath(page.destination, entity.id)}/delete`,
       ),
     ],
     titleOf: (entity) => entity.name,

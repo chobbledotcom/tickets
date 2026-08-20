@@ -101,3 +101,20 @@ describe("a table that declares one route twice", () => {
     );
   });
 });
+
+describe("a table that declares one path twice", () => {
+  test("refuses to fold, naming both routes", () => {
+    // Two ids at one path would give the page two audiences, and the gate a
+    // handler looks up by its own path would take whichever won the race.
+    expect(() =>
+      foldAdminAreas({
+        holidays: {
+          audience: ["owner"],
+          view: { report: "/admin/holidays", summary: "/admin/holidays" },
+        },
+      }),
+    ).toThrow(
+      'Admin path "/admin/holidays" is declared by both "report" and "summary"',
+    );
+  });
+});

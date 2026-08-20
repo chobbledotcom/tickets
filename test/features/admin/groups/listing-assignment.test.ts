@@ -4,7 +4,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -56,6 +56,8 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
       t("error.group_listing_type_mismatch", { type: "standard" }),
       false,
     );
+    // A refusal keeps the operator on the group they were adding to.
+    expectRedirect(response, new RegExp(`^/admin/groups/${group.id}\\?flash=`));
     expect(await getListingsByGroupId(group.id)).toHaveLength(1);
   });
 
