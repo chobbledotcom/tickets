@@ -3,7 +3,13 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
+import {
+  ErrorCode,
+  formatErrorMessage,
+  runWithRequestId,
+} from "#shared/logger.ts";
+import { runWithRequestTrace } from "#shared/request-trace.ts";
 import {
   captureServerError,
   initSentry,
@@ -108,10 +114,29 @@ describe("sentry", () => {
       expect(Sentry.getClient()?.getOptions().tracesSampleRate).toBe(0);
     });
 
-    test("loads no default integrations", async () => {
+    // Constructing DenoClient directly adds no integrations, so the two that
+    // put information into a report have to be named. A deployment that loads
+    // neither reports wrapper errors with no cause and no console trail.
+    test("loads the integrations that add information to a report", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
-      expect(Sentry.getClient()?.getOptions().integrations).toEqual([]);
+
+      const names = (Sentry.getClient()?.getOptions().integrations ?? []).map(
+        (integration) => integration.name,
+      );
+      expect(names).toEqual(["Breadcrumbs", "LinkedErrors"]);
+    });
+
+    // Dedupe drops an error that repeats. Two requests hitting one bug are two
+    // real occurrences, so dropping the second undercounts the problem.
+    test("does not load the integration that drops repeated errors", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+
+      expect(fetchStub.calls.length).toBe(2);
     });
   });
 
@@ -203,6 +228,143 @@ describe("sentry", () => {
         (await captureDbErrorBody()).match(/"level":"[^"]*"/g) ?? [];
       expect(levels).toContain('"level":"error"');
       expect(levels).not.toContain('"level":"info"');
+    });
+
+    // Regression: an error's cause was dropped, so every database failure was
+    // reported as the wrapper that caught it, with the real failure missing.
+    test("keeps the root cause of a wrapped error", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      const cause = new Error("connection reset by peer");
+      await captureServerError({
+        code: ErrorCode.DB_QUERY,
+        error: new Error("libsql execute failed", { cause }),
+      });
+
+      const body = firstFetchBody();
+      expect(body).toContain("libsql execute failed");
+      expect(body).toContain("connection reset by peer");
+    });
+
+    test("keeps the console lines printed before the error", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      console.debug("a line worth keeping");
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+
+      expect(firstFetchBody()).toContain("a line worth keeping");
+    });
+
+    test("names the site and the route the error happened on", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await runWithRequestTrace(
+        new Request("https://venue.example.com/admin/listings/42"),
+        () => captureServerError({ code: ErrorCode.DB_QUERY }),
+      );
+
+      const body = firstFetchBody();
+      expect(body).toContain('"transaction":"GET /admin/listings/[id]"');
+      expect(body).toContain('"site":"venue.example.com"');
+      expect(body).toContain(
+        '"url":"https://venue.example.com/admin/listings/[id]"',
+      );
+    });
+
+    // The ticket token is the whole credential for that ticket. It must never
+    // reach the reporter, in the route, the URL, or the query string.
+    test("never reports a ticket token", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await runWithRequestTrace(
+        new Request("https://venue.example.com/t/9D5F57B232?email=a@b.test"),
+        () => captureServerError({ code: ErrorCode.NOT_FOUND_ATTENDEE }),
+      );
+
+      const body = firstFetchBody();
+      expect(body).not.toContain("9D5F57B232");
+      expect(body).not.toContain("a@b.test");
+      expect(body).toContain('"transaction":"GET /t/[redacted]"');
+    });
+
+    // A blank tag is worse than a missing one: it shows up in the tag list and
+    // filters to nothing. Outside a request there is no id, route, or URL.
+    test("leaves out the tags it has no value for", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+
+      const body = firstFetchBody();
+      expect(body).not.toContain("requestId");
+      expect(body).not.toContain('"url"');
+      expect(body).not.toContain("listingId");
+      expect(body).not.toContain("attendeeId");
+      expect(body).toContain('"code":"E_DB_QUERY"');
+    });
+
+    // Boot and scheduled runs report outside any request, and still have to say
+    // which site they came from.
+    test("names the site from its own settings when there is no request", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+
+      expect(firstFetchBody()).toContain(
+        `"site":${JSON.stringify(getEffectiveDomain())}`,
+      );
+    });
+
+    test("carries the request id the console lines carry", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await runWithRequestId(() =>
+        captureServerError({ code: ErrorCode.DB_QUERY }),
+      );
+
+      const requestIds =
+        firstFetchBody().match(/"requestId":"([0-9a-f]{4})"/) ?? [];
+      expect(requestIds[1]).toMatch(/^[0-9a-f]{4}$/);
+    });
+
+    // Grouping a message report by its text made one issue per varying detail:
+    // forty "Broken image" issues instead of one issue with forty events.
+    test("groups message reports by code and route, not by their detail", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await runWithRequestTrace(
+        new Request("https://venue.example.com/admin/listings/42"),
+        () =>
+          captureServerError({
+            code: ErrorCode.IMAGE_BROKEN,
+            detail: "image 4821 missing",
+          }),
+      );
+
+      expect(firstFetchBody()).toContain(
+        '"fingerprint":["E_IMAGE_BROKEN","GET","/admin/listings/[id]"]',
+      );
+    });
+
+    // A stack trace groups better than anything we could invent, so an error
+    // report must keep the SDK's own grouping.
+    test("leaves grouping alone for a report that carries a stack trace", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({
+        code: ErrorCode.DB_QUERY,
+        error: new Error("kaboom"),
+      });
+
+      expect(firstFetchBody()).not.toContain('"fingerprint"');
     });
 
     test("does not add empty extra context", async () => {
