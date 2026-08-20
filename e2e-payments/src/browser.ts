@@ -373,10 +373,9 @@ export const launchAppBrowser = async (
           new Promise((resolve) => setTimeout(resolve, 5_000)),
         ]);
         if (browser.isConnected()) {
-          // Playwright exposes no process handle to kill, so the leak is
-          // raised instead of logged: the cleanup sweep reports it and fails
-          // an otherwise-green scenario rather than letting the zombie
-          // Chromium quietly consume the runner.
+          // Playwright exposes no process handle to kill, so a surviving
+          // browser is raised: the cleanup sweep fails the scenario rather
+          // than leave a zombie Chromium on the runner.
           throw new Error(
             "Chromium did not close after the bounded graceful close and CDP Browser.close",
           );
