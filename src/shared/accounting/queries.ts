@@ -308,22 +308,6 @@ const toBalanceMap = (rows: BalanceRow[]): Map<string, number> =>
   new Map(rows.map((row) => [row.id, Number(row.balance)]));
 
 /**
- * Balance of every account of one type (e.g. all `attendee` balances, or all
- * `revenue` listing incomes), keyed by account id, in a single query. Accounts
- * with no transfers are simply absent (balance 0).
- */
-export const accountBalancesOfType = async (
-  type: string,
-): Promise<Map<string, number>> =>
-  toBalanceMap(
-    await groupedBalances(
-      `${LEG_COLUMNS.dest.type} = ?`,
-      `${LEG_COLUMNS.source.type} = ?`,
-      [type, type],
-    ),
-  );
-
-/**
  * Balance of each given account id of one type, in a single query — for a page
  * of attendees/listings rather than the whole type. An empty id list is a no-op
  * (no query); ids absent from the result have balance 0.

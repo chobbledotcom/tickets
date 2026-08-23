@@ -19,6 +19,7 @@ import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import type { ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {
@@ -86,11 +87,11 @@ const snapshotStatements = (
   const groupIds = [...lineGroupIds(intent.items)];
   const modifierIds = unique(intent.modifiers.map((ref) => ref.i));
   return [
-    statement(
-      `SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1) AS has_legs,
-        (SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ? LIMIT 1) AS owner_attendee_id`,
-      [eventGroup, eventGroup],
-    ),
+    numberedStatement((bind) => {
+      const group = bind(eventGroup);
+      return `SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ${group} LIMIT 1) AS has_legs,
+        (SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ${group} LIMIT 1) AS owner_attendee_id`;
+    }),
     listingStatement(listingIds),
     statement(
       `SELECT id, name, hide_package_listings

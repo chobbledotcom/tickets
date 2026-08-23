@@ -155,14 +155,13 @@ describe("deleting a record's rows", () => {
 
 describe("checking a record is really there", () => {
   test("asks the table that kind of record lives in", () => {
-    expect(targets.exists({ id: 3, kind: "listing" })).toEqual({
-      args: [3],
-      sql: "EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-    });
+    expect(targets.existsSql("listing", "?4")).toBe(
+      "EXISTS (SELECT 1 FROM listings WHERE id = ?4)",
+    );
   });
 
   test("says so loudly when the domain listed no tables", () => {
-    expect(() => tablelessTargets.exists({ id: 3, kind: "listing" })).toThrow(
+    expect(() => tablelessTargets.existsSql("listing", "?1")).toThrow(
       "No table listed for listing records",
     );
   });

@@ -67,59 +67,16 @@ rather than the locking this PR unified. Starting point: `signalRun` and
 
 ---
 
-## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
+## Numbered SQL parameters - convert repeated variable lists (from PR #2040)
 
-PR #2040 rewrote the two rate-limiter upserts
-(`src/shared/db/login-attempts.ts`, `src/shared/db/token-attempts.ts`) to use
-SQLite's numbered parameters (`?1`..`?6`), with each number given a named
-fragment constant (`NOW`, `TOKEN_LIMIT`, …) that the SQL template interpolates.
-That turned a 25-slot repeated positional args array into one value per meaning.
-Follow-ups:
+`src/shared/db/numbered-statement.ts` gives a complete statement one numbered
+parameter namespace. Its binder can allocate a variable list once and reuse the
+tokens.
 
-- **Convert the swept multi-use statements.** A sweep on 2026-08-23 found the
-  sites below. Each binds the same scalar more than once in one statement, so
-  each is a clean `?N` conversion. The repeats in `src/shared/db/prune.ts` (the
-  `login_attempts` delete and the invite scan position) are already converted.
-  Convert a file when other work opens it, so one branch does not pull many
-  untouched money-adjacent files into the mutation gate at once:
-  - `src/shared/db/attendee-statuses.ts` — `clearChosenDefaults` (`id` ×2)
-  - `src/shared/db/attendees/payment-provenance.ts` — `statement` (`sessionId`
-    ×2)
-  - `src/shared/db/capacity.ts` — `buildDailyListingCountSql`,
-    `buildUndatedListingCountSql` (`listingId` ×2), `buildDayCapacitySql`
-    (`listingId` and `qty` ×2)
-  - `src/shared/db/groups.ts` — `copyPackageOverridesStatement`
-    (`sourceListingId` ×2), the `copyPackageMemberOverridesTx` INSERT
-    (`newListingId` ×2)
-  - `src/shared/db/groups/membership.ts` — `groupListingAssignmentStatements`
-    (`listingId` ×2)
-  - `src/shared/db/images.ts` — `linkImageStatement` (`imageId` ×2)
-  - `src/shared/db/migrations/lock.ts` — `acquireMigrationLock` (`lockToken` ×2)
-  - `src/shared/db/modifier-usage.ts` — `modifierStockCondition`
-    (`usage.modifierId` ×3)
-  - `src/shared/db/payment-anchor/attendee.ts` —
-    `prepareClaimedAttendeePaymentAnchor` (`attendeeId` ×3)
-  - `src/shared/db/provider-refund-authority.ts` —
-    `bindRefundCallbackIfChargeExists` (`callbackReplayIndex` and
-    `referenceIndex` ×2), `prepareRefundAuthorityWrite` (`input.now` ×3)
-  - `src/shared/accounting/queries.ts` — `accountBalancesOfType` (`type` ×2)
-  - `src/features/api/payment-processing/snapshot/io.ts` — the has_legs/owner
-    query in `snapshotStatements` (`eventGroup` ×2)
-- **Leave the spread-list repeats alone for now.** A second class re-binds a
-  variable-length id list (`...ids` twice, for example `selfLinkTableSides`,
-  `guardEdgeWriteTx`, the run-sheet reads, `accountsScope`). `?N` cannot number
-  a list whose length changes per call; those need a `WITH` clause or stay as
-  they are.
-- **Consider a small define-style helper.** Something like
-  `defineStatement({ ip: v.string(), now: v.number() }, (p) => sql\`... ${p.ip}
-  ...\`)`could hand back`{ sql, bind({ip, now})
-  }`so the parameter order
-  lives in one place and callers pass an object instead of an ordered array —
-  the same schema-first shape as`defineTable`/`defineForm`.
-  The sweep found around sixteen scalar sites, so decide when converting them
-  whether the machinery now pays for itself.
-- Starting point: the fragment-constant pattern at the top of
-  `src/shared/db/token-attempts.ts`.
+Some statements still bind the same variable-length ID list more than once.
+Initial sites include `selfLinkTableSides`, `guardEdgeWriteTx`, the run-sheet
+reads, and `accountsScope`. Convert them to the deferred `NumberedSql` form
+before their outer writer makes the final statement.
 
 ---
 

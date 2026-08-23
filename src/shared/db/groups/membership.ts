@@ -14,6 +14,7 @@ import {
   groupListingSettingsError,
 } from "#db/groups/homogeneity.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
 import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
@@ -364,10 +365,14 @@ const groupListingAssignmentStatements = (
   listingIds: readonly number[],
   groupId: number,
 ) =>
-  listingIds.map((listingId) => ({
-    args: [groupId, listingId, listingId],
-    sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-  }));
+  listingIds.map((listingId) =>
+    numberedStatement((bind) => {
+      const listing = bind(listingId);
+      return `INSERT OR IGNORE INTO group_listings (group_id, listing_id)
+              SELECT ${bind(groupId)}, ${listing}
+               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listing})`;
+    }),
+  );
 
 /** Adds listings after checking fresh group, listing, and edge state in one write transaction. */
 export const assignListingsToGroup = async (

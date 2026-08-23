@@ -12,143 +12,27 @@ import {
   type BookingBatchPlan,
   createBookingAtomic,
 } from "#db/attendees/create.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#db/client.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import { reserveSession } from "#db/processed-payments.ts";
-import {
-  bookingBatchPlan,
-  postBookingLegsTx,
-} from "#shared/checkout-complete.ts";
-import type {
-  ModifierApplication,
-  PricedLine,
-  PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  buildPlan,
+  expectBookingOk,
+  expectCapacityExceeded,
+  expectNothingWritten,
+  pricedLine as line,
+  OCCURRED_AT,
+  paidInput,
+  storedEventGroup,
+  surcharge,
+} from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   getProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-
-/** Narrow a createBookingAtomic result to the successful shape, or fail the test. */
-const expectBookingOk = (
-  result: Awaited<ReturnType<typeof createBookingAtomic>>,
-) => {
-  if (result === "sold-out" || !result.success) {
-    throw new Error("expected ok");
-  }
-  return result;
-};
-
-const OCCURRED_AT = "2026-06-24T00:00:00.000Z";
-
-const line = (
-  listingId: number,
-  unitPrice: number,
-  quantity: number,
-): PricedLine => ({
-  chargedUnitAmount: unitPrice,
-  item: {
-    listingId,
-    name: `L${listingId}`,
-    quantity,
-    slug: `l${listingId}`,
-    unitPrice,
-  },
-  quantity,
-});
-
-const order = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
-  extras: [],
-  fullSubtotal: 0,
-  lines: [],
-  modifierApplications: [],
-  total: 0,
-  ...overrides,
-});
-
-/** A surcharge modifier application: bills the attendee `delta` extra.
- *  (scopedSubtotal isn't read on the booking-write path; it satisfies the
- *  ModifierApplication shape.) */
-const surcharge = (modifierId: number, delta: number) => ({
-  amountApplied: delta,
-  delta,
-  modifierId,
-  name: "Add-on",
-  quantity: 1,
-  scopedSubtotal: delta,
-});
-
-/** The create input for one paid booking of `listingId`. */
-const paidInput = (listingId: number, pricePaid: number) => ({
-  bookings: [{ listingId, pricePaid, quantity: 1 }],
-  email: "batch@example.com",
-  name: "Batch",
-  paymentId: `pi_${listingId}`,
-});
-
-const buildPlan = async (opts: {
-  eventId: string;
-  lines: PricedLine[];
-  fullSubtotal?: number;
-  total?: number;
-  usages?: ModifierApplication[];
-  sessionId?: string;
-}): Promise<{ pricedOrder: PricedOrder; plan: BookingBatchPlan }> => {
-  if (opts.sessionId) await reserveSession(opts.sessionId);
-  const usages = opts.usages ?? [];
-  const pricedOrder = order({
-    fullSubtotal: opts.fullSubtotal ?? 0,
-    lines: opts.lines,
-    modifierApplications: usages,
-    total: opts.total ?? 0,
-  });
-  const plan = await bookingBatchPlan(
-    usages,
-    { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
-    opts.sessionId
-      ? {
-          paymentReference: taggedPaymentReference(`pi_${opts.sessionId}`),
-          sessionId: opts.sessionId,
-        }
-      : undefined,
-  );
-  return { plan, pricedOrder };
-};
-
-const expectNothingWritten = async (
-  listingId: number,
-  transferCount: number,
-): Promise<void> => {
-  expect((await getAttendeesRaw(listingId)).length).toBe(0);
-  expect((await allTransfers()).length).toBe(transferCount);
-};
-
-const expectCapacityExceeded = async (
-  plan: Awaited<ReturnType<typeof bookingBatchPlan>>,
-  listingId: number,
-  pricePaid: number,
-  transferCount: number,
-): Promise<void> => {
-  const result = await createBookingAtomic(
-    paidInput(listingId, pricePaid),
-    plan,
-  );
-  expect(result).toEqual({ reason: "capacity_exceeded", success: false });
-  await expectNothingWritten(listingId, transferCount);
-};
-
-/** The stored ledger_event_group stamp on an attendee's booking row. */
-const storedEventGroup = async (attendeeId: number): Promise<string> => {
-  const row = await queryOne<{ ledger_event_group: string }>(
-    "SELECT ledger_event_group FROM listing_attendees AS attendee WHERE attendee_id = ?",
-    [attendeeId],
-  );
-  return row!.ledger_event_group;
-};
 
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
@@ -221,13 +105,21 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     const { paymentId: _paymentId, ...missingPayment } = wrongPayment;
     const expectProvenanceRefused = (
       input: Parameters<typeof createBookingAtomic>[0],
+      candidatePlan: BookingBatchPlan = plan,
     ): void => {
-      expect(() => createBookingAtomic(input, plan)).toThrow(
+      expect(() => createBookingAtomic(input, candidatePlan)).toThrow(
         "Payment session sess_mismatched_payment does not match the attendee payment id",
       );
     };
     expectProvenanceRefused(wrongPayment);
     expectProvenanceRefused(missingPayment);
+    expectProvenanceRefused(missingPayment, {
+      ...plan,
+      finalize: {
+        ...plan.finalize!,
+        paymentReference: taggedPaymentReference("mutated"),
+      },
+    });
 
     await expectNothingWritten(listing.id, 0);
     expect(

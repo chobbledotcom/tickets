@@ -2,9 +2,7 @@ import { bookingLegBatchInsert } from "#accounting/rows.ts";
 import { assertPostable } from "#accounting/store.ts";
 import type { EncryptedAttendeeData } from "#db/attendee-types.ts";
 import {
-  andConditions,
   executeBatchWithResults,
-  inPlaceholders,
   resultRows,
   type SqlStatement,
   type TxScope,
@@ -15,6 +13,7 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#db/modifier-usage.ts";
+import type { NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -127,23 +126,25 @@ export const writeAsBatch = (
   prepared: PreparedWrite,
 ): Promise<WriteOutcome | null> => runAtomicBatch(prepared);
 
-const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
-  if (legs.length === 0) return { args: [], sql: "1 = 1" };
+const noExistingLedgerCondition = (legs: TransferInput[]): NumberedSql => {
+  if (legs.length === 0) return () => "1 = 1";
   const references = legs.map((leg) => leg.reference);
-  return {
-    args: [legs[0]!.eventGroup, ...references],
-    sql: `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ?)
-          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${inPlaceholders(
-            references,
-          )}))`,
+  return (bind) => {
+    const eventGroup = bind(legs[0]!.eventGroup);
+    const referenceSlots = references.map(bind).join(", ");
+    return `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ${eventGroup})
+          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${referenceSlots}))`;
   };
 };
 
-export const bookingBatchCondition = (plan: BookingBatchPlan): SqlStatement =>
-  andConditions([
+export const bookingBatchCondition = (plan: BookingBatchPlan): NumberedSql => {
+  const conditions = [
     allModifiersInStockCondition(plan.usages),
     noExistingLedgerCondition(plan.legs),
-  ]);
+  ];
+  return (bind) =>
+    conditions.map((condition) => `(${condition(bind)})`).join(" AND ");
+};
 
 /** Create the attendee, all bookings, modifiers, ledger, contact activity, and
  * optional payment finalization in one transaction. */

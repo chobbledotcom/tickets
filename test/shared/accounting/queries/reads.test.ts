@@ -1,7 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { recentTransfers, transfersByEventGroup } from "#accounting/queries.ts";
+import {
+  eventGroupHasLegs,
+  recentTransfers,
+  transfersByEventGroup,
+} from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
@@ -53,5 +57,14 @@ describe("db > accounting > transfer reads", () => {
       "x-pay",
       "x-sale",
     ]);
+  });
+
+  test("eventGroupHasLegs distinguishes stored and missing events", async () => {
+    await postTransfers([
+      tx({ eventGroup: "evt-stored", reference: "stored" }),
+    ]);
+
+    expect(await eventGroupHasLegs("evt-stored")).toBe(true);
+    expect(await eventGroupHasLegs("evt-missing")).toBe(false);
   });
 });

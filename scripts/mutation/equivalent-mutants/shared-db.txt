@@ -43,12 +43,80 @@ src/shared/db/attendees/tokens.ts::resultsInTokenOrder.tokenToResult~17m7xgj  ??
 src/shared/db/attendees/tokens.ts::resultsInTokenOrder~0uhrwgz  ?? → ||   # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
 src/shared/db/attendees/tokens.ts::tokenResultMap~1c5bf54  ?? → ||   # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
 
-# db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
+# db/capacity.ts — duration defaults that clampDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a
 # one-day span, so no input can tell the two apart.
-src/shared/db/capacity.ts::dateToRange.durationDays~18guaiu  1 → 0   # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
+src/shared/db/capacity.ts::dateToRange.durationDays~18guaiu  1 → 0   # dateToRange's default duration; clampDurationDays clamps 0 up to 1
 src/shared/db/capacity.ts::buildCapacityCondition.durationDays~18guaiu  1 → 0   # buildCapacityCondition's default duration; same clamp
-src/shared/db/capacity.ts::buildCapacityCondition.dayClauses.daily.dayRange~0ep36tv  1 → 0   # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
+
+# buildCapacityCondition's shared values are SqlParameterToken|undefined. The
+# binder only creates non-empty `?N` tokens, so `??` and `||` select the same arm.
+src/shared/db/capacity.ts::buildCapacityCondition.listingIdSql~0urfiu2  ?? → ||   # shared.listingId is a non-empty SqlParameterToken or undefined
+src/shared/db/capacity.ts::buildCapacityCondition.quantitySql~1gh7q31  ?? → ||   # shared.quantity has the same token domain
+src/shared/db/capacity.ts::buildCapacityCondition.excludeAttendeeIdSql~06ef8hm  ?? → ||   # shared.excludeAttendeeId has the same token domain
+
+# Capacity checks clamp a zero-day duration to one day. Demand maps contain
+# finite totals, and a missing total has the same zero value as a stored zero.
+src/shared/db/attendees/capacity/checks.ts::buildCapacityCheckedInsert.durationDays.durationDays~18guaiu  1 → 0   # dateToStartEnd clamps both duration values to one day
+src/shared/db/attendees/capacity/checks.ts::checkListingAvailability.durationDays~18guaiu  1 → 0   # buildCapacityCondition applies the same duration clamp
+src/shared/db/attendees/capacity/checks.ts::addDemandToBucket~0k2ebng  ?? → ||   # a supplied duration is a finite integer; zero and the fallback both expand to one clamped day
+src/shared/db/attendees/capacity/checks.ts::addDemandToBucket~0k2ebng  1 → 0   # expandDailyRange clamps both fallback values to one day
+src/shared/db/attendees/capacity/checks.ts::addDemandToBucket~1bo0bmf  ?? → ||   # a per-day total is finite; zero and a missing value both use zero before the addition
+
+# Atomic line values use non-empty timestamps and numeric package ids. The
+# delete pin reads the same stored timestamp domain as the line key.
+src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → ||   # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
+src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → ||   # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
+src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  ?? → ||   # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
+
+# Attendee creation receives validated non-empty discriminators, dates, tokens,
+# and finite money values. Empty optional contact fields use empty fallbacks.
+src/shared/db/attendees/create.ts::buildAttendeeInsert.kind~0e4oagg  ?? → ||   # kind is undefined or a non-empty AttendeeKind value
+src/shared/db/attendees/create.ts::contactInfoFromInput.address~12sc2vz  ?? → ||   # address is a string or undefined, and the empty string equals the fallback
+src/shared/db/attendees/create.ts::contactInfoFromInput.phone~1nutvzz  ?? → ||   # phone has the same string-or-undefined domain and empty fallback
+src/shared/db/attendees/create.ts::contactInfoFromInput.special_instructions~1butkj0  ?? → ||   # special instructions have the same string-or-undefined domain and empty fallback
+src/shared/db/attendees/create.ts::buildAttendeeResult.end_date~1ugulhp  ?? → ||   # durationDays is a finite integer or undefined; zero and the fallback both clamp to one day
+src/shared/db/attendees/create.ts::buildAttendeeResult.end_date~1ugulhp  1 → 0   # clampDurationDays changes both defaults to one day
+src/shared/db/attendees/create.ts::prepareAttendeeWrite~0lw38vw  ?? → ||   # the negative-quantity guard gives zero and its one fallback the same false result
+src/shared/db/attendees/create.ts::prepareAttendeeWrite~0lw38vw  1 → 0   # neither fallback is below zero
+src/shared/db/attendees/create.ts::prepareAttendeeWrite.enc~0sjep7t  ?? → ||   # a supplied ticket token is non-empty, and the generated fallback is also non-empty
+src/shared/db/attendees/create.ts::prepareAttendeeWrite.activityStatements~15xmc4z  ?? → ||   # source is undefined or a non-empty BookingSource value
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.date~1ifkn3h  ?? → ||   # a booking date is nullish or a non-empty validated date
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.kind~1udll18  ?? → ||   # kind is undefined or a non-empty AttendeeKind value
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.packageGroupId~134nzna  ?? → ||   # packageGroupId is a finite id or undefined; zero equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.paymentId~12rd4hg  ?? → ||   # paymentId is a string or undefined, and the empty string equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.pricePaid~1f0nm0t  ?? → ||   # pricePaid is finite; zero equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.remainingBalance~1wsu743  ?? → ||   # remainingBalance is finite; zero equals the fallback
+src/shared/db/attendees/create.ts::finishAttendeeWrite.attendees.statusId~0l3a3of  ?? → ||   # statusId is nullish or a positive stored id, never zero
+src/shared/db/attendees/create.ts::provenPiiPaymentSession~12rd4hg  ?? → ||   # paymentId is a string or undefined, and the empty string equals the fallback
+
+# IncompleteBooking never leaves writeWithCreationWork. Its catch uses the
+# class identity and returns null, so no caller can read the error name.
+src/shared/db/attendees/create-batch.ts::IncompleteBooking~03v6osk  IncompleteBooking → ""   # the internal error is caught by instanceof before its name can be observed
+
+# The image-use collection calls only next and nextMany. These operations read
+# the table and scope fields, but they do not read the key field.
+src/shared/db/images.ts::getImageFilenamesForItem.stored~0ejzw5s  image → ""   # this query reads one image table, so each selected image column stays unambiguous without its qualifier
+src/shared/db/images.ts::getImagesForItem.rows~03xuvta  image → ""   # image_uses has none of the selected image column names, so each unqualified name resolves to images
+src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → ""   # no production caller uses append, swap, or another ordered-collection operation that reads key
+
+# Group readers return truthy records and arrays. Their batch methods also make
+# an entry for each requested key before they read rows.
+src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → ||   # Map.get returns a Group object or undefined, and each Group object is truthy
+src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → ||   # entriesByGroup returns an array or undefined, and every array is truthy
+src/shared/db/groups.ts::listingsInGroup~1orw8y7  Missing group listing membership → ""   # getListingsByGroupIds creates an entry for every requested group id, so requiredMapValue cannot raise this message
+src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → ""   # getIdsByKeys creates an entry for each requested parent id before it reads rows
+src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → ""   # getIdsByKeys gives the reverse side the same complete-map guarantee
+src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → ||   # blocked contains non-empty translated error strings, so both operators return the first error or null
+src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → ||   # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → ||   # rowsByGroup has the same array-or-undefined domain
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds creates an entry for every requested group before it reads rows
+src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → ||   # validated package quantities are positive integers, so zero never reaches this default
+
+# Accounting batch reads return arrays. An empty listing filter skips its SQL
+# clause because matchesNothing answers the read before the query runs.
+src/shared/accounting/queries.ts::transfersByAccounts~1uo1zuf  ?? → ||   # Map.groupBy returns a transfer wrapper array or undefined, and every array is truthy
+src/shared/accounting/queries.ts::listingLegScope.clause~0hguk0m  0 → ""   # matchesNothing is true for this clause, so rowsUnlessNoneMatch returns an empty result without reading clause
 
 # Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
 src/shared/db/attendees/pii.ts::buildPiiBlob~1r4bpwk  attendees.pii_blob → ""   # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed

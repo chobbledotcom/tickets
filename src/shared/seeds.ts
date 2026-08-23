@@ -140,7 +140,6 @@ const prepareAttendee = async (
       name: randomChoice(DEMO_NAMES),
       paymentId,
       phone: randomChoice(DEMO_PHONES),
-      pricePaid,
       special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
     },
     generateTicketToken(),

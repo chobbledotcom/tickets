@@ -84,6 +84,13 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const payment = taggedPaymentReference("pi_attendee_anchor", "sumup");
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
       const anchor = await prepared.forAttendee(attendeeId);
+      expect(anchor.statement.args).toHaveLength(8);
+      expect(anchor.statement.args).toContain(
+        await paymentReferenceIndex({
+          kind: "untagged",
+          reference: payment.reference,
+        }),
+      );
 
       for (const _attempt of [1, 2]) {
         await execute(anchor.statement.sql, anchor.statement.args);

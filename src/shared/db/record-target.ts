@@ -57,9 +57,8 @@ export interface RecordTargets<Kind extends string> {
   ) => (kind: Kind, idsQuery: SqlStatement) => SqlStatement;
   /** Delete one record's rows from `table` (a trusted constant). */
   deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
-  /** A condition that only holds while the record itself still exists, to fold
-   *  into a write so a stale request cannot leave a link to nothing. */
-  exists: (target: RecordTarget<Kind>) => SqlStatement;
+  /** A condition that only holds while this kind of record still exists. */
+  existsSql: (kind: Kind, idSql: string) => string;
   /** The record a key names. Refuses a key this domain could not have minted,
    *  because a key that names no record of ours is a bug, not a miss. */
   fromKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;
@@ -115,16 +114,13 @@ export const defineRecordTarget = <Kind extends string>({
     deleteChosenBy: (table) => (kind, idsQuery) =>
       deleteWhere(table)(whereChosenBy(kind, idsQuery)),
     deleteFrom: (table) => (target) => deleteWhere(table)(where(target)),
-    exists: (target) => {
+    existsSql: (kind, idSql) => {
       if (!tables) {
         throw new Error(
-          `No table listed for ${target.kind} records: this kind of target cannot be checked for existence`,
+          `No table listed for ${kind} records: this kind of target cannot be checked for existence`,
         );
       }
-      return {
-        args: [target.id],
-        sql: `EXISTS (SELECT 1 FROM ${tables[target.kind]} WHERE id = ?)`,
-      };
+      return `EXISTS (SELECT 1 FROM ${tables[kind]} WHERE id = ${idSql})`;
     },
     fromKey: (stored) => {
       const divider = stored.indexOf(":");

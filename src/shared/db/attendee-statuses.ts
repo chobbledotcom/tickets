@@ -18,6 +18,7 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -164,12 +165,15 @@ const clearChosenDefaults = async (
   const clearDefault = async (
     column: "is_public_default" | "is_paid_default",
   ): Promise<void> => {
-    await executeStatusWrite(tx, {
-      args: [id, id],
-      sql: `UPDATE attendee_statuses AS status
+    await executeStatusWrite(
+      tx,
+      numberedStatement((bind) => {
+        const statusId = bind(id);
+        return `UPDATE attendee_statuses AS status
                SET ${column} = 0
-             WHERE (? IS NULL OR status.id != ?) AND status.${column} = 1`,
-    });
+             WHERE (${statusId} IS NULL OR status.id != ${statusId}) AND status.${column} = 1`;
+      }),
+    );
   };
   if (input.isPublicDefault) {
     await clearDefault("is_public_default");

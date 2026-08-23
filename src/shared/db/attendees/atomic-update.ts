@@ -33,7 +33,12 @@ import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { buildCapacityCondition } from "#db/capacity.ts";
-import { executeBatchWithResults, queryAll } from "#db/client.ts";
+import {
+  executeBatchWithResults,
+  queryAll,
+  type SqlStatement,
+} from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
@@ -92,6 +97,8 @@ const lineBooking = (line: AtomicDesiredLine) => ({
   packageGroupId: line.packageGroupId ?? 0,
   quantity: line.quantity,
 });
+const lineRange = (line: AtomicDesiredLine) =>
+  dateToStartEnd(line.date, line.durationDays);
 
 /** Result of an atomic attendee update. Every failure carries `listingIds` —
  *  the SPECIFIC listings that failed the capacity preflight — so a caller can
@@ -192,7 +199,7 @@ const isUnchangedLine = (
 ): boolean => {
   const existing = existingByKey.get(line.key);
   if (!existing || existing.quantity !== line.quantity) return false;
-  const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
+  const { startAt, endAt } = lineRange(line);
   return existing.start_at === startAt && existing.end_at === endAt;
 };
 
@@ -236,29 +243,26 @@ const updateStatementFor = (
     packageGroupId: number;
   },
   skipCapacityGuard: boolean,
-): { args: InValue[]; sql: string } => {
-  const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
-  const pin = [
-    attendeeId,
-    line.listingId,
-    oldPin.startAt,
-    oldPin.parentListingId,
-    oldPin.packageGroupId,
-  ];
-  const setClause =
-    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(
-      line.quantity,
-    )}` +
-    " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?";
-  if (skipCapacityGuard) {
-    return { args: [line.quantity, startAt, endAt, ...pin], sql: setClause };
-  }
-  const condition = lineCapacityCondition(line, attendeeId);
-  return {
-    args: [line.quantity, startAt, endAt, ...pin, ...condition.args],
-    sql: `${setClause}\n              AND ${condition.sql}`,
-  };
-};
+): SqlStatement =>
+  numberedStatement((bind) => {
+    const quantitySql = bind(line.quantity);
+    const attendeeIdSql = bind(attendeeId);
+    const listingIdSql = bind(line.listingId);
+    const { startAt, endAt } = lineRange(line);
+    const setClause =
+      `UPDATE listing_attendees SET quantity = ${quantitySql}, start_at = ${bind(startAt)}, end_at = ${bind(endAt)}${noQuantityResetColumns(
+        line.quantity,
+      )}` +
+      ` WHERE attendee_id = ${attendeeIdSql} AND listing_id = ${listingIdSql} AND start_at IS ${bind(oldPin.startAt)} AND parent_listing_id = ${bind(oldPin.parentListingId)} AND package_group_id = ${bind(oldPin.packageGroupId)}`;
+    if (skipCapacityGuard) return setClause;
+
+    const condition = lineCapacityCondition(line, attendeeId)(bind, {
+      excludeAttendeeId: attendeeIdSql,
+      listingId: listingIdSql,
+      quantity: quantitySql,
+    });
+    return `${setClause}\n              AND ${condition}`;
+  });
 
 /**
  * Apply a desired final-state line set to an existing attendee atomically.

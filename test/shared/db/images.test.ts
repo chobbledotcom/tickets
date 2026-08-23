@@ -9,6 +9,7 @@ import {
   getImageById,
   getImageFilenamesForItem,
   getImagesForItem,
+  getImageUsesForImage,
   imagesTable,
   imageUseTargets,
   setImagesForItem,
@@ -101,6 +102,18 @@ describeWithEnv("db > images", { db: true }, () => {
       );
     });
 
+    test("names a broken thumbnail in its report", async () => {
+      const id = await insertBrokenImage();
+
+      await getAllImages();
+
+      expect(
+        errors.contains(
+          `image ${id} thumbnail filename decrypted to an empty value`,
+        ),
+      ).toBe(true);
+    });
+
     test("projects the broken-image marker for an item's first image", async () => {
       const listing = await createTestListing({ name: "Broken poster" });
       const id = await insertBrokenImageWithGoodThumb();
@@ -131,6 +144,23 @@ describeWithEnv("db > images", { db: true }, () => {
   });
 
   describe("item links", () => {
+    test("uses the declared table for page and news targets", () => {
+      expect(imageUseTargets.existsSql("news", "?1")).toBe(
+        "EXISTS (SELECT 1 FROM news_posts WHERE id = ?1)",
+      );
+      expect(imageUseTargets.existsSql("page", "?2")).toBe(
+        "EXISTS (SELECT 1 FROM site_pages WHERE id = ?2)",
+      );
+    });
+
+    test("returns empty image fields for an item without an image", async () => {
+      expect(await getImageFilenamesForItem("listing", 9999)).toEqual({
+        image_alt_text: "",
+        image_thumb_url: "",
+        image_url: "",
+      });
+    });
+
     test("sets one item's ordered images through the collection path", async () => {
       const listing = await createTestListing({ name: "Poster listing" });
       const first = await makeImage("First");
@@ -240,6 +270,30 @@ describeWithEnv("db > images", { db: true }, () => {
         image.id,
       ]);
       expect(await linkedImageIds("group", group.id)).toEqual([image.id]);
+      expect(
+        await queryAll<{ item_id: number; item_type: string }>(
+          `SELECT item_type, item_id FROM image_uses
+            WHERE image_id = ? ORDER BY item_type, item_id`,
+          [image.id],
+        ),
+      ).toEqual([
+        { item_id: group.id, item_type: "group" },
+        { item_id: listing.id, item_type: "listing" },
+      ]);
+      expect(await getImageUsesForImage(image.id)).toEqual([
+        {
+          image_id: image.id,
+          item_id: group.id,
+          item_type: "group",
+          sort_order: 0,
+        },
+        {
+          image_id: image.id,
+          item_id: listing.id,
+          item_type: "listing",
+          sort_order: 1,
+        },
+      ]);
 
       await deleteImageRecord(image.id);
       expect(await getImageById(image.id)).toBeNull();

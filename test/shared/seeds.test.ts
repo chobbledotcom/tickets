@@ -68,6 +68,7 @@ describeWithEnv("seeds", { db: true }, () => {
   test("a seeded listing opens every day with the demo booking limits", async () => {
     await createSeeds(1, 0);
     const [listing] = await getAllListings();
+    expect(listing!.active).toBe(true);
     expect(listing!.listing_type).toBe("standard");
     expect(listing!.fields).toBe("email");
     expect(listing!.max_quantity).toBe(4);
