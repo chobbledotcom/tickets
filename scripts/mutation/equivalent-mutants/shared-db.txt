@@ -104,3 +104,9 @@ src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u
 # that kind the guard's left side is already true, so the row set is the same
 # whatever the key holds.
 src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosenCredentialKey~1lnjyfd  → "mutated"   # only kind "disable" takes this fallback, and for that kind RECOVERY_ALLOWED is satisfied before the key is read
+
+# listing-parents.ts — `edgeIncompatibilityAfterChange` reads its two link maps
+# with a `?? []` fallback. The maps come from `listingsForLinks`, whose values
+# are ListingWithCount[] arrays, so `.get()` is an array or undefined.
+src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.children~0cip5re  ?? → ||   # childrenByParent.get() is ListingWithCount[] | undefined, and every array is truthy, so ?? and || pick the same side
+src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e  ?? → ||   # parentsByChild.get() is ListingWithCount[] | undefined, and every array is truthy, so ?? and || pick the same side

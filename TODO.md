@@ -2574,55 +2574,6 @@ on the last column via the `alsoAbout` pattern in
 
 ---
 
-## Close the 14 mutation survivors in `src/shared/db/listing-parents.ts` (from PR #2110)
-
-PR #2110 mutated `src/shared/db/listing-edge-write.ts` to a 100% score. The same
-run also covered `src/shared/db/listing-parents.ts`, because the assertion that
-the PR changed lives in that file's mirror tests. The run found 14 survivors in
-`listing-parents.ts`. The PR does not change that file, so the survivors sit
-outside its own gate. The branch-level `precommit:mutation` step covers only the
-sources that a branch changes.
-
-The survivors fall into three shapes:
-
-- Eleven are "did this list come back empty?" branches. No test tells the empty
-  arm from the full one.
-- One is the sort comparator inside `listingsForLinks`, where a divide replaces
-  the subtraction.
-- Two are fallbacks in `edgeIncompatibilityAfterChange`, where `||` replaces
-  `??`. Check first whether either left side can hold a falsy-but-present value.
-  If it cannot, the entry belongs in `equivalent-mutants/` with that proof
-  rather than in a test.
-
-```
-listingIdsWithLinks~1dqzuig            ?: → arms swapped
-listingIdsWithLinks~0zl9wvu            > → <=,  0 → 1
-getNonStandaloneChildIds~1vmop13       ?: → arms swapped
-getNonStandaloneChildIds~00bh4s4       0 → 1
-anyNonStandaloneChild~0v88xt2          > → <=,  0 → 1
-listingsForLinks~1gjwt45               - → /
-listingsForLinks~14c1k8g               ?: → arms swapped
-listingsForLinks~1v5jl2k               > → <=,  0 → 1
-edgeIncompatibilityAfterChange.children~0cip5re   ?? → ||
-edgeIncompatibilityAfterChange.parents~1cm1r1e    ?? → ||
-edgeIncompatibilityAfterChange~02ardat            ?: → arms swapped
-```
-
-Starting point: `listingIdsWithLinks` is exported and pure. A table of maps — no
-links, some links, all links — kills its three survivors on its own.
-`getNonStandaloneChildIds` and `anyNonStandaloneChild` need a listing that is a
-child, a listing that is `bookable_alone`, and the empty-input short circuit.
-`listingsForLinks` is private, so reach it through the readers that hydrate the
-links. Note that its `-` → `/` survivor sits in a sort comparator. That one
-needs two keys whose order a divide changes. Reproduce with:
-
-```bash
-deno task mutation --source src/shared/db/listing-parents.ts \
-  --test 'test/shared/db/listing-parents/*.test.ts' --harness
-```
-
----
-
 ## Square treats a malformed payment link as "provider not configured"
 
 _Origin: the 2026-08 refactor survey (ADMIN_SURFACE_PLAN.md)._
