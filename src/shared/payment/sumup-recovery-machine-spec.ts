@@ -33,6 +33,8 @@ export const SumupRecoveryStateSchema = v.picklist([
   "waiting",
 ]);
 export type SumupRecoveryState = v.InferOutput<typeof SumupRecoveryStateSchema>;
+/** The one state before SumUp gives the row its provider checkout id. */
+export const RECOVERY_STATE_WITHOUT_CHECKOUT_ID: SumupRecoveryState = "staged";
 /** Read a stored word back as a state, refusing one this machine does not
  * have. A row carrying an unknown word is a database this code cannot reason
  * about, so it is raised where it is read rather than carried inward. */
@@ -69,7 +71,7 @@ const A_CHECKOUT_ID = "sumup-checkout-id";
 
 const rowIn = (state: SumupRecoveryState): SumupRecoveryRow => ({
   recoveryState: state,
-  sumupId: state === "staged" ? "" : A_CHECKOUT_ID,
+  sumupId: state === RECOVERY_STATE_WITHOUT_CHECKOUT_ID ? "" : A_CHECKOUT_ID,
 });
 
 /** Every node, with the stored row behind it and the two facts the safety
@@ -136,7 +138,10 @@ export type RecoveryMachineEvent = MachineEvent<
  * rather than normalised — the live check is what finds those. */
 export const recoveryNodeOf = (row: SumupRecoveryRow): RecoveryNodeId => {
   const hasCheckoutId = row.sumupId !== "";
-  if (hasCheckoutId === (row.recoveryState === "staged")) {
+  if (
+    hasCheckoutId ===
+    (row.recoveryState === RECOVERY_STATE_WITHOUT_CHECKOUT_ID)
+  ) {
     throw new Error(
       `A sumup_checkouts row cannot be ${row.recoveryState} with ` +
         `${hasCheckoutId ? "a" : "no"} checkout id`,

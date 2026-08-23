@@ -145,6 +145,21 @@ export const makeSumupCheckoutDue = (
     checkoutId,
   ]);
 
+/** Store one recovery row exactly as SQL sees it. Machine scan tests use this
+ * to plant combinations that no production writer can make. */
+export const plantSumupRecoveryRow = (
+  id: string,
+  state: string,
+  nextCheckAt: string | null,
+): Promise<unknown> =>
+  execute(
+    `INSERT INTO sumup_checkouts
+       (reference_index, wrapped_key, metadata, sumup_id, created_at,
+        recovery_state, next_check_at)
+     VALUES (?, '', '', ?, '2026-08-01T00:00:00.000Z', ?, ?)`,
+    [`idx_${id}`, id, state, nextCheckAt],
+  );
+
 /** How a staged checkout's recovery row reads right now. Every caller has
  * just staged the row, so a missing one is a broken test rather than a case
  * to handle — it fails on the read. */
