@@ -34,6 +34,16 @@ src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || 
 src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → &&   # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → ||   # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
+# The SumUp machine has no split move. Representative tags label only the test
+# matrix, and `expected` ignores its tag for every plain or absent cell.
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~143s0gl  no_checkout_id → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1li3bw3  live_checkout → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~0om8fcb  never_paid → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~08wuvsv  accounted_for → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1qx9w2z  unaccounted_for → ""   # tag labels one conformance case; production reads only the representative state
+src/shared/payment/sumup-recovery-machine-spec.ts::recoveryMoveTo.to~02jvf42   → "mutated"   # all cells are plain or absent, so the tag argument has no effect
+src/shared/payment/sumup-recovery-machine-spec.ts::accepts~0mzva1m   → "mutated"   # all cells are plain or absent, so the tag argument has no effect
+
 # admit-move.ts declares every lifecycle rank in the closed 0/1/2 order.
 # Array.sort observes only the comparator's sign, so subtraction and division
 # give the same ordering for every pair the table can construct.

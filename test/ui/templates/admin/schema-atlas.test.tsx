@@ -70,6 +70,24 @@ describe("the system map page", () => {
     expect(page).toContain("One payment row's held work");
   });
 
+  test("keeps every static and interactive schema hook", () => {
+    const page = html();
+    const states = SCHEMA_ATLAS_MACHINES.flatMap((machine) => machine.states);
+    expect(page.match(/class="schema-state"/g)).toHaveLength(states.length);
+    expect(page.match(/class="schema-facts"/g)).toHaveLength(
+      states.filter((state) => state.facts.length > 0).length,
+    );
+    expect(page.match(/class="schema-machine"/g)).toHaveLength(
+      SCHEMA_ATLAS_MACHINES.length,
+    );
+    expect(page.match(/class="schema-widget"/g)).toHaveLength(
+      SCHEMA_ATLAS_MACHINES.length,
+    );
+    expect(page.match(/class="schema-widget-hint"/g)).toHaveLength(
+      SCHEMA_ATLAS_MACHINES.length,
+    );
+  });
+
   test("the live check answers clean when the scan found nothing", () => {
     const page = html();
     expect(page).toContain('id="schema-check"');
@@ -78,12 +96,60 @@ describe("the system map page", () => {
 
   test("the live check lists each flagged record in plain words", () => {
     const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
-      { key: "armed_without_claim", sessionId: "cs_seam" },
+      {
+        key: "armed_without_claim",
+        kind: "payment",
+        recordId: "cs_seam",
+      },
     ]);
     expect(page).toContain(
       "A refund is set to send, but no job holds this row. <code>cs_seam</code>",
     );
     expect(page).not.toContain("All stored payment records fit the rules.");
+  });
+
+  test("the live check names a payment with no charge record", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
+      {
+        key: "claim_without_charge",
+        kind: "payment",
+        recordId: "cs_without_charge",
+      },
+    ]);
+    expect(page).toContain(
+      "A job holds this row, but its payment has no charge record. " +
+        "<code>cs_without_charge</code>",
+    );
+  });
+
+  test("the live check names an unknown SumUp state", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
+      {
+        key: "sumup_unknown_state",
+        kind: "sumup",
+        recordId: "idx_unknown",
+        state: "abandoned",
+      },
+    ]);
+    expect(page).toContain(
+      "A SumUp recovery record has a state this site does not know.",
+    );
+    expect(page).toContain("<code>idx_unknown</code> <code>abandoned</code>");
+  });
+
+  test("the live check names a SumUp checkout id mismatch", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
+      {
+        key: "sumup_checkout_id_mismatch",
+        kind: "sumup",
+        recordId: "idx_mismatch",
+        state: "staged",
+      },
+    ]);
+    expect(page).toContain(
+      "A SumUp recovery record's state and checkout ID do not match.",
+    );
+    expect(page).toContain("<code>idx_mismatch</code> <code>staged</code>");
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {

@@ -10,31 +10,16 @@ import {
 } from "#db/sumup-recovery.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sumupRecoveryRow } from "#test-utils/sumup.ts";
+import { plantSumupRecoveryRow, sumupRecoveryRow } from "#test-utils/sumup.ts";
 
 /* jscpd:ignore-end */
-
-/** A staged row written straight to the table — this suite is about the queue
- * and the fenced write, not about how a row comes to exist. */
-const seedRow = (
-  id: string,
-  state: string,
-  nextCheckAt: string | null,
-): Promise<unknown> =>
-  execute(
-    `INSERT INTO sumup_checkouts
-       (reference_index, wrapped_key, metadata, sumup_id, created_at,
-        recovery_state, next_check_at)
-     VALUES (?, '', '', ?, '2026-08-01T00:00:00.000Z', ?, ?)`,
-    [`idx_${id}`, id, state, nextCheckAt],
-  );
 
 const PAST = "2000-01-01T00:00:00.000Z";
 const FUTURE = "2999-01-01T00:00:00.000Z";
 
 describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   test("takes a row whose check time has come", async () => {
-    await seedRow("co_due", "waiting", PAST);
+    await plantSumupRecoveryRow("co_due", "waiting", PAST);
 
     expect(await getDueSumupCheckouts()).toEqual([
       {
@@ -47,29 +32,37 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("leaves a row whose check time is still ahead", async () => {
-    await seedRow("co_later", "waiting", FUTURE);
+    await plantSumupRecoveryRow("co_later", "waiting", FUTURE);
 
     expect(await getDueSumupCheckouts()).toEqual([]);
   });
 
   test("never takes a row nothing will ask about again", async () => {
     // staged has no checkout id to ask about; the closed states have an answer.
-    await seedRow("", "staged", null);
-    await seedRow("co_unpaid", "unpaid", null);
-    await seedRow("co_finished", "finished", null);
+    await plantSumupRecoveryRow("", "staged", null);
+    await plantSumupRecoveryRow("co_unpaid", "unpaid", null);
+    await plantSumupRecoveryRow("co_finished", "finished", null);
 
     expect(await getDueSumupCheckouts()).toEqual([]);
   });
 
   test("takes a row that is still owed money", async () => {
-    await seedRow("co_owed", "owed", PAST);
+    await plantSumupRecoveryRow("co_owed", "owed", PAST);
 
     expect((await getDueSumupCheckouts())[0]?.state).toBe("owed");
   });
 
   test("takes the checkouts due longest first", async () => {
-    await seedRow("co_second", "waiting", "2000-01-02T00:00:00.000Z");
-    await seedRow("co_first", "waiting", "2000-01-01T00:00:00.000Z");
+    await plantSumupRecoveryRow(
+      "co_second",
+      "waiting",
+      "2000-01-02T00:00:00.000Z",
+    );
+    await plantSumupRecoveryRow(
+      "co_first",
+      "waiting",
+      "2000-01-01T00:00:00.000Z",
+    );
 
     expect((await getDueSumupCheckouts()).map((one) => one.sumupId)).toEqual([
       "co_first",
@@ -79,21 +72,16 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
 
   test("takes no more than one run's worth", async () => {
     for (let index = 0; index <= SUMUP_RECOVERY_BATCH; index++) {
-      await seedRow(`co_many_${index}`, "waiting", PAST);
+      await plantSumupRecoveryRow(`co_many_${index}`, "waiting", PAST);
     }
 
     expect(await getDueSumupCheckouts()).toHaveLength(SUMUP_RECOVERY_BATCH);
   });
 
   test("does not act on a row whose state the machine does not have", async () => {
-    // The queue asks for the states it knows, so a word nothing here wrote is
-    // never picked up and acted on. It is not deleted either — pruning names
-    // the same known states — so it waits to be found rather than being
-    // guessed at. Surfacing it to the operator is the live check's job, which
-    // is the next slice; the parse on the way in is what keeps the stored
-    // word a typed state rather than an unchecked string.
-    await seedRow("co_bogus", "abandoned", PAST);
-    await seedRow("co_real", "waiting", PAST);
+    // The queue reads only known states. The live scan reports this row instead.
+    await plantSumupRecoveryRow("co_bogus", "abandoned", PAST);
+    await plantSumupRecoveryRow("co_real", "waiting", PAST);
 
     expect((await getDueSumupCheckouts()).map((one) => one.sumupId)).toEqual([
       "co_real",
@@ -108,7 +96,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("moves a row on and books its next check", async () => {
-    await seedRow("co_move", "waiting", PAST);
+    await plantSumupRecoveryRow("co_move", "waiting", PAST);
 
     expect(
       await applySumupRecoveryEvent(due("co_move", "waiting"), "read_pending"),
@@ -120,7 +108,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("gives a closed row no next check at all", async () => {
-    await seedRow("co_close", "waiting", PAST);
+    await plantSumupRecoveryRow("co_close", "waiting", PAST);
 
     await applySumupRecoveryEvent(
       due("co_close", "waiting"),
@@ -134,7 +122,11 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("writes nothing when the row moved since it was read", async () => {
-    await seedRow("co_moved", "waiting", "2000-01-05T00:00:00.000Z");
+    await plantSumupRecoveryRow(
+      "co_moved",
+      "waiting",
+      "2000-01-05T00:00:00.000Z",
+    );
 
     // The caller read it at a check time it no longer has.
     expect(
@@ -148,8 +140,8 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   test("writes only its own row when two rows share a checkout id", async () => {
     // The provider reusing an id must not let one row's move write the
     // other's clock too — the write names the row by its own index.
-    await seedRow("co_twin", "waiting", PAST);
-    await seedRow("co_other", "waiting", PAST);
+    await plantSumupRecoveryRow("co_twin", "waiting", PAST);
+    await plantSumupRecoveryRow("co_other", "waiting", PAST);
     await execute(
       "UPDATE sumup_checkouts SET sumup_id = 'co_twin' WHERE reference_index = 'idx_co_other'",
     );
@@ -166,7 +158,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("refuses a move the machine does not allow", async () => {
-    await seedRow("co_shut", "finished", null);
+    await plantSumupRecoveryRow("co_shut", "finished", null);
 
     await expect(
       applySumupRecoveryEvent(due("co_shut", "finished"), "read_pending"),
@@ -174,7 +166,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("delays a failed row's next check without moving its state", async () => {
-    await seedRow("co_delay", "waiting", PAST);
+    await plantSumupRecoveryRow("co_delay", "waiting", PAST);
 
     await delaySumupRecoveryCheck(due("co_delay", "waiting"));
 
@@ -184,7 +176,11 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
   });
 
   test("delays nothing when the row moved since it was read", async () => {
-    await seedRow("co_delay_moved", "waiting", "2000-01-05T00:00:00.000Z");
+    await plantSumupRecoveryRow(
+      "co_delay_moved",
+      "waiting",
+      "2000-01-05T00:00:00.000Z",
+    );
 
     // The caller read it at a check time it no longer has.
     await delaySumupRecoveryCheck(due("co_delay_moved", "waiting"));
