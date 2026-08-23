@@ -1,9 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquareConnectionTestResult } from "#shared/square/connection.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -22,12 +23,26 @@ import { describeAdminSettings } from "#test-utils/settings.ts";
 
 describeAdminSettings(() => {
   describe("POST /admin/settings/square", () => {
+    afterEach(() => {
+      setDemoModeForTest(false);
+    });
+
     testRequiresAuth("/admin/settings/square", {
       body: {
         square_access_token: "EAAAl_test_123",
         square_location_id: "L_test_123",
       },
       method: "POST",
+    });
+
+    test("refuses configuration in demo mode", async () => {
+      setDemoModeForTest(true);
+      const { response } = await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_123",
+        square_location_id: "L_test_123",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("demo mode"), false);
     });
 
     test("rejects invalid CSRF token", async () => {
