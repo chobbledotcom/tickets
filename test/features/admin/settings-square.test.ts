@@ -77,7 +77,15 @@ describeAdminSettings(() => {
       // Flash anchors back to the Square credentials form — the exact form id,
       // not a prefix of settings-square-webhook.
       expect(redirectFormId(response)).toBe("settings-square");
-      // No sandbox checkbox submitted → production mode persisted.
+    });
+
+    test("persists production mode when the sandbox checkbox is omitted", async () => {
+      await adminFormPost("/admin/settings/square", {
+        square_access_token: "EAAAl_test_new",
+        square_location_id: "L_test_456",
+      });
+
+      // An unchecked checkbox sends nothing, and nothing must mean production.
       expect(settings.square.sandbox).toBe(false);
     });
 
