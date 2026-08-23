@@ -97,6 +97,19 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     ]);
   });
 
+  test("reports a checkable SumUp row with an invalid check time", async () => {
+    await plantSumupRecoveryRow("co_scan_bad_clock", "waiting", "not-a-date");
+
+    expect(await scanSchemaAnomalies()).toEqual([
+      {
+        key: "sumup_check_time_mismatch",
+        kind: "sumup",
+        recordId: "idx_co_scan_bad_clock",
+        state: "waiting",
+      },
+    ]);
+  });
+
   test("reports a closed SumUp row that still has a check time", async () => {
     await plantSumupRecoveryRow(
       "co_scan_closed_clock",

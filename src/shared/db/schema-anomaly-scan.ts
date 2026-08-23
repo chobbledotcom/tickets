@@ -123,8 +123,12 @@ const SUMUP_SCAN: DeclaredScan = {
           FROM sumup_checkouts
          WHERE recovery_state NOT IN (${SUMUP_STATE_SLOTS})
             OR (recovery_state = ?) != (sumup_id = '')
-            OR (recovery_state IN (${SUMUP_CHECKABLE_SLOTS})) !=
-               (next_check_at IS NOT NULL)
+            OR CASE WHEN recovery_state IN (${SUMUP_CHECKABLE_SLOTS})
+                 THEN next_check_at IS NULL OR
+                      strftime('%Y-%m-%dT%H:%M:%fZ', next_check_at)
+                        IS NOT next_check_at
+                 ELSE next_check_at IS NOT NULL
+               END
          LIMIT ?`,
 };
 
