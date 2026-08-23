@@ -5,7 +5,7 @@
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
+import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";

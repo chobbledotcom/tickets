@@ -621,15 +621,6 @@ a live legacy engine, read-through, dual write, or fallback authority.
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
-- **Split provider credential routes out of
-  `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
-  `ProviderCredentialsConfig`, `persistProviderCredentials`, and
-  `defineProviderCredentialsRoute`. Move that block to a focused admin settings
-  module and move its mirror tests from
-  `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
-  This is deferred because doing the move in PR 1 would break the same strict
-  800-line source-change limit.
-
 ## Payment aggregate — what the closed rewrite taught us
 
 _Origin: the payment-aggregate rewrite (PRs #1962 and #1973, closed without
