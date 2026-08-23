@@ -91,7 +91,7 @@ describe("the system map page", () => {
   test("the live check answers clean when the scan found nothing", () => {
     const page = html();
     expect(page).toContain('id="schema-check"');
-    expect(page).toContain("All stored payment records fit the rules.");
+    expect(page).toContain("All stored records fit the system rules.");
   });
 
   test("the live check lists each flagged record in plain words", () => {
@@ -105,7 +105,7 @@ describe("the system map page", () => {
     expect(page).toContain(
       "A refund is set to send, but no job holds this row. <code>cs_seam</code>",
     );
-    expect(page).not.toContain("All stored payment records fit the rules.");
+    expect(page).not.toContain("All stored records fit the system rules.");
   });
 
   test("the live check names a payment with no charge record", () => {

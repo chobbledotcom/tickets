@@ -38,7 +38,7 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
       await page(
         'id="schema-check"',
         "Live check",
-        "All stored payment records fit the rules.",
+        "All stored records fit the system rules.",
       );
     });
 

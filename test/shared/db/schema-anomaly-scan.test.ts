@@ -84,8 +84,13 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     ]);
   });
 
-  test("accepts SumUp rows whose states and checkout ids agree", async () => {
+  test("accepts the SumUp state that has no checkout id", async () => {
     await plantSumupRecoveryRow("", "staged", null);
+
+    expect(await scanSchemaAnomalies()).toEqual([]);
+  });
+
+  test("accepts a SumUp state with its checkout id", async () => {
     await plantSumupRecoveryRow("co_scan_waiting", "waiting", null);
 
     expect(await scanSchemaAnomalies()).toEqual([]);

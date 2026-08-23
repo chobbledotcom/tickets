@@ -16,7 +16,7 @@
   "schema.widget.hint": "Choose a state to see its ways forward.",
   "schema.check.heading": "Live check",
   "schema.check.intro": "The machines above promise some combinations can never be stored. This check looks for them in this site's own records.",
-  "schema.check.none": "All stored payment records fit the rules.",
+  "schema.check.none": "All stored records fit the system rules.",
   "schema.check.armed_without_claim": "A refund is set to send, but no job holds this row.",
   "schema.check.claim_without_charge": "A job holds this row, but its payment has no charge record.",
   "schema.check.sumup_unknown_state": "A SumUp recovery record has a state this site does not know. The record and stored state follow.",
