@@ -43,6 +43,9 @@ describeAdminSettings(() => {
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("demo mode"), false);
+      // The refused save must store nothing.
+      expect(settings.square.hasToken).toBe(false);
+      expect(settings.square.locationId).toBe("");
     });
 
     test("rejects invalid CSRF token", async () => {
