@@ -21,6 +21,7 @@
   "schema.check.claim_without_charge": "A job holds this row, but its payment has no charge record.",
   "schema.check.sumup_unknown_state": "A SumUp recovery record has a state this site does not know. The record and stored state follow.",
   "schema.check.sumup_checkout_id_mismatch": "A SumUp recovery record's state and checkout ID do not match. The record and stored state follow.",
+  "schema.check.sumup_check_time_mismatch": "A SumUp recovery record's state and next check time do not match. The record and stored state follow.",
   "schema.refund.title": "A refund at the payment provider",
   "schema.refund.intro": "Each refund the site owes a buyer lives in one record. The record says where the money is and who needs to act next. A refund always sits in exactly one of the states below.",
   "schema.refund.state.ready": "Ready to send",

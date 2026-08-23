@@ -1,5 +1,29 @@
 # TODO — remaining follow-ups
 
+## Give SumUp recovery anomalies a safe owner repair (from PR #2123)
+
+`/admin/schema` reports an invalid `sumup_checkouts` row, but it offers no safe
+repair action. Codex noted that an owner must use direct database access to fix
+the row. This is a real product gap under the malleable-software rule in
+`AGENTS.md`.
+
+A repair cannot infer the correct money state from the invalid state word. A row
+with a `sumup_id` can return to provider checks, but this path must preserve
+idempotent booking and refund outcomes. A row without a `sumup_id` has no
+provider resource to read. A reset to `staged` can make that row eligible for
+pruning, so it can destroy the only retained evidence.
+
+Start with a behavior contract for an owner-only detail page keyed by
+`reference_index`. Show `recovery_state`, `sumup_id`, `next_check_at`, and the
+safe provider evidence. Define the required owner choice for a row without a
+checkout ID. The write must use the expected current values as a revision fence.
+It must never mark money `unpaid`, `finished`, or `owed` without evidence.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2123#discussion_r3839410505>
+
+---
+
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
 when the public site is off). It builds the menu with `publicNavProps(null)`
 (`renderCtx` in `src/features/public/ticket-submit.ts`), which takes

@@ -136,6 +136,7 @@ const MachineSection = ({ machine }: { machine: ViewMachine }): JSX.Element => (
 const ANOMALY_MESSAGES: Record<SchemaAnomaly["key"], () => string> = {
   armed_without_claim: () => t("schema.check.armed_without_claim"),
   claim_without_charge: () => t("schema.check.claim_without_charge"),
+  sumup_check_time_mismatch: () => t("schema.check.sumup_check_time_mismatch"),
   sumup_checkout_id_mismatch: () =>
     t("schema.check.sumup_checkout_id_mismatch"),
   sumup_unknown_state: () => t("schema.check.sumup_unknown_state"),

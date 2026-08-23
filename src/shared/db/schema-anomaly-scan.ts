@@ -6,12 +6,16 @@ import { uniqueBy } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { ILLEGAL_JOINT_STATES } from "#payment/joint-state.ts";
 import {
+  RECOVERY_CHECKABLE_NODES,
   RECOVERY_STATE_WITHOUT_CHECKOUT_ID,
   SumupRecoveryStateSchema,
 } from "#payment/sumup-recovery-machine-spec.ts";
 
 type PaymentAnomalyKey = "armed_without_claim" | "claim_without_charge";
-type SumupAnomalyKey = "sumup_checkout_id_mismatch" | "sumup_unknown_state";
+type SumupAnomalyKey =
+  | "sumup_checkout_id_mismatch"
+  | "sumup_check_time_mismatch"
+  | "sumup_unknown_state";
 
 export type SchemaAnomaly =
   | {
@@ -32,6 +36,9 @@ const SCAN_LIMIT = 25;
 const SUMUP_STATE_SLOTS = SumupRecoveryStateSchema.options
   .map(() => "?")
   .join(", ");
+const SUMUP_CHECKABLE_SLOTS = RECOVERY_CHECKABLE_NODES.map(() => "?").join(
+  ", ",
+);
 
 type DeclaredAuthority = (typeof ILLEGAL_JOINT_STATES)[number]["authority"];
 
@@ -44,6 +51,7 @@ interface DeclaredScan {
 interface ScanRow {
   readonly record_id: string;
   readonly recovery_state: string;
+  readonly sumup_id: string;
 }
 
 const paymentAnomaly =
@@ -62,7 +70,7 @@ const SCAN_OF: Record<DeclaredAuthority, DeclaredScan> = {
     anomalyOf: paymentAnomaly("claim_without_charge"),
     args: [CLAIM_MIRROR, SCAN_LIMIT],
     sql: `SELECT payment.payment_session_id AS record_id,
-                 '' AS recovery_state
+                 '' AS recovery_state, '' AS sumup_id
             FROM processed_payments AS payment
            WHERE payment.protected_state = ?
              AND NOT EXISTS (
@@ -75,7 +83,7 @@ const SCAN_OF: Record<DeclaredAuthority, DeclaredScan> = {
     anomalyOf: paymentAnomaly("armed_without_claim"),
     args: [CLAIM_MIRROR, SCAN_LIMIT],
     sql: `SELECT payment.payment_session_id AS record_id,
-                 '' AS recovery_state
+                 '' AS recovery_state, '' AS sumup_id
             FROM payment_charges AS charge
             JOIN processed_payments AS payment
               ON payment.payment_reference_index = charge.reference_index
@@ -85,26 +93,38 @@ const SCAN_OF: Record<DeclaredAuthority, DeclaredScan> = {
   },
 };
 
-const sumupAnomaly = (row: ScanRow): SchemaAnomaly => ({
-  key: v.is(SumupRecoveryStateSchema, row.recovery_state)
-    ? "sumup_checkout_id_mismatch"
-    : "sumup_unknown_state",
-  kind: "sumup",
-  recordId: row.record_id,
-  state: row.recovery_state,
-});
+const sumupAnomaly = (row: ScanRow): SchemaAnomaly => {
+  let key: SumupAnomalyKey = "sumup_unknown_state";
+  if (v.is(SumupRecoveryStateSchema, row.recovery_state)) {
+    const hasCheckoutId = row.sumup_id !== "";
+    key =
+      hasCheckoutId ===
+      (row.recovery_state === RECOVERY_STATE_WITHOUT_CHECKOUT_ID)
+        ? "sumup_checkout_id_mismatch"
+        : "sumup_check_time_mismatch";
+  }
+  return {
+    key,
+    kind: "sumup",
+    recordId: row.record_id,
+    state: row.recovery_state,
+  };
+};
 
 const SUMUP_SCAN: DeclaredScan = {
   anomalyOf: sumupAnomaly,
   args: [
     ...SumupRecoveryStateSchema.options,
     RECOVERY_STATE_WITHOUT_CHECKOUT_ID,
+    ...RECOVERY_CHECKABLE_NODES,
     SCAN_LIMIT,
   ],
-  sql: `SELECT reference_index AS record_id, recovery_state
+  sql: `SELECT reference_index AS record_id, recovery_state, sumup_id
           FROM sumup_checkouts
          WHERE recovery_state NOT IN (${SUMUP_STATE_SLOTS})
             OR (recovery_state = ?) != (sumup_id = '')
+            OR (recovery_state IN (${SUMUP_CHECKABLE_SLOTS})) !=
+               (next_check_at IS NOT NULL)
          LIMIT ?`,
 };
 

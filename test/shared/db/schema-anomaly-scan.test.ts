@@ -84,6 +84,36 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     ]);
   });
 
+  test("reports a checkable SumUp row that has no check time", async () => {
+    await plantSumupRecoveryRow("co_scan_no_clock", "waiting", null);
+
+    expect(await scanSchemaAnomalies()).toEqual([
+      {
+        key: "sumup_check_time_mismatch",
+        kind: "sumup",
+        recordId: "idx_co_scan_no_clock",
+        state: "waiting",
+      },
+    ]);
+  });
+
+  test("reports a closed SumUp row that still has a check time", async () => {
+    await plantSumupRecoveryRow(
+      "co_scan_closed_clock",
+      "finished",
+      "2999-01-01T00:00:00.000Z",
+    );
+
+    expect(await scanSchemaAnomalies()).toEqual([
+      {
+        key: "sumup_check_time_mismatch",
+        kind: "sumup",
+        recordId: "idx_co_scan_closed_clock",
+        state: "finished",
+      },
+    ]);
+  });
+
   test("accepts the SumUp state that has no checkout id", async () => {
     await plantSumupRecoveryRow("", "staged", null);
 
@@ -91,7 +121,11 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
   });
 
   test("accepts a SumUp state with its checkout id", async () => {
-    await plantSumupRecoveryRow("co_scan_waiting", "waiting", null);
+    await plantSumupRecoveryRow(
+      "co_scan_waiting",
+      "waiting",
+      "2999-01-01T00:00:00.000Z",
+    );
 
     expect(await scanSchemaAnomalies()).toEqual([]);
   });

@@ -152,6 +152,21 @@ describe("the system map page", () => {
     expect(page).toContain("<code>idx_mismatch</code> <code>staged</code>");
   });
 
+  test("the live check names a SumUp check time mismatch", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
+      {
+        key: "sumup_check_time_mismatch",
+        kind: "sumup",
+        recordId: "idx_clock",
+        state: "waiting",
+      },
+    ]);
+    expect(page).toContain(
+      "A SumUp recovery record's state and next check time do not match.",
+    );
+    expect(page).toContain("<code>idx_clock</code> <code>waiting</code>");
+  });
+
   test("embeds the resolved diagram data as safe JSON", () => {
     const page = html();
     const start = page.indexOf('<script id="schema-atlas-data"');
