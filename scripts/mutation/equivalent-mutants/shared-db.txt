@@ -110,3 +110,12 @@ src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosenCredenti
 # are ListingWithCount[] arrays, so `.get()` is an array or undefined.
 src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.children~0cip5re  ?? → ||   # childrenByParent.get() is ListingWithCount[] | undefined, and every array is truthy, so ?? and || pick the same side
 src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e  ?? → ||   # parentsByChild.get() is ListingWithCount[] | undefined, and every array is truthy, so ?? and || pick the same side
+
+# prune.ts — `paymentStatement` passes the "charge." prefix into the two refund
+# authority fragments. Each fragment lands inside a NOT EXISTS / EXISTS subquery
+# whose only FROM source is `payment_charges AS charge`, and the fragments name
+# only `refund_state_name` and `refund_local_state`, which are payment_charges
+# columns. SQLite resolves an unqualified name against the subquery's own FROM
+# first, so the empty prefix produces the same statement.
+src/shared/db/prune.ts::paymentStatement.sql~1oy3usg  charge. → ""   # the fragment's columns are payment_charges columns and the subquery's only table is charge, so the unqualified names still bind to charge
+src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → ""   # same subquery shape one arm down: the unqualified names still bind to charge
