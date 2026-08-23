@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   parseSumupRecoveryState,
+  RECOVERY_CHECKABLE_NODES,
   RECOVERY_EVENTS,
   RECOVERY_MOVES,
   RECOVERY_NODES,
@@ -72,6 +73,14 @@ describe("sumup recovery machine", () => {
 
   test("the closed nodes are exactly the two that answer nothing", () => {
     expect([...RECOVERY_TERMINAL_NODES].sort()).toEqual(["finished", "unpaid"]);
+  });
+
+  test("only unanswered rows stay in the recovery queue", () => {
+    expect(RECOVERY_CHECKABLE_NODES).toEqual(["waiting", "owed"]);
+  });
+
+  test("only rows with a final money answer can be pruned", () => {
+    expect(RECOVERY_PRUNABLE_NODES).toEqual(["staged", "unpaid", "finished"]);
   });
 
   test("every node id is a word the row reader accepts", () => {

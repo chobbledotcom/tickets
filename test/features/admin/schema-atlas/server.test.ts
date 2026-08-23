@@ -8,6 +8,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantPaymentRow } from "#test-utils/joint-state.ts";
+import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
 
 describeWithEnv("server (admin schema map)", { db: true }, () => {
   const page = cachedAdminPage("/admin/schema");
@@ -37,7 +38,7 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
       await page(
         'id="schema-check"',
         "Live check",
-        "All stored payment records fit the rules.",
+        "All stored records fit the system rules.",
       );
     });
 
@@ -47,6 +48,17 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
         "/admin/schema",
         "A job holds this row, but its payment has no charge record.",
         "<code>cs_atlas_seam</code>",
+      );
+    });
+
+    test("lists an unknown SumUp state with its record id", async () => {
+      await plantSumupRecoveryRow("co_atlas_unknown", "abandoned", null);
+
+      await assertAdminHtml(
+        "/admin/schema",
+        "A SumUp recovery record has a state this site does not know.",
+        "<code>idx_co_atlas_unknown</code>",
+        "<code>abandoned</code>",
       );
     });
   });

@@ -943,10 +943,10 @@ mechanisms, each with its reference:
   production would.
 - **Check backwards from the data.** A bounded scan reads the declared
   impossibilities back out of the live database and shows the operator every hit
-  (`src/shared/db/joint-state-scan.ts`, the `/admin/schema` "Live check"). Key
-  the scan's queries by the declaration table's own literal types, so declaring
-  a new illegal combination refuses to compile until the scan knows how to find
-  it.
+  (`src/shared/db/schema-anomaly-scan.ts`, the `/admin/schema` "Live check").
+  Key the scan's queries by the declaration table's own literal types, so
+  declaring a new illegal combination refuses to compile until the scan knows
+  how to find it.
 
 ### Pure, functional
 

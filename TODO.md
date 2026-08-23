@@ -1,26 +1,26 @@
 # TODO — remaining follow-ups
 
-## Surface unknown SumUp recovery states to the operator (from PR #2109)
+## Give SumUp recovery anomalies a safe owner repair (from PR #2123)
 
-A `sumup_checkouts` row whose stored `recovery_state` word the machine does not
-know is never selected by the recovery queue (the queue asks only for the
-declared checkable states), never pruned (pruning names the same known states),
-and never raised — the row just sits. CodeRabbit flagged this on #2109 and asked
-for a raised error in the queue read; that would make one bad row brick the
-whole recovery task (the run selects its batch before any row's word is known,
-so a throw there cancels every check, every cycle — the same head-of-line freeze
-the per-row catch in `recovery-run.ts` exists to prevent), which is why the
-queue stays quiet and the row is kept for a person to find.
+`/admin/schema` reports an invalid `sumup_checkouts` row, but it offers no safe
+repair action. Codex noted that an owner must use direct database access to fix
+the row. This is a real product gap under the malleable-software rule in
+`AGENTS.md`.
 
-The deliberate design: the reader (`parseSumupRecoveryState`) raises loudly the
-moment such a row is ever selected, and surfacing stored impossible states to an
-operator is the schema atlas "live check" job
-(`src/shared/db/joint-state-scan.ts` is the pattern — a bounded scan that
-reports hits rather than acting on them). The live check does not yet know about
-recovery states. Starting point: add a scan query for `recovery_state NOT IN`
-the machine's own vocabulary, keyed by the `SumupRecoveryStateSchema` options so
-a new state word must teach the scan, and show hits on `/admin/schema`'s live
-check alongside the payment machines' illegal combinations.
+A repair cannot infer the correct money state from the invalid state word. A row
+with a `sumup_id` can return to provider checks, but this path must preserve
+idempotent booking and refund outcomes. A row without a `sumup_id` has no
+provider resource to read. A reset to `staged` can make that row eligible for
+pruning, so it can destroy the only retained evidence.
+
+Start with a behavior contract for an owner-only detail page keyed by
+`reference_index`. Show `recovery_state`, `sumup_id`, `next_check_at`, and the
+safe provider evidence. Define the required owner choice for a row without a
+checkout ID. The write must use the expected current values as a revision fence.
+It must never mark money `unpaid`, `finished`, or `owed` without evidence.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2123#discussion_r3839410505>
 
 ---
 
