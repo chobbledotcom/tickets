@@ -125,7 +125,9 @@ const SUMUP_SCAN: DeclaredScan = {
             OR (recovery_state = ?) != (sumup_id = '')
             OR CASE WHEN recovery_state IN (${SUMUP_CHECKABLE_SLOTS})
                  THEN next_check_at IS NULL OR
-                      strftime('%Y-%m-%dT%H:%M:%fZ', next_check_at)
+                      strftime(
+                        '%Y-%m-%dT%H:%M:%fZ', next_check_at, '+0 seconds'
+                      )
                         IS NOT next_check_at
                  ELSE next_check_at IS NOT NULL
                END

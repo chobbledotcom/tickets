@@ -110,6 +110,23 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     ]);
   });
 
+  test("reports a checkable SumUp row with an invalid calendar date", async () => {
+    await plantSumupRecoveryRow(
+      "co_scan_bad_date",
+      "waiting",
+      "2026-02-30T00:00:00.000Z",
+    );
+
+    expect(await scanSchemaAnomalies()).toEqual([
+      {
+        key: "sumup_check_time_mismatch",
+        kind: "sumup",
+        recordId: "idx_co_scan_bad_date",
+        state: "waiting",
+      },
+    ]);
+  });
+
   test("reports a closed SumUp row that still has a check time", async () => {
     await plantSumupRecoveryRow(
       "co_scan_closed_clock",
