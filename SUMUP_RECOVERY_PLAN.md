@@ -180,16 +180,16 @@ The declaration cannot carry the reasons below, so they stay here:
 Prose can promise these laws. Only a check enforces them. Each law started as a
 finding from this review. Each one is now something that cannot happen again.
 
-| Law                                                               | Enforced by                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A node that can hold money is never `prunable`                    | `machine.test.ts`, "a row that may hold money is never deleted on age alone"                                                                                                                                                      |
-| A node that can hold money has an outgoing system edge            | `machine.test.ts`, "…always has something that will act on it"                                                                                                                                                                    |
-| A node that can hold money can still reach a closed answer        | `machine.test.ts`, "…can still reach a closed answer"                                                                                                                                                                             |
-| A terminal node has no outgoing edge                              | `graph.test.ts`, "a closed row has no way back out"                                                                                                                                                                               |
-| Every node is reachable, and every node can reach a closed answer | `graph.test.ts`                                                                                                                                                                                                                   |
-| `recoveryNodeOf` is total, and throws on the impossible           | `graph.test.ts` refusal cases, and the unknown-word case in `machine.test.ts`                                                                                                                                                     |
-| Every edge that lands on a non-terminal node writes the schedule  | Structure, across two writers. `applySumupRecoveryEvent` sets `next_check_at` unless the landing node is terminal. `setSumupCheckoutId` writes the `checkout_created` edge, and it sets `next_check_at` to `SUMUP_FIRST_CHECK_MS` |
-| Every self-move fences on the schedule, not on the state alone    | Structure. `moveSumupRecoveryRow` is the only `UPDATE`. It matches `reference_index`, `recovery_state`, and `next_check_at`                                                                                                       |
+| Law                                                               | Enforced by                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A node that can hold money is never `prunable`                    | `machine.test.ts`, "a row that may hold money is never deleted on age alone"                                                                                                                                                                                                           |
+| A node that can hold money has an outgoing system edge            | `machine.test.ts`, "…always has something that will act on it"                                                                                                                                                                                                                         |
+| A node that can hold money can still reach a closed answer        | `machine.test.ts`, "…can still reach a closed answer"                                                                                                                                                                                                                                  |
+| A terminal node has no outgoing edge                              | `graph.test.ts`, "a closed row has no way back out"                                                                                                                                                                                                                                    |
+| Every node is reachable, and every node can reach a closed answer | `graph.test.ts`                                                                                                                                                                                                                                                                        |
+| The row boundary is total, and throws on the impossible           | Two functions carry it. `parseSumupRecoveryState` refuses a stored word the machine does not have, in the `machine.test.ts` unknown-word case. `recoveryNodeOf` takes an already typed state and refuses one that disagrees with the checkout id, in the `graph.test.ts` refusal cases |
+| Every edge that lands on a non-terminal node writes the schedule  | Structure, across two writers. `applySumupRecoveryEvent` sets `next_check_at` unless the landing node is terminal. `setSumupCheckoutId` writes the `checkout_created` edge, and it sets `next_check_at` to `SUMUP_FIRST_CHECK_MS`                                                      |
+| Every self-move fences on the schedule, not on the state alone    | Structure. `moveSumupRecoveryRow` is the only `UPDATE`. It matches `reference_index`, `recovery_state`, and `next_check_at`                                                                                                                                                            |
 
 The last two laws are structural, not declared. The fence law has one write
 helper behind it, `moveSumupRecoveryRow`, so no second implementation can drift.
@@ -273,8 +273,10 @@ the same durable `payment_charges` authority.
   the task are our own staged rows. Unlike the webhook, no external caller can
   start it.
 - `/admin/schema` and its live check are owner-only, like the rest of the page.
-  The check lists the SumUp checkout id, which is not sensitive and is already
-  the pre-filter key, and the state word. It lists no amount and no buyer fact.
+  The check lists `reference_index` as the record id, plus the state word.
+  `reference_index` is `hmacHash(reference)`, a one-way code that this database
+  cannot turn back into the buyer's reference. The scan reads `sumup_id` only to
+  pick which fault the row has, and it shows no amount and no buyer fact.
 - This path has no state-changing HTTP entry point. The CSRF rules and the owner
   guard in the plan covered the "Check again now" control, which nobody built.
   They apply again if the TODO.md follow-up ships.

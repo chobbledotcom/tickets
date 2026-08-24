@@ -1401,9 +1401,14 @@ session as `id: order.id`, and that value becomes
 `processed_payments.payment_session_id`. A redelivery must therefore reserve the
 same row.
 
-To fix: configure Square, let the order become readable, deliver the same
-completed webhook twice, and assert one `attendees` row, one
-`processed_payments` row, and no second refund.
+To fix:
+
+1. Configure Square.
+2. Let the order become readable.
+3. Deliver the same completed webhook twice.
+4. Assert one `attendees` row.
+5. Assert one `processed_payments` row.
+6. Assert that no second refund went.
 
 ---
 
@@ -1420,8 +1425,10 @@ A race that writes the ledger twice therefore passes this test. The original
 request for this work asked for a test that proves the attendee rows and the
 ledger rows are created exactly once.
 
-To fix: read the ledger in that test, and assert one event group for the
-payment.
+To fix:
+
+1. Read the ledger in that test.
+2. Assert one event group for the payment.
 
 ---
 
@@ -1452,9 +1459,12 @@ stops when the site removes its SumUp key, because `enabled` reads
 `settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
 counts them.
 
-To fix: add a scan, or a panel on `/admin/schema`, that lists every `owed` row
-and every `waiting` row whose `next_check_at` passed by a wide margin. Keep the
-bound of `SCAN_LIMIT`.
+To fix:
+
+1. Add a scan, or a panel on `/admin/schema`.
+2. List every `owed` row.
+3. List every `waiting` row whose check time passed by a wide margin.
+4. Keep the bound of `SCAN_LIMIT`.
 
 Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
 `RECOVERY_CHECKABLE_NODES`, so that a new state joins the query by declaration.
