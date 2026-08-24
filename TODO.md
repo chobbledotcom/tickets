@@ -2809,3 +2809,28 @@ asks the reader to wait.
 About 500 lines sit on that disagreement. The two rules point opposite ways, so
 the call belongs to the repository owner and not to a reviewer. Starting point:
 the `LIBRARY_PATHS` exemption in `test/integration/code-quality.test.ts`.
+
+---
+
+## Square's modules have no test at their mirror path
+
+_Origin: the provider boundary work._
+
+`deno task precommit:mutation` selects a source's direct tests by the mirror
+path alone (`scripts/mutation/test-map.ts`). `src/shared/square/order.ts` looks
+for `test/shared/square/order.test.ts` or `test/shared/square/order/`, and finds
+neither, because Square's tests are named for what they do rather than for the
+module they cover: `read-order.test.ts`, `read-payment.test.ts`,
+`transport-errors.test.ts`, `rest-transport.test.ts`, `refund-outcomes.test.ts`.
+
+The gate refuses to run for a source with no test at its mirror, so a branch
+that changes any Square module cannot pass it. These modules are affected:
+`checkout.ts`, `order.ts`, `outcomes.ts`, `payment-outcomes.ts`, and
+`transport.ts`. `src/shared/sumup/money.ts`, `src/shared/sumup/transport.ts`,
+`src/shared/sumup/wire.ts`, and `src/shared/payment/checkout-failure.ts` have
+the same gap.
+
+Fix: move each test to its module's mirror path, and split one that covers more
+than one module. Do it as its own move-only pull request, so the move is
+readable and no behaviour changes hide inside it. Then run
+`deno task precommit:mutation` and close whatever survivors the move reveals.
