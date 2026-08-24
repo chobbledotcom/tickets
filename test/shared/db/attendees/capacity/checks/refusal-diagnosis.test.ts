@@ -42,6 +42,70 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     expect(await refusedOrderUnfitListingIds([line(roomy.id)])).toEqual([]);
   });
 
+  test("dated lines on ONE shared day still get the cumulative check", async () => {
+    // Each line fits alone; only the prefix check can name the second one.
+    const shared = await createTestGroup({ maxAttendees: 1 });
+    const first = await createDailyTestListing({ groupId: shared.id });
+    const second = await createDailyTestListing({ groupId: shared.id });
+
+    expect(
+      await refusedOrderUnfitListingIds([
+        line(first.id, DAY),
+        line(second.id, DAY),
+      ]),
+    ).toEqual([second.id]);
+  });
+
+  test("a day with room is judged on that day, not the listing's total", async () => {
+    // A booking on another day fills the running total but not this day, so
+    // the order's own day must reach the probes.
+    const daily = await createDailyTestListing({ maxAttendees: 1 });
+    const taken = await attendeesApi.createAttendeeAtomic({
+      bookings: [{ date: DAY, listingId: daily.id, quantity: 1 }],
+      email: "first@example.com",
+      name: "First",
+    });
+    if (!taken.success) throw new Error("Setup: the day did not book");
+
+    expect(
+      await refusedOrderUnfitListingIds([line(daily.id, "2026-10-05")]),
+    ).toEqual([]);
+  });
+
+  test("an order whose FIRST line is the unfit one names it", async () => {
+    const daily = await createDailyTestListing({ maxAttendees: 1 });
+    const roomy = await createTestListing({ maxAttendees: 10 });
+    const taken = await attendeesApi.createAttendeeAtomic({
+      bookings: [{ date: DAY, listingId: daily.id, quantity: 1 }],
+      email: "first@example.com",
+      name: "First",
+    });
+    if (!taken.success) throw new Error("Setup: the day did not book");
+
+    expect(
+      await refusedOrderUnfitListingIds([line(daily.id, DAY), line(roomy.id)]),
+    ).toEqual([daily.id]);
+  });
+
+  test("a deep search lands exactly on the first line past the room", async () => {
+    // Twelve lines share four places: prefixes one to four fit, five fails.
+    // The halving must keep its fitting bound exact — an inflated bound
+    // skips the probe that pins the fifth line and names the sixth.
+    const shared = await createTestGroup({ maxAttendees: 4 });
+    const lines: LineBooking[] = [];
+    for (let index = 0; index < 12; index++) {
+      const listing = await createTestListing({
+        groupId: shared.id,
+        maxAttendees: 10,
+      });
+      lines.push(line(listing.id));
+    }
+
+    expect(await refusedOrderUnfitListingIds(lines)).toEqual([
+      lines[4]!.listingId,
+    ]);
+  });
+
   test("asks each line alone when the lines sit on different days", async () => {
     const daily = await createDailyTestListing({
       maxAttendees: 1,

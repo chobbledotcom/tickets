@@ -109,6 +109,42 @@ describeWithEnv(
       );
     });
 
+    test("a zero-quantity line does not draw the blame onto its listing", async () => {
+      // The zero line passes the write guard even on a full listing, so the
+      // refusal must name the real line's listing, not the zero line's.
+      const { daily } = await roomyAndFullDaily();
+      const other = await createDailyTestListing({
+        maxAttendees: 1,
+        maximumDaysAfter: 60,
+      });
+      const taken = await attendeesApi.createAttendeeAtomic({
+        bookings: [{ date: FULL_DAY, listingId: other.id, quantity: 1 }],
+        email: "second@example.com",
+        name: "Second",
+      });
+      if (!taken.success) throw new Error("Setup: the day did not book");
+
+      await expectLateOrderRefusedNaming(
+        [
+          { date: FULL_DAY, listingId: daily.id, quantity: 0 },
+          { date: FULL_DAY, listingId: other.id, quantity: 1 },
+        ],
+        [other.id],
+      );
+    });
+
+    test("a line without a quantity is counted as one place", async () => {
+      const { daily, roomy } = await roomyAndFullDaily();
+
+      await expectLateOrderRefusedNaming(
+        [
+          { listingId: roomy.id, quantity: 1 },
+          { date: FULL_DAY, listingId: daily.id },
+        ],
+        [daily.id],
+      );
+    });
+
     test("a line whose listing does not exist keeps the refusal", async () => {
       // The naming read cannot answer for a listing that is not there. The
       // refusal must still come back — with no listing named — rather than
