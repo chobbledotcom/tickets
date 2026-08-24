@@ -112,6 +112,40 @@ describe("payment provider registry", () => {
       }
     });
 
+    // Pinned literally, not read back from the registry: these origins are
+    // what lets a buyer's form reach the hosted checkout, so a test that
+    // compares the registry with itself would pass on an empty one.
+    test("names Square's checkout hosts, and moves only the API ones", () => {
+      expect(providerCheckoutFormOrigins("square", false)).toEqual([
+        "https://square.link",
+        "https://checkout.square.site",
+        "https://*.squarecdn.com",
+        "https://geoissuer.cardinalcommerce.com",
+        "https://connect.squareup.com",
+        "https://pci-connect.squareup.com",
+        "https://api.squareup.com",
+      ]);
+      expect(providerCheckoutFormOrigins("square", true)).toEqual([
+        "https://square.link",
+        "https://checkout.square.site",
+        "https://*.squarecdn.com",
+        "https://geoissuer.cardinalcommerce.com",
+        "https://connect.squareupsandbox.com",
+        "https://pci-connect.squareupsandbox.com",
+        "https://api.squareupsandbox.com",
+      ]);
+    });
+
+    test("names the single checkout host of each card provider", () => {
+      expect(providerCheckoutFormOrigins("stripe", false)).toEqual([
+        "https://checkout.stripe.com",
+      ]);
+      expect(providerCheckoutFormOrigins("sumup", false)).toEqual([
+        "https://checkout.sumup.com",
+        "https://pay.sumup.com",
+      ]);
+    });
+
     test("falls back to the live origins for a provider with no sandbox", () => {
       expect(providerCheckoutFormOrigins("stripe", true)).toEqual(
         providerCheckoutFormOrigins("stripe", false),
