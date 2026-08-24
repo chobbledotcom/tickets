@@ -105,10 +105,11 @@ describeStripe("reading back a checkout Stripe will not show us", () => {
           Promise.reject(rejection),
         ),
       async () => {
-        thrown = await stripeApi
-          .retrieveCheckoutSession("cs_gone")
-          .then(() => undefined)
-          .catch((error: unknown) => error);
+        try {
+          await stripeApi.retrieveCheckoutSession("cs_gone");
+        } catch (error) {
+          thrown = error;
+        }
       },
     );
     return thrown;
