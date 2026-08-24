@@ -280,12 +280,15 @@ const manyFitsOnPrimary = async (demands: CartDemand[]): Promise<boolean[]> => {
  * on the one day the customer picked; the rare multi-date creation (an
  * operator's hand-built one) falls back to asking each line alone.
  *
- * The cost is two primary round trips whatever the order's size: one batch
- * reads existence, type and group membership, and one SELECT answers every
- * prefix at once. The reads run on the primary because the refused write did
- * — a replica can lag behind the booking that took the last place, and the
- * isolate's caches can hold a listing another isolate deleted. A line whose
- * listing is gone keeps the refusal and names no listing. */
+ * The cost is bounded whatever the order's size: one batch reads existence,
+ * type and group membership, and prefix fits only shrink as lines are added,
+ * so a probe of the whole order plus a binary search finds the first unfit
+ * prefix. No probe's SQL is bigger than the whole-order preflight's, and the
+ * probe count grows with the logarithm of the order. The reads run on the
+ * primary because the refused write did — a replica can lag behind the
+ * booking that took the last place, and the isolate's caches can hold a
+ * listing another isolate deleted. A line whose listing is gone keeps the
+ * refusal and names no listing. */
 export const refusedOrderUnfitListingIds = async (
   lines: LineBooking[],
 ): Promise<number[]> => {
@@ -330,9 +333,21 @@ export const refusedOrderUnfitListingIds = async (
     );
   }
   const onDay = lines.map((line) => ({ ...line, date: days[0] ?? null }));
-  const fits = await manyFitsOnPrimary(
-    onDay.map((_, index) => linesDemand(onDay.slice(0, index + 1), factsById)),
-  );
-  const firstUnfit = fits.indexOf(false);
-  return firstUnfit === -1 ? [] : [lines[firstUnfit]!.listingId];
+  const prefixFits = async (length: number): Promise<boolean> =>
+    (
+      await manyFitsOnPrimary([linesDemand(onDay.slice(0, length), factsById)])
+    )[0]!;
+  // A race that freed the room again before this read names no listing.
+  if (await prefixFits(onDay.length)) return [];
+  let shortestUnfit = onDay.length;
+  let longestFit = 0;
+  // Halving needs fewer steps than the order has lines, so the step bound
+  // never cuts the search short — it only keeps the loop finite.
+  for (let step = 0; step < onDay.length; step++) {
+    if (longestFit + 1 >= shortestUnfit) break;
+    const middle = Math.floor((longestFit + shortestUnfit) / 2);
+    if (await prefixFits(middle)) longestFit = middle;
+    else shortestUnfit = middle;
+  }
+  return [lines[shortestUnfit - 1]!.listingId];
 };

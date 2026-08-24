@@ -1,6 +1,7 @@
 /**
- * refusedOrderUnfitListingIds names a refused order's culprit in two primary
- * round trips, whatever the order's size.
+ * refusedOrderUnfitListingIds names a refused order's culprit in a bounded
+ * number of primary round trips: one facts batch, one whole-order probe, and
+ * a binary search over the order's prefixes.
  */
 
 import { expect } from "@std/expect";
@@ -9,7 +10,10 @@ import type { LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/checks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTwoListingsSharingOnePlace } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestGroup,
+  createTwoListingsSharingOnePlace,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -66,7 +70,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     expect(await refusedOrderUnfitListingIds([line(999_999)])).toEqual([]);
   });
 
-  test("spends two database calls however long the order is", async () => {
+  test("an order that fits again costs two calls however long it is", async () => {
     const lines: LineBooking[] = [];
     for (let index = 0; index < 8; index++) {
       const listing = await createTestListing({ maxAttendees: 10 });
@@ -76,5 +80,28 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     expect(
       await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
     ).toBe(2);
+  });
+
+  test("a long refused order is named within a logarithmic call count", async () => {
+    // Eight lines share one place: only the first fits. The facts batch plus
+    // the whole-order probe plus three halving probes is five calls — one per
+    // prefix would be nine.
+    const shared = await createTestGroup({ maxAttendees: 1 });
+    const lines: LineBooking[] = [];
+    for (let index = 0; index < 8; index++) {
+      const listing = await createTestListing({
+        groupId: shared.id,
+        maxAttendees: 10,
+      });
+      lines.push(line(listing.id));
+    }
+
+    expect(
+      await countDatabaseCalls(5, async () => {
+        expect(await refusedOrderUnfitListingIds(lines)).toEqual([
+          lines[1]!.listingId,
+        ]);
+      }),
+    ).toBe(5);
   });
 });
