@@ -43,7 +43,10 @@ import {
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { sumByKey, sumOf, unique } from "#fp";
-import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
+import {
+  type AttendeeUpdateFailureReason,
+  attendeeFailureFormatter,
+} from "#shared/attendee-failures.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 import { type Attendee, clampDurationDays } from "#types";
@@ -157,6 +160,20 @@ const joinedListingNames = async (ids: number[]): Promise<string> => {
     .join(", ");
 };
 
+/** The error a refused servicing write throws: a capacity failure names the
+ * listings its diagnosis blames ([] means none — the generic message), and
+ * anything else gets the fallback. Shared by the create and edit paths. */
+const servicingRefusalError = async (failure: {
+  listingIds: number[];
+  reason: AttendeeUpdateFailureReason;
+}): Promise<Error> =>
+  new Error(
+    formatServicingCapacityError(
+      failure.reason,
+      await joinedListingNames(failure.listingIds),
+    ),
+  );
+
 const normalizedCreateInput = (
   input: ServicingEventInput,
   name: string,
@@ -263,10 +280,7 @@ export const createServicingEvent = async (
     normalizedCreateInput(input, name),
   );
   if (!createResult.success) {
-    const names = await joinedListingNames(
-      unique(input.bookings.map((booking) => booking.listingId)),
-    );
-    throw new Error(formatServicingCapacityError(createResult.reason, names));
+    throw await servicingRefusalError(createResult);
   }
   const id = createResult.attendees[0]!.id;
   // The attendee + bookings are committed by the atomic create; the remaining
@@ -487,12 +501,7 @@ export const updateServicingEvent = async (
   // (`no_lines` can't actually happen here — the edit input asserter already
   // rejects empty bookings, and desiredLines maps them one-to-one.)
   if (!editResult.success) {
-    throw new Error(
-      formatServicingCapacityError(
-        editResult.reason,
-        await joinedListingNames(editResult.listingIds),
-      ),
-    );
+    throw await servicingRefusalError(editResult);
   }
   // The booking + name edit is committed by the atomic edit; the answer save is
   // a separate batch. If it fails, compensate by restoring the pre-edit state

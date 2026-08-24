@@ -115,8 +115,9 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
       name: "First Hold",
     });
     // Only "Cap1" (a) is actually full for that date — "Cap1-b" (b) would have
-    // fit alone — so the rejection must name specifically the listing that
-    // didn't fit, not the other booking in the same (rolled-back) request.
+    // fit alone — so the rejection must name ONLY the listing that did not
+    // fit, not the other booking in the same (rolled-back) request. The
+    // anchors matter: a message listing every booking still contains "Cap1".
     await expectRejects(
       createTestServicingEvent({
         bookings: [
@@ -125,7 +126,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
         ],
         name: "Should Roll Back",
       }),
-      /Cap1(?!-b)/,
+      /^Not enough spots available for: Cap1$/,
     );
     expect((await servicingRowsForListing(b.id)).length).toBe(0);
   });
