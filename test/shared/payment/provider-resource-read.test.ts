@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
+  judgedBy,
   judgeThrough,
   parsedBy,
   providerResourceReader,
@@ -206,6 +207,17 @@ describe("provider resource read", () => {
     test("a rung passes an answer that holds", () => {
       const rung = refuseUnless<Parsed>("mismatched_id", () => true);
       expect(rung({ id: "anything" })).toBe(null);
+    });
+
+    test("lets the rungs alone decide an answer already in shape", () => {
+      const judgeShaped = judgedBy<Parsed>([
+        refuseUnless("mismatched_id", (parsed) => parsed.id === "a"),
+      ]);
+      expect(judgeShaped({ id: "a" })).toEqual(found({ id: "a" }));
+      expect(judgeShaped({ id: "b" })).toEqual({
+        reason: "mismatched_id",
+        status: "invalid",
+      });
     });
 
     test("reads an answer its schema rejects as no answer at all", () => {

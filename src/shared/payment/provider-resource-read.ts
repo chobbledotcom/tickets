@@ -125,6 +125,17 @@ export const judgeThrough =
     return { resource: steps.accept(parsed), status: "found" };
   };
 
+/** The judging step for an answer that is already the resource, so only the
+ *  rungs decide. Use it when the transport has parsed the answer already. */
+export const judgedBy = <Answer>(
+  rungs: readonly Rung<Answer>[],
+): ((answer: Answer) => ProviderRead<Answer>) =>
+  judgeThrough<Answer, Answer, Answer>({
+    accept: (answer) => answer,
+    parse: (answer) => answer,
+    rungs,
+  });
+
 /** The `parse` step for a ladder whose parse is only its schema. A schema
  *  failure is the answer not matching its documented shape. */
 export const parsedBy =

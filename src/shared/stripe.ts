@@ -10,7 +10,7 @@ import {
 } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
-  judgeThrough,
+  judgedBy,
   readProviderResource,
   refuseUnless,
 } from "#payment/provider-resource-read.ts";
@@ -152,11 +152,12 @@ const readPaymentIntent = async (
         maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
       }),
     failure: (error) => providerFailureOf(error)?.read,
-    judge: judgeThrough({
-      accept: (intent: StripeExpandedPaymentIntent) => intent,
-      parse: (intent: StripeExpandedPaymentIntent) => intent,
-      rungs: [refuseUnless("mismatched_id", (intent) => intent.id === id)],
-    }),
+    judge: judgedBy([
+      refuseUnless(
+        "mismatched_id",
+        (intent: StripeExpandedPaymentIntent) => intent.id === id,
+      ),
+    ]),
   });
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
