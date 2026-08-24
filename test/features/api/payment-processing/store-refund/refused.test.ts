@@ -25,6 +25,7 @@ describeWithEnv(
       const session = paymentSession("cs_store_refused", 500, intent);
       using refused = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
+          listingIds: [],
           reason: "capacity_exceeded",
           success: false,
         } as const),

@@ -17,7 +17,7 @@ import {
 import { listingGroups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
-import { identity, map, mapById } from "#fp";
+import { identity, map, mapById, unique } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -96,6 +96,19 @@ export const checkLinesCapacity = async (
     statement.args,
   );
   return conditions.map((_, index) => row[`ok${index}`] === 1);
+};
+
+/** The listings whose lines do not fit right now, in one query. Both the
+ * attendee-edit preflight and a refused creation's diagnosis name their
+ * culprit with this. */
+export const unfitListingIds = async (
+  bookings: LineBooking[],
+  excludeAttendeeId?: number,
+): Promise<number[]> => {
+  const fits = await checkLinesCapacity(bookings, excludeAttendeeId);
+  return unique(
+    bookings.filter((_, index) => !fits[index]!).map((line) => line.listingId),
+  );
 };
 
 /** Check one listing's availability, including its group limits. */

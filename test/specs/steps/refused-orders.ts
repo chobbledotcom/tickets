@@ -157,12 +157,12 @@ Given(
 Given(
   "a customer filled the page selling all three in, asking for 3 Alpha, no Bravo, and the last Charlie for a day soon",
   async function (this: TicketsWorld): Promise<void> {
-    // The Charlie leads the page: a capacity refusal names the order's first
-    // listing, so a later full line is misnamed (see TODO.md).
+    // The Alpha leads the page, so the refusal naming the Charlie proves
+    // the site names the thing that is full, not the order's first line.
     const lines = [
-      { listing: listingNamed(this, "Charlie"), places: 1 },
       { listing: listingNamed(this, "Alpha"), places: 3 },
       { listing: listingNamed(this, "Bravo"), places: 0 },
+      { listing: listingNamed(this, "Charlie"), places: 1 },
     ];
     await fillsIn(this, combinedPath(lines), lines, {
       ...THE_CUSTOMER,
@@ -247,11 +247,11 @@ Given(
 Given(
   "a customer filled the page selling the Mug and the Ferry in, for a day soon",
   async function (this: TicketsWorld): Promise<void> {
-    // The Ferry leads the page: a capacity refusal names the order's first
-    // listing, so a later full line is misnamed (see TODO.md).
+    // The Mug leads the page, so the refusal naming the Ferry proves the
+    // site names the thing that is full, not merely the order's first line.
     const lines = [
-      { listing: listingNamed(this, "Ferry"), places: 1 },
       { listing: listingNamed(this, "Mug"), places: 1 },
+      { listing: listingNamed(this, "Ferry"), places: 1 },
     ];
     await fillsIn(this, combinedPath(lines), lines, {
       ...THE_CUSTOMER,

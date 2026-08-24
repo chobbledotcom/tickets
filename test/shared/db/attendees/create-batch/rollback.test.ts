@@ -139,7 +139,12 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       }),
     );
 
-    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    // The refusal names the full listing, not the open first line.
+    expect(result).toEqual({
+      listingIds: [full.id],
+      reason: "capacity_exceeded",
+      success: false,
+    });
     expect(await getAttendeesRaw(open.id)).toEqual([]);
     expect(await getAttendeesRaw(full.id)).toEqual([]);
     await expectParentRolledBack(ticketToken, countBefore);

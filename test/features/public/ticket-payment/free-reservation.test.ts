@@ -136,11 +136,14 @@ describeWithEnv("free reservation construction", { db: true }, () => {
       });
     });
 
-    test("names the order's first listing when it will not fit", async () => {
+    /** A two-listing free order refused with these unfitting listing ids;
+     * gives back the refusal for its message to be read. */
+    const refusedTwoListingOrder = async (listingIds: number[]) => {
       const first = testListingWithCount({ id: 9, name: "First choice" });
       const second = testListingWithCount({ id: 10, name: "Second choice" });
       using _create = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
+          listingIds,
           reason: "capacity_exceeded",
           success: false,
         } as const),
@@ -160,8 +163,18 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         modifierUsages: [],
       });
 
-      expect(result.success).toBe(false);
-      if (result.success) return;
+      if (result.success) throw new Error("Expected the order to be refused");
+      return result;
+    };
+
+    test("names the listing the refusal says is out of room", async () => {
+      const result = await refusedTwoListingOrder([10]);
+      expect(result.error).toContain("Second choice");
+      expect(result.error).not.toContain("First choice");
+    });
+
+    test("falls back to the first listing when the refusal names none", async () => {
+      const result = await refusedTwoListingOrder([]);
       expect(result.error).toContain("First choice");
       expect(result.error).not.toContain("Second choice");
     });

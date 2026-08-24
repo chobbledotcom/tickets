@@ -44,7 +44,12 @@ describeWithEnv("db > attendees > creation work", { db: true }, () => {
       },
     );
 
-    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    // The refusal names the full listing.
+    expect(result).toEqual({
+      listingIds: [listing.id],
+      reason: "capacity_exceeded",
+      success: false,
+    });
     expect(workRan).toBe(false);
     expect(await getAttendeesRaw(listing.id)).toEqual([]);
   });

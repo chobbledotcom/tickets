@@ -265,7 +265,11 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
   test("uses the generic capacity message when the listing name is empty", async () => {
     using _create = stub(attendeesApi, "createBookingAtomic", () =>
-      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+      Promise.resolve({
+        listingIds: [],
+        reason: "capacity_exceeded",
+        success: false,
+      }),
     );
     expect(await preparationResult({ listingName: "", total: 1000 })).toEqual({
       detail: "Sorry, this listing sold out while you were completing payment.",
@@ -276,7 +280,11 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
   test("a package order's capacity error omits the member name", async () => {
     using _create = stub(attendeesApi, "createBookingAtomic", () =>
-      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+      Promise.resolve({
+        listingIds: [],
+        reason: "capacity_exceeded",
+        success: false,
+      }),
     );
     expect(await preparationResult({ packageGroupId: 9, total: 1000 })).toEqual(
       {

@@ -92,6 +92,7 @@ describeWithEnv(
         const originalBooking = attendeesApi.createBookingAtomic;
         const failure = () =>
           Promise.resolve({
+            listingIds: [],
             reason: "capacity_exceeded" as const,
             success: false as const,
           });

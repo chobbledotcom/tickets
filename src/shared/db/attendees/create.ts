@@ -9,7 +9,10 @@ import type {
   EncryptedAttendeeData,
 } from "#db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
-import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
+import {
+  buildCapacityCheckedInsert,
+  unfitListingIds,
+} from "#db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
@@ -106,8 +109,9 @@ const prepareAttendeeWrite = async (
     rawBookings.some((booking) => (booking.quantity ?? 1) < 0) ||
     hasDuplicateBookingSlot(rawBookings)
   ) {
+    // A malformed order, not one listing's capacity shortfall — none is named.
     return {
-      failure: { reason: "capacity_exceeded", success: false },
+      failure: { listingIds: [], reason: "capacity_exceeded", success: false },
       ok: false,
     };
   }
@@ -218,7 +222,21 @@ const createWith =
       : strategy.noBooking();
   };
 
-const capacityFailure = (): CreateAttendeeResult => ({
+/** The refusal a failed write answers with. The guarded batch cannot say
+ * which statement it aborted on, so the same capacity conditions are asked
+ * again as one read and the listings that do not fit are named. A race that
+ * freed the room again before this read names none. */
+const capacityFailure = async (
+  bookings: AttendeeInput["bookings"],
+): Promise<CreateAttendeeResult> => ({
+  listingIds: await unfitListingIds(
+    bookings.map((booking) => ({
+      date: booking.date ?? null,
+      durationDays: booking.durationDays ?? 1,
+      listingId: booking.listingId,
+      quantity: booking.quantity ?? 1,
+    })),
+  ),
   reason: "capacity_exceeded",
   success: false,
 });
@@ -228,7 +246,7 @@ export const createAttendeeAtomicImpl = (
   creationWork?: AttendeeCreationWork,
 ): Promise<CreateAttendeeResult> =>
   createWith<CreateAttendeeResult>({
-    noBooking: capacityFailure,
+    noBooking: () => capacityFailure(input.bookings),
     write: (prepared) =>
       creationWork
         ? writeWithCreationWork(prepared, creationWork)
@@ -260,7 +278,9 @@ export const createBookingAtomic = (
   createWith<CreateAttendeeResult | "sold-out">({
     condition: bookingBatchCondition(plan),
     noBooking: async () =>
-      (await anyModifierSoldOut(plan.usages)) ? "sold-out" : capacityFailure(),
+      (await anyModifierSoldOut(plan.usages))
+        ? "sold-out"
+        : capacityFailure(input.bookings),
     piiPaymentSessionId: provenPiiPaymentSession(input, plan),
     write: (prepared) => writeAsLedgerBatch(prepared, plan),
   })(input);

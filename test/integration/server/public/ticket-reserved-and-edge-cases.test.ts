@@ -230,6 +230,7 @@ describeWithEnv(
         // exercised regardless of which the free reservation picks.
         const failure = () =>
           Promise.resolve({
+            listingIds: [],
             reason: "capacity_exceeded" as const,
             success: false as const,
           });

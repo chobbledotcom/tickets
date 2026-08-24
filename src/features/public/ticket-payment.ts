@@ -453,10 +453,16 @@ export const createFreeReservation = async ({
   if (!result.success) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it concealed. Omit the name (generic
-    // message) for a package; a non-package order keeps its first listing's name.
+    // message) for a package. A non-package order names the first item whose
+    // listing the refusal says is out of room; when it names none (the room
+    // freed again, or the failure was not one listing's), the first item's
+    // name stands in as before.
+    const unfit = new Set(result.listingIds);
+    const namedItem =
+      items.find((item) => unfit.has(item.listingId)) ?? items[0]!;
     const errorName = items.some((item) => item.packageGroupId !== undefined)
       ? ""
-      : listingById.get(items[0]!.listingId)!.name;
+      : listingById.get(namedItem.listingId)!.name;
     return {
       error: formatAtomicError(result.reason, errorName),
       success: false,

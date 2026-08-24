@@ -142,7 +142,12 @@ export const expectCapacityExceeded = async (
     paidInput(listingId, pricePaid),
     plan,
   );
-  expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+  // The refusal names the listing that is out of room.
+  expect(result).toEqual({
+    listingIds: [listingId],
+    reason: "capacity_exceeded",
+    success: false,
+  });
   await expectNothingWritten(listingId, transferCount);
 };
 
