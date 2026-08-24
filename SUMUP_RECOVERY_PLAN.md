@@ -50,8 +50,8 @@ moves only the clock. The two conditions fail differently. Without credentials
 the task does not run at all, so nothing asks and the row is only retained. With
 credentials and an unusable provider, the task keeps asking, and
 `read_unavailable` moves the clock each time. Neither case deletes the row, and
-neither reads it as unpaid. The answer comes when the key returns or SumUp
-replies.
+neither reads it as unpaid. The task resumes when the key returns. The row is
+answered when SumUp returns a usable response.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
 accepts becomes a booking. A paid checkout that the engine rejects does not
