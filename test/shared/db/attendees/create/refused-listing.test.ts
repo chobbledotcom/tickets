@@ -6,15 +6,34 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 
 const FULL_DAY = "2026-10-01";
+
+/** A late customer's order is refused, naming exactly these listings. */
+const expectLateOrderRefusedNaming = async (
+  bookings: ListingBooking[],
+  named: number[],
+): Promise<void> => {
+  const result = await attendeesApi.createAttendeeAtomic({
+    bookings,
+    email: "late@example.com",
+    name: "Late",
+  });
+  expect(result).toEqual({
+    listingIds: named,
+    reason: "capacity_exceeded",
+    success: false,
+  });
+};
 
 describeWithEnv(
   "db > a refused creation names the listing out of room",
@@ -40,22 +59,58 @@ describeWithEnv(
     test("a failed later line is the one named, not the first line", async () => {
       const { daily, roomy } = await roomyAndFullDaily();
 
-      const result = await attendeesApi.createAttendeeAtomic({
-        bookings: [
+      await expectLateOrderRefusedNaming(
+        [
           { listingId: roomy.id, quantity: 1 },
           { date: FULL_DAY, listingId: daily.id, quantity: 1 },
         ],
-        email: "late@example.com",
-        name: "Late",
-      });
-
-      expect(result).toEqual({
-        listingIds: [daily.id],
-        reason: "capacity_exceeded",
-        success: false,
-      });
+        [daily.id],
+      );
       // The refusal left nothing behind on the line that would have fit.
       expect((await getAttendeesRaw(roomy.id)).length).toBe(0);
+    });
+
+    test("a line that tips a shared group limit is the one named", async () => {
+      // Two listings share a limit of 1. Each line fits ALONE, so only a
+      // check that counts the order's own lines together can name the second
+      // one — the line the write batch really aborted on.
+      const shared = await createTestGroup({ maxAttendees: 1 });
+      const first = await createTestListing({
+        groupId: shared.id,
+        maxAttendees: 10,
+      });
+      const second = await createTestListing({
+        groupId: shared.id,
+        maxAttendees: 10,
+      });
+
+      await expectLateOrderRefusedNaming(
+        [
+          { listingId: first.id, quantity: 1 },
+          { listingId: second.id, quantity: 1 },
+        ],
+        [second.id],
+      );
+      expect((await getAttendeesRaw(first.id)).length).toBe(0);
+    });
+
+    test("lines on different days still name the full day's listing", async () => {
+      // An operator can build one creation with lines on different days; the
+      // one-day cumulative check does not apply, so each line is checked
+      // alone and the full day's listing is still the one named.
+      const { daily } = await roomyAndFullDaily();
+      const roomyDaily = await createDailyTestListing({
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+      });
+
+      await expectLateOrderRefusedNaming(
+        [
+          { date: "2026-10-02", listingId: roomyDaily.id, quantity: 1 },
+          { date: FULL_DAY, listingId: daily.id, quantity: 1 },
+        ],
+        [daily.id],
+      );
     });
   },
 );
