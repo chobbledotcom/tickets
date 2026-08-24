@@ -1363,25 +1363,33 @@ out of scope for #1873, and a starting point._
 
 ---
 
-## Recover paid SumUp checkouts without a webhook or redirect
+## ~~Recover paid SumUp checkouts without a webhook or redirect~~ **Done.**
 
 _Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
 documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918)._
 
-SumUp does not sign its webhooks. If its webhook is lost and the customer never
-returns to the redirect URL, SumUp can charge the customer without creating a
-booking or payment record. Only the staged checkout remains, and database
-pruning removes it after 24 hours.
+Shipped in #2109. `sumup_checkout_recovery` in
+`src/shared/maintenance/registry.ts` takes a bounded page of staged checkouts
+each run, asks SumUp about each one through `resolveSumupCheckoutById`, and
+settles it through `settlePaymentCallback` — the same engine the webhook and the
+redirect use, taking an already-fetched session so the task makes no second
+provider request. A full page asks to be run again. The row's state is a node on
+the declared machine in `src/shared/payment/sumup-recovery-machine-spec.ts`,
+which is also what pruning reads, so a checkout that may still be holding money
+is no longer deleted after 24 hours. The concurrency regression test this asked
+for is `test/integration/server/sumup-recovery/races-the-webhook.test.ts`.
 
-Add a bounded maintenance task to `src/shared/maintenance/registry.ts` that
-checks a page of staged SumUp checkouts on each run. Fetch each checkout once.
-When SumUp reports it as `PAID`, pass the fetched session through the same
-classification and `processPaymentSession` path used by webhooks and redirects.
-Extract a shared entry point that accepts an already fetched session so the task
-does not make a second provider request. Keep each run within the edge request
-budget and request a follow-up run when a full page remains. Add a regression
-test that runs webhook, redirect, and maintenance attempts concurrently and
-proves they create the attendee and ledger rows exactly once.
+Still outstanding from that work: **the Cucumber story was never written.**
+`SUMUP_RECOVERY_PLAN.md` named
+`specs/payments/a-payment-with-no-callback.feature` — buy through the real
+public booking page, drop the callback, run maintenance, find the ticket. The
+behaviour is covered by
+`test/integration/server/sumup-recovery/recovers.test.ts` ("books a paid
+checkout whose callback never arrived"), so this is a coverage-shape gap rather
+than an untested path: per E2E_TESTS.md, Cucumber owns the user journey and the
+integration test owns the technical contract. Start from
+`specs/payments/recovering-the-money-record.feature` for the house shape, and
+from `recovers.test.ts` for the fixture and the maintenance trigger.
 
 ---
 
