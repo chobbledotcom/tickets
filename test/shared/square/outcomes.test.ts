@@ -1,11 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { judgedBy } from "#payment/provider-resource-read.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   namedSquareRefund,
-  squareReadFailure,
+  readSquareResource,
   squareRefundFailure,
 } from "#shared/square/outcomes.ts";
+
+/** Ask a Square resource for something the call is going to fail at. */
+const readThrowing = (error: unknown) =>
+  readSquareResource(() => Promise.resolve({}))(
+    () => Promise.reject(error),
+    judgedBy([]),
+  );
 
 describe("Square failure and proof readings", () => {
   describe("namedSquareRefund", () => {
@@ -34,7 +42,7 @@ describe("Square failure and proof readings", () => {
       { kind: "uncertain", reason: "network_error" },
     ],
   ] as const) {
-    test(`reads ${name} the same way for reads and refunds`, () => {
+    test(`reads ${name} the same way for reads and refunds`, async () => {
       const error =
         read.reason === "malformed_response"
           ? transportError.unusable(providerDetail.square())
@@ -42,16 +50,25 @@ describe("Square failure and proof readings", () => {
               providerDetail.square(),
               "network_error",
             );
-      expect(squareReadFailure(error)).toEqual(read);
+      expect(await readThrowing(error)).toEqual(read);
       expect(squareRefundFailure(error)).toEqual(refund);
     });
   }
 
   // A bug of ours is not Square's failure, so neither reading claims it and
   // the caller re-raises what it caught.
-  test("claims nothing about an error Square does not own", () => {
+  test("claims nothing about an error Square does not own", async () => {
     const bug = new Error("internal bug");
-    expect(squareReadFailure(bug)).toBeUndefined();
+    await expect(readThrowing(bug)).rejects.toThrow("internal bug");
     expect(squareRefundFailure(bug)).toBeUndefined();
+  });
+
+  test("reads a provider with nothing configured as unavailable", async () => {
+    expect(
+      await readSquareResource(() => Promise.resolve(null))(
+        () => Promise.resolve({}),
+        judgedBy([]),
+      ),
+    ).toEqual({ reason: "not_configured", status: "unavailable" });
   });
 });

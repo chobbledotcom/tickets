@@ -14,6 +14,12 @@
 import * as v from "valibot";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
+import { optionalRecordList } from "#shared/validation/list.ts";
+import { parseOrThrow } from "#shared/validation/parse.ts";
+import {
+  OptionalNullableStringSchema,
+  OptionalStringSchema,
+} from "#shared/validation/string.ts";
 
 /** Text Square must fill in when it sends the field at all. */
 const WireText = v.pipe(v.string(), v.minLength(1));
@@ -101,18 +107,14 @@ const OrderAnswer = v.pipe(
   v.object({
     order: v.optional(
       v.object({
-        created_at: v.optional(v.string()),
+        created_at: OptionalStringSchema,
         id: ResourceIdSchema,
         metadata: v.optional(v.record(v.string(), v.string())),
-        state: v.optional(v.string()),
-        tenders: v.optional(
-          v.array(
-            v.object({
-              id: v.optional(v.string()),
-              payment_id: v.optional(v.nullable(v.string())),
-            }),
-          ),
-        ),
+        state: OptionalStringSchema,
+        tenders: optionalRecordList({
+          id: OptionalStringSchema,
+          payment_id: OptionalNullableStringSchema,
+        }),
         total_money: v.optional(WireMoney),
       }),
     ),
@@ -167,15 +169,11 @@ export type SquareLocation = {
 
 const LocationsAnswer = v.pipe(
   v.object({
-    locations: v.optional(
-      v.array(
-        v.object({
-          id: v.optional(v.string()),
-          name: v.optional(v.string()),
-          status: v.optional(v.string()),
-        }),
-      ),
-    ),
+    locations: optionalRecordList({
+      id: OptionalStringSchema,
+      name: OptionalStringSchema,
+      status: OptionalStringSchema,
+    }),
   }),
   v.transform(({ locations }): { locations: SquareLocation[] } => ({
     locations: locations ?? [],
@@ -212,11 +210,10 @@ const RefundAnswer = v.pipe(
 
 const readAnswer =
   <Output>(schema: v.BaseSchema<unknown, Output, v.BaseIssue<unknown>>) =>
-  (body: unknown): Output => {
-    const parsed = v.safeParse(schema, body);
-    if (!parsed.success) throw transportError.unusable(providerDetail.square());
-    return parsed.output;
-  };
+  (body: unknown): Output =>
+    parseOrThrow(schema, body, () =>
+      transportError.unusable(providerDetail.square()),
+    );
 
 /** Read one Square answer as the resource it is meant to carry. */
 export const squareAnswer = {

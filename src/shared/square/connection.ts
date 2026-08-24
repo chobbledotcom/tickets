@@ -10,11 +10,10 @@ import type { SquareLocation } from "#shared/square/wire.ts";
 export type SquareConnectionTestResult = {
   ok: boolean;
   accessToken: CredentialCheck;
-  location: {
+  /** The chosen place, named as Square names it, plus what we make of it. */
+  location: Pick<SquareLocation, "name" | "status"> & {
     configured: boolean;
     locationId?: string | undefined;
-    name?: string | undefined;
-    status?: string | undefined;
     error?: string | undefined;
   };
   webhook: { configured: boolean; error?: string };

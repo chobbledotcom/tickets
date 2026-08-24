@@ -9,12 +9,12 @@ import {
   type ResourceReader,
 } from "#payment/provider-resource-read.ts";
 import type { RefundProof } from "#payment/refund-attempt.ts";
+
 /* jscpd:ignore-end */
 
 /** Translate a known Square read failure, leaving internal bugs unclaimed. */
-export const squareReadFailure = (
-  error: unknown,
-): ProviderRead<never> | undefined => providerFailureOf(error)?.read;
+const squareReadFailure = (error: unknown): ProviderRead<never> | undefined =>
+  providerFailureOf(error)?.read;
 
 /** Translate a known Square refund failure, leaving internal bugs unclaimed. */
 export const squareRefundFailure = (
