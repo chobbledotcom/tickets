@@ -1478,12 +1478,13 @@ To fix:
    operator how many exist.
 
 Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
-`RECOVERY_CHECKABLE_NODES`. A new state then joins the query by declaration.
-Note that this is inclusion, not exhaustiveness. `inPlaceholders` over an array
-still compiles when the union grows, so it never forces an author to decide what
-a new state means. For a compile-time refusal, key the scan by the literal union
-with an exhaustive `Record`. `STORED_AUTHORITY_FACTS` in
-`src/shared/payment/joint-state.ts` is the shape to copy.
+`RECOVERY_CHECKABLE_NODES`. For a compile-time refusal, key the scan by the
+literal union with an exhaustive `Record`. Copy the shape of
+`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`.
+
+A new state then joins the query by declaration. That is inclusion, not
+exhaustiveness. `inPlaceholders` over an array still compiles when the union
+grows. It never forces an author to decide what a new state means.
 
 ---
 

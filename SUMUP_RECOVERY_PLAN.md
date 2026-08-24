@@ -20,8 +20,9 @@ booking and no refund. In one case it held no record at all.
 
 **SumUp.** `sumupApi.createCheckout` stages the booking metadata. It then hands
 the buyer a hosted checkout whose `return_url` is our webhook. SumUp does not
-sign that webhook. There is no subscription to redeliver against. If the single
-callback was lost, and the buyer never returned to
+sign that webhook. There is no subscription to redeliver against.
+
+If the single callback was lost, and the buyer never returned to
 `/payment/success?session_id=…`, nothing asked SumUp what happened. The staging
 row was the only trace, and `runDatabasePruning` deleted it after 24 hours. The
 buyer paid, received no ticket, and the operator found nothing.
@@ -163,13 +164,14 @@ Read the declaration in this order:
    sweep proves that it throws.
 4. `recoveryNodeOf` — total over stored rows. It throws on a combination that no
    writer can produce. That behaviour is what makes the backwards scan possible.
-   Note one gap in the declaration itself: `RecoveryEventId` is a hand-written
-   union beside the `RECOVERY_EVENTS` array, and the moves table is partial. A
-   new id added to the union alone still compiles. The sweep never visits it,
-   and `recoveryMoveTo` throws for it in production.
 5. `RECOVERY_TERMINAL_NODES`, `RECOVERY_CHECKABLE_NODES`, and
    `RECOVERY_PRUNABLE_NODES` — derived from the table and the node facts. Nobody
    maintains them beside it.
+
+The declaration itself has one gap. `RecoveryEventId` is a hand-written union
+beside the `RECOVERY_EVENTS` array, and the moves table is partial. A new id
+added to the union alone still compiles. The sweep never visits it, and
+`recoveryMoveTo` throws for it in production.
 
 The declaration cannot carry the reasons below, so they stay here:
 
@@ -185,10 +187,14 @@ The declaration cannot carry the reasons below, so they stay here:
 - **The callback path raises no event at all.** Only the recovery check moves a
   row. That is what lets `finished` refuse every event without a late callback
   that hits the refusal. A callback that arrives after a check closed the row
-  goes through the payment engine. The engine replays the booking that it
-  already made, answers the provider, and leaves `recovery_state` alone.
+  goes through the payment engine. The engine answers the provider and leaves
+  `recovery_state` alone.
+- **A late callback replays the recorded outcome, which is not always a
+  booking.** `handleReservationConflict` picks the replay by `attendee_id`. A
+  booked row replays its booking through `alreadyProcessedResult`. A row closed
+  as `unpaid`, or closed by a refund, replays its recorded terminal failure.
   `test/integration/server/sumup-recovery/late-callback.test.ts` proves the
-  callback replay.
+  booked case.
 - **A buyer's return replays only while the staged row survives.**
   `retrieveSession` reads that row through `getSumupCheckout`, and a `finished`
   row is prunable after `PRUNE_SUMUP_RETENTION_HOURS`. After the prune the
@@ -249,9 +255,8 @@ is a slip. They are recorded because the plan argued for something else.
    runner and its `failureRetryIntervalMs`. Instead, `recoverOne` catches the
    read failure or the settle failure for that row alone. It then calls
    `delaySumupRecoveryCheck`, which writes the state back unchanged and moves
-   only `next_check_at`. This is better than the plan. One checkout that fails
-   no longer stops the rows behind it, and a row that fails repeatedly cannot
-   hold the front of the queue.
+   only `next_check_at`. One checkout that fails no longer stops the rows behind
+   it, and a row that fails repeatedly cannot hold the front of the queue.
 
    The code still does not catch a failure to write the answer. A refused write
    throws to the task's own retry.
@@ -385,7 +390,8 @@ also covers `waiting`, which nothing proved either way.
 
 Without that rule, the site deletes a checkout that was paid while SumUp was
 unreachable for the whole retention window. That deletion is the exact harm that
-this work closes. Both states end on a definitive answer, never on a clock.
+this work closes. Age never deletes either state. A definitive answer is the
+only thing that can close one.
 
 The cost is that a site that disconnects SumUp keeps its unanswered `waiting`
 rows. The rows are small. Their metadata stays sealed under a reference that
