@@ -43,8 +43,8 @@ What is true now:
 
 The condition is real. `enabled: () => settings.sumup.hasKey` gates the task,
 and `syncMaintenanceTaskRows` removes a disabled task. A site that removes its
-SumUp key therefore stops asking about its unanswered rows. Those rows are kept
-and never deleted, and they wait for the key to come back.
+SumUp key therefore no longer asks about its unanswered rows. Those rows are
+kept and never deleted, and they wait for the key to come back.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
 accepts becomes a booking. A paid checkout that the engine rejects does not
@@ -335,8 +335,8 @@ The map held to two shape rules. Both are still true.
 IO. It names the event that the observation amounts to. The moves table decides
 where that event lands, not this function. It is exhaustive over the reading and
 over `CallbackOutcome`. A provider status that the boundary cannot read becomes
-`read_unavailable` instead of a guess. A new callback outcome stops the module
-from compiling until somebody decides what that outcome means for the money.
+`read_unavailable` instead of a guess. A new callback outcome breaks the compile
+until somebody decides what that outcome means for the money.
 
 ## 4. The arguments made against it
 
@@ -440,7 +440,7 @@ Tests, by what each one holds:
 - `test/integration/server/sumup-recovery/recovers.test.ts` — books a paid
   checkout whose callback never arrived. It books that checkout exactly once
   when the check runs twice. It closes a checkout that SumUp says nobody paid.
-  It keeps asking when SumUp cannot answer.
+  It asks again when SumUp cannot answer.
 - `test/integration/server/sumup-recovery/late-callback.test.ts` — a callback
   after the check books nobody a second time. The buyer who returns later still
   sees the booking.
