@@ -78,10 +78,12 @@ and is never a dead end" is a test, not a sentence.
 `SUMUP_RECOVERY_PLAN.md` is the worked example, and it is honest about where it
 falls short. Its events carry `kind` and `movesMoney`, not the write and the
 fence. Those two facts stay structural, in one write helper each, and its laws
-table says so. Put a fact on the declaration when you can. Where a fact stays
-structural, name the single place that carries it. Say that one place is weaker
-than a declared fact. The AGENTS.md section "Checked forwards and backwards"
-names the mechanisms.
+table says so.
+
+Put a fact on the declaration when you can. Where a fact stays structural, name
+the single place that carries it. Say that one place is weaker than a declared
+fact. The AGENTS.md section "Checked forwards and backwards" names the
+mechanisms.
 
 #### Trusted facts
 

@@ -1409,7 +1409,7 @@ To fix:
 3. Deliver the same completed webhook twice.
 4. Assert one `attendees` row.
 5. Assert one `processed_payments` row.
-6. Assert that no second refund went.
+6. Assert that no refund was requested at all.
 
 ---
 
@@ -1471,17 +1471,19 @@ counts them.
 To fix:
 
 1. Add a scan, or a panel on `/admin/schema`.
-2. List every `owed` row.
-3. List every `waiting` row whose check time passed by a wide margin.
-4. Keep the bound of `SCAN_LIMIT`.
+2. Select `owed` rows, and `waiting` rows whose check time passed by a wide
+   margin.
+3. Keep the bound of `SCAN_LIMIT` on the rows returned.
+4. Report the total count beside them, so a bounded page still tells the
+   operator how many exist.
 
 Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
-`RECOVERY_CHECKABLE_NODES`, so that a new state joins the query by declaration.
+`RECOVERY_CHECKABLE_NODES`. A new state then joins the query by declaration.
 Note that this is inclusion, not exhaustiveness. `inPlaceholders` over an array
 still compiles when the union grows, so it never forces an author to decide what
 a new state means. For a compile-time refusal, key the scan by the literal union
-with an exhaustive `Record`, the way `STORED_AUTHORITY_FACTS` does in
-`src/shared/payment/joint-state.ts`.
+with an exhaustive `Record`. `STORED_AUTHORITY_FACTS` in
+`src/shared/payment/joint-state.ts` is the shape to copy.
 
 ---
 

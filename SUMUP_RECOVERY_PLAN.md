@@ -42,31 +42,36 @@ What is true now:
 > redelivered, not acknowledged.
 
 Two conditions sit behind that, and both are real. The site must still hold
-SumUp credentials: `enabled: () => settings.sumup.hasKey` gates the task, and
-`syncMaintenanceTaskRows` removes a disabled task, so a site that removes its
-key stops asking. SumUp must also answer at last: a provider that returns
-nothing usable leaves the row where it is through `read_unavailable`, which
-moves only the clock. The two conditions fail differently. Without credentials
-the task does not run at all, so nothing asks and the row is only retained. With
-credentials and an unusable provider, the task keeps asking, and
-`read_unavailable` moves the clock each time. Neither case deletes the row, and
-neither reads it as unpaid. The task resumes when the key returns. The row is
-answered when SumUp returns a usable response.
+SumUp credentials. `enabled: () => settings.sumup.hasKey` gates the task.
+`syncMaintenanceTaskRows` then removes a disabled task.
+
+SumUp must also answer at last. A provider that returns nothing usable leaves
+the row where it is through `read_unavailable`, which moves only the clock.
+
+The two conditions fail differently. Without credentials the task does not run
+at all, so nothing asks and the row is only retained. With credentials and an
+unusable provider, the task keeps asking, and `read_unavailable` moves the clock
+each time. Neither case deletes the row, and neither reads it as unpaid. The
+task resumes when the key returns. The row is answered when SumUp returns a
+usable response.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
 accepts becomes a booking. A paid checkout that the engine rejects does not
 become a booking. Two rejections behave differently, and the difference is
-deliberate. A proof that verifies against a charge we must not keep takes the
-existing refund path, through `settleRejectedCharge`. A proof that does not
-verify at all takes no money action. `classifiedOutcome` returns `unverifiable`
-before `processPaymentSession` runs, and `PAID_EVENTS` maps that answer to
+deliberate.
+
+A proof that verifies against a charge we must not keep takes the existing
+refund path, through `settleRejectedCharge`. A proof that does not verify at all
+takes no money action. `classifiedOutcome` returns `unverifiable` before
+`processPaymentSession` runs, and `PAID_EVENTS` maps that answer to
 `read_paid_contradiction`. The row lands on `owed`, and the site touches no
 money on a proof that it cannot trust. A required refund that does not go
-through also lands the row on `owed`. The site keeps that row and never deletes
-it. No surface shows it yet. See the open gap in section 4. The guarantee is
-that the money is never forgotten in silence. It is not a promise that every
-payment ends in a ticket. The five `read_paid_*` events carry exactly this
-distinction.
+through also lands the row on `owed`.
+
+The site keeps an `owed` row and never deletes it. No surface shows it yet. See
+the open gap in section 4. The guarantee is that the money is never forgotten in
+silence. It is not a promise that every payment ends in a ticket. The five
+`read_paid_*` events carry exactly this distinction.
 
 Production receivers: the `sumup_checkout_recovery` maintenance task,
 `runDatabasePruning`, the `/admin/schema` page, and `POST /payment/webhook` for
@@ -142,8 +147,10 @@ races as five hand-written tables. Every review finding was one table that
 disagreed with another table or with the code. One example is a column name that
 nothing can look up. Another is an outcome with two different retry owners. A
 fix to one disagreement created the next one, because nothing compared the
-tables. A sixth copy in this document repeats that mistake. See the note that
-this branch added to PR_WORKFLOW.md.
+tables.
+
+A sixth copy in this document repeats that mistake. See the note that this
+branch added to PR_WORKFLOW.md.
 
 Read the declaration in this order:
 
@@ -179,15 +186,15 @@ The declaration cannot carry the reasons below, so they stay here:
   row. That is what lets `finished` refuse every event without a late callback
   that hits the refusal. A callback that arrives after a check closed the row
   goes through the payment engine. The engine replays the booking that it
-  already made, answers the provider, and leaves `recovery_state` alone. A buyer
-  who returns to the success page gets the same replay, but only while the
-  staged row survives. `retrieveSession` reads that row through
-  `getSumupCheckout`, and a `finished` row is prunable after
-  `PRUNE_SUMUP_RETENTION_HOURS`. After the prune the return answers "not found"
-  instead. The ticket itself is unaffected, because the booking already exists.
+  already made, answers the provider, and leaves `recovery_state` alone.
   `test/integration/server/sumup-recovery/late-callback.test.ts` proves the
-  callback replay and the prompt return. No test advances the clock past the
-  prune, so that limit is read from the code rather than pinned by a test.
+  callback replay.
+- **A buyer's return replays only while the staged row survives.**
+  `retrieveSession` reads that row through `getSumupCheckout`, and a `finished`
+  row is prunable after `PRUNE_SUMUP_RETENTION_HOURS`. After the prune the
+  return answers "not found" instead. The ticket itself is unaffected, because
+  the booking already exists. No test advances the clock past the prune. That
+  limit is read from the code rather than pinned by a test.
 - **`owed` refuses `read_pending` and `read_expired_or_failed`.** Every `owed`
   row arrived from a read that said PAID, and SumUp never moves a checkout back
   off PAID. Either cell defends against the impossible.
@@ -212,9 +219,10 @@ The last two laws are structural, not declared. The fence law has one write
 helper behind it, `moveSumupRecoveryRow`, so no second implementation can drift.
 The schedule law has two writers. `setSumupCheckoutId` writes the
 `checkout_created` edge on its own, and it takes the landing state from
-`recoveryMoveTo`, so it reads the same declaration. Both writers obey the law
-today. Two writers are weaker than one. A test over the declaration holds this
-law better than structure does.
+`recoveryMoveTo`, so it reads the same declaration.
+
+Both writers obey the law today. Two writers are weaker than one. A test over
+the declaration holds this law better than structure does.
 
 Two laws deserve plain words. **The site never deletes a row that can hold money
 nobody accounted for. That row always has something that will act on it.** That
@@ -230,11 +238,12 @@ is a slip. They are recorded because the plan argued for something else.
    `waiting` and on `owed`, and a "Check again now" POST behind
    `ownerFormHandler`. Neither shipped. The plan's own slice notes carried the
    reason. An edge whose only caller lives in a later slice is an export with no
-   production caller. This repository deletes such an export. The laws hold
-   without it, because both money-holding nodes keep their system edges. The
-   scheduled retry is therefore the only thing that moves a row, and `owed` is
-   still not a dead end. TODO.md holds the follow-up, "Give SumUp recovery
-   anomalies a safe owner repair".
+   production caller. This repository deletes such an export.
+
+   The laws hold without it, because both money-holding nodes keep their system
+   edges. The scheduled retry is therefore the only thing that moves a row, and
+   `owed` is still not a dead end. TODO.md holds the follow-up, "Give SumUp
+   recovery anomalies a safe owner repair".
 2. **A failed check moves the clock. It does not throw.** The plan called this
    "the one gap the machine cannot close", and left the retry to the maintenance
    runner and its `failureRetryIntervalMs`. Instead, `recoverOne` catches the
@@ -242,8 +251,10 @@ is a slip. They are recorded because the plan argued for something else.
    `delaySumupRecoveryCheck`, which writes the state back unchanged and moves
    only `next_check_at`. This is better than the plan. One checkout that fails
    no longer stops the rows behind it, and a row that fails repeatedly cannot
-   hold the front of the queue. The code still does not catch a failure to write
-   the answer. A refused write throws to the task's own retry.
+   hold the front of the queue.
+
+   The code still does not catch a failure to write the answer. A refused write
+   throws to the task's own retry.
 3. **The batch is capped. The paid recoveries are not.** The plan promised "at
    most one paid recovery per run". The code caps the run at
    `SUMUP_RECOVERY_BATCH` checkouts, which defaults to 3. The task declares its
@@ -275,11 +286,13 @@ Nobody added an owner choice. This work never picks a money outcome. The only
 real ambiguity that it can produce is `owed`. `owed` is not a decision that the
 system takes. It is the honest statement that a provider took money and the
 booking did not happen. No surface shows that row to the owner yet, which
-section 4 records as an open gap. Recovery adds no refund path of its own. It
-reaches the two that the webhook already runs. A validation, price, or balance
-failure inside `processPaymentSession` goes through `refundAndFail`, which sends
-the money by `requestSessionRefund`. A paid charge that the engine rejects goes
-through `settleRejectedCharge`. Both keep the same rules and the same durable
+section 4 records as an open gap.
+
+Recovery adds no refund path of its own. It reaches the two that the webhook
+already runs. A validation, price, or balance failure inside
+`processPaymentSession` goes through `refundAndFail`, which sends the money by
+`requestSessionRefund`. A paid charge that the engine rejects goes through
+`settleRejectedCharge`. Both keep the same rules and the same durable
 `payment_charges` authority.
 
 ### Security and privacy
@@ -341,9 +354,11 @@ The map held to two shape rules. Both are still true.
 `sumupRecoveryOutcome` is pure. Data goes in, an event comes out, and it does no
 IO. It names the event that the observation amounts to. The moves table decides
 where that event lands, not this function. It is exhaustive over the reading and
-over `CallbackOutcome`. A provider status that the boundary cannot read becomes
-`read_unavailable` instead of a guess. A new callback outcome breaks the compile
-until somebody decides what that outcome means for the money.
+over `CallbackOutcome`.
+
+A provider status that the boundary cannot read becomes `read_unavailable`
+instead of a guess. A new callback outcome breaks the compile until somebody
+decides what that outcome means for the money.
 
 ## 4. The arguments made against it
 
@@ -379,10 +394,14 @@ lost payment for a tidier table, which is the wrong way round.
 
 **One gap is open, and it is not in the code above. No surface shows a retained
 row to the operator.** `SUMUP_SCAN` in `src/shared/db/schema-anomaly-scan.ts`
-selects an unknown state word, a checkout id that disagrees with the state, or a
-check time that does not fit the state. A checkable row needs a well-formed
-check time, and a closed row needs none at all. The scan reports a broken row,
-not an unanswered one.
+selects three faults:
+
+- a state word the machine does not have,
+- a checkout id that disagrees with the state,
+- a check time that does not fit the state.
+
+A checkable row needs a well-formed check time. A closed row needs none at all.
+The scan reports a broken row, not an unanswered one.
 
 This covers both states that the site keeps:
 
@@ -414,11 +433,14 @@ Tests:
   whose order is not readable yet retryable".
 
 Two things differed from the plan. Nobody wrote the redelivery test that the
-plan named. The slice recorded a reason for that, and the reason was wrong. The
-replay suites configure Stripe. No Square test delivers the same completed
+plan named. The slice recorded a reason for that, and the reason was wrong.
+
+The replay suites configure Stripe. No Square test delivers the same completed
 webhook twice. The replay identity of Square therefore has no direct test.
-TODO.md records that gap. #2107 then followed. It closed three gaps that the
-mutation gate found in the same file:
+TODO.md records that gap.
+
+#2107 then followed. It closed three gaps that the mutation gate found in the
+same file:
 
 - a payment id of one character, which the code discarded,
 - two different order faults, which logged the same line,
