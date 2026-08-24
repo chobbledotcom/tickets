@@ -356,8 +356,7 @@ export const applyAttendeeAtomicEdit = async (
     statements.push(
       buildCapacityCheckedInsert(
         lineBooking(line),
-        "?",
-        attendeeId,
+        (bind) => bind(attendeeId),
         allowOverbook,
       ),
     );

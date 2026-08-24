@@ -288,11 +288,6 @@ export const buildCapacityCondition =
 export type CapacityBucket = { perDay: Map<string, number>; total: number };
 
 /** Wrap a count subquery into a `<= cap` availability clause. */
-const capClause = (
-  countSql: string,
-  wrapSql: (countSql: string) => string,
-): string => wrapSql(countSql);
-
 /** A `<= cap` clause for one listing's demand against its OWN cap, reusing the
  * same count subquery the write predicate uses. `active = 1` matches the write
  * (an inactive listing's cap is NULL, so the clause — and the AND — is NULL,
@@ -301,16 +296,14 @@ const listingCapClause = (
   listingId: SqlParameterToken,
   dayRange: BoundDayRange | null,
   demand: number,
-): string =>
-  capClause(
-    buildListingCountSql({
-      dayRange,
-      excludeAttendeeId: null,
-      listingId,
-    }),
-    (countSql) =>
-      `((${countSql}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`,
-  );
+): string => {
+  const countSql = buildListingCountSql({
+    dayRange,
+    excludeAttendeeId: null,
+    listingId,
+  });
+  return `((${countSql}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`;
+};
 
 /** A `<= cap` clause for one group's demand against its cap, reusing the write
  * predicate's group count subquery. An uncapped group (`max_attendees = 0`)
@@ -321,10 +314,8 @@ const groupCapClause = (
   demand: number,
 ): string => {
   const cap = `(SELECT max_attendees FROM groups WHERE id = ${groupId})`;
-  return capClause(
-    buildGroupCountSql(dayRange, null, groupId),
-    (countSql) => `(${cap} = 0 OR (${countSql}) + ${demand} <= ${cap})`,
-  );
+  const countSql = buildGroupCountSql(dayRange, null, groupId);
+  return `(${cap} = 0 OR (${countSql}) + ${demand} <= ${cap})`;
 };
 
 /** Append the clauses for one demand bucket. Daily (per-day) demand emits one

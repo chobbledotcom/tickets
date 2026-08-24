@@ -38,8 +38,7 @@ describe("buildCapacityCheckedInsert", () => {
         parentListingId: 19,
         quantity: 3,
       },
-      "attendee_id = ?",
-      41,
+      (bind) => `attendee_id = ${bind(41)}`,
       true,
     );
 

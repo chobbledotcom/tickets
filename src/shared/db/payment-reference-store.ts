@@ -8,6 +8,7 @@ import {
 } from "#crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { inPlaceholders } from "#db/client.ts";
+import { ALWAYS_TRUE } from "#db/numbered-statement.ts";
 import { settings } from "#db/settings.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
@@ -114,7 +115,7 @@ export const preparePaymentReferenceWrite = async (
   reference: TaggedPaymentReference | null,
 ): Promise<PreparedPaymentReferenceWrite> =>
   reference === null
-    ? { claim: { args: [], sql: "1 = 1" }, stored: null }
+    ? { claim: { args: [], sql: ALWAYS_TRUE }, stored: null }
     : {
         claim: await unclaimedPaymentReference(reference),
         stored: await storePaymentReference(reference),

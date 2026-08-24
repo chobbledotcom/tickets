@@ -13,6 +13,7 @@
  */
 
 import type { SqlStatement } from "#db/client.ts";
+import type { SqlParameterToken } from "#db/numbered-statement.ts";
 import {
   deleteWhere,
   equals,
@@ -57,8 +58,9 @@ export interface RecordTargets<Kind extends string> {
   ) => (kind: Kind, idsQuery: SqlStatement) => SqlStatement;
   /** Delete one record's rows from `table` (a trusted constant). */
   deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
-  /** A condition that only holds while this kind of record still exists. */
-  existsSql: (kind: Kind, idSql: string) => string;
+  /** A condition that only holds while this kind of record still exists.
+   * The id must arrive as a bound parameter, never as a raw string. */
+  existsSql: (kind: Kind, idSql: SqlParameterToken) => string;
   /** The record a key names. Refuses a key this domain could not have minted,
    *  because a key that names no record of ours is a bug, not a miss. */
   fromKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;

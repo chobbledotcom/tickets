@@ -6,6 +6,7 @@ import {
   useTransaction,
   writeRowInTransaction,
 } from "#db/client.ts";
+import { ALWAYS_TRUE } from "#db/numbered-statement.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string
@@ -106,7 +107,7 @@ export const defineOrderedCollection = <
 }: OrderedCollectionConfig<Key, Scope>): OrderedCollection<Key, Scope> => {
   const keyColumns = columnNames(key);
   const scopeClause =
-    scope === undefined ? "1 = 1" : matches(columnNames(scope));
+    scope === undefined ? ALWAYS_TRUE : matches(columnNames(scope));
   const scopeWhere = `${scopeClause} AND `;
   const scopeArgs = (operation: ScopeValues<Scope>): readonly InValue[] =>
     scope === undefined

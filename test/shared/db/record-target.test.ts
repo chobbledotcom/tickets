@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineRecordTarget, ITEM_TARGET_COLUMNS } from "#db/record-target.ts";
 import {
   clauseArgs,
@@ -155,14 +156,18 @@ describe("deleting a record's rows", () => {
 
 describe("checking a record is really there", () => {
   test("asks the table that kind of record lives in", () => {
-    expect(targets.existsSql("listing", "?4")).toBe(
-      "EXISTS (SELECT 1 FROM listings WHERE id = ?4)",
+    const statement = numberedStatement((bind) =>
+      targets.existsSql("listing", bind(4)),
     );
+    expect(statement.sql).toBe("EXISTS (SELECT 1 FROM listings WHERE id = ?1)");
+    expect(statement.args).toEqual([4]);
   });
 
   test("says so loudly when the domain listed no tables", () => {
-    expect(() => tablelessTargets.existsSql("listing", "?1")).toThrow(
-      "No table listed for listing records",
-    );
+    expect(() =>
+      numberedStatement((bind) =>
+        tablelessTargets.existsSql("listing", bind(1)),
+      ),
+    ).toThrow("No table listed for listing records");
   });
 });

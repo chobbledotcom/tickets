@@ -1,4 +1,3 @@
-import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -23,11 +22,12 @@ import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
-/** Build an INSERT into listing_attendees, capacity-checked by default. */
+/** Build an INSERT into listing_attendees, capacity-checked by default.
+ * `attendeeIdSql` yields the SQL for the attendee id and binds its own
+ * values, so an id expression can never drift from the argument list. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
-  attendeeIdExpr = "last_insert_rowid()",
-  attendeeIdArg?: InValue,
+  attendeeIdSql: NumberedSql = () => "last_insert_rowid()",
   allowOverbook = false,
   extraCondition?: NumberedSql,
 ): SqlStatement => {
@@ -43,15 +43,12 @@ export const buildCapacityCheckedInsert = (
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   return numberedStatement((bind) => {
     const listingIdSql = bind(listingId);
-    const attendeeIdSql =
-      attendeeIdArg === undefined
-        ? attendeeIdExpr
-        : attendeeIdExpr.replace("?", bind(attendeeIdArg));
+    const attendeeSql = attendeeIdSql(bind);
     const startAtSql = bind(startAt);
     const endAtSql = bind(endAt);
     const quantitySql = bind(quantity);
     const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
-          SELECT ${listingIdSql}, ${attendeeIdSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
+          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
     if (allowOverbook) return insertSelect;
 
     const capacity = buildCapacityCondition(

@@ -16,6 +16,7 @@ import {
   setItemsForImage,
 } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
@@ -145,12 +146,15 @@ describeWithEnv("db > images", { db: true }, () => {
 
   describe("item links", () => {
     test("uses the declared table for page and news targets", () => {
-      expect(imageUseTargets.existsSql("news", "?1")).toBe(
-        "EXISTS (SELECT 1 FROM news_posts WHERE id = ?1)",
+      const statement = numberedStatement(
+        (bind) =>
+          `${imageUseTargets.existsSql("news", bind(7))} AND ${imageUseTargets.existsSql("page", bind(8))}`,
       );
-      expect(imageUseTargets.existsSql("page", "?2")).toBe(
-        "EXISTS (SELECT 1 FROM site_pages WHERE id = ?2)",
+      expect(statement.sql).toBe(
+        "EXISTS (SELECT 1 FROM news_posts WHERE id = ?1)" +
+          " AND EXISTS (SELECT 1 FROM site_pages WHERE id = ?2)",
       );
+      expect(statement.args).toEqual([7, 8]);
     });
 
     test("returns empty image fields for an item without an image", async () => {
