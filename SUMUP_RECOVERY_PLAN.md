@@ -381,10 +381,11 @@ decides what that outcome means for the money.
 The review made one product choice and held it. **The site never deletes a row
 on age alone, when that row can hold money that nobody accounted for.** That
 rule covers `owed`, where somebody saw the money and nobody accounted for it. It
-also covers `waiting`, which nothing proved either way. Without that rule, the
-site deletes a checkout that was paid while SumUp was unreachable for the whole
-retention window. That deletion is the exact harm that this work closes. Both
-states end on a definitive answer, never on a clock.
+also covers `waiting`, which nothing proved either way.
+
+Without that rule, the site deletes a checkout that was paid while SumUp was
+unreachable for the whole retention window. That deletion is the exact harm that
+this work closes. Both states end on a definitive answer, never on a clock.
 
 The cost is that a site that disconnects SumUp keeps its unanswered `waiting`
 rows. The rows are small. Their metadata stays sealed under a reference that
