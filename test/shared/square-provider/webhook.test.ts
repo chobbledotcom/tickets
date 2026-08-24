@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { squareApi } from "#shared/square/api.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import type { SquarePayment } from "#shared/square/wire.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { rejectionMessage } from "#test-utils/assertions.ts";
 import { withMocks } from "#test-utils/mocks.ts";

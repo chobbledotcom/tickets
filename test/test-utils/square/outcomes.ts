@@ -1,8 +1,7 @@
 import { assertThrows } from "@std/assert";
 import * as v from "valibot";
 import type { ProviderRead } from "#payment/provider-read.ts";
-import type { SquareOrder } from "#shared/square/order.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import type { SquareOrder, SquarePayment } from "#shared/square/wire.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 
 /** Deliver one completed Square payment webhook to the provider adapter. */

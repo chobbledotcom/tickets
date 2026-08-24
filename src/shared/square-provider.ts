@@ -40,22 +40,22 @@ import {
   type SquarePaymentStatus,
 } from "#shared/square/payment-outcomes.ts";
 import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
-import type { SquareOrder, SquarePayment } from "#shared/square/wire.ts";
+import type {
+  SquareMoney,
+  SquareOrder,
+  SquarePayment,
+} from "#shared/square/wire.ts";
 
-/** How much of a Square payment has gone back, or nothing when Square's
- *  answer cannot be read. An absent total is a stated zero; one that names no
- *  amount, or a different currency from the money taken, cannot be accounted
- *  for — reading either as zero would tell the guard the buyer is still
- *  owed money that may already be back with them. */
+/** How much of a Square payment has gone back. Money nothing has come back on
+ *  carries no refunded total, and that absence is a stated zero. Money back
+ *  against a charge Square states no amount for cannot be accounted for, and
+ *  reading it as zero would tell the guard the buyer is still owed it. */
 const squareMoneyReturned = (
-  refunded:
-    | { amount?: bigint | undefined; currency?: string | undefined }
-    | undefined,
-  captured: { currency?: string | undefined } | undefined,
+  refunded: SquareMoney | undefined,
+  captured: SquareMoney | undefined,
 ): bigint | null => {
   if (refunded === undefined) return 0n;
-  if (captured === undefined || refunded.amount === undefined) return null;
-  if (refunded.currency !== captured.currency) return null;
+  if (captured === undefined) return null;
   return refunded.amount;
 };
 
@@ -256,11 +256,7 @@ export const squarePaymentProvider: PaymentProvider = {
     }
     const captured = read.resource.amountMoney;
     const refunded = read.resource.refundedMoney;
-    if (
-      captured?.currency !== undefined &&
-      refunded?.currency !== undefined &&
-      captured.currency !== refunded.currency
-    ) {
+    if (captured && refunded && captured.currency !== refunded.currency) {
       return { reason: "mismatched_money", status: "invalid" };
     }
     const returned = squareMoneyReturned(refunded, captured);

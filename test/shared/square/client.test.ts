@@ -5,11 +5,6 @@ import { squareApi } from "#shared/square/api.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import {
-  configureSquare,
-  oneLocation,
-  withSquareClient,
-} from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
@@ -104,5 +99,4 @@ describeSquare(() => {
       expect(client2).toBeNull();
     });
   });
-
 });

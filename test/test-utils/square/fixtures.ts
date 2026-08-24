@@ -12,6 +12,7 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createMockClient } from "#test-utils/square/harness.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
@@ -51,6 +52,20 @@ export const withSquareClient = async <Result>(
   }
 };
 
+/**
+ * Runs the body against the real Square client, with one REST answer stubbed
+ * in. Use it to prove what a boundary makes of an answer Square really sends;
+ * `withSquareClient` stands in for the client, so it never reaches the parse.
+ */
+export const withSquareAnswer = async <Result>(
+  body: unknown,
+  run: () => Promise<Result>,
+): Promise<Result> => {
+  await configureSquare();
+  using _fetch = stubFetch(new Response(JSON.stringify(body)));
+  return await run();
+};
+
 /** Asserts that creating a payment link for this intent yields no link. */
 export const expectNoLink = async (
   intent: CheckoutIntent,
@@ -66,11 +81,11 @@ export const oneLocation = (id: string, name: string) => ({
 });
 
 /**
- * A checkout SDK behaviour that returns a payment link with the given order
- * id and url — the happy-path response for `checkout.paymentLinks.create`.
+ * A checkout behaviour that returns a created payment link with the given
+ * order id and address — the happy path for `checkout.paymentLinks.create`.
  */
 export const linkResult = (orderId: string, url: string): MockImpls => ({
-  checkoutCreate: () => Promise.resolve({ paymentLink: { orderId, url } }),
+  checkoutCreate: () => Promise.resolve({ orderId, url }),
 });
 
 /**

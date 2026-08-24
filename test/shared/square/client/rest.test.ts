@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { ProviderTransportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
 import {
   type FetchCall,
@@ -60,8 +61,10 @@ describeSquare(() => {
       });
 
       // Response prefers long_url (checkout.square.site) over short url (square.link)
-      expect(result.paymentLink!.orderId).toBe("ord_rest");
-      expect(result.paymentLink!.url).toBe("https://checkout.square.site/rest");
+      expect(result).toEqual({
+        orderId: "ord_rest",
+        url: "https://checkout.square.site/rest",
+      });
 
       // Request verification
       const [url, opts] = mockFetch.calls[0]!.args;
@@ -85,7 +88,10 @@ describeSquare(() => {
       expect(body.pre_populated_data.buyer_phone_number).toBe("+44123");
     });
 
-    test("keeps an empty long_url instead of falling back to short url", async () => {
+    // A blank long address is a broken answer, not a reason to send the buyer
+    // to the short one: the two name different pages, and Square fills both in
+    // when it creates a link at all.
+    test("refuses a payment link whose long address is blank", async () => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
@@ -99,26 +105,25 @@ describeSquare(() => {
       );
 
       const client = await squareApi.getSquareClient();
-      const result = await client!.checkout.paymentLinks.create({
-        checkoutOptions: { redirectUrl: "https://example.com" },
-        idempotencyKey: "idem-short",
-        order: {
-          lineItems: [
-            {
-              basePriceMoney: { amount: BigInt(100), currency: "GBP" },
-              name: "T",
-              note: "T",
-              quantity: "1",
-            },
-          ],
-          locationId: "L_rest",
-          metadata: {},
-        },
-        prePopulatedData: { buyerEmail: "a@b.com" },
-      });
-
-      expect(result.paymentLink!.orderId).toBe("ord_short");
-      expect(result.paymentLink!.url).toBe("");
+      await expect(
+        client!.checkout.paymentLinks.create({
+          checkoutOptions: { redirectUrl: "https://example.com" },
+          idempotencyKey: "idem-short",
+          order: {
+            lineItems: [
+              {
+                basePriceMoney: { amount: BigInt(100), currency: "GBP" },
+                name: "T",
+                note: "T",
+                quantity: "1",
+              },
+            ],
+            locationId: "L_rest",
+            metadata: {},
+          },
+          prePopulatedData: { buyerEmail: "a@b.com" },
+        }),
+      ).rejects.toBeInstanceOf(ProviderTransportError);
     });
 
     test("omits buyer_phone_number from request when not provided", async () => {
@@ -153,18 +158,18 @@ describeSquare(() => {
       expect(body.pre_populated_data.buyer_phone_number).toBeUndefined();
     });
 
-    test("returns undefined paymentLink when API returns no payment_link", async () => {
+    test("refuses an answer that names no payment link", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await squareApi.getSquareClient();
-      const result = await client!.checkout.paymentLinks.create({
-        checkoutOptions: { redirectUrl: "https://example.com" },
-        idempotencyKey: "idem-3",
-        order: { lineItems: [], locationId: "L", metadata: {} },
-        prePopulatedData: { buyerEmail: "a@b.com" },
-      });
-
-      expect(result.paymentLink).toBeUndefined();
+      await expect(
+        client!.checkout.paymentLinks.create({
+          checkoutOptions: { redirectUrl: "https://example.com" },
+          idempotencyKey: "idem-3",
+          order: { lineItems: [], locationId: "L", metadata: {} },
+          prePopulatedData: { buyerEmail: "a@b.com" },
+        }),
+      ).rejects.toBeInstanceOf(ProviderTransportError);
     });
 
     test("orders.get fetches correct URL and maps response to camelCase", async () => {
@@ -177,7 +182,7 @@ describeSquare(() => {
               state: "COMPLETED",
               tenders: [
                 { id: "t_1", payment_id: "pay_1" },
-                { id: "t_2", payment_id: "pay_fallback", paymentId: "" },
+                { id: "t_2", payment_id: null },
               ],
               total_money: { amount: 5000, currency: "GBP" },
             },
@@ -194,7 +199,7 @@ describeSquare(() => {
       expect(result.order!.id).toBe("ord_100");
       expect(result.order!.metadata!.items).toBe('[{"e":5,"q":1,"p":0}]');
       expect(result.order?.tenders?.[0]?.paymentId).toBe("pay_1");
-      expect(result.order?.tenders?.[1]?.paymentId).toBe("");
+      expect(result.order?.tenders?.[1]?.paymentId).toBeUndefined();
       expect(result.order!.state).toBe("COMPLETED");
       expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
       expect(result.order!.totalMoney!.currency).toBe("GBP");
@@ -212,7 +217,10 @@ describeSquare(() => {
       const client = await squareApi.getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_no_total" });
       expect(result.order!.id).toBe("ord_no_total");
-      expect(result.order!.totalMoney).toBeUndefined();
+      expect(result.order!.totalMoney).toEqual({
+        amount: null,
+        currency: null,
+      });
     });
 
     test("orders.get returns null order when API returns none", async () => {

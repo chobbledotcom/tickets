@@ -1,7 +1,8 @@
-/* jscpd:ignore-start -- shared import block with rest-transport.test.ts */
+/* jscpd:ignore-start -- shared import block with rest.test.ts */
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { ProviderTransportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
 import {
   type FetchCall,
@@ -27,11 +28,19 @@ describeSquare(() => {
       globalThis.fetch = originalFetch;
     });
 
+    /** One complete refund answer, as Square sends it. */
+    const refundBody = (id: string, amount: number) => ({
+      refund: {
+        amount_money: { amount, currency: "GBP" },
+        id,
+        payment_id: "pay_1",
+        status: "COMPLETED",
+      },
+    });
+
     test("sends correct snake_case body to /v2/refunds", async () => {
       mockFetch = installMockFetch(() =>
-        Promise.resolve(
-          jsonResponse({ refund: { id: "ref_1", status: "COMPLETED" } }),
-        ),
+        Promise.resolve(jsonResponse(refundBody("ref_1", 3000))),
       );
 
       const client = await squareApi.getSquareClient();
@@ -52,51 +61,44 @@ describeSquare(() => {
       expect(body.amount_money.currency).toBe("GBP");
     });
 
-    test("returns the raw refund response for the boundary validator", async () => {
+    test("reads Square's refund into the shape the engine judges", async () => {
       mockFetch = installMockFetch(() =>
-        Promise.resolve(
-          jsonResponse({
-            refund: { id: "ref_done", status: "COMPLETED" },
-          }),
-        ),
+        Promise.resolve(jsonResponse(refundBody("ref_done", 4250))),
       );
 
       const client = await squareApi.getSquareClient();
-      // The client returns raw JSON — squareApi.refundCharge validates it
-      // with a Valibot schema at the boundary.
-      const result = (await client!.refunds.refundPayment({
+      const result = await client!.refunds.refundPayment({
         amountMoney: { amount: BigInt(4250), currency: "GBP" },
         idempotencyKey: "idem-status",
         paymentId: "pay_status",
-      })) as { refund: { id: string; status: string } };
+      });
 
-      expect(result.refund.id).toBe("ref_done");
-      expect(result.refund.status).toBe("COMPLETED");
+      expect(result.refund).toEqual({
+        amountMoney: { amount: BigInt(4250), currency: "GBP" },
+        id: "ref_done",
+        paymentId: "pay_1",
+        status: "COMPLETED",
+      });
     });
 
-    test("returns the raw response even when no refund is present", async () => {
+    test("refuses an answer that names no refund", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
       const client = await squareApi.getSquareClient();
-      // The client returns the raw response — it does NOT normalize it.
-      // The squareApi layer's Valibot parse would throw on this (refund is
-      // required), but the transport client itself just passes it through.
-      const result = (await client!.refunds.refundPayment({
-        amountMoney: { amount: BigInt(1500), currency: "GBP" },
-        idempotencyKey: "idem-empty",
-        paymentId: "pay_empty",
-      })) as Record<string, never>;
-
-      expect(result.refund).toBeUndefined();
+      await expect(
+        client!.refunds.refundPayment({
+          amountMoney: { amount: BigInt(1500), currency: "GBP" },
+          idempotencyKey: "idem-empty",
+          paymentId: "pay_empty",
+        }),
+      ).rejects.toBeInstanceOf(ProviderTransportError);
     });
 
     test("uses production URL when sandbox is disabled", async () => {
       squareApi.resetSquareClient();
       await settings.update.square.sandbox(false);
       mockFetch = installMockFetch(() =>
-        Promise.resolve(
-          jsonResponse({ refund: { id: "ref_prod", status: "COMPLETED" } }),
-        ),
+        Promise.resolve(jsonResponse(refundBody("ref_prod", 500))),
       );
 
       const client = await squareApi.getSquareClient();

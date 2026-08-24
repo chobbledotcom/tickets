@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
+import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import {
@@ -35,18 +36,18 @@ describeStripe("stripe-provider", () => {
   ) => withMocks(() => stub(client.checkout.sessions, "retrieve", impl), body);
 
   describe("create checkout failures", () => {
-    const expectCheckoutFailure = (
+    const whileCreating = (
       client: Awaited<ReturnType<typeof stripeClient>>,
       createImpl: Awaited<
         ReturnType<typeof stripeClient>
       >["checkout"]["sessions"]["create"],
-      message: string,
+      body: (checkout: Promise<unknown>) => Promise<void>,
     ) =>
       withMocks(
         () => stub(client.checkout.sessions, "create", createImpl),
-        async () => {
+        () => {
           const listing = testListing({ unit_price: 1000 });
-          await expect(
+          return body(
             stripePaymentProvider.createCheckoutSession(
               checkoutIntent({
                 email: "john@example.com",
@@ -55,30 +56,33 @@ describeStripe("stripe-provider", () => {
               }),
               "http://localhost:3000",
             ),
-          ).rejects.toThrow(message);
+          );
         },
       );
 
-    test("throws when session has no id", async () => {
+    // A session with no id is a checkout nobody can be sent to, and every
+    // provider refuses that the same way.
+    test("refuses a created session that names no id", async () => {
       const client = await stripeClient();
-      await expectCheckoutFailure(
+      await whileCreating(
         client,
-        () =>
-          Promise.resolve(
-            stripeCheckoutSession({
-              id: "",
-            }),
-          ),
-        "Stripe checkout response is missing its id",
+        () => Promise.resolve(stripeCheckoutSession({ id: "" })),
+        (checkout) =>
+          expectClosedCheckoutFailure(checkout, {
+            provider: "stripe",
+            reason: "invalid_response",
+          }),
       );
     });
 
     test("propagates a checkout API failure", async () => {
       const client = await stripeClient();
-      await expectCheckoutFailure(
+      await whileCreating(
         client,
         () => Promise.reject(new Error("API error")),
-        "API error",
+        async (checkout) => {
+          await expect(checkout).rejects.toThrow("API error");
+        },
       );
     });
   });

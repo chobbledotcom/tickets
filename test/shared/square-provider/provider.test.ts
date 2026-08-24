@@ -261,9 +261,9 @@ describeSquare(() => {
           refundsRefundPayment: () =>
             Promise.resolve({
               refund: {
-                amount_money: { amount: 2000, currency: "GBP" },
+                amountMoney: { amount: 2000n, currency: "GBP" },
                 id: "refund_prov",
-                payment_id: "pay_prov_ref",
+                paymentId: "pay_prov_ref",
                 status: "COMPLETED",
               },
             }),

@@ -7,6 +7,7 @@ import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
@@ -109,7 +110,7 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("createCheckoutSession - via provider", () => {
-    test("throws when a created session has no URL", async () => {
+    test("refuses a created session that names no address", async () => {
       const client = await stripeClient();
       await withMocks(
         () =>
@@ -121,14 +122,14 @@ describeStripe("stripe-provider", () => {
               }),
             ),
           ),
-        async () => {
-          await expect(
+        () =>
+          expectClosedCheckoutFailure(
             stripePaymentProvider.createCheckoutSession(
               checkoutIntent({ email: "jane@example.com", name: "Jane" }),
               "http://localhost:3000",
             ),
-          ).rejects.toThrow("Stripe checkout response is missing its URL");
-        },
+            { provider: "stripe", reason: "invalid_response" },
+          ),
       );
     });
   });

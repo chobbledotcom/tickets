@@ -4,9 +4,12 @@ import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
+import type { SquareRefund } from "#shared/square/wire.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import {
   squareRefundRequest,
+  withSquareAnswer,
   withSquareClient,
 } from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
@@ -29,7 +32,7 @@ const refundRequest = (
   );
 
 const refundOutcomeFor = async (
-  refund: unknown,
+  refund: { refund: SquareRefund },
   request = refundRequest(),
 ): Promise<RefundAttemptResult> => {
   let result: RefundAttemptResult = {
@@ -45,33 +48,40 @@ const refundOutcomeFor = async (
   return result;
 };
 
+/** One refund answer, in the shape the client hands the engine. */
 const squareRefund = (
-  status: "COMPLETED" | "PENDING" | "REJECTED" | "FAILED",
-  overrides: Record<string, unknown> = {},
-) => ({
+  status: SquareRefund["status"],
+  overrides: Partial<SquareRefund> = {},
+): { refund: SquareRefund } => ({
   refund: {
-    amount_money: { amount: 4200, currency: "GBP" },
+    amountMoney: { amount: 4200n, currency: "GBP" },
     id: `refund_${status.toLowerCase()}`,
-    payment_id: "pay_refund_me",
+    paymentId: "pay_refund_me",
     status,
     ...overrides,
   },
 });
 
+/** One refund answer as Square words it on the wire. */
+const squareRefundBody = (overrides: Record<string, unknown> = {}) => ({
+  refund: {
+    amount_money: { amount: 4200, currency: "GBP" },
+    id: "refund_completed",
+    payment_id: "pay_refund_me",
+    status: "COMPLETED",
+    ...overrides,
+  },
+});
+
 describeSquare(() => {
+  const errors = setupErrorSpy();
+
   describe("refundCharge", () => {
     test("uses the admitted charge without reading the payment again", async () => {
       await withSquareClient(
         {
           refundsRefundPayment: () =>
-            Promise.resolve({
-              refund: {
-                amount_money: { amount: 4200, currency: "GBP" },
-                id: "refund_123",
-                payment_id: "pay_refund_me",
-                status: "COMPLETED",
-              },
-            }),
+            Promise.resolve(squareRefund("COMPLETED", { id: "refund_123" })),
         },
         async ({ paymentsGet, refundsRefundPayment }) => {
           const result = await squareApi.refundCharge(
@@ -139,32 +149,32 @@ describeSquare(() => {
     test("keeps a refund for another payment uncertain", async () => {
       expect(
         await refundOutcomeFor(
-          squareRefund("COMPLETED", { payment_id: "pay_other" }),
+          squareRefund("COMPLETED", { paymentId: "pay_other" }),
         ),
       ).toEqual({ kind: "uncertain", reason: "mismatched_parent" });
     });
 
     for (const [name, amountMoney] of [
-      ["amount", { amount: 4199, currency: "GBP" }],
-      ["currency", { amount: 4200, currency: "USD" }],
+      ["amount", { amount: 4199n, currency: "GBP" }],
+      ["currency", { amount: 4200n, currency: "USD" }],
     ] as const) {
       test(`keeps a refund with the wrong ${name} uncertain`, async () => {
         expect(
-          await refundOutcomeFor(
-            squareRefund("COMPLETED", { amount_money: amountMoney }),
-          ),
+          await refundOutcomeFor(squareRefund("COMPLETED", { amountMoney })),
         ).toEqual({ kind: "uncertain", reason: "mismatched_money" });
       });
     }
 
-    for (const [name, response] of [
+    // An answer Square words in a way we cannot read leaves the refund
+    // uncertain: the money may well have moved, so nothing may call it rejected.
+    for (const [name, body] of [
       ["missing refund", {}],
-      ["empty id", squareRefund("COMPLETED", { id: "" })],
-      ["blank id", squareRefund("COMPLETED", { id: " " })],
-      ["unknown status", squareRefund("COMPLETED", { status: "APPROVED" })],
+      ["empty id", squareRefundBody({ id: "" })],
+      ["blank id", squareRefundBody({ id: " " })],
+      ["unknown status", squareRefundBody({ status: "APPROVED" })],
       [
         "unsafe amount",
-        squareRefund("COMPLETED", {
+        squareRefundBody({
           amount_money: {
             amount: Number.MAX_SAFE_INTEGER + 1,
             currency: "GBP",
@@ -173,10 +183,15 @@ describeSquare(() => {
       ],
     ] as const) {
       test(`keeps a ${name} answer uncertain`, async () => {
-        expect(await refundOutcomeFor(response)).toEqual({
+        const outcome = await withSquareAnswer(body, () =>
+          squareApi.refundCharge(refundRequest()),
+        );
+        expect(outcome).toEqual({
           kind: "uncertain",
           reason: "malformed_response",
         });
+        // The operator has to see a refund nobody can account for.
+        expect(errors.contains("E_SQUARE_REFUND")).toBe(true);
       });
     }
 

@@ -12,6 +12,7 @@ import {
   configureSquare,
   expectNoLink,
   linkResult,
+  withSquareAnswer,
   withSquareClient,
 } from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
@@ -175,21 +176,13 @@ describeSquare(() => {
       );
     });
 
-    test("rejects a successful response missing its URL", async () => {
+    test("refuses a created link that names no address", async () => {
       await configureSquare({ locationId: "L_loc_456" });
-      await withSquareClient(
-        {
-          checkoutCreate: () =>
-            Promise.resolve({
-              paymentLink: { orderId: "order_abc" },
-            }),
-        },
-        async () => {
-          await expectClosedCheckoutFailure(
-            squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
-            { provider: "square", reason: "invalid_response" },
-          );
-        },
+      await expectClosedCheckoutFailure(
+        withSquareAnswer({ payment_link: { order_id: "order_abc" } }, () =>
+          squareApi.createPaymentLink(checkoutIntent(), "http://localhost"),
+        ),
+        { provider: "square", reason: "invalid_response" },
       );
     });
   });
