@@ -10,7 +10,7 @@
 
 import type { InValue } from "@libsql/client";
 import { queryOnePrimary, type SqlStatement } from "#db/client.ts";
-import { allConditions, type NumberedSql } from "#db/numbered-statement.ts";
+import type { NumberedSql } from "#db/numbered-statement.ts";
 import { mapByIds } from "#db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -46,13 +46,12 @@ const modifierStockCondition =
   (usage: ModifierUsage): NumberedSql =>
   (bind) => {
     const modifierId = bind(usage.modifierId);
-    const quantity = bind(usage.quantity);
     return `((SELECT stock FROM modifiers WHERE id = ${modifierId}) IS NULL
            OR (SELECT stock FROM modifiers WHERE id = ${modifierId})
                - COALESCE(
                    (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ${modifierId}),
                    0
-                 ) >= ${quantity})`;
+                  ) >= ${bind(usage.quantity)})`;
   };
 
 /**
@@ -62,7 +61,11 @@ const modifierStockCondition =
  * so the booking's capacity clause stands alone. */
 export const allModifiersInStockCondition = (
   usages: ModifierUsage[],
-): NumberedSql => allConditions(usages.map(modifierStockCondition));
+): NumberedSql => {
+  if (usages.length === 0) return () => "1 = 1";
+  const parts = usages.map(modifierStockCondition);
+  return (bind) => parts.map((part) => part(bind)).join(" AND ");
+};
 
 /**
  * One guarded `modifier_usages` insert — the single place the usage column list

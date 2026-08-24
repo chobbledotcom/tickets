@@ -1,7 +1,6 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#accounting/projection-sql.ts";
 import type { SqlStatement } from "#db/client.ts";
-import { ALWAYS_TRUE } from "#db/numbered-statement.ts";
 import { preparePaymentReferenceWrite } from "#db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
@@ -14,7 +13,7 @@ import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
  * `requiredWhen` lets a conditional operation remain a normal no-op when its
  * business precondition no longer holds. */
 const paymentFinalizeGuard = (
-  requiredWhen = ALWAYS_TRUE,
+  requiredWhen = "1 = 1",
   requiredWhenArgs: InValue[] = [],
 ): SqlStatement => ({
   args: [1, ...requiredWhenArgs],
@@ -46,7 +45,7 @@ const buildFinalizeStatements = async (
   ticketTokens: string[],
   guard: string,
   guardArgs: InValue[] = [],
-  standDownWhen = ALWAYS_TRUE,
+  standDownWhen = "1 = 1",
 ): Promise<SqlStatement[]> => {
   const referenceWrite = await preparePaymentReferenceWrite(paymentReference);
   return [
@@ -88,7 +87,7 @@ export const batchFinalizeStatements = (
     sessionId,
     paymentReference,
     [ticketToken],
-    ALWAYS_TRUE,
+    "1 = 1",
   );
 
 /** Finalize a balance payment only while the attendee still owes the expected

@@ -212,11 +212,9 @@ const linkImageStatement = (
 ): SqlStatement =>
   numberedStatement((bind) => {
     const image = bind(imageId);
-    const kind = bind(target.kind);
     const itemId = bind(target.id);
-    const order = bind(sortOrder);
     return `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-          SELECT ${image}, ${kind}, ${itemId}, ${order}
+          SELECT ${image}, ${bind(target.kind)}, ${itemId}, ${bind(sortOrder)}
            WHERE EXISTS (SELECT 1 FROM images WHERE id = ${image})
              AND ${imageUseTargets.existsSql(target.kind, itemId)}`;
   });

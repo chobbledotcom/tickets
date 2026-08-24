@@ -11,8 +11,8 @@ import type {
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import {
+  ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
-  attendeeIdByToken,
   type BookingBatchPlan,
   bookingBatchCondition,
   type PreparedWrite,
@@ -125,14 +125,15 @@ const prepareAttendeeWrite = async (
     input.ticketToken ?? generateTicketToken(),
   );
 
-  const bookingStatements = bookings.map((booking) =>
-    buildCapacityCheckedInsert(
+  const bookingStatements = bookings.map((booking) => {
+    const statement = buildCapacityCheckedInsert(
       booking,
-      attendeeIdByToken(enc.ticketTokenIndex),
+      (bind) => ATTENDEE_BY_TOKEN_SQL.replace("?", bind(enc.ticketTokenIndex)),
       allowOverbook,
       extraCondition,
-    ),
-  );
+    );
+    return statement;
+  });
   const hasRealBooking = bookings.some(
     (booking) => (booking.quantity ?? 1) > 0,
   );

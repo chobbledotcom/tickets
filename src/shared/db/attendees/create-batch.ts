@@ -13,11 +13,7 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#db/modifier-usage.ts";
-import {
-  ALWAYS_TRUE,
-  allConditions,
-  type NumberedSql,
-} from "#db/numbered-statement.ts";
+import type { NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -47,17 +43,9 @@ export type BookingBatchPlan = {
   };
 };
 
-const attendeeByToken = (idSql: string): string =>
-  `(SELECT id FROM attendees WHERE ticket_token_index = ${idSql})`;
-
 /** The newly inserted attendee is always found by its unique stable token. */
-export const ATTENDEE_BY_TOKEN_SQL = attendeeByToken("?");
-
-/** The same token lookup for a numbered statement, binding the token itself. */
-export const attendeeIdByToken =
-  (tokenIndex: string): NumberedSql =>
-  (bind) =>
-    attendeeByToken(bind(tokenIndex));
+export const ATTENDEE_BY_TOKEN_SQL =
+  "(SELECT id FROM attendees WHERE ticket_token_index = ?)";
 
 /** Abort the batch if the immediately preceding guarded booking did not insert
  * exactly one row. The deliberate NOT NULL failure rolls back every write. */
@@ -139,7 +127,7 @@ export const writeAsBatch = (
 ): Promise<WriteOutcome | null> => runAtomicBatch(prepared);
 
 const noExistingLedgerCondition = (legs: TransferInput[]): NumberedSql => {
-  if (legs.length === 0) return () => ALWAYS_TRUE;
+  if (legs.length === 0) return () => "1 = 1";
   const references = legs.map((leg) => leg.reference);
   return (bind) => {
     const eventGroup = bind(legs[0]!.eventGroup);
@@ -149,11 +137,14 @@ const noExistingLedgerCondition = (legs: TransferInput[]): NumberedSql => {
   };
 };
 
-export const bookingBatchCondition = (plan: BookingBatchPlan): NumberedSql =>
-  allConditions([
+export const bookingBatchCondition = (plan: BookingBatchPlan): NumberedSql => {
+  const conditions = [
     allModifiersInStockCondition(plan.usages),
     noExistingLedgerCondition(plan.legs),
-  ]);
+  ];
+  return (bind) =>
+    conditions.map((condition) => `(${condition(bind)})`).join(" AND ");
+};
 
 /** Create the attendee, all bookings, modifiers, ledger, contact activity, and
  * optional payment finalization in one transaction. */
@@ -163,7 +154,7 @@ export const writeAsLedgerBatch = async (
 ): Promise<WriteOutcome | null> => {
   assertPostable(plan.legs);
   const tokenIndex = prepared.enc.ticketTokenIndex;
-  const always = { args: [], sql: ALWAYS_TRUE };
+  const always = { args: [], sql: "1 = 1" };
   const recordedAt = nowIso();
   const usages = plan.usages.map((usage) =>
     usageInsert(usage, ATTENDEE_BY_TOKEN_SQL, [tokenIndex], always),
