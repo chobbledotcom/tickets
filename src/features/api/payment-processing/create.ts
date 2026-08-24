@@ -28,6 +28,8 @@ import {
   paidByItem,
 } from "#routes/api/payment-processing/pricing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
+/* jscpd:ignore-end */
+import { refusedOrderItem } from "#shared/attendee-failures.ts";
 import {
   type BookingIntent,
   type BookingItem,
@@ -44,7 +46,6 @@ import type {
   ModifierApplication,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-/* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {
@@ -360,13 +361,17 @@ export const createAttendeeForSession = async (
   if (!result.success) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it conceals. Same guard as the free path.
-    // The named arm needs one listing: a paid checkout always has at least one
-    // validated item, so the first is guaranteed to exist.
+    // A non-package order names the first validated item whose listing the
+    // refusal says is out of room, else its first item.
     const errorName = pricingIntent.items.some(
       (item) => item.packageGroupId !== undefined,
     )
       ? ""
-      : validatedItems[0]!.listing.name;
+      : refusedOrderItem(
+          validatedItems,
+          (item) => item.listing.id,
+          result.listingIds,
+        ).listing.name;
     return {
       detail: formatPostPaymentError(errorName),
       ok: false,

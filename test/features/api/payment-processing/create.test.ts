@@ -115,6 +115,7 @@ type PreparationOptions = {
   matchingPricedItem?: boolean;
   packageGroupId?: number;
   reservationAmount?: string;
+  secondListingName?: string;
   total: number;
 };
 
@@ -150,9 +151,27 @@ const preparationResult = (options: PreparationOptions) => {
     phone: "",
     special_instructions: "",
   };
+  // A free second listing keeps the order's totals whole while giving the
+  // capacity refusal a later line to name.
+  const secondListing =
+    options.secondListingName === undefined
+      ? null
+      : testListingWithCount({
+          id: 2,
+          name: options.secondListingName,
+          unit_price: 0,
+        });
+  const secondBookingItem = { e: 2, p: 0, q: 1 };
+  const secondCheckoutItem = {
+    listingId: 2,
+    name: options.secondListingName ?? "",
+    quantity: 1,
+    slug: "second-choice",
+    unitPrice: 0,
+  };
   const intent: BookingIntent = {
     ...contact,
-    items: [bookingItem],
+    items: secondListing ? [bookingItem, secondBookingItem] : [bookingItem],
     modifiers: [],
     ...(options.reservationAmount === undefined
       ? {}
@@ -160,7 +179,7 @@ const preparationResult = (options: PreparationOptions) => {
   };
   const pricingIntent: CheckoutIntent = {
     ...contact,
-    items: [checkoutItem],
+    items: secondListing ? [checkoutItem, secondCheckoutItem] : [checkoutItem],
   };
   const pricedOrder: PricedOrder = {
     extras: [],
@@ -174,6 +193,9 @@ const preparationResult = (options: PreparationOptions) => {
             : checkoutItem,
         quantity: 1,
       },
+      ...(secondListing
+        ? [{ chargedUnitAmount: 0, item: secondCheckoutItem, quantity: 1 }]
+        : []),
     ],
     modifierApplications: [],
     total: options.total,
@@ -191,7 +213,18 @@ const preparationResult = (options: PreparationOptions) => {
   return createAttendeeForSession(
     session,
     intent,
-    [{ expectedPrice: 1000, item: bookingItem, listing }],
+    [
+      { expectedPrice: 1000, item: bookingItem, listing },
+      ...(secondListing
+        ? [
+            {
+              expectedPrice: 0,
+              item: secondBookingItem,
+              listing: secondListing,
+            },
+          ]
+        : []),
+    ],
     pricingIntent,
     pricedOrder,
     "stable-ticket-token",
@@ -260,6 +293,27 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       detail: "a chosen add-on or extra sold out during payment",
       ok: false,
       reason: "sold_out",
+    });
+  });
+
+  test("names the listing the refusal says sold out, not the order's first", async () => {
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.resolve({
+        listingIds: [2],
+        reason: "capacity_exceeded",
+        success: false,
+      }),
+    );
+    expect(
+      await preparationResult({
+        secondListingName: "Second choice",
+        total: 1000,
+      }),
+    ).toEqual({
+      detail:
+        "Sorry, Second choice sold out while you were completing payment.",
+      ok: false,
+      reason: "capacity_exceeded",
     });
   });
 

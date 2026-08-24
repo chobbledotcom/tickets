@@ -58,6 +58,7 @@ import { compact, requiredMapValue, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { refusedOrderItem } from "#shared/attendee-failures.ts";
 /* jscpd:ignore-start */
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import {
@@ -457,9 +458,11 @@ export const createFreeReservation = async ({
     // listing the refusal says is out of room; when it names none (the room
     // freed again, or the failure was not one listing's), the first item's
     // name stands in as before.
-    const unfit = new Set(result.listingIds);
-    const namedItem =
-      items.find((item) => unfit.has(item.listingId)) ?? items[0]!;
+    const namedItem = refusedOrderItem(
+      items,
+      (item) => item.listingId,
+      result.listingIds,
+    );
     const errorName = items.some((item) => item.packageGroupId !== undefined)
       ? ""
       : requiredMapValue(

@@ -30,6 +30,7 @@ import { annotateOrderParents } from "#db/attendees/order-parents.ts";
 import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { insert, type SqlStatement } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
+import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
 import { compact, unique } from "#fp";
@@ -239,25 +240,27 @@ const firstUnfitInOrder = async (
     listingId: booking.listingId,
     quantity: booking.quantity ?? 1,
   }));
+  // The refusal already stands; this read only picks the name. A line whose
+  // listing is gone — deleted before this read, or never real — is the one
+  // absence expected here, so it keeps the refusal and names no listing.
+  // Any other failure in these reads is real and surfaces.
+  const listings = await getListingsWithCountsByIds(
+    items.map((item) => item.listingId),
+  );
+  if (listings.some((listing) => listing === null)) return [];
   const days = unique(compact(bookings.map((booking) => booking.date)));
-  try {
-    if (days.length > 1) {
-      return await unfitListingIds(
-        items.map((item, index) => ({
-          ...item,
-          date: bookings[index]!.date ?? null,
-        })),
-      );
+  if (days.length > 1) {
+    return unfitListingIds(
+      items.map((item, index) => ({
+        ...item,
+        date: bookings[index]!.date ?? null,
+      })),
+    );
+  }
+  for (let end = 1; end <= items.length; end++) {
+    if (!(await checkBatchAvailabilityImpl(items.slice(0, end), days[0]))) {
+      return [bookings[end - 1]!.listingId];
     }
-    for (let end = 1; end <= items.length; end++) {
-      if (!(await checkBatchAvailabilityImpl(items.slice(0, end), days[0]))) {
-        return [bookings[end - 1]!.listingId];
-      }
-    }
-  } catch {
-    // The refusal already stands; this read only picks the name. A line the
-    // check cannot answer for — its listing gone before this read, or never
-    // real — keeps the refusal and names no listing, the documented fallback.
   }
   return [];
 };
