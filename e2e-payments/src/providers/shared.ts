@@ -296,6 +296,54 @@ export const hostedCheckout =
     return await drive(page, ctx);
   };
 
+/** What one provider's connection test must say to count as passed. */
+export type ConnectionCheck = {
+  /** The line logged when it passes. */
+  passed: string;
+  /** Lines the answer must carry. */
+  require: readonly string[];
+  /** One more rule the provider owns, naming what is wrong, or null. */
+  alsoWrong?: ((text: string) => string | null) | undefined;
+};
+
+/**
+ * Ask a provider's "Test Connection" button, and read what it answered.
+ *
+ * A provider says only which lines its own answer must carry, and can add one
+ * rule of its own. The click, the wait, the success class, the log line and
+ * the dumped page on failure are the same for every provider.
+ */
+export const testProviderConnection = async (
+  session: BrowserSession,
+  provider: ProviderName,
+  check: ConnectionCheck,
+): Promise<void> => {
+  const result = session.page.locator(`#${provider}-test-result`);
+  await session.page.evaluate((id) => {
+    const button = document.getElementById(id);
+    if (button) button.click();
+  }, `${provider}-test-btn`);
+  await result.waitFor({ state: "visible", timeout: config.navTimeoutMs });
+
+  const text = await result.innerText();
+  const missing = check.require.filter((line) => !text.includes(line));
+  const alsoWrong = check.alsoWrong?.(text) ?? null;
+  const succeeded = await result.evaluate((element) =>
+    element.classList.contains("success"),
+  );
+  if (succeeded && missing.length === 0 && alsoWrong === null) {
+    log(`  ${check.passed}`);
+    return;
+  }
+
+  await session.dumpPage(`${provider}-connection-test-failed`);
+  throw new Error(
+    `The ${provider} connection test did not pass. ` +
+      `Missing: ${missing.join(", ") || "none"}. ` +
+      `${alsoWrong === null ? "" : `${alsoWrong}. `}Result:\n${text}`,
+  );
+};
+
 /** The honest no-op cleanup for providers whose sandbox resources are all
  * append-only (payments, refunds) with nothing ephemeral to remove. */
 export const noProviderCleanup = (): Promise<void> => Promise.resolve();

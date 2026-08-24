@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import type { BrowserSession } from "#e2e/browser.ts";
-import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import {
@@ -10,6 +9,7 @@ import {
   providerFetch,
   refundObservationVia,
   requiredField,
+  testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
 
@@ -34,36 +34,22 @@ const saveStripeKey = async (
   await session.clickButton("Update Stripe Key");
 };
 
-const testStripeConnection = async (session: BrowserSession): Promise<void> => {
-  const result = session.page.locator("#stripe-test-result");
-  await session.page.evaluate(() => {
-    const btn = document.getElementById("stripe-test-btn");
-    if (btn) btn.click();
-  });
-  await result.waitFor({ state: "visible", timeout: config.navTimeoutMs });
-
-  const text = await result.innerText();
+/** Ask the owner's "Test Connection" button about Stripe. Beyond the key, it
+ * proves the rotation left exactly one of our webhook endpoints behind. */
+const testStripeConnection = (session: BrowserSession): Promise<void> => {
   const webhookUrl = `${session.baseUrl}/payment/webhook`;
-  const missing = [
-    "API Key: Valid (test mode)",
-    `${webhookUrl} (tickets)`,
-    "Events: checkout.session.completed",
-  ].filter((expected) => !text.includes(expected));
-  const webhookCount = text.split(webhookUrl).length - 1;
-  const passed = await result.evaluate((element) =>
-    element.classList.contains("success"),
-  );
-  if (passed && missing.length === 0 && webhookCount === 1) {
-    log("  Stripe connection, webhook listing, and endpoint rotation passed");
-    return;
-  }
-
-  await session.dumpPage("stripe-connection-test-failed");
-  throw new Error(
-    "Stripe connection test did not confirm one current webhook endpoint. " +
-      `Missing: ${missing.join(", ") || "none"}; ` +
-      `current endpoint count: ${webhookCount}. Result:\n${text}`,
-  );
+  return testProviderConnection(session, "stripe", {
+    alsoWrong: (text) => {
+      const endpoints = text.split(webhookUrl).length - 1;
+      return endpoints === 1 ? null : `current endpoint count: ${endpoints}`;
+    },
+    passed: "Stripe connection, webhook listing, and endpoint rotation passed",
+    require: [
+      "API Key: Valid (test mode)",
+      `${webhookUrl} (tickets)`,
+      "Events: checkout.session.completed",
+    ],
+  });
 };
 
 /** The checkout session id embedded in the hosted page's URL (cs_test_…). */
