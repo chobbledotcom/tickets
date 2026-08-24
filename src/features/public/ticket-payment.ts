@@ -58,6 +58,7 @@ import { compact, requiredMapValue, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { refusedOrderItem } from "#shared/attendee-failures.ts";
 /* jscpd:ignore-start */
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import {
@@ -453,10 +454,22 @@ export const createFreeReservation = async ({
   if (!result.success) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it concealed. Omit the name (generic
-    // message) for a package; a non-package order keeps its first listing's name.
+    // message) for a package. A non-package order names the first item whose
+    // listing the refusal says is out of room; when it names none (the room
+    // freed again, or the failure was not one listing's), the first item's
+    // name stands in as before.
+    const namedItem = refusedOrderItem(
+      items,
+      (item) => item.listingId,
+      result.listingIds,
+    );
     const errorName = items.some((item) => item.packageGroupId !== undefined)
       ? ""
-      : listingById.get(items[0]!.listingId)!.name;
+      : requiredMapValue(
+          listingById,
+          namedItem.listingId,
+          `Listing ${namedItem.listingId} was not loaded for checkout`,
+        ).name;
     return {
       error: formatAtomicError(result.reason, errorName),
       success: false,

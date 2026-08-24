@@ -6,7 +6,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { requireAttendee } from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-const CAPACITY_FAILURE = { reason: "capacity_exceeded", success: false };
+// A malformed order names no listing — it is not a capacity shortfall.
+const CAPACITY_FAILURE = {
+  listingIds: [],
+  reason: "capacity_exceeded",
+  success: false,
+};
 
 describeWithEnv("db > attendees > create validation", { db: true }, () => {
   test("rejects an empty booking list", async () => {

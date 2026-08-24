@@ -1,25 +1,40 @@
 # TODO — remaining follow-ups
 
-## A refused multi-listing order names the wrong listing as full
+## Name the culprit per date in a multi-date refusal (from PR #2127)
 
-`createOrderEntries` in `src/features/public/ticket-payment.ts` builds the
-capacity refusal for a non-package order with
-`listingById.get(items[0]!.listingId)!.name` — always the order's **first**
-listing. When a later line is the one out of room, the customer reads the wrong
-name. Reproduce: a combined free order for a standard listing plus a day-booked
-listing whose chosen day is full, with the standard listing first on the page —
-the refusal says the standard listing has no spots while its dropdown beside it
-still offers plenty. The atomic create result (`capacity_exceeded` in
-`src/shared/db/attendees/create.ts`) carries no listing id, so the caller has
-nothing better to name; `atomic-update.ts` already returns `listingIds` on the
-same failure, so the create path can do the same. Fix: identify the booking
-statement that inserted zero rows in `writeAsBatch`, return its listing id in
-the failure, and name that listing (keeping the package-concealment branch as it
-is). Ship a direct regression test beside it. Until then the stories
-`@case:typed.counts-and-contact-details-survive` and
-`@case:order.a-full-thing-turns-the-order-away` put the day-booked listing first
-on the page so the name the site shows is the true one — when the fix lands,
-reorder one of them to pin the correct name for a later line too.
+`refusedOrderUnfitListingIds` (`src/shared/db/attendees/capacity/checks.ts`)
+asks each line alone when a refused creation's lines sit on more than one date.
+Two same-date lines that only fail together — a shared group limit — then name
+no listing, and the operator sees the generic capacity message. That message is
+the same one the site showed before the diagnosis existed, so nothing regressed.
+Only an operator's hand-built creation can carry multi-date lines; the public
+checkout books every dated line on one day.
+
+To improve: group the lines by date, run the prefix binary search within each
+date, and keep the write order when naming the first failed line. Codex and
+CodeRabbit both proposed this on PR #2127; it was declined there as
+operator-only polish outside the fix's scope.
+
+Related ceiling, same code: `buildBatchCapacitySql` and the diagnosis probes
+emit one clause per listing-day, so a same-date cart of roughly 12 daily lines
+at the 90-day maximum can pass SQLite's expression-depth limit (1,000). The paid
+checkout preflight (`checkBatchAvailabilityImpl`) hits it first, at checkout
+time. To lift it, aggregate the per-day counting inside the SQL (one clause per
+listing with a grouped per-day subquery) instead of one clause per day.
+
+Related divergence, same code: the guarded insert evaluates its capacity and
+active conditions for a zero-quantity line, but the read preflight and the
+diagnosis drop zero-total buckets — a pinned contract ("treats a zero-quantity
+item as a no-op that fits" in
+`test/shared/db/attendees/capacity/checks/batch.test.ts`). A zero line on an
+inactive or over-cap listing can therefore abort a write the preflight passed,
+and the refusal then names no listing (the pre-existing first-item fallback
+message). Aligning the three needs a behavior-contract decision on what a zero
+line promises, so it belongs to the same follow-up as the per-date diagnosis
+above.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2127#discussion_r3842274321>
 
 ---
 

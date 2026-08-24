@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 /* jscpd:ignore-start -- imports */
-import { checkListingAvailability as hasAvailableSpots } from "#db/attendees/capacity/checks.ts";
+import {
+  checkListingAvailability as hasAvailableSpots,
+  unfitListingIds,
+} from "#db/attendees/capacity/checks.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -161,5 +164,20 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       // limits for every day in the requested range.
       expect(getQueryLog().length).toBeLessThanOrEqual(2);
     });
+  });
+});
+
+describeWithEnv("db > attendees > unfitListingIds", { db: true }, () => {
+  test("keeps only the lines that do not fit", async () => {
+    const roomy = await createTestListing({ maxAttendees: 10 });
+    const full = await createTestListing({ maxAttendees: 1 });
+    await createTestAttendee(full.id, full.slug, "Full", "full@example.com");
+
+    expect(
+      await unfitListingIds([
+        { date: null, durationDays: 1, listingId: roomy.id, quantity: 1 },
+        { date: null, durationDays: 1, listingId: full.id, quantity: 1 },
+      ]),
+    ).toEqual([full.id]);
   });
 });

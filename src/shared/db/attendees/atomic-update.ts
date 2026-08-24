@@ -27,7 +27,7 @@ import type {
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
-  checkLinesCapacity,
+  unfitListingIds,
 } from "#db/attendees/capacity/checks.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
@@ -39,7 +39,6 @@ import {
   type SqlStatement,
 } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
-import { unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
@@ -155,15 +154,10 @@ export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
  * can be applied. The per-line `CAPACITY_GUARD` in the write batch still
  * closes the narrow window between this check and the commit.
  */
-const unfitLineListingIds = async (
+const unfitLineListingIds = (
   attendeeId: number,
   desired: AtomicDesiredLine[],
-): Promise<number[]> => {
-  const fits = await checkLinesCapacity(desired.map(lineBooking), attendeeId);
-  return unique(
-    desired.filter((_, i) => !fits[i]!).map((line) => line.listingId),
-  );
-};
+): Promise<number[]> => unfitListingIds(desired.map(lineBooking), attendeeId);
 
 /** The preflight capacity rejection, or null when every *changed* line fits
  *  (unchanged no-op preserves are excluded — see {@link isUnchangedLine}) or

@@ -115,6 +115,26 @@ export const getTestPackagePrices = async (
   return packageMemberMaps(await getGroupPackagePrices(groupId)).prices;
 };
 
+/** Two roomy listings whose shared group has one place left in total. Each
+ * fits alone, so only a check that counts an order's own lines together can
+ * tell the second line tips the limit. */
+export const createTwoListingsSharingOnePlace = async (): Promise<{
+  first: { id: number };
+  second: { id: number };
+}> => {
+  const shared = await createTestGroup({ maxAttendees: 1 });
+  const { createTestListing } = await import("./listings.ts");
+  const first = await createTestListing({
+    groupId: shared.id,
+    maxAttendees: 10,
+  });
+  const second = await createTestListing({
+    groupId: shared.id,
+    maxAttendees: 10,
+  });
+  return { first, second };
+};
+
 export type SoldPackageMember = {
   attendeeId: number;
   group: Group;

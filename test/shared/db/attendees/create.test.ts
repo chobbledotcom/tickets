@@ -322,7 +322,13 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       },
       plan,
     );
-    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    // Not a capacity shortfall — the room is fine, the ledger event already
+    // exists — so the refusal names no listing.
+    expect(result).toEqual({
+      listingIds: [],
+      reason: "capacity_exceeded",
+      success: false,
+    });
     await expectNothingWritten(listing.id, plan.legs.length);
     expect(
       (await getProcessedPayment("sess_batch_existing_ledger"))!.attendee_id,

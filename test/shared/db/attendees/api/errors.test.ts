@@ -40,6 +40,7 @@ describeWithEnv(
           () =>
             stub(attendeesApi, "createAttendeeAtomic", () =>
               Promise.resolve({
+                listingIds: [],
                 reason: "capacity_exceeded" as const,
                 success: false,
               }),

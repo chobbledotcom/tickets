@@ -368,21 +368,50 @@ const demandClauses = (
     });
   });
 
+/** One cart's whole demand, listing buckets beside group buckets. */
+export type CartDemand = {
+  groupDemand: Map<number, CapacityBucket>;
+  listingDemand: Map<number, CapacityBucket>;
+};
+
+/** A 1/0 expression: does this cart demand fit right now? */
+const fitExpression = (demand: CartDemand, bind: SqlParameter): string => {
+  const clauses = [
+    ...demandClauses(demand.listingDemand, bind, () => 0, listingCapClause),
+    ...demandClauses(
+      demand.groupDemand,
+      bind,
+      (bucket) => bucket.total,
+      groupCapClause,
+    ),
+  ];
+  return clauses.length === 0
+    ? "1"
+    : `CASE WHEN ${clauses.join(" AND ")} THEN 1 ELSE 0 END`;
+};
+
 export const buildBatchCapacitySql = (
   listingDemand: Map<number, CapacityBucket>,
   groupDemand: Map<number, CapacityBucket>,
 ): SqlStatement =>
-  numberedStatement((bind) => {
-    const clauses = [
-      ...demandClauses(listingDemand, bind, () => 0, listingCapClause),
-      ...demandClauses(
-        groupDemand,
-        bind,
-        (bucket) => bucket.total,
-        groupCapClause,
-      ),
-    ];
-    return clauses.length === 0
-      ? "SELECT 1 AS fits"
-      : `SELECT CASE WHEN ${clauses.join(" AND ")} THEN 1 ELSE 0 END AS fits`;
-  });
+  numberedStatement(
+    (bind) =>
+      `SELECT ${fitExpression({ groupDemand, listingDemand }, bind)} AS fits`,
+  );
+
+/** One SELECT answering several cart demands at once — `fit0`, `fit1`, … each
+ * 1/0. A refusal diagnosis asks every prefix of an order this way, so its
+ * cost stays one query however long the order is. */
+export const buildManyFitsSql = (demands: CartDemand[]): SqlStatement => {
+  if (demands.length === 0) {
+    throw new Error("A fits query needs at least one cart demand");
+  }
+  return numberedStatement(
+    (bind) =>
+      `SELECT ${demands
+        .map(
+          (demand, index) => `(${fitExpression(demand, bind)}) AS fit${index}`,
+        )
+        .join(", ")}`,
+  );
+};

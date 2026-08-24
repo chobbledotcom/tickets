@@ -42,8 +42,9 @@ Feature: A customer orders several things at once
   @surface:public
   Rule: One full thing turns the whole order away, and nothing is booked
     An order is taken whole or not at all. When one thing in it loses its last
-    place, the whole order is turned away for want of room, and no part of it
-    is booked — not even the things that still had room.
+    place, the customer is told which thing is full — wherever it sits in the
+    order — and no part of the order is booked, not even the things that
+    still had room.
 
     @case:order.a-full-thing-turns-the-order-away
     Scenario: The day-booked thing in an order loses its last place
