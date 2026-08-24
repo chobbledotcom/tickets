@@ -17,6 +17,10 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
+import {
+  PAYMENT_PROVIDER_IDS,
+  providerCheckoutFormOrigins,
+} from "#shared/payment-providers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const BASE_CSP =
@@ -78,6 +82,25 @@ describe("buildCspHeader", () => {
     expect(csp).toContain("https://api.squareupsandbox.com");
     expect(csp).not.toContain("https://connect.squareup.com");
   });
+
+  // A provider the chain never learned about used to fall through to a bare
+  // `form-action 'self'`, and the browser then blocked every buyer's redirect
+  // to its hosted checkout. The policy now reads the registry, so this holds
+  // for whatever providers the registry declares.
+  for (const provider of PAYMENT_PROVIDER_IDS) {
+    for (const sandbox of [false, true]) {
+      test(`names every ${provider} checkout origin (sandbox: ${sandbox})`, () => {
+        const csp = buildCspHeader(true, { provider, sandbox });
+        const formAction = csp
+          .split("; ")
+          .find((directive) => directive.startsWith("form-action "));
+        expect(formAction).toBeDefined();
+        for (const origin of providerCheckoutFormOrigins(provider, sandbox)) {
+          expect(formAction).toContain(origin);
+        }
+      });
+    }
+  }
 });
 
 describe("JSON paths", () => {

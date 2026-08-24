@@ -1,25 +1,12 @@
 /** The unforgeable permit carried by every provider refund call. */
 
-import * as v from "valibot";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { requireRefundGeneration } from "#payment/refund-generation.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
-/** Whether one exact provider request may safely be repeated. */
-export const RefundProviderCapabilitySchema = v.picklist(["keyed", "keyless"]);
-export type RefundProviderCapability = v.InferOutput<
-  typeof RefundProviderCapabilitySchema
->;
-
-/** Each provider declares the kind of durable retry authority it supports. */
-export const REFUND_PROVIDER_CAPABILITIES = {
-  square: "keyed",
-  stripe: "keyed",
-  sumup: "keyless",
-} as const satisfies Record<PaymentProviderType, RefundProviderCapability>;
-
 type KeyedProvider = {
-  [Provider in PaymentProviderType]: (typeof REFUND_PROVIDER_CAPABILITIES)[Provider] extends "keyed"
+  [Provider in PaymentProviderType]: (typeof PAYMENT_PROVIDERS)[Provider]["refundCapability"] extends "keyed"
     ? Provider
     : never;
 }[PaymentProviderType];
@@ -45,15 +32,15 @@ export type KeylessRefundAuthorization<
   readonly capability: "keyless";
 };
 
-interface RefundAuthorizationByProvider {
-  readonly square: KeyedRefundAuthorization<"square">;
-  readonly stripe: KeyedRefundAuthorization<"stripe">;
-  readonly sumup: KeylessRefundAuthorization<"sumup">;
-}
-
+/** The permit shape one provider takes, read off its declared capability: a
+ * keyed provider must carry an idempotency key, a keyless one must not. */
 export type RefundAuthorization<
   Provider extends PaymentProviderType = PaymentProviderType,
-> = RefundAuthorizationByProvider[Provider];
+> = Provider extends KeyedProvider
+  ? KeyedRefundAuthorization<Provider>
+  : Provider extends KeylessProvider
+    ? KeylessRefundAuthorization<Provider>
+    : never;
 
 const durableRefundPermit: unique symbol = Symbol("durable refund permit");
 
@@ -86,7 +73,7 @@ export const authorizeDurableRefundSend = <
   requireText(authorization.identityIndex, "identity index");
   if (
     authorization.capability !==
-    REFUND_PROVIDER_CAPABILITIES[authorization.provider]
+    PAYMENT_PROVIDERS[authorization.provider].refundCapability
   ) {
     throw new Error("Refund authorization does not match its provider");
   }
@@ -119,7 +106,8 @@ export function requireProviderRefundAuthorization<
   if (
     request[durableRefundPermit] !== true ||
     request.authorization.provider !== provider ||
-    request.authorization.capability !== REFUND_PROVIDER_CAPABILITIES[provider]
+    request.authorization.capability !==
+      PAYMENT_PROVIDERS[provider].refundCapability
   ) {
     throw new Error(`Refund authorization does not permit ${provider}`);
   }

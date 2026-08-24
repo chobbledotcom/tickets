@@ -4,10 +4,13 @@ import type { RefundRequest } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
-  REFUND_PROVIDER_CAPABILITIES,
   type RefundAuthorization,
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
+import {
+  PAYMENT_PROVIDER_IDS,
+  PAYMENT_PROVIDERS,
+} from "#shared/payment-providers.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 
 const request: RefundRequest = {
@@ -96,12 +99,15 @@ describe("durable refund provider authorization", () => {
     );
   });
 
-  test("declares every provider capability exhaustively", () => {
-    expect(REFUND_PROVIDER_CAPABILITIES).toEqual({
-      square: "keyed",
-      stripe: "keyed",
-      sumup: "keyless",
-    });
+  test("takes every provider's capability from the one registry", () => {
+    expect(
+      Object.fromEntries(
+        PAYMENT_PROVIDER_IDS.map((id) => [
+          id,
+          PAYMENT_PROVIDERS[id].refundCapability,
+        ]),
+      ),
+    ).toEqual({ square: "keyed", stripe: "keyed", sumup: "keyless" });
   });
 });
 

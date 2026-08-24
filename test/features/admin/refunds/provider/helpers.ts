@@ -7,7 +7,6 @@ import type {
 } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
-  type RefundProviderCapability,
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
 import type { RefundState } from "#payment/refund-state.ts";
@@ -22,9 +21,10 @@ import {
 import {
   prepareRefundReadiness,
   type ReadyRefundCandidate,
-  type ReadyRefundProvider,
   type ReadyRefundReference,
 } from "#routes/admin/refunds/readiness.ts";
+import type { RefundProviderCapability } from "#shared/payment-providers.ts";
+import type { RefundEngineProvider } from "#shared/provider-refunds.ts";
 import {
   acceptedRefund,
   chargeMoney,
@@ -37,7 +37,7 @@ type Reference = {
   reference: string;
   refundState?: RefundState;
 };
-export type RecordingProvider = ReadyRefundProvider & {
+export type RecordingProvider = RefundEngineProvider & {
   readCharge: (reference: string) => Promise<ProviderRead<ChargeMoney>>;
   reads: string[];
   refunds: string[];
@@ -209,7 +209,6 @@ export const provider = ({
         : ({ resource: charge, status: "found" } as const);
     },
     reads,
-    refundCapability,
     refundCharge: (request: AuthorizedRefundRequest) => {
       requireProviderRefundAuthorization(request, paymentProvider);
       return answerRefund(request);

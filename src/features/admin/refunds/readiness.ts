@@ -3,21 +3,17 @@ import { requiredMapValue, uniqueBy } from "#fp";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
-import type { PaymentProvider } from "#shared/payments.ts";
-import { loadRefundProvider } from "#shared/provider-refunds.ts";
+import {
+  loadRefundProvider,
+  type RefundEngineProvider,
+} from "#shared/provider-refunds.ts";
 import type { PaymentProviderType } from "#types";
 import type { RefundCandidate } from "./candidates.ts";
 import type { HeldRefundClaim } from "./claim.ts";
 import { mapProviderRequests } from "./provider-requests.ts";
 
-/** The provider surface an already-read refund attempt still needs. */
-export type ReadyRefundProvider = Pick<
-  PaymentProvider,
-  "readCharge" | "refundCapability" | "refundCharge" | "type"
->;
-
 type ReadyRefundReferenceBase = {
-  provider: ReadyRefundProvider;
+  provider: RefundEngineProvider;
   reference: TaggedRefundPaymentReference;
 };
 
@@ -65,7 +61,7 @@ export type RefundReadinessResult =
 export type RefundReadinessDependencies = {
   loadProvider: (
     reference: TaggedPaymentReference,
-  ) => Promise<ReadyRefundProvider>;
+  ) => Promise<RefundEngineProvider>;
 };
 
 const DEFAULT_DEPENDENCIES: RefundReadinessDependencies = {
@@ -129,7 +125,7 @@ const evidenceFailed = (
 
 const readReference = async (
   reference: TaggedRefundPaymentReference,
-  providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
+  providers: ReadonlyMap<PaymentProviderType, RefundEngineProvider>,
 ): Promise<PreparedEvidence> => {
   const read = await requiredMapValue(
     providers,
@@ -160,7 +156,7 @@ const readReference = async (
 
 const readReferences = (
   references: readonly TaggedRefundPaymentReference[],
-  providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
+  providers: ReadonlyMap<PaymentProviderType, RefundEngineProvider>,
 ): Promise<PreparedEvidence[]> =>
   mapProviderRequests(references, (reference) =>
     readReference(reference, providers),
@@ -173,7 +169,7 @@ const alreadyReturnedReference = (
 const loadProviders = async (
   references: readonly TaggedRefundPaymentReference[],
   loadProvider: RefundReadinessDependencies["loadProvider"],
-): Promise<ReadonlyMap<PaymentProviderType, ReadyRefundProvider>> => {
+): Promise<ReadonlyMap<PaymentProviderType, RefundEngineProvider>> => {
   const providerReferences = uniqueBy(
     ({ provider }: TaggedRefundPaymentReference) => provider,
   )([...references]);
@@ -182,7 +178,7 @@ const loadProviders = async (
       providerReferences.map(
         async (
           reference,
-        ): Promise<readonly [PaymentProviderType, ReadyRefundProvider]> => [
+        ): Promise<readonly [PaymentProviderType, RefundEngineProvider]> => [
           reference.provider,
           await loadProvider(reference),
         ],
@@ -193,7 +189,7 @@ const loadProviders = async (
 
 const readyReference = (
   prepared: PreparedReference,
-  provider: ReadyRefundProvider,
+  provider: RefundEngineProvider,
   reference: TaggedRefundPaymentReference,
 ): ReadyRefundReference =>
   prepared.kind === "already_returned"
@@ -208,7 +204,7 @@ const readyReference = (
 const readyCandidates = (
   candidates: readonly RefundCandidate[],
   preparedByIndex: ReadonlyMap<string, PreparedReference>,
-  providers: ReadonlyMap<PaymentProviderType, ReadyRefundProvider>,
+  providers: ReadonlyMap<PaymentProviderType, RefundEngineProvider>,
 ): ReadyRefundCandidate[] =>
   candidates.map((candidate) => ({
     attendee: candidate.attendee,

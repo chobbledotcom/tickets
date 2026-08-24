@@ -20,7 +20,7 @@ import {
   refundStateMirror,
   writeRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#payment/refund-provider-authorization.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { PaymentProviderType } from "#types";
 /* jscpd:ignore-end */
@@ -179,7 +179,7 @@ export interface PreparedRefundAuthority {
 
 const requireCreateFacts = (input: CreateRefundAuthority): void => {
   if (
-    REFUND_PROVIDER_CAPABILITIES[input.reference.provider] !==
+    PAYMENT_PROVIDERS[input.reference.provider].refundCapability !==
     input.state.request.capability
   ) {
     throw new Error("Refund authority facts disagree");

@@ -23,7 +23,7 @@ import type {
   RefundConflictDecision,
   RefundOwnerDecision,
 } from "#payment/refund-conflict-decision.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#payment/refund-provider-authorization.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import { isPaymentProvider, type PaymentProviderType } from "#types";
 
@@ -173,7 +173,9 @@ export const readProviderRefundCaseState = (
     throw new Error("Payment charge refund-state mirrors do not match");
   }
   const provider = providerFrom(row.provider);
-  if (state.request.capability !== REFUND_PROVIDER_CAPABILITIES[provider]) {
+  if (
+    state.request.capability !== PAYMENT_PROVIDERS[provider].refundCapability
+  ) {
     throw new Error("Payment charge refund capability does not match provider");
   }
   return state;

@@ -40,6 +40,10 @@ import {
 } from "#shared/env.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
+import {
+  type PaymentProviderMode,
+  paymentProviderMode,
+} from "#shared/payment-provider-status.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getRuntimeInfo } from "#shared/runtime.ts";
 import { sendSentryTest } from "#shared/sentry.ts";
@@ -49,6 +53,7 @@ import {
   type DebugPageState,
   SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
+import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -158,7 +163,9 @@ const validateGooglePrivateKey = async (
 };
 
 /** Whether the configured payment provider has its webhook config set. */
-const webhookConfiguredFor = (provider: string | null): boolean => {
+const webhookConfiguredFor = (
+  provider: PaymentProviderType | null,
+): boolean => {
   const configured = providerValue(provider, {
     square: settings.square.webhookSignatureKey !== EMPTY_DEBUG_VALUE,
     stripe: settings.stripe.webhookEndpointId !== EMPTY_DEBUG_VALUE,
@@ -167,23 +174,20 @@ const webhookConfiguredFor = (provider: string | null): boolean => {
   return configured === true;
 };
 
-/** Map a `sk_test_`/`sk_live_` key mode to a display label; "" if unrecognized. */
-const paymentModeLabel = (mode: "test" | "live" | null): string =>
-  mode === "live" ? "Live" : mode === "test" ? "Test" : EMPTY_DEBUG_VALUE;
-
-/**
- * Resolve the active payment provider's environment (Test/Live/Sandbox) for
- * display. Derived from the key prefix (Stripe/SumUp) or the sandbox flag
- * (Square) — never exposes the key itself.
- */
-const resolvePaymentMode = (provider: string | null): string => {
-  if (provider === "stripe") return paymentModeLabel(settings.stripe.keyMode);
-  if (provider === "sumup") return paymentModeLabel(settings.sumup.keyMode);
-  if (provider === "square") {
-    return settings.square.sandbox ? "Sandbox" : "Live";
-  }
-  return EMPTY_DEBUG_VALUE;
+/** The word shown for each estate a provider's stored credentials can point
+ * at. The estate itself is read once, by `paymentProviderMode`. */
+const PAYMENT_MODE_LABELS: Record<PaymentProviderMode, string> = {
+  live: "Live",
+  sandbox: "Sandbox",
+  test: "Test",
+  unknown: EMPTY_DEBUG_VALUE,
 };
+
+/** The active provider's estate, for display. Never exposes the key itself. */
+const resolvePaymentMode = (provider: PaymentProviderType | null): string =>
+  provider === null
+    ? EMPTY_DEBUG_VALUE
+    : PAYMENT_MODE_LABELS[paymentProviderMode(provider)];
 
 /** Resolve the site's write-access state from the read-only env flags. */
 const resolveAvailabilityState =

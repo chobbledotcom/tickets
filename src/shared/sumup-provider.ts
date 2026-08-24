@@ -6,9 +6,9 @@
  * Key differences from Stripe/Square:
  * - Hosted Checkout; our checkout_reference is the session id throughout
  * - Booking metadata is staged locally, encrypted (db/sumup-checkouts.ts)
- * - Webhooks are unsigned (requiresWebhookSignature = false): listings are
- *   pre-filtered against our staging rows, then the checkout is re-fetched
- *   from SumUp to establish authenticity and payment status
+ * - Webhooks are unsigned (no signature header in the provider registry):
+ *   listings are pre-filtered against our staging rows, then the checkout is
+ *   re-fetched from SumUp to establish authenticity and payment status
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
@@ -52,7 +52,6 @@ export const sumupPaymentProvider: PaymentProvider = {
   createCheckoutSession: createSumupCheckoutSession,
 
   readCharge: readSumupCharge,
-  refundCapability: "keyless",
 
   async refundCharge(
     request: AuthorizedRefundRequest,
@@ -77,7 +76,6 @@ export const sumupPaymentProvider: PaymentProvider = {
         })
       : sumupRefundOutcome(submission, request, freshRead);
   },
-  requiresWebhookSignature: false,
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,

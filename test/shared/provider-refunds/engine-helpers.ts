@@ -28,7 +28,6 @@ export const fakeRefundProvider = (
   ) => ReturnType<RefundEngineProvider["refundCharge"]>,
 ): RefundEngineProvider => ({
   readCharge: read,
-  refundCapability: provider === "sumup" ? "keyless" : "keyed",
   refundCharge: send,
   type: provider,
 });

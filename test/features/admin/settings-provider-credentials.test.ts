@@ -15,6 +15,11 @@ import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 type Fields = { merchant: string };
 type Config = Parameters<typeof defineProviderCredentialsRoute<Fields>>[0];
 
+/** The route reads "a secret is already stored" from the provider's own
+ * settings, so a test that needs that state stores a real key. */
+const storeProviderSecret = (): Promise<void> =>
+  settings.update.stripe.secretKey("sk_test_stored_key");
+
 const makeProviderRoute = (overrides: Partial<Config> = {}) => {
   const saveSecret = fn((_value: string, _activateFromMissing: boolean) =>
     Promise.resolve(null),
@@ -25,7 +30,6 @@ const makeProviderRoute = (overrides: Partial<Config> = {}) => {
   const routes = defineProviderCredentialsRoute<Fields>({
     extraFields: (form) => ({ merchant: form.getString("merchant") }),
     formId: "settings-test-provider",
-    hasSecret: () => false,
     logMessage: "Test provider credentials updated",
     provider: "stripe",
     saveFields,
@@ -144,7 +148,8 @@ describeWithEnv("provider credential route", { db: true }, () => {
 
   test("keeps sales off when the legacy provider setting is missing", async () => {
     await settings.update.clearPaymentProvider();
-    const { routes } = makeProviderRoute({ hasSecret: () => true });
+    await storeProviderSecret();
+    const { routes } = makeProviderRoute();
     await post(routes.save, { merchant: "merchant-1", secret: "" });
 
     expect(settings.paymentProvider).toBeNull();
@@ -152,9 +157,8 @@ describeWithEnv("provider credential route", { db: true }, () => {
   });
 
   test("allows an empty field when a secret is already stored", async () => {
-    const { routes, saveFields, saveSecret } = makeProviderRoute({
-      hasSecret: () => true,
-    });
+    await storeProviderSecret();
+    const { routes, saveFields, saveSecret } = makeProviderRoute();
     const response = await post(routes.save, {
       merchant: "updated-merchant",
       secret: "",

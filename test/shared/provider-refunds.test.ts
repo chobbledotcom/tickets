@@ -74,26 +74,17 @@ describeWithEnv("provider refund engine", { db: true }, () => {
     expect(refunding.sendCount()).toBe(1);
   });
 
-  for (const [name, raw, provider] of [
-    ["another provider", "wrong-provider", completingRefundProvider("sumup")],
-    [
-      "another capability",
-      "wrong-capability",
-      {
-        ...completingRefundProvider("stripe"),
-        refundCapability: "keyless" as const,
-      },
-    ],
-  ] as const) {
-    test(`refuses a loader returning ${name}`, async () => {
-      await expect(
-        requestProviderRefund(
-          sendRefundTarget(refundReference(`txn-${raw}`, "stripe")),
-          refundDependencies(provider),
-        ),
-      ).rejects.toThrow("Refund provider does not match its durable identity");
-    });
-  }
+  // A provider can no longer disagree with its own refund capability: the
+  // capability is a column on the provider registry, read by the id, so the
+  // only way a loader can contradict the stored identity is the id itself.
+  test("refuses a loader returning another provider", async () => {
+    await expect(
+      requestProviderRefund(
+        sendRefundTarget(refundReference("txn-wrong-provider", "stripe")),
+        refundDependencies(completingRefundProvider("sumup")),
+      ),
+    ).rejects.toThrow("Refund provider does not match its durable identity");
+  });
 
   test("a spent local-recording budget leaves returned money recoverable", async () => {
     const payment = refundReference("txn-record-budget");

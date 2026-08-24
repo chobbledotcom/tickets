@@ -4,10 +4,7 @@ import type { ChargeMoney } from "#payment/resources.ts";
 import type { PaymentReviewReason } from "#payment/review.ts";
 import type { PaymentReviewChange } from "#payment/row-transitions.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
-import type {
-  ReadyRefundProvider,
-  RefundReadinessResult,
-} from "#routes/admin/refunds/readiness.ts";
+import type { RefundReadinessResult } from "#routes/admin/refunds/readiness.ts";
 import {
   type RefreshPaymentDependencies,
   type RefreshPaymentResult,
@@ -16,6 +13,7 @@ import {
 import {
   type ProviderRefundTarget,
   type RefundAuthorityReceipt,
+  type RefundEngineProvider,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
@@ -46,7 +44,7 @@ const readyResult = (
     observed: ChargeMoney | null;
     reference: Extract<RefundPaymentReference, { kind: "tagged" }>;
   }[],
-  provider: ReadyRefundProvider,
+  provider: RefundEngineProvider,
 ): Extract<RefundReadinessResult, { kind: "ready" }> => ({
   candidates: [
     {

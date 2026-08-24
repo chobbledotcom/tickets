@@ -3,9 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,
+  providerCheckoutFormOrigins,
   providerCurrencyBlock,
+  providerWebhook,
   WEBHOOK_SIGNATURE_HEADERS,
 } from "#shared/payment-providers.ts";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
+
+const messages = await allEnglishMessages();
 
 describe("payment provider registry", () => {
   describe("providerCurrencyBlock", () => {
@@ -84,8 +89,8 @@ describe("payment provider registry", () => {
     expect(PAYMENT_PROVIDER_IDS).toEqual(["square", "stripe", "sumup"]);
   });
 
-  test("has no signature header for SumUp, whose webhooks are unsigned", () => {
-    expect(PAYMENT_PROVIDERS.sumup.webhookSignatureHeader).toBeNull();
+  test("declares no webhook for SumUp, which sends none", () => {
+    expect(PAYMENT_PROVIDERS.sumup.webhook).toBeNull();
   });
 
   test("lists the signature header of every provider that signs webhooks", () => {
@@ -93,5 +98,84 @@ describe("payment provider registry", () => {
       "x-square-hmacsha256-signature",
       "stripe-signature",
     ]);
+  });
+
+  describe("every provider fact is declared exactly once", () => {
+    test("names the checkout origins the buyer's form posts to", () => {
+      for (const id of PAYMENT_PROVIDER_IDS) {
+        // A provider with no origins would get `form-action 'self'`, and the
+        // browser would block the buyer's redirect to its hosted checkout.
+        expect(providerCheckoutFormOrigins(id, false).length).toBeGreaterThan(
+          0,
+        );
+        expect(providerCheckoutFormOrigins(id, true).length).toBeGreaterThan(0);
+      }
+    });
+
+    // Pinned literally, not read back from the registry: these origins are
+    // what lets a buyer's form reach the hosted checkout, so a test that
+    // compares the registry with itself would pass on an empty one.
+    test("names Square's checkout hosts, and moves only the API ones", () => {
+      expect(providerCheckoutFormOrigins("square", false)).toEqual([
+        "https://square.link",
+        "https://checkout.square.site",
+        "https://*.squarecdn.com",
+        "https://geoissuer.cardinalcommerce.com",
+        "https://connect.squareup.com",
+        "https://pci-connect.squareup.com",
+        "https://api.squareup.com",
+      ]);
+      expect(providerCheckoutFormOrigins("square", true)).toEqual([
+        "https://square.link",
+        "https://checkout.square.site",
+        "https://*.squarecdn.com",
+        "https://geoissuer.cardinalcommerce.com",
+        "https://connect.squareupsandbox.com",
+        "https://pci-connect.squareupsandbox.com",
+        "https://api.squareupsandbox.com",
+      ]);
+    });
+
+    test("names the single checkout host of each card provider", () => {
+      expect(providerCheckoutFormOrigins("stripe", false)).toEqual([
+        "https://checkout.stripe.com",
+      ]);
+      expect(providerCheckoutFormOrigins("sumup", false)).toEqual([
+        "https://checkout.sumup.com",
+        "https://pay.sumup.com",
+      ]);
+    });
+
+    test("falls back to the live origins for a provider with no sandbox", () => {
+      expect(providerCheckoutFormOrigins("stripe", true)).toEqual(
+        providerCheckoutFormOrigins("stripe", false),
+      );
+      expect(providerCheckoutFormOrigins("square", true)).not.toEqual(
+        providerCheckoutFormOrigins("square", false),
+      );
+    });
+
+    test("declares a refund capability for every provider", () => {
+      for (const id of PAYMENT_PROVIDER_IDS) {
+        expect(["keyed", "keyless"]).toContain(
+          PAYMENT_PROVIDERS[id].refundCapability,
+        );
+      }
+    });
+
+    test("lists exactly the headers of the providers that send webhooks", () => {
+      const headers = PAYMENT_PROVIDER_IDS.map(
+        (id) => providerWebhook(id)?.signatureHeader,
+      ).filter((header) => header !== undefined);
+      expect(WEBHOOK_SIGNATURE_HEADERS).toEqual(headers);
+    });
+
+    test("gives every webhook provider real copy for a domain change", () => {
+      for (const id of PAYMENT_PROVIDER_IDS) {
+        const webhook = providerWebhook(id);
+        if (webhook === null) continue;
+        expect(messages[webhook.domainChangeFixKey]).toBeTruthy();
+      }
+    });
   });
 });

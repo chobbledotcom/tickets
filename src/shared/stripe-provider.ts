@@ -102,7 +102,6 @@ export const stripePaymentProvider: PaymentProvider = {
   createCheckoutSession: createStripeCheckoutSession,
 
   readCharge: readStripeCharge,
-  refundCapability: "keyed",
 
   refundCharge: refundWithOneReread(
     (request) => {
@@ -111,7 +110,6 @@ export const stripePaymentProvider: PaymentProvider = {
     },
     (reference) => stripePaymentProvider.readCharge(reference),
   ),
-  requiresWebhookSignature: true,
 
   async resolveWebhookSession({
     data: { object: obj },

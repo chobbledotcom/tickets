@@ -165,9 +165,9 @@ export const removeListingGroupPricesStatement = (
   return {
     args: [listingId, ...idText, ...globs],
     sql: `DELETE FROM listing_prices WHERE listing_id = ? AND (
-        (price_type = '${PRICE_TYPE_GROUP}' AND price_id IN (${idText
-          .map(() => "?")
-          .join(", ")}))
+        (price_type = '${PRICE_TYPE_GROUP}' AND price_id IN (${inPlaceholders(
+          idText,
+        )}))
         OR (price_type = '${PRICE_TYPE_GROUP_DAY}' AND (${globs
           .map(() => "price_id LIKE ?")
           .join(" OR ")}))

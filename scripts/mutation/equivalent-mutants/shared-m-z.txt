@@ -302,3 +302,9 @@ src/shared/db/modifier-resolve.ts::childOnlyAddOnNameWithScopes~0vgtyif  ?? → 
 # every code modifier. It changes no answer, because both readers drop a 0
 # again, and no negative quantity ever reaches it.
 src/shared/db/modifier-resolve.ts::eligibleCandidates~1oaufcv  1 → 0   # resolveModifiers keeps only a stocked quantity of 1 or more, and an oversubscribed tier needs a quantity above the stock left, which 0 never is
+
+# payment-provider-status.ts: settings.<provider>.keyMode ?? "unknown" —
+# keyModeOf returns "test" | "live" | null, so the only value ?? and || can
+# disagree on, "", is one the type does not allow.
+src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
+src/shared/payment-provider-status.ts::providerMode.sumup~109o082  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists

@@ -21,7 +21,6 @@ export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
     merchantCode: form.getString("sumup_merchant_code"),
   }),
   formId: "settings-sumup",
-  hasSecret: () => settings.sumup.hasKey,
   logMessage: "SumUp credentials updated",
   provider: "sumup",
   saveFields: ({ merchantCode }) =>

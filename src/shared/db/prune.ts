@@ -5,6 +5,7 @@ import { addressCachePruneStatement } from "#db/address-cache.ts";
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import {
   executeBatchWithResults,
+  inPlaceholders,
   queryAll,
   type SqlStatement,
 } from "#db/client.ts";
@@ -219,7 +220,7 @@ const expiredInvitePage = async (
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
-  const inIds = ids.map(() => "?").join(", ");
+  const inIds = inPlaceholders(ids);
   const unactivatedIds = `SELECT id FROM users
     WHERE id IN (${inIds})
       AND wrapped_data_key IS NULL

@@ -12,7 +12,6 @@ import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 
 export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   formId: "settings-stripe",
-  hasSecret: () => settings.stripe.hasKey,
   logMessage: "Stripe key configured",
   provider: "stripe",
   saveSecret: async (value) => {

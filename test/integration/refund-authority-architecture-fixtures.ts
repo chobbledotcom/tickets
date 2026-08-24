@@ -84,6 +84,7 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "features/admin/attendee-refunds/authorization.test.ts",
   "features/admin/refunds/attempt/outcomes.test.ts",
   "features/admin/refunds/attempt/unrecorded.test.ts",
+  "features/admin/refunds/provider/engine-outcomes.test.ts",
   "features/admin/refunds/provider/helpers.ts",
   "features/admin/refunds/readiness-findings/authority-failure.test.ts",
   "features/admin/refunds/refresh/helpers.ts",

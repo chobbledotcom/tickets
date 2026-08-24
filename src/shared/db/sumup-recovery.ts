@@ -9,7 +9,7 @@
  * SQL that carries it out.
  */
 
-import { execute, queryAll } from "#db/client.ts";
+import { execute, inPlaceholders, queryAll } from "#db/client.ts";
 import {
   parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,
@@ -33,7 +33,7 @@ export type DueSumupCheckout = {
   readonly sumupId: string;
 };
 
-const CHECKABLE_SLOTS = RECOVERY_CHECKABLE_NODES.map(() => "?").join(", ");
+const CHECKABLE_SLOTS = inPlaceholders(RECOVERY_CHECKABLE_NODES);
 
 /**
  * The oldest checkouts whose check time has come, newest-last so a row that
