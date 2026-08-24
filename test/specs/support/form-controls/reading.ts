@@ -93,6 +93,36 @@ export const choicesOffered = (
 export const optionsOffered = (html: string, field: string): string[] =>
   choicesOffered(html, field).map(({ value }) => value);
 
+/** The attributes of the option a dropdown has marked as picked, or null when
+ * it marks none. */
+export const optionMarkedChosen = (options: string): string | null => {
+  for (const option of options.matchAll(/<option\s([^>]*)>/g)) {
+    if (hasFlag(option[0], "selected")) return option[1]!;
+  }
+  return null;
+};
+
+/** The value a dropdown on the page has already picked, or null when it has
+ * picked nothing. Throws when the page has no such dropdown, so "nothing is
+ * picked" and "the control is missing" stay separate failures. */
+export const optionChosen = (html: string, field: string): string | null => {
+  const chooser = chooserFor(html, field);
+  if (!chooser) throw new Error(`The page offers no ${field} to choose`);
+  const marked = optionMarkedChosen(chooser.options);
+  return marked === null ? null : (attribute(marked, "value") ?? "");
+};
+
+/** The answer a question on the page has already picked, or null when none
+ * is. A choice with no value of its own sends "on", as a browser does. */
+export const answerTicked = (html: string, field: string): string | null => {
+  for (const { field: name, tag } of usableInputsOfKind(html, "radio")) {
+    if (name === field && hasFlag(tag, "checked")) {
+      return attribute(tag, "value") ?? "on";
+    }
+  }
+  return null;
+};
+
 /** One checkbox somebody could really tick: which field it belongs to, the
  * value ticking it would send, whether the page has ticked it already, and
  * whether the page insists on it being ticked at all. */

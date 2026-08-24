@@ -33,6 +33,7 @@ describe("Cucumber story catalog", () => {
       "bookings.changes-after-people-have-booked",
       "bookings.changing-how-long-a-stay-lasts",
       "bookings.day-limits-shared-across-listings",
+      "bookings.keeping-what-a-customer-typed",
       "bookings.ordering-several-things-at-once",
       "bookings.selling-things-as-one-bundle",
       "bookings.taking-a-holiday",

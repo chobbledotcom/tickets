@@ -15,6 +15,7 @@ import {
   chooserFor,
   hasFlag,
   optionFor,
+  optionMarkedChosen,
   requireCheckboxOffered,
   usableCheckboxesOn,
   usableInputsOfKind,
@@ -180,10 +181,11 @@ interface InsistedControl {
  * shows that one. A list that picks many starts with nothing picked at all
  * unless the page says otherwise, so it sends nothing. */
 const chosenByDefault = (options: string, picksMany: boolean): string => {
-  const all = [...options.matchAll(/<option\s([^>]*)>/g)];
-  const marked = all.find((option) => hasFlag(option[0], "selected"));
-  const showing = marked ?? (picksMany ? undefined : all[0]);
-  return attribute(showing?.[1] ?? "", "value") ?? "";
+  const marked = optionMarkedChosen(options);
+  if (marked !== null) return attribute(marked, "value") ?? "";
+  if (picksMany) return "";
+  const first = options.match(/<option\s([^>]*)>/);
+  return attribute(first?.[1] ?? "", "value") ?? "";
 };
 
 /** Radios sharing one name are one question, so the page is asked about it

@@ -31,6 +31,11 @@ import type { Listing } from "#types";
  * this. The day and the number of days only apply to listings booked by the
  * day, so both are optional. */
 export interface BookingChoices {
+  /** Tick the terms box, for a page that renders one. */
+  agreesToTerms?: boolean;
+  /** The answer picked for a question the page asks: the field the question
+   * sends under, and the choice picked from the ones it offers. */
+  answer?: { choice: string; field: string };
   day?: string;
   dayCount?: number;
   email: string;
@@ -44,6 +49,9 @@ export interface BookingChoices {
 /** One listing in an order, and how many places on it. */
 export interface OrderLine {
   listing: Listing;
+  /** What is typed into the listing's own price box, for a listing that lets
+   * a customer choose what to pay. */
+  pays?: string;
   places?: number;
 }
 
@@ -72,6 +80,13 @@ export interface FilledOrder {
   press: () => Promise<BookingAttempt>;
 }
 
+/** An unsent order kept with what was typed into it, so a later step can
+ * check the page hands the same choices back. */
+export interface OrderInHand extends FilledOrder {
+  choices: BookingChoices;
+  lines: OrderLine[];
+}
+
 /** Somebody works through an order on a page the site serves. What comes back
  * differs — the order still on screen, or what happened when it was sent — so
  * the result is the part each one names for itself. */
@@ -98,15 +113,27 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
       String(places ?? 1),
     ]),
   );
+  const chosenPrices = Object.fromEntries(
+    lines.flatMap(({ listing, pays }) =>
+      pays === undefined ? [] : [[`custom_price_${listing.id}`, pays]],
+    ),
+  );
   const fields = {
     email: choices.email,
     name: choices.who,
     ...quantities,
+    ...chosenPrices,
     ...(choices.phone === undefined ? {} : { phone: choices.phone }),
     ...(choices.day === undefined ? {} : { date: choices.day }),
     ...(choices.dayCount === undefined
       ? {}
       : { day_count: String(choices.dayCount) }),
+    ...(choices.answer === undefined
+      ? {}
+      : { [choices.answer.field]: choices.answer.choice }),
+    // Ticking the box sends its own value, "1", which the control check below
+    // reads off the page like any other field.
+    ...(choices.agreesToTerms ? { agree_terms: "1" } : {}),
   };
   // Only send what a visitor could send: every control must be rendered, usable,
   // and able to carry this value — a dropdown must list it, and a fixed hidden
