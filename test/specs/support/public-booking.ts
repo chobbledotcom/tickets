@@ -19,7 +19,10 @@ import {
   openAsNewcomer,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
-import { optionsOffered } from "#test/specs/support/form-controls/reading.ts";
+import {
+  checkboxValueOffered,
+  optionsOffered,
+} from "#test/specs/support/form-controls/reading.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -131,9 +134,14 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
     ...(choices.answer === undefined
       ? {}
       : { [choices.answer.field]: choices.answer.choice }),
-    // Ticking the box sends its own value, "1", which the control check below
-    // reads off the page like any other field.
-    ...(choices.agreesToTerms ? { agree_terms: "1" } : {}),
+    // Ticking the box sends the value the page's own box carries, so a form
+    // whose box changes or disappears fails the story instead of being
+    // papered over with a hard-coded value.
+    ...(choices.agreesToTerms
+      ? {
+          agree_terms: checkboxValueOffered(browser.currentHtml, "agree_terms"),
+        }
+      : {}),
   };
   // Only send what a visitor could send: every control must be rendered, usable,
   // and able to carry this value — a dropdown must list it, and a fixed hidden

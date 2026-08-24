@@ -25,8 +25,6 @@ import {
 } from "#test/specs/support/browser.ts";
 import {
   answerTicked,
-  attribute,
-  boxFor,
   boxOffered,
   chooserFor,
   optionChosen,
@@ -34,136 +32,51 @@ import {
 import {
   listingIdNamed,
   listingNamed,
-  rememberListing,
+  putsOnSale,
+  putsOnSaleByTheDay,
   sellSomethingAt,
 } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
-  type BookingAttempt,
-  type BookingChoices,
-  daysOfferedFor,
   daysOfferedOn,
   expectRefusedForWantOfRoom,
-  type OrderInHand,
-  type OrderLine,
-  visitorFillsInOrder,
   visitorTriesToBook,
   visitorTriesToOrder,
 } from "#test/specs/support/public-booking.ts";
+import {
+  choiceCalled,
+  choiceUnlikeTheirs,
+  combinedPath,
+  fillsIn,
+  fillsOwnPageIn,
+  firstDayOffered,
+  orderInHand,
+  questionAsked,
+  refillPage,
+  SOMEONE_QUICKER,
+  sellDayBookedThing,
+  sentOrder,
+  THE_CUSTOMER,
+  wordsInBox,
+} from "#test/specs/support/refused-orders.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import {
-  createDailyTestListing,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-const THE_CUSTOMER = { email: "jane@example.com", who: "Jane Doe" };
-const SOMEONE_QUICKER = { email: "quicker@example.com", who: "Kit Quick" };
-
-/** The question this scenario's listing asks, or a loud failure. */
-type QuestionAsked = NonNullable<TicketsWorld["questionChoices"]>;
-const questionAsked = (world: TicketsWorld): QuestionAsked =>
-  requiredWorldValue(world.questionChoices, "the question the listing asks");
-
-/** The choice sent by answering with these words, or a loud failure when the
- * question never offered them. */
-const choiceCalled = (asked: QuestionAsked, label: string): string =>
-  requiredWorldValue(asked.byLabel[label], `the "${label}" answer`);
-
-/** A choice that is not the customer's own, so a tick that survives the
- * refusal can only be theirs. */
-const choiceUnlikeTheirs = (asked: QuestionAsked, theirs?: string): string => {
-  const other = Object.values(asked.byLabel).find(
-    (choice) => choice !== theirs,
-  );
-  if (!other) throw new Error("The question offers no second answer to pick");
-  return other;
-};
-
-/** Fill a served page in and keep the unsent order, with what was typed into
- * it, so the story can race somebody past it and read the refill back. */
-const fillsIn = async (
-  world: TicketsWorld,
-  path: string,
-  lines: OrderLine[],
-  choices: BookingChoices,
-): Promise<void> => {
-  const { press } = await visitorFillsInOrder(path, lines, choices);
-  world.orderFilledIn = { choices, lines, press };
-};
-
-/** The page several listings are booked from together. */
-const combinedPath = (lines: OrderLine[]): string =>
-  `/ticket/${lines.map(({ listing }) => listing.slug).join("+")}`;
-
-const orderInHand = (world: TicketsWorld): OrderInHand =>
-  requiredWorldValue(world.orderFilledIn, "the filled-in order");
-
-const sentOrder = (world: TicketsWorld): BookingAttempt =>
-  requiredWorldValue(world.orderSent, "what the site said to the order");
-
-/** The page the refusal handed back, with the typed values re-filled. */
-const refillPage = (world: TicketsWorld): string =>
-  sentOrder(world).browser.currentHtml;
-
-/** What a box on the refused page still holds, or a loud failure when the
- * page stopped rendering the box at all. */
-const wordsInBox = (html: string, field: string): string => {
-  const box = boxFor(html, field);
-  if (!box) throw new Error(`The page has no ${field} box`);
-  return attribute(box, "value") ?? "";
-};
-
-/** A plain thing for sale with its own thank-you page, remembered by name. */
-const sellPlainThing = async (
-  world: TicketsWorld,
-  name: string,
-  room: number,
-): Promise<void> => {
-  rememberListing(
-    world,
-    name,
-    await createTestListing({
-      maxAttendees: room,
-      maxQuantity: Math.min(room, 5),
-      name,
-      thankYouUrl: "",
-    }),
-  );
-};
-
-/** A thing booked by the day, remembered by name, with the extras a story's
- * own listing needs — a chosen price, a bigger order. */
-const sellDayBookedThing = async (
-  world: TicketsWorld,
-  name: string,
-  placesADay: number,
-  extras: Parameters<typeof createDailyTestListing>[0] = {},
-): Promise<void> => {
-  rememberListing(
-    world,
-    name,
-    await createDailyTestListing({
-      maxAttendees: placesADay,
-      maxQuantity: placesADay,
-      name,
-      thankYouUrl: "",
-      ...extras,
-    }),
-  );
-};
+/** A plain listing's shape here: a handful of places, the site's own
+ * thank-you page so a booking's outcome can be read. */
+const PLAIN_THING = { maxAttendees: 10, maxQuantity: 5, thankYouUrl: "" };
 
 Given(
   "the shop sells an Alpha and a Bravo, and a Charlie booked by the day with room for {int} a day",
   async function (this: TicketsWorld, room: number): Promise<void> {
-    await sellPlainThing(this, "Alpha", 10);
-    await sellPlainThing(this, "Bravo", 10);
+    await putsOnSale(this, "Alpha", PLAIN_THING);
+    await putsOnSale(this, "Bravo", PLAIN_THING);
     await sellDayBookedThing(this, "Charlie", room);
   },
 );
@@ -211,7 +124,7 @@ Given(
 Given(
   "a Ticket to book, where orders must agree to terms first",
   async function (this: TicketsWorld): Promise<void> {
-    await sellPlainThing(this, "Ticket", 10);
+    await putsOnSale(this, "Ticket", PLAIN_THING);
     await settings.update.terms("You must accept the rules to book.");
   },
 );
@@ -231,29 +144,15 @@ Given(
       ["Pilates", "Tuesday"],
     ] as const;
     for (const [name, day] of openOn) {
-      rememberListing(
-        this,
-        name,
-        await createTestListing({
-          bookableDays: [day],
-          listingType: "daily",
-          maximumDaysAfter: 21,
-          minimumDaysBefore: 0,
-          name,
-          thankYouUrl: "",
-        }),
-      );
+      await putsOnSaleByTheDay(this, name, {
+        bookableDays: [day],
+        maximumDaysAfter: 21,
+        minimumDaysBefore: 0,
+        thankYouUrl: "",
+      });
     }
   },
 );
-
-/** The first day a listing's own page offers, or a loud failure — "a day
- * soon" in a story is a day the site really offers. */
-const firstDayOffered = async (world: TicketsWorld, name: string) => {
-  const [day] = await daysOfferedFor(listingNamed(world, name));
-  if (!day) throw new Error(`The ${name} offers no day to book`);
-  return day;
-};
 
 Given(
   "a customer filled the page selling all three in, asking for 3 Alpha, no Bravo, and the last Charlie for a day soon",
@@ -271,23 +170,6 @@ Given(
     });
   },
 );
-
-/** Fill one listing's own page in for the customer: the line for that
- * listing, plus whatever extra choices the scenario adds on top of the
- * customer's contact details. Every "filled the X page in" step is one call
- * to this, so the fill itself lives in one place. */
-const fillsOwnPageIn = async (
-  world: TicketsWorld,
-  name: string,
-  line: Omit<OrderLine, "listing">,
-  extras: Partial<BookingChoices>,
-): Promise<void> => {
-  const listing = listingNamed(world, name);
-  await fillsIn(world, `/ticket/${listing.slug}`, [{ listing, ...line }], {
-    ...THE_CUSTOMER,
-    ...extras,
-  });
-};
 
 Given(
   "a customer filled the {word} page in, asking for {int} place(s) for a day soon and choosing to pay {word}",

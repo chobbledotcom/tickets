@@ -49,6 +49,24 @@ describe("what an untouched dropdown holds", () => {
     );
   });
 
+  test("a marked option with no value of its own holds nothing", () => {
+    expect(() =>
+      expectNothingInsistedIsEmpty(
+        '<select name="tier" required><option selected>Pick one</option></select>',
+        {},
+      ),
+    ).toThrow("The tier box must be filled in to send the form");
+  });
+
+  test("a first option with no value of its own holds nothing", () => {
+    expect(() =>
+      expectNothingInsistedIsEmpty(
+        '<select name="tier" required><option>Pick one</option></select>',
+        {},
+      ),
+    ).toThrow("The tier box must be filled in to send the form");
+  });
+
   test("an insisted many-answer list with nothing marked holds nothing", () => {
     expect(() =>
       expectNothingInsistedIsEmpty(

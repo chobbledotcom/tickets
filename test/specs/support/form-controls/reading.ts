@@ -122,8 +122,12 @@ export const optionsOffered = (html: string, field: string): string[] =>
 export const optionMarkedChosen = (options: string): string | null =>
   optionWhere(options, (tag) => hasFlag(tag, "selected"))?.attributes ?? null;
 
-/** The value a dropdown on the page has already picked, or null when it has
- * picked nothing. Throws when the page has no such dropdown, so "nothing is
+/** The value a dropdown on the page has explicitly marked as picked, or null
+ * when it marks none. An untouched dropdown shows its first option, but that
+ * is the browser's default, not a choice the page recorded — deliberately
+ * null here, so a re-fill story cannot pass on a page that restored nothing
+ * (`chosenByDefault` in rules.ts answers the what-would-the-browser-send
+ * question). Throws when the page has no such dropdown, so "nothing is
  * picked" and "the control is missing" stay separate failures. */
 export const optionChosen = (html: string, field: string): string | null => {
   const marked = optionMarkedChosen(chooserOffered(html, field).options);
