@@ -11,6 +11,7 @@ import {
 import {
   inPlaceholders,
   queryAll,
+  queryIdColumn,
   requireOne,
   type SqlStatement,
 } from "#db/client.ts";
@@ -96,6 +97,22 @@ export const checkLinesCapacity = async (
     statement.args,
   );
   return conditions.map((_, index) => row[`ok${index}`] === 1);
+};
+
+/** The given ids with no listing row, read straight from the database. The
+ * isolate's listings cache can hold a listing another isolate deleted, so an
+ * existence answer that gates further direct reads must not come from it. */
+export const missingListingIds = async (
+  listingIds: number[],
+): Promise<number[]> => {
+  const present = new Set(
+    await queryIdColumn(
+      `SELECT listing.id FROM listings AS listing
+        WHERE listing.id IN (${inPlaceholders(listingIds)})`,
+      listingIds,
+    ),
+  );
+  return listingIds.filter((id) => !present.has(id));
 };
 
 /** The listings whose lines do not fit right now, in one query. Both the

@@ -9,6 +9,8 @@ import { it as test } from "@std/testing/bdd";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getDb } from "#db/client.ts";
+import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -121,6 +123,25 @@ describeWithEnv(
       // being replaced by the diagnosis's own failure.
       await expectLateOrderRefusedNaming(
         [{ listingId: 999_999, quantity: 1 }],
+        [],
+      );
+    });
+
+    test("a listing another isolate deleted keeps the refusal too", async () => {
+      // The isolate's listings cache still holds the listing, so the missing
+      // check must read the database directly. The raw delete stands in for
+      // another isolate: it bypasses the write sniffing that would clear this
+      // isolate's cache.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const [cached] = await getListingsWithCountsByIds([listing.id]);
+      expect(cached?.id).toBe(listing.id);
+      await getDb().execute({
+        args: [listing.id],
+        sql: "DELETE FROM listings WHERE id = ?",
+      });
+
+      await expectLateOrderRefusedNaming(
+        [{ listingId: listing.id, quantity: 1 }],
         [],
       );
     });

@@ -12,6 +12,7 @@ import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
   checkBatchAvailabilityImpl,
+  missingListingIds,
   unfitListingIds,
 } from "#db/attendees/capacity/checks.ts";
 import {
@@ -30,7 +31,6 @@ import { annotateOrderParents } from "#db/attendees/order-parents.ts";
 import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { insert, type SqlStatement } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
-import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
 import { compact, unique } from "#fp";
@@ -242,12 +242,13 @@ const firstUnfitInOrder = async (
   }));
   // The refusal already stands; this read only picks the name. A line whose
   // listing is gone — deleted before this read, or never real — is the one
-  // absence expected here, so it keeps the refusal and names no listing.
-  // Any other failure in these reads is real and surfaces.
-  const listings = await getListingsWithCountsByIds(
-    items.map((item) => item.listingId),
+  // absence expected here, so it keeps the refusal and names no listing. The
+  // check reads the database directly: the isolate's listings cache can still
+  // hold a listing another isolate deleted. Any other read failure surfaces.
+  const missing = await missingListingIds(
+    unique(items.map((item) => item.listingId)),
   );
-  if (listings.some((listing) => listing === null)) return [];
+  if (missing.length > 0) return [];
   const days = unique(compact(bookings.map((booking) => booking.date)));
   if (days.length > 1) {
     return unfitListingIds(
