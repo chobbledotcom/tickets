@@ -2779,11 +2779,11 @@ written once in the admin surface declaration.
 
 _Origin: the consolidation review. PR #2128 closed the rest of this entry._
 
-`sourceRowsFor` in `src/shared/db/listing-prices.ts:357` ends with
+`readSourceRows` in `src/shared/db/listing-prices.ts:349` ends with
 `rows.rows as unknown as ListingPriceSourceRow[]`. The cast claims a shape the
-code never checks, so a column renamed in the SELECT above it reaches callers as
-`undefined` rather than failing at the read. Parse the rows instead, the way the
-boundary schemas elsewhere do.
+code never checks, so a column renamed in the SELECT above it reaches its two
+callers as `undefined` rather than failing at the read. Parse the rows instead,
+the way the boundary schemas elsewhere do.
 
 The other three parts of this entry are done. `BatchExecutor` is exported and
 the ledger's `RowReader` twin is gone, and `queryAllPrimary` and
