@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ProviderTransportError } from "#payment/transport-error.ts";
 import { createStripeClient } from "#shared/stripe/client.ts";
-import { StripeApiError, StripeProtocolError } from "#shared/stripe/request.ts";
 
 const retryingBalance = (firstResponse: Response) => {
   const waits: number[] = [];
@@ -55,7 +55,7 @@ describe("Stripe response retries", () => {
     );
 
     await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
-      StripeApiError,
+      ProviderTransportError,
     );
     expect(calls()).toBe(1);
   });
@@ -123,7 +123,7 @@ describe("Stripe response retries", () => {
         ),
       );
       await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
-        StripeApiError,
+        ProviderTransportError,
       );
       expect(calls()).toBe(1);
     }
@@ -186,7 +186,7 @@ describe("Stripe response retries", () => {
       ),
     );
     await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
-      StripeApiError,
+      ProviderTransportError,
     );
     expect(waits).toEqual([]);
   });
@@ -196,7 +196,7 @@ describe("Stripe response retries", () => {
       new Response("not json", { status: 429 }),
     );
     await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
-      StripeProtocolError,
+      ProviderTransportError,
     );
     expect(waits).toEqual([]);
   });

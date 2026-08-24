@@ -6,22 +6,17 @@ import {
 } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundProof } from "#payment/refund-attempt.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
+import { transportFactsOf } from "#payment/transport-error.ts";
 
 /* jscpd:ignore-end */
 
+/** A schema failure is Square's answer not matching its documented shape,
+ * which the transport cannot see because the parse happens above it. */
 const squareFailure = (error: unknown): ProviderFailure | undefined =>
-  providerFailure({
-    connectionReason:
-      error instanceof SquareConnectionError ? error.reason : undefined,
-    malformed:
-      error instanceof SquareProtocolError || error instanceof v.ValiError,
-    statusCode: error instanceof SquareApiError ? error.statusCode : undefined,
-  });
+  providerFailure(
+    transportFactsOf(error) ??
+      (error instanceof v.ValiError ? { malformed: true } : {}),
+  );
 
 /** Translate a known Square read failure, leaving internal bugs unclaimed. */
 export const squareReadFailure = (

@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ProviderTransportError } from "#payment/transport-error.ts";
 import { createStripeClient } from "#shared/stripe/client.ts";
-import {
-  StripeApiError,
-  StripeConnectionError,
-  StripeProtocolError,
-} from "#shared/stripe/request.ts";
 import { unreadableResponse } from "#test/shared/stripe/request/fixtures.ts";
 
 const balanceErrorFrom = async (response: Response): Promise<unknown> => {
@@ -69,17 +65,22 @@ describe("Stripe transport errors", () => {
     });
 
     const error = await client.balance.retrieve().catch((caught) => caught);
-    expect(error).toBeInstanceOf(StripeApiError);
+    expect(error).toBeInstanceOf(ProviderTransportError);
     expect(error).toMatchObject({
-      code: "resource_missing",
-      requestId: "req_1",
-      statusCode: 404,
-      type: "invalid_request_error",
+      detail: {
+        code: "resource_missing",
+        provider: "stripe",
+        requestId: "req_1",
+        type: "invalid_request_error",
+      },
+      facts: { statusCode: 404 },
     });
-    expect(error.name).toBe("StripeApiError");
-    expect(error.code).not.toContain("Private value");
-    expect(error.type).not.toContain("Private value");
-    expect(error.requestId).not.toContain("Private value");
+    // Stripe's own wording rides on the message, where the sanitiser and the
+    // checkout boundary already keep it from operators and buyers. None of
+    // the closed fields may repeat it.
+    expect(error.detail.code).not.toContain("Private value");
+    expect(error.detail.type).not.toContain("Private value");
+    expect(error.detail.requestId).not.toContain("Private value");
   });
 
   test("fails loudly on invalid success JSON", async () => {
@@ -108,11 +109,10 @@ describe("Stripe transport errors", () => {
     const error = await balanceErrorFrom(
       new Response("not json", { status: 400 }),
     );
-    expect(error).toBeInstanceOf(StripeProtocolError);
+    expect(error).toBeInstanceOf(ProviderTransportError);
     expect(error).toMatchObject({
+      facts: { malformed: true, statusCode: 400 },
       message: "Invalid JSON received from the Stripe API",
-      name: "StripeProtocolError",
-      statusCode: 400,
     });
   });
 
@@ -120,11 +120,10 @@ describe("Stripe transport errors", () => {
     const error = await balanceErrorFrom(
       Response.json({ error: {} }, { status: 400 }),
     );
-    expect(error).toBeInstanceOf(StripeProtocolError);
+    expect(error).toBeInstanceOf(ProviderTransportError);
     expect(error).toMatchObject({
+      facts: { malformed: true, statusCode: 400 },
       message: "Invalid response received from the Stripe API",
-      name: "StripeProtocolError",
-      statusCode: 400,
     });
   });
 
@@ -134,9 +133,8 @@ describe("Stripe transport errors", () => {
       1,
     );
     const error = await client.balance.retrieve().catch((caught) => caught);
-    expect(error).toBeInstanceOf(StripeConnectionError);
-    expect(error.name).toBe("StripeConnectionError");
-    expect(error.reason).toBe("network_error");
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    expect(error.facts).toEqual({ connectionReason: "network_error" });
     expect(calls()).toBe(2);
     expect(waits).toEqual([500]);
   });
@@ -157,20 +155,23 @@ describe("Stripe transport errors", () => {
     });
     const error = await client.balance.retrieve().catch((caught) => caught);
     expect(error).toMatchObject({
+      facts: { connectionReason: "timeout" },
       message: "Request aborted due to timeout being reached (12ms)",
-      reason: "timeout",
     });
   });
 
-  test("reports a transport abort as a network failure", async () => {
+  // Every provider aborts through `AbortSignal.timeout`, so an abort is a
+  // timeout whatever name the runtime gives it. Stripe used to call a bare
+  // abort a network failure while Square and SumUp called it a timeout.
+  test("reports a transport abort as a timeout", async () => {
     const client = createStripeClient("sk_test_secret", {
       fetch: () => Promise.reject(new DOMException("aborted", "AbortError")),
       maxNetworkRetries: 0,
     });
     const error = await client.balance.retrieve().catch((caught) => caught);
     expect(error).toMatchObject({
-      name: "StripeConnectionError",
-      reason: "network_error",
+      facts: { connectionReason: "timeout" },
+      name: "ProviderTransportError",
     });
   });
 
@@ -210,12 +211,11 @@ describe("Stripe transport errors", () => {
     );
 
     const error = await client.balance.retrieve().catch((caught) => caught);
-    expect(error).toBeInstanceOf(StripeConnectionError);
+    expect(error).toBeInstanceOf(ProviderTransportError);
     expect(error).toMatchObject({
+      facts: { connectionReason: "network_error" },
       message:
         "An error occurred with our connection to Stripe. Request was retried 2 times.",
-      name: "StripeConnectionError",
-      reason: "network_error",
     });
     expect(calls()).toBe(3);
     expect(waits).toEqual([500, 500]);

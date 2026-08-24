@@ -9,9 +9,14 @@ import {
   authorizeDurableRefundSend,
 } from "#payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
+import {
+  type ProviderTransportError,
+  providerDetail,
+  transportError,
+} from "#payment/transport-error.ts";
 import type { CheckoutItem, WebhookEvent } from "#shared/payments.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
-import { STRIPE_API_VERSION, StripeApiError } from "#shared/stripe/request.ts";
+import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
@@ -146,13 +151,8 @@ export const answerCompletedStripeRefund =
     );
 
 /** A typed Stripe API refusal with no private provider details. */
-export const stripeApiError = (statusCode: number): StripeApiError =>
-  new StripeApiError("Stripe refused the request", {
-    code: undefined,
-    requestId: undefined,
-    statusCode,
-    type: undefined,
-  });
+export const stripeApiError = (statusCode: number): ProviderTransportError =>
+  transportError.answered(providerDetail.stripe(), statusCode);
 
 /** A checkout line that mirrors a listing's id, name, slug, and price. */
 export const lineFor = (listing: Listing, quantity = 1): CheckoutItem =>

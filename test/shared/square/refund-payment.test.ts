@@ -1,14 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { squareApi } from "#shared/square/api.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -53,13 +49,21 @@ describeSquare(() => {
 
     for (const [status, expected] of providerRefundHttpCases) {
       test(`classifies HTTP ${status} without guessing`, async () => {
-        expect(await outcomeWhen(new SquareApiError(status))).toEqual(expected);
+        expect(
+          await outcomeWhen(
+            transportError.answered(providerDetail.square(), status),
+          ),
+        ).toEqual(expected);
       });
     }
 
     for (const reason of ["network_error", "timeout"] as const) {
       test(`keeps a ${reason} connection failure uncertain`, async () => {
-        expect(await outcomeWhen(new SquareConnectionError(reason))).toEqual({
+        expect(
+          await outcomeWhen(
+            transportError.unreachable(providerDetail.square(), reason),
+          ),
+        ).toEqual({
           kind: "uncertain",
           reason,
         });
@@ -67,7 +71,9 @@ describeSquare(() => {
     }
 
     test("names invalid JSON as a malformed response", async () => {
-      expect(await outcomeWhen(new SquareProtocolError())).toEqual({
+      expect(
+        await outcomeWhen(transportError.unusable(providerDetail.square())),
+      ).toEqual({
         kind: "uncertain",
         reason: "malformed_response",
       });

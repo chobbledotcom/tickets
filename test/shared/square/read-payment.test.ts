@@ -1,13 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ProviderRead } from "#payment/provider-read.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
 import { providerReadHttpCases } from "#test-utils/provider-failure-cases.ts";
 import { withSquareClient } from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
@@ -122,15 +118,21 @@ describeSquare(() => {
 
     for (const [statusCode, expected] of providerReadHttpCases) {
       test(`classifies HTTP ${statusCode}`, async () => {
-        expect(await readFailure(new SquareApiError(statusCode))).toEqual(
-          expected,
-        );
+        expect(
+          await readFailure(
+            transportError.answered(providerDetail.square(), statusCode),
+          ),
+        ).toEqual(expected);
       });
     }
 
     for (const reason of ["network_error", "timeout"] as const) {
       test(`classifies a ${reason} connection failure`, async () => {
-        expect(await readFailure(new SquareConnectionError(reason))).toEqual({
+        expect(
+          await readFailure(
+            transportError.unreachable(providerDetail.square(), reason),
+          ),
+        ).toEqual({
           reason,
           status: "unavailable",
         });
@@ -138,7 +140,9 @@ describeSquare(() => {
     }
 
     test("classifies invalid JSON as malformed", async () => {
-      expect(await readFailure(new SquareProtocolError())).toEqual({
+      expect(
+        await readFailure(transportError.unusable(providerDetail.square())),
+      ).toEqual({
         reason: "malformed_response",
         status: "invalid",
       });

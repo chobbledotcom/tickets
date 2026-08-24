@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   extractSessionMetadata,
   PaymentUserError,
@@ -7,11 +8,6 @@ import {
 import type { SessionMetadata } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   expectClosedCheckoutFailure,
@@ -199,7 +195,7 @@ describeSquare(() => {
     });
 
     const squareError = (invalidField: "email" | "phone") =>
-      new SquareApiError(400, invalidField);
+      transportError.answered(providerDetail.square(invalidField), 400);
 
     /** Configure credentials, then fail the checkout with the given error. */
     const failingCheckout = async (
@@ -282,7 +278,7 @@ describeSquare(() => {
 
     test("closes a Square API error without a user-facing field", async () => {
       await expectProviderFailure(
-        new SquareApiError(400),
+        transportError.answered(providerDetail.square(), 400),
         "provider_error",
         400,
       );
@@ -290,13 +286,13 @@ describeSquare(() => {
 
     test("closes a Square connection error", async () => {
       await expectProviderFailure(
-        new SquareConnectionError("network_error"),
+        transportError.unreachable(providerDetail.square(), "network_error"),
         "network_error",
       );
     });
 
     test("closes a malformed Square provider response", async () => {
-      const providerError = new SquareProtocolError();
+      const providerError = transportError.unusable(providerDetail.square());
       await failingCheckout(providerError, async () => {
         await expectClosedCheckoutFailure(
           makeLink(),

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { settings } from "#db/settings.ts";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
@@ -154,14 +155,16 @@ describeStripe("Stripe client configuration", () => {
 
   test("logs safe Stripe fields instead of the raw error message", async () => {
     const client = await stripeClient();
-    const stripeError = Object.assign(
-      new Error("Payment failed for private.person@example.com"),
-      {
+    // Stripe's own wording lands on the message, so the sanitiser must read
+    // the closed fields beside it and never the message itself.
+    const stripeError = transportError.answered(
+      providerDetail.stripe({
         code: "api_connection_error",
         requestId: "req_safe123",
-        statusCode: 500,
         type: "StripeAPIError",
-      },
+      }),
+      500,
+      "Payment failed for private.person@example.com",
     );
 
     await withMocks(
@@ -173,7 +176,7 @@ describeStripe("Stripe client configuration", () => {
         await expect(
           stripeApi.retrieveCheckoutSession("cs_test_123"),
         ).rejects.toThrow(
-          "Stripe checkout could not be read (unexpected_failure)",
+          "Stripe checkout could not be read (unavailable:provider_error)",
         );
       },
     );

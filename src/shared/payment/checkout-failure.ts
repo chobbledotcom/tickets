@@ -1,3 +1,4 @@
+import type { ProviderFailureFacts } from "#payment/provider-failures.ts";
 import type { PaymentProviderType } from "#types";
 
 type ProviderCheckoutFailure =
@@ -29,6 +30,26 @@ export class ProviderCheckoutError extends Error {
     this.statusCode = statusCode;
   }
 }
+
+/** The checkout meaning of one transport failure. An unreadable answer stays
+ * an unreadable answer even when a status came with it, so this asks
+ * `malformed` before the status — otherwise a provider that answers 502 with
+ * a broken body would be reported as a plain provider error. */
+export const checkoutErrorFrom = (
+  provider: PaymentProviderType,
+  { connectionReason, malformed, statusCode }: ProviderFailureFacts,
+): ProviderCheckoutError => {
+  if (malformed === true) {
+    return checkoutFailure.invalidResponse(provider, statusCode);
+  }
+  if (statusCode !== undefined) {
+    return checkoutFailure.provider(provider, statusCode);
+  }
+  if (connectionReason !== undefined) {
+    return checkoutFailure.connection(provider, connectionReason);
+  }
+  throw new Error(`${provider} transport failure carries no facts`);
+};
 
 /** The only provider-error shapes checkout code may expose to callers. */
 export const checkoutFailure = {

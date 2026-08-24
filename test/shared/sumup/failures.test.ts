@@ -5,11 +5,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { APIError } from "@sumup/sdk";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   sumupReadFailure,
   sumupRefundFailure,
 } from "#shared/sumup/failures.ts";
-import { SumupApiError, SumupProtocolError } from "#shared/sumup/transport.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 /* jscpd:ignore-end */
@@ -37,14 +37,14 @@ const knownFailures: FailureCase[] = [
     refund: { kind: "rejected", reason: "rejected" },
   },
   {
-    error: new SumupApiError(429),
+    error: transportError.answered(providerDetail.sumup(), 429),
     log: "[SumUp] Transaction read answered 429",
     name: "a transport HTTP answer",
     read: { reason: "rate_limited", status: "unavailable" },
     refund: { kind: "uncertain", reason: "rate_limited" },
   },
   {
-    error: new SumupProtocolError("broken JSON"),
+    error: transportError.unusable(providerDetail.sumup()),
     log: "[SumUp] Transaction read returned malformed data",
     name: "a malformed provider answer",
     read: { reason: "malformed_response", status: "invalid" },

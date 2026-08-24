@@ -15,6 +15,7 @@ import {
 } from "#payment/refund-attempt.ts";
 import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import { transportFactsOf } from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
@@ -33,11 +34,6 @@ import {
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
-import {
-  StripeApiError,
-  StripeConnectionError,
-  StripeProtocolError,
-} from "#shared/stripe/request.ts";
 import {
   sanitizeStripeError,
   stripeClientRuntime,
@@ -127,17 +123,10 @@ export interface StripeApi {
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 }
 
-const stripeFailure = (error: unknown): ProviderFailure | undefined =>
-  providerFailure({
-    connectionReason:
-      error instanceof StripeConnectionError ? error.reason : undefined,
-    malformed:
-      error instanceof StripeProtocolError && error.statusCode === undefined,
-    statusCode:
-      error instanceof StripeApiError || error instanceof StripeProtocolError
-        ? error.statusCode
-        : undefined,
-  });
+const stripeFailure = (error: unknown): ProviderFailure | undefined => {
+  const facts = transportFactsOf(error);
+  return facts === undefined ? undefined : providerFailure(facts);
+};
 
 const withStripeClient = async <Result>(
   notConfigured: Result,

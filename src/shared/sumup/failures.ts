@@ -6,9 +6,11 @@ import {
 } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import {
+  connectionReasonOf,
+  transportFactsOf,
+} from "#payment/transport-error.ts";
 import { logDebug } from "#shared/logger.ts";
-import { isAbortOrTimeoutError } from "#shared/named-error.ts";
-import { SumupApiError, SumupProtocolError } from "#shared/sumup/transport.ts";
 
 /** The immediate answer to a SumUp refund call. Its empty success body only
  * proves that the request was sent; a fresh transaction read must decide
@@ -20,15 +22,14 @@ export type SumupRefundSubmission =
       { kind: "not_sent" | "rejected" | "uncertain" }
     >;
 
+/** The SDK's own calls do not go through our transport, so its `APIError`
+ * and the raw fetch failures underneath it are classified here. */
 const sumupFailureFacts = (err: unknown): ProviderFailureFacts | undefined => {
+  const wrapped = transportFactsOf(err);
+  if (wrapped !== undefined) return wrapped;
   if (err instanceof APIError) return { statusCode: err.status };
-  if (err instanceof SumupApiError) return { statusCode: err.statusCode };
-  if (err instanceof SumupProtocolError) return { malformed: true };
-  if (err instanceof TypeError) return { connectionReason: "network_error" };
-  if (isAbortOrTimeoutError(err)) {
-    return { connectionReason: "timeout" };
-  }
-  return;
+  const connectionReason = connectionReasonOf(err);
+  return connectionReason === undefined ? undefined : { connectionReason };
 };
 
 const knownSumupFailure = (

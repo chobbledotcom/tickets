@@ -1,4 +1,5 @@
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { readJson } from "#shared/read-json.ts";
 
@@ -6,16 +7,6 @@ const SUMUP_API_BASE = "https://api.sumup.com";
 
 /** SumUp transport currently makes one physical fetch per logical call. */
 export const SUMUP_MAX_NETWORK_RETRIES = 0;
-
-/** SumUp answered with an HTTP status that carries the provider's verdict. */
-export class SumupApiError extends Error {
-  constructor(readonly statusCode: number) {
-    super(`SumUp API answered ${statusCode}`);
-  }
-}
-
-/** SumUp answered successfully, but its body did not contain valid JSON. */
-export class SumupProtocolError extends Error {}
 
 export type SumupTransport = {
   readCheckout(checkoutId: string): Promise<unknown>;
@@ -28,9 +19,7 @@ export type SumupTransport = {
 
 const parseJson = async (text: string): Promise<unknown> => {
   const read = await readJson(() => JSON.parse(text));
-  if (!read.ok) {
-    throw new SumupProtocolError("Invalid JSON received from SumUp");
-  }
+  if (!read.ok) throw transportError.unusable(providerDetail.sumup());
   return read.value;
 };
 
@@ -48,7 +37,9 @@ const sumupRequest = async (
     method,
     signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
-  if (!response.ok) throw new SumupApiError(response.status);
+  if (!response.ok) {
+    throw transportError.answered(providerDetail.sumup(), response.status);
+  }
   return response.text;
 };
 
