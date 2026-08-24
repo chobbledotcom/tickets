@@ -36,15 +36,19 @@ below.
 
 What is true now:
 
-> While the site holds SumUp credentials, a paid SumUp checkout is always asked
-> about and always answered for, even when its only callback was lost. A Square
+> A paid SumUp checkout is asked about until SumUp gives a usable answer, even
+> when its only callback was lost. The site then answers for it. A Square
 > webhook for a completed payment whose order is not readable yet is
 > redelivered, not acknowledged.
 
-The condition is real. `enabled: () => settings.sumup.hasKey` gates the task,
-and `syncMaintenanceTaskRows` removes a disabled task. A site that removes its
-SumUp key therefore no longer asks about its unanswered rows. Those rows are
-kept and never deleted, and they wait for the key to come back.
+Two conditions sit behind that, and both are real. The site must still hold
+SumUp credentials: `enabled: () => settings.sumup.hasKey` gates the task, and
+`syncMaintenanceTaskRows` removes a disabled task, so a site that removes its
+key stops asking. SumUp must also answer at last: a provider that returns
+nothing usable leaves the row where it is through `read_unavailable`, which
+moves only the clock. While either condition fails, the row is kept and retried.
+It is never deleted, and it is never read as unpaid. The answer comes when the
+key returns or SumUp replies.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
 accepts becomes a booking. A paid checkout that the engine rejects does not
@@ -75,13 +79,13 @@ call SumUp is therefore never selected after a public request.
 
 ### Trusted facts
 
-| Fact                                              | Source                                                        | Why we trust it                                                                                                                                                 |
-| ------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sumup_checkouts.sumup_id`                        | Written by `setSumupCheckoutId` before the buyer sees the URL | Ours by construction. Not sensitive. The webhook pre-filter already uses it                                                                                     |
-| `sumup_checkouts.reference_index`                 | `hmacHash(reference)` at staging                              | Signed by our key. It proves that a fetched reference names this row                                                                                            |
-| `sumup_checkouts.created_at`                      | Our clock at staging                                          | Ours. It schedules the first check, and `prune.ts` deletes a prunable row by it. It never decides a payment fact                                                |
-| The signed price proof inside the staged metadata | `assembleCheckoutMetadata`                                    | Nobody can forge it without our key. It is already the ownership test                                                                                           |
-| Square webhook that names a `COMPLETED` payment   | Verified Square signature                                     | `authenticateWebhook` refuses a missing signature when `providerWebhook(provider.type)` is not `null`, then `provider.verifyWebhookSignature` proves the sender |
+| Fact                                              | Source                                                        | Why we trust it                                                                                                                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sumup_checkouts.sumup_id`                        | Written by `setSumupCheckoutId` before the buyer sees the URL | Ours by construction. Not sensitive. The webhook pre-filter already uses it                                                                                                                                                 |
+| `sumup_checkouts.reference_index`                 | `hmacHash(reference)` at staging                              | Signed by our key. It proves that a fetched reference names this row                                                                                                                                                        |
+| `sumup_checkouts.created_at`                      | Our clock at staging                                          | Ours. `prune.ts` deletes a prunable row by it, and nothing else reads it. It schedules no check: `setSumupCheckoutId` sets the first `next_check_at` from the moment the checkout id lands. It never decides a payment fact |
+| The signed price proof inside the staged metadata | `assembleCheckoutMetadata`                                    | Nobody can forge it without our key. It is already the ownership test                                                                                                                                                       |
+| Square webhook that names a `COMPLETED` payment   | Verified Square signature                                     | `authenticateWebhook` refuses a missing signature when `providerWebhook(provider.type)` is not `null`, then `provider.verifyWebhookSignature` proves the sender                                                             |
 
 Observed facts stay separate. They never stand in for the facts above.
 
