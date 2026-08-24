@@ -15,6 +15,7 @@ src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56v
 src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt ??→||   # listingAnswerIds is a record object when present, and objects are always truthy
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → ||   # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getDebugKey~036uuok  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
