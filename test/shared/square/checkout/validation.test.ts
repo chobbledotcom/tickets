@@ -16,6 +16,7 @@ import {
 import {
   configureSquare,
   expectNoLink,
+  withSquareAnswer,
   withSquareClient,
 } from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
@@ -50,17 +51,12 @@ describeSquare(() => {
       );
     });
 
-    test("rejects a successful response missing orderId", async () => {
+    test("refuses a created link that names no order", async () => {
       await configureSquare({ locationId: "L_multi_loc" });
-      await withSquareClient(
-        {
-          checkoutCreate: () =>
-            Promise.resolve({
-              paymentLink: { url: "https://square.link/multi" },
-            }),
-        },
-        async () => {
-          await expectClosedCheckoutFailure(
+      await expectClosedCheckoutFailure(
+        withSquareAnswer(
+          { payment_link: { url: "https://square.link/multi" } },
+          () =>
             squareApi.createPaymentLink(
               checkoutIntent({
                 email: "bob@example.com",
@@ -69,9 +65,8 @@ describeSquare(() => {
               }),
               "http://localhost",
             ),
-            { provider: "square", reason: "invalid_response" },
-          );
-        },
+        ),
+        { provider: "square", reason: "invalid_response" },
       );
     });
 
@@ -81,10 +76,8 @@ describeSquare(() => {
         {
           checkoutCreate: () =>
             Promise.resolve({
-              paymentLink: {
-                orderId: "order_multi",
-                url: "https://square.link/multi",
-              },
+              orderId: "order_multi",
+              url: "https://square.link/multi",
             }),
         },
         async ({ checkoutCreate }) => {

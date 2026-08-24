@@ -10,7 +10,6 @@ import {
   PaymentUserError,
   parseWebhookPayload,
   safeAsync,
-  toCheckoutResult,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -214,32 +213,6 @@ describe("payment-helpers", () => {
           ErrorCode.PAYMENT_CHECKOUT,
         ),
       ).rejects.toBe(protocolError);
-    });
-  });
-
-  describe("toCheckoutResult", () => {
-    test("returns result when both id and url present", () => {
-      expect(
-        toCheckoutResult("sess_1", "https://pay.example.com", "Stripe"),
-      ).toEqual({
-        checkoutUrl: "https://pay.example.com",
-        sessionId: "sess_1",
-      });
-    });
-
-    test("returns null for missing or empty id/url", () => {
-      expect(
-        toCheckoutResult(undefined, "https://pay.example.com", "Stripe"),
-      ).toBeNull();
-      expect(toCheckoutResult("sess_1", undefined, "Stripe")).toBeNull();
-      expect(toCheckoutResult("sess_1", null, "Stripe")).toBeNull();
-      expect(
-        toCheckoutResult("", "https://pay.example.com", "Stripe"),
-      ).toBeNull();
-      expect(toCheckoutResult("sess_1", "", "Payment")).toBeNull();
-      expect(debugSpy().calls[0]?.args[0]).toBe(
-        "[Stripe] Checkout result missing session ID or URL",
-      );
     });
   });
 

@@ -1,10 +1,7 @@
 /* jscpd:ignore-start */
 
 import { settings } from "#db/settings.ts";
-import {
-  checkoutFailure,
-  closedCheckoutErrorFor,
-} from "#payment/checkout-failure.ts";
+import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
 import {
   ProviderTransportError,
   type RejectedBuyerField,
@@ -24,6 +21,7 @@ import type {
   CreatePaymentLinkInput,
   GetSquareClient,
 } from "#shared/square/client.ts";
+import type { SquarePaymentLink } from "#shared/square/wire.ts";
 
 /* jscpd:ignore-end */
 
@@ -60,11 +58,8 @@ const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
   return { currency: settings.currency.toUpperCase(), locationId };
 };
 
-/** A created Square order and its hosted checkout URL. */
-export type PaymentLinkResult = {
-  orderId: string;
-  url: string;
-} | null;
+/** A created Square checkout, or nothing when Square is not configured. */
+export type PaymentLinkResult = SquarePaymentLink | null;
 
 type PaymentLinkParams = PaymentLinkConfig & {
   lineItems: SquareLineItem[];
@@ -81,31 +76,27 @@ const createPaymentLink = (
 ): Promise<PaymentLinkResult> =>
   createWithClient(getClient, {
     shouldPropagate: () => true,
-  })(async (client) => {
-    const response = await client.checkout.paymentLinks
-      .create({
-        checkoutOptions: {
-          redirectUrl: `${params.baseUrl}/payment/success`,
-        },
-        idempotencyKey: crypto.randomUUID(),
-        order: {
-          lineItems: params.lineItems,
-          locationId: params.locationId,
-          metadata: params.metadata,
-        },
-        prePopulatedData: {
-          buyerEmail: params.email,
-          ...(params.phone ? { buyerPhoneNumber: params.phone } : {}),
-        },
-      })
-      .catch(rethrowAsUserError);
-    const orderId = response.paymentLink?.orderId;
-    const url = response.paymentLink?.url;
-    if (!orderId || !url) {
-      throw checkoutFailure.invalidResponse("square");
-    }
-    return { orderId, url };
-  }, ErrorCode.SQUARE_CHECKOUT);
+  })(
+    (client) =>
+      client.checkout.paymentLinks
+        .create({
+          checkoutOptions: {
+            redirectUrl: `${params.baseUrl}/payment/success`,
+          },
+          idempotencyKey: crypto.randomUUID(),
+          order: {
+            lineItems: params.lineItems,
+            locationId: params.locationId,
+            metadata: params.metadata,
+          },
+          prePopulatedData: {
+            buyerEmail: params.email,
+            ...(params.phone ? { buyerPhoneNumber: params.phone } : {}),
+          },
+        })
+        .catch(rethrowAsUserError),
+    ErrorCode.SQUARE_CHECKOUT,
+  );
 
 const checkoutPhone = (phone: string | undefined): string | undefined =>
   phone ? normalizePhone(phone, settings.phonePrefix) : undefined;

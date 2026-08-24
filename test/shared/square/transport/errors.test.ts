@@ -8,6 +8,7 @@ import {
   rejectedBuyerFieldOf,
 } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
+import type { SquareClient } from "#shared/square/client.ts";
 import {
   installMockFetch,
   jsonResponse,
@@ -30,7 +31,19 @@ const thrownBy = async (work: () => Promise<unknown>): Promise<unknown> => {
   throw new Error("Expected Square transport to throw");
 };
 
-const apiErrorFrom = async (
+/** Read the transport failure one Square call raised. Anything else travels
+ * on, so a test can never assert against a value the call did not produce. */
+const transportFailureFrom = async (
+  ask: (client: SquareClient) => Promise<unknown>,
+): Promise<ProviderTransportError> => {
+  const client = await squareApi.getSquareClient();
+  if (!client) throw new Error("Square is not configured for this test");
+  const thrown = await thrownBy(() => ask(client));
+  if (thrown instanceof ProviderTransportError) return thrown;
+  throw thrown;
+};
+
+const apiErrorFrom = (
   responseBody: string,
 ): Promise<ProviderTransportError> => {
   installMockFetch(() =>
@@ -40,12 +53,9 @@ const apiErrorFrom = async (
       text: () => Promise.resolve(responseBody),
     }),
   );
-  const client = await squareApi.getSquareClient();
-  const error = await thrownBy(() =>
-    client!.payments.get({ paymentId: "pay_error" }),
+  return transportFailureFrom((client) =>
+    client.payments.get({ paymentId: "pay_error" }),
   );
-  if (error instanceof ProviderTransportError) return error;
-  throw error;
 };
 
 describeSquare(() => {
@@ -131,12 +141,10 @@ describeSquare(() => {
           text: () => Promise.resolve(privateBody),
         }),
       );
-      const client = await squareApi.getSquareClient();
-      const error = await thrownBy(() =>
-        client!.payments.get({ paymentId: "pay_json" }),
+      const error = await transportFailureFrom((client) =>
+        client.payments.get({ paymentId: "pay_json" }),
       );
-      expect(error).toBeInstanceOf(ProviderTransportError);
-      expect((error as Error).message).not.toContain(privateBody);
+      expect(error.message).not.toContain(privateBody);
     });
 
     test("reports a malformed payment body as malformed provider data", async () => {
@@ -158,15 +166,11 @@ describeSquare(() => {
     test("discards connection details from its network error", async () => {
       const privateDetail = "socket closed PRIVATE_REFERENCE";
       installMockFetch(() => Promise.reject(new TypeError(privateDetail)));
-      const client = await squareApi.getSquareClient();
-      const error = await thrownBy(() =>
-        client!.payments.get({ paymentId: "pay_network" }),
+      const error = await transportFailureFrom((client) =>
+        client.payments.get({ paymentId: "pay_network" }),
       );
-      expect(error).toBeInstanceOf(ProviderTransportError);
-      expect((error as ProviderTransportError).facts.connectionReason).toBe(
-        "network_error",
-      );
-      expect((error as Error).message).not.toContain(privateDetail);
+      expect(error.facts.connectionReason).toBe("network_error");
+      expect(error.message).not.toContain(privateDetail);
     });
 
     test("does not disguise an internal transport failure as a network outage", async () => {
@@ -182,15 +186,11 @@ describeSquare(() => {
         installMockFetch(() =>
           Promise.reject(new DOMException(privateDetail, name)),
         );
-        const client = await squareApi.getSquareClient();
-        const error = await thrownBy(() =>
-          client!.payments.get({ paymentId: "pay_timeout" }),
+        const error = await transportFailureFrom((client) =>
+          client.payments.get({ paymentId: "pay_timeout" }),
         );
-        expect(error).toBeInstanceOf(ProviderTransportError);
-        expect((error as ProviderTransportError).facts.connectionReason).toBe(
-          "timeout",
-        );
-        expect((error as Error).message).not.toContain(privateDetail);
+        expect(error.facts.connectionReason).toBe("timeout");
+        expect(error.message).not.toContain(privateDetail);
       });
     }
 

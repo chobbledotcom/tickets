@@ -11,6 +11,7 @@ import {
   refuseUnlessAll,
 } from "#payment/provider-resource-read.ts";
 import { sumupPaymentFields } from "#shared/sumup/wire.ts";
+import { optionalRecordList } from "#shared/validation/list.ts";
 
 /** One SumUp transaction's charge and refund money in provider major units. */
 export type SumupTransactionMoney = {
@@ -31,15 +32,11 @@ const EVENT_TYPES = [
 
 const TransactionSchema = v.object({
   ...sumupPaymentFields,
-  transaction_events: v.optional(
-    v.array(
-      v.object({
-        amount: v.optional(v.number()),
-        event_type: v.optional(v.picklist(EVENT_TYPES)),
-        status: v.optional(v.string()),
-      }),
-    ),
-  ),
+  transaction_events: optionalRecordList({
+    amount: v.optional(v.number()),
+    event_type: v.optional(v.picklist(EVENT_TYPES)),
+    status: v.optional(v.string()),
+  }),
 });
 
 const CAPTURED_STATUSES = ["REFUNDED", "SUCCESSFUL"] as const;

@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square/api.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import type { SquarePayment } from "#shared/square/wire.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";

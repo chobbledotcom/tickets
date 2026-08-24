@@ -6,7 +6,7 @@ import type { ProviderRead } from "#payment/provider-read.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import type { SquarePayment } from "#shared/square/wire.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { rejectionMessage } from "#test-utils/assertions.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -265,26 +265,6 @@ describe("square-provider read outcomes", () => {
         payment: squarePaymentRead({
           id: "pay_read",
           refundedMoney: squareMoney(1000),
-          status: "COMPLETED",
-        }),
-      },
-      {
-        expected: { reason: "malformed_money", status: "invalid" },
-        name: "refuses a refunded total that names no amount",
-        payment: squarePaymentRead({
-          amountMoney: squareMoney(1000),
-          id: "pay_read",
-          refundedMoney: { currency: "GBP" },
-          status: "COMPLETED",
-        }),
-      },
-      {
-        expected: { reason: "malformed_money", status: "invalid" },
-        name: "refuses a refunded total that names no currency",
-        payment: squarePaymentRead({
-          amountMoney: squareMoney(1000),
-          id: "pay_read",
-          refundedMoney: { amount: 1000n },
           status: "COMPLETED",
         }),
       },

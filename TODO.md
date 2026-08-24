@@ -2598,33 +2598,6 @@ on the last column via the `alsoAbout` pattern in
 
 ---
 
-## Square treats a malformed payment link as "provider not configured"
-
-_Origin: the 2026-08 refactor survey (ADMIN_SURFACE_PLAN.md)._
-
-Stripe and SumUp build their checkout through `makeCreateCheckoutSession`
-(`src/shared/payment-helpers.ts:483`). Its `requiredCheckoutResult` throws when
-a non-null provider response lacks its session id or URL. Square opted out:
-`squarePaymentProvider.createCheckoutSession`
-(`src/shared/square-provider.ts:241-246`) reads the created payment link with
-`toCheckoutResult(link?.orderId, link?.url, "Square")`, which logs and returns
-`null` for the same condition. A `null` checkout result means "provider not
-configured" to callers. So a Square payment link that arrives without its
-`orderId` or `url` is reported as an unconfigured provider, where the identical
-Stripe/SumUp condition raises loudly. That breaks the offensive-programming
-rule: an absent expected field from structured external data must fail at its
-boundary, not become a quiet default. The fix is to route Square through
-`makeCreateCheckoutSession` (create = `squareApi.createPaymentLink`, readResult
-= `link => ({ id: link.orderId, url: link.url })`), keep null-link =
-not-configured, and add a regression test in which a payment link arrives
-without its URL and the checkout throws instead of a "not configured" answer.
-This is a payment behaviour change, so it needs its own small PR with the test.
-Starting points: `src/shared/square-provider.ts:241`,
-`src/shared/payment-helpers.ts:455-501`, the Square checkout tests under
-`test/`.
-
----
-
 ## One admin form POST helper, not three
 
 _Origin: widening `adminFormPost` to accept repeated fields (PR #2115)._
@@ -2674,36 +2647,6 @@ step the page applies, and apply the table's default date-and-name order when
 `filteredAttendeesHandler` already promises that "the CSV export mirrors the
 on-screen table", so the comment is correct and the code is not. Ship a
 regression test that exports with a chosen order and pins the row order.
-
----
-
-## Square parses each order twice, and the second parse is a bare cast
-
-_Origin: the consolidation review. The original note claimed a silent zero. That
-claim is wrong, and this entry records the corrected reading._
-
-`get<T>` in `src/shared/square/client.ts:88` is
-`squareFetch(...) as Promise<T>`, so `SquareOrderResponse` is a claim about the
-wire, not a check of it. `orders.get` then runs
-`BigInt(order.total_money.amount)` on that unchecked value.
-
-The original note said `BigInt(null)` becomes `0n` and books a real zero. It
-does not. `BigInt(null)` and `BigInt(undefined)` both throw a `TypeError`, and a
-non-numeric string throws a `SyntaxError`. Only `""`, `false`, or `[]` become
-`0n`, and Square sends the amount as a JSON number, so a silent zero is not a
-path this code can take.
-
-The real defect is the throw. A raw `TypeError` from a coercion is not a
-`ProviderTransportError`, so it escapes `squareFailure` in
-`src/shared/square/outcomes.ts` and reaches the caller as an unclassified crash
-rather than a provider failure with facts.
-
-Fix: parse the order response with a valibot schema the way
-`parseSquarePaymentResponse` already parses a payment, so a malformed body
-becomes a `ValiError` the failure reader knows how to read. Square already
-parses payments and refunds twice with two schemas of different strength, so do
-this as part of the wider "Square parses each resource once" work below rather
-than as a second schema bolted on.
 
 ---
 
@@ -2793,17 +2736,6 @@ so it went with them.
 
 ---
 
-## Square parses each resource once
-
-_Origin: the consolidation review._
-
-Square carries two schemas per resource, and the second is weaker than the
-first. Reduce each resource to one wire schema, and let the mapped shape come
-out of it. About 65 lines. This also removes the unchecked `get<T>` cast that
-the order-total entry above describes, so do the two together.
-
----
-
 ## The ledger's unreachable half, a decision for the repository owner
 
 _Origin: the consolidation review. This entry records a decision, not a job to
@@ -2821,25 +2753,22 @@ the `LIBRARY_PATHS` exemption in `test/integration/code-quality.test.ts`.
 
 ---
 
-## Square's modules have no test at their mirror path
+## `src/shared/sumup/money.ts` has no test at its mirror path
 
-_Origin: the provider boundary work._
+_Origin: the provider boundary work. The original entry named five more modules.
+Four of them (`sumup/transport.ts`, `sumup/wire.ts`,
+`payment/checkout-failure.ts`, and Square's `transport.ts`) already have a test
+at their mirror, and Square's other modules moved to theirs with the
+answer-reading work. This entry records what is left._
 
 `deno task precommit:mutation` selects a source's direct tests by the mirror
-path alone (`scripts/mutation/test-map.ts`). `src/shared/square/order.ts` looks
-for `test/shared/square/order.test.ts` or `test/shared/square/order/`, and finds
-neither, because Square's tests are named for what they do rather than for the
-module they cover: `read-order.test.ts`, `read-payment.test.ts`,
-`transport-errors.test.ts`, `rest-transport.test.ts`, `refund-outcomes.test.ts`.
+path alone (`scripts/mutation/test-map.ts`). `src/shared/sumup/money.ts` looks
+for `test/shared/sumup/money.test.ts` or `test/shared/sumup/money/`, and finds
+neither. The gate refuses to run for a source with no test at its mirror, so a
+branch that changes that module cannot pass it.
 
-The gate refuses to run for a source with no test at its mirror, so a branch
-that changes any Square module cannot pass it. These modules are affected:
-`checkout.ts`, `order.ts`, `outcomes.ts`, `payment-outcomes.ts`, and
-`transport.ts`. `src/shared/sumup/money.ts`, `src/shared/sumup/transport.ts`,
-`src/shared/sumup/wire.ts`, and `src/shared/payment/checkout-failure.ts` have
-the same gap.
-
-Fix: move each test to its module's mirror path, and split one that covers more
-than one module. Do it as its own move-only pull request, so the move is
-readable and no behaviour changes hide inside it. Then run
-`deno task precommit:mutation` and close whatever survivors the move reveals.
+No test imports `#shared/sumup/money.ts` at all today. Its exports
+(`readSumupCharge`, `sumupRefundOutcome`) are reached through
+`src/shared/sumup-provider.ts`, so this is a missing direct suite rather than a
+file to move. Write `test/shared/sumup/money.test.ts` against the two exports,
+then run `deno task precommit:mutation` on the module and close its survivors.

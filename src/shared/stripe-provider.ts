@@ -70,7 +70,7 @@ const toValidatedSession = (
 
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createStripeCheckoutSession = makeCreateCheckoutSession(
-  "Stripe",
+  "stripe",
   (...args) => stripeApi.createCheckoutSession(...args),
   (session) => ({ id: session?.id, url: session?.url }),
 );

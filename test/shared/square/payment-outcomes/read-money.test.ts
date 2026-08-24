@@ -3,7 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { squareApi } from "#shared/square/api.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { gbp } from "#test-utils/payment-state.ts";
-import { withSquareClient } from "#test-utils/square/fixtures.ts";
+import {
+  withSquareAnswer,
+  withSquareClient,
+} from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
 describeSquare(() => {
@@ -107,31 +110,24 @@ describeSquare(() => {
   });
 
   describe("readPayment money Square only partly states", () => {
-    // Square can name a money object while leaving its amount or currency out.
-    // Carrying those through as nulls would read as "Square said zero"; absent
-    // is the honest answer, and the refund guard treats it as unreadable.
-    test("leaves out an amount and currency Square did not give", async () => {
-      await withSquareClient(
+    // Square states a money object with both halves or not at all. Reading a
+    // half of one as "nothing" would tell the charge boundary a figure Square
+    // never gave, so the answer is refused where it arrives.
+    test("refuses an amount and currency Square left empty", async () => {
+      const read = await withSquareAnswer(
         {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: null, currency: null },
-                id: "pay_partial",
-                status: "COMPLETED",
-              },
-            }),
+          payment: {
+            amount_money: { amount: null, currency: null },
+            id: "pay_partial",
+            status: "COMPLETED",
+          },
         },
-        async () => {
-          const result = await squareApi.readPayment("pay_partial");
-          expect(result.status).toBe("found");
-          if (result.status !== "found") return;
-          expect(result.resource.amountMoney).toEqual({
-            amount: undefined,
-            currency: undefined,
-          });
-        },
+        () => squareApi.readPayment("pay_partial"),
       );
+      expect(read).toEqual({
+        reason: "malformed_response",
+        status: "invalid",
+      });
     });
   });
 });

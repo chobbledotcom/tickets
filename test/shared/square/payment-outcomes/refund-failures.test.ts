@@ -129,6 +129,11 @@ describeSquare(() => {
       await expect(outcomeWhen(new Error("internal bug"))).rejects.toThrow(
         "internal bug",
       );
+      // The refund left with nobody able to say what became of it, so the
+      // report names our own failure rather than one of Square's.
+      expect(errors.lastMessage()).toContain(
+        "outcome=thrown reason=internal_error",
+      );
     });
   });
 });

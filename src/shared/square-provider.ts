@@ -22,13 +22,11 @@ import { logDebug } from "#shared/logger.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
+  makeCreateCheckoutSession,
   toCanonicalIso,
-  toCheckoutResult,
-  withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import { parsePriceProof } from "#shared/payment-signature.ts";
 import type {
-  CheckoutIntent,
   PaymentProvider,
   RetrieveSessionResult,
   SessionMetadata,
@@ -37,28 +35,27 @@ import type {
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
-import type { SquareOrder } from "#shared/square/order.ts";
 import {
   isSquarePaymentStatus,
-  type SquarePayment,
   type SquarePaymentStatus,
 } from "#shared/square/payment-outcomes.ts";
 import { verifySquareWebhookSignature } from "#shared/square/webhook.ts";
+import type {
+  SquareMoney,
+  SquareOrder,
+  SquarePayment,
+} from "#shared/square/wire.ts";
 
-/** How much of a Square payment has gone back, or nothing when Square's
- *  answer cannot be read. An absent total is a stated zero; one that names no
- *  amount, or a different currency from the money taken, cannot be accounted
- *  for — reading either as zero would tell the guard the buyer is still
- *  owed money that may already be back with them. */
+/** How much of a Square payment has gone back. Money nothing has come back on
+ *  carries no refunded total, and that absence is a stated zero. Money back
+ *  against a charge Square states no amount for cannot be accounted for, and
+ *  reading it as zero would tell the guard the buyer is still owed it. */
 const squareMoneyReturned = (
-  refunded:
-    | { amount?: bigint | undefined; currency?: string | undefined }
-    | undefined,
-  captured: { currency?: string | undefined } | undefined,
+  refunded: SquareMoney | undefined,
+  captured: SquareMoney | undefined,
 ): bigint | null => {
   if (refunded === undefined) return 0n;
-  if (captured === undefined || refunded.amount === undefined) return null;
-  if (refunded.currency !== captured.currency) return null;
+  if (captured === undefined) return null;
   return refunded.amount;
 };
 
@@ -234,16 +231,20 @@ const readOrderPayment = async (
   return { payment, paymentReference };
 };
 
+/** Square's checkout-session builder (see {@link makeCreateCheckoutSession}). */
+const createSquareCheckoutSession = makeCreateCheckoutSession(
+  "square",
+  // A lambda, not the member itself: the checkout builder is captured once
+  // at module load, and resolving the member per call keeps test stubs live.
+  (intent, baseUrl) => squareApi.createPaymentLink(intent, baseUrl),
+  (link) => ({ id: link.orderId, url: link.url }),
+);
+
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "payment.updated",
 
-  createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
-    return withCheckoutError(async () => {
-      const link = await squareApi.createPaymentLink(intent, baseUrl);
-      return toCheckoutResult(link?.orderId, link?.url, "Square");
-    });
-  },
+  createCheckoutSession: createSquareCheckoutSession,
 
   async readCharge(
     paymentReference: string,
@@ -255,11 +256,7 @@ export const squarePaymentProvider: PaymentProvider = {
     }
     const captured = read.resource.amountMoney;
     const refunded = read.resource.refundedMoney;
-    if (
-      captured?.currency !== undefined &&
-      refunded?.currency !== undefined &&
-      captured.currency !== refunded.currency
-    ) {
+    if (captured && refunded && captured.currency !== refunded.currency) {
       return { reason: "mismatched_money", status: "invalid" };
     }
     const returned = squareMoneyReturned(refunded, captured);
