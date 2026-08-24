@@ -3,10 +3,14 @@
  *  `hasChildren: false`, and the validation must trust the voucher instead of
  *  the stored edges it is about to remove. */
 
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
-import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
+import {
+  type ListingGroupMembershipValidation,
+  validateListingGroupMembershipTx,
+} from "#db/groups/membership.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -17,6 +21,13 @@ describeWithEnv(
   "db > groups > membership child-state override",
   { db: true },
   () => {
+    const requireChecked = (
+      validation: ListingGroupMembershipValidation,
+    ): string | null => {
+      assert(!validation.listingMissing, "Expected the listing to exist");
+      return validation.error;
+    };
+
     const hiddenPackageParent = async (name: string) => {
       const group = await createHiddenPackageGroup(name);
       const parent = await createTestListing({ name: `${name} parent` });
@@ -32,7 +43,7 @@ describeWithEnv(
         validateListingGroupMembershipTx(tx)(parent.id, [group.id], false),
       );
 
-      expect(validation.error).toBeNull();
+      expect(requireChecked(validation)).toBeNull();
     });
 
     test("reads the stored child edges when no caller vouches", async () => {
@@ -42,7 +53,7 @@ describeWithEnv(
         validateListingGroupMembershipTx(tx)(parent.id, [group.id]),
       );
 
-      expect(validation.error).toBe(
+      expect(requireChecked(validation)).toBe(
         t("error.package_member_gates_children_hidden", { name: parent.name }),
       );
     });
