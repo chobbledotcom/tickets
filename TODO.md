@@ -1424,9 +1424,10 @@ row, so a race that writes the ledger twice passes it.
 The browser redirect is also missing. `late-callback.test.ts` calls the redirect
 only after the recovery check finished, so no test runs all three at once.
 
-The request that this work came from asked for webhook, redirect, and
-maintenance attempts running together, and for a proof that the attendee rows
-and the ledger rows are created exactly once. Neither half is met yet.
+The request that this work came from asked for two things. The webhook, the
+redirect, and maintenance must all attempt the same payment at once. The test
+must then prove that the attendee rows and the ledger rows are created exactly
+once. Neither half is met yet.
 
 To fix:
 

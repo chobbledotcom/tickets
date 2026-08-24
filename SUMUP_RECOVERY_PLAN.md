@@ -149,6 +149,10 @@ Read the declaration in this order:
    sweep proves that it throws.
 4. `recoveryNodeOf` — total over stored rows. It throws on a combination that no
    writer can produce. That behaviour is what makes the backwards scan possible.
+   Note one gap in the declaration itself: `RecoveryEventId` is a hand-written
+   union beside the `RECOVERY_EVENTS` array, and the moves table is partial. A
+   new id added to the union alone still compiles. The sweep never visits it,
+   and `recoveryMoveTo` throws for it in production.
 5. `RECOVERY_TERMINAL_NODES`, `RECOVERY_CHECKABLE_NODES`, and
    `RECOVERY_PRUNABLE_NODES` — derived from the table and the node facts. Nobody
    maintains them beside it.
@@ -168,9 +172,15 @@ The declaration cannot carry the reasons below, so they stay here:
   row. That is what lets `finished` refuse every event without a late callback
   that hits the refusal. A callback that arrives after a check closed the row
   goes through the payment engine. The engine replays the booking that it
-  already made, answers the provider, and leaves `recovery_state` alone. The
-  same is true when the buyer returns to the success page days later. Tests
-  prove both, in `test/integration/server/sumup-recovery/late-callback.test.ts`.
+  already made, answers the provider, and leaves `recovery_state` alone. A buyer
+  who returns to the success page gets the same replay, but only while the
+  staged row survives. `retrieveSession` reads that row through
+  `getSumupCheckout`, and a `finished` row is prunable after
+  `PRUNE_SUMUP_RETENTION_HOURS`. After the prune the return answers "not found"
+  instead. The ticket itself is unaffected, because the booking already exists.
+  `test/integration/server/sumup-recovery/late-callback.test.ts` proves the
+  callback replay and the prompt return. No test advances the clock past the
+  prune, so that limit is read from the code rather than pinned by a test.
 - **`owed` refuses `read_pending` and `read_expired_or_failed`.** Every `owed`
   row arrived from a read that said PAID, and SumUp never moves a checkout back
   off PAID. Either cell defends against the impossible.
@@ -270,7 +280,7 @@ through `settleRejectedCharge`. Both keep the same rules and the same durable
 - The protection of the staging row is unchanged. The metadata stays encrypted
   under a key wrapped with the reference. The plaintext reference never rests in
   this table. `recovery_state` is a state word that carries no buyer fact and no
-  provider fact. Data never moves to weaker protection (data law 6).
+  provider fact. Data never moves to weaker protection.
 - The recovery check re-obtains the reference the same way that the webhook
   does, from the response of SumUp itself. It decrypts only when
   `hmacHash(reference) === reference_index`.
@@ -282,9 +292,12 @@ through `settleRejectedCharge`. Both keep the same rules and the same durable
   `reference_index` is `hmacHash(reference)`, a one-way code that this database
   cannot turn back into the buyer's reference. The scan reads `sumup_id` only to
   pick which fault the row has, and it shows no amount and no buyer fact.
-- This path has no state-changing HTTP entry point. The CSRF rules and the owner
-  guard in the plan covered the "Check again now" control, which nobody built.
-  They apply again if the TODO.md follow-up ships.
+- One HTTP entry point reaches this path: `POST /scheduled`, which
+  `serve-app.ts` routes to `handleScheduledRequest`. It runs maintenance, and
+  maintenance moves recovery rows. A bearer key guards it, so no untrusted
+  caller starts it and no owner-facing control exists. The CSRF rules and the
+  owner guard in the plan covered the "Check again now" control, which nobody
+  built. They apply again if the TODO.md follow-up ships.
 
 ## 3. The module map
 
