@@ -190,8 +190,8 @@ helper behind it, `moveSumupRecoveryRow`, so no second implementation can drift.
 The schedule law has two writers. `setSumupCheckoutId` writes the
 `checkout_created` edge on its own, and it takes the landing state from
 `recoveryMoveTo`, so it reads the same declaration. Both writers obey the law
-today. Two writers are weaker than one, and a test over the declaration would
-hold this law better than structure does.
+today. Two writers are weaker than one. A test over the declaration holds this
+law better than structure does.
 
 Two laws deserve plain words. **The site never deletes a row that can hold money
 nobody accounted for. That row always has something that will act on it.** That
