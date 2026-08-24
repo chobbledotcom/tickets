@@ -319,6 +319,7 @@ describeStripe("stripe", () => {
           type: "card_error",
         }),
         402,
+        privateMessage,
       );
       await expectClosedCheckoutFailure(
         checkoutFailure(providerError),
@@ -333,6 +334,7 @@ describeStripe("stripe", () => {
       const providerError = transportError.unreachable(
         providerDetail.stripe(),
         "network_error",
+        privateMessage,
       );
       await expectClosedCheckoutFailure(
         checkoutFailure(providerError),
@@ -343,14 +345,16 @@ describeStripe("stripe", () => {
     });
 
     test("closes malformed Stripe checkout responses", async () => {
+      const privateMessage = "malformed body includes cs_private_123";
       const providerError = transportError.unusable(
         providerDetail.stripe(),
         502,
+        privateMessage,
       );
       await expectClosedCheckoutFailure(
         checkoutFailure(providerError),
         { provider: "stripe", reason: "invalid_response", statusCode: 502 },
-        ["cs_private_123"],
+        [privateMessage],
         providerError,
       );
     });
