@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch } from "#db/client.ts";
-import { batchFinalizeStatements } from "#db/payment-finalize.ts";
+import { executeBatch, requireOne } from "#db/client.ts";
+import {
+  balanceFinalizeStatements,
+  batchFinalizeStatements,
+} from "#db/payment-finalize.ts";
 import {
   decryptSessionTokens,
   reserveSession,
@@ -44,9 +47,32 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     const finalized = await getProcessedPayment("free-finalize");
     expect(finalized?.attendee_id).toBe(attendeeId);
     expect(finalized?.payment_reference).toBe("");
+    // The blind index stays empty with its reference, so a refund claim can
+    // never match this row by an index that names no stored money.
+    const { payment_reference_index } = await requireOne<{
+      payment_reference_index: string;
+    }>(
+      "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
+      ["free-finalize"],
+    );
+    expect(payment_reference_index).toBe("");
     expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(
       "free-token",
     );
+  });
+
+  test("a balance finalize sets the attendee id through its bound slot", async () => {
+    const statements = await balanceFinalizeStatements(
+      "balance-slot",
+      7,
+      500,
+      taggedPaymentReference("pi_balance"),
+    );
+    const update = statements[0];
+    if (!update) throw new Error("Expected the balance finalize update");
+
+    expect(update.sql).toContain("SET attendee_id = ?,");
+    expect(update.args[0]).toBe(7);
   });
 
   test("rejects a missing session", async () => {

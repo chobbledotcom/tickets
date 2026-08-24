@@ -187,3 +187,10 @@ src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e
 # first, so the empty prefix produces the same statement.
 src/shared/db/prune.ts::paymentStatement.sql~1oy3usg  charge. → ""   # the fragment's columns are payment_charges columns and the subquery's only table is charge, so the unqualified names still bind to charge
 src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → ""   # same subquery shape one arm down: the unqualified names still bind to charge
+
+# payment-finalize.ts — the stored reference fields fall back to "". Each left
+# side is a string or undefined, and the fallback is the empty string, so ??
+# and || agree on every value: a truthy string passes through both, undefined
+# takes the fallback in both, and an empty string yields "" either way.
+src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~10demh7  ?? → ||   # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
+src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → ||   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
