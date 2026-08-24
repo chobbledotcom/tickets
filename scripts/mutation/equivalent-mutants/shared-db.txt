@@ -146,6 +146,18 @@ src/shared/sumup/transaction.ts::readSumupTransaction.events~0aphohd  ?? → || 
 # sessionId that is a key of that same map. requiredMapValue can never miss
 # there, and no input can observe the message on that unreachable throw.
 src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement lost a payment row→""   # unreachable: the IN-clause is built from the same map's keys
+src/shared/db/payment-claim.ts::assertRefundRowsHeld.phase~19s22mv Refund confirmation lost a payment-row phase→""   # unreachable: the rows are read by this same map's keys, so every row has a phase
+src/shared/db/payment-claim.ts::paymentClaimRowsSql~1oy3usg charge.→""   # the work test reads refund_state_name and refund_local_state, which only payment_charges carries in this join, so the bare names resolve to the same columns
+
+# refund-all-candidates.ts — table aliases the reader needs and SQLite does
+# not: each column below is on exactly one table in its query, so dropping the
+# alias resolves to the same column.
+src/shared/db/refund-all-candidates.ts::providerRefundWork~1oy3usg charge.→""   # only payment_charges carries refund_state_name and refund_local_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~195soyi payment.→""   # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~0uj3b4g payment.→""   # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~1unwmuv payment.→""   # only processed_payments carries protected_state in that query
+
+src/shared/db/payment-admit-move.ts::moveSnapshot.refusalFor~1l6lh30  ?? → ||   # every refusal is a declared sentence, never the empty string, so only null reaches the second reader
 
 # backup dump (shared/db/backup-snapshot.ts) — exportTable internals whose
 # intermediate values are overwritten or type-guaranteed before any read.

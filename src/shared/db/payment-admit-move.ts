@@ -8,7 +8,7 @@
 
 import {
   inPlaceholders,
-  queryBatchPrimary,
+  queryAllPrimary,
   resultRows,
   type SqlStatement,
   type TxScope,
@@ -27,7 +27,7 @@ import {
   type RefundAuthorityState,
   readRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
-import { requireValue } from "#shared/required-value.ts";
+import { namedError } from "#shared/named-error.ts";
 
 interface StoredMoveWork {
   readonly protected_state: string;
@@ -97,24 +97,15 @@ const readPaymentMoveSnapshot = (
  * primary. The rows contain no attendee PII and are bounded by attendee id. */
 export const loadPaymentMoveSnapshot = async (
   attendeeIds: readonly number[],
-): Promise<PaymentMoveSnapshot> => {
-  const [read] = await queryBatchPrimary([moveWorkStatement(attendeeIds)]);
-  return moveSnapshot(
-    resultRows<StoredMoveWork>(
-      requireValue(read, "Payment move snapshot returned no result"),
-    ),
+): Promise<PaymentMoveSnapshot> =>
+  moveSnapshot(
+    await queryAllPrimary<StoredMoveWork>(moveWorkStatement(attendeeIds)),
   );
-};
 
 /** Raised when payment rows are in the middle of work the operator has to
  *  settle first. The message is written for whoever asked for the merge or the
  *  delete, so it can be shown as-is. */
-export class PaymentRowsBusyError extends Error {
-  constructor(refusal: string) {
-    super(refusal);
-    this.name = "PaymentRowsBusyError";
-  }
-}
+export class PaymentRowsBusyError extends namedError("PaymentRowsBusyError") {}
 
 /** Stop the caller's transaction unless every one of these attendees' payment
  *  rows is free to move. Throwing rather than answering means a caller that

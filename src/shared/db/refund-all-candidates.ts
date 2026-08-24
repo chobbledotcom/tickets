@@ -12,6 +12,7 @@ import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { refundedForBooking } from "#db/attendees/select.ts";
 import {
+  queryAllPrimary,
   queryBatchPrimary,
   resultRows,
   type SqlStatement,
@@ -206,11 +207,8 @@ const batchStatement = (listingId: number): SqlStatement => ({
      ORDER BY selectedAttendee.has_claim DESC, selectedAttendee.id ASC`,
 });
 
-const readSummary = (result: ResultSet): RefundAllSummary => {
-  const row = requireValue(
-    resultRows<RefundAllSummaryRow>(result)[0],
-    "Refund All admission returned no summary",
-  );
+const readSummary = (rows: RefundAllSummaryRow[]): RefundAllSummary => {
+  const row = requireValue(rows[0], "Refund All admission returned no summary");
   const blockedBy = row.unrecorded_money
     ? "unrecorded_money"
     : row.provider_refund
@@ -223,23 +221,29 @@ const readSummary = (result: ResultSet): RefundAllSummary => {
   return { blockedBy, total: Number(row.total) };
 };
 
-const readAttendees = (result: ResultSet): RefundAllCandidateAttendee[] =>
-  resultRows<RefundAllCandidateRow>(result).map((row) => ({
+const readAttendees = (
+  rows: RefundAllCandidateRow[],
+): RefundAllCandidateAttendee[] =>
+  rows.map((row) => ({
     id: Number(row.id),
     pii_blob: row.pii_blob,
     quantity: 1,
     refunded: Boolean(row.refunded),
   }));
 
+/** The rows of one statement the admission batch answered. */
+const answered = <Row>(result: ResultSet | undefined, what: string): Row[] =>
+  resultRows<Row>(
+    requireValue(result, `Refund All admission returned no ${what} result`),
+  );
+
 /** Count the complete refundable set and report its visible send blockers. */
 export const getRefundAllSummary = async (
   listingId: number,
-): Promise<RefundAllSummary> => {
-  const [summary] = await queryBatchPrimary([summaryStatement(listingId)]);
-  return readSummary(
-    requireValue(summary, "Refund All admission returned no result"),
+): Promise<RefundAllSummary> =>
+  readSummary(
+    await queryAllPrimary<RefundAllSummaryRow>(summaryStatement(listingId)),
   );
-};
 
 /** Check complete safety facts and select only one claim-first candidate batch. */
 export const loadRefundAllBatch = async (
@@ -250,11 +254,9 @@ export const loadRefundAllBatch = async (
     batchStatement(listingId),
   ]);
   return {
-    ...readSummary(
-      requireValue(summary, "Refund All admission returned no summary result"),
-    ),
+    ...readSummary(answered<RefundAllSummaryRow>(summary, "summary")),
     attendees: readAttendees(
-      requireValue(attendees, "Refund All admission returned no batch result"),
+      answered<RefundAllCandidateRow>(attendees, "batch"),
     ),
   };
 };

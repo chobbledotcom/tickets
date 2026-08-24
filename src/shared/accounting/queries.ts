@@ -30,14 +30,11 @@ import {
   signedSumCase,
 } from "#accounting/projection-sql.ts";
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
-import {
-  fromDb,
-  selectByEventGroup,
-  selectTransfers,
-} from "#accounting/rows.ts";
+import { selectByEventGroup, selectTransfers } from "#accounting/rows.ts";
 import {
   inPlaceholders,
   queryAll,
+  queryBatch,
   requireOne,
   resultRows,
   rowExists,
@@ -83,7 +80,7 @@ export const transfersByAccounts = async (
   const requested = uniqueBy(accountKey)([...accounts]);
   if (requested.length === 0) return new Map();
   const wanted = new Set(requested.map(accountKey));
-  const transfers = await selectTransfers(fromDb, {
+  const transfers = await selectTransfers(queryBatch, {
     where: [accountsScope(requested)],
   });
   const touching = transfers.flatMap((transfer) =>
@@ -113,7 +110,7 @@ export const transfersByAccount = async (
 /** Every leg of one business event (booking, refund, …). */
 export const transfersByEventGroup = (
   eventGroup: string,
-): Promise<Transfer[]> => selectByEventGroup(fromDb, eventGroup);
+): Promise<Transfer[]> => selectByEventGroup(queryBatch, eventGroup);
 
 /**
  * True when the ledger already holds at least one leg for this business event —
@@ -130,14 +127,15 @@ export const eventGroupHasLegs = (eventGroup: string): Promise<boolean> =>
 
 /** The whole ledger. For tests and small reports; scoped reads are preferred on
  *  hot paths. */
-export const allTransfers = (): Promise<Transfer[]> => selectTransfers(fromDb);
+export const allTransfers = (): Promise<Transfer[]> =>
+  selectTransfers(queryBatch);
 
 /** The most recent `limit` transfers, newest first (by business time then id, so
  *  ties are stable). The ordering + limit run in SQL so the whole ledger is never
  *  loaded into memory; `occurred_at` is the stored INTEGER epoch, so DESC is
  *  newest-first. */
 export const recentTransfers = (limit: number): Promise<Transfer[]> =>
-  selectTransfers(fromDb, { limit, order: NEWEST_FIRST });
+  selectTransfers(queryBatch, { limit, order: NEWEST_FIRST });
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
@@ -198,7 +196,11 @@ export const visibleTransfers = (
     ...occurredAtRange(range),
     ...listingLegScope(listingIds),
   ];
-  return selectTransfers(fromDb, { limit, order: NEWEST_FIRST, where: parts });
+  return selectTransfers(queryBatch, {
+    limit,
+    order: NEWEST_FIRST,
+    where: parts,
+  });
 };
 
 /** Distinct-day bounds (earliest/latest `occurred_at`) over the whole ledger, or

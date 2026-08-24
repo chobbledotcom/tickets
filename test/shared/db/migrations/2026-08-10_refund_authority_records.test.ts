@@ -8,6 +8,16 @@ import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const QUEUE_INDEX = "idx_processed_payments_protected_attendee";
 
+/** The dormant payment-record tables besides payment_charges, which the
+ *  one-table case drops so only the charge table is left to rebuild. */
+const OTHER_DORMANT_TABLES = [
+  "payment_sessions",
+  "payment_completion_effects",
+  "payment_completion_deliveries",
+  "payment_cases",
+  "payment_case_decisions",
+];
+
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const migration = () => refundAuthorityRecords(context);
 
@@ -99,10 +109,27 @@ describeWithEnv(
       });
 
       await expect(migration().up()).rejects.toThrow(
-        "payment_charges is not empty",
+        "payment_charges is not empty; refusing to reinterpret stored payment " +
+          "history as refund-authority state",
       );
 
       await getDb().execute("DELETE FROM payment_charges");
+    });
+
+    test("rebuilds the last dormant table when it is the only one left", async () => {
+      // A part-upgraded site can be down to one dormant table. Counting its
+      // rows and dropping it must still happen, or the release keeps the old
+      // shape and the apply has nothing to rebuild from.
+      for (const table of OTHER_DORMANT_TABLES) {
+        await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
+      }
+      await givenReleasedChargeTable();
+
+      await migration().up();
+
+      const columns = await columnsOf("payment_charges");
+      expect(columns.has("capability")).toBe(true);
+      expect(columns.has("legacy_source")).toBe(false);
     });
 
     test("gives the owner recovery queue its partial index", async () => {
@@ -147,6 +174,12 @@ describeWithEnv(
         ],
       });
       expect(migration().id).toBe("2026-08-10_refund_authority_records");
+      expect(migration().description).toBe(
+        "Build the durable refund authority: rebuild the dormant payment-record " +
+          "tables into their refund shape, record refund confirmations and named " +
+          "notes, mark which payment row proves an attendee's payment id, and " +
+          "index the owner recovery queue",
+      );
     });
   },
 );

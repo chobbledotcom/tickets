@@ -84,12 +84,7 @@ const resultWithRows = (rows: ResultSet["rows"]): ResultSet => ({
 });
 
 describeWithEnv("db > Refund All candidates", { db: true }, () => {
-  test("fails loudly when the summary query omits either result layer", async () => {
-    setDb(databaseReturning([]));
-    await expect(getRefundAllSummary(7)).rejects.toThrow(
-      "Refund All admission returned no result",
-    );
-
+  test("fails loudly when the summary query answers with no row", async () => {
     setDb(databaseReturning([emptyResultSet()]));
     await expect(getRefundAllSummary(7)).rejects.toThrow(
       "Refund All admission returned no summary",

@@ -1,6 +1,6 @@
 /** Find the anchor rows a payment's money work could still be sitting on. */
 
-import { inPlaceholders, queryBatchPrimary, resultRows } from "#db/client.ts";
+import { inPlaceholders, queryAllPrimary } from "#db/client.ts";
 import {
   asPaymentRowRecord,
   type PaymentRowRecord,
@@ -28,16 +28,13 @@ export const loadAnchorRowWork = async (
   payment: TaggedPaymentReference,
 ): Promise<AnchorRowWork[]> => {
   const indexes = await matchingPaymentReferenceIndexes(payment);
-  const [read] = await queryBatchPrimary([
-    {
-      args: [...indexes],
-      sql: paymentClaimRowsSql(
-        `payment.payment_session_id LIKE 'legacy:%'
+  const rows = await queryAllPrimary<StoredPaymentClaimRow>({
+    args: [...indexes],
+    sql: paymentClaimRowsSql(
+      `payment.payment_session_id LIKE 'legacy:%'
            AND payment.payment_reference_index IN (${inPlaceholders(indexes)})`,
-      ),
-    },
-  ]);
-  const rows = resultRows<StoredPaymentClaimRow>(read!);
+    ),
+  });
   return Promise.all(
     rows.map(async (row) => ({
       record: await asPaymentRowRecord(row),

@@ -16,7 +16,7 @@ import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import {
   execute,
   executeBatchWithResults,
-  queryBatchPrimary,
+  queryOnePrimary,
   resultRows,
   type SqlStatement,
   withTransaction,
@@ -261,14 +261,11 @@ export const prepareSessionFailure = async (
 const readStoredOutcome = async (
   sessionId: string,
 ): Promise<EnvKeyEncrypted | "" | null> => {
-  const [read] = await queryBatchPrimary([
-    {
-      args: [sessionId],
-      sql: "SELECT failure_data FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
-    },
-  ]);
-  const row = resultRows<{ failure_data: EnvKeyEncrypted | "" }>(read!)[0];
-  return row === undefined ? null : row.failure_data;
+  const row = await queryOnePrimary<{ failure_data: EnvKeyEncrypted | "" }>(
+    "SELECT failure_data FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+    [sessionId],
+  );
+  return row === null ? null : row.failure_data;
 };
 
 const unexpectedOutcomeMove = (sessionId: string): Error =>

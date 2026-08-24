@@ -24,16 +24,15 @@ import {
   reversalConflict,
 } from "#accounting/conflicts.ts";
 import {
-  fromDb,
-  fromTx,
   insertStatement,
-  type RowReader,
   selectTransfersMany,
   type TransferRead,
 } from "#accounting/rows.ts";
 import {
+  type BatchExecutor,
   executeBatch,
   orIgnore,
+  queryBatch,
   type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
@@ -120,7 +119,7 @@ export const postTransfersTx = async (
 ): Promise<PostResult> => {
   if (inputs.length === 0) return EMPTY_RESULT;
   assertPostable(inputs);
-  const snapshot = await loadBatchSnapshot([inputs], fromTx(tx));
+  const snapshot = await loadBatchSnapshot([inputs], tx.batch);
   const planned = planGroup(inputs, snapshot, nowIso());
   if (planned.kind === "conflict") throw planned.error;
   const { inserts, result } = planned;
@@ -177,7 +176,7 @@ const byColumnIn = (
  *  makes the read authoritative). */
 const loadBatchSnapshot = async (
   groups: TransferInput[][],
-  read: RowReader,
+  read: BatchExecutor,
 ): Promise<BatchSnapshot> => {
   const eventGroups = unique(groups.map(eventGroupOf));
   const references = allReferences(groups);
@@ -366,7 +365,7 @@ export const postTransferGroupBatches = async <
     return batches.map(nothingToPost) as ResultPerBatch<Batches>;
   }
   assertUniqueGroups(groups);
-  const snapshot = await loadBatchSnapshot(nonEmpty, fromDb);
+  const snapshot = await loadBatchSnapshot(nonEmpty, queryBatch);
   const recordedAt = nowIso();
   const planned = batches.map((batch) =>
     planTransferBatch(batch, snapshot, recordedAt),

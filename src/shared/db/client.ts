@@ -369,18 +369,25 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
   return rows.length === 0 ? null : rows[0]!;
 };
 
-/** Run a read on the primary when its cache refill requires read-your-writes. */
-const executeRead = async (...[sql, args]: SqlArgs): Promise<ResultSet> => {
-  if (!mustReadFromPrimary() || primaryReadMode() === "read") {
-    return execute(sql, args);
-  }
-  const [result] = await queryBatchPrimary([{ args: args ?? [], sql }]);
-  return result!;
+/**
+ * {@link queryAll} for a caller that must read its own writes. The same rows,
+ * pinned to the primary, because a replica can lag behind the write and miss
+ * them. See {@link queryBatchPrimary}. It takes the statement whole, which is
+ * the shape a batch runs, so a caller that holds one hands it over as it is.
+ */
+export const queryAllPrimary = async <T>(
+  statement: SqlStatement,
+): Promise<T[]> => {
+  const [result] = await queryBatchPrimary([statement]);
+  return resultRows<T>(result!);
 };
 
-/** Query all rows, returning a typed array. */
+/** Query all rows as a typed array. A read whose cache refill requires
+ *  read-your-writes goes to the primary instead. */
 export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
-  resultRows<T>(await executeRead(sql, args));
+  mustReadFromPrimary() && primaryReadMode() !== "read"
+    ? queryAllPrimary<T>({ args: args ?? [], sql })
+    : resultRows<T>(await execute(sql, args));
 
 /** Query one row, or null when the query returns none. */
 export const queryOne = async <T>(...[sql, args]: SqlArgs): Promise<T | null> =>
@@ -402,19 +409,13 @@ const requireQueryRow = async <T>(
 export const requireOne = <T>(...[sql, args]: SqlArgs): Promise<T> =>
   requireQueryRow(queryOne<T>(sql, args), sql, "Required");
 
-/**
- * Query an optional row on the primary, for reading a row back immediately after
- * committing its own write — a plain {@link queryOne} can be served by a lagging
- * replica and miss it. See {@link queryBatchPrimary}. `args` is required, every
- * read-back keying on the written row's id.
- */
+/** Query an optional row on the primary — the singular of
+ *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. `args`
+ *  is required here: every read-back keys on the row the write just made. */
 export const queryOnePrimary = async <T>(
   sql: string,
   args: InValue[],
-): Promise<T | null> => {
-  const [result] = await queryBatchPrimary([{ args, sql }]);
-  return firstRowOrNull<T>(result!);
-};
+): Promise<T | null> => (await queryAllPrimary<T>({ args, sql }))[0] ?? null;
 
 /** Query one required row from the primary. */
 export const requireOnePrimary = <T>(...[sql, args]: SqlWithArgs): Promise<T> =>
@@ -552,8 +553,13 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false, false);
 };
 
-/** A read/write batch with a fixed mode, or one chosen when it runs. */
-type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
+/** Runs several statements as one batch and answers each in turn: the shape
+ *  {@link queryBatch} and {@link executeBatchWithResults} have, and the one
+ *  {@link TxScope}'s `batch` fits. A caller that reads either from the client
+ *  or through an open transaction takes one of these instead of naming both. */
+export type BatchExecutor = (
+  statements: SqlStatement[],
+) => Promise<ResultSet[]>;
 
 /** What makes a read batch safe to retry: a write smuggled into one is rejected
  *  loudly here, so every statement really is a side-effect-free SELECT. */

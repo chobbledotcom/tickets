@@ -10,7 +10,7 @@ import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   executeBatch,
   inPlaceholders,
-  queryBatchPrimary,
+  queryAllPrimary,
   resultRows,
   type SqlStatement,
   type TxScope,
@@ -129,17 +129,15 @@ export const readAttendeeRowStates = async (
 /** Read payment-row work from the primary without opening a write transaction. */
 export const loadAttendeeRowStates = async (
   attendeeIds: readonly number[],
-): Promise<PaymentRowRecord[]> => {
-  const [read] = await queryBatchPrimary([
-    {
+): Promise<PaymentRowRecord[]> =>
+  asPaymentRowRecords(
+    await queryAllPrimary<StoredPaymentClaimRow>({
       args: [...attendeeIds],
       sql: paymentClaimRowsSql(
         `attendee_id IN (${inPlaceholders(attendeeIds)})`,
       ),
-    },
-  ]);
-  return asPaymentRowRecords(resultRows<StoredPaymentClaimRow>(read!));
-};
+    }),
+  );
 
 /** Fail when a confirmer no longer owns every payment row it started with. */
 export const assertRefundRowsHeld = async (
@@ -238,17 +236,13 @@ const rewriteRows = async (
   // write depends on it, and each write is conditioned on the exact record it
   // read. Pinned to the primary because a caller may be reading its own claim
   // — a lagging replica would match no write and leave the claim standing.
-  const [read] = await queryBatchPrimary([
-    {
-      args: [...sessionIds],
-      sql: paymentClaimRowsSql(
-        `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-      ),
-    },
-  ]);
-  const rows = await asPaymentRowRecords(
-    resultRows<StoredPaymentClaimRow>(read!),
-  );
+  const stored = await queryAllPrimary<StoredPaymentClaimRow>({
+    args: [...sessionIds],
+    sql: paymentClaimRowsSql(
+      `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+    ),
+  });
+  const rows = await asPaymentRowRecords(stored);
   const writes = await Promise.all(
     mapNotNullish((row: PaymentRowRecord) => {
       const state = next(row);

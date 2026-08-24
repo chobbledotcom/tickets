@@ -10,11 +10,10 @@
 import type { InValue, ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import {
+  type BatchExecutor,
   orIgnore,
-  queryBatch,
   resultRows,
   type SqlStatement,
-  type TxScope,
 } from "#db/client.ts";
 import { type Read, readStatement } from "#db/read.ts";
 import { equals, matchesNoRows } from "#db/where-clauses.ts";
@@ -197,28 +196,9 @@ export const bookingLegBatchInsert = (
     ),
   );
 
-/**
- * Answers a set of transfer queries together, in one round trip, and hands back
- * one batch of rows per query in the order asked. Reading either from the global
- * client or from an open transaction: the write path reads through its own
- * transaction, so the database write lock makes concurrent posters of the same
- * event take turns and the second one sees the first one's rows and replays
- * instead of double-posting.
- */
-export type RowReader = (
-  statements: readonly SqlStatement[],
-) => Promise<TransferRow[][]>;
-
-const rowsPerStatement = (results: readonly ResultSet[]): TransferRow[][] =>
-  results.map((result) => resultRows<TransferRow>(result));
-
-export const fromDb: RowReader = async (statements) =>
-  rowsPerStatement(await queryBatch([...statements]));
-
-export const fromTx =
-  (tx: TxScope): RowReader =>
-  async (statements) =>
-    rowsPerStatement(await tx.batch([...statements]));
+/** The transfers held by one answered query. */
+const transfersIn = (result: ResultSet): Transfer[] =>
+  resultRows<TransferRow>(result).map(rowToTransfer);
 
 /** Which transfers to read, in what order, how many — everything but the
  * columns and the table, which a transfer read always knows. */
@@ -233,15 +213,16 @@ type TransfersPerQuery<Queries extends readonly TransferRead[]> = {
   [Index in keyof Queries]: Transfer[];
 };
 
-/** Select several sets of transfers at once, each saying which rows it wants
- * and in what order rather than writing the query. `read` decides where the
- * rows come from — the client, or an open transaction — and answers them all in
- * one round trip. A query that can match no row is answered as empty without
- * being asked, so wanting none of something still costs nothing. */
+/** Select several sets of transfers at once, in one round trip. Each set names
+ * the rows it wants and their order instead of the SQL. `read` decides where
+ * the rows come from: the client's `queryBatch`, or an open transaction's own
+ * `batch`. The write path reads through its transaction, so the write lock
+ * makes two posters of one event take turns. A query that can match no row is
+ * answered as empty without a trip to the database. */
 export const selectTransfersMany = async <
   const Queries extends readonly TransferRead[],
 >(
-  read: RowReader,
+  read: BatchExecutor,
   queries: Queries,
 ): Promise<TransfersPerQuery<Queries>> => {
   const asked = queries
@@ -254,10 +235,9 @@ export const selectTransfersMany = async <
   const rowsByQuery = new Map(
     asked.map(({ index }, position) => [
       index,
-      requireValue(
-        answers[position],
-        `Ledger read ${index} went unanswered`,
-      ).map(rowToTransfer),
+      transfersIn(
+        requireValue(answers[position], `Ledger read ${index} went unanswered`),
+      ),
     ]),
   );
   // Built by mapping the queries, so it is one set per query by construction —
@@ -270,7 +250,7 @@ export const selectTransfersMany = async <
 /** Select transfers, saying which rows and in what order rather than writing
  * the query. Pass nothing to read the whole table. */
 export const selectTransfers = async (
-  read: RowReader,
+  read: BatchExecutor,
   query: TransferRead = {},
 ): Promise<Transfer[]> => {
   const [rows] = await selectTransfersMany(read, [query]);
@@ -279,14 +259,14 @@ export const selectTransfers = async (
 
 /** Every leg of one business event (booking, refund, …). */
 export const selectByEventGroup = (
-  read: RowReader,
+  read: BatchExecutor,
   eventGroup: string,
 ): Promise<Transfer[]> =>
   selectTransfers(read, { where: equals("event_group", eventGroup) });
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (
-  read: RowReader,
+  read: BatchExecutor,
   id: number,
 ): Promise<Transfer | null> =>
   (await selectTransfers(read, { where: equals("id", id) }))[0] ?? null;

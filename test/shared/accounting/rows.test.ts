@@ -2,17 +2,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingLegBatchInsert,
-  fromDb,
-  fromTx,
   insertStatement,
-  type RowReader,
   selectByEventGroup,
   selectById,
   selectTransfers,
   selectTransfersMany,
 } from "#accounting/rows.ts";
 import {
+  type BatchExecutor,
   executeBatch,
+  queryBatch,
   queryOne,
   type SqlStatement,
   type TxScope,
@@ -21,6 +20,7 @@ import {
 import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
@@ -100,12 +100,12 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
 /** A reader that answers nothing but remembers what it was handed. */
 const recordingReader = (): {
   asked: SqlStatement[][];
-  reader: RowReader;
+  reader: BatchExecutor;
 } => {
   const asked: SqlStatement[][] = [];
-  const reader: RowReader = (statements) => {
+  const reader: BatchExecutor = (statements) => {
     asked.push([...statements]);
-    return Promise.resolve(statements.map(() => []));
+    return Promise.resolve(statements.map(() => emptyResultSet()));
   };
   return { asked, reader };
 };
@@ -146,7 +146,7 @@ describe("accounting > rows > selectTransfersMany", () => {
   test("gives each set of rows back to the query that asked for it", async () => {
     await storeTwoLegs();
 
-    const [byGroup, byReference] = await selectTransfersMany(fromDb, [
+    const [byGroup, byReference] = await selectTransfersMany(queryBatch, [
       { where: inList("event_group", ["evt-b"]) },
       { where: inList("reference", ["ref-a"]) },
     ]);
@@ -198,7 +198,7 @@ describe("accounting > rows > selectTransfersMany", () => {
           return scope.execute(statement);
         },
       };
-      return selectTransfersMany(fromTx(counted), [
+      return selectTransfersMany(counted.batch, [
         { where: inList("event_group", ["evt-a"]) },
         { where: inList("reference", ["ref-b"]) },
       ]);
@@ -219,7 +219,7 @@ describe("accounting > rows > readers for one event and one row", () => {
   test("selectByEventGroup reads that event's legs and not its neighbour's", async () => {
     await storeTwoLegs();
 
-    const legs = await selectByEventGroup(fromDb, "evt-a");
+    const legs = await selectByEventGroup(queryBatch, "evt-a");
 
     expect(legs.map((row) => row.reference)).toEqual(["ref-a"]);
   });
@@ -228,7 +228,7 @@ describe("accounting > rows > readers for one event and one row", () => {
     await storeTwoLegs();
     const id = await storedIdFor("ref-b");
 
-    const found = await selectById(fromDb, id);
+    const found = await selectById(queryBatch, id);
 
     expect(found?.id).toBe(id);
     expect(found?.reference).toBe("ref-b");
@@ -237,7 +237,7 @@ describe("accounting > rows > readers for one event and one row", () => {
   test("selectById answers null when no transfer has that id", async () => {
     await storeTwoLegs();
 
-    expect(await selectById(fromDb, 999_999)).toBeNull();
+    expect(await selectById(queryBatch, 999_999)).toBeNull();
   });
 });
 
@@ -270,7 +270,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(voiding, recordedAt),
     ]);
 
-    const all = await selectTransfers(fromDb, { order: "id" });
+    const all = await selectTransfers(queryBatch, { order: "id" });
     expect(all.length).toBe(2);
     const [first, second] = all;
 
@@ -299,7 +299,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       source: account("attendee", 3),
     };
     await executeBatch([insertStatement(kindless, recordedAt)]);
-    const [stored] = await selectTransfers(fromDb);
+    const [stored] = await selectTransfers(queryBatch);
     // Omitted, not "": a stored transfer and a never-stored input must agree
     // on what "no kind" looks like (mirroring reverses_id).
     expect(stored!.kind).toBeUndefined();
@@ -317,7 +317,7 @@ describe("accounting > rows > stored-row round-trip", () => {
     };
     await executeBatch([insertStatement(memoless, recordedAt)]);
 
-    const [stored] = await selectTransfers(fromDb);
+    const [stored] = await selectTransfers(queryBatch);
 
     // Unlike kind, memo keeps its "" — so the absence must be stored as empty
     // rather than as any filler a reader would later show to an operator.
