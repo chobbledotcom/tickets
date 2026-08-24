@@ -151,6 +151,23 @@ describe("squareAnswer", () => {
       });
     });
 
+    test("reads a tender with a blank payment as naming no payment", () => {
+      expect(
+        squareAnswer.order({
+          order: { id: "ord_1", tenders: [{ id: "t_1", payment_id: "" }] },
+        }),
+      ).toEqual({
+        order: {
+          createdAt: undefined,
+          id: "ord_1",
+          metadata: undefined,
+          state: undefined,
+          tenders: [{ id: "t_1", paymentId: undefined }],
+          totalMoney: { amount: null, currency: null },
+        },
+      });
+    });
+
     test("reads an answer carrying no order as none", () => {
       expect(squareAnswer.order({})).toEqual({ order: null });
     });

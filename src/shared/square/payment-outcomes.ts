@@ -13,14 +13,18 @@ import {
   readSquareResource,
   squareRefundFailure,
 } from "#shared/square/outcomes.ts";
-import type { SquarePayment, SquareRefund } from "#shared/square/wire.ts";
+import type {
+  SquareMoney,
+  SquarePayment,
+  SquareRefund,
+} from "#shared/square/wire.ts";
 /* jscpd:ignore-end */
 
 /** Input to Square's refund transport. */
 export type RefundPaymentInput = {
   idempotencyKey: string;
   paymentId: string;
-  amountMoney: { amount: bigint; currency: string };
+  amountMoney: SquareMoney;
 };
 
 /** The two client methods payment reads and refunds need. */

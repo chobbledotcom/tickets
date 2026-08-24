@@ -77,8 +77,8 @@ const createPaymentLink = (
   createWithClient(getClient, {
     shouldPropagate: () => true,
   })(
-    async (client) =>
-      await client.checkout.paymentLinks
+    (client) =>
+      client.checkout.paymentLinks
         .create({
           checkoutOptions: {
             redirectUrl: `${params.baseUrl}/payment/success`,

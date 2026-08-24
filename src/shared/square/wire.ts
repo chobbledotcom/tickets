@@ -129,7 +129,9 @@ const OrderAnswer = v.pipe(
             state: order.state,
             tenders: order.tenders?.map((tender) => ({
               id: tender.id,
-              paymentId: tender.payment_id ?? undefined,
+              // A tender Square leaves blank names no payment, so it reads
+              // the same way as a tender that names none at all.
+              paymentId: tender.payment_id || undefined,
             })),
             totalMoney: heldOrderTotal(order.total_money),
           },
@@ -147,9 +149,9 @@ const PaymentLinkAnswer = v.pipe(
   v.object({
     payment_link: v.optional(
       v.object({
-        long_url: v.optional(WireText),
+        long_url: OptionalStringSchema,
         order_id: ResourceIdSchema,
-        url: v.optional(WireText),
+        url: OptionalStringSchema,
       }),
     ),
   }),
