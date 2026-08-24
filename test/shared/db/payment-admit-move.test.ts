@@ -63,6 +63,16 @@ const addAuthorityFor = async (
   await addProviderRefundTestCase(reference, state, "stripe");
 };
 
+/** What a refused delete raised, or null when it went through. */
+const deleteFailure = async (attendeeId: number): Promise<unknown> => {
+  try {
+    await deleteAttendee(attendeeId);
+    return null;
+  } catch (error) {
+    return error;
+  }
+};
+
 /** What a refused delete says, or null when it went through. */
 const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
   try {
@@ -120,6 +130,22 @@ describeWithEnv(
         work: { recoveryAction: "refresh-payment", status: "moving" },
       });
       expect(await deleteRefusal(attendeeId)).toBe(CLAIM_REFUSAL);
+    });
+
+    test("the refusal is raised as a named error, so a log can tell it apart", async () => {
+      const attendeeId = await bookedWithPayment("sess-named", "pi_named");
+      await putRowState(
+        "sess-named",
+        await freshClaimSlot(attendeeId),
+        CLAIM_MIRROR,
+      );
+
+      const raised = await deleteFailure(attendeeId);
+
+      // The name is what a log line and an error report show, so a busy row
+      // has to read as one rather than as a plain Error.
+      expect(raised).toBeInstanceOf(PaymentRowsBusyError);
+      expect((raised as Error).name).toBe("PaymentRowsBusyError");
     });
 
     test("the refused delete leaves the attendee and the payment where they were", async () => {
