@@ -1,5 +1,25 @@
 # TODO — remaining follow-ups
 
+## Name the culprit per date in a multi-date refusal (from PR #2127)
+
+`refusedOrderUnfitListingIds` (`src/shared/db/attendees/capacity/checks.ts`)
+asks each line alone when a refused creation's lines sit on more than one date.
+Two same-date lines that only fail together — a shared group limit — then name
+no listing, and the operator sees the generic capacity message. That message is
+the same one the site showed before the diagnosis existed, so nothing regressed.
+Only an operator's hand-built creation can carry multi-date lines; the public
+checkout books every dated line on one day.
+
+To improve: group the lines by date, run the prefix binary search within each
+date, and keep the write order when naming the first failed line. Codex and
+CodeRabbit both proposed this on PR #2127; it was declined there as
+operator-only polish outside the fix's scope.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2127#discussion_r3842274321>
+
+---
+
 ## Give SumUp recovery anomalies a safe owner repair (from PR #2123)
 
 `/admin/schema` reports an invalid `sumup_checkouts` row, but it offers no safe

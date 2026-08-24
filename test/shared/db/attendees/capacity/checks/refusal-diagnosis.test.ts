@@ -82,10 +82,9 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     ).toBe(2);
   });
 
-  test("a long refused order is named within a logarithmic call count", async () => {
-    // Eight lines share one place: only the first fits. The facts batch plus
-    // the whole-order probe plus three halving probes is five calls — one per
-    // prefix would be nine.
+  /** Eight roomy lines whose shared group has one place: only the first
+   * fits, so the search must walk down to the second line. */
+  const eightLinesSharingOnePlace = async (): Promise<LineBooking[]> => {
     const shared = await createTestGroup({ maxAttendees: 1 });
     const lines: LineBooking[] = [];
     for (let index = 0; index < 8; index++) {
@@ -95,13 +94,22 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       });
       lines.push(line(listing.id));
     }
+    return lines;
+  };
 
+  test("a long refused order still names the line that tips the limit", async () => {
+    const lines = await eightLinesSharingOnePlace();
+    expect(await refusedOrderUnfitListingIds(lines)).toEqual([
+      lines[1]!.listingId,
+    ]);
+  });
+
+  test("a long refused order is named within a logarithmic call count", async () => {
+    // The facts batch plus the whole-order probe plus three halving probes
+    // is five calls — one per prefix would be nine.
+    const lines = await eightLinesSharingOnePlace();
     expect(
-      await countDatabaseCalls(5, async () => {
-        expect(await refusedOrderUnfitListingIds(lines)).toEqual([
-          lines[1]!.listingId,
-        ]);
-      }),
+      await countDatabaseCalls(5, () => refusedOrderUnfitListingIds(lines)),
     ).toBe(5);
   });
 });
