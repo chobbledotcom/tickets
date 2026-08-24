@@ -5,7 +5,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
+import {
+  expectCanReallySend,
+  expectNothingInsistedIsEmpty,
+} from "#test/specs/support/form-controls/rules.ts";
 
 // jscpd:ignore-end
 
@@ -28,5 +31,30 @@ describe("checking a whole form's worth of values at once", () => {
     expect(() => expectCanReallySend(form, { webhook_url: "x" })).toThrow(
       "the page has no webhook_url to fill in",
     );
+  });
+});
+
+describe("what an untouched dropdown holds", () => {
+  test("an insisted dropdown holds the option the page marked", () => {
+    expectNothingInsistedIsEmpty(
+      '<select name="tier" required><option value="">Pick</option><option value="gold" selected>Gold</option></select>',
+      {},
+    );
+  });
+
+  test("an insisted single-answer dropdown holds its first option", () => {
+    expectNothingInsistedIsEmpty(
+      '<select name="tier" required><option value="gold">Gold</option></select>',
+      {},
+    );
+  });
+
+  test("an insisted many-answer list with nothing marked holds nothing", () => {
+    expect(() =>
+      expectNothingInsistedIsEmpty(
+        '<select name="tiers" multiple required><option value="gold">Gold</option></select>',
+        {},
+      ),
+    ).toThrow("The tiers box must be filled in to send the form");
   });
 });
