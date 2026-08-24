@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import type { Page } from "playwright";
+import type { BrowserSession } from "#e2e/browser.ts";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import {
@@ -11,6 +12,7 @@ import {
   readLoggedId,
   refundObservationVia,
   requiredField,
+  testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
 
@@ -97,6 +99,23 @@ const transactionIdOf = async (
   );
 };
 
+/**
+ * Ask the owner's "Test Connection" button about SumUp.
+ *
+ * This is the only journey that asks SumUp for the merchant behind the key, so
+ * it is the only proof that the merchant read works against the real API. The
+ * merchant line appears only when that read succeeded, so asserting the real
+ * merchant code proves the call and not just the page.
+ */
+const testSumupConnection = (
+  session: BrowserSession,
+  merchantCode: string,
+): Promise<void> =>
+  testProviderConnection(session, "sumup", {
+    passed: "SumUp connection and merchant lookup passed",
+    require: ["API Key: Valid", `Merchant: ${merchantCode}`],
+  });
+
 export const sumup: PaymentProvider = {
   // SumUp sets its return URL per checkout and registers no webhook endpoint;
   // payments and refunds are append-only sandbox resources.
@@ -105,6 +124,7 @@ export const sumup: PaymentProvider = {
     await session.fill("sumup_api_key", secrets.apiKey);
     await session.fill("sumup_merchant_code", secrets.merchantCode);
     await session.clickButton("Update SumUp Credentials");
+    await testSumupConnection(session, secrets.merchantCode);
   }),
   name: "sumup",
 

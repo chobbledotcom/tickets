@@ -2775,27 +2775,21 @@ written once in the admin surface declaration.
 
 ---
 
-## Fold D, batched database reads
+## A listing price row is claimed, never checked
 
-_Origin: the consolidation review._
+_Origin: the consolidation review. PR #2128 closed the rest of this entry._
 
-- **Export `BatchExecutor` and delete its twin.** The slot exists but is not
-  exported, so `src/shared/accounting/rows.ts:208` declares its own `RowReader`
-  for the same job. Export the shared type and delete the twin. About 18 lines.
-- **A plural read, so a batch of one stops being the idiom.** 15 call sites wrap
-  a single statement in `queryBatchPrimary([...])` and then destructure the one
-  result, for example `src/shared/db/listing-prices.ts:404`,
-  `src/shared/db/payment-claim.ts:133`, and
-  `src/shared/db/processed-payments.ts:264`. Give the client the plural read
-  those sites want. About 45 lines.
-- **Fix the cast at `src/shared/db/listing-prices.ts:409`.**
-  `(result?.rows as unknown as ListingPriceSourceRow[])[0]` claims a shape it
-  never checks, and `?.` hides a missing result. This is a one-line offensive
-  programming fix and needs no framework, so land it on its own.
-- **A typed co-read instead of `results[i]`.** One read destructures eleven
-  names from a batch that nothing ties back to its builder. Give the batch
-  builder and its reader one shared shape, so the names come from the
-  declaration. About 45 lines. Needs the `BatchExecutor` item above.
+`readSourceRows` in `src/shared/db/listing-prices.ts:349` ends with
+`rows.rows as unknown as ListingPriceSourceRow[]`. The cast claims a shape the
+code never checks, so a column renamed in the SELECT above it reaches its two
+callers as `undefined` rather than failing at the read. Parse the rows instead,
+the way the boundary schemas elsewhere do.
+
+The other three parts of this entry are done. `BatchExecutor` is exported and
+the ledger's `RowReader` twin is gone, and `queryAllPrimary` and
+`queryOnePrimary` now give the primary read its plural, all in PR #2128. The
+eleven-name co-read the entry described cannot be found in the current source,
+so it went with them.
 
 ---
 
