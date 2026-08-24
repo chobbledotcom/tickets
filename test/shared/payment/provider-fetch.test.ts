@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { providerCaller, readSumupJson } from "#payment/provider-fetch.ts";
+import { providerCaller, readProviderJson } from "#payment/provider-fetch.ts";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   ProviderTransportError,
@@ -188,13 +188,15 @@ describe("provider fetch boundary", () => {
   });
 
   test("reads a body already in hand as JSON", () => {
-    expect(readSumupJson('{"kind":"refund"}')).toEqual({ kind: "refund" });
+    expect(
+      readProviderJson(providerDetail.sumup(), '{"kind":"refund"}'),
+    ).toEqual({ kind: "refund" });
   });
 
   test("says a body already in hand is unusable when it is not JSON", () => {
     let thrown: unknown;
     try {
-      readSumupJson("<html>nope</html>");
+      readProviderJson(providerDetail.sumup(), "<html>nope</html>");
     } catch (error) {
       thrown = error;
     }

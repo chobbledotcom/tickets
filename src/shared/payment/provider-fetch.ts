@@ -13,7 +13,6 @@ import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   connectionReasonOf,
   type ProviderErrorDetail,
-  providerDetail,
   transportError,
 } from "#payment/transport-error.ts";
 import { fetchText } from "#shared/fetch.ts";
@@ -24,17 +23,24 @@ import { fetchText } from "#shared/fetch.ts";
  *  rejected there, and that is the one fact the buyer can act on. */
 export type ProviderErrorDetailOf = (body: string) => ProviderErrorDetail;
 
+/** One request to a provider. The boundary owns the signal, so no caller can
+ *  ask without the shared timeout. */
+export type ProviderRequest = Omit<RequestInit, "signal">;
+
 /** One provider's HTTP boundary: every call it makes, named the same way. */
 export type ProviderCaller = {
   /** Ask for one answer and hand back its body, whatever is in it. */
-  text: (url: string, init: Omit<RequestInit, "signal">) => Promise<string>;
+  text: (url: string, init: ProviderRequest) => Promise<string>;
   /** Ask for one answer and read it as JSON. */
-  json: (url: string, init: Omit<RequestInit, "signal">) => Promise<unknown>;
+  json: (url: string, init: ProviderRequest) => Promise<unknown>;
 };
 
 /** Read one provider answer as JSON. An answer we cannot read is unusable,
  *  whatever status came with it. */
-const readAsJson = (detail: ProviderErrorDetail, body: string): unknown => {
+export const readProviderJson = (
+  detail: ProviderErrorDetail,
+  body: string,
+): unknown => {
   try {
     return JSON.parse(body);
   } catch {
@@ -48,10 +54,7 @@ const readAsJson = (detail: ProviderErrorDetail, body: string): unknown => {
 export const providerCaller = (
   namedBy: ProviderErrorDetailOf,
 ): ProviderCaller => {
-  const text = async (
-    url: string,
-    init: Omit<RequestInit, "signal">,
-  ): Promise<string> => {
+  const text = async (url: string, init: ProviderRequest): Promise<string> => {
     const response = await fetchText(url, {
       ...init,
       signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
@@ -66,17 +69,8 @@ export const providerCaller = (
     return response.text;
   };
   return {
-    json: async (url, init) => readAsJson(namedBy(""), await text(url, init)),
+    json: async (url, init) =>
+      readProviderJson(namedBy(""), await text(url, init)),
     text,
   };
 };
-
-/** SumUp names no rejected field, so its detail never reads the body. */
-export const sumupCaller: ProviderCaller = providerCaller(() =>
-  providerDetail.sumup(),
-);
-
-/** Read a SumUp body the caller already has in hand, for its one answer that
- *  is allowed to be empty. */
-export const readSumupJson = (body: string): unknown =>
-  readAsJson(providerDetail.sumup(), body);

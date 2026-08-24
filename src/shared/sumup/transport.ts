@@ -1,4 +1,16 @@
-import { readSumupJson, sumupCaller } from "#payment/provider-fetch.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  type ProviderRequest,
+  providerCaller,
+  readProviderJson,
+} from "#payment/provider-fetch.ts";
+import { providerDetail } from "#payment/transport-error.ts";
+
+/* jscpd:ignore-end */
+
+/** SumUp names no rejected field in its answers, so its detail never reads a
+ * body. */
+const sumupCaller = providerCaller(() => providerDetail.sumup());
 
 const SUMUP_API_BASE = "https://api.sumup.com";
 
@@ -32,7 +44,7 @@ const sumupInit = (
   apiKey: string,
   method: "GET" | "POST",
   body?: SumupCheckoutRequest,
-): Omit<RequestInit, "signal"> => ({
+): ProviderRequest => ({
   ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   headers: {
     Accept: "application/problem+json, application/json",
@@ -74,7 +86,7 @@ export const createSumupTransport = (apiKey: string): SumupTransport => {
       // The documented answer is empty. If SumUp adds a JSON envelope, it still
       // proves the request was accepted; an unreadable envelope proves only that
       // the POST may have landed.
-      if (body !== "") readSumupJson(body);
+      if (body !== "") readProviderJson(providerDetail.sumup(), body);
     },
   };
 };
