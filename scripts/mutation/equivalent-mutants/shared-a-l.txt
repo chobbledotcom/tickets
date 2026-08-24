@@ -17,7 +17,6 @@ src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1keal
 src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → ||   # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::isPaymentsEnabled~02tsswb  ?? → ||   # providerValue returns boolean or null, and false stays false with either fallback operator
 src/shared/config.ts::getDebugKey~036uuok  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""

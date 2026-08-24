@@ -16,12 +16,13 @@ import {
   transportError,
 } from "#payment/transport-error.ts";
 import { fetchText } from "#shared/fetch.ts";
+
 /* jscpd:ignore-end */
 
 /** How one provider is named when its answer, or the lack of one, is refused.
  *  The answer body is passed in because a provider can name the field it
  *  rejected there, and that is the one fact the buyer can act on. */
-export type ProviderErrorDetailOf = (body: string) => ProviderErrorDetail;
+type ProviderErrorDetailOf = (body: string) => ProviderErrorDetail;
 
 /** One request to a provider. The boundary owns the signal, so no caller can
  *  ask without the shared timeout. */

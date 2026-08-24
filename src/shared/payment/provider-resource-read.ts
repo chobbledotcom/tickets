@@ -29,7 +29,7 @@ const MISSING: ProviderRead<never> = {
 };
 
 /** What one provider read needs to know beyond the call itself. */
-export type ProviderResourceRead<Account, Answer, Resource> = {
+type ProviderResourceRead<Account, Answer, Resource> = {
   /** The account facts the call needs, or null when nothing is configured. */
   account: Account | null;
   /** Ask the provider. Unwrap any envelope here, so an answer that carries no
