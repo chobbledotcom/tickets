@@ -104,7 +104,7 @@ export const seedQuestionWithAndWithoutAnswers = async (): Promise<{
 };
 
 /** Create a "radio" question with one answer and assign it to `listingId` —
- *  the shared trio behind every parent-gate and booking-preserve question
+ *  the shared trio behind every parent-gate and refused-order question
  *  test. Composes {@link createQuestion} + {@link addAnswer} +
  *  {@link listingQuestions} so the insert pair is declared once.
  *  `active` defaults true (pass false for the all-deactivated-choice-question

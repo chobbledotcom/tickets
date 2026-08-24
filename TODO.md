@@ -1,5 +1,28 @@
 # TODO — remaining follow-ups
 
+## A refused multi-listing order names the wrong listing as full
+
+`createOrderEntries` in `src/features/public/ticket-payment.ts` builds the
+capacity refusal for a non-package order with
+`listingById.get(items[0]!.listingId)!.name` — always the order's **first**
+listing. When a later line is the one out of room, the customer reads the wrong
+name. Reproduce: a combined free order for a standard listing plus a day-booked
+listing whose chosen day is full, with the standard listing first on the page —
+the refusal says the standard listing has no spots while its dropdown beside it
+still offers plenty. The atomic create result (`capacity_exceeded` in
+`src/shared/db/attendees/create.ts`) carries no listing id, so the caller has
+nothing better to name; `atomic-update.ts` already returns `listingIds` on the
+same failure, so the create path can do the same. Fix: identify the booking
+statement that inserted zero rows in `writeAsBatch`, return its listing id in
+the failure, and name that listing (keeping the package-concealment branch as it
+is). Ship a direct regression test beside it. Until then the stories
+`@case:typed.counts-and-contact-details-survive` and
+`@case:order.a-full-thing-turns-the-order-away` put the day-booked listing first
+on the page so the name the site shows is the true one — when the fix lands,
+reorder one of them to pin the correct name for a later line too.
+
+---
+
 ## Give SumUp recovery anomalies a safe owner repair (from PR #2123)
 
 `/admin/schema` reports an invalid `sumup_checkouts` row, but it offers no safe

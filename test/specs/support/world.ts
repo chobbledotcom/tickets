@@ -12,7 +12,10 @@ import type {
   ThingKind,
   ThingsByKind,
 } from "#test/specs/support/memory.ts";
-import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
+import type {
+  BookingAttempt,
+  OrderInHand,
+} from "#test/specs/support/public-booking.ts";
 import type { RefundLedgerFault } from "#test/specs/support/refund-safety/faults.ts";
 import type { RefundSafetyState } from "#test/specs/support/refund-safety/state.ts";
 import type {
@@ -149,8 +152,11 @@ export interface TicketsWorld extends World, EvidencePages {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
+  orderFilledIn?: OrderInHand;
+  orderSent?: BookingAttempt;
   placeholderId?: number;
   providerCharges: Map<string, ChargeMoney>;
+  questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
   raceListing?: string;
   raceLoser?: BookingAttempt;

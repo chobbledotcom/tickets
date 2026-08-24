@@ -22,7 +22,7 @@ import {
   listingIdNamed,
   listingNamed,
   organiserSavesListing,
-  rememberListing,
+  putsOnSale,
   saveListingEdit,
 } from "#test/specs/support/listings.ts";
 import {
@@ -39,7 +39,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { ListingWithCount } from "#types";
@@ -138,18 +137,13 @@ export const somethingForSale = async (
   name: string,
   options: { forwardingTo?: string } = {},
 ): Promise<void> => {
-  rememberListing(
-    world,
-    name,
-    await createTestListing({
-      maxAttendees: 10,
-      name,
-      // The site's own thank-you page, so a story can read what a customer is
-      // shown after booking rather than being sent off to another site.
-      thankYouUrl: "",
-      webhookUrl: options.forwardingTo,
-    }),
-  );
+  await putsOnSale(world, name, {
+    maxAttendees: 10,
+    // The site's own thank-you page, so a story can read what a customer is
+    // shown after booking rather than being sent off to another site.
+    thankYouUrl: "",
+    webhookUrl: options.forwardingTo,
+  });
 };
 
 /** What one sale of this thing brought in, in pounds and pence. A round figure
