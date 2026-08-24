@@ -45,7 +45,15 @@ describe("catalog transfer memberships", () => {
       "listing_prices",
     );
 
-    expect(prices?.args).toEqual([9, PRICE_TYPE_GROUP, "4", 2500]);
+    // The column list is asserted whole: a price row that names its columns
+    // wrongly writes the override into the wrong dimension, and the values
+    // alone cannot show that.
+    expect(prices).toEqual({
+      args: [9, PRICE_TYPE_GROUP, "4", 2500],
+      sql:
+        "INSERT INTO listing_prices " +
+        "(listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
+    });
   });
 
   test("keys a per-day override by its group and day count", () => {
@@ -113,6 +121,24 @@ describe("catalog transfer memberships", () => {
     expect(rows?.args).toHaveLength(90);
     expect(rows?.sql.match(/\(\?, \?, \?\)/gu)).toHaveLength(30);
     expect(prices?.args).toHaveLength(120);
+  });
+
+  test("separates one row's placeholders from the next", () => {
+    const rows = statementFor(
+      membershipStatements([
+        membership(),
+        membership({ groupId: 5, listingId: 10, quantity: 2 }),
+      ]),
+      "group_listings",
+    );
+
+    // Run the row groups together and SQLite reads one row of six columns
+    // against a three-column insert, so the whole write is refused.
+    expect(rows?.sql).toBe(
+      "INSERT INTO group_listings (group_id, listing_id, quantity) " +
+        "VALUES (?, ?, ?), (?, ?, ?)",
+    );
+    expect(rows?.args).toEqual([4, 9, 1, 5, 10, 2]);
   });
 
   test("gives every argument its own placeholder", () => {

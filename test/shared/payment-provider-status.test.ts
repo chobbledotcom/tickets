@@ -4,6 +4,7 @@ import { settings } from "#db/settings.ts";
 import {
   paymentProviderHasCredentials,
   paymentProviderMode,
+  paymentProviderUsesSandbox,
 } from "#shared/payment-provider-status.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -67,5 +68,30 @@ describeWithEnv("payment provider status", { db: true }, () => {
   test("reports an unknown estate for a key it cannot read", async () => {
     await settings.update.stripe.secretKey("rk_live_restricted");
     expect(paymentProviderMode("stripe")).toBe("unknown");
+  });
+
+  test("says a fresh site is not in any provider's sandbox", () => {
+    for (const provider of PAYMENT_PROVIDER_IDS) {
+      expect(paymentProviderUsesSandbox(provider)).toBe(false);
+    }
+  });
+
+  test("follows Square's sandbox switch", async () => {
+    await settings.update.square.sandbox(true);
+    expect(paymentProviderUsesSandbox("square")).toBe(true);
+    await settings.update.square.sandbox(false);
+    expect(paymentProviderUsesSandbox("square")).toBe(false);
+  });
+
+  // Stripe and SumUp host one estate, so a test key talks to the live hosts.
+  // Answering "yes" for either would point the security policy at origins
+  // neither provider declares.
+  test("says a card provider is never in a sandbox, whatever key is stored", async () => {
+    await settings.update.stripe.secretKey("sk_test_abc");
+    await settings.update.sumup.apiKey("sk_test_abc");
+    await settings.update.square.sandbox(true);
+
+    expect(paymentProviderUsesSandbox("stripe")).toBe(false);
+    expect(paymentProviderUsesSandbox("sumup")).toBe(false);
   });
 });

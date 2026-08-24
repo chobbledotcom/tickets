@@ -53,7 +53,7 @@ export const paymentProviderUsesSandbox = (
 ): boolean =>
   // No switch is the answer for a provider with one estate: it is never in a
   // sandbox, and nothing about it is read to say so.
-  providerSandboxSwitch[provider]?.() ?? false;
+  providerSandboxSwitch[provider]?.() === true;
 
 const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
   square: () => settings.square.hasToken,
