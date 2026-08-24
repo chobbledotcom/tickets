@@ -1,13 +1,16 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { allTransfers } from "#accounting/queries.ts";
-import type { AttendeeInput } from "#db/attendee-types.ts";
+import type {
+  AttendeeInput,
+  CreateAttendeeResult,
+} from "#db/attendee-types.ts";
 import {
   type BookingBatchPlan,
   createBookingAtomic,
 } from "#db/attendees/create.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { queryOne } from "#db/client.ts";
+import { requireOne } from "#db/client.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
@@ -16,6 +19,7 @@ import type {
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import type { Attendee } from "#types";
 
 type SuccessfulCreate = Extract<
   Awaited<ReturnType<typeof createBookingAtomic>>,
@@ -28,6 +32,14 @@ export const expectBookingOk = (
   assert(result !== "sold-out", "Expected attendee creation to succeed");
   assert(result.success, "Expected attendee creation to succeed");
   return result;
+};
+
+/** The one attendee a successful create returned, checked rather than assumed. */
+export const requireAttendee = (result: CreateAttendeeResult): Attendee => {
+  assert(result.success, "Expected attendee creation to succeed");
+  const attendee = result.attendees[0];
+  assert(attendee !== undefined, "Expected the create to return one attendee");
+  return attendee;
 };
 
 export const OCCURRED_AT = "2026-06-24T00:00:00.000Z";
@@ -131,9 +143,9 @@ export const expectCapacityExceeded = async (
 };
 
 export const storedEventGroup = async (attendeeId: number): Promise<string> => {
-  const row = await queryOne<{ ledger_event_group: string }>(
+  const row = await requireOne<{ ledger_event_group: string }>(
     "SELECT ledger_event_group FROM listing_attendees AS attendee WHERE attendee_id = ?",
     [attendeeId],
   );
-  return row!.ledger_event_group;
+  return row.ledger_event_group;
 };

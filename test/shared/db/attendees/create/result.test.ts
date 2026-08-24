@@ -6,18 +6,12 @@ import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryOne } from "#db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { requireAttendee } from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-
-const requireAttendee = (
-  result: Awaited<ReturnType<typeof createAttendeeAtomic>>,
-) => {
-  if (!result.success) throw new Error("expected attendee creation to succeed");
-  return result.attendees[0]!;
-};
 
 describeWithEnv("db > attendees > create result", { db: true }, () => {
   test("returns and stores every default attendee value", async () => {

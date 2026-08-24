@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { requireAttendee } from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const CAPACITY_FAILURE = { reason: "capacity_exceeded", success: false };
@@ -49,9 +50,7 @@ describeWithEnv("db > attendees > create validation", { db: true }, () => {
       name: "Zero",
     });
 
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.attendees[0]!.quantity).toBe(0);
+    expect(requireAttendee(result).quantity).toBe(0);
     expect(
       await queryOne<{ count: number }>(
         "SELECT COUNT(*) AS count FROM contact_preferences",

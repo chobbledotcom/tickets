@@ -737,17 +737,19 @@ export const copyPackageMemberOverridesTx = async (
   await tx.execute(
     numberedStatement((bind) => {
       const newId = bind(newListingId);
+      const groupType = bind(PRICE_TYPE_GROUP);
+      const groupDayType = bind(PRICE_TYPE_GROUP_DAY);
       return `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
           SELECT ${newId}, sourcePrice.price_type, sourcePrice.price_id, sourcePrice.unit_price
             FROM listing_prices AS sourcePrice
            WHERE sourcePrice.listing_id = ${bind(sourceListingId)}
-             AND sourcePrice.price_type IN (${bind(PRICE_TYPE_GROUP)}, ${bind(PRICE_TYPE_GROUP_DAY)})
+             AND sourcePrice.price_type IN (${groupType}, ${groupDayType})
               AND EXISTS (
                 SELECT 1 FROM group_listings AS groupListing
                  WHERE groupListing.listing_id = ${newId}
-                   AND ((sourcePrice.price_type = '${PRICE_TYPE_GROUP}'
+                   AND ((sourcePrice.price_type = ${groupType}
                            AND sourcePrice.price_id = CAST(groupListing.group_id AS TEXT))
-                     OR (sourcePrice.price_type = '${PRICE_TYPE_GROUP_DAY}'
+                     OR (sourcePrice.price_type = ${groupDayType}
                            AND sourcePrice.price_id LIKE (groupListing.group_id || '/%')))
               )`;
     }),
