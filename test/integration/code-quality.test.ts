@@ -79,18 +79,21 @@ const LIBRARY_PATHS = [
   "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
   "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
   "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
-  // The transfer ledger (src/shared/ledger + src/shared/accounting) is being
-  // wired in incrementally; like fp.ts, some exports have no production
-  // caller yet. account.ts and validate.ts are already consumed by the store
-  // adapter, so they are no longer exempt — the remaining modules lose their
-  // exemption as the event mappers and checkout wiring land.
-  "shared/ledger/project.ts",
+  // The transfer ledger (src/shared/ledger + src/shared/accounting) is built
+  // ahead of the payment aggregate that consumes it: the pure core and its
+  // coverage first, which is the lesson of the rewrite that closed without
+  // merging (PRs #1962/#1973). Each entry below names the rule it answers in
+  // docs/payment-aggregate-acceptance.md. A module leaves this list when its
+  // last unconsumed export gains a production caller, as account.ts,
+  // validate.ts, checkout-ledger.ts, accounting/store.ts and
+  // accounting/mappers.ts already did.
+  "shared/ledger/project.ts", // profitOfListing, sumOfKind: no rule yet
+  "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs: rule 2
+  "shared/accounting/queries.ts", // whole-account reads: rules 1 and 3
+  // reverseOf answers rule 1's complete-or-refund choice. The scanner cannot
+  // see that tests alone call it, because the {@link reverseOf} in its own
+  // JSDoc reads as a production use. This entry is deliberate.
   "shared/ledger/reverse.ts",
-  "shared/ledger/reconcile.ts",
-  "shared/checkout-ledger.ts",
-  "shared/accounting/store.ts",
-  "shared/accounting/queries.ts",
-  "shared/accounting/mappers.ts",
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /
   // public route / recursive-nav slices that consume them, so — like the
