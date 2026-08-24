@@ -240,7 +240,9 @@ src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1
 src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
 src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # the captured tail has to start with INSERT, UPDATE, DELETE, REPLACE or SELECT, so the group is never the empty string
 src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
+src/shared/db/client.ts::queryAll.args~0hs5u5i  ?? → ||   # args is an InValue[] when present, and an array is always truthy
 src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
+src/shared/db/client.ts::queryOnePrimary~0qbwuku  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
 
 # crypto/hashing.ts — the explicit radix on the stored round count. The line
 # above it now refuses any count that is not pure decimal digits, and for such a

@@ -206,13 +206,25 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(client1).toBe(client2);
   });
 
-  test("primary read scopes use remote write mode and local read mode", async () => {
+  /** The transaction modes the client is asked for while `read` runs. An empty
+   *  list means the read never went out as a batch at all. */
+  const batchModesWhile = async <T>(
+    read: () => Promise<T>,
+  ): Promise<{ modes: unknown[]; result: T }> => {
     const modes: unknown[] = [];
     const batchStub = stub(getDb(), "batch", (_statements, mode) => {
       modes.push(mode);
       return Promise.resolve([emptyResultSet()]);
     });
     try {
+      return { modes, result: await read() };
+    } finally {
+      batchStub.restore();
+    }
+  };
+
+  test("primary read scopes use remote write mode and local read mode", async () => {
+    const { modes, result } = await batchModesWhile(async () => {
       await queryBatch([{ args: [], sql: "SELECT 1" }]);
       {
         using _env = withEnv({ DB_URL: "libsql://primary.test" });
@@ -221,14 +233,23 @@ describeWithEnv("db > client", { db: true }, () => {
           queryBatch([{ args: [], sql: "SELECT 1" }]),
         );
       }
-      const localRows = await runWithPrimaryReads(() =>
+      return await runWithPrimaryReads(() =>
         queryAll<{ one: number }>("SELECT 1 AS one"),
       );
-      expect(localRows).toEqual([{ one: 1 }]);
-      expect(modes).toEqual(["read", "write", "write"]);
-    } finally {
-      batchStub.restore();
-    }
+    });
+    expect(result).toEqual([{ one: 1 }]);
+    expect(modes).toEqual(["read", "write", "write"]);
+  });
+
+  test("a read outside a primary scope is left to a replica", async () => {
+    const { modes, result } = await batchModesWhile(async () => {
+      using _env = withEnv({ DB_URL: "libsql://primary.test" });
+      return await queryAll<{ one: number }>("SELECT 1 AS one");
+    });
+    // One plain statement, which any replica can answer. A batch here would
+    // pin every ordinary read to the primary and take its write-mode lock.
+    expect(result).toEqual([{ one: 1 }]);
+    expect(modes).toEqual([]);
   });
 
   test("queryOne returns null for an expected miss", async () => {
