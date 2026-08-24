@@ -1412,23 +1412,29 @@ To fix:
 
 ---
 
-## Count the ledger groups in the SumUp recovery race test
+## Finish the SumUp recovery race test
 
 _Origin: found during the review of #2132._
 
 `test/integration/server/sumup-recovery/races-the-webhook.test.ts` runs the
 webhook and the recovery check together. It asserts one `attendees` row, one
 `processed_payments` row, and a state that is not `owed`. It reads no ledger
-row.
+row, so a race that writes the ledger twice passes it.
 
-A race that writes the ledger twice therefore passes this test. The original
-request for this work asked for a test that proves the attendee rows and the
-ledger rows are created exactly once.
+The browser redirect is also missing. `late-callback.test.ts` calls the redirect
+only after the recovery check finished, so no test runs all three at once.
+
+The request that this work came from asked for webhook, redirect, and
+maintenance attempts running together, and for a proof that the attendee rows
+and the ledger rows are created exactly once. Neither half is met yet.
 
 To fix:
 
-1. Read the ledger in that test.
+1. Read the ledger in the two-way race test.
 2. Assert one event group for the payment.
+3. Add a case that runs the webhook, the redirect, and the recovery together.
+4. Assert one `attendees` row for that case.
+5. Assert one ledger event group for that case.
 
 ---
 

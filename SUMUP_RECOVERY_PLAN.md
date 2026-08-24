@@ -247,8 +247,10 @@ is a slip. They are recorded because the plan argued for something else.
    stored-state anomalies. That is one mechanism that serves one more caller.
 7. **Nobody wrote the Cucumber story.** The plan named
    `specs/payments/a-payment-with-no-callback.feature`.
-   `test/integration/server/sumup-recovery/recovers.test.ts` covers the journey
-   instead. This is the one promise that is still open. TODO.md records it.
+   `test/integration/server/sumup-recovery/recovers.test.ts` covers the recovery
+   contract instead. It calls the staging helper and the task directly, so it
+   renders no page and runs through no scheduled receiver. The buyer journey is
+   therefore still untested. TODO.md records it.
 
 ### Owner choices
 
@@ -256,9 +258,12 @@ Nobody added an owner choice. This work never picks a money outcome. The only
 real ambiguity that it can produce is `owed`. `owed` is not a decision that the
 system takes. It is the honest statement that a provider took money and the
 booking did not happen. No surface shows that row to the owner yet, which
-section 4 records as an open gap. Any refund on this path is the refund that
-`settleRejectedCharge` already performs on the webhook, under the same rules and
-the same durable `payment_charges` authority.
+section 4 records as an open gap. Recovery adds no refund path of its own. It
+reaches the two that the webhook already runs. A validation, price, or balance
+failure inside `processPaymentSession` goes through `refundAndFail`, which sends
+the money by `requestSessionRefund`. A paid charge that the engine rejects goes
+through `settleRejectedCharge`. Both keep the same rules and the same durable
+`payment_charges` authority.
 
 ### Security and privacy
 
@@ -387,8 +392,8 @@ Tests:
   whose order is not readable yet retryable".
 
 Two things differed from the plan. Nobody wrote the redelivery test that the
-plan named. The slice recorded a reason for that, and the reason was wrong: the
-replay suites configure Stripe, and no Square test delivers the same completed
+plan named. The slice recorded a reason for that, and the reason was wrong. The
+replay suites configure Stripe. No Square test delivers the same completed
 webhook twice. The replay identity of Square therefore has no direct test.
 TODO.md records that gap. #2107 then followed. It closed three gaps that the
 mutation gate found in the same file:
@@ -449,6 +454,6 @@ current path. It needed nothing from the aggregate reader. It added no parallel
 path and no dormant layer. The harm that it closes was live on every SumUp site
 while somebody designed the cutover.
 
-`PLAN.md` records this. The M7 bullet now reads that the missed-SumUp-checkout
-task "already runs on the current path as `sumup_checkout_recovery`; M7 adopts
-that task instead of building it again."
+`PLAN.md` records this. Its M7 bullet states that the missed-SumUp-checkout task
+already runs on the current path, as `sumup_checkout_recovery`. It states that
+M7 adopts that task rather than a second build of it.
