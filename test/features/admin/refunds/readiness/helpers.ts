@@ -7,11 +7,12 @@ import type { ProviderRead } from "#payment/provider-read.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { HeldRefundClaim } from "#routes/admin/refunds/claim.ts";
-import type {
-  ReadyRefundProvider,
-  RefundReadinessDependencies,
-} from "#routes/admin/refunds/readiness.ts";
-import { provider as recordingProvider } from "#test/features/admin/refunds/provider/helpers.ts";
+import type { RefundReadinessDependencies } from "#routes/admin/refunds/readiness.ts";
+import type { RefundProviderCapability } from "#shared/payment-providers.ts";
+import {
+  type RecordingProvider,
+  provider as recordingProvider,
+} from "#test/features/admin/refunds/provider/helpers.ts";
 import type { PaymentProviderType } from "#types";
 
 export const charge = (): ChargeMoney => ({
@@ -83,8 +84,8 @@ export const heldClaim: HeldRefundClaim = {
 
 export const provider = (
   type: PaymentProviderType,
-  refundCapability: ReadyRefundProvider["refundCapability"] = "keyed",
-): ReadyRefundProvider =>
+  refundCapability: RefundProviderCapability = "keyed",
+): RecordingProvider =>
   recordingProvider({ paymentProvider: type, refundCapability });
 
 export const stripeReadiness = (

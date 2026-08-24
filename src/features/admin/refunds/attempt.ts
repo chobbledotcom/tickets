@@ -10,6 +10,7 @@ import {
 import {
   type ProviderRefundResult,
   type RefundAuthorityReceipt,
+  type RefundEngineProvider,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import {
@@ -19,7 +20,6 @@ import {
 import { mapProviderRequests } from "./provider-requests.ts";
 import type {
   ReadyRefundCandidate,
-  ReadyRefundProvider,
   ReadyRefundReference,
 } from "./readiness.ts";
 import { readyRefundAdmission } from "./ready-admission.ts";
@@ -33,7 +33,7 @@ type ObservedWithheldRefund = WithheldRefund;
 type RefundReportFacts = {
   readonly attendeeId: number;
   readonly listingId: number;
-  readonly provider: ReadyRefundProvider["type"];
+  readonly provider: RefundEngineProvider["type"];
 };
 
 /** One reference's result. A returned result names the durable authority that

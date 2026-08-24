@@ -22,7 +22,6 @@ describeStripe("stripe-provider", () => {
     expect(stripePaymentProvider.checkoutCompletedEventType).toBe(
       "checkout.session.completed",
     );
-    expect(stripePaymentProvider.requiresWebhookSignature).toBe(true);
     expect(stripePaymentProvider.type).toBe("stripe");
   });
 

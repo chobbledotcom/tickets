@@ -6,34 +6,26 @@
 
 import { settings } from "#db/settings.ts";
 import { getEnv, requireEnv } from "#shared/env.ts";
+import { paymentProviderHasCredentials } from "#shared/payment-provider-status.ts";
 import { slugify } from "#shared/slug.ts";
+import type { PaymentProviderType } from "#types";
 
 /**
  * Pick the value for the active payment provider from a per-provider set, or
- * `null` when no known provider is active. The one place the stripe/square/sumup
- * dispatch lives, so every per-provider flag is read the same way.
+ * `null` when no provider is active. The set is keyed by the provider union,
+ * so a caller cannot forget a provider: leaving one out is a compile error at
+ * the call site rather than a silent `null` on a live site.
  */
 export const providerValue = <T>(
-  provider: string | null,
-  values: { stripe: T; square: T; sumup: T },
-): T | null =>
-  provider === "stripe"
-    ? values.stripe
-    : provider === "square"
-      ? values.square
-      : provider === "sumup"
-        ? values.sumup
-        : null;
+  provider: PaymentProviderType | null,
+  values: Readonly<Record<PaymentProviderType, T>>,
+): T | null => (provider === null ? null : values[provider]);
 
-/**
- * Check if payments are enabled (any provider configured with valid keys)
- */
-export const isPaymentsEnabled = (): boolean =>
-  providerValue(settings.paymentProvider, {
-    square: settings.square.hasToken,
-    stripe: settings.stripe.hasKey,
-    sumup: settings.sumup.hasKey,
-  }) ?? false;
+/** Whether an active provider has the credentials a sale needs. */
+export const isPaymentsEnabled = (): boolean => {
+  const provider = settings.paymentProvider;
+  return provider !== null && paymentProviderHasCredentials(provider);
+};
 
 /**
  * Get booking fee percentage from database.

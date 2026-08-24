@@ -29,7 +29,6 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
     sandbox: form.get("square_sandbox") === "on",
   }),
   formId: "settings-square",
-  hasSecret: () => settings.square.hasToken,
   logMessage: "Square credentials updated",
   provider: "square",
   saveFields: async ({ locationId, sandbox }) => {

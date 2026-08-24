@@ -265,7 +265,6 @@ export const squarePaymentProvider: PaymentProvider = {
     const returned = squareMoneyReturned(refunded, captured);
     return chargeMoneyRead(captured?.amount, captured?.currency, returned);
   },
-  refundCapability: "keyed",
 
   refundCharge: refundWithOneReread(
     (request) => {
@@ -274,7 +273,6 @@ export const squarePaymentProvider: PaymentProvider = {
     },
     (reference) => squarePaymentProvider.readCharge(reference),
   ),
-  requiresWebhookSignature: true,
 
   async resolveWebhookSession(
     listing: WebhookEvent,

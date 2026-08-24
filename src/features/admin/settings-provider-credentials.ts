@@ -14,6 +14,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { paymentProviderHasCredentials } from "#shared/payment-provider-status.ts";
 import type { PaymentProviderType } from "#types";
 
 /**
@@ -29,8 +30,6 @@ type ProviderCredentialsConfig<T> = {
   formId: string;
   /** Form field name of the masked secret. */
   secretField: string;
-  /** Whether a secret is already stored (drives the "required" guard). */
-  hasSecret: () => boolean;
   /** Error shown when the secret is cleared and none is stored. */
   secretRequiredError: string;
   /** Flash message + activity-log entry on a successful save. */
@@ -93,7 +92,7 @@ export const defineProviderCredentialsRoute = <T>(
   test: (request: Request) => Promise<Response>;
 } => {
   const save = settingsRoute(async (form, errorPage) => {
-    const activateFromMissing = !cfg.hasSecret();
+    const activateFromMissing = !paymentProviderHasCredentials(cfg.provider);
     const secret = processSecretField(form, cfg.secretField);
     const fields = cfg.extraFields
       ? cfg.extraFields(form)
@@ -105,7 +104,10 @@ export const defineProviderCredentialsRoute = <T>(
     // Provider validation + the "secret required unless already stored" guard.
     const invalid = await cfg.validate(fields, secret);
     if (invalid) return errorPage(invalid, cfg.formId);
-    if (secret.action === "cleared" && !cfg.hasSecret()) {
+    if (
+      secret.action === "cleared" &&
+      !paymentProviderHasCredentials(cfg.provider)
+    ) {
       return errorPage(cfg.secretRequiredError, cfg.formId);
     }
 

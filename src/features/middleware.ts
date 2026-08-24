@@ -11,6 +11,8 @@ import {
   isSecureMode,
 } from "#shared/config.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
+import { paymentProviderMode } from "#shared/payment-provider-status.ts";
+import { providerCheckoutFormOrigins } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
 /**
@@ -33,10 +35,9 @@ export type PaymentCspConfig = {
  * Non-embeddable pages get frame-ancestors 'none' to prevent clickjacking.
  * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
  * if embed host restrictions are configured.
- * Payment-specific directives are included only when a provider is configured.
- * Stripe, Square and SumUp all use server-side redirect flows (not embedded
- * SDKs), so only form-action needs provider-specific domains — without the
- * provider's checkout host the browser blocks the redirect to it.
+ * Every provider uses a server-side redirect flow rather than an embedded SDK,
+ * so form-action is the only directive that names provider hosts. It takes
+ * them from the provider registry.
  * When Botpoison is enabled, connect-src allows the contact form's browser
  * widget to reach the Botpoison challenge API.
  * img-src additionally allows OpenStreetMap tiles — the attendee Logistics
@@ -66,24 +67,16 @@ export const buildCspHeader = (
     directives.push("connect-src 'self' https://api.botpoison.com");
   }
 
-  if (payment?.provider === "square") {
-    const sq = payment.sandbox
-      ? "https://connect.squareupsandbox.com https://pci-connect.squareupsandbox.com https://api.squareupsandbox.com"
-      : "https://connect.squareup.com https://pci-connect.squareup.com https://api.squareup.com";
-    directives.push(
-      `form-action 'self' https://square.link https://checkout.square.site https://*.squarecdn.com https://geoissuer.cardinalcommerce.com ${sq}`,
-    );
-  } else if (payment?.provider === "stripe") {
-    directives.push("form-action 'self' https://checkout.stripe.com");
-  } else if (payment?.provider === "sumup") {
-    // SumUp hosted checkout redirects the booking form to its hosted page.
-    // Docs return checkout.sumup.com; pay.sumup.com is also used, so allow both.
-    directives.push(
-      "form-action 'self' https://checkout.sumup.com https://pay.sumup.com",
-    );
-  } else {
-    directives.push("form-action 'self'");
-  }
+  // The buyer's form posts straight to the provider's hosted checkout, so the
+  // policy must name that provider's origins or the browser blocks the
+  // redirect. The registry declares them, so a new provider cannot reach here
+  // and silently get a policy that blocks its own checkout.
+  const provider = payment?.provider ?? null;
+  const checkoutOrigins =
+    provider === null
+      ? []
+      : providerCheckoutFormOrigins(provider, payment?.sandbox === true);
+  directives.push(["form-action 'self'", ...checkoutOrigins].join(" "));
 
   if (!embeddable) {
     directives.unshift("frame-ancestors 'none'");
@@ -242,7 +235,8 @@ export const applySecurityHeaders = async (
   embeddable: boolean,
 ): Promise<Response> => {
   const provider = settings.paymentProvider;
-  const sandbox = provider === "square" ? settings.square.sandbox : undefined;
+  const sandbox =
+    provider !== null && paymentProviderMode(provider) === "sandbox";
   const baseCsp = buildCspHeader(
     embeddable,
     { provider, sandbox },

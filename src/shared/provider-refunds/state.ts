@@ -32,10 +32,13 @@ import {
   type RefundConflictDecision,
   refundConflictDecision,
 } from "#payment/refund-conflict-decision.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#payment/refund-provider-authorization.ts";
 import { refundReplayUntil } from "#payment/refund-replay-window.ts";
 import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { type ChargeMoney, returnedRefundMoney } from "#payment/resources.ts";
+import {
+  PAYMENT_PROVIDERS,
+  type RefundProviderCapability,
+} from "#shared/payment-providers.ts";
 import type {
   ProviderRefundResult,
   ProviderRefundTarget,
@@ -124,7 +127,7 @@ export const refundAfterTransition = async (
 
 const requestGeneration = async (
   reference: TaggedPaymentReference,
-  capability: RefundEngineProvider["refundCapability"],
+  capability: RefundProviderCapability,
   generation: number,
   now: number,
 ): Promise<RefundRequestGeneration> => {
@@ -145,7 +148,7 @@ export const initialRefundState = async (
 ): Promise<Extract<RefundAuthorityState, { kind: "ready" }>> => {
   const request = await requestGeneration(
     reference,
-    REFUND_PROVIDER_CAPABILITIES[reference.provider],
+    PAYMENT_PROVIDERS[reference.provider].refundCapability,
     1,
     now,
   );
@@ -161,11 +164,7 @@ export const requireMatchingRefundProvider = (
   provider: RefundEngineProvider,
   reference: TaggedPaymentReference,
 ): void => {
-  if (
-    provider.type !== reference.provider ||
-    provider.refundCapability !==
-      REFUND_PROVIDER_CAPABILITIES[reference.provider]
-  ) {
+  if (provider.type !== reference.provider) {
     throw new Error("Refund provider does not match its durable identity");
   }
 };

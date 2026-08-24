@@ -36,12 +36,12 @@ test("keeps each tagged provider capability with its exact reference", async () 
   expect(result.candidates[0]?.references).toMatchObject([
     {
       kind: "observed",
-      provider: { refundCapability: "keyed", type: "stripe" },
+      provider: { type: "stripe" },
       reference: stripeReference,
     },
     {
       kind: "observed",
-      provider: { refundCapability: "keyless", type: "sumup" },
+      provider: { type: "sumup" },
       reference: sumupReference,
     },
   ]);

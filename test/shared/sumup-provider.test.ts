@@ -29,9 +29,6 @@ describe("sumup-provider", () => {
     expect(sumupPaymentProvider.checkoutCompletedEventType).toBe(
       "CHECKOUT_STATUS_CHANGED",
     );
-    // SumUp does not sign its webhooks: authenticity comes from re-fetching
-    // the checkout, so the router must not demand a signature.
-    expect(sumupPaymentProvider.requiresWebhookSignature).toBe(false);
   });
 
   describe("retrieveSession", () => {
