@@ -39,7 +39,7 @@ import { sumupApi } from "#shared/sumup.ts";
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
-  "SumUp",
+  "sumup",
   // A lambda, not the member itself: the checkout builder is captured once
   // at module load, and resolving the member per call keeps test stubs live.
   (intent, baseUrl) => sumupApi.createCheckout(intent, baseUrl),

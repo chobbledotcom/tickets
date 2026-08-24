@@ -2,7 +2,8 @@
 import { settings } from "#db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { CredentialCheck } from "#shared/payment-helpers.ts";
-import type { GetSquareClient, SquareLocation } from "#shared/square/client.ts";
+import type { GetSquareClient } from "#shared/square/client.ts";
+import type { SquareLocation } from "#shared/square/wire.ts";
 /* jscpd:ignore-end */
 
 /** The operator-facing result of checking the stored Square configuration. */
@@ -38,8 +39,7 @@ export const testSquareConnection = async (
 
   let locations: SquareLocation[] = [];
   try {
-    const response = await client.locations.list();
-    locations = response.locations ?? [];
+    locations = (await client.locations.list()).locations;
     result.accessToken = {
       mode: settings.square.sandbox ? "sandbox" : "production",
       valid: true,

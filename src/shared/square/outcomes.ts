@@ -32,13 +32,13 @@ export const readSquareResource = <Client>(
 /** Turn Square's named refund into the provider-neutral proof. */
 export const namedSquareRefund = (refund: {
   id: string;
-  payment_id: string;
+  paymentId: string;
 }): RefundProof => ({
   kind: "named_refund",
   refund: {
     id: refund.id,
     kind: "square_refund",
-    parentId: refund.payment_id,
+    parentId: refund.paymentId,
     provider: "square",
   },
 });
