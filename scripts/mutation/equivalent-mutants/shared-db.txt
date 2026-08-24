@@ -149,6 +149,14 @@ src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement los
 src/shared/db/payment-claim.ts::assertRefundRowsHeld.phase~19s22mv Refund confirmation lost a payment-row phase→""   # unreachable: the rows are read by this same map's keys, so every row has a phase
 src/shared/db/payment-claim.ts::paymentClaimRowsSql~1oy3usg charge.→""   # the work test reads refund_state_name and refund_local_state, which only payment_charges carries in this join, so the bare names resolve to the same columns
 
+# refund-all-candidates.ts — table aliases the reader needs and SQLite does
+# not: each column below is on exactly one table in its query, so dropping the
+# alias resolves to the same column.
+src/shared/db/refund-all-candidates.ts::providerRefundWork~1oy3usg charge.→""   # only payment_charges carries refund_state_name and refund_local_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~195soyi payment.→""   # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~0uj3b4g payment.→""   # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~1unwmuv payment.→""   # only processed_payments carries protected_state in that query
+
 # backup dump (shared/db/backup-snapshot.ts) — exportTable internals whose
 # intermediate values are overwritten or type-guaranteed before any read.
 src/shared/db/backup-snapshot.ts::exportTable.colList~1el369a   → "mutated"   # colList is only read when INSERT statements are built, which happens after the first non-empty page assigned it in the rowCount === 0 branch; the initializer is overwritten before every read (an empty table breaks out before any read)
