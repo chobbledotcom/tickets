@@ -194,3 +194,12 @@ src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → ""   # same su
 # takes the fallback in both, and an empty string yields "" either way.
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~10demh7  ?? → ||   # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → ||   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
+
+# attendees/capacity/checks.ts — the refusal diagnosis. The fits SELECT holds
+# only expressions, so it always returns exactly one row and the missing-row
+# throw is unreachable; a date reaching the diagnosis is a validated
+# YYYY-MM-DD string or null, never ""; and the halving search needs at most
+# the logarithm of the order's lines, under the step bound from 0 or 1 alike.
+src/shared/db/attendees/capacity/checks.ts::manyFitsOnPrimary.row~0sd8971 The fits query returned no row→""   # a SELECT of expressions always returns one row; the throw is unreachable
+src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.onDay.date~1lroc7z ??→||   # days[0] is a validated date string or undefined; never ""
+src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.step~1qj9zxs 0→1   # halving needs at most log2(lines) steps, below the bound either way
