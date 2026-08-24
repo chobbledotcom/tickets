@@ -6,20 +6,24 @@ import type {
 import {
   buildBatchCapacitySql,
   buildCapacityCondition,
+  buildManyFitsSql,
   type CapacityBucket,
+  type CartDemand,
 } from "#db/capacity.ts";
 import {
   inPlaceholders,
   queryAll,
-  queryIdColumn,
+  queryBatchPrimary,
   requireOne,
+  resultRows,
   type SqlStatement,
 } from "#db/client.ts";
 import { listingGroups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
-import { identity, map, mapById, unique } from "#fp";
+import { compact, identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
@@ -99,25 +103,8 @@ export const checkLinesCapacity = async (
   return conditions.map((_, index) => row[`ok${index}`] === 1);
 };
 
-/** The given ids with no listing row, read straight from the database. The
- * isolate's listings cache can hold a listing another isolate deleted, so an
- * existence answer that gates further direct reads must not come from it. */
-export const missingListingIds = async (
-  listingIds: number[],
-): Promise<number[]> => {
-  const present = new Set(
-    await queryIdColumn(
-      `SELECT listing.id FROM listings AS listing
-        WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-      listingIds,
-    ),
-  );
-  return listingIds.filter((id) => !present.has(id));
-};
-
-/** The listings whose lines do not fit right now, in one query. Both the
- * attendee-edit preflight and a refused creation's diagnosis name their
- * culprit with this. */
+/** The listings whose lines do not fit right now, in one query. The
+ * attendee-edit preflight names its culprit with this. */
 export const unfitListingIds = async (
   bookings: LineBooking[],
   excludeAttendeeId?: number,
@@ -161,7 +148,7 @@ const getOrCreateBucket = <K>(
 
 const addDemandToBucket = (
   bucket: DemandBucket,
-  listing: ListingCapacityRow,
+  listing: Pick<ListingCapacityRow, "listing_type">,
   item: BatchAvailabilityItem,
   date: string | null | undefined,
 ): void => {
@@ -230,4 +217,122 @@ export const checkBatchAvailabilityImpl = async (
   const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
   const row = await requireOne<{ fits: number }>(sql, args);
   return row.fits === 1;
+};
+
+type LineListingFacts = {
+  groupIds: number[];
+  listing_type: ListingCapacityRow["listing_type"];
+};
+
+/** One cart demand for a slice of lines, each line counted on its own date. */
+const linesDemand = (
+  lines: LineBooking[],
+  factsById: Map<number, LineListingFacts>,
+): CartDemand => {
+  const demand: CartDemand = {
+    groupDemand: new Map(),
+    listingDemand: new Map(),
+  };
+  for (const line of lines) {
+    const facts = requiredMapValue(
+      factsById,
+      line.listingId,
+      `Listing ${line.listingId} was not read for the refusal diagnosis`,
+    );
+    const item = {
+      durationDays: line.durationDays,
+      listingId: line.listingId,
+      quantity: line.quantity,
+    };
+    addDemandToBucket(
+      getOrCreateBucket(demand.listingDemand, line.listingId),
+      facts,
+      item,
+      line.date,
+    );
+    for (const groupId of facts.groupIds) {
+      addDemandToBucket(
+        getOrCreateBucket(demand.groupDemand, groupId),
+        facts,
+        item,
+        line.date,
+      );
+    }
+  }
+  return demand;
+};
+
+/** One primary round trip answering whether each cart demand fits. */
+const manyFitsOnPrimary = async (demands: CartDemand[]): Promise<boolean[]> => {
+  const { sql, args } = buildManyFitsSql(demands);
+  const [result] = await queryBatchPrimary([{ args, sql }]);
+  const row = requireValue(
+    resultRows<Record<string, number>>(result!)[0],
+    "The fits query returned no row",
+  );
+  return demands.map((_, index) => row[`fit${index}`] === 1);
+};
+
+/** The listings a refused order's diagnosis names, the way the write batch
+ * met them: each prefix of the order is asked as one cumulative demand, so
+ * the first line that does not fit on top of its predecessors — a shared
+ * group limit included — is the one named. A checkout books every dated line
+ * on the one day the customer picked; the rare multi-date creation (an
+ * operator's hand-built one) falls back to asking each line alone.
+ *
+ * The cost is two primary round trips whatever the order's size: one batch
+ * reads existence, type and group membership, and one SELECT answers every
+ * prefix at once. The reads run on the primary because the refused write did
+ * — a replica can lag behind the booking that took the last place, and the
+ * isolate's caches can hold a listing another isolate deleted. A line whose
+ * listing is gone keeps the refusal and names no listing. */
+export const refusedOrderUnfitListingIds = async (
+  lines: LineBooking[],
+): Promise<number[]> => {
+  const listingIds = unique(lines.map((line) => line.listingId));
+  const [listingResult, memberResult] = await queryBatchPrimary([
+    {
+      args: listingIds,
+      sql: `SELECT listing.id, listing.listing_type
+              FROM listings AS listing
+             WHERE listing.id IN (${inPlaceholders(listingIds)})`,
+    },
+    {
+      args: listingIds,
+      sql: `SELECT groupListing.listing_id, groupListing.group_id
+              FROM group_listings AS groupListing
+             WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})`,
+    },
+  ]);
+  const factsById = new Map<number, LineListingFacts>(
+    resultRows<Pick<ListingCapacityRow, "id" | "listing_type">>(
+      listingResult!,
+    ).map((row) => [row.id, { groupIds: [], listing_type: row.listing_type }]),
+  );
+  if (listingIds.some((id) => !factsById.has(id))) return [];
+  for (const row of resultRows<{ group_id: number; listing_id: number }>(
+    memberResult!,
+  )) {
+    requiredMapValue(
+      factsById,
+      row.listing_id,
+      `Group membership row for an unrequested listing ${row.listing_id}`,
+    ).groupIds.push(row.group_id);
+  }
+
+  const days = unique(compact(lines.map((line) => line.date)));
+  if (days.length > 1) {
+    const fits = await manyFitsOnPrimary(
+      lines.map((line) => linesDemand([line], factsById)),
+    );
+    return unique(
+      lines.filter((_, index) => !fits[index]).map((line) => line.listingId),
+    );
+  }
+  const onDay = lines.map((line) => ({ ...line, date: days[0] ?? null }));
+  const fits = await manyFitsOnPrimary(
+    onDay.map((_, index) => linesDemand(onDay.slice(0, index + 1), factsById)),
+  );
+  const firstUnfit = fits.indexOf(false);
+  return firstUnfit === -1 ? [] : [lines[firstUnfit]!.listingId];
 };

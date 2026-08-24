@@ -11,9 +11,7 @@ import type {
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
-  checkBatchAvailabilityImpl,
-  missingListingIds,
-  unfitListingIds,
+  refusedOrderUnfitListingIds,
 } from "#db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
@@ -33,7 +31,6 @@ import { insert, type SqlStatement } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
-import { compact, unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 
@@ -225,55 +222,21 @@ const createWith =
       : strategy.noBooking();
   };
 
-/** The first booking that does not fit on top of the bookings before it, the
- * way the write batch met them: each prefix of the order goes through the
- * whole-order availability check, so demand the lines add up between
- * themselves — a shared group limit, most of all — counts too. A checkout
- * books every dated line on the one day the customer picked, so one shared
- * day covers them; the rare multi-day creation (an operator's hand-built
- * one) falls back to checking each line alone. */
-const firstUnfitInOrder = async (
-  bookings: AttendeeInput["bookings"],
-): Promise<number[]> => {
-  const items = bookings.map((booking) => ({
-    durationDays: booking.durationDays ?? 1,
-    listingId: booking.listingId,
-    quantity: booking.quantity ?? 1,
-  }));
-  // The refusal already stands; this read only picks the name. A line whose
-  // listing is gone — deleted before this read, or never real — is the one
-  // absence expected here, so it keeps the refusal and names no listing. The
-  // check reads the database directly: the isolate's listings cache can still
-  // hold a listing another isolate deleted. Any other read failure surfaces.
-  const missing = await missingListingIds(
-    unique(items.map((item) => item.listingId)),
-  );
-  if (missing.length > 0) return [];
-  const days = unique(compact(bookings.map((booking) => booking.date)));
-  if (days.length > 1) {
-    return unfitListingIds(
-      items.map((item, index) => ({
-        ...item,
-        date: bookings[index]!.date ?? null,
-      })),
-    );
-  }
-  for (let end = 1; end <= items.length; end++) {
-    if (!(await checkBatchAvailabilityImpl(items.slice(0, end), days[0]))) {
-      return [bookings[end - 1]!.listingId];
-    }
-  }
-  return [];
-};
-
 /** The refusal a failed write answers with. The guarded batch cannot say
- * which statement it aborted on, so the order is asked again as a read and
- * the first line that does not fit is named. A race that freed the room
- * again before this read names none. */
+ * which statement it aborted on, so the order is asked again as a bounded
+ * primary read and the first line that does not fit is named. A race that
+ * freed the room again before this read names none. */
 const capacityFailure = async (
   bookings: AttendeeInput["bookings"],
 ): Promise<CreateAttendeeResult> => ({
-  listingIds: await firstUnfitInOrder(bookings),
+  listingIds: await refusedOrderUnfitListingIds(
+    bookings.map((booking) => ({
+      date: booking.date ?? null,
+      durationDays: booking.durationDays ?? 1,
+      listingId: booking.listingId,
+      quantity: booking.quantity ?? 1,
+    })),
+  ),
   reason: "capacity_exceeded",
   success: false,
 });
