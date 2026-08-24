@@ -20,9 +20,8 @@ const labelled = (
   value: number | string | undefined,
 ): string | null => (value === undefined ? null : `${label}=${value}`);
 
-/** Extract privacy-safe fields without logging Stripe's raw error message.
- * The fields are typed on the transport error now, so this reads them rather
- * than reflecting over the error by key name. */
+/** Name one Stripe failure by the closed fields it carries. Stripe's own
+ * message can name a buyer or a card, so it is never part of the answer. */
 export const sanitizeStripeError = (error: unknown): string => {
   if (!(error instanceof ProviderTransportError)) {
     return error instanceof Error ? error.name : "unknown";

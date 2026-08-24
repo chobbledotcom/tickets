@@ -1,11 +1,10 @@
 /**
  * One provider's transport failing, in the facts every reader already wants.
  *
- * Three providers each grew their own Api/Connection/Protocol trio, and all
- * eight classes said one of exactly three things: the provider answered with
- * a status, we never reached it, or its answer was not usable. Those three
- * are {@link ProviderFailureFacts}, so the classes were eight spellings of a
- * type that already existed. This is the one spelling.
+ * A transport failure says exactly one of three things: the provider answered
+ * with a status, we never reached it, or its answer was not usable. Those
+ * three are {@link ProviderFailureFacts}, and every provider states its own
+ * failure in them.
  *
  * What a provider genuinely owns rides along in `detail`: the buyer field
  * Square rejected, the code and request id Stripe returns. A provider with
