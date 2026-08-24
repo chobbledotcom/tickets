@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
 import { withSquareClient } from "#test-utils/square/fixtures.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
@@ -74,20 +70,24 @@ describeSquare(() => {
     });
 
     for (const [name, error, expected] of [
-      ["404", new SquareApiError(404), { status: "missing" }],
+      [
+        "404",
+        transportError.answered(providerDetail.square(), 404),
+        { status: "missing" },
+      ],
       [
         "503",
-        new SquareApiError(503),
+        transportError.answered(providerDetail.square(), 503),
         { reason: "provider_error", status: "unavailable" },
       ],
       [
         "network failure",
-        new SquareConnectionError("network_error"),
+        transportError.unreachable(providerDetail.square(), "network_error"),
         { reason: "network_error", status: "unavailable" },
       ],
       [
         "malformed response",
-        new SquareProtocolError(),
+        transportError.unusable(providerDetail.square()),
         { reason: "malformed_response", status: "invalid" },
       ],
     ] as const) {

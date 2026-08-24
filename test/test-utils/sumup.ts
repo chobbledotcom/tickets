@@ -33,8 +33,8 @@ export type FakeSumupParts = {
 export const makeSumupClient = (p: FakeSumupParts): SumupClient =>
   ({
     createCheckout: p.create,
-    getMerchant: p.merchantGet,
     readCheckout: p.get,
+    readMerchant: p.merchantGet,
     readTransaction: p.txnGet,
     refundTransaction: p.refund,
   }) as unknown as SumupClient;

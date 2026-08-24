@@ -1,8 +1,8 @@
 /* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { APIError } from "@sumup/sdk";
 import { settings } from "#db/settings.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
 import {
@@ -169,7 +169,9 @@ describe("sumup", () => {
     test("reads SumUp's 404 as an authoritative missing", async () => {
       const client = makeSumupClient({
         get: () =>
-          Promise.reject(new APIError(404, "not found", new Response())),
+          Promise.reject(
+            transportError.answered(providerDetail.sumup(), 404, "not found"),
+          ),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.readCheckoutById("co_gone")).toEqual({
@@ -182,7 +184,13 @@ describe("sumup", () => {
     test("reads any other SumUp error as unavailable", async () => {
       const client = makeSumupClient({
         get: () =>
-          Promise.reject(new APIError(500, "server error", new Response())),
+          Promise.reject(
+            transportError.answered(
+              providerDetail.sumup(),
+              500,
+              "server error",
+            ),
+          ),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.readCheckoutById("co_down")).toEqual({
@@ -195,7 +203,10 @@ describe("sumup", () => {
 
     test("reads a failure before SumUp answered as unavailable", async () => {
       const client = makeSumupClient({
-        get: () => Promise.reject(new TypeError("connection reset")),
+        get: () =>
+          Promise.reject(
+            transportError.unreachable(providerDetail.sumup(), "network_error"),
+          ),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.readCheckoutById("co_net")).toEqual({

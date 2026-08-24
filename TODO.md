@@ -2646,3 +2646,206 @@ what a version-guarded save does.
 
 Starting points: `test/test-utils/session.ts:402`,
 `test/features/admin/groups/helpers.ts:19`, `test/test-utils/servicing.ts`.
+
+---
+
+## The roster CSV ignores the order you chose
+
+_Origin: the consolidation review of recent provider and admin work._
+
+The roster page and its CSV export read the same address bar through
+`readAttendeeListState`, but only the page acts on the `sort` it finds.
+`listingRosterView` in `src/ui/templates/admin/listings/roster.tsx:52` orders
+the rows with `inRegistrationOrder(sort)`, and hands the table `presorted: true`
+so the table keeps that order. The export goes through
+`filteredAttendeesHandler` in `src/features/admin/listings-view.ts:104`, whose
+`FilteredAttendees` context carries `checkin`, `dateFilter`, and
+`filteredByDate` and drops `sort`. Neither `handleAdminListingExport` nor
+`generateAttendeesCsv` orders the rows again.
+
+Two effects follow. A staff member who picks "oldest first" and then downloads
+the CSV gets the raw database order. A staff member who picks no order at all
+also gets the raw database order, because the table applies its own
+date-and-name order in the browser and the CSV never does.
+
+Fix: put `sort` on `FilteredAttendees`, apply the same `inRegistrationOrder`
+step the page applies, and apply the table's default date-and-name order when
+`sort` is null, so the two surfaces cannot disagree. The comment above
+`filteredAttendeesHandler` already promises that "the CSV export mirrors the
+on-screen table", so the comment is correct and the code is not. Ship a
+regression test that exports with a chosen order and pins the row order.
+
+---
+
+## Square parses each order twice, and the second parse is a bare cast
+
+_Origin: the consolidation review. The original note claimed a silent zero. That
+claim is wrong, and this entry records the corrected reading._
+
+`get<T>` in `src/shared/square/client.ts:88` is
+`squareFetch(...) as Promise<T>`, so `SquareOrderResponse` is a claim about the
+wire, not a check of it. `orders.get` then runs
+`BigInt(order.total_money.amount)` on that unchecked value.
+
+The original note said `BigInt(null)` becomes `0n` and books a real zero. It
+does not. `BigInt(null)` and `BigInt(undefined)` both throw a `TypeError`, and a
+non-numeric string throws a `SyntaxError`. Only `""`, `false`, or `[]` become
+`0n`, and Square sends the amount as a JSON number, so a silent zero is not a
+path this code can take.
+
+The real defect is the throw. A raw `TypeError` from a coercion is not a
+`ProviderTransportError`, so it escapes `squareFailure` in
+`src/shared/square/outcomes.ts` and reaches the caller as an unclassified crash
+rather than a provider failure with facts.
+
+Fix: parse the order response with a valibot schema the way
+`parseSquarePaymentResponse` already parses a payment, so a malformed body
+becomes a `ValiError` the failure reader knows how to read. Square already
+parses payments and refunds twice with two schemas of different strength, so do
+this as part of the wider "Square parses each resource once" work below rather
+than as a second schema bolted on.
+
+---
+
+## The migration runner asks one scope and reads another
+
+_Origin: the consolidation review._
+
+`runPendingMigrations` in `src/shared/db/migrations/runner.ts:196` decides
+whether to cap the run with `isDatabaseRoundTripLimited()`, which reports
+whether the **query-log** scope is open (`queryLogScope.current() !== undefined`
+in `src/shared/db/query-log.ts:77`). It then computes the cap from
+`getSubrequestRemaining()`, which reads the **budget** scope in
+`src/shared/subrequest-budget.ts:40`. The two are separate `createScope` stores.
+
+Today the one production path enters both together, in the scope list in
+`src/features/request-scopes.ts`, so the answer happens to be right. Nothing
+holds them together. A caller inside the query-log scope but outside the budget
+scope reads the `BUNNY_SUBREQUEST_LIMIT` defaults and caps against a budget it
+does not have. A caller inside the budget scope alone applies no cap at all.
+
+Fix: ask the budget scope directly. Export a "is there a subrequest budget"
+reader from `src/shared/subrequest-budget.ts` beside `getSubrequestRemaining`,
+and let the migration runner ask that one counter. Pin it with a direct test
+that opens the budget scope without the query-log scope.
+
+---
+
+## One provider credentials form
+
+_Origin: the consolidation review._
+
+Square's settings form skips the shared block and re-spells two element ids that
+the shared footer already generates, so the three provider forms drift. Fold
+them onto one `ProviderCredentialsForm` driven by the provider registry in
+`src/shared/payment-providers.ts`. About 50 lines.
+
+---
+
+## Fold B, one source of route facts
+
+_Origin: the consolidation review._
+
+The mechanism exists and is proven. `formGuardAt` and `pageGuardAt` in
+`src/features/admin/crud-handlers.ts:108` read their roles from
+`adminDestinationAt` in `src/shared/admin-surface.ts:62`, so the roles are
+written once in the admin surface declaration.
+
+- **Declare the 98 undeclared write routes.** Every GET route declares who may
+  reach it, and a test enforces the declaration. 98 write routes take their
+  roles from the handler alone, and nothing compares the two. This is the one
+  item on the list that adds lines, about 110 of them, because it buys the role
+  matrix a way to check 98 permission gates it cannot see today. Do it first in
+  this fold. It unlocks the two items below.
+- **Gates derived from the route.** Once the writes are declared, `AuthOption`
+  and the handler wiring in `src/routes/admin/actions.ts` can read the route
+  instead of restating it. About 50 lines. Needs the item above.
+- **A bind-time route check.** Make `defineAdminRoutes` refuse at bind time when
+  a route has no declaration, so a new route cannot arrive undeclared. About 15
+  lines added. Needs the first item above.
+- **One audience predicate.** "May this viewer follow this link" is written
+  three ways. Fold them into one predicate. About 8 lines.
+- **Entity-page actions take a declared destination.** An `ActionDef` builds its
+  own `href`, so a route whose audience is narrowed keeps a link visible to
+  roles that cannot follow it. That breaks the "never render a dead or forbidden
+  link" rule in `AGENTS.md`. Replace `ActionDef.href` with
+  `destination: AdminDestinationId` and derive both the address and the
+  visibility from the declaration. About 30 lines. This one does not need the
+  98-route work.
+
+---
+
+## Fold D, batched database reads
+
+_Origin: the consolidation review._
+
+- **Export `BatchExecutor` and delete its twin.** The slot exists but is not
+  exported, so `src/shared/accounting/rows.ts:208` declares its own `RowReader`
+  for the same job. Export the shared type and delete the twin. About 18 lines.
+- **A plural read, so a batch of one stops being the idiom.** 15 call sites wrap
+  a single statement in `queryBatchPrimary([...])` and then destructure the one
+  result, for example `src/shared/db/listing-prices.ts:404`,
+  `src/shared/db/payment-claim.ts:133`, and
+  `src/shared/db/processed-payments.ts:264`. Give the client the plural read
+  those sites want. About 45 lines.
+- **Fix the cast at `src/shared/db/listing-prices.ts:409`.**
+  `(result?.rows as unknown as ListingPriceSourceRow[])[0]` claims a shape it
+  never checks, and `?.` hides a missing result. This is a one-line offensive
+  programming fix and needs no framework, so land it on its own.
+- **A typed co-read instead of `results[i]`.** One read destructures eleven
+  names from a batch that nothing ties back to its builder. Give the batch
+  builder and its reader one shared shape, so the names come from the
+  declaration. About 45 lines. Needs the `BatchExecutor` item above.
+
+---
+
+## Square parses each resource once
+
+_Origin: the consolidation review._
+
+Square carries two schemas per resource, and the second is weaker than the
+first. Reduce each resource to one wire schema, and let the mapped shape come
+out of it. About 65 lines. This also removes the unchecked `get<T>` cast that
+the order-total entry above describes, so do the two together.
+
+---
+
+## The ledger's unreachable half, a decision for the repository owner
+
+_Origin: the consolidation review. This entry records a decision, not a job to
+pick up unread._
+
+The ledger carries reconcilers, reversal builders, and four projections with no
+production caller. They stay alive through an exemption in the usage check. The
+house rule in `AGENTS.md` says to delete dead code and recover it from history.
+The exemption's own comment says the ledger is wired in a slice at a time, and
+asks the reader to wait.
+
+About 500 lines sit on that disagreement. The two rules point opposite ways, so
+the call belongs to the repository owner and not to a reviewer. Starting point:
+the `LIBRARY_PATHS` exemption in `test/integration/code-quality.test.ts`.
+
+---
+
+## Square's modules have no test at their mirror path
+
+_Origin: the provider boundary work._
+
+`deno task precommit:mutation` selects a source's direct tests by the mirror
+path alone (`scripts/mutation/test-map.ts`). `src/shared/square/order.ts` looks
+for `test/shared/square/order.test.ts` or `test/shared/square/order/`, and finds
+neither, because Square's tests are named for what they do rather than for the
+module they cover: `read-order.test.ts`, `read-payment.test.ts`,
+`transport-errors.test.ts`, `rest-transport.test.ts`, `refund-outcomes.test.ts`.
+
+The gate refuses to run for a source with no test at its mirror, so a branch
+that changes any Square module cannot pass it. These modules are affected:
+`checkout.ts`, `order.ts`, `outcomes.ts`, `payment-outcomes.ts`, and
+`transport.ts`. `src/shared/sumup/money.ts`, `src/shared/sumup/transport.ts`,
+`src/shared/sumup/wire.ts`, and `src/shared/payment/checkout-failure.ts` have
+the same gap.
+
+Fix: move each test to its module's mirror path, and split one that covers more
+than one module. Do it as its own move-only pull request, so the move is
+readable and no behaviour changes hide inside it. Then run
+`deno task precommit:mutation` and close whatever survivors the move reveals.

@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import * as v from "valibot";
 import { type Money, money, sameMoney } from "#payment/money.ts";
 import type {
   ProviderRead,
@@ -9,6 +10,7 @@ import {
   type RefundRequest,
   uncertainRefund,
 } from "#payment/refund-attempt.ts";
+import { transportFactsOf } from "#payment/transport-error.ts";
 
 /* jscpd:ignore-end */
 
@@ -95,6 +97,29 @@ export const providerFailure = ({
     };
   }
   return;
+};
+
+/** The read and refund meanings of one caught provider error, for every
+ * provider. A transport error carries its own facts. A schema failure is the
+ * provider's answer not matching its documented shape, which the transport
+ * cannot see because the parse happens above it. Anything else is a bug in our
+ * own code, so this claims nothing and the caller re-raises it. */
+export const providerFailureOf = (
+  error: unknown,
+): ProviderFailure | undefined => {
+  const facts = transportFactsOf(error);
+  if (facts !== undefined) return providerFailure(facts);
+  return error instanceof v.ValiError
+    ? providerFailure({ malformed: true })
+    : undefined;
+};
+
+/** The known meaning of a caught provider error. An error the provider does
+ * not own is a bug of ours, so it keeps travelling. */
+export const requireProviderFailure = (error: unknown): ProviderFailure => {
+  const failure = providerFailureOf(error);
+  if (failure === undefined) throw error;
+  return failure;
 };
 
 /** Use refund money only after its parent and amount exactly match admission. */

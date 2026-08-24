@@ -1,10 +1,8 @@
 import { settings } from "#db/settings.ts";
-import { mapNotNullish } from "#fp";
-import {
-  checkoutFailure,
-  type ProviderCheckoutError,
-} from "#payment/checkout-failure.ts";
+import { compact } from "#fp";
+import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { ProviderTransportError } from "#payment/transport-error.ts";
 import { getEnv } from "#shared/env.ts";
 import {
   cachedClientFactory,
@@ -14,36 +12,27 @@ import { createStripeClient, type StripeClient } from "./client.ts";
 import { stripeMock } from "./mock.ts";
 import {
   STRIPE_MAX_NETWORK_RETRIES,
-  StripeApiError,
   type StripeClientConfig,
-  StripeConnectionError,
-  StripeProtocolError,
 } from "./request.ts";
 
-const ERROR_FIELD_TYPES = {
-  number: (value: unknown): boolean => typeof value === "number",
-  string: (value: unknown): boolean => typeof value === "string",
-} as const;
+const labelled = (
+  label: string,
+  value: number | string | undefined,
+): string | null => (value === undefined ? null : `${label}=${value}`);
 
-const formatErrorField =
-  (label: string, type: keyof typeof ERROR_FIELD_TYPES) =>
-  (value: unknown): string | null =>
-    ERROR_FIELD_TYPES[type](value) ? `${label}=${String(value)}` : null;
-
-const STRIPE_ERROR_FIELDS = [
-  { format: formatErrorField("status", "number"), key: "statusCode" },
-  { format: formatErrorField("code", "string"), key: "code" },
-  { format: formatErrorField("type", "string"), key: "type" },
-  { format: formatErrorField("request", "string"), key: "requestId" },
-] as const;
-type StripeErrorField = (typeof STRIPE_ERROR_FIELDS)[number];
-
-/** Extract privacy-safe fields without logging Stripe's raw error message. */
+/** Name one Stripe failure by the closed fields it carries. Stripe's own
+ * message can name a buyer or a card, so it is never part of the answer. */
 export const sanitizeStripeError = (error: unknown): string => {
-  if (!(error instanceof Error)) return "unknown";
-  const parts = mapNotNullish((field: StripeErrorField) =>
-    field.format(Reflect.get(error, field.key)),
-  )(STRIPE_ERROR_FIELDS);
+  if (!(error instanceof ProviderTransportError)) {
+    return error instanceof Error ? error.name : "unknown";
+  }
+  const stripe = error.detail.provider === "stripe" ? error.detail : undefined;
+  const parts = compact([
+    labelled("status", error.facts.statusCode),
+    labelled("code", stripe?.code),
+    labelled("type", stripe?.type),
+    labelled("request", stripe?.requestId),
+  ]);
   return parts.length > 0 ? parts.join(" ") : error.name;
 };
 
@@ -107,21 +96,9 @@ const cache = cachedClientFactory({
 });
 
 const get = (): Promise<StripeClient | null> => cache.getClient();
-const closedCheckoutError = (error: unknown): ProviderCheckoutError => {
-  if (error instanceof StripeApiError) {
-    return checkoutFailure.provider("stripe", error.statusCode);
-  }
-  if (error instanceof StripeConnectionError) {
-    return checkoutFailure.connection("stripe", error.reason);
-  }
-  if (error instanceof StripeProtocolError) {
-    return checkoutFailure.invalidResponse("stripe", error.statusCode);
-  }
-  throw error;
-};
 
 const runCheckout = createWithClient(get, {
-  replaceError: closedCheckoutError,
+  replaceError: closedCheckoutErrorFor("stripe"),
 });
 
 /** Shared Stripe client lifecycle for payment and endpoint operations. */

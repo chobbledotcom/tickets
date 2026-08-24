@@ -1,9 +1,10 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import type { ProviderRead } from "#payment/provider-read.ts";
+import { judgeThrough, refuseUnless } from "#payment/provider-resource-read.ts";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
 import type { GetSquareClient } from "#shared/square/client.ts";
-import { readSquareResource } from "#shared/square/read.ts";
+import { readSquareResource } from "#shared/square/outcomes.ts";
 import { OptionalNullableStringSchema } from "#shared/validation/string.ts";
 /* jscpd:ignore-end */
 
@@ -44,33 +45,33 @@ const SquareOrderSchema = v.object({
 });
 
 /** Read and normalize one Square order without confusing absence and failure. */
-export const readSquareOrder = async (
+export const readSquareOrder = (
   getClient: GetSquareClient,
   orderId: string,
-): Promise<ProviderRead<SquareOrder>> => {
-  const client = await getClient();
-  return readSquareResource(client, {
-    matches: (order) => order.id === orderId,
-    parse: (order) => {
-      const parsed = v.safeParse(SquareOrderSchema, order);
-      return parsed.success
-        ? {
-            createdAt: parsed.output.createdAt,
-            id: parsed.output.id,
-            metadata: parsed.output.metadata,
-            state: parsed.output.state,
-            tenders: parsed.output.tenders?.map((tender) => ({
-              id: tender.id,
-              paymentId: tender.paymentId ?? undefined,
-            })),
-            totalMoney: {
-              amount: parsed.output.totalMoney?.amount ?? null,
-              currency: parsed.output.totalMoney?.currency ?? null,
-            },
-          }
-        : null;
-    },
-    read: (square) => square.orders.get({ orderId }),
-    resource: (response) => response.order,
-  });
-};
+): Promise<ProviderRead<SquareOrder>> =>
+  readSquareResource(getClient)(
+    async (square) => (await square.orders.get({ orderId })).order,
+    judgeThrough({
+      accept: (order: SquareOrder) => order,
+      parse: (order): SquareOrder | null => {
+        const parsed = v.safeParse(SquareOrderSchema, order);
+        return parsed.success
+          ? {
+              createdAt: parsed.output.createdAt,
+              id: parsed.output.id,
+              metadata: parsed.output.metadata,
+              state: parsed.output.state,
+              tenders: parsed.output.tenders?.map((tender) => ({
+                id: tender.id,
+                paymentId: tender.paymentId ?? undefined,
+              })),
+              totalMoney: {
+                amount: parsed.output.totalMoney?.amount ?? null,
+                currency: parsed.output.totalMoney?.currency ?? null,
+              },
+            }
+          : null;
+      },
+      rungs: [refuseUnless("mismatched_id", (order) => order.id === orderId)],
+    }),
+  );

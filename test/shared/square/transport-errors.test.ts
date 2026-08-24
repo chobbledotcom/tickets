@@ -3,12 +3,11 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { settings } from "#db/settings.ts";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
-import { squareApi } from "#shared/square/api.ts";
 import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
+  ProviderTransportError,
+  rejectedBuyerFieldOf,
+} from "#payment/transport-error.ts";
+import { squareApi } from "#shared/square/api.ts";
 import {
   installMockFetch,
   jsonResponse,
@@ -31,7 +30,9 @@ const thrownBy = async (work: () => Promise<unknown>): Promise<unknown> => {
   throw new Error("Expected Square transport to throw");
 };
 
-const apiErrorFrom = async (responseBody: string): Promise<SquareApiError> => {
+const apiErrorFrom = async (
+  responseBody: string,
+): Promise<ProviderTransportError> => {
   installMockFetch(() =>
     Promise.resolve({
       ok: false,
@@ -43,7 +44,7 @@ const apiErrorFrom = async (responseBody: string): Promise<SquareApiError> => {
   const error = await thrownBy(() =>
     client!.payments.get({ paymentId: "pay_error" }),
   );
-  if (error instanceof SquareApiError) return error;
+  if (error instanceof ProviderTransportError) return error;
   throw error;
 };
 
@@ -88,7 +89,7 @@ describeSquare(() => {
 
       expect(error.message).toContain("Status code: 400");
       expect(error.message).not.toContain("PRIVATE_REFERENCE");
-      expect(error.invalidField).toBeNull();
+      expect(rejectedBuyerFieldOf(error)).toBeNull();
       expect("responseBody" in error).toBe(false);
     });
 
@@ -110,7 +111,7 @@ describeSquare(() => {
           }),
         );
 
-        expect(error.invalidField).toBe(invalidField);
+        expect(rejectedBuyerFieldOf(error)).toBe(invalidField);
         expect(error.message).not.toContain("PRIVATE_REFERENCE");
         expect(error.message).not.toContain(providerField);
       });
@@ -118,7 +119,7 @@ describeSquare(() => {
 
     test("keeps a malformed error payload unclassified", async () => {
       const error = await apiErrorFrom('{"errors":{}}');
-      expect(error.invalidField).toBeNull();
+      expect(rejectedBuyerFieldOf(error)).toBeNull();
     });
 
     test("discards malformed success bodies from its protocol error", async () => {
@@ -134,7 +135,7 @@ describeSquare(() => {
       const error = await thrownBy(() =>
         client!.payments.get({ paymentId: "pay_json" }),
       );
-      expect(error).toBeInstanceOf(SquareProtocolError);
+      expect(error).toBeInstanceOf(ProviderTransportError);
       expect((error as Error).message).not.toContain(privateBody);
     });
 
@@ -161,8 +162,10 @@ describeSquare(() => {
       const error = await thrownBy(() =>
         client!.payments.get({ paymentId: "pay_network" }),
       );
-      expect(error).toBeInstanceOf(SquareConnectionError);
-      expect((error as SquareConnectionError).reason).toBe("network_error");
+      expect(error).toBeInstanceOf(ProviderTransportError);
+      expect((error as ProviderTransportError).facts.connectionReason).toBe(
+        "network_error",
+      );
       expect((error as Error).message).not.toContain(privateDetail);
     });
 
@@ -183,8 +186,10 @@ describeSquare(() => {
         const error = await thrownBy(() =>
           client!.payments.get({ paymentId: "pay_timeout" }),
         );
-        expect(error).toBeInstanceOf(SquareConnectionError);
-        expect((error as SquareConnectionError).reason).toBe("timeout");
+        expect(error).toBeInstanceOf(ProviderTransportError);
+        expect((error as ProviderTransportError).facts.connectionReason).toBe(
+          "timeout",
+        );
         expect((error as Error).message).not.toContain(privateDetail);
       });
     }

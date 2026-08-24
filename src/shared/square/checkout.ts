@@ -1,7 +1,15 @@
 /* jscpd:ignore-start */
 
 import { settings } from "#db/settings.ts";
-import { checkoutFailure } from "#payment/checkout-failure.ts";
+import {
+  checkoutFailure,
+  closedCheckoutErrorFor,
+} from "#payment/checkout-failure.ts";
+import {
+  ProviderTransportError,
+  type RejectedBuyerField,
+  rejectedBuyerFieldOf,
+} from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
 import {
@@ -16,39 +24,29 @@ import type {
   CreatePaymentLinkInput,
   GetSquareClient,
 } from "#shared/square/client.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-  type SquareInvalidField,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
 
 /* jscpd:ignore-end */
 
 type SquareLineItem = CreatePaymentLinkInput["order"]["lineItems"][number];
 
-const SQUARE_FIELD_LABELS: Record<SquareInvalidField, string> = {
+const SQUARE_FIELD_LABELS: Record<RejectedBuyerField, string> = {
   email: "email address",
   phone: "phone number",
 };
 
+const closedSquareError = closedCheckoutErrorFor("square");
+
+/** A rejected buyer field is the one failure the buyer can act on, so it is
+ * told to them in their own words before the closed provider facts. */
 const rethrowAsUserError = (error: unknown): never => {
-  if (error instanceof SquareApiError && error.invalidField !== null) {
-    const label = SQUARE_FIELD_LABELS[error.invalidField];
-    throw new PaymentUserError(
-      `The payment processor rejected the ${label} as invalid. Please correct it and try again.`,
-    );
-  }
-  if (error instanceof SquareApiError) {
-    throw checkoutFailure.provider("square", error.statusCode);
-  }
-  if (error instanceof SquareConnectionError) {
-    throw checkoutFailure.connection("square", error.reason);
-  }
-  if (error instanceof SquareProtocolError) {
-    throw checkoutFailure.invalidResponse("square");
-  }
-  throw error;
+  const rejectedField =
+    error instanceof ProviderTransportError
+      ? rejectedBuyerFieldOf(error)
+      : null;
+  if (rejectedField === null) throw closedSquareError(error);
+  throw new PaymentUserError(
+    `The payment processor rejected the ${SQUARE_FIELD_LABELS[rejectedField]} as invalid. Please correct it and try again.`,
+  );
 };
 
 type PaymentLinkConfig = { locationId: string; currency: string };

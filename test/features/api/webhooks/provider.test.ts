@@ -5,7 +5,6 @@ import { spy, stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
-import { StripeConnectionError } from "#shared/stripe/request.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,8 +17,10 @@ import { mockWebhookRequest, withExpectedError } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeClient } from "#test-utils/stripe/fixtures.ts";
+
 // jscpd:ignore-end
 
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   debugLogged,
   errorLogged,
@@ -99,10 +100,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     const client = await stripeClient();
     using _retrieve = stub(client.checkout.sessions, "retrieve", () =>
       Promise.reject(
-        new StripeConnectionError(
-          "network_error",
-          "PRIVATE_STRIPE_READ_FAILURE",
-        ),
+        transportError.unreachable(providerDetail.stripe(), "network_error"),
       ),
     );
     using _verify = await stubWebhookVerify(

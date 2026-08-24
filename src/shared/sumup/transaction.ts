@@ -1,6 +1,15 @@
 import * as v from "valibot";
-import { malformedProviderRead } from "#payment/provider-failures.ts";
-import type { ProviderRead } from "#payment/provider-read.ts";
+import type {
+  ProviderInvalidReason,
+  ProviderRead,
+} from "#payment/provider-read.ts";
+import {
+  judgeThrough,
+  parsedBy,
+  type Rung,
+  refuseUnless,
+  refuseUnlessAll,
+} from "#payment/provider-resource-read.ts";
 import { sumupPaymentFields } from "#shared/sumup/wire.ts";
 
 /** One SumUp transaction's charge and refund money in provider major units. */
@@ -43,50 +52,85 @@ type TransactionFacts = {
   transactionId: string;
 };
 
+type WireTransaction = v.InferOutput<typeof TransactionSchema>;
+
+const eventsOf = (
+  transaction: WireTransaction,
+): NonNullable<WireTransaction["transaction_events"]> =>
+  transaction.transaction_events ?? [];
+
+type WireEvent = NonNullable<WireTransaction["transaction_events"]>[number];
+
+const refundEventsOf = (
+  transaction: WireTransaction,
+): NonNullable<WireTransaction["transaction_events"]> =>
+  eventsOf(transaction).filter((event) => event.event_type === "REFUND");
+
+/** Refuse a transaction that carries any event we cannot account for. */
+const refuseAnyEvent = (
+  reason: ProviderInvalidReason,
+  isUnusable: (event: WireEvent) => boolean,
+): Rung<WireTransaction> =>
+  refuseUnless(
+    reason,
+    (transaction) => !eventsOf(transaction).some(isUnusable),
+  );
+
+/** What SumUp must state about a transaction before we can read its money,
+ *  in the order the facts bind: shape, identity, account, then lifecycle. */
+const TRANSACTION_RUNGS = (
+  facts: TransactionFacts,
+): readonly Rung<WireTransaction>[] => [
+  refuseUnlessAll("missing_documented_resource", [
+    (transaction) => transaction.id !== undefined,
+    (transaction) => transaction.merchant_code !== undefined,
+    (transaction) => transaction.status !== undefined,
+  ]),
+  refuseUnless(
+    "mismatched_id",
+    (transaction) => transaction.id === facts.transactionId,
+  ),
+  refuseUnless(
+    "mismatched_account",
+    (transaction) => transaction.merchant_code === facts.merchantCode,
+  ),
+  refuseUnless(
+    "unsupported_status",
+    (transaction) =>
+      transaction.status !== undefined && isCapturedStatus(transaction.status),
+  ),
+  refuseAnyEvent(
+    "missing_documented_resource",
+    (event) => event.event_type === undefined,
+  ),
+  refuseAnyEvent(
+    "unsupported_status",
+    (event) => event.event_type === "CHARGE_BACK",
+  ),
+  // A refunded transaction that names no refund has lost the only account
+  // SumUp keeps of the money that went back.
+  refuseUnless(
+    "missing_documented_resource",
+    (transaction) =>
+      transaction.status !== "REFUNDED" ||
+      refundEventsOf(transaction).length > 0,
+  ),
+];
+
 /** Validate one transaction against the id and account we asked SumUp for. */
 export const readSumupTransaction = (
   body: unknown,
-  { merchantCode, transactionId }: TransactionFacts,
-): ProviderRead<SumupTransactionMoney> => {
-  const parsed = v.safeParse(TransactionSchema, body);
-  if (!parsed.success) return malformedProviderRead();
-  const transaction = parsed.output;
-  if (
-    transaction.id === undefined ||
-    transaction.merchant_code === undefined ||
-    transaction.status === undefined
-  ) {
-    return { reason: "missing_documented_resource", status: "invalid" };
-  }
-  if (transaction.id !== transactionId) {
-    return { reason: "mismatched_id", status: "invalid" };
-  }
-  if (transaction.merchant_code !== merchantCode) {
-    return { reason: "mismatched_account", status: "invalid" };
-  }
-  if (!isCapturedStatus(transaction.status)) {
-    return { reason: "unsupported_status", status: "invalid" };
-  }
-  const events = transaction.transaction_events ?? [];
-  if (events.some((event) => event.event_type === undefined)) {
-    return { reason: "missing_documented_resource", status: "invalid" };
-  }
-  if (events.some((event) => event.event_type === "CHARGE_BACK")) {
-    return { reason: "unsupported_status", status: "invalid" };
-  }
-  const refundEvents = events.filter((event) => event.event_type === "REFUND");
-  if (transaction.status === "REFUNDED" && refundEvents.length === 0) {
-    return { reason: "missing_documented_resource", status: "invalid" };
-  }
-  return {
-    resource: {
+  facts: TransactionFacts,
+): ProviderRead<SumupTransactionMoney> =>
+  judgeThrough({
+    accept: (transaction: WireTransaction): SumupTransactionMoney => ({
       amount: transaction.amount,
       currency: transaction.currency,
-      refundEvents: refundEvents.map((event) => ({
+      refundEvents: refundEventsOf(transaction).map((event) => ({
         amount: event.amount,
         status: event.status,
       })),
-    },
-    status: "found",
-  };
-};
+    }),
+    parse: parsedBy(TransactionSchema),
+    rungs: TRANSACTION_RUNGS(facts),
+  })(body);

@@ -1,10 +1,15 @@
+import { assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
   providerFailure,
+  providerFailureOf,
+  requireProviderFailure,
   withExactRefundMoney,
 } from "#payment/provider-failures.ts";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import {
   providerReadHttpCases,
@@ -56,6 +61,45 @@ const readExactMoney = (parentId: string, amount: unknown, currency: unknown) =>
   withExactRefundMoney(request, parentId, amount, currency, (money) => ({
     money,
   }));
+
+describe("reading one caught provider error", () => {
+  const valiError = (): unknown => {
+    try {
+      return v.parse(v.object({ id: v.string() }), { id: 7 });
+    } catch (error) {
+      return error;
+    }
+  };
+
+  test("reads a transport error's own facts", () => {
+    const error = transportError.answered(providerDetail.sumup(), 404);
+    expect(providerFailureOf(error)?.read).toEqual({ status: "missing" });
+  });
+
+  test("reads a schema failure as an answer that broke its documented shape", () => {
+    // The transport cannot see this one: the parse happens above it.
+    expect(providerFailureOf(valiError())).toEqual({
+      read: { reason: "malformed_response", status: "invalid" },
+      refund: { kind: "uncertain", reason: "malformed_response" },
+    });
+  });
+
+  test("claims nothing for an error the provider does not own", () => {
+    expect(providerFailureOf(new Error("a bug of ours"))).toBeUndefined();
+  });
+
+  test("requiring a meaning lets our own bug keep travelling", () => {
+    const ours = new Error("a bug of ours");
+    expect(assertThrows(() => requireProviderFailure(ours))).toBe(ours);
+  });
+
+  test("requiring a meaning gives back the one the error proves", () => {
+    expect(requireProviderFailure(valiError()).refund).toEqual({
+      kind: "uncertain",
+      reason: "malformed_response",
+    });
+  });
+});
 
 describe("withExactRefundMoney", () => {
   test("returns the exact admitted money", () => {

@@ -1,37 +1,33 @@
-import * as v from "valibot";
 /* jscpd:ignore-start -- imports */
 import {
   type ProviderFailure,
-  providerFailure,
+  providerFailureOf,
 } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
-import type { RefundProof } from "#payment/refund-attempt.ts";
 import {
-  SquareApiError,
-  SquareConnectionError,
-  SquareProtocolError,
-} from "#shared/square/transport.ts";
-
+  providerResourceReader,
+  type ResourceReader,
+} from "#payment/provider-resource-read.ts";
+import type { RefundProof } from "#payment/refund-attempt.ts";
 /* jscpd:ignore-end */
-
-const squareFailure = (error: unknown): ProviderFailure | undefined =>
-  providerFailure({
-    connectionReason:
-      error instanceof SquareConnectionError ? error.reason : undefined,
-    malformed:
-      error instanceof SquareProtocolError || error instanceof v.ValiError,
-    statusCode: error instanceof SquareApiError ? error.statusCode : undefined,
-  });
 
 /** Translate a known Square read failure, leaving internal bugs unclaimed. */
 export const squareReadFailure = (
   error: unknown,
-): ProviderRead<never> | undefined => squareFailure(error)?.read;
+): ProviderRead<never> | undefined => providerFailureOf(error)?.read;
 
 /** Translate a known Square refund failure, leaving internal bugs unclaimed. */
 export const squareRefundFailure = (
   error: unknown,
-): ProviderFailure["refund"] | undefined => squareFailure(error)?.refund;
+): ProviderFailure["refund"] | undefined => providerFailureOf(error)?.refund;
+
+/** Read one Square resource. Every Square read resolves its client the same
+ * way and reads a failed call the same way, so each one says only what it
+ * asks for and how it judges the answer. */
+export const readSquareResource = <Client>(
+  getClient: () => Promise<Client | null>,
+): ResourceReader<Client> =>
+  providerResourceReader(getClient, squareReadFailure);
 
 /** Turn Square's named refund into the provider-neutral proof. */
 export const namedSquareRefund = (refund: {

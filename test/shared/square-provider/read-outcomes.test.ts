@@ -4,12 +4,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-} from "#shared/square/transport.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { rejectionMessage } from "#test-utils/assertions.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -137,8 +134,11 @@ describe("square-provider read outcomes", () => {
   });
 
   for (const [name, error] of [
-    ["transport failure", new SquareConnectionError("network_error")],
-    ["provider failure", new SquareApiError(503)],
+    [
+      "transport failure",
+      transportError.unreachable(providerDetail.square(), "network_error"),
+    ],
+    ["provider failure", transportError.answered(providerDetail.square(), 503)],
   ] as const) {
     test(`keeps an order ${name} retryable after a completed event`, async () => {
       await withSquareClient(
@@ -166,7 +166,8 @@ describe("square-provider read outcomes", () => {
   test("keeps an order Square cannot find retryable after a completed event", async () => {
     await withSquareClient(
       {
-        ordersGet: () => Promise.reject(new SquareApiError(404)),
+        ordersGet: () =>
+          Promise.reject(transportError.answered(providerDetail.square(), 404)),
       },
       async () => {
         // A 404 used to be read as proof the order was gone, and the event was

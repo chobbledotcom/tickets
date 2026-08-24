@@ -1,8 +1,8 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { APIError } from "@sumup/sdk";
 import { settings } from "#db/settings.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   makeSumupClient,
@@ -13,7 +13,7 @@ import {
 /* jscpd:ignore-end */
 
 describe("sumup transactions", () => {
-  const { errorSpy } = setupSumupSuite();
+  const { errorSpy, loggedDebug } = setupSumupSuite();
 
   const transactionWire = (over: Record<string, unknown> = {}) => ({
     amount: 10,
@@ -244,12 +244,16 @@ describe("sumup transactions", () => {
     test("passes a failed read through SumUp failure classification", async () => {
       const client = makeSumupClient({
         txnGet: () =>
-          Promise.reject(new APIError(404, "missing", new Response())),
+          Promise.reject(
+            transportError.answered(providerDetail.sumup(), 404, "missing"),
+          ),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.readTransactionMoney("txn")).toEqual({
           status: "missing",
         });
+        // The log has to name the transaction read, not some other read.
+        expect(loggedDebug("Transaction read answered 404")).toBe(true);
       });
     });
 
@@ -306,7 +310,9 @@ describe("sumup transactions", () => {
     test("reports an authoritative refusal", async () => {
       const client = makeSumupClient({
         refund: () =>
-          Promise.reject(new APIError(422, "refused", new Response())),
+          Promise.reject(
+            transportError.answered(providerDetail.sumup(), 422, "refused"),
+          ),
       });
       await withSumupClient(client, async () => {
         expect(await sumupApi.refundTransaction("txn")).toEqual({
