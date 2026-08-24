@@ -276,10 +276,10 @@ describeWithEnv("db > client", { db: true }, () => {
       "INSERT INTO settings (key, value) VALUES" +
         " ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')",
     );
-    const rows = await queryAllPrimary<{ value: string }>(
-      "SELECT value FROM settings WHERE key LIKE ? ORDER BY key",
-      ["query_all_primary_%"],
-    );
+    const rows = await queryAllPrimary<{ value: string }>({
+      args: ["query_all_primary_%"],
+      sql: "SELECT value FROM settings WHERE key LIKE ? ORDER BY key",
+    });
     // Every match in order: a plural that answered with the first row alone
     // would be the singular wearing the wrong name.
     expect(rows.map(({ value }) => value)).toEqual(["first", "second"]);

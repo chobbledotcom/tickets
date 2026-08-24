@@ -370,16 +370,15 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
 };
 
 /**
- * Query all rows of one statement on the primary, for a caller that must read
- * its own writes — a plain {@link queryAll} can be served by a lagging replica
- * and miss them. See {@link queryBatchPrimary}. `args` is required: a read-back
- * always keys on the rows the write just put there.
+ * {@link queryAll} for a caller that must read its own writes: the same rows,
+ * pinned to the primary, because a replica can lag behind the write and miss
+ * them. See {@link queryBatchPrimary}. It takes the statement whole — the shape
+ * a batch runs — so a caller holding one hands it over as it is.
  */
 export const queryAllPrimary = async <T>(
-  sql: string,
-  args: InValue[],
+  statement: SqlStatement,
 ): Promise<T[]> => {
-  const [result] = await queryBatchPrimary([{ args, sql }]);
+  const [result] = await queryBatchPrimary([statement]);
   return resultRows<T>(result!);
 };
 
@@ -387,7 +386,7 @@ export const queryAllPrimary = async <T>(
  *  read-your-writes goes to the primary instead. */
 export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
   mustReadFromPrimary() && primaryReadMode() !== "read"
-    ? queryAllPrimary<T>(sql, args ?? [])
+    ? queryAllPrimary<T>({ args: args ?? [], sql })
     : resultRows<T>(await execute(sql, args));
 
 /** Query one row, or null when the query returns none. */
@@ -411,11 +410,12 @@ export const requireOne = <T>(...[sql, args]: SqlArgs): Promise<T> =>
   requireQueryRow(queryOne<T>(sql, args), sql, "Required");
 
 /** Query an optional row on the primary — the singular of
- *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. */
+ *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. `args`
+ *  is required here: every read-back keys on the row the write just made. */
 export const queryOnePrimary = async <T>(
   sql: string,
   args: InValue[],
-): Promise<T | null> => (await queryAllPrimary<T>(sql, args))[0] ?? null;
+): Promise<T | null> => (await queryAllPrimary<T>({ args, sql }))[0] ?? null;
 
 /** Query one required row from the primary. */
 export const requireOnePrimary = <T>(...[sql, args]: SqlWithArgs): Promise<T> =>

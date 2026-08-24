@@ -96,10 +96,10 @@ const readPaymentMoveSnapshot = (
  * primary. The rows contain no attendee PII and are bounded by attendee id. */
 export const loadPaymentMoveSnapshot = async (
   attendeeIds: readonly number[],
-): Promise<PaymentMoveSnapshot> => {
-  const { args, sql } = moveWorkStatement(attendeeIds);
-  return moveSnapshot(await queryAllPrimary<StoredMoveWork>(sql, args));
-};
+): Promise<PaymentMoveSnapshot> =>
+  moveSnapshot(
+    await queryAllPrimary<StoredMoveWork>(moveWorkStatement(attendeeIds)),
+  );
 
 /** Raised when payment rows are in the middle of work the operator has to
  *  settle first. The message is written for whoever asked for the merge or the

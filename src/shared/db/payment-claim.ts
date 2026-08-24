@@ -131,10 +131,12 @@ export const loadAttendeeRowStates = async (
   attendeeIds: readonly number[],
 ): Promise<PaymentRowRecord[]> =>
   asPaymentRowRecords(
-    await queryAllPrimary<StoredPaymentClaimRow>(
-      paymentClaimRowsSql(`attendee_id IN (${inPlaceholders(attendeeIds)})`),
-      [...attendeeIds],
-    ),
+    await queryAllPrimary<StoredPaymentClaimRow>({
+      args: [...attendeeIds],
+      sql: paymentClaimRowsSql(
+        `attendee_id IN (${inPlaceholders(attendeeIds)})`,
+      ),
+    }),
   );
 
 /** Fail when a confirmer no longer owns every payment row it started with. */
@@ -234,12 +236,12 @@ const rewriteRows = async (
   // write depends on it, and each write is conditioned on the exact record it
   // read. Pinned to the primary because a caller may be reading its own claim
   // — a lagging replica would match no write and leave the claim standing.
-  const stored = await queryAllPrimary<StoredPaymentClaimRow>(
-    paymentClaimRowsSql(
+  const stored = await queryAllPrimary<StoredPaymentClaimRow>({
+    args: [...sessionIds],
+    sql: paymentClaimRowsSql(
       `payment_session_id IN (${inPlaceholders(sessionIds)})`,
     ),
-    [...sessionIds],
-  );
+  });
   const rows = await asPaymentRowRecords(stored);
   const writes = await Promise.all(
     mapNotNullish((row: PaymentRowRecord) => {

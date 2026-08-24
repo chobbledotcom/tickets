@@ -28,13 +28,13 @@ export const loadAnchorRowWork = async (
   payment: TaggedPaymentReference,
 ): Promise<AnchorRowWork[]> => {
   const indexes = await matchingPaymentReferenceIndexes(payment);
-  const rows = await queryAllPrimary<StoredPaymentClaimRow>(
-    paymentClaimRowsSql(
+  const rows = await queryAllPrimary<StoredPaymentClaimRow>({
+    args: [...indexes],
+    sql: paymentClaimRowsSql(
       `payment.payment_session_id LIKE 'legacy:%'
            AND payment.payment_reference_index IN (${inPlaceholders(indexes)})`,
     ),
-    [...indexes],
-  );
+  });
   return Promise.all(
     rows.map(async (row) => ({
       record: await asPaymentRowRecord(row),

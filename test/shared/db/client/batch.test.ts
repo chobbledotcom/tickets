@@ -107,9 +107,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
     // The plural of queryOnePrimary carries the same promise: read-your-writes,
     // so it must never be answered by a replica that lags behind the write.
     expect(
-      await captureBatchModes(([statement]) =>
-        queryAllPrimary(statement!.sql, statement!.args),
-      ),
+      await captureBatchModes(([statement]) => queryAllPrimary(statement!)),
     ).toEqual(["write"]);
   });
 

@@ -240,10 +240,10 @@ const answered = <Row>(result: ResultSet | undefined, what: string): Row[] =>
 /** Count the complete refundable set and report its visible send blockers. */
 export const getRefundAllSummary = async (
   listingId: number,
-): Promise<RefundAllSummary> => {
-  const { args, sql } = summaryStatement(listingId);
-  return readSummary(await queryAllPrimary<RefundAllSummaryRow>(sql, args));
-};
+): Promise<RefundAllSummary> =>
+  readSummary(
+    await queryAllPrimary<RefundAllSummaryRow>(summaryStatement(listingId)),
+  );
 
 /** Check complete safety facts and select only one claim-first candidate batch. */
 export const loadRefundAllBatch = async (

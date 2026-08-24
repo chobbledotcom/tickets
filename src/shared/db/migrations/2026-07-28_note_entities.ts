@@ -63,10 +63,10 @@ export default bareSchemaMigration(
   "2026-07-28_note_entities",
   "Replace system_notes.attendee_id with entity_type + entity_id, so notes can be about any record and not only an attendee. Existing notes become notes about an attendee",
   async ({ getDb, recreateTable, syncIndexes }) => {
-    const info = await queryAllPrimary<{ name: string }>(
-      "SELECT name FROM pragma_table_info('system_notes')",
-      [],
-    );
+    const info = await queryAllPrimary<{ name: string }>({
+      args: [],
+      sql: "SELECT name FROM pragma_table_info('system_notes')",
+    });
     const columns = new Set(info.map((row) => row.name));
     if (!columns.has("attendee_id")) {
       // The columns are already moved, but a run that died right after the
