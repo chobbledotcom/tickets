@@ -4,6 +4,7 @@
  * stories lean on these to prove a refusal hands back what was typed.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,6 +12,8 @@ import {
   optionChosen,
   optionMarkedChosen,
 } from "#test/specs/support/form-controls/reading.ts";
+
+// jscpd:ignore-end
 
 const chooser = (options: string): string =>
   `<select name="date">${options}</select>`;

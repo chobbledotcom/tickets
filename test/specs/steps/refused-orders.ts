@@ -272,6 +272,23 @@ Given(
   },
 );
 
+/** Fill one listing's own page in for the customer: the line for that
+ * listing, plus whatever extra choices the scenario adds on top of the
+ * customer's contact details. Every "filled the X page in" step is one call
+ * to this, so the fill itself lives in one place. */
+const fillsOwnPageIn = async (
+  world: TicketsWorld,
+  name: string,
+  line: Omit<OrderLine, "listing">,
+  extras: Partial<BookingChoices>,
+): Promise<void> => {
+  const listing = listingNamed(world, name);
+  await fillsIn(world, `/ticket/${listing.slug}`, [{ listing, ...line }], {
+    ...THE_CUSTOMER,
+    ...extras,
+  });
+};
+
 Given(
   "a customer filled the {word} page in, asking for {int} place(s) for a day soon and choosing to pay {word}",
   async function (
@@ -280,12 +297,12 @@ Given(
     places: number,
     pounds: string,
   ): Promise<void> {
-    const listing = listingNamed(this, name);
-    const lines = [{ listing, pays: pounds.replace("£", ""), places }];
-    await fillsIn(this, `/ticket/${listing.slug}`, lines, {
-      ...THE_CUSTOMER,
-      day: await firstDayOffered(this, name),
-    });
+    await fillsOwnPageIn(
+      this,
+      name,
+      { pays: pounds.replace("£", ""), places },
+      { day: await firstDayOffered(this, name) },
+    );
   },
 );
 
@@ -297,11 +314,12 @@ Given(
     places: number,
     startsIn: number,
   ): Promise<void> {
-    const listing = listingNamed(this, name);
-    await fillsIn(this, `/ticket/${listing.slug}`, [{ listing, places }], {
-      ...THE_CUSTOMER,
-      day: dayFromToday(this, startsIn),
-    });
+    await fillsOwnPageIn(
+      this,
+      name,
+      { places },
+      { day: dayFromToday(this, startsIn) },
+    );
   },
 );
 
@@ -314,12 +332,12 @@ Given(
     days: number,
     startsIn: number,
   ): Promise<void> {
-    const listing = listingNamed(this, name);
-    await fillsIn(this, `/ticket/${listing.slug}`, [{ listing, places }], {
-      ...THE_CUSTOMER,
-      day: dayFromToday(this, startsIn),
-      dayCount: days,
-    });
+    await fillsOwnPageIn(
+      this,
+      name,
+      { places },
+      { day: dayFromToday(this, startsIn), dayCount: days },
+    );
   },
 );
 
@@ -331,13 +349,16 @@ Given(
     places: number,
     label: string,
   ): Promise<void> {
-    const listing = listingNamed(this, name);
     const asked = questionAsked(this);
-    await fillsIn(this, `/ticket/${listing.slug}`, [{ listing, places }], {
-      ...THE_CUSTOMER,
-      answer: { choice: choiceCalled(asked, label), field: asked.field },
-      day: await firstDayOffered(this, name),
-    });
+    await fillsOwnPageIn(
+      this,
+      name,
+      { places },
+      {
+        answer: { choice: choiceCalled(asked, label), field: asked.field },
+        day: await firstDayOffered(this, name),
+      },
+    );
   },
 );
 
