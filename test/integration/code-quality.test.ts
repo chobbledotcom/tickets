@@ -80,19 +80,17 @@ const LIBRARY_PATHS = [
   "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
   "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
   // The transfer ledger (src/shared/ledger + src/shared/accounting) is built
-  // ahead of the payment aggregate that consumes it: the pure core and its
-  // coverage first, which is the lesson of the rewrite that closed without
-  // merging (PRs #1962/#1973). Each entry below names the rule it answers in
-  // docs/payment-aggregate-acceptance.md. A module leaves this list when its
-  // last unconsumed export gains a production caller, as account.ts,
-  // validate.ts, checkout-ledger.ts, accounting/store.ts and
-  // accounting/mappers.ts already did.
-  "shared/ledger/project.ts", // profitOfListing, sumOfKind: no rule yet
+  // ahead of the payment aggregate that consumes it, so some exports have no
+  // production caller. Each entry below names the rule it answers in
+  // docs/payment-aggregate-acceptance.md, or says that no rule asks for it. A
+  // module leaves this list when its last unconsumed export gains a caller.
+  "shared/ledger/project.ts", // profitOfListing, sumOfKind: no rule
   "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs: rule 2
   "shared/accounting/queries.ts", // whole-account reads: rules 1 and 3
-  // reverseOf answers rule 1's complete-or-refund choice. The scanner cannot
-  // see that tests alone call it, because the {@link reverseOf} in its own
-  // JSDoc reads as a production use. This entry is deliberate.
+  // Only tests call reverseOf, and no rule asks for it: reverse.ts scopes it to
+  // an admin void or correction, and refunds use a separate multi-row model.
+  // The usage check cannot see this, because the {@link reverseOf} in its own
+  // JSDoc reads as a production use. isInverseOf beside it has a live caller.
   "shared/ledger/reverse.ts",
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /

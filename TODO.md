@@ -2740,38 +2740,41 @@ so it went with them.
 
 ---
 
-## Two ledger reporting exports no rule has asked for
+## Three ledger exports no rule has asked for
 
 _Origin: the consolidation review. That review claimed that about 500 lines of
 the ledger were unreachable, and it called the deletion an owner decision. Both
 claims were wrong. This entry replaces them._
 
 The ledger is not half dead. Someone wrote its unconsumed exports before the
-payment aggregate, on purpose, and `docs/payment-aggregate-acceptance.md` names
-the rules that they answer. Most of them are pending work, not dead code. The
-exemption list in `test/integration/code-quality.test.ts` now says which rule
-each module serves. `checkout-ledger.ts`, `accounting/store.ts` and
-`accounting/mappers.ts` gained production callers, so they left that list.
+payment aggregate, and `docs/payment-aggregate-acceptance.md` names the rule
+that some of them answer. The exemption list in
+`test/integration/code-quality.test.ts` now names that rule per module, or says
+that no rule asks for the export. `checkout-ledger.ts`, `accounting/store.ts`
+and `accounting/mappers.ts` gained production callers, so they left the list.
 
-Seven exports still have test callers alone, and they are not alike:
+Seven exports have test callers alone, and they are not alike:
 
-- `reconcile.ts` (`reconcileExternal`, `reconcileLegs`) and
-  `accounting/queries.ts` (`allTransfers`, `recentTransfers`, `accountBalance`)
-  answer named rules. Leave them.
-- `project.ts` (`profitOfListing`, `sumOfKind`) answer no rule. Profit per
-  listing, and totals by kind, appear in no rule and in no other entry here.
-  They are the only part of the ledger that looks speculative.
+- `reconcile.ts` (`reconcileExternal`, `reconcileLegs`) answer rule 2, which
+  needs the refund total of the provider. `accounting/queries.ts`
+  (`allTransfers`, `recentTransfers`, `accountBalance`) answer the owner review
+  pages of rules 1 and 3.
+- `project.ts` (`profitOfListing`, `sumOfKind`) and `reverse.ts` (`reverseOf`)
+  answer no rule. Profit per listing and totals by kind appear nowhere in the
+  contract. `reverseOf` builds an admin void or a correction, and the contract
+  names no such action. The refunds of rule 1 use a separate model of many rows
+  per original, which does not call it.
 
-The open question is about those two exports alone. Ask the person who wanted
-them what reads them. If the answer is a reports page one day, delete them. Git
-history holds them until that page is real, and a fold over `allBalances` is a
-few lines to write again. If a rule wants them, record the rule beside them, as
-the others now are.
+"Remove dead code" in `AGENTS.md` says to delete an export that only tests call,
+and to recover it from history when a caller arrives. Against that stands a
+contract that names a future caller for four of the seven. The person who owns
+the payment aggregate must settle that half. The three exports that answer no
+rule have no such defence, so delete them first.
 
-Read this before you change any of it. The usage check cannot see that
-`reverse.ts` exports a test-only `reverseOf`. The `{@link reverseOf}` in the
-JSDoc of that module reads as a production use. Do not treat the absence of a
-module from a failure list as proof that production code calls it. See
+Read this before you change any of it. The usage check cannot see that only
+tests call `reverseOf`, because the `{@link reverseOf}` in the JSDoc of that
+module reads as a production use. `isInverseOf` beside it has a live caller in
+`accounting/conflicts.ts`, so the module stays exempt either way. See
 "Dead-export scanner matches raw text" above.
 
 ---
