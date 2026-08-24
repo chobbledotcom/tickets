@@ -12,6 +12,7 @@ import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import {
   execute,
+  inPlaceholders,
   insertedRowId,
   queryOne,
   queryOnePrimary,
@@ -251,7 +252,7 @@ const buildInsertSql = (
   returningColumns: string,
   condition?: string,
 ): string => {
-  const placeholders = columns.map(() => "?").join(", ");
+  const placeholders = inPlaceholders(columns);
   const values = condition
     ? `SELECT ${placeholders} WHERE ${condition}`
     : `VALUES (${placeholders})`;

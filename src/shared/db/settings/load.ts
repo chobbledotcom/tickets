@@ -12,7 +12,7 @@
  * tests) puts the next reader back on a clean footing.
  */
 
-import { queryAll } from "#db/client.ts";
+import { inPlaceholders, queryAll } from "#db/client.ts";
 import { applyKeys } from "#db/settings/apply.ts";
 import {
   currentVersion,
@@ -51,9 +51,7 @@ export const loadKeys = async (keys: readonly string[]): Promise<void> => {
   if (missing.length === 0) return;
   const rows = await settingsReadRefill.fetch(() =>
     queryAll<{ key: string; value: string }>(
-      `SELECT key, value FROM settings WHERE key IN (${missing
-        .map(() => "?")
-        .join(", ")})`,
+      `SELECT key, value FROM settings WHERE key IN (${inPlaceholders(missing)})`,
       missing,
     ),
   );
