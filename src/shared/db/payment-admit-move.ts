@@ -27,6 +27,7 @@ import {
   type RefundAuthorityState,
   readRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
+import { namedError } from "#shared/named-error.ts";
 
 interface StoredMoveWork {
   readonly protected_state: string;
@@ -104,12 +105,7 @@ export const loadPaymentMoveSnapshot = async (
 /** Raised when payment rows are in the middle of work the operator has to
  *  settle first. The message is written for whoever asked for the merge or the
  *  delete, so it can be shown as-is. */
-export class PaymentRowsBusyError extends Error {
-  constructor(refusal: string) {
-    super(refusal);
-    this.name = "PaymentRowsBusyError";
-  }
-}
+export class PaymentRowsBusyError extends namedError("PaymentRowsBusyError") {}
 
 /** Stop the caller's transaction unless every one of these attendees' payment
  *  rows is free to move. Throwing rather than answering means a caller that

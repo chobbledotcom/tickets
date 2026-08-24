@@ -157,6 +157,8 @@ src/shared/db/refund-all-candidates.ts::refundCandidateCtes~195soyi payment.→"
 src/shared/db/refund-all-candidates.ts::refundCandidateCtes~0uj3b4g payment.→""   # only processed_payments carries protected_state in that query
 src/shared/db/refund-all-candidates.ts::refundCandidateCtes~1unwmuv payment.→""   # only processed_payments carries protected_state in that query
 
+src/shared/db/payment-admit-move.ts::moveSnapshot.refusalFor~1l6lh30  ?? → ||   # every refusal is a declared sentence, never the empty string, so only null reaches the second reader
+
 # backup dump (shared/db/backup-snapshot.ts) — exportTable internals whose
 # intermediate values are overwritten or type-guaranteed before any read.
 src/shared/db/backup-snapshot.ts::exportTable.colList~1el369a   → "mutated"   # colList is only read when INSERT statements are built, which happens after the first non-empty page assigned it in the rowCount === 0 branch; the initializer is overwritten before every read (an empty table breaks out before any read)

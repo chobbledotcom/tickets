@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#db/attendees/delete.ts";
-import { queryOne, withTransaction } from "#db/client.ts";
+import { execute, queryOne, withTransaction } from "#db/client.ts";
 import {
   assertRowsFreeToMove,
   loadPaymentMoveSnapshot,
@@ -73,6 +73,19 @@ const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
     return error.message;
   }
 };
+
+/** A charge row the table's own checks still accept, holding a record the
+ *  reader cannot make sense of. */
+const givenUnreadableRefundState = (): Promise<unknown> =>
+  execute(
+    `UPDATE payment_charges
+        SET refund_state = '{"kind":"ready","local":{"kind":"not_due"},` +
+      `"request":{"capability":"keyed"},"nextActionAt":10}',
+            refund_state_name = 'ready',
+            refund_local_state = 'not_due',
+            capability = 'keyed',
+            next_refund_action_at = 10`,
+  );
 
 const attendeeStillThere = async (attendeeId: number): Promise<boolean> =>
   (await queryOne<{ id: number }>("SELECT id FROM attendees WHERE id = ?", [
@@ -178,6 +191,21 @@ describeWithEnv(
           status: "needs_money_record",
         },
       });
+    });
+
+    test("names the column when a stored refund state will not read", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess-unreadable",
+        "pi_unread",
+      );
+      await addAuthorityFor("pi_unread", readyAuthority("request-unread"));
+      await givenUnreadableRefundState();
+
+      // The charge is corrupt, and the refusal has to say where it was read
+      // from, or the owner cannot find the row to repair.
+      await expect(snapshotFor(attendeeId)).rejects.toThrow(
+        "payment_charges.refund_state",
+      );
     });
 
     test("a payment that already ended does not hold the delete up", async () => {
