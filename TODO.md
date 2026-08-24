@@ -1372,10 +1372,13 @@ The plan named `specs/payments/a-payment-with-no-callback.feature`. The story
 must buy through the real public booking page, drop the callback, run
 maintenance, and find the ticket.
 
-`test/integration/server/sumup-recovery/recovers.test.ts` covers the behaviour
-today, in the case "books a paid checkout whose callback never arrived". No path
-is untested. The gap is the shape of the coverage. E2E_TESTS.md gives the user
-journey to Cucumber and the technical contract to the integration test.
+`test/integration/server/sumup-recovery/recovers.test.ts` covers the recovery
+itself, in the case "books a paid checkout whose callback never arrived". It
+calls `stageSignedSumupCheckout` and `runSumupRecovery` directly. It does not
+buy through the rendered public page, and it does not go through the scheduled
+maintenance receiver. The journey as a buyer meets it is therefore untested,
+even though each part of it is covered. E2E_TESTS.md gives the user journey to
+Cucumber and the technical contract to the integration test.
 
 Start from `specs/payments/recovering-the-money-record.feature` for the house
 shape. Start from `recovers.test.ts` for the fixture and the maintenance
@@ -1427,28 +1430,39 @@ payment.
 _Origin: found during the review of #2132, while somebody checked what the live
 check on `/admin/schema` actually lists._
 
-A `waiting` row holds a checkout that SumUp never answered for. That row can
-hold money. Pruning never deletes it, which is correct and deliberate.
+Two states keep a row that can hold money, and pruning deletes neither. That is
+correct and deliberate. An `owed` row holds a checkout that a provider took
+money for, where the booking did not happen. A `waiting` row holds a checkout
+that SumUp never answered for.
 
-The operator cannot see these rows. `SUMUP_SCAN` in
+The operator cannot see either kind. `SUMUP_SCAN` in
 `src/shared/db/schema-anomaly-scan.ts` selects three faults:
 
 - a state word that the machine does not have,
 - a checkout id that disagrees with the state,
-- a check time that is malformed or missing. A `waiting` row on a site that
-  disconnected SumUp carries none of those faults. The scan reports nothing, and
-  the row is invisible.
+- a check time that is malformed or missing.
+
+An `owed` row is well formed, and so is a `waiting` row on a site that
+disconnected SumUp. Neither carries any of those faults, so the scan reports
+nothing. `/admin/schema` renders the machine itself, the nodes and the edges. It
+does not list stored rows, so it does not show them either.
 
 This matters most in the case that the recovery work exists to close. The task
 stops when the site removes its SumUp key, because `enabled` reads
 `settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
 counts them.
 
-To fix: add a scan, or a panel on `/admin/schema`, that lists `waiting` rows
-whose `next_check_at` passed by a wide margin. Keep the bound of `SCAN_LIMIT`.
+To fix: add a scan, or a panel on `/admin/schema`, that lists every `owed` row
+and every `waiting` row whose `next_check_at` passed by a wide margin. Keep the
+bound of `SCAN_LIMIT`.
+
 Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
-`RECOVERY_CHECKABLE_NODES`. A new state then cannot compile until the query
-knows how to find it.
+`RECOVERY_CHECKABLE_NODES`, so that a new state joins the query by declaration.
+Note that this is inclusion, not exhaustiveness. `inPlaceholders` over an array
+still compiles when the union grows, so it never forces an author to decide what
+a new state means. For a compile-time refusal, key the scan by the literal union
+with an exhaustive `Record`, the way `STORED_AUTHORITY_FACTS` does in
+`src/shared/payment/joint-state.ts`.
 
 ---
 

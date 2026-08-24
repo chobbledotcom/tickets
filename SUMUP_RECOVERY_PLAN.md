@@ -36,10 +36,15 @@ below.
 
 What is true now:
 
-> A SumUp checkout that was paid is always asked about, and it is always
-> answered for, even when its only callback was lost. A Square webhook for a
-> completed payment whose order is not readable yet is redelivered, not
-> acknowledged.
+> While the site holds SumUp credentials, a paid SumUp checkout is always asked
+> about and always answered for, even when its only callback was lost. A Square
+> webhook for a completed payment whose order is not readable yet is
+> redelivered, not acknowledged.
+
+The condition is real. `enabled: () => settings.sumup.hasKey` gates the task,
+and `syncMaintenanceTaskRows` removes a disabled task. A site that removes its
+SumUp key therefore stops asking about its unanswered rows. Those rows are kept
+and never deleted, and they wait for the key to come back.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
 accepts becomes a booking. A paid checkout that the engine rejects does not
@@ -50,20 +55,21 @@ verify at all takes no money action. `classifiedOutcome` returns `unverifiable`
 before `processPaymentSession` runs, and `PAID_EVENTS` maps that answer to
 `read_paid_contradiction`. The row lands on `owed`, and the site touches no
 money on a proof that it cannot trust. A required refund that does not go
-through also lands the row on `owed`. The site keeps that row and shows it to
-the owner. The guarantee is that the money is never forgotten in silence. It is
-not a promise that every payment ends in a ticket. The five `read_paid_*` events
-carry exactly this distinction.
+through also lands the row on `owed`. The site keeps that row and never deletes
+it. No surface shows it yet. See the open gap in section 4. The guarantee is
+that the money is never forgotten in silence. It is not a promise that every
+payment ends in a ticket. The five `read_paid_*` events carry exactly this
+distinction.
 
 Production receivers: the `sumup_checkout_recovery` maintenance task,
 `runDatabasePruning`, the `/admin/schema` page, and `POST /payment/webhook` for
 Square.
 
-Only **scheduled** maintenance (`features/scheduled.ts`) runs the recovery task.
-The task declares `wakePolicy: "organic_safe"`, but that declaration is moot for
-it. `maintenance.runOrganic` sets `externalAllowance: 0`. `taskFits` refuses a
-task whose `maxExternalCalls` is above what remains. A task that must call SumUp
-is therefore never selected after a public request.
+Only **scheduled** maintenance (`src/features/scheduled.ts`) runs the recovery
+task. The task declares `wakePolicy: "organic_safe"`, but that declaration is
+moot for it. `maintenance.runOrganic` sets `externalAllowance: 0`. `taskFits`
+refuses a task whose `maxExternalCalls` is above what remains. A task that must
+call SumUp is therefore never selected after a public request.
 
 ## 2. The contract, and where it lives
 
@@ -249,10 +255,10 @@ is a slip. They are recorded because the plan argued for something else.
 Nobody added an owner choice. This work never picks a money outcome. The only
 real ambiguity that it can produce is `owed`. `owed` is not a decision that the
 system takes. It is the honest statement that a provider took money and the
-booking did not happen. The site shows it to the owner with the SumUp checkout
-id. Any refund on this path is the refund that `settleRejectedCharge` already
-performs on the webhook, under the same rules and the same durable
-`payment_charges` authority.
+booking did not happen. No surface shows that row to the owner yet, which
+section 4 records as an open gap. Any refund on this path is the refund that
+`settleRejectedCharge` already performs on the webhook, under the same rules and
+the same durable `payment_charges` authority.
 
 ### Security and privacy
 
@@ -322,11 +328,11 @@ from compiling until somebody decides what that outcome means for the money.
 | A wrong amount, currency, or parent                | Untouched. The existing observation boundary and `classifySessionIntent` decide, and a rejected paid charge takes the existing refund path                                                                                                                                                                                                                                                                                      |
 | The buyer reloads during recovery                  | The redirect calls `retrieveSession`, which is already idempotent through the same reserve                                                                                                                                                                                                                                                                                                                                      |
 | The task runs on a site with no SumUp              | `enabled: () => settings.sumup.hasKey` reads only `sumup_api_key`. `SUMUP_MERCHANT_CODE` is preloaded through `settingsKeys`, and it does not gate the task. `syncMaintenanceTaskRows` removes a disabled task                                                                                                                                                                                                                  |
-| SumUp is disconnected while rows are `waiting`     | Nothing checks them and nothing deletes them, because `waiting` is not `prunable`. The live check does **not** list them, because a valid `waiting` row is not an anomaly. See the open gap below                                                                                                                                                                                                                               |
+| SumUp is disconnected while rows are `waiting`     | Nothing checks them and nothing deletes them, because `waiting` is not `prunable`. No surface lists them, because a valid `waiting` row is not an anomaly. See the open gap below                                                                                                                                                                                                                                               |
 | The checkouts of a busy site flood the task        | An oldest-first page of `SUMUP_RECOVERY_BATCH`, then `requestFollowUp()`. A row that fails repeatedly moves its own check time forward, so it falls behind rows that became due meanwhile                                                                                                                                                                                                                                       |
 | The budget of 50 subrequests on Bunny              | Three separate bounds. `validateTask` refuses a declaration whose `maxDatabaseCalls + maxExternalCalls` is above `MAINTENANCE_TASK_CALL_LIMIT`. `maintenanceStartupCalls` sums the enabled-check calls of every task against `MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT` and `MAINTENANCE_REQUEST_CALL_LIMIT`. At run time, `taskFits` picks a task only if its declared calls fit what remains of the allowance for this request |
 | Does this work refund money in the background?     | Only through the path that the webhook already runs for a rejected paid charge. It is the same engine, because a second engine was forbidden                                                                                                                                                                                                                                                                                    |
-| Square: does the throw break the browser redirect? | No. `readSessionOrder` throws only when a `paidPaymentId` is present, and only the webhook supplies one. The redirect keeps `null`, and there a `missing` order really is "not ours"                                                                                                                                                                                                                                            |
+| Square: does the throw break the browser redirect? | No. Only the `missing` read is conditional: it throws when a `paidPaymentId` is present, and only the webhook supplies one. The redirect keeps `null` for `missing`, where a lost order really is "not ours". Any other unreadable status throws for both callers, as it did before                                                                                                                                             |
 | A later change adds a node or an event             | It must satisfy the laws, or the suite fails. A money-holding node cannot be prunable and cannot be a dead end. A terminal node cannot grow an edge                                                                                                                                                                                                                                                                             |
 | SumUp returns a status we do not know              | `SumupCheckoutStatusSchema` is a closed picklist. An unknown word fails the boundary and arrives as `read_unavailable`. The row stays where it is, and something asks again                                                                                                                                                                                                                                                     |
 
@@ -344,12 +350,21 @@ this database does not hold. Real incidents bound the growth, not traffic. The
 alternative is a long backstop that deletes them in the end. That trades a rare
 lost payment for a tidier table, which is the wrong way round.
 
-**One gap is open, and it is not in the code above.** The live check does not
-show these retained rows. `SUMUP_SCAN` in `src/shared/db/schema-anomaly-scan.ts`
+**One gap is open, and it is not in the code above. No surface shows a retained
+row to the operator.** `SUMUP_SCAN` in `src/shared/db/schema-anomaly-scan.ts`
 selects an unknown state word, a checkout id that disagrees with the state, or a
-malformed check time. A `waiting` row on a site with SumUp disconnected has none
-of those faults, so the scan reports nothing. The operator therefore cannot see
-the outstanding set. TODO.md records this gap.
+malformed check time. It reports a broken row, not an unanswered one.
+
+This covers both states that the site keeps:
+
+- An `owed` row is well formed. It holds a known state, a checkout id, and a
+  valid check time, so the scan passes over it.
+- A `waiting` row on a site that removed its SumUp key is well formed for the
+  same reasons.
+
+`/admin/schema` renders the machine itself, the nodes and the edges. It does not
+list stored rows. So the site retains the evidence of a payment that nobody
+accounted for, and no page shows it. TODO.md records the work to close this.
 
 ## 5. What each slice shipped
 
