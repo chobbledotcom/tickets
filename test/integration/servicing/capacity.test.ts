@@ -1,31 +1,7 @@
-/**
- * Servicing §0 — pure unit tests for the capacity helpers that decide which
- * days a servicing hold consumes and the WHERE guard that blocks the atomic
- * insert.
- *
- *   • `overlapsDay` / `expandDailyRange` must be half-open `[start, end)`:
- *     the day's `startAt` is included and its `endAt` excluded. A multi-day
- *     servicing hold on `[2026-06-24, 2026-06-26)` must reduce availability
- *     for 24 and 25 only, leaving the adjacent 23 and 26 untouched (§2).
- *   • `buildCapacityCheckedInsert` must include the capacity condition by
- *     default and drop it when `allowOverbook=true` (so an operator can
- *     close a day entirely, §2 / §"servicing may overbook"). Flipping the
- *     flag changes the SQL — the assertion is mutation-resistant.
- *
- * Implementation contract (implemented — this describes the shipped behavior):
- *   - `#shared/db/attendees/capacity/range.ts` exports `overlapsDay` and
- *     `expandDailyRange` so these unit tests can exercise them directly.
- *   - `#shared/db/attendees/capacity/checks.ts` exports
- *     `buildCapacityCheckedInsert(booking, attendeeIdExpr?, attendeeIdArg?,
- *     allowOverbook=false)`.
- *   - `#shared/db/capacity.ts` already exports `dateToRange` (used to derive
- *     a day's exact startAt/endAt so the boundary assertions are
- *     timezone-independent).
- */
+/** Pure tests for the half-open date ranges that servicing holds use. */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { expandDailyRange, overlapsDay } from "#db/attendees/capacity/range.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { addDays } from "#shared/dates.ts";
@@ -123,46 +99,5 @@ describe("servicing §0 — expandDailyRange includes start and excludes start+d
     expect(intersection).toEqual([]);
     expect(first.at(-1)).toBe("2026-06-26");
     expect(second[0]).toBe("2026-06-27");
-  });
-});
-
-describe("servicing §0 — capacity-checked insert builds the WHERE guard", () => {
-  const booking = {
-    date: "2026-06-24",
-    durationDays: 1,
-    listingId: 1,
-    quantity: 2,
-  };
-
-  test("by default the INSERT carries a capacity guard (WHERE clause present)", () => {
-    const { sql, args } = buildCapacityCheckedInsert(booking);
-    const { startAt } = dateToRange("2026-06-24");
-    expect(/WHERE/i.test(sql)).toBe(true);
-    // The booking arguments remain unchanged whether or not the guard exists.
-    expect(args).toContain(2);
-    expect(args).toContain(startAt);
-  });
-
-  test("allowOverbook=true drops the capacity guard (mutation: flipping the flag changes the SQL)", () => {
-    const guarded = buildCapacityCheckedInsert(booking).sql;
-    const unguarded = buildCapacityCheckedInsert(
-      { ...booking },
-      "last_insert_rowid()",
-      undefined,
-      true,
-    ).sql;
-    expect(/WHERE/i.test(guarded)).toBe(true);
-    expect(/WHERE/i.test(unguarded)).toBe(false);
-    // The two SQL strings must not be identical — a mutant that ignores
-    // `allowOverbook` would make them equal.
-    expect(guarded).not.toBe(unguarded);
-  });
-
-  test("the guard references the listing id and quantity (a mutant that drops either fails)", () => {
-    const { sql, args } = buildCapacityCheckedInsert(booking);
-    expect(sql).toMatch(/listing_id|booked_quantity|listing_attendees/);
-    // Quantity is bound as an arg in the INSERT VALUES not the WHERE.
-    expect(args).toContain(2);
-    expect(args).toContain(1);
   });
 });

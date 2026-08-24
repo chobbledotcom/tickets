@@ -1,13 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb } from "#db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import {
   bindRefundCallbackIfChargeExists,
   type CreateRefundAuthority,
   createOrLoadRefundAuthority,
   loadRefundAuthorityById,
   loadRefundAuthorityByReference,
+  prepareRefundAuthority,
 } from "#db/provider-refund-authority.ts";
 import {
   completeRefundAuthority,
@@ -62,10 +63,14 @@ const createInput = (
 
 describeWithEnv("provider refund authority persistence", { db: true }, () => {
   test("creates ready authority in one exact upsert", async () => {
-    const queries = await runWithQueryLogContext(async () => {
+    const input = createInput();
+    const prepared = await prepareRefundAuthority(input);
+    expect(prepared.statement.args).toHaveLength(14);
+
+    const { authority, queries } = await runWithQueryLogContext(async () => {
       enableQueryLog();
-      await createOrLoadRefundAuthority(createInput());
-      return getQueryLog().map(({ sql }) => sql);
+      const authority = await createOrLoadRefundAuthority(input);
+      return { authority, queries: getQueryLog().map(({ sql }) => sql) };
     });
 
     const insert = queries.find((sql) => sql.includes("INTO payment_charges"));
@@ -103,6 +108,21 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     expect(queries.filter((sql) => sql.includes("payment_charges"))).toEqual([
       insert,
     ]);
+    expect(
+      await queryOne<{
+        created_at: number;
+        observed_at: number;
+        updated_at: number;
+      }>(
+        `SELECT created_at, updated_at, observed_at
+           FROM payment_charges WHERE id = ?`,
+        [authority.id],
+      ),
+    ).toEqual({
+      created_at: input.now,
+      observed_at: input.now,
+      updated_at: input.now,
+    });
   });
 
   test("loads one authority by id or indexed reference", async () => {

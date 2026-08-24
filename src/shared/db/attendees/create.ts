@@ -1,7 +1,6 @@
 /** Atomic attendee creation across one or more listing bookings. */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
 import { generateTicketToken } from "#crypto/utils.ts";
 import type {
   AttendeeInput,
@@ -28,6 +27,7 @@ import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { insert, type SqlStatement } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
+import type { NumberedSql } from "#db/numbered-statement.ts";
 import { addDays } from "#shared/dates.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 
@@ -89,7 +89,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
 
 const prepareAttendeeWrite = async (
   input: AttendeeInput,
-  extraCondition?: SqlStatement,
+  extraCondition?: NumberedSql,
   piiPaymentSessionId?: string,
 ): Promise<
   | { ok: true; prepared: PreparedWrite }
@@ -121,7 +121,6 @@ const prepareAttendeeWrite = async (
     {
       ...contactInfo,
       paymentId,
-      pricePaid: bookings[0]!.pricePaid ?? 0,
     },
     input.ticketToken ?? generateTicketToken(),
   );
@@ -129,20 +128,11 @@ const prepareAttendeeWrite = async (
   const bookingStatements = bookings.map((booking) => {
     const statement = buildCapacityCheckedInsert(
       booking,
-      ATTENDEE_BY_TOKEN_SQL,
-      enc.ticketTokenIndex,
+      (bind) => ATTENDEE_BY_TOKEN_SQL.replace("?", bind(enc.ticketTokenIndex)),
       allowOverbook,
+      extraCondition,
     );
-    return {
-      args: [
-        ...statement.args,
-        ...(extraCondition && !allowOverbook ? extraCondition.args : []),
-      ] as InValue[],
-      sql:
-        extraCondition && !allowOverbook
-          ? `${statement.sql} AND (${extraCondition.sql})`
-          : statement.sql,
-    };
+    return statement;
   });
   const hasRealBooking = bookings.some(
     (booking) => (booking.quantity ?? 1) > 0,
@@ -207,7 +197,7 @@ const finishAttendeeWrite = (
 };
 
 type CreateStrategy<R extends CreateAttendeeResult | "sold-out"> = {
-  condition?: SqlStatement;
+  condition?: NumberedSql;
   noBooking: () => R | Promise<R>;
   piiPaymentSessionId?: string | undefined;
   write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>;

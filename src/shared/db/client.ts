@@ -517,28 +517,6 @@ export const resetAggregates = async <T extends string>(
 export type SqlStatement = { sql: string; args: InValue[] };
 
 /**
- * Combine several `{ sql, args }` pieces into one statement: the SQL fragments
- * joined with `joiner`, the args concatenated in the same order. For SQL built
- * from repeated sub-clauses (e.g. one capacity clause per day, joined with
- * `" AND "`).
- */
-export const joinStatements = (
-  statements: readonly SqlStatement[],
-  joiner: string,
-): SqlStatement => ({
-  args: statements.flatMap((statement) => statement.args),
-  sql: statements.map((statement) => statement.sql).join(joiner),
-});
-
-/** Join SQL conditions with AND while preserving their argument order. */
-export const andConditions = (
-  conditions: readonly SqlStatement[],
-): SqlStatement => ({
-  args: conditions.flatMap((condition) => condition.args),
-  sql: conditions.map((condition) => `(${condition.sql})`).join(" AND "),
-});
-
-/**
  * Execute a batch with optional query logging, then invalidate caches for every
  * table the batch mutated. Invalidation runs once the transaction has
  * committed; if the batch throws (rollback) it is skipped, so a cache is never

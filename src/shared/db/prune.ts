@@ -187,19 +187,17 @@ const checkpointId = (checkpoint: string | null): number | null => {
 const expiredInvitePage = async (
   checkpoint: string | null,
 ): Promise<InvitePage> => {
+  // Both arms compare against the same saved position, bound once as ?1; the
+  // unnumbered LIMIT ? continues after the highest number, so it reads ?2.
   const rows = await queryAll<InviteCandidate>(
     `SELECT id, invite_expiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
-        AND (? IS NULL OR id > ?)
+        AND (?1 IS NULL OR id > ?1)
       ORDER BY id
       LIMIT ?`,
-    [
-      checkpointId(checkpoint),
-      checkpointId(checkpoint),
-      MAINTENANCE_PRUNE_BATCH + 1,
-    ],
+    [checkpointId(checkpoint), MAINTENANCE_PRUNE_BATCH + 1],
   );
   const candidates = rows.slice(0, MAINTENANCE_PRUNE_BATCH);
   const cutoff = now().getTime();

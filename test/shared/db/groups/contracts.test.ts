@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import {
   computeGroupSlugIndex,
   getAllGroupNames,
@@ -106,6 +107,18 @@ describeWithEnv("db > group listing read contracts", { db: true }, () => {
         ?.map(({ id }) => id)
         .toSorted(),
     ).toEqual([active.id, inactive.id].toSorted());
+  });
+
+  test("rejects a stored group membership with id zero", async () => {
+    const group = await createTestGroup({ name: "Invalid group id" });
+    const listing = await createTestListing({ name: "Invalid group member" });
+    await execute("UPDATE groups SET id = 0 WHERE id = ?", [group.id]);
+    await execute(
+      "INSERT INTO group_listings (group_id, listing_id) VALUES (0, ?)",
+      [listing.id],
+    );
+
+    await expect(getListingsByGroupIds([0])).rejects.toThrow();
   });
 
   test("the single-group read includes inactive members", async () => {

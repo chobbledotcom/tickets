@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  andConditions,
   DATABASE_MAX_ATTEMPTS,
   deleteByFieldStatement,
   execute,
@@ -496,16 +495,6 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
-  });
-
-  test("andConditions joins clauses with AND, preserving argument order", () => {
-    const combined = andConditions([
-      { args: [1], sql: "a = ?" },
-      { args: [2, 3], sql: "b IN (?, ?)" },
-      { args: [], sql: "c IS NULL" },
-    ]);
-    expect(combined.sql).toBe("(a = ?) AND (b IN (?, ?)) AND (c IS NULL)");
-    expect(combined.args).toEqual([1, 2, 3]);
   });
 
   test("rawSql brands its value with the raw-sql sentinel symbol", () => {

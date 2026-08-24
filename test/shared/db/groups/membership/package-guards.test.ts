@@ -14,6 +14,7 @@ import {
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
+import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -29,9 +30,10 @@ const runAndFirstPrice = async (
   groupId: number,
   existing: PackageFlags,
   isPackage: boolean,
+  members: PackageMemberInput[] = [],
 ): Promise<number | null> => {
   await withTransaction(async (tx) => {
-    await writePackageMembersTx(tx, groupId, existing, { isPackage }, []);
+    await writePackageMembersTx(tx, groupId, existing, { isPackage }, members);
   });
   const prices = await getGroupPackagePrices(groupId);
   return prices[0]!.package_price;
@@ -88,7 +90,7 @@ describeWithEnv(
       expect(await runAndFirstPrice(group.id, existing, false)).toBeNull();
     });
 
-    test("writePackageMembersTx allows un-packaging an unsold hidden package", async () => {
+    test("writePackageMembersTx clears submitted members while un-packaging", async () => {
       const group = await createHiddenPackageGroup("Tx ok unpackage");
       const member = await createTestListing({
         groupId: group.id,
@@ -99,7 +101,11 @@ describeWithEnv(
       ]);
       const existing = { hide_package_listings: true, is_package: true };
 
-      expect(await runAndFirstPrice(group.id, existing, false)).toBeNull();
+      expect(
+        await runAndFirstPrice(group.id, existing, false, [
+          { listingId: member.id, price: 700 },
+        ]),
+      ).toBeNull();
     });
 
     test("writePackageMembersTx allows keeping a sold hidden package packaged", async () => {

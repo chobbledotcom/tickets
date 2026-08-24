@@ -9,6 +9,7 @@ import {
   getDb,
   type SqlStatement,
 } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -51,13 +52,14 @@ export const acquireMigrationLock = async (
   const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
   const stamp = now.toISOString();
   const lockToken = `${stamp}|${crypto.randomUUID()}`;
+  const statement = numberedStatement((bind) => {
+    const token = bind(lockToken);
+    return `INSERT INTO settings (key, value) VALUES (${bind(MIGRATION_LOCK_KEY)}, ${token})
+            ON CONFLICT(key) DO UPDATE SET value = ${token}
+            WHERE settings.value < ${bind(cutoff)}`;
+  });
   const result = await getDb()
-    .execute({
-      args: [MIGRATION_LOCK_KEY, lockToken, lockToken, cutoff],
-      sql:
-        "INSERT INTO settings (key, value) VALUES (?, ?) " +
-        "ON CONFLICT(key) DO UPDATE SET value = ? WHERE settings.value < ?",
-    })
+    .execute(statement)
     .catch((error) => {
       if (allowMissingSettings && isMissingSettingsTableError(error)) {
         return null;

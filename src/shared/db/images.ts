@@ -7,6 +7,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import { executeBatch, type SqlStatement, useTransaction } from "#db/client.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { type Read, readOneRow, readRows } from "#db/read.ts";
 import {
@@ -201,40 +202,22 @@ const imageUseOrder = defineOrderedCollection({
 
 /**
  * The insert that links an image to a record, ignoring a link already there.
- * It only lands while the image still exists — and, when the record is one this
- * write did not just save itself, while that record still exists too, so a
- * stale request can never leave a link to nothing.
+ * It only lands while the image and record still exist, so a stale request can
+ * never leave a link to nothing.
  */
-const linkImageStatement =
-  (checkItemExists: boolean) =>
-  (
-    imageId: number,
-    target: ImageUseTarget,
-    sortOrder: number,
-  ): SqlStatement => {
-    const item = checkItemExists ? imageUseTargets.exists(target) : null;
-    return {
-      args: [
-        imageId,
-        target.kind,
-        target.id,
-        sortOrder,
-        imageId,
-        ...(item ? item.args : []),
-      ],
-      sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-          SELECT ?, ?, ?, ?
-           WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)${
-             item ? `\n             AND ${item.sql}` : ""
-}`,
-    };
-  };
-
-/** Link an image to the record whose own save is making this link. */
-const linkImageToItem = linkImageStatement(false);
-
-/** Link an image to a record that must already exist. */
-const linkImageToExistingItem = linkImageStatement(true);
+const linkImageStatement = (
+  imageId: number,
+  target: ImageUseTarget,
+  sortOrder: number,
+): SqlStatement =>
+  numberedStatement((bind) => {
+    const image = bind(imageId);
+    const itemId = bind(target.id);
+    return `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
+          SELECT ${image}, ${bind(target.kind)}, ${itemId}, ${bind(sortOrder)}
+           WHERE EXISTS (SELECT 1 FROM images WHERE id = ${image})
+             AND ${imageUseTargets.existsSql(target.kind, itemId)}`;
+  });
 
 /** Clear every image link of one record. */
 export const clearImageUsesForItemStatement =
@@ -250,7 +233,7 @@ export const setImagesForItem = (
   return executeBatch([
     clearImageUsesForItemStatement(target),
     ...uniqueIds.map((imageId, index) =>
-      linkImageToItem(imageId, target, index),
+      linkImageStatement(imageId, target, index),
     ),
   ]);
 };
@@ -264,9 +247,7 @@ export const appendImageToItem = (
       scope: [target.kind, target.id],
       transaction,
     });
-    await transaction.execute(
-      linkImageToExistingItem(imageId, target, sortOrder),
-    );
+    await transaction.execute(linkImageStatement(imageId, target, sortOrder));
   });
 
 /** Drop this image's links to every record other than the ones named. Naming
@@ -307,7 +288,7 @@ export const setItemsForImage = (
     await transaction.batch([
       clearStaleImageUseTargetsStatement(imageId, unique),
       ...unique.map((target, index) =>
-        linkImageToExistingItem(imageId, target, sortOrders[index]!),
+        linkImageStatement(imageId, target, sortOrders[index]!),
       ),
     ]);
   });

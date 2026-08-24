@@ -107,6 +107,39 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     expect(calls).toBe(1);
   });
 
+  test("does not take an owner from another ledger event", async () => {
+    const listing = await createTestListing({ unitPrice: 500 });
+    const { attendee } = await createTestAttendeeDirect(
+      listing.id,
+      "Other event buyer",
+      "other-event@example.com",
+    );
+    const requestedGroup = await bookingEventGroup("snapshot-requested-event");
+    const otherGroup = await bookingEventGroup("snapshot-other-event");
+    await execute(
+      "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+      [otherGroup, attendee.id],
+    );
+    await postTransfers([
+      {
+        amount: 500,
+        destination: revenueAccount(listing.id),
+        eventGroup: requestedGroup,
+        kind: "manual_income",
+        occurredAt: "2026-08-06T00:00:00.000Z",
+        reference: "snapshot-requested-income",
+        source: WORLD,
+      },
+    ]);
+
+    const snapshot = await loadPaidOrderSnapshot(
+      "snapshot-requested-event",
+      bookingIntent([{ e: listing.id, p: 500, q: 1 }]),
+    );
+
+    expect(snapshot.ledger).toEqual({ status: "orphaned" });
+  });
+
   test("loads a standalone listing when optional selections are empty", async () => {
     const listing = await createTestListing({ name: "Standalone" });
 

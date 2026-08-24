@@ -1,165 +1,26 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
 } from "#db/attendees/atomic-update.ts";
-import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getAttendeeOrNull, getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  createDailyTestListing,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
-
-/** Minimal PII facts for an attendee edit. */
-const testPii = (
-  name: string,
-  email: string,
-  ticketToken: string,
-  paymentId: string,
-): UpdateAttendeePIIInput => ({
-  address: "",
-  email,
-  lat: "",
-  lng: "",
-  name,
-  payment_id: paymentId,
-  phone: "",
-  special_instructions: "",
-  ticket_token: ticketToken,
-});
-
-type DesiredLine = Parameters<typeof applyAttendeeAtomicEdit>[2][number];
-type LineOpts = {
-  date?: string | null;
-  durationDays?: number;
-  quantity?: number;
-};
-type ExistingLines = Awaited<ReturnType<typeof loadExistingLines>>;
-
-/** A desired line that keeps/edits an existing booking, matched by `key`. */
-const keepLine = (
-  listingId: number,
-  key: string,
-  opts: LineOpts = {},
-): DesiredLine => ({
-  date: opts.date ?? null,
-  durationDays: opts.durationDays ?? 1,
-  exists: true,
-  key,
-  listingId,
-  quantity: opts.quantity ?? 1,
-});
-
-/** A desired line for a brand-new booking (no existing key). */
-const addLine = (listingId: number, opts: LineOpts = {}): DesiredLine => ({
-  date: opts.date ?? null,
-  durationDays: opts.durationDays ?? 1,
-  exists: false,
-  key: "",
-  listingId,
-  quantity: opts.quantity ?? 1,
-});
-
-/** Assert an edit was rejected up front with `reason`, leaving the DB
- * untouched. When `listingIds` is given for a "capacity_exceeded" rejection,
- * also asserts it names exactly those listings as the ones that didn't fit
- * (order-independent) — the specific-listing detail the operator-facing
- * message is built from. */
-const expectRejected = (
-  update: Awaited<ReturnType<typeof applyAttendeeAtomicEdit>>,
-  reason: string,
-  listingIds?: number[],
-): void => {
-  expect(update.success).toBe(false);
-  if (update.success) return;
-  expect(update.reason).toBe(reason);
-  if (listingIds !== undefined && update.reason === "capacity_exceeded") {
-    expect(update.listingIds.toSorted()).toEqual(listingIds.toSorted());
-  }
-};
-
-/** Assert each listing currently has the expected number of attendee rows. */
-const expectRawCounts = async (
-  pairs: [{ id: number }, number][],
-): Promise<void> => {
-  for (const [listing, count] of pairs) {
-    expect((await getAttendeesRaw(listing.id)).length).toBe(count);
-  }
-};
-
-/** The loaded line whose booking's listing matches `listingId`. */
-const keyFor = (existing: ExistingLines, listingId: number): string =>
-  existing.find((e) => e.booking.listing_id === listingId)!.key;
-
-/** Book a single-line attendee, then load its lines and an edit PII blob. */
-const bookForEdit = async (
-  listing: { id: number },
-  opts: Parameters<typeof bookAttendee>[1],
-  blobName = "X",
-  blobEmail = "",
-) => {
-  const result = await bookAttendee(listing, opts);
-  if (!result.success) throw new Error("setup");
-  const attendee = result.attendees[0]!;
-  const existing = await loadExistingLines(attendee.id);
-  const blob = testPii(
-    blobName,
-    blobEmail,
-    attendee.ticket_token,
-    attendee.payment_id,
-  );
-  return { attendee, blob, existing };
-};
-
-/** Create a fresh listing and book a single-line attendee on it. */
-const bookOnNewListing = async (
-  listingOpts: Parameters<typeof createTestListing>[0],
-  opts: Parameters<typeof bookAttendee>[1],
-  blobName = "X",
-  blobEmail = "",
-) => {
-  const listing = await createTestListing(listingOpts);
-  return {
-    listing,
-    ...(await bookForEdit(listing, opts, blobName, blobEmail)),
-  };
-};
-
-/** Create the two-listing fixture this suite reuses (E1, E2). */
-const twoListings = async (
-  caps: [number, number] = [10, 10],
-): Promise<{ listing1: { id: number }; listing2: { id: number } }> => ({
-  listing1: await createTestListing({ maxAttendees: caps[0], name: "E1" }),
-  listing2: await createTestListing({ maxAttendees: caps[1], name: "E2" }),
-});
-
-/** Create a multi-line attendee, then load its lines and an edit PII blob. */
-const setupMulti = async (
-  bookings: Parameters<typeof createAttendeeAtomic>[0]["bookings"],
-  createPii: { name: string; email?: string },
-  blobPii: { name?: string; email?: string } = createPii,
-) => {
-  const result = await createAttendeeAtomic({
-    bookings,
-    email: createPii.email ?? "",
-    name: createPii.name,
-  });
-  if (!result.success) throw new Error("setup");
-  const attendee = result.attendees[0]!;
-  const existing = await loadExistingLines(attendee.id);
-  const blob = testPii(
-    blobPii.name ?? createPii.name,
-    blobPii.email ?? "",
-    attendee.ticket_token,
-    attendee.payment_id,
-  );
-  return { attendee, blob, existing };
-};
+  addLine,
+  bookForEdit,
+  bookOnNewListing,
+  type ExistingLines,
+  expectRawCounts,
+  expectRejected,
+  keepLine,
+  keyFor,
+  setupMulti,
+  twoListings,
+} from "./helpers.ts";
 
 describeWithEnv(
   "db > attendees > applyAttendeeAtomicEdit",
@@ -220,7 +81,10 @@ describeWithEnv(
         [listing1, 1],
         [listing2, 1],
       ]);
-      expect((await getAttendeesRaw(listing2.id))[0]!.quantity).toBe(2);
+      expect((await getAttendeesRaw(listing2.id))[0]).toMatchObject({
+        package_group_id: 0,
+        quantity: 2,
+      });
     });
 
     test("removes a line by omitting it from the desired set", async () => {

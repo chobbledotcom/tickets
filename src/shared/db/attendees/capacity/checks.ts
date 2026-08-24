@@ -1,4 +1,3 @@
-import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -9,9 +8,15 @@ import {
   buildCapacityCondition,
   type CapacityBucket,
 } from "#db/capacity.ts";
-import { inPlaceholders, queryAll, requireOne } from "#db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  requireOne,
+  type SqlStatement,
+} from "#db/client.ts";
 import { listingGroups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { identity, map, mapById } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
@@ -20,10 +25,10 @@ import type { ListingCapacityRow } from "./types.ts";
 /** Build an INSERT into listing_attendees, capacity-checked by default. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
-  attendeeIdExpr = "last_insert_rowid()",
-  attendeeIdArg?: InValue,
+  attendeeIdSql: NumberedSql = () => "last_insert_rowid()",
   allowOverbook = false,
-): { sql: string; args: InValue[] } => {
+  extraCondition?: NumberedSql,
+): SqlStatement => {
   const {
     listingId,
     quantity = 1,
@@ -34,29 +39,29 @@ export const buildCapacityCheckedInsert = (
     packageGroupId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const args: InValue[] = [listingId];
-  if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
-  args.push(
-    startAt,
-    endAt,
-    quantity,
-    orderToken,
-    parentListingId,
-    packageGroupId,
-  );
-  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
-          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?, ?, ?`;
-  if (allowOverbook) return { args, sql: insertSelect };
+  return numberedStatement((bind) => {
+    const listingIdSql = bind(listingId);
+    const attendeeSql = attendeeIdSql(bind);
+    const startAtSql = bind(startAt);
+    const endAtSql = bind(endAt);
+    const quantitySql = bind(quantity);
+    const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
+          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
+    if (allowOverbook) return insertSelect;
 
-  const condition = buildCapacityCondition(
-    listingId,
-    quantity,
-    date,
-    undefined,
-    durationDays,
-  );
-  args.push(...condition.args);
-  return { args, sql: `${insertSelect}\n          WHERE ${condition.sql}` };
+    const capacity = buildCapacityCondition(
+      listingId,
+      quantity,
+      date,
+      undefined,
+      durationDays,
+    )(bind, { listingId: listingIdSql, quantity: quantitySql });
+    const conditions =
+      extraCondition === undefined
+        ? capacity
+        : `${capacity} AND (${extraCondition(bind)})`;
+    return `${insertSelect}\n          WHERE ${conditions}`;
+  });
 };
 
 /** Check several capacity conditions in one query. */
@@ -74,13 +79,21 @@ export const checkLinesCapacity = async (
       booking.durationDays,
     ),
   );
-  const columns = conditions
-    .map((condition, index) => `(${condition.sql}) AS ok${index}`)
-    .join(", ");
-  const args = conditions.flatMap((condition) => condition.args);
+  const statement = numberedStatement((bind) => {
+    const excludeAttendeeIdSql =
+      excludeAttendeeId === undefined ? undefined : bind(excludeAttendeeId);
+    const shared =
+      excludeAttendeeIdSql === undefined
+        ? {}
+        : { excludeAttendeeId: excludeAttendeeIdSql };
+    const columns = conditions
+      .map((condition, index) => `(${condition(bind, shared)}) AS ok${index}`)
+      .join(", ");
+    return `SELECT ${columns}`;
+  });
   const row = await requireOne<Record<string, number>>(
-    `SELECT ${columns}`,
-    args,
+    statement.sql,
+    statement.args,
   );
   return conditions.map((_, index) => row[`ok${index}`] === 1);
 };

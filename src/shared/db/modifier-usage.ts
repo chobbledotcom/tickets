@@ -10,6 +10,7 @@
 
 import type { InValue } from "@libsql/client";
 import { queryOnePrimary, type SqlStatement } from "#db/client.ts";
+import type { NumberedSql } from "#db/numbered-statement.ts";
 import { mapByIds } from "#db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -41,15 +42,17 @@ export const modifierUsedQuantities = (
  * concurrency guard) and by the booking insert that must refuse to land when a
  * chosen modifier sold out mid-payment. Wrapped in parens so several can be
  * AND-ed safely. */
-const modifierStockCondition = (usage: ModifierUsage): SqlStatement => ({
-  args: [usage.modifierId, usage.modifierId, usage.modifierId, usage.quantity],
-  sql: `((SELECT stock FROM modifiers WHERE id = ?) IS NULL
-           OR (SELECT stock FROM modifiers WHERE id = ?)
-              - COALESCE(
-                  (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?),
-                  0
-                ) >= ?)`,
-});
+const modifierStockCondition =
+  (usage: ModifierUsage): NumberedSql =>
+  (bind) => {
+    const modifierId = bind(usage.modifierId);
+    return `((SELECT stock FROM modifiers WHERE id = ${modifierId}) IS NULL
+           OR (SELECT stock FROM modifiers WHERE id = ${modifierId})
+               - COALESCE(
+                   (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ${modifierId}),
+                   0
+                  ) >= ${bind(usage.quantity)})`;
+  };
 
 /**
  * The AND of every chosen modifier's {@link modifierStockCondition}, for folding
@@ -58,13 +61,10 @@ const modifierStockCondition = (usage: ModifierUsage): SqlStatement => ({
  * so the booking's capacity clause stands alone. */
 export const allModifiersInStockCondition = (
   usages: ModifierUsage[],
-): SqlStatement => {
-  if (usages.length === 0) return { args: [], sql: "1 = 1" };
+): NumberedSql => {
+  if (usages.length === 0) return () => "1 = 1";
   const parts = usages.map(modifierStockCondition);
-  return {
-    args: parts.flatMap((p) => p.args),
-    sql: parts.map((p) => p.sql).join(" AND "),
-  };
+  return (bind) => parts.map((part) => part(bind)).join(" AND ");
 };
 
 /**

@@ -1,6 +1,11 @@
+import { listingGroups } from "#db/groups.ts";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import type { Group } from "#types";
 import { doAuthenticatedFormRequest } from "./request.ts";
+
+/** The ids of the groups one listing belongs to, ascending. */
+export const listingGroupIdsOf = async (listingId: number): Promise<number[]> =>
+  [...(await listingGroups.getIds(listingId))].toSorted((a, b) => a - b);
 
 export const createTestGroup = async (
   overrides: Partial<Omit<GroupInput, "slugIndex">> = {},

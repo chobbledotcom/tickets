@@ -41,7 +41,6 @@ export type EncryptedAttendeeData = {
 /** Input for encrypting attendee fields */
 export type EncryptInput = ContactInfo & {
   paymentId: string;
-  pricePaid: number;
 };
 
 /** Input for building an Attendee result from an insert */
