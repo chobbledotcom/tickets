@@ -1,7 +1,15 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { CONFIG_KEYS } from "#db/settings.ts";
+import {
+  assertSettingsReadsDeclared,
+  recordSettingsLoaded,
+  runWithSettingsAudit,
+  setSettingsAuditEnabled,
+} from "#db/settings-audit.ts";
 import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
+import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
+import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 
 describe("settings bundles", () => {
   test("extracts the first path segment without its leading slash", () => {
@@ -28,5 +36,27 @@ describe("settings bundles", () => {
     expect(settingsForPath("/scheduled")).toContain(
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
     );
+  });
+
+  describe("what every response reads", () => {
+    afterEach(() => {
+      setSettingsAuditEnabled(null);
+    });
+
+    // `applySecurityHeaders` rebuilds the policy on every routed response, so
+    // whatever it reads must be in the bundle of every route. Asking a
+    // provider whether the site points at its test estate must therefore
+    // never reach for that provider's stored key: the key is not declared on
+    // an ordinary page, and reading it turns the page into a 500.
+    for (const provider of PAYMENT_PROVIDER_IDS) {
+      test(`asks whether ${provider} is in a sandbox without an undeclared read`, () => {
+        setSettingsAuditEnabled(true);
+        runWithSettingsAudit(() => {
+          recordSettingsLoaded(settingsForPath("/listings"));
+          paymentProviderUsesSandbox(provider);
+          assertSettingsReadsDeclared("GET /listings");
+        });
+      });
+    }
   });
 });

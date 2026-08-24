@@ -11,7 +11,7 @@ import {
   isSecureMode,
 } from "#shared/config.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
-import { paymentProviderMode } from "#shared/payment-provider-status.ts";
+import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
 import { providerCheckoutFormOrigins } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
@@ -235,8 +235,7 @@ export const applySecurityHeaders = async (
   embeddable: boolean,
 ): Promise<Response> => {
   const provider = settings.paymentProvider;
-  const sandbox =
-    provider !== null && paymentProviderMode(provider) === "sandbox";
+  const sandbox = provider !== null && paymentProviderUsesSandbox(provider);
   const baseCsp = buildCspHeader(
     embeddable,
     { provider, sandbox },
