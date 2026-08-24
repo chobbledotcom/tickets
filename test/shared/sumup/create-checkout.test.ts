@@ -27,7 +27,7 @@ const intent = {
 };
 
 describe("sumup createCheckout", () => {
-  setupSumupSuite();
+  const { loggedDebug } = setupSumupSuite();
 
   test("returns null and stores no orphan when merchant code is absent", async () => {
     settings.setForTest({ sumup_merchant_code: "" });
@@ -69,6 +69,22 @@ describe("sumup createCheckout", () => {
       const stored = await getSumupCheckout(result!.reference);
       expect(stored!.metadata.name).toBe("Alice");
       expect(stored!.sumupId).toBe("co_created");
+    });
+  });
+
+  test("logs the created checkout's own id", async () => {
+    // The payment-sandbox story reads this line to deliver the callback for
+    // the checkout it just made, so the id has to be in it.
+    const client = makeSumupClient({
+      create: () =>
+        Promise.resolve({
+          hosted_checkout_url: "https://pay.sumup.com/x",
+          id: "co_logged",
+        }),
+    });
+    await withSumupClient(client, async () => {
+      await sumupApi.createCheckout(intent, "http://localhost");
+      expect(loggedDebug("Checkout created id=co_logged")).toBe(true);
     });
   });
 

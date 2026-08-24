@@ -13,7 +13,7 @@ import {
 /* jscpd:ignore-end */
 
 describe("sumup transactions", () => {
-  const { errorSpy } = setupSumupSuite();
+  const { errorSpy, loggedDebug } = setupSumupSuite();
 
   const transactionWire = (over: Record<string, unknown> = {}) => ({
     amount: 10,
@@ -252,6 +252,8 @@ describe("sumup transactions", () => {
         expect(await sumupApi.readTransactionMoney("txn")).toEqual({
           status: "missing",
         });
+        // The log has to name the transaction read, not some other read.
+        expect(loggedDebug("Transaction read answered 404")).toBe(true);
       });
     });
 

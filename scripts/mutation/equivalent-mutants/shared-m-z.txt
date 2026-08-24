@@ -307,5 +307,6 @@ src/shared/db/modifier-resolve.ts::eligibleCandidates~1oaufcv  1 → 0   # resol
 # payment-provider-status.ts: settings.<provider>.keyMode ?? "unknown" —
 # keyModeOf returns "test" | "live" | null, so the only value ?? and || can
 # disagree on, "", is one the type does not allow.
+src/shared/sumup.ts::sumupApi.testSumupConnection.result%2eapiKey.mode~109o082  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
 src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
 src/shared/payment-provider-status.ts::providerMode.sumup~109o082  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
