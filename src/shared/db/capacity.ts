@@ -296,14 +296,8 @@ const listingCapClause = (
   listingId: SqlParameterToken,
   dayRange: BoundDayRange | null,
   demand: number,
-): string => {
-  const countSql = buildListingCountSql({
-    dayRange,
-    excludeAttendeeId: null,
-    listingId,
-  });
-  return `((${countSql}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`;
-};
+): string =>
+  `((${buildListingCountSql({ dayRange, excludeAttendeeId: null, listingId })}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`;
 
 /** A `<= cap` clause for one group's demand against its cap, reusing the write
  * predicate's group count subquery. An uncapped group (`max_attendees = 0`)
@@ -342,38 +336,37 @@ const bucketClauses = (
  * capacity differently. Listing demand is checked per listing; group demand is
  * checked per group with the cart's non-daily demand folded into each day.
  */
+/** The cap clauses for every bucket in one demand map. The id binds once per
+ * bucket, on its first clause; `extraOf` is the demand every day's clause adds
+ * on top of its own (zero for listings, the group's whole-cart total). */
+const demandClauses = (
+  demand: Map<number, CapacityBucket>,
+  bind: SqlParameter,
+  extraOf: (bucket: CapacityBucket) => number,
+  clauseOf: typeof listingCapClause,
+): string[] =>
+  [...demand].flatMap(([id, bucket]) => {
+    let idSql: SqlParameterToken | undefined;
+    return bucketClauses(bucket, extraOf(bucket), (dayRange, dayDemand) => {
+      idSql ??= bind(id);
+      return clauseOf(idSql, bindDayRange(bind, dayRange), dayDemand);
+    });
+  });
+
 export const buildBatchCapacitySql = (
   listingDemand: Map<number, CapacityBucket>,
   groupDemand: Map<number, CapacityBucket>,
 ): SqlStatement =>
   numberedStatement((bind) => {
-    const clauses: string[] = [];
-    for (const [listingId, bucket] of listingDemand) {
-      let listingIdSql: SqlParameterToken | undefined;
-      clauses.push(
-        ...bucketClauses(bucket, 0, (dayRange, demand) => {
-          listingIdSql ??= bind(listingId);
-          return listingCapClause(
-            listingIdSql,
-            bindDayRange(bind, dayRange),
-            demand,
-          );
-        }),
-      );
-    }
-    for (const [groupId, bucket] of groupDemand) {
-      let groupIdSql: SqlParameterToken | undefined;
-      clauses.push(
-        ...bucketClauses(bucket, bucket.total, (dayRange, demand) => {
-          groupIdSql ??= bind(groupId);
-          return groupCapClause(
-            groupIdSql,
-            bindDayRange(bind, dayRange),
-            demand,
-          );
-        }),
-      );
-    }
+    const clauses = [
+      ...demandClauses(listingDemand, bind, () => 0, listingCapClause),
+      ...demandClauses(
+        groupDemand,
+        bind,
+        (bucket) => bucket.total,
+        groupCapClause,
+      ),
+    ];
     return clauses.length === 0
       ? "SELECT 1 AS fits"
       : `SELECT CASE WHEN ${clauses.join(" AND ")} THEN 1 ELSE 0 END AS fits`;
