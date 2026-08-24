@@ -18,7 +18,3 @@ export const namedError = (name: string): (new (message?: string) => Error) =>
 export const isAbortOrTimeoutError = (error: unknown): boolean =>
   error instanceof DOMException &&
   (error.name === "AbortError" || error.name === "TimeoutError");
-
-/** True only for the timeout form of a fetch abort. */
-export const isTimeoutError = (error: unknown): boolean =>
-  error instanceof DOMException && error.name === "TimeoutError";

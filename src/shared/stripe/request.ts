@@ -2,11 +2,11 @@ import * as v from "valibot";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   connectionReasonOf,
+  type ProviderConnectionReason,
   type ProviderTransportError,
   providerDetail,
   transportError,
 } from "#payment/transport-error.ts";
-import { isAbortOrTimeoutError } from "#shared/named-error.ts";
 import { delay } from "#shared/now.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
@@ -119,25 +119,20 @@ const isLockTimeoutResponse = async (response: Response): Promise<boolean> => {
 };
 
 const connectionError = (
-  error: unknown,
+  reason: ProviderConnectionReason,
   retry: number,
   timeout: number,
-): ProviderTransportError => {
-  const reason = connectionReasonOf(error) ?? "network_error";
-  return transportError.unreachable(
+): ProviderTransportError =>
+  transportError.unreachable(
     providerDetail.stripe(),
     reason,
     reason === "timeout"
       ? `Request aborted due to timeout being reached (${timeout}ms)`
       : `An error occurred with our connection to Stripe. Request was retried ${retry} times.`,
   );
-};
 
 const retriesRemain = (retry: number, maximum: number): boolean =>
   retry < maximum;
-
-const isTransportFailure = (error: unknown): boolean =>
-  error instanceof TypeError || isAbortOrTimeoutError(error);
 
 const headerOrUndefined = (
   headers: Headers,
@@ -283,9 +278,11 @@ export const createStripeRequest = (
     if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
 
     async function retryConnection(error: unknown, retry: number): Promise<T> {
-      if (!isTransportFailure(error)) throw error;
+      // A failure to reach Stripe at all is the only one worth another try.
+      const reason = connectionReasonOf(error);
+      if (reason === undefined) throw error;
       if (!retriesRemain(retry, maxNetworkRetries)) {
-        throw connectionError(error, retry, config.timeout);
+        throw connectionError(reason, retry, config.timeout);
       }
       await config.sleep(retryDelay(retry, null, config.random));
       return attempt(retry + 1);
