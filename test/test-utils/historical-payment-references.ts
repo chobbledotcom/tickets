@@ -1,12 +1,12 @@
 /** Test-only construction of payment rows written before provider tags existed. */
 
 import { assert } from "@std/assert";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { execute } from "#shared/db/client.ts";
-import type { StoredPaymentReference } from "#shared/db/payment-reference-store.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { execute } from "#db/client.ts";
+import type { StoredPaymentReference } from "#db/payment-reference-store.ts";
+import { reserveSession } from "#db/processed-payments.ts";
+import { settings } from "#db/settings.ts";
 
 /** Reproduce the raw owner-encrypted value and raw blind index old rows used. */
 export const historicalPaymentReferenceStorage = async (

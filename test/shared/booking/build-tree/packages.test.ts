@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { resolved } from "#test-utils/booking-model-fixtures.ts";
 import {
   treePackage as pkg,
   twoPackageCart,
-} from "#test/test-utils/package-cap-fixtures.ts";
+} from "#test-utils/package-cap-fixtures.ts";
 
 describe("buildBookingTree — package members", () => {
   /** Package group 3 whose member 7 is itself a parent of (non-hidden) child 20,

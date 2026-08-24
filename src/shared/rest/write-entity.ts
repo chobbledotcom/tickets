@@ -15,7 +15,7 @@ import {
   type TransactionStateReader,
   type TxScope,
   writeRowInTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 
 /** One join-table write that must commit atomically with the row it belongs to,
  *  given the open transaction, row id, and narrow pre-update state. */

@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, queryAll, queryOne } from "#db/client.ts";
 import {
   type ClaimedAttendeePaymentAnchor,
   prepareClaimedAttendeePaymentAnchor,
-} from "#shared/db/payment-anchor/attendee.ts";
-import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
+} from "#db/payment-anchor/attendee.ts";
+import { settleAttendeeRows } from "#db/payment-claim.ts";
 import {
   loadPaymentReference,
   paymentReferenceIndex,
-} from "#shared/db/payment-reference-store.ts";
-import { rowNodeOf } from "#shared/payment/row-machine-spec.ts";
-import { readRowState } from "#shared/payment/row-state.ts";
+} from "#db/payment-reference-store.ts";
+import { rowNodeOf } from "#payment/row-machine-spec.ts";
+import { readRowState } from "#payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -84,6 +84,13 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const payment = taggedPaymentReference("pi_attendee_anchor", "sumup");
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
       const anchor = await prepared.forAttendee(attendeeId);
+      expect(anchor.statement.args).toHaveLength(8);
+      expect(anchor.statement.args).toContain(
+        await paymentReferenceIndex({
+          kind: "untagged",
+          reference: payment.reference,
+        }),
+      );
 
       for (const _attempt of [1, 2]) {
         await execute(anchor.statement.sql, anchor.statement.args);

@@ -1,4 +1,12 @@
 /* jscpd:ignore-start */
+
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { bookableChildIds, pageDayCounts } from "#booking/model.ts";
+import { nodeQuantitiesFor } from "#booking/order-lines.ts";
+import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
+import { packageBundleTotal } from "#booking/price-tree.ts";
+import { type BookingTree, fixedQuantitiesByListingId } from "#booking/tree.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
@@ -31,20 +39,7 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { bookableChildIds, pageDayCounts } from "#shared/booking/model.ts";
-import { nodeQuantitiesFor } from "#shared/booking/order-lines.ts";
-import {
-  packageBundleLimit,
-  packageLimitInfo,
-} from "#shared/booking/package-cap.ts";
-import { packageBundleTotal } from "#shared/booking/price-tree.ts";
-import {
-  type BookingTree,
-  fixedQuantitiesByListingId,
-} from "#shared/booking/tree.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
@@ -53,7 +48,7 @@ import {
   namesConcealed,
   packagePrivacy,
 } from "#shared/package-privacy.ts";
-import type { Group } from "#shared/types.ts";
+import type { Group } from "#types";
 
 /* jscpd:ignore-end */
 

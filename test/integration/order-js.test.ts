@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { orderWidgetBody } from "#routes/assets.ts";
-import { groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,

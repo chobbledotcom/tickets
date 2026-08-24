@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
-import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { expandChildAllocations } from "#db/attendees/order-parents.ts";
+import { updateCheckedIn } from "#db/attendees/update.ts";
+import { queryAll } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

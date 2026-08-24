@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { col, defineTable, type Table } from "#shared/db/table.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
+import { col, defineTable, type Table } from "#db/table.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm, type FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type Resource } from "#shared/rest/resource.ts";
@@ -91,7 +91,7 @@ const originalRowData = { name: "Original", value: 50 } as const;
 
 /** Create test_items table in the current database */
 const createTestItemsTable = async () => {
-  const { getDb } = await import("#shared/db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   await getDb().execute(`
     CREATE TABLE IF NOT EXISTS test_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

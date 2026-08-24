@@ -1,11 +1,9 @@
 /* jscpd:ignore-start */
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { cachedClientFactory } from "#shared/payment-helpers.ts";
-import {
-  parseSquarePaymentResponse,
-  type RefundPaymentInput,
-} from "#shared/square/payment-outcomes.ts";
+import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
 import { squareFetch } from "#shared/square/transport.ts";
+import { squareAnswer } from "#shared/square/wire.ts";
 
 /* jscpd:ignore-end */
 
@@ -32,69 +30,26 @@ export type CreatePaymentLinkInput = {
   };
 };
 
-type SquareRawTender = {
-  id?: string | undefined;
-  payment_id?: string | undefined;
-  paymentId?: string | undefined;
-};
-
-const mapTender = (tender: SquareRawTender) => ({
-  id: tender.id,
-  paymentId: tender.paymentId ?? tender.payment_id,
-});
-
-type SquarePaymentLinkResponse = {
-  payment_link?: {
-    order_id?: string;
-    url?: string;
-    long_url?: string;
-  };
-};
-
-type SquareOrderResponse = {
-  order?: {
-    id?: string;
-    metadata?: Record<string, string | null>;
-    tenders?: SquareRawTender[];
-    state?: string;
-    total_money?: { amount: number; currency: string };
-    created_at?: string;
-  };
-};
-
-export type SquareLocation = {
-  id?: string;
-  name?: string;
-  status?: string;
-};
-
-type SquareLocationsResponse = {
-  locations?: SquareLocation[];
-};
-
 const SQUARE_BASE_URL = {
   production: "https://connect.squareup.com",
   sandbox: "https://connect.squareupsandbox.com",
 } as const;
 
-/** Build the small REST client for the endpoints this application uses. */
+/** Build the small REST client for the endpoints this application uses. Each
+ * method asks Square once and reads that answer once, so nothing below this
+ * line holds a Square value that {@link squareAnswer} has not checked. */
 const createSquareClient = (accessToken: string, sandbox: boolean) => {
   const base = sandbox ? SQUARE_BASE_URL.sandbox : SQUARE_BASE_URL.production;
-  const post = <T>(path: string, body: unknown) =>
-    squareFetch(accessToken, base, path, {
-      body,
-      method: "POST",
-    }) as Promise<T>;
-  const get = <T>(path: string) =>
-    squareFetch(accessToken, base, path) as Promise<T>;
+  const post = (path: string, body: unknown) =>
+    squareFetch(accessToken, base, path, { body, method: "POST" });
+  const get = (path: string) => squareFetch(accessToken, base, path);
 
   return {
     checkout: {
       paymentLinks: {
-        create: async (input: CreatePaymentLinkInput) => {
-          const data = await post<SquarePaymentLinkResponse>(
-            "/v2/online-checkout/payment-links",
-            {
+        create: async (input: CreatePaymentLinkInput) =>
+          squareAnswer.paymentLink(
+            await post("/v2/online-checkout/payment-links", {
               checkout_options: {
                 redirect_url: input.checkoutOptions.redirectUrl,
               },
@@ -116,62 +71,37 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
                 buyer_email: input.prePopulatedData.buyerEmail,
                 buyer_phone_number: input.prePopulatedData.buyerPhoneNumber,
               },
-            },
-          );
-          const link = data.payment_link;
-          return {
-            paymentLink: link
-              ? { orderId: link.order_id, url: link.long_url ?? link.url }
-              : undefined,
-          };
-        },
+            }),
+          ),
       },
     },
     locations: {
-      list: () => get<SquareLocationsResponse>("/v2/locations"),
+      list: async () => squareAnswer.locations(await get("/v2/locations")),
     },
     orders: {
-      get: async (input: { orderId: string }) => {
-        const data = await get<SquareOrderResponse>(
-          `/v2/orders/${encodeURIComponent(input.orderId)}`,
-        );
-        const order = data.order;
-        if (!order) return { order: null };
-        return {
-          order: {
-            createdAt: order.created_at,
-            id: order.id,
-            metadata: order.metadata,
-            state: order.state,
-            tenders: order.tenders?.map(mapTender),
-            totalMoney: order.total_money
-              ? {
-                  amount: BigInt(order.total_money.amount),
-                  currency: order.total_money.currency,
-                }
-              : undefined,
-          },
-        };
-      },
+      get: async (input: { orderId: string }) =>
+        squareAnswer.order(
+          await get(`/v2/orders/${encodeURIComponent(input.orderId)}`),
+        ),
     },
     payments: {
-      get: async (input: { paymentId: string }) => {
-        const raw = await get<unknown>(
-          `/v2/payments/${encodeURIComponent(input.paymentId)}`,
-        );
-        return parseSquarePaymentResponse(raw);
-      },
+      get: async (input: { paymentId: string }) =>
+        squareAnswer.payment(
+          await get(`/v2/payments/${encodeURIComponent(input.paymentId)}`),
+        ),
     },
     refunds: {
-      refundPayment: async (input: RefundPaymentInput): Promise<unknown> =>
-        await post<unknown>("/v2/refunds", {
-          amount_money: {
-            amount: input.amountMoney.amount,
-            currency: input.amountMoney.currency,
-          },
-          idempotency_key: input.idempotencyKey,
-          payment_id: input.paymentId,
-        }),
+      refundPayment: async (input: RefundPaymentInput) =>
+        squareAnswer.refund(
+          await post("/v2/refunds", {
+            amount_money: {
+              amount: input.amountMoney.amount,
+              currency: input.amountMoney.currency,
+            },
+            idempotency_key: input.idempotencyKey,
+            payment_id: input.paymentId,
+          }),
+        ),
     },
   };
 };

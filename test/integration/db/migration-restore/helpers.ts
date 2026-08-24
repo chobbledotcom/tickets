@@ -17,14 +17,14 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
-import type { Trigger } from "#shared/db/migrations/schema/types.ts";
+import { getDb, insert } from "#db/client.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
+import type { Trigger } from "#db/migrations/schema/types.ts";
 import {
   schemaSqlIdentifiers,
   verifyCurrentAppSchema,
-} from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema-sync.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -32,8 +32,8 @@ import {
   type Migration,
   SCHEMA_HASH,
   type SchemaRequirement,
-} from "#shared/db/migrations.ts";
-import { seedPreDropLedgerColumns } from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#db/migrations.ts";
+import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 

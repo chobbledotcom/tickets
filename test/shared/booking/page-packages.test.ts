@@ -8,12 +8,9 @@ import {
   packageMemberIds,
   soleParentPackageIds,
   stampChildRowPackages,
-} from "#shared/booking/page-packages.ts";
-import {
-  pagePackage,
-  treePackage,
-} from "#test/test-utils/package-cap-fixtures.ts";
+} from "#booking/page-packages.ts";
 import { testGroup } from "#test-utils/factories.ts";
+import { pagePackage, treePackage } from "#test-utils/package-cap-fixtures.ts";
 
 describe("buildPagePackage", () => {
   test("carries the group's display fields beside the loaded pricing", () => {

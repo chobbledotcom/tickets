@@ -15,9 +15,9 @@ src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56v
 src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt ??→||   # listingAnswerIds is a record object when present, and objects are always truthy
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → ||   # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::isPaymentsEnabled~02tsswb  ?? → ||   # providerValue returns boolean or null, and false stays false with either fallback operator
 src/shared/config.ts::getDebugKey~036uuok  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
@@ -28,6 +28,7 @@ src/shared/site-assignment.ts::renewalDeadlineBaseMs~00cywnq  ?? → ||   # pars
 src/shared/site-assignment.ts::assignSitesForEntries.site~0c03jq6  ?? → ||   # available.pop(): BuiltSite|undefined, and a BuiltSite object is always truthy
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~11vz7t9  ?? → ||   # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → ||   # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/db/listing-prices.ts::sourceRowStatements~0fyy4cr  ?? → ||   # unit_price is number|null, so the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
 src/shared/ledger/project.ts::allBalances.add~0gr4ng6  ?? → ||   # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/ledger/project.ts::balanceOf~128hnl9  ?? → ||   # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0rfpt43  ?? → ||   # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
@@ -68,6 +69,9 @@ src/shared/bunny-cdn.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → ||   
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → ||   # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
+src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → ||   # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
@@ -178,6 +182,14 @@ src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated" 
 # parsePositiveIntId's strict decimal-digit schema.
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated"   # parsePositiveIntId's schema rejects any non-digit string identically; the "" fallback and any mutated string both parse to null
 
+# crypto/utils.ts — the out-of-range code readers. constantTimeCodesEqual seeds
+# its XOR fold with lengthA ^ lengthB and walks the longer sequence, so a reader
+# is only asked past the end of one string when the lengths differ — and that
+# seed already forces "not equal". Whatever the short side reads there cannot
+# change the answer.
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1   # only read past the end of the shorter string, where the length XOR has already decided the result
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1   # same reader for the other side, reached only when the lengths already differ
+
 # crypto/der.ts — this value is written into a Uint8Array element. Adding or
 # subtracting 128 produces the same low eight bits, and Uint8Array discards all
 # higher bits.
@@ -216,3 +228,29 @@ src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1
 src/shared/listings-actions.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/listings-actions.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? → ||   # input.groupIds is an array when present, and arrays are always truthy
+src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → ||   # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
+
+# db/listings/attendees.ts — fallbacks whose left side can never be a
+# falsy-but-present value that differs from the fallback itself.
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → ||   # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → ||   # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
+src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1f1  ?? → ||   # the row is an Attendee object or undefined, and an object is always truthy
+
+# db/client.ts — fallbacks whose left side can never be a falsy-but-present
+# value, and a label no code ever reads.
+src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
+src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # the captured tail has to start with INSERT, UPDATE, DELETE, REPLACE or SELECT, so the group is never the empty string
+src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
+src/shared/db/client.ts::queryAll.args~0hs5u5i  ?? → ||   # args is an InValue[] when present, and an array is always truthy
+src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
+src/shared/db/client.ts::queryOnePrimary~0qbwuku  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
+
+# crypto/hashing.ts — the explicit radix on the stored round count. The line
+# above it now refuses any count that is not pure decimal digits, and for such a
+# string an inferred radix is decimal too, so naming the radix can no longer
+# change what is read. It stays because the reader should say what base it means.
+src/shared/crypto/hashing.ts::verifyPassword.iterations~10pid9h  10 → 0   # the digit-only guard above rules out every string an inferred radix would read differently
+
+# attendee-failures.ts: refusedOrderItem picks its fallback with .find over an
+# array of order items — objects, always truthy — so ?? and || agree.
+src/shared/attendee-failures.ts::refusedOrderItem.named~1wyyjdl  ?? → ||   # find over item objects → undefined|truthy; never falsy-non-null

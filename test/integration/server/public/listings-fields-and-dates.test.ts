@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
@@ -265,7 +265,7 @@ describeWithEnv(
           minimumDaysBefore: 0,
           name: "Hidden Daily Member",
         });
-        const { groups } = await import("#shared/db/groups.ts");
+        const { groups } = await import("#db/groups.ts");
         await groups.table.update(pkg.id, { hidePackageListings: true });
         await bookAttendee(member, { date, quantity: 1 });
         await createTestListing({ maxAttendees: 50, name: "Plain Listing" });

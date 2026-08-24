@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminImageDeletePage,
@@ -15,6 +14,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
+import type { Image } from "#types";
 
 const image = (id: number, name: string): Image => ({
   alt_text: `Alt ${name}`,

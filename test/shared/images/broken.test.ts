@@ -1,7 +1,7 @@
 import { inflateSync } from "node:zlib";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
+import { encrypt } from "#crypto/encryption.ts";
 import {
   BROKEN_IMAGE_FILENAME,
   BROKEN_IMAGE_PNG,

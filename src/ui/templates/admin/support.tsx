@@ -8,15 +8,15 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MessageFields } from "#shared/forms/message-fields.tsx";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
+import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
 

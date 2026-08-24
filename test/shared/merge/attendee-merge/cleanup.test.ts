@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { assignBuiltSite, insertBuiltSite } from "#shared/db/built-sites.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { assignBuiltSite, insertBuiltSite } from "#db/built-sites.ts";
+import { queryAll, queryOne } from "#db/client.ts";
 import {
   createMergePair,
   runMerge,

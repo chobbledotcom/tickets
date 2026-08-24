@@ -6,7 +6,6 @@
  * trigger fires before the strings are recreated).
  */
 
-import { fieldById, unique } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
@@ -14,14 +13,12 @@ import {
   type SqlStatement,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
-import type { TextAnswer, TextAnswerId } from "#shared/db/question-types.ts";
-import {
-  internStringRows,
-  prepareStringRows,
-} from "#shared/db/questions/strings.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { txIdSet } from "#shared/db/transaction.ts";
+} from "#db/client.ts";
+import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
+import { internStringRows, prepareStringRows } from "#db/questions/strings.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { txIdSet } from "#db/transaction.ts";
+import { fieldById, unique } from "#fp";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];

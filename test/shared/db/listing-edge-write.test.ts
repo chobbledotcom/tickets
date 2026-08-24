@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { withTransaction } from "#db/client.ts";
+import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { withTransaction } from "#shared/db/client.ts";
-import { guardEdgeWriteTx } from "#shared/db/listing-edge-write.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -34,7 +34,7 @@ describeWithEnv(
       };
 
       const { assignListingsToGroup } = await import(
-        "#shared/db/groups/membership.ts"
+        "#db/groups/membership.ts"
       );
       const { createHiddenPackageGroup } = await import(
         "#test-utils/db-helpers/groups.ts"
@@ -135,7 +135,7 @@ describeWithEnv(
           missingParentError: t("catalog_transfer.parent_missing"),
           parentIds: [parent.id],
         }),
-      ).rejects.toThrow(t("error.parent_listing_nested"));
+      ).rejects.toThrow(t("error.parent_is_already_a_child"));
     });
 
     test("rejects when a submitted child no longer exists", async () => {
@@ -155,7 +155,7 @@ describeWithEnv(
 
     test("returns the package conflict for the children contract", async () => {
       const { assignListingsToGroup } = await import(
-        "#shared/db/groups/membership.ts"
+        "#db/groups/membership.ts"
       );
       const { createTestGroup } = await import(
         "#test-utils/db-helpers/groups.ts"

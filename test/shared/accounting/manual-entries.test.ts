@@ -11,17 +11,19 @@ import {
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
   type ManualLedgerEntryType,
+  ManualLedgerEntryTypeSchema,
   manualEntrySpecByType,
   manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
   updateManualLedgerEntry,
-} from "#shared/accounting/manual-entries.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { t } from "#shared/i18n.ts";
+} from "#accounting/manual-entries.ts";
+import { allTransfers } from "#accounting/queries.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { t } from "#i18n";
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { humanAmount } from "#templates/admin/ledger/formatting.tsx";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const world = account("external", "world");
@@ -30,79 +32,117 @@ const writeoff = account("writeoff", "default");
 type ManualEntryCase = {
   type: ManualLedgerEntryType;
   account: AccountRef;
+  amount: number;
   source: AccountRef;
   destination: AccountRef;
+};
+
+const attendee = account("attendee", 1);
+const revenue = account("revenue", 2);
+const modifier = account("modifier", 3);
+
+/** Every entry type once, each with the legs it must post and its own amount,
+ *  so a row read back by kind cannot be another row wearing the same figure. */
+const ENTRY_CASES: ManualEntryCase[] = [
+  {
+    account: attendee,
+    amount: 100,
+    destination: attendee,
+    source: world,
+    type: MANUAL_ATTENDEE_PAYMENT,
+  },
+  {
+    account: attendee,
+    amount: 101,
+    destination: writeoff,
+    source: attendee,
+    type: MANUAL_ATTENDEE_CHARGE,
+  },
+  {
+    account: attendee,
+    amount: 102,
+    destination: attendee,
+    source: writeoff,
+    type: MANUAL_ATTENDEE_WRITEOFF,
+  },
+  {
+    account: revenue,
+    amount: 103,
+    destination: revenue,
+    source: world,
+    type: MANUAL_LISTING_INCOME,
+  },
+  {
+    account: revenue,
+    amount: 104,
+    destination: world,
+    source: revenue,
+    type: MANUAL_LISTING_COST,
+  },
+  {
+    account: modifier,
+    amount: 105,
+    destination: modifier,
+    source: writeoff,
+    type: MANUAL_MODIFIER_INCOME,
+  },
+  {
+    account: modifier,
+    amount: 106,
+    destination: writeoff,
+    source: modifier,
+    type: MANUAL_MODIFIER_REDUCTION,
+  },
+];
+
+/** The entry types an operator reads as money given back, so the ledger shows
+ *  the amount as a reduction. Nothing in the legs says which these are: an
+ *  attendee writeoff and an option income both put money into their account. */
+const GIVES_MONEY_BACK = new Set<ManualLedgerEntryType>([
+  MANUAL_ATTENDEE_WRITEOFF,
+  MANUAL_LISTING_COST,
+  MANUAL_MODIFIER_REDUCTION,
+]);
+
+/** Post one entry of every type and read back what each one stored. */
+const postEveryEntryType = async (): Promise<Map<string, Transfer>> => {
+  for (const entry of ENTRY_CASES) {
+    await postManualLedgerEntry({
+      account: entry.account,
+      amount: entry.amount,
+      occurredAt: "2026-06-22T09:30:00.000Z",
+      postedBy: "1",
+      type: entry.type,
+    });
+  }
+  const stored = await allTransfers();
+  return new Map(stored.map((transfer) => [transfer.kind ?? "", transfer]));
 };
 
 describe("db > accounting > manual ledger entries", () => {
   useTransactionalDb();
 
   test("posts each owner-entered entry type to the expected ledger legs", async () => {
-    const attendee = account("attendee", 1);
-    const revenue = account("revenue", 2);
-    const modifier = account("modifier", 3);
-    const cases: ManualEntryCase[] = [
-      {
-        account: attendee,
-        destination: attendee,
-        source: world,
-        type: MANUAL_ATTENDEE_PAYMENT,
-      },
-      {
-        account: attendee,
-        destination: writeoff,
-        source: attendee,
-        type: MANUAL_ATTENDEE_CHARGE,
-      },
-      {
-        account: attendee,
-        destination: attendee,
-        source: writeoff,
-        type: MANUAL_ATTENDEE_WRITEOFF,
-      },
-      {
-        account: revenue,
-        destination: revenue,
-        source: world,
-        type: MANUAL_LISTING_INCOME,
-      },
-      {
-        account: revenue,
-        destination: world,
-        source: revenue,
-        type: MANUAL_LISTING_COST,
-      },
-      {
-        account: modifier,
-        destination: modifier,
-        source: writeoff,
-        type: MANUAL_MODIFIER_INCOME,
-      },
-      {
-        account: modifier,
-        destination: writeoff,
-        source: modifier,
-        type: MANUAL_MODIFIER_REDUCTION,
-      },
-    ];
+    const rows = await postEveryEntryType();
 
-    for (const [index, entry] of cases.entries()) {
-      await postManualLedgerEntry({
-        account: entry.account,
-        amount: 100 + index,
-        occurredAt: "2026-06-22T09:30:00.000Z",
-        postedBy: "1",
-        type: entry.type,
-      });
+    for (const entry of ENTRY_CASES) {
+      expect(rows.get(entry.type)?.amount).toBe(entry.amount);
+      expect(rows.get(entry.type)?.source).toEqual(entry.source);
+      expect(rows.get(entry.type)?.destination).toEqual(entry.destination);
     }
+  });
 
-    const rowsByKind = Object.fromEntries(
-      (await allTransfers()).map((transfer) => [transfer.kind, transfer]),
-    );
-    for (const [index, entry] of cases.entries()) {
-      expect(rowsByKind[entry.type]?.amount).toBe(100 + index);
-      expect(rowsByKind[entry.type]?.source).toEqual(entry.source);
-      expect(rowsByKind[entry.type]?.destination).toEqual(entry.destination);
+  test("shows an entry that gives money back as a reduction on the ledger", async () => {
+    const rows = await postEveryEntryType();
+
+    // humanAmount is the figure the operator reads on the row, so a writeoff,
+    // a cost, and an option reduction must all come back below zero.
+    for (const entry of ENTRY_CASES) {
+      const stored = rows.get(entry.type);
+      expect(stored).toBeDefined();
+      expect(humanAmount(stored!)).toBe(
+        GIVES_MONEY_BACK.has(entry.type) ? -entry.amount : entry.amount,
+      );
     }
   });
 
@@ -132,6 +172,22 @@ describe("db > accounting > manual ledger entries", () => {
     ];
     expect(stored!.eventGroup).toBe(await eventGroup(parts));
     expect(stored!.reference).toBe(await legReference([...parts, "transfer"]));
+  });
+
+  test("keeps the stored word for every entry type, in the order shown", () => {
+    // Each word is written into transfers.kind and finds that row again, so a
+    // changed word orphans every entry a site already stored. The literals are
+    // the point: the constants would move with the change and hide it. The
+    // order is what the owner sees in the add-entry menu.
+    expect(ManualLedgerEntryTypeSchema.options).toEqual([
+      "manual_attendee_payment",
+      "manual_attendee_charge",
+      "manual_attendee_writeoff",
+      "manual_listing_income",
+      "manual_listing_cost",
+      "manual_modifier_income",
+      "manual_modifier_reduction",
+    ]);
   });
 
   test("every entry type's user-facing keys have translations", () => {

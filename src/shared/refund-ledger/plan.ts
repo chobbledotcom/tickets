@@ -1,16 +1,16 @@
 /** Decide which ledger groups an observed provider refund may reverse. */
 
-/* jscpd:ignore-start -- imports */
-import { requiredMapValue } from "#fp";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   bookingEventGroup,
   mapRefund,
   refundEventGroup,
-} from "#shared/accounting/mappers.ts";
-import { transfersByAccounts } from "#shared/accounting/queries.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+} from "#accounting/mappers.ts";
+import { transfersByAccounts } from "#accounting/queries.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
+/* jscpd:ignore-start -- imports */
+import { requiredMapValue } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";

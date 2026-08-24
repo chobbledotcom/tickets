@@ -11,15 +11,14 @@
  * Layout backstop above the page content.
  */
 
+import type { ActivityLogEntry } from "#db/activity-log.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
-import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
 import { getFlashFormId } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activity-log.tsx";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
@@ -29,6 +28,7 @@ import {
   PageBlock,
   PageRegions,
 } from "#templates/components/page-structure.tsx";
+import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /** One row of a read-only summary table. `href` renders the value as a link

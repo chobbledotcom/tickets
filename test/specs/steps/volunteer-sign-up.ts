@@ -2,8 +2,8 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { questionsTable } from "#db/questions/tables.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { questionsTable } from "#shared/db/questions/tables.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,

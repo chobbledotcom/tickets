@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { RowSettlement } from "#db/payment-claim.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import { runRefundReadiness } from "#routes/admin/refunds/readiness-run.ts";
-import type { RowSettlement } from "#shared/db/payment-claim.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { taggedRefundReference } from "#test-utils/payment-state.ts";
 

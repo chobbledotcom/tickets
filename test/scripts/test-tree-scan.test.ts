@@ -13,7 +13,11 @@ const writeProject = async (
   await Deno.writeTextFile(
     configPath,
     JSON.stringify({
-      imports: { "#shared/": "./src/shared/", "#test/": `${root}/test/` },
+      imports: {
+        "#db/": "./src/shared/db/",
+        "#shared/": "./src/shared/",
+        "#test/": `${root}/test/`,
+      },
     }),
   );
   for (const [path, text] of Object.entries(files)) {
@@ -28,7 +32,7 @@ describe("scanTestTree", () => {
   test("reports the sources a test reaches through its helper", async () => {
     using temp = tempDir();
     const { configPath, testRoot } = await writeProject(temp.path, {
-      "test/helpers.ts": `import { db } from "#shared/db/client.ts";`,
+      "test/helpers.ts": `import { db } from "#db/client.ts";`,
       "test/shared/a.test.ts": [
         `import { seed } from "../helpers.ts";`,
         `import { a } from "#shared/a.ts";`,
@@ -56,7 +60,7 @@ describe("scanTestTree", () => {
   test("reports no subjects for a path the scan did not select", async () => {
     using temp = tempDir();
     const { configPath, testRoot } = await writeProject(temp.path, {
-      "test/helpers.ts": `import { db } from "#shared/db/client.ts";`,
+      "test/helpers.ts": `import { db } from "#db/client.ts";`,
       "test/shared/a.test.ts": `import { a } from "#shared/a.ts";`,
     });
     const scan = await scanTestTree({

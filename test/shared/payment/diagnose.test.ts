@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import { refundOutcomeOf } from "#payment/diagnose.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import {
   chargeMoneyWith,
   gbp,

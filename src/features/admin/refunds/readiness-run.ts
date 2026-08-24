@@ -1,6 +1,6 @@
+import type { LoadedRefundAttendee } from "#db/payment-claim/take.ts";
 import { t } from "#i18n";
-import type { LoadedRefundAttendee } from "#shared/db/payment-claim/take.ts";
-import { PAYMENT_REVIEW_RETIREMENT } from "#shared/payment/review.ts";
+import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import {
@@ -11,8 +11,7 @@ import {
   type RefundReadinessBudget,
   refundReadinessFits,
 } from "./budget.ts";
-import type { RefundCandidate } from "./candidates.ts";
-import { loadedRefundAttendee } from "./candidates.ts";
+import { loadedRefundAttendee, type RefundCandidate } from "./candidates.ts";
 import {
   type HeldRefundWork,
   type RowClaim,

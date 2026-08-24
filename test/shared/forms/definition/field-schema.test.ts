@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { ensureMessageGroups } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderField } from "#shared/forms/rendering.tsx";
-import { ensureMessageGroups } from "#shared/i18n.ts";
 
 const singleActionSelect = (invalidMessage?: string) =>
   defineForm({

@@ -9,15 +9,19 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
-import type { Listing } from "#shared/types.ts";
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { adminBrowser, openAdminPage } from "#test/specs/support/browser.ts";
 import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Listing } from "#types";
 // jscpd:ignore-end
 
 /** Keep a listing under the name the story calls it, so later steps can find
@@ -45,6 +49,22 @@ export const rememberListingById = async (
 export const listingIdNamed = (world: TicketsWorld, name: string): number =>
   listingNamed(world, name).id;
 
+/** Put something on sale and remember it by the story's name for it, curried
+ * on how the thing is made — an ordinary listing, or one booked by the day.
+ * Every story that sells something goes through one of the two, so the
+ * make-and-remember pair lives in one place. */
+const putsUpForSale =
+  (make: (options: TestListingOverrides) => Promise<Listing>) =>
+  async (
+    world: TicketsWorld,
+    name: string,
+    options: TestListingOverrides = {},
+  ): Promise<Listing> =>
+    rememberListing(world, name, await make({ ...options, name }));
+
+export const putsOnSale = putsUpForSale(createTestListing);
+export const putsOnSaleByTheDay = putsUpForSale(createDailyTestListing);
+
 /** Something the site sells at a price, remembered under the name the story
  * calls it. The listing a money story starts from, so its price and its id are
  * in one place rather than set up slightly differently each time. */
@@ -54,9 +74,8 @@ export const sellSomethingAt = async (
   price: string,
   options: { canPayMore?: boolean; keepThankYouPage?: boolean } = {},
 ): Promise<Listing> => {
-  const listing = await createTestListing({
+  const listing = await putsOnSale(world, name, {
     maxAttendees: 50,
-    name,
     // A listing that lets a customer pay more than it asks needs a ceiling to
     // pay up to, or there is nothing to be generous within.
     ...(options.canPayMore
@@ -67,7 +86,6 @@ export const sellSomethingAt = async (
     ...(options.keepThankYouPage ? { thankYouUrl: "" } : {}),
     unitPrice: minorUnits(price),
   });
-  rememberListing(world, name, listing);
   world.listingId = listing.id;
   return listing;
 };

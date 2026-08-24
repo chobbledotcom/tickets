@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { imagesTable } from "#db/images.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
-import { imagesTable } from "#shared/db/images.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";

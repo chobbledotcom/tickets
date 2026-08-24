@@ -1,6 +1,8 @@
 /** The owner-only tabbed page for one built site. Expensive provider and
  * database checks belong to their own tabs, so ordinary edits do not run them. */
 
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
 /* jscpd:ignore-start */
 import {
   defineEditEntityPage,
@@ -8,9 +10,7 @@ import {
   panelTab,
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
@@ -24,8 +24,6 @@ import {
 import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 
 /* jscpd:ignore-end */
-
-const basePath = (id: number): string => `/admin/built-sites/${id}`;
 
 const renewalTab = panelTab<BuiltSite>(
   "renewal",
@@ -61,15 +59,14 @@ const maintenanceTab = panelTab<BuiltSite>(
 );
 
 export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
-  basePath,
   deleteLabelKey: "built_sites.delete_this_site",
+  destination: "builtSite",
   edit: (site, _ctx, rejected) =>
     Promise.resolve(
       <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,
     ),
   extraTabs: [renewalTab, maintenanceTab, secretsTab, updateTab],
-  guard: requireOwnerOr,
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
   load: (id) => builtSitesCrudTable.read.one({ id }),
-  navActive: "/admin/built-sites",
+  navActive: adminPattern("builtSites"),
 });

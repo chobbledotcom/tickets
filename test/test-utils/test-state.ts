@@ -1,4 +1,4 @@
-import { loadMigrations } from "#shared/db/migrations/context.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
 /**
  * Run-scoped test state: the golden schema database plus the completed
  * site-setup rows (settings, users, admin session) that DB tests start from.
@@ -23,18 +23,18 @@ import { loadMigrations } from "#shared/db/migrations/context.ts";
 
 import { join } from "node:path";
 import * as v from "valibot";
-import { lazyRef, once } from "#fp";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   attendeeStatuses,
   ensureDefaultAttendeeStatus,
-} from "#shared/db/attendee-statuses.ts";
-import { getDb, insert, setDb } from "#shared/db/client.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
-import { SCHEMA_MIGRATIONS_TABLE } from "#shared/db/migrations/schema/version.ts";
-import { LATEST_UPDATE, SCHEMA_HASH } from "#shared/db/migrations.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+} from "#db/attendee-statuses.ts";
+import { getDb, insert, setDb } from "#db/client.ts";
+import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
+import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
+import { LATEST_UPDATE, SCHEMA_HASH } from "#db/migrations.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { lazyRef, once } from "#fp";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
@@ -247,16 +247,14 @@ const createDirectAdminSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
-  const { generateSecureToken } = await import("#shared/crypto/utils.ts");
+  const { generateSecureToken } = await import("#crypto/utils.ts");
   const { deriveKEKFromPassword, unwrapKey, wrapKeyWithToken } = await import(
-    "#shared/crypto/keys.ts"
+    "#crypto/keys.ts"
   );
-  const { createSession: createDbSession } = await import(
-    "#shared/db/sessions.ts"
-  );
+  const { createSession: createDbSession } = await import("#db/sessions.ts");
   const { buildSessionCookie } = await import("#shared/cookies.ts");
   const { getUserByUsername, verifyUserPassword } = await import(
-    "#shared/db/users.ts"
+    "#db/users.ts"
   );
   const { nowMs } = await import("#shared/now.ts");
 

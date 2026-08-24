@@ -1,5 +1,67 @@
 # TODO — remaining follow-ups
 
+## Name the culprit per date in a multi-date refusal (from PR #2127)
+
+`refusedOrderUnfitListingIds` (`src/shared/db/attendees/capacity/checks.ts`)
+asks each line alone when a refused creation's lines sit on more than one date.
+Two same-date lines that only fail together — a shared group limit — then name
+no listing, and the operator sees the generic capacity message. That message is
+the same one the site showed before the diagnosis existed, so nothing regressed.
+Only an operator's hand-built creation can carry multi-date lines; the public
+checkout books every dated line on one day.
+
+To improve: group the lines by date, run the prefix binary search within each
+date, and keep the write order when naming the first failed line. Codex and
+CodeRabbit both proposed this on PR #2127; it was declined there as
+operator-only polish outside the fix's scope.
+
+Related ceiling, same code: `buildBatchCapacitySql` and the diagnosis probes
+emit one clause per listing-day, so a same-date cart of roughly 12 daily lines
+at the 90-day maximum can pass SQLite's expression-depth limit (1,000). The paid
+checkout preflight (`checkBatchAvailabilityImpl`) hits it first, at checkout
+time. To lift it, aggregate the per-day counting inside the SQL (one clause per
+listing with a grouped per-day subquery) instead of one clause per day.
+
+Related divergence, same code: the guarded insert evaluates its capacity and
+active conditions for a zero-quantity line, but the read preflight and the
+diagnosis drop zero-total buckets — a pinned contract ("treats a zero-quantity
+item as a no-op that fits" in
+`test/shared/db/attendees/capacity/checks/batch.test.ts`). A zero line on an
+inactive or over-cap listing can therefore abort a write the preflight passed,
+and the refusal then names no listing (the pre-existing first-item fallback
+message). Aligning the three needs a behavior-contract decision on what a zero
+line promises, so it belongs to the same follow-up as the per-date diagnosis
+above.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2127#discussion_r3842274321>
+
+---
+
+## Give SumUp recovery anomalies a safe owner repair (from PR #2123)
+
+`/admin/schema` reports an invalid `sumup_checkouts` row, but it offers no safe
+repair action. Codex noted that an owner must use direct database access to fix
+the row. This is a real product gap under the malleable-software rule in
+`AGENTS.md`.
+
+A repair cannot infer the correct money state from the invalid state word. A row
+with a `sumup_id` can return to provider checks, but this path must preserve
+idempotent booking and refund outcomes. A row without a `sumup_id` has no
+provider resource to read. A reset to `staged` can make that row eligible for
+pruning, so it can destroy the only retained evidence.
+
+Start with a behavior contract for an owner-only detail page keyed by
+`reference_index`. Show `recovery_state`, `sumup_id`, `next_check_at`, and the
+safe provider evidence. Define the required owner choice for a row without a
+checkout ID. The write must use the expected current values as a revision fence.
+It must never mark money `unpaid`, `finished`, or `owed` without evidence.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2123#discussion_r3839410505>
+
+---
+
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
 when the public site is off). It builds the menu with `publicNavProps(null)`
 (`renderCtx` in `src/features/public/ticket-submit.ts`), which takes
@@ -43,30 +105,16 @@ rather than the locking this PR unified. Starting point: `signalRun` and
 
 ---
 
-## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
+## Numbered SQL parameters - convert repeated variable lists (from PR #2040)
 
-PR #2040 rewrote the two rate-limiter upserts
-(`src/shared/db/login-attempts.ts`, `src/shared/db/token-attempts.ts`) to use
-SQLite's numbered parameters (`?1`..`?6`), with each number given a named
-fragment constant (`NOW`, `TOKEN_LIMIT`, …) that the SQL template interpolates.
-That turned a 25-slot repeated positional args array into one value per meaning.
-Follow-ups:
+`src/shared/db/numbered-statement.ts` gives a complete statement one numbered
+parameter namespace. Its binder can allocate a variable list once and reuse the
+tokens.
 
-- **Sweep other multi-use statements.** Any statement that binds the same value
-  more than once is a candidate — look for args arrays that repeat a variable
-  (e.g. correlated subqueries in `src/shared/db/prune.ts` whose cutoff is bound
-  twice, and the bigger hand-built statements under `src/shared/db/`). Plain
-  single-use `?` statements are fine as they are.
-- **Consider a small define-style helper.** Something like
-  `defineStatement({ ip: v.string(), now: v.number() }, (p) => sql\`... ${p.ip}
-  ...\`)`could hand back`{ sql, bind({ip, now})
-  }`so the parameter order
-  lives in one place and callers pass an object instead of an ordered array —
-  the same schema-first shape as`defineTable`/`defineForm`.
-  Only worth it if the sweep finds enough call sites; two files may not justify
-  the machinery.
-- Starting point: the fragment-constant pattern at the top of
-  `src/shared/db/token-attempts.ts`.
+Some statements still bind the same variable-length ID list more than once.
+Initial sites include `selfLinkTableSides`, `guardEdgeWriteTx`, the run-sheet
+reads, and `accountsScope`. Convert them to the deferred `NumberedSql` form
+before their outer writer makes the final statement.
 
 ---
 
@@ -597,28 +645,6 @@ a live legacy engine, read-through, dual write, or fallback authority.
 The seven accepted safety rules are recorded as acceptance constraints in
 [`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
-- **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
-  Review of PR 1 correctly noted that the settings assembly is already over the
-  preferred 400-line size and now also owns provider activation, recovery,
-  credential-state preservation, and cache synchronization. The clean starting
-  point is `src/shared/db/settings/payment-provider.ts`, moving the provider
-  getters and `settings.update` methods together with mirror tests under
-  `test/shared/db/settings/payment-provider/`. This is deferred because that
-  extraction would take PR 1 beyond its strict 800-line source-change limit.
-
-- **Split provider credential routes out of
-  `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
-  `ProviderCredentialsConfig`, `persistProviderCredentials`, and
-  `defineProviderCredentialsRoute`. Move that block to a focused admin settings
-  module and move its mirror tests from
-  `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
-  This is deferred because doing the move in PR 1 would break the same strict
-  800-line source-change limit.
-
-- **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
-  callback and webhook processing paths into focused modules. This predates PR 1
-  and is deferred because the split would exceed its strict source-change limit.
-
 ## Payment aggregate — what the closed rewrite taught us
 
 _Origin: the payment-aggregate rewrite (PRs #1962 and #1973, closed without
@@ -887,43 +913,28 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
 
 ---
 
-## The shared "reasons" shape for validation failures — shipped
+## Surfaces the shared "reasons" shape now makes cheap
 
-_Origin: reviewing the package-restriction work (PR #1770); built once the
-collect-all need (the multi-item "no shared date" diagnostic) arrived._
+_Origin: the package-restriction work (PR #1770), which built the combinator in
+`src/shared/reasons.ts` and converged the parent/child edge rules
+(`src/shared/listing-parents-rules.ts`), the package member rules
+(`src/shared/package-membership.ts`), and the group homogeneity rules
+(`groupListingTypeError` in `src/shared/db/groups.ts`) onto it._
 
-What shipped:
+Each of these is one rule row plus one surface (see the restrictions audit
+above):
 
-- **The combinator.** `src/shared/reasons.ts`: a `Reason` answers with the
-  message to show or null, and one rule list serves both runners — `firstReason`
-  (fail-fast; list order is precedence) and `allReasons` (name every problem at
-  once).
-- **The converged tables.** The parent/child edge rules
-  (`src/shared/listing-parents-rules.ts`), the package member rules
-  (`src/shared/package-membership.ts` — messages render inside the rules, so the
-  separate block-code layer is gone), and the group homogeneity rules
-  (`groupListingTypeError` in `src/shared/db/groups.ts`). `CAPACITY_RULES`
-  deliberately did NOT converge: it classifies which checks apply, it does not
-  refuse with a message — a genuinely different shape.
-- **The `kind` tag, as a reporter.** `reportInvariant`
-  (`src/shared/invariant-errors.ts`) renders an operator-facing flash whose
-  message means a system promise broke AND reports it through `logError`'s
-  existing fan-out (console, ntfy, activity log, Sentry) under
-  `E_INVARIANT_REPORTED`. `error.refund_not_recorded` is the first tagged key;
-  tag a new key only when the flash means "repair the data by hand".
-- **The first collect-all consumer.** `src/shared/booking/cart-conflicts.ts` +
-  the ticket page name the clashing items when a multi-item page has no shared
-  date or booking length (was: a bare "No dates are currently available").
+- Grey out incompatible listings in the add-listings picker.
+- Disable the two either/or control pairs.
+- Surface the child-duration clash at save time.
+- Warn the operator about the chooser own-cap.
 
-Still correct, unchanged: i18n keys ARE the error codes (no registry needed);
-fail-fast stays the default for forms — `allReasons` is only for surfaces that
-must name every problem at once; ordinary validation failures stay out of
-Sentry.
-
-Follow-ups this mechanism now makes cheap (each is a rule row + a surface, see
-the restrictions audit above): greying out incompatible listings in the add-
-listings picker, the two either/or disabled-control pairs, surfacing the
-child-duration clash at save time, and the chooser own-cap warning.
+Three decisions bound that work. The i18n keys are the error codes, so no
+registry is needed. Fail-fast stays the default for forms, and `allReasons` is
+only for a surface that must name every problem at once. An ordinary validation
+failure stays out of Sentry: `reportInvariant`
+(`src/shared/invariant-errors.ts`) is for a broken system promise, and a new key
+gets its `kind` tag only when the flash means "repair the data by hand".
 
 ## Deferred Codex suggestions from PR #1975 (API documentation examples)
 
@@ -1383,6 +1394,30 @@ non-equivalent mutant on the unchanged `folded-booking.ts`. Five equivalents
 `scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors
 remain.
 
+## Split `test/shared/db/settings.test.ts` by what each part covers
+
+_Noticed while moving the payment provider settings out of
+`src/shared/db/settings.ts` (PR #2114), which took the file from 747 lines to
+651._
+
+The file is still one grab-bag over four modules, and well past the 400-line
+target. Each `describe` block already names its own part of the split:
+
+- `basic CRUD`, `settings version probe`, and `writeRawBatch` cover
+  `settings/raw-writes.ts` and `settings/cache.ts`, which have their own mirror
+  files at `test/shared/db/settings/raw-writes.test.ts` and no cache file yet.
+- `buildSnapshot via loadKeys` and `loadKeys (on-demand)` cover
+  `settings/load.ts`, whose mirror file already exists.
+- `setup` covers `settings/setup.ts`.
+- `timezone cache` covers the country-derived fields.
+- The four `superuserChoice` blocks and `orphan-purge settings` cover plain
+  accessors and can share one file.
+
+Move each group to its mirror path under `test/shared/db/settings/`. The
+payment-provider move in #2114 is the worked example: the mutation runner picks
+direct tests by mirror path alone, so a group that sits in the wrong file does
+not run for the source it covers.
+
 ## Split `render-selector.test.ts` by what each case actually checks
 
 _Origin: Codex review on PR #1926 (test reorganisation)._
@@ -1444,19 +1479,6 @@ can be split into a folder of the same names and each pair stays mirrored (which
 is what the mutation gate wants). Out of scope for #1944, whose job was closing
 the mutation gaps rather than moving the file around; the file scores 100% as it
 stands, so the split can be a pure move.
-
----
-
-## Two suites now cover the attendees list — done
-
-_Origin: Codex review of PR #1993 (direct tests for the four testless modules)._
-
-Consolidated. The three suites (the mirrored direct suite plus
-`test/integration/server/attendees-list.test.ts` and
-`test/integration/server/attendees-csv.test.ts`) merged into one mirrored suite
-at `test/features/admin/attendees-list/` (`page`, `filters`, `rows`, `csv`),
-keeping the stronger variant of each duplicated rule and every unique case. The
-two integration files were deleted.
 
 ---
 
@@ -1640,14 +1662,18 @@ It has since been seen more, in `test/scripts/stripe-mock/lifecycle.test.ts`
 ("stops trying once the mock has been started as many times as asked", on CI for
 PR #1968, and "gives a mock time to shut itself down before killing it", on CI
 for PR #2032 — the latter now hardened: the fixture notes when it wins its port,
-and the test retries on a fresh port when that note is missing), with a second
-symptom worth knowing about. That test counts how many times the fake mock was
-started and expects one start per try asked for. A try whose freshly picked port
-already has something listening on it is abandoned _before_ the mock is started,
-so the count comes up short and the test fails — even though the starter did try
-the number of times it was asked to. Handing out ports so no two tests can
-receive the same one would fix this too; short of that, the count is the wrong
-thing to measure.
+and the test retries on a fresh port when that note is missing), and in
+`test/scripts/stripe-mock/ports.test.ts` ("keeps a reserved port unavailable
+until release", on CI for PR #2114 — the test released its reservation and then
+re-bound the same number, which a suite running beside it can take in that
+window, so the re-bind now goes through `retryWhilePortTaken`). There is a
+second symptom worth knowing about. That test counts how many times the fake
+mock was started and expects one start per try asked for. A try whose freshly
+picked port already has something listening on it is abandoned _before_ the mock
+is started, so the count comes up short and the test fails — even though the
+starter did try the number of times it was asked to. Handing out ports so no two
+tests can receive the same one would fix this too; short of that, the count is
+the wrong thing to measure.
 
 ## The Turso upload suite sometimes dies with no diagnostic at all
 
@@ -1704,33 +1730,6 @@ logging one, but pointing is not proving — do not "fix" this one from the shap
 of the test.
 
 ---
-
-## Four feature modules had no test at their mirrored path — now they do
-
-_Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start. Closed by the direct-test pass that followed._
-
-All four now have a direct test at their mirrored path, so the gate no longer
-refuses to start on a branch that touches them:
-
-- `src/features/admin/attendee-page.ts` →
-  `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
-- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list/`
-  (100%)
-- `src/features/admin/listing-page-data.ts` →
-  `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
-- `src/features/api/payment-processing/store-refund.ts` →
-  `test/features/api/payment-processing/store-refund.test.ts` (100%)
-
-Every one of them now catches every mutation the gate demands, so a branch
-touching any of them can pass without first writing the tests that should
-already have existed.
-
-`src/features/admin/attendee-notes.ts` was in the same state and was fixed
-earlier: its route suite drives real pages through the session helpers, so it
-moved from `test/integration/admin/` to `test/features/admin/`, which is where
-that kind of suite belongs (see "Let the misplaced-test list see past request
-helpers" above).
 
 ## Two people setting a site up at the same moment can both succeed
 
@@ -2501,84 +2500,41 @@ scope so intermediate applies never touch tables the migration does not declare.
 The empty-rows guard in `clearDormantPaymentTables` is the model for the drop;
 keep the loud refusal on non-empty tables.
 
-## A completed Square webhook whose order reads as missing is acked, not retried
+## Split the three oversized e2e-payments files
 
-_Origin: Codex review on PR #2065 (thread on `src/shared/square-provider.ts`)._
+_Origin: a self-review of PR #2116 against AGENTS.md._
 
-In `resolveWebhookSession`, a completed payment webhook calls
-`retrieveSession(orderId, paymentId)`. `readSessionOrder` maps a `missing` order
-read to `null` (a debug log), `resolveWebhookSession` turns `null` into
-`"skip"`, and the webhook handler acknowledges 200 — so Square stops
-redelivering. The codebase already treats the adjacent lag windows as retryable:
-malformed metadata for a completed payment throws
-(`UNUSABLE_METADATA.
-retryCompletedWebhook`), and a payment that does not read
-back COMPLETED throws (`readOrderPayment`). A missing order is the same
-eventual-consistency window — the webhook can genuinely arrive before the order
-is readable — and should fail the boundary the same way instead of skipping, so
-Square redelivers and the buyer does not stay charged with no booking and no
-refund.
+Three harness files are above the ~400-line guideline, and two of them crossed
+it in that pull request:
 
-Starting point: `readSessionOrder` in `src/shared/square-provider.ts` — a
-`missing` read under a `paidPaymentId` should throw like the malformed case.
+| File                                         | Lines |
+| -------------------------------------------- | ----- |
+| `e2e-payments/src/cucumber/steps/booking.ts` | 484   |
+| `e2e-payments/src/browser.ts`                | 430   |
+| `e2e-payments/src/flow.ts`                   | 404   |
 
-## Harden the live payment harness so green means what it claims
+The splits are already visible in the code. `browser.ts` carries the
+click-witness helpers (`armClickWitness`, `armWitnessedAttempt`, and the
+`Witnessed` shape) above `launchAppBrowser`, and they depend on nothing else in
+the file, so they move to their own module whole. `booking.ts` carries the
+webhook-evidence block (`WEBHOOK_DID`, `WEBHOOK_HELD`, `callbackLine`,
+`webhookEvidenceThen`), which is one concept and reads as one. `flow.ts` is four
+lines over, so it needs no split of its own once the ledger reader has somewhere
+better to live.
 
-_Origin: Codex review on PR #2065 (a dozen threads on `e2e-payments/`), all
-verified against the code and none blocking the merge — the nightly run passes,
-but each item is a way it could pass while proving less than its steps claim._
+Do this when the harness is next open for other work, so the split lands with a
+real run rather than on its own.
 
-- **Partial-startup leak** (`cucumber/support/hooks.ts`): the `Before` hook
-  acquires server → tunnel → browser → sessions with no unwind; a rejection
-  after the first acquire leaks the app-server child into later scenarios.
-  Attach each resource as it is acquired or unwind in `finally`.
-- **No failure notification before the summary** (`main.ts`): the terminal
-  `run().catch` reports but never calls `notifyFailure`, so missing credentials
-  and other pre-summary failures ping nothing.
-- **Ambiguous click replay** (`browser.ts` `actOnControl`): when `ordinary()`
-  dispatched a submission but its navigation wait failed, the still-interactable
-  control is submitted again through the DOM fallback — a second POST on live
-  refund forms. Only fall back for failures proven to predate dispatch.
-- **Chromium surviving teardown** (`browser.ts` `stop`): when both close paths
-  fail, the hook logs and resolves; the leaked browser keeps consuming runner
-  resources. Reject or kill the process.
-- **Provider fetches without a bound** (`providers/shared.ts`): the harness's
-  own fetches carry no abort signal (the production transports now share
-  `PROVIDER_TIMEOUT_MS`); a hung sandbox read outlives its hook.
-- **Malformed Stripe list answers** (`providers/stripe.ts`): both the
-  endpoint-list and refund-list reads default a missing `data` field to `[]`, so
-  a malformed 2xx can silently pass as "nothing there". Validate the documented
-  fields at the boundary.
-- **Partial final refund passes** (`cucumber/steps/refund.ts`): the final
-  non-growth check only rejects amounts GREATER than the capture; a completed
-  400-of-2500 observation after the first check passes. Require exactness for
-  every completed final observation.
-- **Broad refresh assertion** (`cucumber/steps/refund.ts`): the second,
-  observation-only refresh matches `/payment status/i`, which the rendered
-  button satisfies — an erroring refresh still passes. Assert the specific
-  outcome (the exact-amount first refresh is the model).
-- **Protection not rechecked after refresh** (`cucumber/steps/refund.ts`): the
-  Refund/Delete-unavailable assertions run before the final refresh; a refresh
-  that re-enabled them would pass. Re-read the actions after it.
-- **Vacuous webhook coverage** (`cucumber/steps/booking.ts`):
-  `holdFirstAppReturn` captures the return URL but holds nothing (interception
-  proved unreliable), so the browser return can book before "Stripe's signed
-  webhook confirms the payment" — the step then only polls the roster and passes
-  with the webhook broken. Assert independent webhook evidence (or rename the
-  claim).
-- **memberB never verified** (`order-flow.ts`): `verifyComplexOrder` asserts
-  member A's two paths and the plain listing; member B's booking line and its £6
-  kit income are never checked in either the free or paid scenario.
-- **Configured artifact directory ignored** (`main.ts`): cleanup, reports, and
-  the step summary use the hard-coded `e2e-payments/artifacts` while scenarios
-  write under `E2E_ARTIFACTS_DIR`; derive the root from config.
+## Give the live payment harness direct tests through injectable seams
 
-The coverage-exclusion thread from the same round (`scripts/run-tests.ts`) is
-the same theme: the harness modules are excluded wholesale with the reasoning
-recorded beside the list, and the pure helpers stay covered. The durable fix is
-the one Codex names — push the env/config parsing behind injectable seams so
-those branches get direct in-process tests — which is worth doing when the
-harness is next open.
+_Origin: the coverage-exclusion thread of the Codex review on PR #2065._
+
+The harness modules under `e2e-payments/src/` are excluded from coverage
+wholesale in `scripts/run-tests.ts`, with the reasoning recorded beside the
+list; only the pure helpers stay covered. The durable fix is the one Codex names
+— push the env/config parsing behind injectable seams so those branches get
+direct in-process tests. The twelve behaviour findings from the same review
+round are fixed; this remaining item is the test-architecture half.
 
 ## Deleting your own contact record also deletes your promotions opt-out
 
@@ -2639,3 +2595,180 @@ state nothing can currently produce. If a real schema change ever rebuilds
 `processed_payments` anyway, add this check in the same rebuild: the DDL belongs
 on the last column via the `alsoAbout` pattern in
 `src/shared/db/migrations/schema/payments/columns.ts`.
+
+---
+
+## One admin form POST helper, not three
+
+_Origin: widening `adminFormPost` to accept repeated fields (PR #2115)._
+
+`adminFormPost` in `test/test-utils/session.ts` now takes the same
+`TestFormValues` its underlying `mockFormRequest` always accepted, so it can
+post a repeated field such as `user_ids`. That makes two local helpers close to
+redundant: `adminPost` in `test/features/admin/groups/helpers.ts` (13 call
+sites) and the `adminPost` in `test/test-utils/servicing.ts`. Each signs in,
+adds the CSRF token, and posts a form.
+
+The two differ from the shared helper in small ways. `adminFormPost` also loads
+the settings keys and sends `settings_version`, and it returns the cookie and
+the token beside the response, where the local helpers return the raw
+`Response`. Fold the call sites onto `adminFormPost` and delete the local
+helpers, rather than leaving one operation with three names. Do it in its own
+pull request, because a form that starts sending `settings_version` can change
+what a version-guarded save does.
+
+Starting points: `test/test-utils/session.ts:402`,
+`test/features/admin/groups/helpers.ts:19`, `test/test-utils/servicing.ts`.
+
+---
+
+## The roster CSV ignores the order you chose
+
+_Origin: the consolidation review of recent provider and admin work._
+
+The roster page and its CSV export read the same address bar through
+`readAttendeeListState`, but only the page acts on the `sort` it finds.
+`listingRosterView` in `src/ui/templates/admin/listings/roster.tsx:52` orders
+the rows with `inRegistrationOrder(sort)`, and hands the table `presorted: true`
+so the table keeps that order. The export goes through
+`filteredAttendeesHandler` in `src/features/admin/listings-view.ts:104`, whose
+`FilteredAttendees` context carries `checkin`, `dateFilter`, and
+`filteredByDate` and drops `sort`. Neither `handleAdminListingExport` nor
+`generateAttendeesCsv` orders the rows again.
+
+Two effects follow. A staff member who picks "oldest first" and then downloads
+the CSV gets the raw database order. A staff member who picks no order at all
+also gets the raw database order, because the table applies its own
+date-and-name order in the browser and the CSV never does.
+
+Fix: put `sort` on `FilteredAttendees`, apply the same `inRegistrationOrder`
+step the page applies, and apply the table's default date-and-name order when
+`sort` is null, so the two surfaces cannot disagree. The comment above
+`filteredAttendeesHandler` already promises that "the CSV export mirrors the
+on-screen table", so the comment is correct and the code is not. Ship a
+regression test that exports with a chosen order and pins the row order.
+
+---
+
+## The migration runner asks one scope and reads another
+
+_Origin: the consolidation review._
+
+`runPendingMigrations` in `src/shared/db/migrations/runner.ts:196` decides
+whether to cap the run with `isDatabaseRoundTripLimited()`, which reports
+whether the **query-log** scope is open (`queryLogScope.current() !== undefined`
+in `src/shared/db/query-log.ts:77`). It then computes the cap from
+`getSubrequestRemaining()`, which reads the **budget** scope in
+`src/shared/subrequest-budget.ts:40`. The two are separate `createScope` stores.
+
+Today the one production path enters both together, in the scope list in
+`src/features/request-scopes.ts`, so the answer happens to be right. Nothing
+holds them together. A caller inside the query-log scope but outside the budget
+scope reads the `BUNNY_SUBREQUEST_LIMIT` defaults and caps against a budget it
+does not have. A caller inside the budget scope alone applies no cap at all.
+
+Fix: ask the budget scope directly. Export a "is there a subrequest budget"
+reader from `src/shared/subrequest-budget.ts` beside `getSubrequestRemaining`,
+and let the migration runner ask that one counter. Pin it with a direct test
+that opens the budget scope without the query-log scope.
+
+---
+
+## One provider credentials form
+
+_Origin: the consolidation review._
+
+Square's settings form skips the shared block and re-spells two element ids that
+the shared footer already generates, so the three provider forms drift. Fold
+them onto one `ProviderCredentialsForm` driven by the provider registry in
+`src/shared/payment-providers.ts`. About 50 lines.
+
+---
+
+## Fold B, one source of route facts
+
+_Origin: the consolidation review._
+
+The mechanism exists and is proven. `formGuardAt` and `pageGuardAt` in
+`src/features/admin/crud-handlers.ts:108` read their roles from
+`adminDestinationAt` in `src/shared/admin-surface.ts:62`, so the roles are
+written once in the admin surface declaration.
+
+- **Declare the 98 undeclared write routes.** Every GET route declares who may
+  reach it, and a test enforces the declaration. 98 write routes take their
+  roles from the handler alone, and nothing compares the two. This is the one
+  item on the list that adds lines, about 110 of them, because it buys the role
+  matrix a way to check 98 permission gates it cannot see today. Do it first in
+  this fold. It unlocks the two items below.
+- **Gates derived from the route.** Once the writes are declared, `AuthOption`
+  and the handler wiring in `src/routes/admin/actions.ts` can read the route
+  instead of restating it. About 50 lines. Needs the item above.
+- **A bind-time route check.** Make `defineAdminRoutes` refuse at bind time when
+  a route has no declaration, so a new route cannot arrive undeclared. About 15
+  lines added. Needs the first item above.
+- **One audience predicate.** "May this viewer follow this link" is written
+  three ways. Fold them into one predicate. About 8 lines.
+- **Entity-page actions take a declared destination.** An `ActionDef` builds its
+  own `href`, so a route whose audience is narrowed keeps a link visible to
+  roles that cannot follow it. That breaks the "never render a dead or forbidden
+  link" rule in `AGENTS.md`. Replace `ActionDef.href` with
+  `destination: AdminDestinationId` and derive both the address and the
+  visibility from the declaration. About 30 lines. This one does not need the
+  98-route work.
+
+---
+
+## A listing price row is claimed, never checked
+
+_Origin: the consolidation review. PR #2128 closed the rest of this entry._
+
+`readSourceRows` in `src/shared/db/listing-prices.ts:349` ends with
+`rows.rows as unknown as ListingPriceSourceRow[]`. The cast claims a shape the
+code never checks, so a column renamed in the SELECT above it reaches its two
+callers as `undefined` rather than failing at the read. Parse the rows instead,
+the way the boundary schemas elsewhere do.
+
+The other three parts of this entry are done. `BatchExecutor` is exported and
+the ledger's `RowReader` twin is gone, and `queryAllPrimary` and
+`queryOnePrimary` now give the primary read its plural, all in PR #2128. The
+eleven-name co-read the entry described cannot be found in the current source,
+so it went with them.
+
+---
+
+## The ledger's unreachable half, a decision for the repository owner
+
+_Origin: the consolidation review. This entry records a decision, not a job to
+pick up unread._
+
+The ledger carries reconcilers, reversal builders, and four projections with no
+production caller. They stay alive through an exemption in the usage check. The
+house rule in `AGENTS.md` says to delete dead code and recover it from history.
+The exemption's own comment says the ledger is wired in a slice at a time, and
+asks the reader to wait.
+
+About 500 lines sit on that disagreement. The two rules point opposite ways, so
+the call belongs to the repository owner and not to a reviewer. Starting point:
+the `LIBRARY_PATHS` exemption in `test/integration/code-quality.test.ts`.
+
+---
+
+## `src/shared/sumup/money.ts` has no test at its mirror path
+
+_Origin: the provider boundary work. The original entry named five more modules.
+Four of them (`sumup/transport.ts`, `sumup/wire.ts`,
+`payment/checkout-failure.ts`, and Square's `transport.ts`) already have a test
+at their mirror, and Square's other modules moved to theirs with the
+answer-reading work. This entry records what is left._
+
+`deno task precommit:mutation` selects a source's direct tests by the mirror
+path alone (`scripts/mutation/test-map.ts`). `src/shared/sumup/money.ts` looks
+for `test/shared/sumup/money.test.ts` or `test/shared/sumup/money/`, and finds
+neither. The gate refuses to run for a source with no test at its mirror, so a
+branch that changes that module cannot pass it.
+
+No test imports `#shared/sumup/money.ts` at all today. Its exports
+(`readSumupCharge`, `sumupRefundOutcome`) are reached through
+`src/shared/sumup-provider.ts`, so this is a missing direct suite rather than a
+file to move. Write `test/shared/sumup/money.test.ts` against the two exports,
+then run `deno task precommit:mutation` on the module and close its survivors.

@@ -4,17 +4,18 @@ import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
   getDb,
+  queryAllPrimary,
   queryBatch,
   queryBatchPrimary,
   withTransaction,
-} from "#shared/db/client.ts";
-import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
+} from "#db/client.ts";
+import { runWithPrimaryReads } from "#db/primary-reads.ts";
 import {
   enableQueryLog,
   getQueryLog,
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -100,6 +101,14 @@ describeWithEnv("db > client batch", { db: true }, () => {
     // "write" mode is the read-your-writes guarantee: Turso always serves it
     // from the primary, so a just-committed row is visible.
     expect(await captureBatchModes(queryBatchPrimary)).toEqual(["write"]);
+  });
+
+  test("queryAllPrimary pins its one statement to the primary", async () => {
+    // The plural of queryOnePrimary carries the same promise: read-your-writes,
+    // so it must never be answered by a replica that lags behind the write.
+    expect(
+      await captureBatchModes(([statement]) => queryAllPrimary(statement!)),
+    ).toEqual(["write"]);
   });
 
   test("a :memory: database reads through in read mode even for primary reads", async () => {

@@ -4,9 +4,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs, escapeXml } from "#routes/feeds.ts";
-import { settings } from "#shared/db/settings.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -605,12 +605,12 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
   });
 
   test("limits agent API keys to assigned attendees", async () => {
-    const { createApiKey } = await import("#shared/db/api-keys.ts");
-    const { createUser } = await import("#shared/db/users.ts");
-    const { setLogisticsAssignments } = await import("#shared/db/logistics.ts");
-    const { logisticsAgents } = await import("#shared/db/logistics-agents.ts");
-    const { userAgents } = await import("#shared/db/user-agents.ts");
-    const { generateSecureToken } = await import("#shared/crypto/utils.ts");
+    const { createApiKey } = await import("#db/api-keys.ts");
+    const { createUser } = await import("#db/users.ts");
+    const { setLogisticsAssignments } = await import("#db/logistics.ts");
+    const { logisticsAgents } = await import("#db/logistics-agents.ts");
+    const { userAgents } = await import("#db/user-agents.ts");
+    const { generateSecureToken } = await import("#crypto/utils.ts");
     const { getTestDataKeyForApiKey, requestAsApiKey } = await import(
       "#test-utils/session.ts"
     );

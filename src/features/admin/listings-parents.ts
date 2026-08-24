@@ -3,35 +3,33 @@
  * section on the listing edit page + its save endpoint).
  */
 
-import { groupToMap, mapNotNullish, unique } from "#fp";
-import { t } from "#i18n";
-/* jscpd:ignore-start */
-import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
-import { createIdEntityHandler } from "#routes/entity.ts";
-import { redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-/* jscpd:ignore-end */
-import { logActivity } from "#shared/db/activity-log.ts";
-import { type TxScope, withTransaction } from "#shared/db/client.ts";
-import { listingGroups } from "#shared/db/groups.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { type TxScope, withTransaction } from "#db/client.ts";
+import { listingGroups } from "#db/groups.ts";
 import {
   hydrateListingLinks,
   listingChildren,
   listingParents,
   setListingChildrenWithPackageCheckTx,
-} from "#shared/db/listing-parents.ts";
+} from "#db/listing-parents.ts";
 import {
   getAllListings,
   getListingsById,
   getListingWithCount,
   requireListingWithCount,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import {
   childOnlyAddOnName,
   childOnlyAddOnNameForListings,
   type ListingGroupMembership,
   toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
+import { groupToMap, mapNotNullish, unique } from "#fp";
+import { t } from "#i18n";
+import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
+import { redirect } from "#routes/response.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   childAddOnError,
   type EdgeListing,
@@ -44,8 +42,8 @@ import {
   packageChildEdgeErrorOrNull,
 } from "#shared/package-membership.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
+import type { ListingWithCount } from "#types";
 
 /** Error shown when the parent is itself offered as a child: single-level
  * nesting means it can't also gate children. */

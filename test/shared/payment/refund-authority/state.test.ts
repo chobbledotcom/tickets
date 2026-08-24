@@ -8,7 +8,7 @@ import {
   readyRefund,
   rearmKeyedRefund,
   returnRefundToReady,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 
 describe("payment > refund authority transitions", () => {

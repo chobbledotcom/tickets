@@ -5,8 +5,8 @@
  * carry or compare.
  */
 
+import { costAccount, revenueAccount } from "#accounting/accounts.ts";
 import { filter } from "#fp";
-import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
 import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
 import { legMatches, sumLegs } from "./legs.ts";

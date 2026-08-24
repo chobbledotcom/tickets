@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { coreTables } from "#shared/db/migrations/schema/tables-core.ts";
+import { coreTables } from "#db/migrations/schema/tables-core.ts";
 import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete core schema declaration exact", async () => {

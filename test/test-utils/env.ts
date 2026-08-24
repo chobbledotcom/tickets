@@ -1,13 +1,13 @@
+import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
+import { setFastPbkdf2ForTest } from "#crypto/hashing.ts";
+import { setRsaKeySizeForTest } from "#crypto/keys.ts";
+import { setSettingsAuditEnabled } from "#db/settings-audit.ts";
 import { lazyRef } from "#fp";
 import {
   applyEnvironment,
   processEnvironment,
   setEnvironmentValue,
 } from "#scripts/environment-values.ts";
-import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
-import { setFastPbkdf2ForTest } from "#shared/crypto/hashing.ts";
-import { setRsaKeySizeForTest } from "#shared/crypto/keys.ts";
-import { setSettingsAuditEnabled } from "#shared/db/settings-audit.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { setSuppressRequestLogs } from "#shared/logger.ts";
 import { setRethrowErrors, setSkipLoginDelay } from "#shared/test-overrides.ts";

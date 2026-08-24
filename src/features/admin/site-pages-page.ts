@@ -5,13 +5,14 @@
  * their own routes in site-pages.ts, so this file owns only the GET surface.
  */
 
+import { getSitePageById } from "#db/site-pages.ts";
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
-import { getSitePageById } from "#shared/db/site-pages.ts";
-import type { SitePage } from "#shared/types.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import {
   sitePageEditPanel,
   sitePageItemsPanel,
 } from "#templates/admin/site-pages.tsx";
+import type { SitePage } from "#types";
 import { writeFormTab } from "./entity-write-tab.ts";
 import { defineSiteContentPage } from "./site-content-page.ts";
 import { buildEditModel } from "./site-pages-data.ts";
@@ -27,13 +28,13 @@ const itemsTab = writeFormTab<SitePage>(
 /** The tabbed site-page page. */
 export const sitePageEntityPage: EntityPage<SitePage> =
   defineSiteContentPage<SitePage>({
-    basePath: (id) => `/admin/site/pages/${id}`,
     deleteLabelKey: "site.pages.delete_submit",
+    destination: "sitePage",
     editPanel: sitePageEditPanel,
     extraTabs: [itemsTab],
     guideAnchor: "public-site",
     itemType: "page",
     load: (id) => getSitePageById(id),
-    navActive: "/admin/site/pages",
+    navActive: adminPattern("sitePages"),
     titleOf: (page) => page.name,
   });

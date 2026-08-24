@@ -62,7 +62,7 @@ describeWithEnv(
       });
 
       test("setting persists in database", async () => {
-        const { settings } = await import("#shared/db/settings.ts");
+        const { settings } = await import("#db/settings.ts");
 
         expect(settings.showPublicApi).toBe(false);
 

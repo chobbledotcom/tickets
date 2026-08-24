@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  rescuingPageSetup,
-  soloChildAddOn,
-} from "#test/test-utils/listing-parents/helpers.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { assertJson, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  rescuingPageSetup,
+  soloChildAddOn,
+} from "#test-utils/listing-parents/helpers.ts";
 import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 
 const ADDON_ERROR = "opt-in add-on reachable only through";

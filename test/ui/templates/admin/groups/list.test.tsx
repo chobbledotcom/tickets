@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#shared/types.ts";
 import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { testGroup } from "#test-utils/factories.ts";
+import type { AdminSession } from "#types";
 
 const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 const GROUP = testGroup({
@@ -34,15 +34,22 @@ describe("admin groups list template", () => {
     expect(html).toContain('href="/admin/guide#packages"');
   });
 
-  test("links editors straight to editing and hides the forbidden staff guide", () => {
+  test("links an editor to the group and hides the forbidden staff guide", () => {
+    // The group page opens on the first tab its viewer can see, so an editor
+    // following this link lands on Edit.
     const html = adminGroupsPage([GROUP], EDITOR_SESSION);
 
     expect(html).toContain(
-      '<a href="/admin/groups/7/edit">Family &lt;script&gt;</a>',
+      '<a href="/admin/groups/7">Family &lt;script&gt;</a>',
     );
-    expect(html).not.toContain('href="/admin/groups/7"');
     expect(html).not.toContain('href="/admin/guide#packages"');
     expect(html).not.toContain("Packages guide");
+  });
+
+  test("marks the groups list as the section the page belongs to", () => {
+    const html = adminGroupsPage([GROUP], OWNER_SESSION);
+
+    expect(html).toContain('<a class="active" href="/admin/groups">');
   });
 
   test("renders the empty state without an empty table", () => {

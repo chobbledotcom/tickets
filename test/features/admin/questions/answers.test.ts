@@ -1,11 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
-import {
-  addAnswer,
-  createQuestion,
-} from "#test/test-utils/questions/helpers.ts";
+import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -16,6 +12,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
+import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -87,9 +84,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("rejects adding an answer to a free-text question", async () => {
-      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const { questionsTable } = await import("#db/questions/tables.ts");
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const q = await questionsTable.insert({
         displayType: "free_text",
@@ -118,7 +115,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(id, "Third");
 
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(id);
       expect(question!.answers[0]!.text).toBe("First");
@@ -209,7 +206,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify answer is gone
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
@@ -236,7 +233,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify answer still exists
       const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeTruthy();
@@ -338,7 +335,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     /** Read the current global question order as a list of texts. */
     const questionOrder = async (): Promise<string[]> => {
       const { getAllQuestionsWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
+        "#db/questions/queries.ts"
       );
       return (await getAllQuestionsWithAnswers()).map((q) => q.text);
     };

@@ -10,7 +10,7 @@ import {
   ATTENDEE_KIND,
   isServicing,
   SERVICING_KIND,
-} from "#shared/db/attendees/kind.ts";
+} from "#db/attendees/kind.ts";
 
 describe("servicing §0 — kind guard helper classifies rows", () => {
   const cases: [

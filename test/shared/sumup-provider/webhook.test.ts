@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
-import {
-  setSumupCheckoutId,
-  storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
+import { settings } from "#db/settings.ts";
+import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";

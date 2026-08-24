@@ -9,19 +9,19 @@
 
 // jscpd:ignore-start
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import { settings } from "#db/settings.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import type {
   RefundAttemptResult,
   RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+} from "#payment/refund-attempt.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
+import type { PaymentProviderType } from "#types";
 
 // jscpd:ignore-end
 

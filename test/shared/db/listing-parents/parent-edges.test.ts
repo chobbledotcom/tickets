@@ -4,14 +4,14 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { withTransaction } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
+import { withTransaction } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
 import {
   addParentEdgesWithPackageCheckTx,
   listingChildren,
   listingParents,
-} from "#shared/db/listing-parents.ts";
+} from "#db/listing-parents.ts";
+import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -72,7 +72,7 @@ describeWithEnv(
             t("catalog_transfer.parent_missing"),
           ),
         ),
-      ).rejects.toThrow(t("error.parent_listing_nested"));
+      ).rejects.toThrow(t("error.parent_is_already_a_child"));
       expect(await listingParents.getIds(child.id)).toEqual([]);
     });
 

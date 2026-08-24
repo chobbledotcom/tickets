@@ -7,13 +7,14 @@
  * reservation amount depends on a checkbox.
  */
 
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
-import { editPanel } from "#templates/admin/admin-page.tsx";
+import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
   writableNameColumn,
@@ -22,12 +23,11 @@ import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.ts
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
-const LIST_PATH = "/admin/settings/statuses";
+const LIST_PATH = adminPattern("statuses");
 
 /** Render one row's flag badges. */
 const statusBadges = (s: AttendeeStatus): JSX.Element => (
@@ -46,7 +46,7 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
  * table renderer. */
 const statusColumns: TableColumn<AttendeeStatus>[] = [
   writableNameColumn(
-    (s) => `${LIST_PATH}/${s.id}`,
+    (s) => adminPath("status", { id: s.id }),
     (s) => s.name,
   ),
   {
@@ -134,13 +134,10 @@ export const AttendeeStatusEditPanel = ({
   error?: string;
   values?: FormParams;
 }): JSX.Element =>
-  editPanel(error)(
-    <SaveForm
-      action={`${LIST_PATH}/${status.id}/edit`}
-      submitLabel={t("statuses.form_save_button")}
-    >
-      {renderStatusFields(status, values)}
-    </SaveForm>,
+  recordEditPanel("statusEdit", t("statuses.form_save_button"))(
+    status.id,
+    error,
+    renderStatusFields(status, values),
   );
 
 const deleteChildren = (status: AttendeeStatus): JSX.Element => (
@@ -167,13 +164,13 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
   },
   list: {
     actions: (
-      <ActionButton href={`${LIST_PATH}/new`} icon="plus">
+      <ActionButton href={adminPattern("statusNew")} icon="plus">
         {t("statuses.add_status_button")}
       </ActionButton>
     ),
     columns: statusColumns,
     guideFooter: (
-      <GuideFooter href="/admin/guide#attendee-statuses">
+      <GuideFooter href={`${adminPattern("guide")}#attendee-statuses`}>
         {t("statuses.guide_link")}
       </GuideFooter>
     ),

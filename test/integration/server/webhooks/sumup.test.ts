@@ -2,74 +2,28 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { queryAll } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
-import {
-  setSumupCheckoutId,
-  storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestListing,
-  deactivateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
   chargeMoney,
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
+import { stageSignedSumupCheckout } from "#test-utils/sumup.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > SumUp", { db: true }, () => {
-  /** Configure SumUp and stage a real checkout for the given listing:
-   * production assembleCheckoutMetadata output, encrypted store, id mapping. */
-  const stageSumupCheckout = async (listing: {
-    id: number;
-    name: string;
-    slug: string;
-  }) => {
-    await settings.update.paymentProvider("sumup");
-    await settings.update.sumup.apiKey("sk_test_x");
-    await settings.update.sumup.merchantCode("MC1");
-    setEffectiveDomainForTest("localhost");
-    const reference = crypto.randomUUID();
-    const intent: CheckoutIntent = {
-      address: "",
-      date: null,
-      email: "alice@example.com",
-      items: [
-        {
-          listingId: listing.id,
-          name: listing.name,
-          quantity: 1,
-          slug: listing.slug,
-          unitPrice: 1000,
-        },
-      ],
-      name: "Alice",
-      phone: "",
-      special_instructions: "",
-    };
-    // Price once and sign that total, exactly as production checkout does.
-    const metadata = await assembleCheckoutMetadata(
-      "sumup",
-      intent,
-      priceCheckout(intent).total,
-    );
-    await storeSumupCheckout(reference, metadata);
-    await setSumupCheckoutId(reference, "co_e2e");
-    return reference;
-  };
+  /** Stage a real, signed checkout mapped to the id the callbacks name, and
+   * hand back the listing it was staged for — the tests that change the
+   * listing have to change that one, not another. */
+  const stageSumupCheckout = () => stageSignedSumupCheckout("co_e2e");
 
   /** Unsigned SumUp webhook listing for the staged checkout. */
   const sumupWebhookEvent = {
@@ -100,8 +54,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     );
 
   test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    const reference = await stageSumupCheckout(listing);
+    const { reference } = await stageSumupCheckout();
     const restore = stubRetrieveCheckoutById(reference, "PAID", "txn_e2e");
     try {
       const response = await handleRequest(
@@ -123,8 +76,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
    * never says why verification failed, and the payload is never echoed into
    * a log or acknowledged. */
   const expectRefusedLocally = async (id: string) => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    await stageSumupCheckout(listing);
+    await stageSumupCheckout();
     const fetchStub = stub(sumupApi, "readCheckoutById", () =>
       Promise.resolve({ status: "missing" as const }),
     );
@@ -151,8 +103,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     expectRefusedLocally("co_spam"));
 
   test("shows the cancel page when a SumUp payment fails", async () => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    const reference = await stageSumupCheckout(listing);
+    const { reference } = await stageSumupCheckout();
     const restore = stubRetrieveCheckoutById(reference, "FAILED", "");
     try {
       const response = await handleRequest(
@@ -216,21 +167,18 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   };
 
   test("does not send a rejected SumUp charge twice while its first refund is not yet visible", async () => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    const reference = await stageSumupCheckout(listing);
+    const { reference } = await stageSumupCheckout();
     await expectOneRefundAcrossRetries(reference, "txn_rejected_once", "GB");
   });
 
   test("does not release a reserved failed booking into a second SumUp refund", async () => {
-    const listing = await createTestListing({ unitPrice: 1000 });
+    const { listing, reference } = await stageSumupCheckout();
     await deactivateTestListing(listing.id);
-    const reference = await stageSumupCheckout(listing);
     await expectOneRefundAcrossRetries(reference, "txn_reserved_once");
   });
 
   test("shares one SumUp refund between a browser return and webhook", async () => {
-    const listing = await createTestListing({ unitPrice: 1000 });
-    const reference = await stageSumupCheckout(listing);
+    const { reference } = await stageSumupCheckout();
     const checkout = stubRetrieveCheckoutById(
       reference,
       "PAID",
@@ -263,8 +211,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     ["after its provider call", true],
   ] as const) {
     test(`does not repeat a keyless refund after crashing ${name}`, async () => {
-      const listing = await createTestListing({ unitPrice: 1000 });
-      const reference = await stageSumupCheckout(listing);
+      const { reference } = await stageSumupCheckout();
       const checkout = stubRetrieveCheckoutById(
         reference,
         "PAID",

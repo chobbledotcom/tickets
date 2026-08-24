@@ -47,7 +47,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute(
         "DELETE FROM listing_attendees WHERE attendee_id = ?",
         [attendee.id],

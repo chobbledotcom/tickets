@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { setupSquareProviderSuite } from "#test/test-utils/square/fixtures.ts";
+import { setupSquareProviderSuite } from "#test-utils/square/fixtures.ts";
 
 /* jscpd:ignore-end */
 
@@ -40,6 +40,12 @@ describe("square-provider payment webhook fields", () => {
         status: "",
       }),
     ).rejects.toThrow("Square payment webhook is missing status");
+  });
+
+  test("keeps a payment id that is a single character", async () => {
+    // A short id is still an id. Reading the field as blank would refuse a
+    // real callback as malformed, and Square never sends it again.
+    expect(await resolvePayment({ id: "x", status: "PENDING" })).toBe("skip");
   });
 
   test("rejects an unknown payment status", async () => {

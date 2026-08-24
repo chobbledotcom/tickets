@@ -9,12 +9,17 @@
  */
 
 import * as v from "valibot";
-import { compact, mapNotNullish, sort } from "#fp";
+import { compact, sort } from "#fp";
+import {
+  filterHref,
+  filterParams,
+  type ParamWriter,
+} from "#shared/filter-href.ts";
 import { isListingFilter, type ListingFilter } from "#shared/listing-filter.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
+import type { ListingWithCount } from "#types";
 
 export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
 export type AttendeeSort = v.InferOutput<typeof AttendeeSortSchema>;
@@ -118,38 +123,38 @@ export const readAttendeeListState = <Sort extends AttendeeSort | null>(
   };
 };
 
-/** One query parameter: its name, and its value — or null when the state sits
- *  at the parameter's default, which keeps default choices out of addresses. */
-type ParamWriter = {
-  name: string;
-  value: (setup: AttendeeListSetup, state: AttendeeListState) => string | null;
+/** A list's state read together with the setup that says what its defaults
+ *  are, since a parameter is written only when it differs from one. */
+type AttendeeListView = {
+  readonly setup: AttendeeListSetup;
+  readonly state: AttendeeListState;
 };
 
-const PARAM_WRITERS: ParamWriter[] = [
+const PARAM_WRITERS: ParamWriter<AttendeeListView>[] = [
   {
     name: "listing",
-    value: (_setup, state) =>
+    value: ({ state }) =>
       state.listingId === null ? null : String(state.listingId),
   },
   {
     name: "type",
-    value: (_setup, state) => (state.type === "all" ? null : state.type),
+    value: ({ state }) => (state.type === "all" ? null : state.type),
   },
   {
     name: "sort",
-    value: (setup, state) =>
+    value: ({ setup, state }) =>
       state.sort !== null && state.sort !== setup.defaultSort
         ? state.sort
         : null,
   },
   {
     name: "filter",
-    value: (_setup, state) => (state.checkin === "all" ? null : state.checkin),
+    value: ({ state }) => (state.checkin === "all" ? null : state.checkin),
   },
-  { name: "date", value: (_setup, state) => state.date },
+  { name: "date", value: ({ state }) => state.date },
   {
     name: "page",
-    value: (_setup, state) => (state.page > 0 ? String(state.page) : null),
+    value: ({ state }) => (state.page > 0 ? String(state.page) : null),
   },
 ];
 
@@ -158,21 +163,14 @@ export const attendeeListParams = (
   setup: AttendeeListSetup,
   state: AttendeeListState,
 ): [name: string, value: string][] =>
-  mapNotNullish((writer: ParamWriter): [string, string] | null => {
-    const value = writer.value(setup, state);
-    return value === null ? null : [writer.name, value];
-  })(PARAM_WRITERS);
+  filterParams(PARAM_WRITERS, { setup, state });
 
 /** The address for a state — the setup's base path unless another is given. */
 export const attendeeListHref = (
   setup: AttendeeListSetup,
   state: AttendeeListState,
   path: string = setup.basePath,
-): string => {
-  const query = new URLSearchParams(attendeeListParams(setup, state));
-  const qs = query.toString();
-  return qs === "" ? path : `${path}?${qs}`;
-};
+): string => filterHref(PARAM_WRITERS, path, { setup, state });
 
 /** A link that changes some of the current choices. Any change starts back at
  *  the first page — only an explicit `page` keeps a page number. */

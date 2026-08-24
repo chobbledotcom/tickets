@@ -11,7 +11,7 @@ import {
   getRandomBytes,
   toBase64,
   toBase64Url,
-} from "#shared/crypto/utils.ts";
+} from "#crypto/utils.ts";
 import { times } from "#test-utils/arrays.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
 

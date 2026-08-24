@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { holidays } from "#shared/db/holidays.ts";
+import { holidays } from "#db/holidays.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -108,7 +108,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         `/admin/holidays/${holiday.id}`,
         "Holiday updated",
       )(response);
-      const { holidays } = await import("#shared/db/holidays.ts");
+      const { holidays } = await import("#db/holidays.ts");
       expect(await holidays.table.read.one({ id: holiday.id })).toEqual({
         ...holiday,
         end_date: "2026-12-27",
@@ -213,7 +213,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
     test("deletes holiday with correct name confirmation", async () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
       await deleteTestHoliday(holiday.id);
-      const { holidays } = await import("#shared/db/holidays.ts");
+      const { holidays } = await import("#db/holidays.ts");
       expect(await holidays.table.read.one({ id: holiday.id })).toBeNull();
     });
 
@@ -229,7 +229,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         expect.stringContaining("Holiday name does not match"),
         false,
       );
-      const { holidays } = await import("#shared/db/holidays.ts");
+      const { holidays } = await import("#db/holidays.ts");
       expect(await holidays.table.read.one({ id: holiday.id })).not.toBeNull();
     });
 

@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getDb } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import {
   decryptAdminLevel,
   getUserByInviteCode,
   getUserByUsername,
   invalidateUsersCache,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
@@ -106,7 +106,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toContain("/admin/listings");
-      const { getAllListings } = await import("#shared/db/listings/records.ts");
+      const { getAllListings } = await import("#db/listings/records.ts");
       expect(
         (await getAllListings()).some((l) => l.name === "Editor Import"),
       ).toBe(true);
@@ -292,7 +292,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
   });
 
   describe("group create/edit redirects", () => {
-    test("editor group create/edit returns to the edit form, not the detail page", async () => {
+    test("editor group create and edit return to the group's own page", async () => {
       const { cookie } = await createTestEditorSession();
 
       const createResp = await postFormAs("/admin/groups", cookie, {
@@ -301,9 +301,11 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         name: "Editor Group",
         terms_and_conditions: "",
       });
+      // The group page opens on the first tab its viewer can see, which for
+      // an editor is Edit, so the record's own page is where they land.
       expect(createResp.status).toBe(302);
       expect(createResp.headers.get("location")).toMatch(
-        /\/admin\/groups\/\d+\/edit/,
+        /\/admin\/groups\/\d+(\?|$)/,
       );
 
       const group = await createTestGroup({ name: "To Rename" });
@@ -320,7 +322,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(editResp.status).toBe(302);
       expect(editResp.headers.get("location")).toContain(
-        `/admin/groups/${group.id}/edit`,
+        `/admin/groups/${group.id}`,
       );
     });
   });
@@ -351,17 +353,20 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         tickets_count: "999",
       };
 
-      // Editor edit succeeds and returns to the edit form (not the forbidden
-      // detail page), but the crafted aggregate fields are ignored.
+      // The editor's save succeeds and returns to the listing's own page,
+      // but the crafted aggregate fields are ignored.
       const editorResp = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
         cookie,
         editBody,
       );
       expect(editorResp.status).toBe(302);
-      expect(editorResp.headers.get("location")).toContain(
-        `/admin/listing/${listing.id}/edit`,
-      );
+      // The record page itself, not the edit form under it, which the
+      // substring of the one is a substring of the other.
+      expect(
+        new URL(editorResp.headers.get("location") ?? "", "http://localhost")
+          .pathname,
+      ).toBe(`/admin/listing/${listing.id}`);
       expect(await bookedQuantity(listing.id)).toBe(0);
 
       // The same body submitted by the owner DOES apply the aggregate — proving
@@ -403,12 +408,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(html).not.toContain('name="booked_quantity"');
     });
 
-    test("groups list links editors to the edit form, not the detail page", async () => {
+    test("groups list links editors to the group's own page", async () => {
+      // Following it lands them on Edit, the first tab an editor can see.
       const { cookie } = await createTestEditorSession();
       const group = await createTestGroup();
       const html = await (await getAs("/admin/groups", cookie)).text();
-      expect(html).toContain(`href="/admin/groups/${group.id}/edit"`);
-      expect(html).not.toContain(`href="/admin/groups/${group.id}"`);
+      expect(html).toContain(`href="/admin/groups/${group.id}"`);
     });
 
     test("nav shows only the editor's reachable sections", async () => {
@@ -546,7 +551,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect((await getListingWithCount(listing.id))!.use_defaults).toBe(false);
     });
 
-    test("editor listing create lands on the edit page so flashes are shown", async () => {
+    test("editor listing create lands on the listing so flashes are shown", async () => {
       const { cookie } = await createTestEditorSession();
       const resp = await postMultipartAs(
         "/admin/listing",
@@ -555,9 +560,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(resp.status).toBe(302);
       // Not the dashboard (/admin) or bare /admin/listings, which render no
-      // Flash for editors — the new listing's edit page does.
+      // Flash for editors — the new listing's own page does.
       expect(resp.headers.get("location")).toMatch(
-        /\/admin\/listing\/\d+\/edit/,
+        /\/admin\/listing\/\d+(\?|$)/,
       );
     });
 

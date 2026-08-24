@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { Attendee } from "#shared/types.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
+import type { Attendee } from "#types";
 import { assertJson } from "./assertions.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { stubWebhookVerify } from "./settings.ts";
@@ -138,7 +138,7 @@ export const expectWebhookProcessed = async (
 
 /** Quantity-0 placeholders on a listing that also has booked attendees. */
 const getKeptPlaceholders = async (listingId: number): Promise<Attendee[]> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   return (await getAttendeesRaw(listingId)).filter((a) => a.quantity === 0);
 };
 
@@ -164,7 +164,7 @@ export const expectRefundedWithNote = async (
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
   expect(mockRefund.calls.length).toBe(1);
-  const { getNoteRows } = await import("#shared/db/notes/queries.ts");
+  const { getNoteRows } = await import("#db/notes/queries.ts");
   expect((await getNoteRows("attendee", [attendeeId])).length).toBe(1);
 };
 
@@ -179,7 +179,7 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
   sessionId: string,
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   expect(attendees[0]!.quantity).toBe(0);
@@ -199,7 +199,7 @@ export const expectMergedMultiListingAttendee = async (
   listing1Id: number,
   listing2Id: number,
 ): Promise<{ id: number }> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees1 = await getAttendeesRaw(listing1Id);
   const attendees2 = await getAttendeesRaw(listing2Id);
   expect(attendees1.length).toBe(1);
@@ -255,7 +255,7 @@ export const expectAttendeeWithPricePaid = async (
   listingId: number,
   pricePaid: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   expect((attendees[0] as unknown as Record<string, unknown>).price_paid).toBe(
@@ -269,7 +269,7 @@ export const expectAttendeeWithPricePaid = async (
 export const expectAttendeeCreatedWithPiiBlob = async (
   listingId: number,
 ): Promise<Attendee> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   expect(attendees[0]?.pii_blob).not.toBe("");

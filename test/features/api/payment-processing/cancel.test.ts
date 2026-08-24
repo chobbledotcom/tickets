@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
-import { getDb } from "#shared/db/client.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,

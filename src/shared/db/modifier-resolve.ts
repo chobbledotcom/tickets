@@ -8,28 +8,24 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
-import { unique } from "#fp";
-import { t } from "#i18n";
-import { itemsSubtotal } from "#shared/booking-fee.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
-import {
-  getVisits,
-  hashEmail,
-  hashPhone,
-} from "#shared/db/contact-preferences.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { getVisits, hashEmail, hashPhone } from "#db/contact-preferences.ts";
+import { listingGroups } from "#db/groups.ts";
+import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import {
   getActiveModifiers,
   getModifierGroupListingIdsByModifierId,
   modifierGroups,
   modifierIdsByAnswerId,
   modifierListings,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
+import { unique } from "#fp";
+import { t } from "#i18n";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
+import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
-import type { Modifier } from "#shared/types.ts";
+import type { Modifier } from "#types";
 
 /** The signed pricing value the engine applies, from a modifier's stored
  * magnitude + direction. Multipliers ignore direction (the factor encodes it);
@@ -604,26 +600,6 @@ export const childOnlyAddOnNameForListings = async (
     childId,
     parentPageListingIds,
   );
-
-/**
- * Resolve every active opt-in add-on's would-be scope once against the supplied
- * in-memory listing set, returning a reusable child-only-reachability checker.
- * A caller validating many parent→child edges for one new child (a catalog
- * import) resolves scopes a single time rather than once per parent, so it stays
- * under the request N+1 read guard. The returned checker is
- * {@link childOnlyAddOnNameForListings}'s pure core over the pre-resolved scopes.
- */
-export const childOnlyAddOnCheckerForListings = async (
-  allListings: ListingGroupMembership[],
-): Promise<
-  (childId: number, parentPageListingIds: readonly number[]) => string | null
-> => {
-  const scoped = await optionalAddOnsWithScopes(
-    inMemoryGroupScopeResolver(allListings),
-  );
-  return (childId, parentPageListingIds) =>
-    childOnlyAddOnNameWithScopes(scoped, childId, parentPageListingIds);
-};
 
 /** The post-save shape of an opt-in add-on whose child-reachability must hold:
  * its trigger/active state and its **already-resolved** listing scope (null =

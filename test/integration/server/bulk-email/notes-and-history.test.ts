@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   getContactRecord,
   hashEmail,
   hashPhone,
   saveContactRecord,
   toContactHashParam,
-} from "#shared/db/contact-preferences.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/contact-preferences.ts";
+import { settings } from "#db/settings.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
@@ -78,7 +78,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       email: string,
     ): Promise<void> => {
       const { loadExistingLines } = await import(
-        "#shared/db/attendees/atomic-update.ts"
+        "#db/attendees/atomic-update.ts"
       );
       const existing = await loadExistingLines(placeholderId);
       await adminFormPost(
@@ -221,9 +221,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       );
       // Give the first booking a status so its name shows in the table.
       const status = await attendeeStatuses.table.insert({ name: "Confirmed" });
-      const { updateAttendeeStatus } = await import(
-        "#shared/db/attendees/update.ts"
-      );
+      const { updateAttendeeStatus } = await import("#db/attendees/update.ts");
       await updateAttendeeStatus(first.id, status.id);
 
       const html = await (
@@ -260,7 +258,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // ...then one is edited down to a no-quantity line (its token stays on the
       // contact, but it no longer represents a booked ticket).
       const { loadExistingLines } = await import(
-        "#shared/db/attendees/atomic-update.ts"
+        "#db/attendees/atomic-update.ts"
       );
       const existing = await loadExistingLines(emptied.id);
       const form = await buildAttendeeEditForm(emptied.id, {

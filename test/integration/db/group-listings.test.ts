@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryAll } from "#shared/db/client.ts";
+import { execute, queryAll } from "#db/client.ts";
 import {
   getGroupPackagePrices,
   listingGroups,
   setGroupPackageMembers,
   setListingGroups,
-} from "#shared/db/groups.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
+} from "#db/groups.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
 
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

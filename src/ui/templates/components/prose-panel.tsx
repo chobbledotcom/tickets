@@ -9,7 +9,7 @@
  * from drifting.
  */
 
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 export type ProsePanelProps = {
   /** Optional leading paragraph: `<strong>{label}</strong> {value}`. Omit

@@ -6,6 +6,11 @@
  * mid-checkout.
  */
 
+import {
+  lineGroupId,
+  lineGroupIds,
+  standaloneLineListingIds,
+} from "#booking/signed-metadata.ts";
 /* jscpd:ignore-start -- import block */
 import {
   anyPackageBundleMismatch,
@@ -21,14 +26,9 @@ import type {
   PaymentFailureResult,
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  lineGroupId,
-  lineGroupIds,
-  standaloneLineListingIds,
-} from "#shared/booking/signed-metadata.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import dropListingAttendeeRefundedMigration from "#shared/db/migrations/2026-06-22_drop_listing_attendee_refunded.ts";
-import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
+import { getDb } from "#db/client.ts";
+import dropListingAttendeeRefundedMigration from "#db/migrations/2026-06-22_drop_listing_attendee_refunded.ts";
+import { recreateTable } from "#db/migrations/schema-sync.ts";
 import {
   columnNames,
   seedPreDropLedgerColumns,
-} from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

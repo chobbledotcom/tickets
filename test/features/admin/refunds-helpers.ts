@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import type { Attendee, Listing, PaymentProviderType } from "#shared/types.ts";
 import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
@@ -15,6 +14,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import type { Attendee, Listing, PaymentProviderType } from "#types";
 
 const paymentSessionId = (listingId: number, attendeeId: number): string =>
   `sale-${listingId}-${attendeeId}`;
@@ -127,7 +127,7 @@ export const setBookingLineQuantity = async (
   listingId: number,
   quantity: number,
 ): Promise<void> => {
-  const { getDb } = await import("#shared/db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   await getDb().execute(
     "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ? AND listing_id = ?",
     [quantity, attendeeId, listingId],

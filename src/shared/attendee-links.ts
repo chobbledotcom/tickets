@@ -1,4 +1,4 @@
-import { isServicing } from "#shared/db/attendees/kind.ts";
+import { isServicing } from "#db/attendees/kind.ts";
 
 export type AttendeeLinkTarget = {
   id: number;

@@ -1,19 +1,9 @@
+import { settings } from "#db/settings.ts";
 import { compact, map, pipe } from "#fp";
-import { settings } from "#shared/db/settings.ts";
+import { paymentProviderHasCredentials } from "#shared/payment-provider-status.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
-
-const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
-  square: () => settings.square.hasToken,
-  stripe: () => settings.stripe.hasKey,
-  sumup: () => settings.sumup.hasKey,
-};
-
-/** Whether this provider has the stored credentials needed for an API read. */
-export const paymentProviderHasCredentials = (
-  provider: PaymentProviderType,
-): boolean => providerHasCredentials[provider]();
+import type { PaymentProviderType } from "#types";
 
 const configuredPaymentProviderTypes = (): PaymentProviderType[] =>
   pipe(

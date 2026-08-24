@@ -1,15 +1,15 @@
 /* jscpd:ignore-start */
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
 /**
  * Admin seed data routes - populate database with sample listings and attendees
  */
 
+import { t } from "#i18n";
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
-import { t } from "#shared/i18n.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 /* jscpd:ignore-end */

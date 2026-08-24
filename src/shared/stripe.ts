@@ -1,21 +1,28 @@
 /* jscpd:ignore-start */
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { settings } from "#shared/db/settings.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
-import type { Money } from "#shared/payment/money.ts";
+
+import { settings } from "#db/settings.ts";
+import type { Money } from "#payment/money.ts";
 import {
   type ProviderFailure,
-  providerFailure,
+  providerFailureOf,
+  requireProviderFailure,
   withExactRefundMoney,
-} from "#shared/payment/provider-failures.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+} from "#payment/provider-failures.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import {
+  judgedBy,
+  readProviderResource,
+  refuseUnless,
+} from "#payment/provider-resource-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   uncertainRefund,
-} from "#shared/payment/refund-attempt.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-attempt.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -32,11 +39,6 @@ import {
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
-import {
-  StripeApiError,
-  StripeConnectionError,
-  StripeProtocolError,
-} from "#shared/stripe/request.ts";
 import {
   sanitizeStripeError,
   stripeClientRuntime,
@@ -126,18 +128,6 @@ export interface StripeApi {
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 }
 
-const stripeFailure = (error: unknown): ProviderFailure | undefined =>
-  providerFailure({
-    connectionReason:
-      error instanceof StripeConnectionError ? error.reason : undefined,
-    malformed:
-      error instanceof StripeProtocolError && error.statusCode === undefined,
-    statusCode:
-      error instanceof StripeApiError || error instanceof StripeProtocolError
-        ? error.statusCode
-        : undefined,
-  });
-
 const withStripeClient = async <Result>(
   notConfigured: Result,
   useClient: (client: StripeClient) => Promise<Result>,
@@ -148,35 +138,27 @@ const withStripeClient = async <Result>(
   try {
     return await useClient(client);
   } catch (error) {
-    return useError(error, stripeFailure(error));
+    return useError(error, providerFailureOf(error));
   }
 };
 
-const requireStripeFailure =
-  <Result>(
-    useFailure: (failure: ProviderFailure) => Result,
-  ): ((error: unknown, failure: ProviderFailure | undefined) => Result) =>
-  (error, failure) => {
-    if (failure !== undefined) return useFailure(failure);
-    throw error;
-  };
-
-const readPaymentIntent = (
+const readPaymentIntent = async (
   id: string,
 ): Promise<ProviderRead<StripeExpandedPaymentIntent>> =>
-  withStripeClient<ProviderRead<StripeExpandedPaymentIntent>>(
-    { reason: "not_configured", status: "unavailable" },
-    async (client) => {
-      const resource = await client.paymentIntents.retrieveWithLatestCharge(
-        id,
-        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
-      );
-      return resource.id === id
-        ? { resource, status: "found" }
-        : { reason: "mismatched_id", status: "invalid" };
-    },
-    requireStripeFailure((failure) => failure.read),
-  );
+  readProviderResource({
+    account: await stripeClientRuntime.get(),
+    ask: (client) =>
+      client.paymentIntents.retrieveWithLatestCharge(id, {
+        maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
+      }),
+    failure: (error) => providerFailureOf(error)?.read,
+    judge: judgedBy([
+      refuseUnless(
+        "mismatched_id",
+        (intent: StripeExpandedPaymentIntent) => intent.id === id,
+      ),
+    ]),
+  });
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
 type StripeRefundAnswer = (
@@ -248,7 +230,7 @@ const refundCharge = (
       );
       return stripeRefundResult(request, refund);
     },
-    requireStripeFailure((failure) => failure.refund),
+    (error) => requireProviderFailure(error).refund,
   );
 
 class StripeCheckoutReadError extends Error {

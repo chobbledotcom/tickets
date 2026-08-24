@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
-import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

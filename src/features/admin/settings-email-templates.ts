@@ -3,12 +3,12 @@
  * Owner-only access enforced via settingsHandler / withAuth
  */
 
+import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
+import { settings } from "#db/settings.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { formPost, OWNER_FORM } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
-import { MAX_EMAIL_TEMPLATE_LENGTH } from "#shared/db/settings/constants.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   buildTemplateData,
   renderTemplate,
@@ -16,12 +16,12 @@ import {
 } from "#shared/email-renderer.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 import {
   type EmailTemplateType,
   isEmailTemplateFormat,
   isEmailTemplateType,
-} from "#shared/types.ts";
-import type { EmailContent } from "#templates/email/shared.ts";
+} from "#types";
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const validateTemplateFields = ({

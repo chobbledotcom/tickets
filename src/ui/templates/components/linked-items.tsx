@@ -13,7 +13,7 @@
  */
 
 import { t } from "#i18n";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 
 export type LinkedItemOption = {

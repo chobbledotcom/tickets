@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { isCurrency, money } from "#shared/payment/money.ts";
+import { isCurrency, money } from "#payment/money.ts";
 
 describe("money", () => {
   // The cases that must build a charge: a non-negative whole minor-unit

@@ -1,5 +1,5 @@
-import type { Listing } from "#shared/types.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { Listing } from "#types";
 
 /** Creates a daily listing bookable on every day of the week, open from today
  *  up to two weeks out. The shared starting point for the daily-view and

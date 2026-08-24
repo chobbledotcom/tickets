@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ListingTypeSchema } from "#shared/types.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
+import { ListingTypeSchema } from "#types";
 
 describe("picklistOptions", () => {
   test("maps a schema's options to value + i18n label, in schema order", () => {

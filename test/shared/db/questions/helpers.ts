@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
-import type { Question, TextAnswer } from "#shared/db/question-types.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
+import type { Question, TextAnswer } from "#db/question-types.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
 import {
   answersTable,
   questionsOrder,
   questionsTable,
-} from "#shared/db/questions/tables.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
+} from "#db/questions/tables.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { Attendee, Listing } from "#types";
 
 /** Create a test attendee directly via the DB (bypasses routes). Shared by
  *  every questions test file that needs an attendee to hang answers off. */
@@ -104,7 +104,7 @@ export const seedQuestionWithAndWithoutAnswers = async (): Promise<{
 };
 
 /** Create a "radio" question with one answer and assign it to `listingId` —
- *  the shared trio behind every parent-gate and booking-preserve question
+ *  the shared trio behind every parent-gate and refused-order question
  *  test. Composes {@link createQuestion} + {@link addAnswer} +
  *  {@link listingQuestions} so the insert pair is declared once.
  *  `active` defaults true (pass false for the all-deactivated-choice-question

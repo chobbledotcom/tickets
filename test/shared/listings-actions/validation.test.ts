@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import { validateListingInput } from "#shared/listings-actions.ts";
 import {
   inputFor,

@@ -3,27 +3,26 @@
  * /admin/holidays/:id. Mutation handlers stay in holidays.ts.
  */
 
+import { holidays } from "#db/holidays.ts";
 /* jscpd:ignore-start */
 import {
   defineEditEntityPage,
   type EditEntityPage,
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import { holidays } from "#shared/db/holidays.ts";
-import type { Holiday } from "#shared/types.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
+import type { Holiday } from "#types";
 
 /* jscpd:ignore-end */
 
 export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
-  basePath: (id) => `/admin/holidays/${id}`,
   deleteLabelKey: "holidays.delete.submit",
+  destination: "holiday",
   edit: (holiday, _ctx, rejected) =>
     Promise.resolve(
       HolidayEditPanel({ holiday, ...submittedValueProps(rejected) }),
     ),
-  guard: requireOwnerOr,
   load: (id) => holidays.table.read.one({ id }),
-  navActive: "/admin/holidays",
+  navActive: adminPattern("holidays"),
 });

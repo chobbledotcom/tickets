@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { imagesTable, setImagesForItem } from "#db/images.ts";
 import { addDays } from "#shared/dates.ts";
-import { imagesTable, setImagesForItem } from "#shared/db/images.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -12,7 +12,7 @@ import {
   fetchListingBySlug,
   fetchListingsList,
   fetchPublicListing,
-} from "#test/test-utils/api/helpers.ts";
+} from "#test-utils/api/helpers.ts";
 import {
   PublicListingDetailSchema,
   PublicListingSchema,

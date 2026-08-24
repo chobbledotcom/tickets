@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { invalidateUsersCache } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -137,7 +137,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("returns error when password update fails", async () => {
       // Corrupt the wrapped_data_key so updateUserPassword fails to unwrap it
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute({
         args: ["corrupted-key-data"],
         sql: "UPDATE users SET wrapped_data_key = ?",

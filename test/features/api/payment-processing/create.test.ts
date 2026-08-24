@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { encrypt } from "#crypto/encryption.ts";
+import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import { logActivities } from "#db/activity-log.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { queryAll } from "#db/client.ts";
 import {
   alreadyProcessedResult,
   bookingSlot,
@@ -14,22 +19,17 @@ import type {
   ModifierApplication,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { logActivities } from "#shared/db/activity-log.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });
@@ -115,6 +115,7 @@ type PreparationOptions = {
   matchingPricedItem?: boolean;
   packageGroupId?: number;
   reservationAmount?: string;
+  secondListingName?: string;
   total: number;
 };
 
@@ -150,9 +151,27 @@ const preparationResult = (options: PreparationOptions) => {
     phone: "",
     special_instructions: "",
   };
+  // A free second listing keeps the order's totals whole while giving the
+  // capacity refusal a later line to name.
+  const secondListing =
+    options.secondListingName === undefined
+      ? null
+      : testListingWithCount({
+          id: 2,
+          name: options.secondListingName,
+          unit_price: 0,
+        });
+  const secondBookingItem = { e: 2, p: 0, q: 1 };
+  const secondCheckoutItem = {
+    listingId: 2,
+    name: options.secondListingName ?? "",
+    quantity: 1,
+    slug: "second-choice",
+    unitPrice: 0,
+  };
   const intent: BookingIntent = {
     ...contact,
-    items: [bookingItem],
+    items: secondListing ? [bookingItem, secondBookingItem] : [bookingItem],
     modifiers: [],
     ...(options.reservationAmount === undefined
       ? {}
@@ -160,7 +179,7 @@ const preparationResult = (options: PreparationOptions) => {
   };
   const pricingIntent: CheckoutIntent = {
     ...contact,
-    items: [checkoutItem],
+    items: secondListing ? [checkoutItem, secondCheckoutItem] : [checkoutItem],
   };
   const pricedOrder: PricedOrder = {
     extras: [],
@@ -174,6 +193,9 @@ const preparationResult = (options: PreparationOptions) => {
             : checkoutItem,
         quantity: 1,
       },
+      ...(secondListing
+        ? [{ chargedUnitAmount: 0, item: secondCheckoutItem, quantity: 1 }]
+        : []),
     ],
     modifierApplications: [],
     total: options.total,
@@ -191,7 +213,18 @@ const preparationResult = (options: PreparationOptions) => {
   return createAttendeeForSession(
     session,
     intent,
-    [{ expectedPrice: 1000, item: bookingItem, listing }],
+    [
+      { expectedPrice: 1000, item: bookingItem, listing },
+      ...(secondListing
+        ? [
+            {
+              expectedPrice: 0,
+              item: secondBookingItem,
+              listing: secondListing,
+            },
+          ]
+        : []),
+    ],
     pricingIntent,
     pricedOrder,
     "stable-ticket-token",
@@ -263,9 +296,34 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     });
   });
 
+  test("names the listing the refusal says sold out, not the order's first", async () => {
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.resolve({
+        listingIds: [2],
+        reason: "capacity_exceeded",
+        success: false,
+      }),
+    );
+    expect(
+      await preparationResult({
+        secondListingName: "Second choice",
+        total: 1000,
+      }),
+    ).toEqual({
+      detail:
+        "Sorry, Second choice sold out while you were completing payment.",
+      ok: false,
+      reason: "capacity_exceeded",
+    });
+  });
+
   test("uses the generic capacity message when the listing name is empty", async () => {
     using _create = stub(attendeesApi, "createBookingAtomic", () =>
-      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+      Promise.resolve({
+        listingIds: [],
+        reason: "capacity_exceeded",
+        success: false,
+      }),
     );
     expect(await preparationResult({ listingName: "", total: 1000 })).toEqual({
       detail: "Sorry, this listing sold out while you were completing payment.",
@@ -276,7 +334,11 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
   test("a package order's capacity error omits the member name", async () => {
     using _create = stub(attendeesApi, "createBookingAtomic", () =>
-      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+      Promise.resolve({
+        listingIds: [],
+        reason: "capacity_exceeded",
+        success: false,
+      }),
     );
     expect(await preparationResult({ packageGroupId: 9, total: 1000 })).toEqual(
       {

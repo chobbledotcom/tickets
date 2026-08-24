@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import {
+  type ErrorPageFn,
   processSecretField,
   saveSecret,
   secretFieldHandler,
 } from "#routes/admin/settings-helpers.ts";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

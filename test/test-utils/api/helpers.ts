@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
 import { PublicListingDetailSchema } from "#test-utils/api-schemas.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -102,7 +102,7 @@ export const expectBookedTo = async (
   targetId: number,
   otherId: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
   expect((await getAttendeesRaw(targetId)).length).toBe(1);
   expect((await getAttendeesRaw(otherId)).length).toBe(0);
 };

@@ -1,12 +1,12 @@
 /* jscpd:ignore-start */
+
+import type { ModifierRow } from "#db/modifiers.ts";
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { ModifierRow } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, Modifier } from "#shared/types.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
@@ -24,6 +24,7 @@ import {
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
+import type { AdminSession, Modifier } from "#types";
 import {
   ModifierRunningTotalsSection,
   type ModifierSectionProps,

@@ -10,10 +10,10 @@
  * @module
  */
 
-export * from "#shared/crypto/aes-gcm.ts";
-export * from "#shared/crypto/encryption.ts";
-export * from "#shared/crypto/hashing.ts";
-export * from "#shared/crypto/keys.ts";
-export * from "#shared/crypto/utils.ts";
+export * from "#crypto/aes-gcm.ts";
+export * from "#crypto/encryption.ts";
+export * from "#crypto/hashing.ts";
+export * from "#crypto/keys.ts";
+export * from "#crypto/utils.ts";
 export * from "#shared/csrf.ts";
 export * from "#shared/payment-crypto.ts";

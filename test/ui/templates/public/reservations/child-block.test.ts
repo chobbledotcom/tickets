@@ -1,14 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
-import type { Listing } from "#shared/types.ts";
 import { renderChildBlock } from "#templates/public/reservations/child-block.ts";
-import {
-  selectOptionsFromHtml,
-  selectOptionsHtml,
-} from "#test/test-utils/parents-gate/helpers.ts";
 import { ticketListing } from "#test/ui/templates/helpers.ts";
 import { followRedirectWithFlash } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
@@ -25,6 +20,11 @@ import {
   makeTwoDefaultChildren,
   parentField,
 } from "#test-utils/parents.ts";
+import {
+  selectOptionsFromHtml,
+  selectOptionsHtml,
+} from "#test-utils/parents-gate/helpers.ts";
+import type { Listing } from "#types";
 
 // jscpd:ignore-end
 

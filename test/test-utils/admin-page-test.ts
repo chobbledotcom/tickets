@@ -1,6 +1,6 @@
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import type { AdminSession } from "#types";
 
 /** Owner session for tests that render an admin page template directly. */
 export const OWNER_SESSION: AdminSession = { adminLevel: "owner" };

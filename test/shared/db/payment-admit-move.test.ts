@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { queryOne, withTransaction } from "#shared/db/client.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { execute, queryOne, withTransaction } from "#db/client.ts";
 import {
   assertRowsFreeToMove,
   loadPaymentMoveSnapshot,
   orRefusal,
   PaymentRowsBusyError,
-} from "#shared/db/payment-admit-move.ts";
+} from "#db/payment-admit-move.ts";
 import {
   armRefundSend,
   markRefundCompleted,
   markRefundLocalRecorded,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   CLAIM_MIRROR,
@@ -63,6 +63,16 @@ const addAuthorityFor = async (
   await addProviderRefundTestCase(reference, state, "stripe");
 };
 
+/** What a refused delete raised, or null when it went through. */
+const deleteFailure = async (attendeeId: number): Promise<unknown> => {
+  try {
+    await deleteAttendee(attendeeId);
+    return null;
+  } catch (error) {
+    return error;
+  }
+};
+
 /** What a refused delete says, or null when it went through. */
 const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
   try {
@@ -73,6 +83,19 @@ const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
     return error.message;
   }
 };
+
+/** A charge row the table's own checks still accept, holding a record the
+ *  reader cannot make sense of. */
+const givenUnreadableRefundState = (): Promise<unknown> =>
+  execute(
+    `UPDATE payment_charges
+        SET refund_state = '{"kind":"ready","local":{"kind":"not_due"},` +
+      `"request":{"capability":"keyed"},"nextActionAt":10}',
+            refund_state_name = 'ready',
+            refund_local_state = 'not_due',
+            capability = 'keyed',
+            next_refund_action_at = 10`,
+  );
 
 const attendeeStillThere = async (attendeeId: number): Promise<boolean> =>
   (await queryOne<{ id: number }>("SELECT id FROM attendees WHERE id = ?", [
@@ -107,6 +130,22 @@ describeWithEnv(
         work: { recoveryAction: "refresh-payment", status: "moving" },
       });
       expect(await deleteRefusal(attendeeId)).toBe(CLAIM_REFUSAL);
+    });
+
+    test("the refusal is raised as a named error, so a log can tell it apart", async () => {
+      const attendeeId = await bookedWithPayment("sess-named", "pi_named");
+      await putRowState(
+        "sess-named",
+        await freshClaimSlot(attendeeId),
+        CLAIM_MIRROR,
+      );
+
+      const raised = await deleteFailure(attendeeId);
+
+      // The name is what a log line and an error report show, so a busy row
+      // has to read as one rather than as a plain Error.
+      expect(raised).toBeInstanceOf(PaymentRowsBusyError);
+      expect((raised as Error).name).toBe("PaymentRowsBusyError");
     });
 
     test("the refused delete leaves the attendee and the payment where they were", async () => {
@@ -178,6 +217,21 @@ describeWithEnv(
           status: "needs_money_record",
         },
       });
+    });
+
+    test("names the column when a stored refund state will not read", async () => {
+      const attendeeId = await bookedWithPayment(
+        "sess-unreadable",
+        "pi_unread",
+      );
+      await addAuthorityFor("pi_unread", readyAuthority("request-unread"));
+      await givenUnreadableRefundState();
+
+      // The charge is corrupt, and the refusal has to say where it was read
+      // from, or the owner cannot find the row to repair.
+      await expect(snapshotFor(attendeeId)).rejects.toThrow(
+        "payment_charges.refund_state",
+      );
     });
 
     test("a payment that already ended does not hold the delete up", async () => {

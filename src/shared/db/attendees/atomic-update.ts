@@ -19,23 +19,27 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { unique } from "#fp";
-import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
   UpdateAttendeePIIInput,
-} from "#shared/db/attendee-types.ts";
-import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
+} from "#db/attendee-types.ts";
+import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
-  checkLinesCapacity,
-} from "#shared/db/attendees/capacity/checks.ts";
-import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
-import { attendeePiiWriteStatements } from "#shared/db/attendees/pii-write.ts";
-import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
-import { buildCapacityCondition } from "#shared/db/capacity.ts";
-import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
+  unfitListingIds,
+} from "#db/attendees/capacity/checks.ts";
+import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
+import { buildCapacityCondition } from "#db/capacity.ts";
+import {
+  executeBatchWithResults,
+  queryAll,
+  type SqlStatement,
+} from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
+import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
  * A guard statement that aborts the whole write batch when the immediately
@@ -92,6 +96,8 @@ const lineBooking = (line: AtomicDesiredLine) => ({
   packageGroupId: line.packageGroupId ?? 0,
   quantity: line.quantity,
 });
+const lineRange = (line: AtomicDesiredLine) =>
+  dateToStartEnd(line.date, line.durationDays);
 
 /** Result of an atomic attendee update. Every failure carries `listingIds` —
  *  the SPECIFIC listings that failed the capacity preflight — so a caller can
@@ -148,15 +154,10 @@ export const lineKeyFromBooking = (booking: ListingAttendeeRow): string =>
  * can be applied. The per-line `CAPACITY_GUARD` in the write batch still
  * closes the narrow window between this check and the commit.
  */
-const unfitLineListingIds = async (
+const unfitLineListingIds = (
   attendeeId: number,
   desired: AtomicDesiredLine[],
-): Promise<number[]> => {
-  const fits = await checkLinesCapacity(desired.map(lineBooking), attendeeId);
-  return unique(
-    desired.filter((_, i) => !fits[i]!).map((line) => line.listingId),
-  );
-};
+): Promise<number[]> => unfitListingIds(desired.map(lineBooking), attendeeId);
 
 /** The preflight capacity rejection, or null when every *changed* line fits
  *  (unchanged no-op preserves are excluded — see {@link isUnchangedLine}) or
@@ -192,7 +193,7 @@ const isUnchangedLine = (
 ): boolean => {
   const existing = existingByKey.get(line.key);
   if (!existing || existing.quantity !== line.quantity) return false;
-  const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
+  const { startAt, endAt } = lineRange(line);
   return existing.start_at === startAt && existing.end_at === endAt;
 };
 
@@ -236,29 +237,26 @@ const updateStatementFor = (
     packageGroupId: number;
   },
   skipCapacityGuard: boolean,
-): { args: InValue[]; sql: string } => {
-  const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
-  const pin = [
-    attendeeId,
-    line.listingId,
-    oldPin.startAt,
-    oldPin.parentListingId,
-    oldPin.packageGroupId,
-  ];
-  const setClause =
-    `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(
-      line.quantity,
-    )}` +
-    " WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?";
-  if (skipCapacityGuard) {
-    return { args: [line.quantity, startAt, endAt, ...pin], sql: setClause };
-  }
-  const condition = lineCapacityCondition(line, attendeeId);
-  return {
-    args: [line.quantity, startAt, endAt, ...pin, ...condition.args],
-    sql: `${setClause}\n              AND ${condition.sql}`,
-  };
-};
+): SqlStatement =>
+  numberedStatement((bind) => {
+    const quantitySql = bind(line.quantity);
+    const attendeeIdSql = bind(attendeeId);
+    const listingIdSql = bind(line.listingId);
+    const { startAt, endAt } = lineRange(line);
+    const setClause =
+      `UPDATE listing_attendees SET quantity = ${quantitySql}, start_at = ${bind(startAt)}, end_at = ${bind(endAt)}${noQuantityResetColumns(
+        line.quantity,
+      )}` +
+      ` WHERE attendee_id = ${attendeeIdSql} AND listing_id = ${listingIdSql} AND start_at IS ${bind(oldPin.startAt)} AND parent_listing_id = ${bind(oldPin.parentListingId)} AND package_group_id = ${bind(oldPin.packageGroupId)}`;
+    if (skipCapacityGuard) return setClause;
+
+    const condition = lineCapacityCondition(line, attendeeId)(bind, {
+      excludeAttendeeId: attendeeIdSql,
+      listingId: listingIdSql,
+      quantity: quantitySql,
+    });
+    return `${setClause}\n              AND ${condition}`;
+  });
 
 /**
  * Apply a desired final-state line set to an existing attendee atomically.
@@ -352,8 +350,7 @@ export const applyAttendeeAtomicEdit = async (
     statements.push(
       buildCapacityCheckedInsert(
         lineBooking(line),
-        "?",
-        attendeeId,
+        (bind) => bind(attendeeId),
         allowOverbook,
       ),
     );

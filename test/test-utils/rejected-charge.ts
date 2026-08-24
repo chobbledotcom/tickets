@@ -3,23 +3,20 @@
 
 import { expect } from "@std/expect";
 import { spy, stub } from "@std/testing/mock";
-import {
-  bookingEventGroup,
-  refundEventGroup,
-} from "#shared/accounting/mappers.ts";
-import { transfersByEventGroup } from "#shared/accounting/queries.ts";
-import { settings } from "#shared/db/settings.ts";
+import { bookingEventGroup, refundEventGroup } from "#accounting/mappers.ts";
+import { transfersByEventGroup } from "#accounting/queries.ts";
+import { settings } from "#db/settings.ts";
 import type {
   RefundAttemptResult,
   RefundRequest,
-} from "#shared/payment/refund-attempt.ts";
-import type { MalformedRejection } from "#shared/payment/validated-session.ts";
+} from "#payment/refund-attempt.ts";
+import type { MalformedRejection } from "#payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
-import { completedStripeRefund } from "#test/test-utils/stripe/fixtures.ts";
 import { signedMeta } from "#test-utils/factories.ts";
+import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
+import type { PaymentProviderType } from "#types";
 
 /** Run `body` with the site configured for `selected` payments — the real
  *  settings value the configured-provider read consults — while holding the

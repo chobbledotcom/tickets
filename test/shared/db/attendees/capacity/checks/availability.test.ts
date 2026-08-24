@@ -1,11 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { checkListingAvailability as hasAvailableSpots } from "#shared/db/attendees/capacity/checks.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  checkListingAvailability as hasAvailableSpots,
+  unfitListingIds,
+} from "#db/attendees/capacity/checks.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -14,6 +18,8 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+
+/* jscpd:ignore-end */
 
 const createCappedListingWithJohn = async () => {
   const listing = await createTestListing({ maxAttendees: 2 });
@@ -133,7 +139,7 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       "2026-09-01",
       3,
     );
-    const { getDb } = await import("#shared/db/client.ts");
+    const { getDb } = await import("#db/client.ts");
     await getDb().execute({
       args: [sibling.id],
       sql: "UPDATE listings SET listing_type = 'standard' WHERE id = ?",
@@ -158,5 +164,20 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       // limits for every day in the requested range.
       expect(getQueryLog().length).toBeLessThanOrEqual(2);
     });
+  });
+});
+
+describeWithEnv("db > attendees > unfitListingIds", { db: true }, () => {
+  test("keeps only the lines that do not fit", async () => {
+    const roomy = await createTestListing({ maxAttendees: 10 });
+    const full = await createTestListing({ maxAttendees: 1 });
+    await createTestAttendee(full.id, full.slug, "Full", "full@example.com");
+
+    expect(
+      await unfitListingIds([
+        { date: null, durationDays: 1, listingId: roomy.id, quantity: 1 },
+        { date: null, durationDays: 1, listingId: full.id, quantity: 1 },
+      ]),
+    ).toEqual([full.id]);
   });
 });

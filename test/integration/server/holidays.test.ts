@@ -290,7 +290,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         name: "Past Holiday",
         startDate: "2020-01-01",
       });
-      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getActiveHolidays } = await import("#db/holidays.ts");
       const active = await getActiveHolidays();
       expect(active.length).toBe(1);
       expect(active[0]!.name).toBe("Future Holiday");

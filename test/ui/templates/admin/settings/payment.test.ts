@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,

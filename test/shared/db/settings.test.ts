@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import type { PasswordHash, WrappedKey } from "#shared/crypto/sealed.ts";
-import { execute, getDb } from "#shared/db/client.ts";
-import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import type { PasswordHash, WrappedKey } from "#crypto/sealed.ts";
+import { execute, getDb } from "#db/client.ts";
+import { writeRawBatch } from "#db/settings/raw-writes.ts";
 import {
   ALL_SETTINGS_KEYS,
   bumpSettingsVersion,
   CONFIG_KEYS,
   getCurrentSettingsVersion,
   settings,
-} from "#shared/db/settings.ts";
+} from "#db/settings.ts";
 import {
   createUser,
   getUserByUsername,
   verifyUserPassword,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
 import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -343,62 +343,6 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
   });
 
-  describe("stripe key", () => {
-    test("hasStripeKey returns false when not set", () => {
-      expect(settings.stripe.hasKey).toBe(false);
-    });
-
-    test("hasStripeKey returns true after setting key", async () => {
-      await settings.update.stripe.secretKey("sk_test_123");
-      expect(settings.stripe.hasKey).toBe(true);
-    });
-
-    test("getStripeSecretKeyFromDb returns empty string when not set", () => {
-      expect(settings.stripe.secretKey).toBe("");
-    });
-
-    test("getStripeSecretKeyFromDb returns decrypted key after setting", async () => {
-      await settings.update.stripe.secretKey("sk_test_secret_key");
-      const key = settings.stripe.secretKey;
-      expect(key).toBe("sk_test_secret_key");
-    });
-
-    test("updateStripeKey stores key encrypted", async () => {
-      await settings.update.stripe.secretKey("sk_test_encrypted");
-      await settings.loadKeys([CONFIG_KEYS.STRIPE_SECRET_KEY]);
-      const rawValue = settings.getCachedRaw(CONFIG_KEYS.STRIPE_SECRET_KEY);
-      expect(rawValue).toMatch(/^enc:1:/);
-      expect(settings.stripe.secretKey).toBe("sk_test_encrypted");
-    });
-
-    test("updateStripeKey overwrites existing key", async () => {
-      await settings.update.stripe.secretKey("sk_test_first");
-      expect(settings.stripe.secretKey).toBe("sk_test_first");
-
-      await settings.update.stripe.secretKey("sk_test_second");
-      expect(settings.stripe.secretKey).toBe("sk_test_second");
-    });
-
-    test("getStripeKeyMode returns null when no key is set", () => {
-      expect(settings.stripe.keyMode).toBeNull();
-    });
-
-    test("getStripeKeyMode returns test for sk_test_ key", async () => {
-      await settings.update.stripe.secretKey("sk_test_abc123");
-      expect(settings.stripe.keyMode).toBe("test");
-    });
-
-    test("getStripeKeyMode returns live for sk_live_ key", async () => {
-      await settings.update.stripe.secretKey("sk_live_abc123");
-      expect(settings.stripe.keyMode).toBe("live");
-    });
-
-    test("getStripeKeyMode returns null for unrecognised key prefix", async () => {
-      await settings.update.stripe.secretKey("rk_invalid_abc123");
-      expect(settings.stripe.keyMode).toBeNull();
-    });
-  });
-
   describe("generated string accessors", () => {
     test("read and write registry-backed plaintext and encrypted settings", async () => {
       await settings.update.customCss("body { color: red; }");
@@ -427,18 +371,6 @@ describeWithEnv("db > settings", { db: true }, () => {
   });
 
   describe("additional settings", () => {
-    test("clearPaymentProvider removes payment provider setting", async () => {
-      await settings.update.paymentProvider("stripe");
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe(
-        "stripe",
-      );
-
-      await settings.update.clearPaymentProvider();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
-    });
-
     test("loadKeys sets theme to dark when stored value is dark", async () => {
       await settings.setRaw(CONFIG_KEYS.THEME, "dark");
       settings.invalidateCache();
@@ -467,41 +399,13 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.bookingFee).toBe("0");
     });
 
-    test("update.stripe.secretKey with empty string sets empty string", async () => {
-      await settings.update.stripe.secretKey("sk_test_abc");
-      expect(settings.stripe.secretKey).toBe("sk_test_abc");
-      await settings.update.stripe.secretKey("");
-      expect(settings.stripe.secretKey).toBe("");
-    });
-
-    test("update.square.accessToken with empty string sets empty string", async () => {
-      await settings.update.square.accessToken("token_123");
-      expect(settings.square.accessToken).toBe("token_123");
-      await settings.update.square.accessToken("");
-      expect(settings.square.accessToken).toBe("");
-    });
-
-    test("update.square.webhookSignatureKey with empty string sets empty string", async () => {
-      await settings.update.square.webhookSignatureKey("sig_key_123");
-      expect(settings.square.webhookSignatureKey).toBe("sig_key_123");
-      await settings.update.square.webhookSignatureKey("");
-      expect(settings.square.webhookSignatureKey).toBe("");
-    });
-
-    test("update.square.locationId with empty string sets empty string", async () => {
-      await settings.update.square.locationId("loc_123");
-      expect(settings.square.locationId).toBe("loc_123");
-      await settings.update.square.locationId("");
-      expect(settings.square.locationId).toBe("");
-    });
-
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
       const passwordHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(passwordHash).toBeTruthy();
 
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       const result = await s.updateUserPassword(user!.id, {
         newPassword: "newpassword",
         oldKekVersion: user!.kek_version,

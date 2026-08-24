@@ -5,25 +5,22 @@ import {
   getAllActivityLog,
   getListingActivityLog,
   logActivity,
-} from "#shared/db/activity-log.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import {
-  getAttendeeRaw,
-  getAttendeesRaw,
-} from "#shared/db/attendees/queries.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
+} from "#db/activity-log.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { getAttendeeRaw, getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import {
   getAllListings,
   getListingWithCount,
   listingsTable,
-} from "#shared/db/listings/records.ts";
-import { listingReader } from "#shared/db/listings/select.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/listings/records.ts";
+import { listingReader } from "#db/listings/select.ts";
+import { reserveSession } from "#db/processed-payments.ts";
+import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,

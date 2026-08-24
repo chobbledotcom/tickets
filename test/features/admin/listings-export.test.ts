@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activity-log.ts";
-import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { getAllActivityLog } from "#db/activity-log.ts";
+import { updateCheckedIn } from "#db/attendees/update.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestAttendee,

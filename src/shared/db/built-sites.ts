@@ -5,16 +5,17 @@
 
 import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll, queryOne, rowExistsForIdList } from "#shared/db/client.ts";
-import { retryWrite } from "#shared/db/retry-write.ts";
-import type { Table, TableSchema } from "#shared/db/table.ts";
-import { cachedTable, col, defineTable } from "#shared/db/table.ts";
-import type {
-  RowFilter,
-  RowOptions,
-  TableReader,
-} from "#shared/db/table-reader.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { queryAll, queryOne, rowExistsForIdList } from "#db/client.ts";
+import { retryWrite } from "#db/retry-write.ts";
+import {
+  cachedTable,
+  col,
+  defineTable,
+  type Table,
+  type TableSchema,
+} from "#db/table.ts";
+import type { RowFilter, RowOptions, TableReader } from "#db/table-reader.ts";
 import {
   blobToSiteFields,
   buildSiteDataBlobFromInput,

@@ -19,6 +19,20 @@
  * refused at the form.
  */
 
+import type { TicketListing } from "#booking/model.ts";
+import {
+  groupRemainingFromSnapshot,
+  loadCapacitySnapshot,
+  remainingFromSnapshot,
+} from "#db/attendees/capacity/snapshot.ts";
+import { getSelectedAttributesForListings } from "#db/attributes.ts";
+import {
+  getGroupPackagePricesByGroupIds,
+  listingGroups,
+  packageMemberMaps,
+} from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { settings } from "#db/settings.ts";
 import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
@@ -28,21 +42,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import type { TicketListing } from "#shared/booking/model.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import {
-  groupRemainingFromSnapshot,
-  loadCapacitySnapshot,
-  remainingFromSnapshot,
-} from "#shared/db/attendees/capacity/snapshot.ts";
-import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
-import {
-  getGroupPackagePricesByGroupIds,
-  listingGroups,
-  packageMemberMaps,
-} from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { settings } from "#shared/db/settings.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { evaluateOrder } from "#shared/order/evaluate.ts";
 import {
@@ -58,8 +58,8 @@ import {
 } from "#shared/order-select.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
+import type { Group, ListingWithCount } from "#types";
 /* jscpd:ignore-start */
 import {
   applyParentSoldOut,

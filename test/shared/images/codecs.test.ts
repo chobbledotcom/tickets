@@ -9,7 +9,7 @@ import {
   expectWebpContainer,
   makeTestPng,
   testJpeg,
-} from "#test/test-utils/test-image.ts";
+} from "#test-utils/test-image.ts";
 
 describe("pickEncoderBytes", () => {
   test("selects the SIMD build when SIMD is supported, scalar otherwise", async () => {

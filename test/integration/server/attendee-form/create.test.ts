@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { oneLineAttendeeForm } from "#test/test-utils/attendee-form/_shared-setup.ts";
+import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
+import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
 import {
   expectAttendeeLineCount,
   submitNewAttendeeForm,
-} from "#test/test-utils/attendee-form/helpers.ts";
-import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
+} from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
@@ -60,7 +60,7 @@ describeWithEnv(
         expect(attendees[0]!.quantity).toBe(0);
         // No real line ⇒ the unpayable balance is not stored.
         const { getAttendeeBalanceState } = await import(
-          "#shared/db/attendees/balance.ts"
+          "#db/attendees/balance.ts"
         );
         expect(
           (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
@@ -156,7 +156,7 @@ describeWithEnv(
         );
         // Load the existing line key for event1
         const { loadExistingLines } = await import(
-          "#shared/db/attendees/atomic-update.ts"
+          "#db/attendees/atomic-update.ts"
         );
         const existing = await loadExistingLines(attendee.id);
         const form = await buildAttendeeEditForm(attendee.id, {
@@ -184,7 +184,7 @@ describeWithEnv(
           maxAttendees: 50,
           name: "E2",
         });
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
         const result = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: event1.id, quantity: 1 },
@@ -199,7 +199,7 @@ describeWithEnv(
         if (!result.success) throw new Error("setup");
         const attendeeId = result.attendees[0]!.id;
         const { loadExistingLines } = await import(
-          "#shared/db/attendees/atomic-update.ts"
+          "#db/attendees/atomic-update.ts"
         );
         const existing = await loadExistingLines(attendeeId);
         const event1Key = existing.find(
@@ -232,7 +232,7 @@ describeWithEnv(
           "qty@example.com",
         );
         const { loadExistingLines } = await import(
-          "#shared/db/attendees/atomic-update.ts"
+          "#db/attendees/atomic-update.ts"
         );
         const existing = await loadExistingLines(attendee.id);
         const form = await buildAttendeeEditForm(attendee.id, {

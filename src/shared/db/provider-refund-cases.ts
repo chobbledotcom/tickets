@@ -1,16 +1,16 @@
 /* jscpd:ignore-start -- imports */
-import { queryAll, queryOnePrimary } from "#shared/db/client.ts";
+import { queryAll, queryOnePrimary } from "#db/client.ts";
 import {
   loadPaymentReference,
   paymentReferenceIndex,
-} from "#shared/db/payment-reference-store.ts";
-import { type Money, money } from "#shared/payment/money.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/payment-reference-store.ts";
+import { type Money, money } from "#payment/money.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   type RefundOwnerChoices,
   refundOwnerChoices,
-} from "#shared/payment/refund-authority-choice.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+} from "#payment/refund-authority-choice.ts";
+import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import {
   type RefundAuthorityState,
   type RefundAuthorityStateName,
@@ -18,14 +18,14 @@ import {
   readRefundAuthorityState,
   refundLocalMirror,
   refundStateMirror,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import type {
   RefundConflictDecision,
   RefundOwnerDecision,
-} from "#shared/payment/refund-conflict-decision.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
+} from "#payment/refund-conflict-decision.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
-import { isPaymentProvider, type PaymentProviderType } from "#shared/types.ts";
+import { isPaymentProvider, type PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -173,7 +173,9 @@ export const readProviderRefundCaseState = (
     throw new Error("Payment charge refund-state mirrors do not match");
   }
   const provider = providerFrom(row.provider);
-  if (state.request.capability !== REFUND_PROVIDER_CAPABILITIES[provider]) {
+  if (
+    state.request.capability !== PAYMENT_PROVIDERS[provider].refundCapability
+  ) {
     throw new Error("Payment charge refund capability does not match provider");
   }
   return state;

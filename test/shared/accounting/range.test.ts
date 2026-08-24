@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { emptyRange, occurredAtRange } from "#shared/accounting/range.ts";
-import { clauseArgs, whereSql } from "#shared/db/where-clauses.ts";
+import { emptyRange, occurredAtRange } from "#accounting/range.ts";
+import { clauseArgs, whereSql } from "#db/where-clauses.ts";
 
 describe("accounting > range", () => {
   describe("occurredAtRange", () => {

@@ -2,9 +2,8 @@ import type { InStatement, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
-  andConditions,
+  DATABASE_MAX_ATTEMPTS,
   deleteByFieldStatement,
   execute,
   executeReturningRow,
@@ -13,7 +12,9 @@ import {
   getDb,
   inPlaceholders,
   insert,
+  orIgnore,
   queryAll,
+  queryAllPrimary,
   queryBatch,
   queryOne,
   queryOnePrimary,
@@ -24,8 +25,9 @@ import {
   rowExists,
   setDb,
   update,
-} from "#shared/db/client.ts";
-import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
+} from "#db/client.ts";
+import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -37,6 +39,40 @@ const emptyResultSet = (): ResultSet => ({
   rows: [],
   rowsAffected: 0,
   toJSON: () => ({}),
+});
+
+describe("orIgnore", () => {
+  test("turns a plain insert into one that skips a clash", () => {
+    expect(
+      orIgnore({ args: [1], sql: "INSERT INTO settings (key) VALUES (?)" }),
+    ).toEqual({
+      args: [1],
+      sql: "INSERT OR IGNORE INTO settings (key) VALUES (?)",
+    });
+  });
+
+  test("leaves a statement that does not start with an insert alone", () => {
+    const update = { args: [], sql: "UPDATE settings SET value = 1" };
+    expect(orIgnore(update).sql).toBe(update.sql);
+  });
+
+  test("copies the arguments rather than sharing them", () => {
+    const original = {
+      args: [1],
+      sql: "INSERT INTO settings (key) VALUES (?)",
+    };
+    const relaxed = orIgnore(original);
+    original.args.push(2);
+    expect(relaxed.args).toEqual([1]);
+  });
+});
+
+describe("DATABASE_MAX_ATTEMPTS", () => {
+  // The refund budgets size themselves from this number, so it has to match
+  // what the client really does: one try, then the 50/150/350ms ladder.
+  test("counts the first try plus every wait on the remote ladder", () => {
+    expect(DATABASE_MAX_ATTEMPTS).toBe(4);
+  });
 });
 
 describe("extractUpdateColumns", () => {
@@ -170,13 +206,25 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(client1).toBe(client2);
   });
 
-  test("primary read scopes use remote write mode and local read mode", async () => {
+  /** The transaction modes the client is asked for while `read` runs. An empty
+   *  list means the read never went out as a batch at all. */
+  const batchModesWhile = async <T>(
+    read: () => Promise<T>,
+  ): Promise<{ modes: unknown[]; result: T }> => {
     const modes: unknown[] = [];
     const batchStub = stub(getDb(), "batch", (_statements, mode) => {
       modes.push(mode);
       return Promise.resolve([emptyResultSet()]);
     });
     try {
+      return { modes, result: await read() };
+    } finally {
+      batchStub.restore();
+    }
+  };
+
+  test("primary read scopes use remote write mode and local read mode", async () => {
+    const { modes, result } = await batchModesWhile(async () => {
       await queryBatch([{ args: [], sql: "SELECT 1" }]);
       {
         using _env = withEnv({ DB_URL: "libsql://primary.test" });
@@ -185,14 +233,23 @@ describeWithEnv("db > client", { db: true }, () => {
           queryBatch([{ args: [], sql: "SELECT 1" }]),
         );
       }
-      const localRows = await runWithPrimaryReads(() =>
+      return await runWithPrimaryReads(() =>
         queryAll<{ one: number }>("SELECT 1 AS one"),
       );
-      expect(localRows).toEqual([{ one: 1 }]);
-      expect(modes).toEqual(["read", "write", "write"]);
-    } finally {
-      batchStub.restore();
-    }
+    });
+    expect(result).toEqual([{ one: 1 }]);
+    expect(modes).toEqual(["read", "write", "write"]);
+  });
+
+  test("a read outside a primary scope is left to a replica", async () => {
+    const { modes, result } = await batchModesWhile(async () => {
+      using _env = withEnv({ DB_URL: "libsql://primary.test" });
+      return await queryAll<{ one: number }>("SELECT 1 AS one");
+    });
+    // One plain statement, which any replica can answer. A batch here would
+    // pin every ordinary read to the primary and take its write-mode lock.
+    expect(result).toEqual([{ one: 1 }]);
+    expect(modes).toEqual([]);
   });
 
   test("queryOne returns null for an expected miss", async () => {
@@ -233,6 +290,20 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
+  });
+
+  test("queryAllPrimary returns every matching row from the primary", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES" +
+        " ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')",
+    );
+    const rows = await queryAllPrimary<{ value: string }>({
+      args: ["query_all_primary_%"],
+      sql: "SELECT value FROM settings WHERE key LIKE ? ORDER BY key",
+    });
+    // Every match in order: a plural that answered with the first row alone
+    // would be the singular wearing the wrong name.
+    expect(rows.map(({ value }) => value)).toEqual(["first", "second"]);
   });
 
   test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {
@@ -460,16 +531,6 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
-  });
-
-  test("andConditions joins clauses with AND, preserving argument order", () => {
-    const combined = andConditions([
-      { args: [1], sql: "a = ?" },
-      { args: [2, 3], sql: "b IN (?, ?)" },
-      { args: [], sql: "c IS NULL" },
-    ]);
-    expect(combined.sql).toBe("(a = ?) AND (b IN (?, ?)) AND (c IS NULL)");
-    expect(combined.args).toEqual([1, 2, 3]);
   });
 
   test("rawSql brands its value with the raw-sql sentinel symbol", () => {

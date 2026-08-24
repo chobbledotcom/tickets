@@ -390,7 +390,11 @@ describe("test-utils — error paths & contracts", () => {
     // later somewhere confusing, so it stops here and names the reason.
     test("stops a fixture whose booking was rejected, naming why", () => {
       expect(() =>
-        bookedAttendee({ reason: "capacity_exceeded", success: false }),
+        bookedAttendee({
+          listingIds: [],
+          reason: "capacity_exceeded",
+          success: false,
+        }),
       ).toThrow("Failed to create the attendee: capacity_exceeded");
     });
   });

@@ -1,23 +1,23 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { releaseMigrationLock } from "#shared/db/migrations/lock.ts";
+import { getDb } from "#db/client.ts";
+import { releaseMigrationLock } from "#db/migrations/lock.ts";
 import {
   getAppliedMigrationIds,
   migrationMarkerStatement,
   recordMigrationBatch,
   writeSchemaMarkers,
-} from "#shared/db/migrations/markers.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
-import { SCHEMA_HASH } from "#shared/db/migrations/schema/index.ts";
+} from "#db/migrations/markers.ts";
+import { MIGRATION_IDS } from "#db/migrations/registry.ts";
+import { SCHEMA_HASH } from "#db/migrations/schema/index.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
   MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
-} from "#shared/db/migrations/schema/version.ts";
-import type { Migration } from "#shared/db/migrations/types.ts";
+} from "#db/migrations/schema/version.ts";
+import type { Migration } from "#db/migrations/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   settingsValueOrNull,

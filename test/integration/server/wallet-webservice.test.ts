@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { handleRequest } from "#routes";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
@@ -215,7 +215,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       if (!result.success) throw new Error("setup failed");
       // The standalone row isn't part of the package — clear its package id so
       // the token genuinely mixes a standalone and a package booking.
-      const { getDb } = await import("#shared/db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       await getDb().execute({
         args: [standalone.id],
         sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",

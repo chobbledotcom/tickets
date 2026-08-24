@@ -6,6 +6,11 @@
  * order (or error message) to their own response shape.
  */
 
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { buildOrderLines } from "#booking/order-lines.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import { answerModifierQuantities } from "#db/modifier-resolve.ts";
+import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { sum } from "#fp";
 import {
   type AnswerInfo,
@@ -19,12 +24,7 @@ import {
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import { buildOrderLines } from "#shared/booking/order-lines.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { answerModifierQuantities } from "#shared/db/modifier-resolve.ts";
-import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";

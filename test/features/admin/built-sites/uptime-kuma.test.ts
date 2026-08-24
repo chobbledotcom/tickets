@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { restoreStubsAfterEach } from "#test-utils/mocks.ts";
@@ -20,9 +21,13 @@ describeWithEnv(
 
     test("adds a missing monitor", async () => {
       const site = await insertScheduledTestSite();
+      // The site's name lives in its encrypted blob, so the name the activity
+      // line must carry is read from the site the service was handed.
+      let monitored = "";
       stubs.push(
         stub(uptimeKumaMonitorService, "add", (selected) => {
           expect(selected.id).toBe(site.id);
+          monitored = selected.name;
           return Promise.resolve({
             ok: true,
             value: { created: true, monitorId: 81 },
@@ -40,6 +45,10 @@ describeWithEnv(
       if (location === null) throw new Error("Redirect location is missing");
       expect(new URL(location, "https://example.test").pathname).toBe(
         `/admin/built-sites/${site.id}/maintenance`,
+      );
+      expect(monitored).not.toBe("");
+      expect(await activityMessages()).toContain(
+        `Added Uptime Kuma monitor for '${monitored}'`,
       );
     });
 

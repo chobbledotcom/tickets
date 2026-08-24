@@ -1,8 +1,9 @@
 /* jscpd:ignore-start */
 
 import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { ownerFormById } from "#routes/entity.ts";
+import { type IdRouteHandler, ownerFormById } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -14,19 +15,18 @@ import { defineRoutes } from "#routes/router.ts";
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import {
-  createOwnerCrudHandlers,
-  operationResponse,
-} from "#routes/admin/owner-crud.ts";
-import type { IdRouteHandler } from "#routes/entity.ts";
-import { redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { clearLogisticsAgentReferences } from "#db/logistics.ts";
 import {
   type LogisticsAgentInput,
   logisticsAgents,
-} from "#shared/db/logistics-agents.ts";
-import { agentUsers } from "#shared/db/user-agents.ts";
+} from "#db/logistics-agents.ts";
+import { agentUsers } from "#db/user-agents.ts";
+import {
+  createCrudHandlers,
+  operationResponse,
+} from "#routes/admin/crud-handlers.ts";
+import { redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
@@ -81,10 +81,10 @@ const logisticsAgentEditResource = defineNamedResource({
   },
 });
 
-const crud = createOwnerCrudHandlers({
+const crud = createCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (agent) => agent.name,
-  listPath: "/admin/logistics",
+  list: "logistics",
   operations: logisticsAgentsResource,
   renderDelete: logisticsAgentPages.deletePage,
   renderList: adminLogisticsPage,
@@ -111,7 +111,7 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
 /** Logistics settings + agent routes. The agent edit POST restates the
  * standard key with its own handler. */
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/logistics", crud),
-  ...entityTabRoutes("/admin/logistics", logisticsAgentPage),
+  ...crudRoutes(adminPattern("logistics"), crud),
+  ...entityTabRoutes(adminPattern("logisticsAgent"), logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

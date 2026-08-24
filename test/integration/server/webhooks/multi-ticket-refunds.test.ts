@@ -134,7 +134,7 @@ describeWithEnv(
         listing1.id,
         listing2.id,
       );
-      const { getNoteRows } = await import("#shared/db/notes/queries.ts");
+      const { getNoteRows } = await import("#db/notes/queries.ts");
       expect((await getNoteRows("attendee", [attendee.id])).length).toBe(1);
       await expectSessionFailed("cs_multi_mismatch");
 

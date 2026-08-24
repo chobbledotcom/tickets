@@ -2,7 +2,7 @@
 import type {
   ObservedRefundAdmission,
   WithheldRefund,
-} from "#shared/payment/admit-refund.ts";
+} from "#payment/admit-refund.ts";
 import {
   reportProviderWithheldRefund,
   reportWithheldRefund,
@@ -10,6 +10,7 @@ import {
 import {
   type ProviderRefundResult,
   type RefundAuthorityReceipt,
+  type RefundEngineProvider,
   requestProviderRefund,
 } from "#shared/provider-refunds.ts";
 import {
@@ -19,7 +20,6 @@ import {
 import { mapProviderRequests } from "./provider-requests.ts";
 import type {
   ReadyRefundCandidate,
-  ReadyRefundProvider,
   ReadyRefundReference,
 } from "./readiness.ts";
 import { readyRefundAdmission } from "./ready-admission.ts";
@@ -33,7 +33,7 @@ type ObservedWithheldRefund = WithheldRefund;
 type RefundReportFacts = {
   readonly attendeeId: number;
   readonly listingId: number;
-  readonly provider: ReadyRefundProvider["type"];
+  readonly provider: RefundEngineProvider["type"];
 };
 
 /** One reference's result. A returned result names the durable authority that
@@ -96,6 +96,24 @@ const standDownResult = (
     ? { outcome: "failed" }
     : withheldResult(admission, report);
 
+/** What each engine answer comes to for the reference the operator asked
+ * about. `returned` is absent from both sides: it is the one answer that
+ * carries a receipt, so it can never be a bare outcome, and `refunded` can
+ * never be reported without one. Every other answer is a key here, and a new
+ * one stops this compiling until somebody says what it means for the money. */
+const ENGINE_OUTCOME: Record<
+  Exclude<ProviderRefundResult["kind"], "returned">,
+  Exclude<RefundOutcome, "refunded">
+> = {
+  changed: "withheld",
+  needs_owner_choice: "pending",
+  needs_provider_check: "pending",
+  pending: "pending",
+  ready: "withheld",
+  unchanged: "withheld",
+  withheld: "pending",
+};
+
 const engineResult = (
   result: ProviderRefundResult,
   attendeeId: number,
@@ -104,27 +122,18 @@ const engineResult = (
   if (result.kind === "returned") {
     return { authority: result.authority, outcome: "refunded" };
   }
-  if (result.kind === "pending") {
-    return { outcome: "pending" };
+  // A provider that turned the request down is a failure the owner sees now,
+  // not a wait — every other reason they must answer is still in flight.
+  if (
+    result.kind === "needs_owner_choice" &&
+    result.reason === "provider_rejected"
+  ) {
+    return { outcome: "failed" };
   }
   if (result.kind === "withheld") {
-    reportProviderWithheldRefund(result, {
-      attendeeId,
-      listingId,
-    });
-    return { outcome: "pending" };
+    reportProviderWithheldRefund(result, { attendeeId, listingId });
   }
-  if (result.kind === "needs_owner_choice") {
-    return {
-      outcome: result.reason === "provider_rejected" ? "failed" : "pending",
-    };
-  }
-  if (result.kind === "needs_provider_check") {
-    return { outcome: "pending" };
-  }
-  if (result.kind === "changed") return { outcome: "withheld" };
-  if (result.kind === "unchanged") return { outcome: "withheld" };
-  return { outcome: "withheld" };
+  return { outcome: ENGINE_OUTCOME[result.kind] };
 };
 
 const askAuthority = async (

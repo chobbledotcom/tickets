@@ -4,12 +4,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import {
   datelessGhostBookings,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { placeholderRefund } from "#shared/payment/placeholder-refund.ts";
 import {
   bookingIntent,
   paymentSession,
@@ -25,6 +25,7 @@ describeWithEnv(
       const session = paymentSession("cs_store_refused", 500, intent);
       using refused = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.resolve({
+          listingIds: [],
           reason: "capacity_exceeded",
           success: false,
         } as const),

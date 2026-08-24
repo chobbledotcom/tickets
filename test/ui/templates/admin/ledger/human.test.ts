@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";

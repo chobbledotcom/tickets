@@ -2,26 +2,26 @@
  * Shared utilities for token-based routes (/t/:tokens and /checkin/:tokens)
  */
 
+import type {
+  AttendeeWithBookings,
+  ListingAttendeeRow,
+} from "#db/attendee-types.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
+import { packageDisplaysForRows } from "#db/groups.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
+import {
+  clearTokenAttempts,
+  isTokenRateLimited,
+  recordTokenFailure,
+} from "#db/token-attempts.ts";
 import { compact, unique } from "#fp";
 import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import type { WalletPassData } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import type {
-  AttendeeWithBookings,
-  ListingAttendeeRow,
-} from "#shared/db/attendee-types.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { packageDisplaysForRows } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
-import {
-  clearTokenAttempts,
-  isTokenRateLimited,
-  recordTokenFailure,
-} from "#shared/db/token-attempts.ts";
 import { listingDetails } from "#shared/listing-details.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -30,7 +30,7 @@ import {
   type Attendee,
   hasTicketQuantity,
   type ListingWithCount,
-} from "#shared/types.ts";
+} from "#types";
 
 export type { WalletPassData };
 

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
 import {
   appendImageToItem,
   clearImageUsesForItemStatement,
@@ -9,20 +9,22 @@ import {
   getImageById,
   getImageFilenamesForItem,
   getImagesForItem,
+  getImageUsesForImage,
   imagesTable,
   imageUseTargets,
   setImagesForItem,
   setItemsForImage,
-} from "#shared/db/images.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+} from "#db/images.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
-import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import type { Image } from "#types";
 
 const makeImage = (
   name: string,
@@ -101,6 +103,18 @@ describeWithEnv("db > images", { db: true }, () => {
       );
     });
 
+    test("names a broken thumbnail in its report", async () => {
+      const id = await insertBrokenImage();
+
+      await getAllImages();
+
+      expect(
+        errors.contains(
+          `image ${id} thumbnail filename decrypted to an empty value`,
+        ),
+      ).toBe(true);
+    });
+
     test("projects the broken-image marker for an item's first image", async () => {
       const listing = await createTestListing({ name: "Broken poster" });
       const id = await insertBrokenImageWithGoodThumb();
@@ -131,6 +145,26 @@ describeWithEnv("db > images", { db: true }, () => {
   });
 
   describe("item links", () => {
+    test("uses the declared table for page and news targets", () => {
+      const statement = numberedStatement(
+        (bind) =>
+          `${imageUseTargets.existsSql("news", bind(7))} AND ${imageUseTargets.existsSql("page", bind(8))}`,
+      );
+      expect(statement.sql).toBe(
+        "EXISTS (SELECT 1 FROM news_posts WHERE id = ?1)" +
+          " AND EXISTS (SELECT 1 FROM site_pages WHERE id = ?2)",
+      );
+      expect(statement.args).toEqual([7, 8]);
+    });
+
+    test("returns empty image fields for an item without an image", async () => {
+      expect(await getImageFilenamesForItem("listing", 9999)).toEqual({
+        image_alt_text: "",
+        image_thumb_url: "",
+        image_url: "",
+      });
+    });
+
     test("sets one item's ordered images through the collection path", async () => {
       const listing = await createTestListing({ name: "Poster listing" });
       const first = await makeImage("First");
@@ -240,6 +274,30 @@ describeWithEnv("db > images", { db: true }, () => {
         image.id,
       ]);
       expect(await linkedImageIds("group", group.id)).toEqual([image.id]);
+      expect(
+        await queryAll<{ item_id: number; item_type: string }>(
+          `SELECT item_type, item_id FROM image_uses
+            WHERE image_id = ? ORDER BY item_type, item_id`,
+          [image.id],
+        ),
+      ).toEqual([
+        { item_id: group.id, item_type: "group" },
+        { item_id: listing.id, item_type: "listing" },
+      ]);
+      expect(await getImageUsesForImage(image.id)).toEqual([
+        {
+          image_id: image.id,
+          item_id: group.id,
+          item_type: "group",
+          sort_order: 0,
+        },
+        {
+          image_id: image.id,
+          item_id: listing.id,
+          item_type: "listing",
+          sort_order: 1,
+        },
+      ]);
 
       await deleteImageRecord(image.id);
       expect(await getImageById(image.id)).toBeNull();

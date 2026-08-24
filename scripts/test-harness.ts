@@ -11,7 +11,7 @@
  * for them.
  */
 
-import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import {
   failAfterCleanups,
   releaseWhenStarted,
@@ -140,7 +140,7 @@ export const runTests = async (
  */
 const setupTestState = async (): Promise<() => Promise<void>> => {
   if (Deno.env.get(TEST_STATE_DIR_ENV)) return async () => {};
-  const { writeTestState } = await import("#test/test-utils/test-state.ts");
+  const { writeTestState } = await import("#test-utils/test-state.ts");
 
   const dir = await Deno.makeTempDir({ prefix: "tickets-test-state-" });
   try {

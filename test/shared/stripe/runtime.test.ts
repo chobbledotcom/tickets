@@ -1,17 +1,21 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
-import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
+import {
+  sanitizeStripeError,
+  stripeClientRuntime,
+} from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { stripeClient } from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withFetchMock, withMocks } from "#test-utils/mocks.ts";
+import { stripeClient } from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("Stripe client configuration", () => {
   const errors = setupErrorSpy();
@@ -154,14 +158,16 @@ describeStripe("Stripe client configuration", () => {
 
   test("logs safe Stripe fields instead of the raw error message", async () => {
     const client = await stripeClient();
-    const stripeError = Object.assign(
-      new Error("Payment failed for private.person@example.com"),
-      {
+    // Stripe's own wording lands on the message, so the sanitiser must read
+    // the closed fields beside it and never the message itself.
+    const stripeError = transportError.answered(
+      providerDetail.stripe({
         code: "api_connection_error",
         requestId: "req_safe123",
-        statusCode: 500,
         type: "StripeAPIError",
-      },
+      }),
+      500,
+      "Payment failed for private.person@example.com",
     );
 
     await withMocks(
@@ -173,7 +179,7 @@ describeStripe("Stripe client configuration", () => {
         await expect(
           stripeApi.retrieveCheckoutSession("cs_test_123"),
         ).rejects.toThrow(
-          "Stripe checkout could not be read (unexpected_failure)",
+          "Stripe checkout could not be read (unavailable:provider_error)",
         );
       },
     );
@@ -183,5 +189,60 @@ describeStripe("Stripe client configuration", () => {
     expect(errors.contains("type=StripeAPIError")).toBe(true);
     expect(errors.contains("request=req_safe123")).toBe(true);
     expect(errors.contains("private.person@example.com")).toBe(false);
+  });
+});
+
+describe("naming a Stripe failure without repeating what Stripe said", () => {
+  const stripeAnswer = (
+    statusCode: number,
+    fields: { code?: string; requestId?: string; type?: string } = {},
+  ): unknown =>
+    transportError.answered(
+      providerDetail.stripe(fields),
+      statusCode,
+      "Payment failed for private.person@example.com",
+    );
+
+  test("names every fact it has, separated so each stays readable", () => {
+    expect(
+      sanitizeStripeError(
+        stripeAnswer(500, {
+          code: "api_error",
+          requestId: "req_1",
+          type: "StripeAPIError",
+        }),
+      ),
+    ).toBe("status=500 code=api_error type=StripeAPIError request=req_1");
+  });
+
+  test("names the one fact it has when that is all Stripe sent", () => {
+    expect(sanitizeStripeError(stripeAnswer(429))).toBe("status=429");
+  });
+
+  test("falls back to the error's own name when it has no facts at all", () => {
+    // A provider we never reached carries no status and no Stripe fields.
+    expect(
+      sanitizeStripeError(
+        transportError.unreachable(providerDetail.stripe(), "network_error"),
+      ),
+    ).toBe("ProviderTransportError");
+  });
+
+  test("reads no Stripe fields off another provider's failure", () => {
+    expect(
+      sanitizeStripeError(
+        transportError.answered(providerDetail.square("email"), 400),
+      ),
+    ).toBe("status=400");
+  });
+
+  test("names an ordinary error by its kind, never by its message", () => {
+    expect(
+      sanitizeStripeError(new RangeError("private.person@example.com")),
+    ).toBe("RangeError");
+  });
+
+  test("says a thrown value that is not an error at all is unknown", () => {
+    expect(sanitizeStripeError("private.person@example.com")).toBe("unknown");
   });
 });

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   AttendeeStatusEditPanel,
@@ -110,6 +110,40 @@ describe("attendee status templates", () => {
     expect(html).toContain('checked name="is_public_default"');
     expect(html).not.toContain('checked name="is_paid_default"');
     expect(html).toMatch(/name="reservation_amount"[^>]*value="lots"/);
+  });
+
+  test("gives every field the shape the browser needs", () => {
+    const html = statusPages.newPage(OWNER_SESSION);
+
+    expect(html).toContain('<input name="name" required type="text"');
+    expect(html).toContain('<input name="reservation_amount" type="text"');
+    expect(html).toContain('<fieldset class="checkboxes">');
+    expect(html).toContain('<label class="checkbox">');
+  });
+
+  test("points its guide footer at the statuses part of the guide", () => {
+    const html = statusPages.listPage([PLAIN_STATUS], OWNER_SESSION);
+
+    expect(html).toContain('href="/admin/guide#attendee-statuses"');
+  });
+
+  test("keeps every rejected value, not only the ones the stored row had", () => {
+    // The stored status has none of the three flags, so a checkbox that shows
+    // as ticked can only have come from what the operator submitted.
+    const values = new FormParams({
+      is_paid_default: "true",
+      is_reservation: "true",
+      name: "Typed Instead",
+    });
+
+    const html = String(
+      AttendeeStatusEditPanel({ status: PLAIN_STATUS, values }),
+    );
+
+    expect(html).toMatch(/name="name"[^>]*value="Typed Instead"/);
+    expect(html).toContain('checked name="is_reservation"');
+    expect(html).toContain('checked name="is_paid_default"');
+    expect(html).not.toContain('checked name="is_public_default"');
   });
 
   test("renders a non-dangerous typed-name delete form", () => {

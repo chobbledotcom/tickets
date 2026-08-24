@@ -1,4 +1,4 @@
-import { isSessionRejection } from "#shared/payment/validated-session.ts";
+import { isSessionRejection } from "#payment/validated-session.ts";
 import type {
   ValidatedPaymentSession,
   WebhookSessionResult,

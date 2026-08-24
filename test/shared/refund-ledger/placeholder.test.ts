@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
+import { bookingEventGroup } from "#accounting/mappers.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
 import { isPaymentOnlyAccount } from "#shared/refund-ledger/plan.ts";

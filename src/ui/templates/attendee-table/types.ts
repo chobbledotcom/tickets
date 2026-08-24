@@ -1,8 +1,8 @@
-import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
+import type { AttendeeTableRow } from "#types";
 
 /** Question data for displaying answers in the attendee table. */
 export type TableQuestionData = AttendeeQuestionData;

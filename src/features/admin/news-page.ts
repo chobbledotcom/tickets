@@ -6,20 +6,21 @@
  * /admin/site/news/:id/edit resolves to it too.
  */
 
+import { getNewsPostById } from "#db/news-posts.ts";
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
-import { getNewsPostById } from "#shared/db/news-posts.ts";
-import type { NewsPost } from "#shared/types.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { newsEditPanel } from "#templates/admin/news.tsx";
+import type { NewsPost } from "#types";
 import { defineSiteContentPage } from "./site-content-page.ts";
 
 /** The tabbed news page. */
 export const newsPage: EntityPage<NewsPost> = defineSiteContentPage<NewsPost>({
-  basePath: (id) => `/admin/site/news/${id}`,
   deleteLabelKey: "news.delete_submit",
+  destination: "newsPost",
   editPanel: newsEditPanel,
   guideAnchor: "public-site",
   itemType: "news",
   load: (id) => getNewsPostById(id),
-  navActive: "/admin/site/news",
+  navActive: adminPattern("news"),
   titleOf: (post) => post.name,
 });

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { settings } from "#shared/db/settings.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { settings } from "#db/settings.ts";
 import {
   getSettingsNagItems,
   getSettingsNagItemsForOwner,
@@ -174,8 +174,8 @@ describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
   test("does NOT show superuser nag when derived username exists AND is activated (has wrapped_data_key)", async () => {
     using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
-    const { createUser } = await import("#shared/db/users.ts");
-    const { hashPassword } = await import("#shared/crypto/hashing.ts");
+    const { createUser } = await import("#db/users.ts");
+    const { hashPassword } = await import("#crypto/hashing.ts");
     const pw = await hashPassword("test");
     // Hand-crafted stored wrap — test fixture cast.
     await createUser("admin", pw, "some-wrapped-key" as WrappedKey, "owner");
@@ -186,7 +186,7 @@ describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
   test("shows superuser nag when derived username exists but is NOT activated (null wrapped_data_key)", async () => {
     using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
-    const { createUser } = await import("#shared/db/users.ts");
+    const { createUser } = await import("#db/users.ts");
     await createUser("admin", "", null, "owner");
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(true);

@@ -95,6 +95,30 @@ describe("limit registry contract", () => {
         "hours",
       ],
       [
+        "SUMUP_FIRST_CHECK_HOURS",
+        3,
+        "SumUp recovery: first check after creation",
+        "hours",
+      ],
+      [
+        "SUMUP_RECHECK_HOURS",
+        6,
+        "SumUp recovery: wait before asking again",
+        "hours",
+      ],
+      [
+        "SUMUP_RECOVERY_INTERVAL_MINUTES",
+        30,
+        "SumUp recovery: how often to look for due checkouts",
+        "minutes",
+      ],
+      [
+        "SUMUP_RECOVERY_BATCH",
+        3,
+        "SumUp recovery: checkouts per run",
+        "checkouts",
+      ],
+      [
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
         7,
         "Prune: unused encrypted strings retention",

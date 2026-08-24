@@ -1,31 +1,29 @@
 /** Group membership checks and writes that must see one transaction-local view. */
 
-import { mapNotNullish } from "#fp";
-import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   checkGroupListingSettings,
   type GroupListingSettings,
   groupListingSettingsError,
-} from "#shared/db/groups/homogeneity.ts";
-import {
-  hasPackageBookingsTx,
-  setGroupPackageMembers,
-} from "#shared/db/groups.ts";
-import { TransactionValidationError, txIdSet } from "#shared/db/transaction.ts";
+} from "#db/groups/homogeneity.ts";
+import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
+import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
+import { mapNotNullish } from "#fp";
+import { t } from "#i18n";
+import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
   memberBlockKey,
   packageMemberMessage,
 } from "#shared/package-membership.ts";
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 type GroupStateRow = {
   group_id: number;
@@ -367,10 +365,14 @@ const groupListingAssignmentStatements = (
   listingIds: readonly number[],
   groupId: number,
 ) =>
-  listingIds.map((listingId) => ({
-    args: [groupId, listingId, listingId],
-    sql: "INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM listings WHERE id = ?)",
-  }));
+  listingIds.map((listingId) =>
+    numberedStatement((bind) => {
+      const listing = bind(listingId);
+      return `INSERT OR IGNORE INTO group_listings (group_id, listing_id)
+              SELECT ${bind(groupId)}, ${listing}
+               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listing})`;
+    }),
+  );
 
 /** Adds listings after checking fresh group, listing, and edge state in one write transaction. */
 export const assignListingsToGroup = async (

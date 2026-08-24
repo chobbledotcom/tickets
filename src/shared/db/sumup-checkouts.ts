@@ -19,16 +19,18 @@
  */
 
 import * as v from "valibot";
-import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { decryptWithKey, encryptWithKey } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   generateDataKey,
   unwrapKeyWithToken,
   wrapKeyWithToken,
-} from "#shared/crypto/keys.ts";
-import type { KeyEncrypted, WrappedKey } from "#shared/crypto/sealed.ts";
-import { execute, executeUpdate, insert, queryOne } from "#shared/db/client.ts";
-import { nowIso } from "#shared/now.ts";
+} from "#crypto/keys.ts";
+import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
+import { execute, executeUpdate, insert, queryOne } from "#db/client.ts";
+import { recoveryMoveTo } from "#payment/sumup-recovery-machine-spec.ts";
+import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
+import { isoAfter, nowIso } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 type SumupCheckoutRow = {
@@ -71,6 +73,10 @@ export const storeSumupCheckout = async (
   const { sql, args } = insert("sumup_checkouts", {
     created_at: nowIso(),
     metadata: ciphertext,
+    // No checkout id yet, so there is nothing to ask SumUp about and nothing
+    // to schedule. Both land together when creation succeeds.
+    next_check_at: null,
+    recovery_state: "staged",
     reference_index: referenceIndex,
     sumup_id: "",
     wrapped_key: wrappedKey,
@@ -78,15 +84,25 @@ export const storeSumupCheckout = async (
   await execute(sql, args);
 };
 
-/** Record the SumUp-side checkout id once creation succeeds. */
+/** Record the SumUp-side checkout id once creation succeeds, and put the row
+ * in the queue that will ask SumUp what became of it. The id and the state
+ * land in one write because a row carrying one without the other is a shape
+ * {@link recoveryNodeOf} refuses. */
 export const setSumupCheckoutId = async (
   reference: string,
   sumupId: string,
 ): Promise<void> => {
   const result = await executeUpdate(
     "sumup_checkouts",
-    { sumup_id: sumupId },
-    { reference_index: await hmacHash(reference) },
+    {
+      next_check_at: isoAfter(SUMUP_FIRST_CHECK_MS),
+      recovery_state: recoveryMoveTo("staged", "checkout_created"),
+      sumup_id: sumupId,
+    },
+    {
+      recovery_state: "staged",
+      reference_index: await hmacHash(reference),
+    },
   );
   // The hosted URL must never reach a customer while this checkout's
   // callbacks would still be refused as unknown, so creation fails here —

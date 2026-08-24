@@ -11,7 +11,7 @@ import {
   getSelectedAttributesForListings,
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
-} from "#shared/db/attributes.ts";
+} from "#db/attributes.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,

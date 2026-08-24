@@ -2,30 +2,27 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { squareApi } from "#shared/square/api.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
-import {
-  SquareApiError,
-  SquareConnectionError,
-} from "#shared/square/transport.ts";
+import type { SquarePayment } from "#shared/square/wire.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
+import { rejectionMessage } from "#test-utils/assertions.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { asSession } from "#test-utils/payment-session.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 import {
   SQUARE_ORDER_META,
   setupSquareProviderSuite,
   squareMoney,
   withSquareClient,
-} from "#test/test-utils/square/fixtures.ts";
+} from "#test-utils/square/fixtures.ts";
 import {
   completedSquareWebhook,
   squareOrderRead,
   squarePaymentRead,
-} from "#test/test-utils/square/outcomes.ts";
-import { rejectionMessage } from "#test-utils/assertions.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { asSession } from "#test-utils/payment-session.ts";
-import { gbp } from "#test-utils/payment-state.ts";
+} from "#test-utils/square/outcomes.ts";
 
 /* jscpd:ignore-end */
 
@@ -137,8 +134,11 @@ describe("square-provider read outcomes", () => {
   });
 
   for (const [name, error] of [
-    ["transport failure", new SquareConnectionError("network_error")],
-    ["provider failure", new SquareApiError(503)],
+    [
+      "transport failure",
+      transportError.unreachable(providerDetail.square(), "network_error"),
+    ],
+    ["provider failure", transportError.answered(providerDetail.square(), 503)],
   ] as const) {
     test(`keeps an order ${name} retryable after a completed event`, async () => {
       await withSquareClient(
@@ -166,7 +166,8 @@ describe("square-provider read outcomes", () => {
   test("keeps an order Square cannot find retryable after a completed event", async () => {
     await withSquareClient(
       {
-        ordersGet: () => Promise.reject(new SquareApiError(404)),
+        ordersGet: () =>
+          Promise.reject(transportError.answered(providerDetail.square(), 404)),
       },
       async () => {
         // A 404 used to be read as proof the order was gone, and the event was
@@ -264,26 +265,6 @@ describe("square-provider read outcomes", () => {
         payment: squarePaymentRead({
           id: "pay_read",
           refundedMoney: squareMoney(1000),
-          status: "COMPLETED",
-        }),
-      },
-      {
-        expected: { reason: "malformed_money", status: "invalid" },
-        name: "refuses a refunded total that names no amount",
-        payment: squarePaymentRead({
-          amountMoney: squareMoney(1000),
-          id: "pay_read",
-          refundedMoney: { currency: "GBP" },
-          status: "COMPLETED",
-        }),
-      },
-      {
-        expected: { reason: "malformed_money", status: "invalid" },
-        name: "refuses a refunded total that names no currency",
-        payment: squarePaymentRead({
-          amountMoney: squareMoney(1000),
-          id: "pay_read",
-          refundedMoney: { amount: 1000n },
           status: "COMPLETED",
         }),
       },

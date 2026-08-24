@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
-import type { Attendee, AttendeeTableRow } from "#shared/types.ts";
 import {
   createStatusRenderer,
   noQuantityIndicator,
@@ -9,6 +8,7 @@ import {
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { Attendee, AttendeeTableRow } from "#types";
 import { makeOpts, makeRow } from "./shared.ts";
 
 const renderStatus = (

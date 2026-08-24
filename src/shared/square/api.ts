@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
-import type { AuthorizedRefundRequest } from "#shared/payment/refund-provider-authorization.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import {
   createSquarePaymentLink,
@@ -16,12 +16,12 @@ import {
   type SquareConnectionTestResult,
   testSquareConnection,
 } from "#shared/square/connection.ts";
-import { readSquareOrder, type SquareOrder } from "#shared/square/order.ts";
+import { readSquareOrder } from "#shared/square/order.ts";
 import {
   readSquarePayment,
   refundSquareCharge,
-  type SquarePayment,
 } from "#shared/square/payment-outcomes.ts";
+import type { SquareOrder, SquarePayment } from "#shared/square/wire.ts";
 
 /* jscpd:ignore-end */
 

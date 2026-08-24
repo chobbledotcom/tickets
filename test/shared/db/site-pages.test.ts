@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
-import { isGroupSlugTaken } from "#shared/db/groups.ts";
-import { isSlugTaken, listingNames } from "#shared/db/listings/records.ts";
+import { queryAll } from "#db/client.ts";
+import { isGroupSlugTaken } from "#db/groups.ts";
+import { isSlugTaken, listingNames } from "#db/listings/records.ts";
 import {
   computeSitePageSlugIndex,
   getSitePageById,
@@ -11,13 +11,13 @@ import {
   sitePageOrder,
   sitePages,
   updateSitePage,
-} from "#shared/db/site-pages.ts";
+} from "#db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
-import type { SitePage } from "#shared/types.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import type { SitePage } from "#types";
 
 const makePage = async (
   slug: string,

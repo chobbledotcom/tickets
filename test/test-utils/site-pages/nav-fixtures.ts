@@ -6,11 +6,7 @@
 
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type { TargetKey } from "#shared/site-pages/types.ts";
-import type {
-  SitePageItem,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
+import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 /** The key the nav model knows one thing by. */
 export const navKey = (type: SitePageItemType, id: number): TargetKey =>

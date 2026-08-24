@@ -9,8 +9,8 @@
  * join), and both of them open their rows with this.
  */
 
+import type { ReadColumn, TableSchema } from "#db/table.ts";
 import { mapParallel } from "#fp";
-import type { ReadColumn, TableSchema } from "#shared/db/table.ts";
 
 type TableColumn<Row> = keyof Row & string;
 

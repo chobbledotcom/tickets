@@ -3,16 +3,16 @@ import { test } from "@std/testing/bdd";
 import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
-} from "#shared/db/attendees/atomic-update.ts";
-import { updateAttendeePII } from "#shared/db/attendees/update.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+} from "#db/attendees/atomic-update.ts";
+import { updateAttendeePII } from "#db/attendees/update.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import {
   loadSelectedPaymentReferenceRows,
   MAX_REFUND_REFERENCES_PER_ATTENDEE,
-} from "#shared/db/payment-reference-rows.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
+} from "#db/payment-reference-rows.ts";
+import { getRefundPaymentReferences } from "#db/payment-references.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

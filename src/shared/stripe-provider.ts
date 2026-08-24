@@ -11,14 +11,11 @@ import * as v from "valibot";
 import {
   mapProviderReader,
   type ProviderRead,
-} from "#shared/payment/provider-read.ts";
-import { refundWithOneReread } from "#shared/payment/refund-attempt.ts";
-import { requireProviderRefundAuthorization } from "#shared/payment/refund-provider-authorization.ts";
-import {
-  type ChargeMoney,
-  chargeMoneyRead,
-} from "#shared/payment/resources.ts";
-import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+} from "#payment/provider-read.ts";
+import { refundWithOneReread } from "#payment/refund-attempt.ts";
+import { requireProviderRefundAuthorization } from "#payment/refund-provider-authorization.ts";
+import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
+import { validatedPaymentSession } from "#payment/validated-session.ts";
 /* jscpd:ignore-end */
 import {
   hasRequiredSessionMetadata,
@@ -73,7 +70,7 @@ const toValidatedSession = (
 
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createStripeCheckoutSession = makeCreateCheckoutSession(
-  "Stripe",
+  "stripe",
   (...args) => stripeApi.createCheckoutSession(...args),
   (session) => ({ id: session?.id, url: session?.url }),
 );
@@ -105,7 +102,6 @@ export const stripePaymentProvider: PaymentProvider = {
   createCheckoutSession: createStripeCheckoutSession,
 
   readCharge: readStripeCharge,
-  refundCapability: "keyed",
 
   refundCharge: refundWithOneReread(
     (request) => {
@@ -114,7 +110,6 @@ export const stripePaymentProvider: PaymentProvider = {
     },
     (reference) => stripePaymentProvider.readCharge(reference),
   ),
-  requiresWebhookSignature: true,
 
   async resolveWebhookSession({
     data: { object: obj },

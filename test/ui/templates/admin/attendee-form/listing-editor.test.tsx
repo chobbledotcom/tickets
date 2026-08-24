@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import type {
   AttendeeFormLine,
   ParsedAttendeeForm,
 } from "#routes/admin/attendee-form-model.ts";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";

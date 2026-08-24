@@ -1,16 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { fillTogether } from "#shared/db/fill-together.ts";
-import { hasNewsPosts, newsExistenceRead } from "#shared/db/news-posts.ts";
-import {
-  allPageItemsRead,
-  getAllPageItems,
-} from "#shared/db/site-page-items.ts";
+import { fillTogether } from "#db/fill-together.ts";
+import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
+import { allPageItemsRead, getAllPageItems } from "#db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
   sitePages,
   sitePagesNavRead,
-} from "#shared/db/site-pages.ts";
+} from "#db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";

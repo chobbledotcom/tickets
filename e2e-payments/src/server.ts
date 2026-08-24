@@ -11,12 +11,21 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
-import { sleep, stopChild } from "./util.ts";
+import { probeSignal, sleep, stopChild } from "./util.ts";
 
 /* jscpd:ignore-end */
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const repoRoot = resolve(here, "..", "..");
+const repoRoot = resolve(here, "..", "..");
+
+/** The one artifact root every harness module writes under — screenshots,
+ * journals, Cucumber reports, and server logs all derive from the configured
+ * directory here, so `E2E_ARTIFACTS_DIR` moves all of them together. */
+export const artifactsRoot = join(
+  repoRoot,
+  "e2e-payments",
+  config.artifactsDir,
+);
 
 export interface AppServer {
   /** The exact libsql URL of this server's fresh ephemeral database. */
@@ -32,11 +41,18 @@ export interface AppServer {
 /** Pick a port in a high range; the OS will reject a genuine clash on bind. */
 const pickPort = (): number => 34_000 + Math.floor(Math.random() * 4_000);
 
-/** The child's env without NTFY_URL, so the app under test never notifies. */
-const withoutNtfy = (
+/** The child's env without NTFY_URL (the app under test must never notify)
+ * and without TEST_SUPPRESS_DEBUG_LOGS — the harness reads the app's debug
+ * log lines as evidence (provider ids, webhook processing, refusal counts),
+ * so an inherited suppression flag would blind those assertions. */
+const appServerEnv = (
   env: Record<string, string | undefined>,
 ): Record<string, string | undefined> => {
-  const { NTFY_URL: _dropped, ...rest } = env;
+  const {
+    NTFY_URL: _droppedNtfy,
+    TEST_SUPPRESS_DEBUG_LOGS: _droppedSuppress,
+    ...rest
+  } = env;
   return rest;
 };
 
@@ -59,15 +75,14 @@ export const buildStaticAssets = async (): Promise<void> => {
 
 export const startAppServer = async (): Promise<AppServer> => {
   const port = pickPort();
-  const artifactsDir = join(repoRoot, "e2e-payments", config.artifactsDir);
-  mkdirSync(artifactsDir, { recursive: true });
+  mkdirSync(artifactsRoot, { recursive: true });
 
   const dbDir = join(repoRoot, "e2e-payments", ".tmp");
   rmSync(dbDir, { force: true, recursive: true });
   mkdirSync(dbDir, { recursive: true });
   const dbUrl = `file:${join(dbDir, "e2e.db")}`;
 
-  const logPath = join(artifactsDir, `server-${port}.log`);
+  const logPath = join(artifactsRoot, `server-${port}.log`);
   const logStream = createWriteStream(logPath, { flags: "a" });
 
   log(`Starting app server on port ${port} (db ${dbUrl})…`);
@@ -91,7 +106,7 @@ export const startAppServer = async (): Promise<AppServer> => {
         // the app under test would faithfully ping ntfy for each — making a
         // green run look like an incident. The harness's own failure
         // notification is the only one a run should send.
-        ...withoutNtfy(process.env),
+        ...appServerEnv(process.env),
         DB_ENCRYPTION_KEY: config.dbEncryptionKey,
         DB_URL: dbUrl,
         PORT: String(port),
@@ -108,7 +123,11 @@ export const startAppServer = async (): Promise<AppServer> => {
   const deadline = Date.now() + config.serverBootTimeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${localBaseUrl}/health`);
+      // Bounded by what is left of the boot deadline, so one hung probe
+      // cannot carry the loop past its budget.
+      const res = await fetch(`${localBaseUrl}/health`, {
+        signal: probeSignal(deadline),
+      });
       if (res.ok) {
         await res.body?.cancel();
         log(`App server is up at ${localBaseUrl} (log: ${logPath})`);

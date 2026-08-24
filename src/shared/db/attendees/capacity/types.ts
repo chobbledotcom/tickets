@@ -1,4 +1,4 @@
-import type { ListingType } from "#shared/types.ts";
+import type { ListingType } from "#types";
 
 /** The listing fields used by group-capacity lookups. */
 export interface ListingForGroupLookup {

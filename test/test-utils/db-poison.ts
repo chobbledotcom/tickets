@@ -1,4 +1,4 @@
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 
 type PoisonedWrite = (body: () => Promise<void>) => Promise<void>;
 type SqlStatement = { sql: string };

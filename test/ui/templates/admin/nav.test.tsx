@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
-import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -12,6 +11,7 @@ import {
   useSetting,
   withSetting,
 } from "#test-utils/settings.ts";
+import type { AdminLevel } from "#types";
 
 describeWithEnv("AdminNav", {}, () => {
   useSetting(
@@ -78,23 +78,19 @@ describeWithEnv("AdminNav", {}, () => {
    *  and the roles that reach it. Feature-flag-gated sections (Images) are
    *  excluded here — they have dedicated tests that enable the flag. Each pair
    *  lives only in its own section's sub-nav — never on the top-level bar. */
-  const addLinkSections = ADMIN_SURFACE.destinations
-    .filter((route) => route.nav?.kind === "create")
-    .map((route) => ({
-      route,
-      // Every destination section is declared by the shared ADMIN_SURFACE schema.
-      section: ADMIN_SURFACE.sections.find(
-        (section) => section.id === route.section,
-      )!,
-    }))
-    .filter(({ section }) => !("visible" in section))
-    .map(({ route, section }) => ({
-      addHref: route.pattern,
-      addText: t(route.nav!.labelKey),
-      createActive: route.pattern,
-      roles: route.audience,
-      sectionActive: adminDestination(section.landing).pattern,
-    }));
+  const addLinkSections = ADMIN_SURFACE.sections
+    .filter((section) => section.visible === undefined)
+    .flatMap((section) =>
+      section.nav
+        .filter((entry) => entry.kind === "create")
+        .map((entry) => ({
+          addHref: adminDestination(entry.id).pattern,
+          addText: t(entry.labelKey),
+          createActive: adminDestination(entry.id).pattern,
+          roles: adminDestination(entry.id).audience,
+          sectionActive: adminDestination(section.landing).pattern,
+        })),
+    );
 
   // Regression: the create links used to sit on the top-level nav bar, visible
   // on every page. They must not appear at the top level any more — only inside

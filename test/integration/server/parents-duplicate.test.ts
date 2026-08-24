@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
   groups,
   setGroupPackageMembers,
-} from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+} from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { t } from "#i18n";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -35,7 +35,7 @@ const makeExternalBundle = async (groupName: string) => {
     groupId: group.id,
     name: "Bundled add-on",
   });
-  const { listingChildren } = await import("#shared/db/listing-parents.ts");
+  const { listingChildren } = await import("#db/listing-parents.ts");
   await listingChildren.setIds(outsideParent.id, [child.id]);
   return { child, group, outsideParent };
 };
@@ -45,7 +45,7 @@ const setChildren = async (
   parentId: number,
   childIds: number[],
 ): Promise<void> => {
-  const { listingChildren } = await import("#shared/db/listing-parents.ts");
+  const { listingChildren } = await import("#db/listing-parents.ts");
   await listingChildren.setIds(parentId, childIds);
 };
 
@@ -72,7 +72,7 @@ const duplicateListingResponse = async (
       cookie,
     ),
   );
-  const { getAllListings } = await import("#shared/db/listings/records.ts");
+  const { getAllListings } = await import("#db/listings/records.ts");
   const copy = (await getAllListings()).find((l) => l.name === name)!;
   return { copy, response };
 };
@@ -305,7 +305,7 @@ describeWithEnv(
       );
       // The clone is itself a child, so its standalone
       // /ticket page 404s rather than booking standalone.
-      const { listingParents } = await import("#shared/db/listing-parents.ts");
+      const { listingParents } = await import("#db/listing-parents.ts");
       expect(
         (await listingParents.getIds(childCopy.id)).length,
       ).toBeGreaterThan(0);
@@ -445,9 +445,7 @@ describeWithEnv(
     });
 
     test("duplicating a package member copies its price, quantity, and per-day overrides", async () => {
-      const { getGroupDayPrices } = await import(
-        "#shared/db/listing-prices.ts"
-      );
+      const { getGroupDayPrices } = await import("#db/listing-prices.ts");
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
       const source = await createTestListing({
         groupId: group.id,
@@ -487,7 +485,7 @@ describeWithEnv(
     });
 
     test("does not copy a package override for a group the duplicate did not join", async () => {
-      const { queryAll } = await import("#shared/db/client.ts");
+      const { queryAll } = await import("#db/client.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Bundle2",
@@ -514,7 +512,7 @@ describeWithEnv(
     });
 
     test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
-      const { groups } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({
         maxAttendees: 10,

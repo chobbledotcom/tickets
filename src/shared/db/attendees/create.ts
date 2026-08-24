@@ -1,17 +1,18 @@
 /** Atomic attendee creation across one or more listing bookings. */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
-import { addDays } from "#shared/dates.ts";
+import { generateTicketToken } from "#crypto/utils.ts";
 import type {
   AttendeeInput,
   BuildAttendeeInput,
   CreateAttendeeResult,
   EncryptedAttendeeData,
-} from "#shared/db/attendee-types.ts";
-import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
-import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
+} from "#db/attendee-types.ts";
+import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
+import {
+  buildCapacityCheckedInsert,
+  refusedOrderUnfitListingIds,
+} from "#db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
@@ -22,21 +23,16 @@ import {
   writeAsBatch,
   writeAsLedgerBatch,
   writeWithCreationWork,
-} from "#shared/db/attendees/create-batch.ts";
-import { ATTENDEE_KIND, type AttendeeKind } from "#shared/db/attendees/kind.ts";
-import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
-import {
-  contactFields,
-  encryptAttendeeFields,
-} from "#shared/db/attendees/pii.ts";
-import { insert, type SqlStatement } from "#shared/db/client.ts";
-import { orderActivityStatements } from "#shared/db/contact-tokens.ts";
-import { anyModifierSoldOut } from "#shared/db/modifier-usage.ts";
-import {
-  type Attendee,
-  type ContactInfo,
-  clampDurationDays,
-} from "#shared/types.ts";
+} from "#db/attendees/create-batch.ts";
+import { ATTENDEE_KIND, type AttendeeKind } from "#db/attendees/kind.ts";
+import { annotateOrderParents } from "#db/attendees/order-parents.ts";
+import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
+import { insert, type SqlStatement } from "#db/client.ts";
+import { orderActivityStatements } from "#db/contact-tokens.ts";
+import { anyModifierSoldOut } from "#db/modifier-usage.ts";
+import type { NumberedSql } from "#db/numbered-statement.ts";
+import { addDays } from "#shared/dates.ts";
+import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -96,7 +92,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
 
 const prepareAttendeeWrite = async (
   input: AttendeeInput,
-  extraCondition?: SqlStatement,
+  extraCondition?: NumberedSql,
   piiPaymentSessionId?: string,
 ): Promise<
   | { ok: true; prepared: PreparedWrite }
@@ -113,8 +109,9 @@ const prepareAttendeeWrite = async (
     rawBookings.some((booking) => (booking.quantity ?? 1) < 0) ||
     hasDuplicateBookingSlot(rawBookings)
   ) {
+    // A malformed order, not one listing's capacity shortfall — none is named.
     return {
-      failure: { reason: "capacity_exceeded", success: false },
+      failure: { listingIds: [], reason: "capacity_exceeded", success: false },
       ok: false,
     };
   }
@@ -128,7 +125,6 @@ const prepareAttendeeWrite = async (
     {
       ...contactInfo,
       paymentId,
-      pricePaid: bookings[0]!.pricePaid ?? 0,
     },
     input.ticketToken ?? generateTicketToken(),
   );
@@ -136,20 +132,11 @@ const prepareAttendeeWrite = async (
   const bookingStatements = bookings.map((booking) => {
     const statement = buildCapacityCheckedInsert(
       booking,
-      ATTENDEE_BY_TOKEN_SQL,
-      enc.ticketTokenIndex,
+      (bind) => ATTENDEE_BY_TOKEN_SQL.replace("?", bind(enc.ticketTokenIndex)),
       allowOverbook,
+      extraCondition,
     );
-    return {
-      args: [
-        ...statement.args,
-        ...(extraCondition && !allowOverbook ? extraCondition.args : []),
-      ] as InValue[],
-      sql:
-        extraCondition && !allowOverbook
-          ? `${statement.sql} AND (${extraCondition.sql})`
-          : statement.sql,
-    };
+    return statement;
   });
   const hasRealBooking = bookings.some(
     (booking) => (booking.quantity ?? 1) > 0,
@@ -214,7 +201,7 @@ const finishAttendeeWrite = (
 };
 
 type CreateStrategy<R extends CreateAttendeeResult | "sold-out"> = {
-  condition?: SqlStatement;
+  condition?: NumberedSql;
   noBooking: () => R | Promise<R>;
   piiPaymentSessionId?: string | undefined;
   write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>;
@@ -235,7 +222,21 @@ const createWith =
       : strategy.noBooking();
   };
 
-const capacityFailure = (): CreateAttendeeResult => ({
+/** The refusal a failed write answers with. The guarded batch cannot say
+ * which statement it aborted on, so the order is asked again as a bounded
+ * primary read and the first line that does not fit is named. A race that
+ * freed the room again before this read names none. */
+const capacityFailure = async (
+  bookings: AttendeeInput["bookings"],
+): Promise<CreateAttendeeResult> => ({
+  listingIds: await refusedOrderUnfitListingIds(
+    bookings.map((booking) => ({
+      date: booking.date ?? null,
+      durationDays: booking.durationDays ?? 1,
+      listingId: booking.listingId,
+      quantity: booking.quantity ?? 1,
+    })),
+  ),
   reason: "capacity_exceeded",
   success: false,
 });
@@ -245,7 +246,7 @@ export const createAttendeeAtomicImpl = (
   creationWork?: AttendeeCreationWork,
 ): Promise<CreateAttendeeResult> =>
   createWith<CreateAttendeeResult>({
-    noBooking: capacityFailure,
+    noBooking: () => capacityFailure(input.bookings),
     write: (prepared) =>
       creationWork
         ? writeWithCreationWork(prepared, creationWork)
@@ -277,7 +278,9 @@ export const createBookingAtomic = (
   createWith<CreateAttendeeResult | "sold-out">({
     condition: bookingBatchCondition(plan),
     noBooking: async () =>
-      (await anyModifierSoldOut(plan.usages)) ? "sold-out" : capacityFailure(),
+      (await anyModifierSoldOut(plan.usages))
+        ? "sold-out"
+        : capacityFailure(input.bookings),
     piiPaymentSessionId: provenPiiPaymentSession(input, plan),
     write: (prepared) => writeAsLedgerBatch(prepared, plan),
   })(input);

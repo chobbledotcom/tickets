@@ -1,14 +1,14 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
-// jscpd:ignore-end
-import { submitDeleteIncomplete } from "#test/test-utils/attendees/helpers.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { reserveSession } from "#db/processed-payments.ts";
 import {
   expectFlashRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import { submitDeleteIncomplete } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -90,9 +90,7 @@ describeWithEnv(
           `/admin/listing/${listingId}/attendees`,
           "Incomplete registration removed",
         )(response);
-        const { getAttendeeRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
+        const { getAttendeeRaw } = await import("#db/attendees/queries.ts");
         expect(await getAttendeeRaw(attendeeId)).toBeNull();
       };
 

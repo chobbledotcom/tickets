@@ -1,27 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
+import { settings } from "#db/settings.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
 } from "#shared/payment-helpers.ts";
 import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
-import {
-  StripeApiError,
-  StripeConnectionError,
-  StripeProtocolError,
-} from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import {
-  lineFor,
-  stripeCheckoutSession,
-  stripeClient,
-  stripeRefundRequest,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   expectClosedCheckoutFailure,
@@ -30,6 +19,13 @@ import {
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import {
+  lineFor,
+  stripeCheckoutSession,
+  stripeClient,
+  stripeRefundRequest,
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   describe("client", () => {
@@ -79,12 +75,14 @@ describeStripe("stripe", () => {
         () =>
           stub(client.checkout.sessions, "retrieve", () =>
             Promise.reject(
-              new StripeApiError("not found", {
-                code: "resource_missing",
-                requestId: "req_missing",
-                statusCode: 404,
-                type: "invalid_request_error",
-              }),
+              transportError.answered(
+                providerDetail.stripe({
+                  code: "resource_missing",
+                  requestId: "req_missing",
+                  type: "invalid_request_error",
+                }),
+                404,
+              ),
             ),
           ),
         async (retrieveSpy) => {
@@ -115,9 +113,7 @@ describeStripe("stripe", () => {
       await withMocks(
         () =>
           stub(client.checkout.sessions, "retrieve", () =>
-            Promise.reject(
-              new StripeProtocolError("private malformed response"),
-            ),
+            Promise.reject(transportError.unusable(providerDetail.stripe())),
           ),
         async () => {
           await expect(
@@ -316,12 +312,15 @@ describeStripe("stripe", () => {
     test("closes Stripe API failures before they reach diagnostics", async () => {
       const privateMessage = "card for private.person@example.com was refused";
       const privateRequest = "req_private_123";
-      const providerError = new StripeApiError(privateMessage, {
-        code: "card_error",
-        requestId: privateRequest,
-        statusCode: 402,
-        type: "card_error",
-      });
+      const providerError = transportError.answered(
+        providerDetail.stripe({
+          code: "card_error",
+          requestId: privateRequest,
+          type: "card_error",
+        }),
+        402,
+        privateMessage,
+      );
       await expectClosedCheckoutFailure(
         checkoutFailure(providerError),
         { provider: "stripe", reason: "provider_error", statusCode: 402 },
@@ -332,7 +331,8 @@ describeStripe("stripe", () => {
 
     test("closes Stripe connection failures", async () => {
       const privateMessage = "socket failed beside pi_private_123";
-      const providerError = new StripeConnectionError(
+      const providerError = transportError.unreachable(
+        providerDetail.stripe(),
         "network_error",
         privateMessage,
       );
@@ -346,7 +346,11 @@ describeStripe("stripe", () => {
 
     test("closes malformed Stripe checkout responses", async () => {
       const privateMessage = "malformed body includes cs_private_123";
-      const providerError = new StripeProtocolError(privateMessage, 502);
+      const providerError = transportError.unusable(
+        providerDetail.stripe(),
+        502,
+        privateMessage,
+      );
       await expectClosedCheckoutFailure(
         checkoutFailure(providerError),
         { provider: "stripe", reason: "invalid_response", statusCode: 502 },
@@ -364,7 +368,7 @@ describeStripe("stripe", () => {
     });
 
     test("includes booking fee line item when fee is set", async () => {
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       await s.update.bookingFee("5");
       const client = await stripeClient();
 
@@ -405,7 +409,7 @@ describeStripe("stripe", () => {
     });
 
     test("charges the deposit per ticket but the fee on the full order", async () => {
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       await s.update.bookingFee("5");
       const client = await stripeClient();
 

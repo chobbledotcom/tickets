@@ -18,6 +18,7 @@ import {
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
+import { redactPath } from "#shared/redact-path.ts";
 import {
   createScope,
   createScopedValue,
@@ -192,45 +193,6 @@ export const errorCodeLabel: Record<ErrorCodeType, string> = Object.fromEntries(
 ) as Record<ErrorCodeType, string>;
 
 /**
- * Redact dynamic segments from paths for privacy-safe logging
- * Replaces:
- * - /ticket/:slug -> /ticket/[redacted]
- * - /admin/listings/:id -> /admin/listings/[id]
- * - /admin/listings/:id/attendees/:aid -> /admin/listings/[id]/attendees/[id]
- */
-export const redactPath = (path: string): string => {
-  // Redact ticket slugs: /ticket/anything -> /ticket/[redacted]
-  let redacted = path.replace(/^\/ticket\/[^/]+/, "/ticket/[redacted]");
-
-  // Redact numeric IDs in admin paths: /admin/listings/123 -> /admin/listings/[id]
-  redacted = redacted.replace(/\/(\d+)(\/|$)/g, "/[id]$2");
-
-  // Redact tokens in wallet webservice paths:
-  // /v1/devices/:device/registrations/:passType/:token → redact device + token
-  // /v1/passes/:passType/:token → redact token
-  redacted = redacted.replace(
-    /^\/v1\/devices\/[^/]+/,
-    "/v1/devices/[redacted]",
-  );
-  redacted = redacted.replace(
-    /^\/v1\/passes\/([^/]+)\/[^/]+/,
-    "/v1/passes/$1/[redacted]",
-  );
-  redacted = redacted.replace(
-    /^\/v1\/devices\/\[redacted\]\/registrations\/([^/]+)\/[^/]+/,
-    "/v1/devices/[redacted]/registrations/$1/[redacted]",
-  );
-
-  // Redact tokens in wallet download paths: /wallet/:token → redact token
-  redacted = redacted.replace(/^\/wallet\/[^/]+/, "/wallet/[redacted]");
-
-  // Redact tokens in checkin paths: /checkin/:token → redact token
-  redacted = redacted.replace(/^\/checkin\/[^/]+/, "/checkin/[redacted]");
-
-  return redacted;
-};
-
-/**
  * Request log entry (privacy-safe)
  */
 type RequestLogEntry = {
@@ -307,7 +269,7 @@ const persistErrorToActivityLog = async (
       // every module's import graph (via env.ts), and a static import here would
       // drag the activity-log table — and the listing helpers it queries with —
       // into every page's graph.
-      const { logActivity } = await import("#shared/db/activity-log.ts");
+      const { logActivity } = await import("#db/activity-log.ts");
       await logActivity(formatErrorMessage(context), context.listingId ?? null);
     } catch {
       // An error log cannot recover when its own durable log is unavailable.

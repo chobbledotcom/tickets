@@ -1,12 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
 import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -148,12 +148,10 @@ describeWithEnv(
           "Badge User",
           "badge@example.com",
         );
-        const { updateCheckedIn } = await import(
-          "#shared/db/attendees/update.ts"
-        );
+        const { updateCheckedIn } = await import("#db/attendees/update.ts");
         await updateCheckedIn(attendee.id, listing.id, true);
         const { invalidateListingsCache } = await import(
-          "#shared/db/listings/records.ts"
+          "#db/listings/records.ts"
         );
         invalidateListingsCache();
         const response = await adminGet(`/admin/attendees/${attendee.id}`);

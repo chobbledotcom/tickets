@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getNoteRows, getNotesFor } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { attendeeAccount } from "#accounting/accounts.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import {
   expectAcknowledgedIgnore,
@@ -163,7 +163,7 @@ describeWithEnv(
       // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
       // — so a signed payment that hits an unexpected error after the charge is kept
       // at quantity 0 and refunded, not crash-looped over money already taken.
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const { attendeesApi } = await import("#db/attendees/api.ts");
       const boom = stub(attendeesApi, "createBookingAtomic", () =>
         Promise.reject(new Error("synthetic create failure")),
       );

@@ -1,4 +1,5 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner + editor
  * (SITE_FORM / requireSiteOr), hand-wired because create must assign a root
@@ -10,6 +11,23 @@ import { defineRoutes } from "#routes/router.ts";
  * `site-pages-page.ts`. This file owns the POST sub-actions and route wiring.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { groupExists } from "#db/groups.ts";
+import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
+import { getListingOfferFlags } from "#db/listings/catalog.ts";
+import {
+  addPageItem,
+  getItemsForPage,
+  removePageItem,
+  sitePageItemOrder,
+} from "#db/site-page-items.ts";
+import {
+  createSitePage,
+  getSitePageById,
+  type SitePageWriteInput,
+  sitePageOrder,
+  updateSitePage,
+} from "#db/site-pages.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
@@ -21,23 +39,6 @@ import {
 } from "#routes/entity.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { groupExists } from "#shared/db/groups.ts";
-import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import { getListingOfferFlags } from "#shared/db/listings/catalog.ts";
-import {
-  addPageItem,
-  getItemsForPage,
-  removePageItem,
-  sitePageItemOrder,
-} from "#shared/db/site-page-items.ts";
-import {
-  createSitePage,
-  getSitePageById,
-  type SitePageWriteInput,
-  sitePageOrder,
-  updateSitePage,
-} from "#shared/db/site-pages.ts";
 import { eligibleChildPages, isReservedSlug } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import {
@@ -46,17 +47,17 @@ import {
   targetOfPageItem,
 } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import {
-  isSitePageItemType,
-  type SitePage,
-  type SitePageItemType,
-} from "#shared/types.ts";
 /* jscpd:ignore-end */
 import {
   adminSitePageDeletePage,
   adminSitePageNewPage,
   adminSitePagesListPage,
 } from "#templates/admin/site-pages.tsx";
+import {
+  isSitePageItemType,
+  type SitePage,
+  type SitePageItemType,
+} from "#types";
 import { seoContentInput } from "./content-form-fields.ts";
 import {
   contentWriteOrError,
@@ -123,7 +124,7 @@ const content = defineSiteContent("/admin/site/pages", (paths) => ({
     identifierLabel: t("site.pages.name_label"),
     onConfirm: async (page: SitePage) => {
       const { deleteSitePageWithEdges } = await import(
-        "#shared/db/site-page-items.ts"
+        "#db/site-page-items.ts"
       );
       await deleteSitePageWithEdges(page.id);
       await logActivity(`Page '${page.name}' deleted`);

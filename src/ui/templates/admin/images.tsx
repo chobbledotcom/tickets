@@ -4,6 +4,7 @@
 
 // jscpd:ignore-start
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Field } from "#shared/forms/field.ts";
@@ -11,16 +12,9 @@ import { Flash } from "#shared/forms/flash.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import {
-  type AdminSession,
-  type Image,
-  type ImageUseItemType,
-  ImageUseItemTypeSchema,
-} from "#shared/types.ts";
 import {
   errorAdminPage,
   flashFormPage,
@@ -40,6 +34,12 @@ import {
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  type AdminSession,
+  type Image,
+  type ImageUseItemType,
+  ImageUseItemTypeSchema,
+} from "#types";
 // jscpd:ignore-end
 
 export type ImageItemOption = {

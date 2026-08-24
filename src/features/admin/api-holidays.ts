@@ -2,10 +2,10 @@
  * Admin JSON API routes for holidays — accessible via API key or cookie+CSRF.
  */
 
+import { type HolidayInput, holidays } from "#db/holidays.ts";
 import { isNotNullish } from "#fp";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
-import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   type DeleteBody,
@@ -13,7 +13,7 @@ import {
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
-import type { Holiday } from "#shared/types.ts";
+import type { Holiday } from "#types";
 
 /** JSON body accepted by POST /api/admin/holidays */
 export type CreateHolidayBody = {
@@ -32,8 +32,9 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   getAll: holidays.getAll,
   name: "holidays",
   nameField: "name",
-  // Holiday management is owner-only in the dashboard (createOwnerCrudHandlers),
-  // so the JSON API matches: managers cannot mutate holidays via the API either.
+  // The dashboard's holiday routes are owner-only, because that is what
+  // `holidays` declares. The JSON API matches, so a manager cannot mutate a
+  // holiday through the API either.
   policy: OWNER_API,
   singular: "Holiday",
   table: holidays.table,

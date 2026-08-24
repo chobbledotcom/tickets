@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getDb } from "#db/client.ts";
+import { getListingDayPrices } from "#db/listing-prices.ts";
+import { getAllListings } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getDb } from "#shared/db/client.ts";
-import { getListingDayPrices } from "#shared/db/listing-prices.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   DEMO_EMAILS,
   DEMO_LISTING_DESCRIPTIONS,
@@ -68,6 +68,7 @@ describeWithEnv("seeds", { db: true }, () => {
   test("a seeded listing opens every day with the demo booking limits", async () => {
     await createSeeds(1, 0);
     const [listing] = await getAllListings();
+    expect(listing!.active).toBe(true);
     expect(listing!.listing_type).toBe("standard");
     expect(listing!.fields).toBe("email");
     expect(listing!.max_quantity).toBe(4);

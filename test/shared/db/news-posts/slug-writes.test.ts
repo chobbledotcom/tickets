@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { updateNewsPost } from "#shared/db/news-posts.ts";
+import { updateNewsPost } from "#db/news-posts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { expectOneSlugConflict } from "#test-utils/slug-conflicts.ts";

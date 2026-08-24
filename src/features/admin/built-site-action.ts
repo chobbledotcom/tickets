@@ -1,9 +1,9 @@
+import type { BuiltSite } from "#db/built-sites/types.ts";
+import { builtSitesCrudTable } from "#db/built-sites.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { builtSitePage } from "./built-site-page.tsx";
 
 export type BuiltSiteTab = "maintenance" | "renewal" | "secrets" | "update";

@@ -5,12 +5,12 @@
  * lean on live here so no two files carry their own copy.
  */
 import { expect } from "@std/expect";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { allTransfers } from "#shared/accounting/queries.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
-} from "#shared/db/listings/records.ts";
+} from "#db/listings/records.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { expectFlashError } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

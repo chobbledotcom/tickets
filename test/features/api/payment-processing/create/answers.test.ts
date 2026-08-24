@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   type CreatedEntry,
   saveSessionAnswers,
 } from "#routes/api/payment-processing/create.ts";
-import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { settleBalanceSession } from "#routes/api/payment-processing/store-refund.ts";
 import { processBooking } from "#shared/booking.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import {
   bookingIntent,
   paymentSession,

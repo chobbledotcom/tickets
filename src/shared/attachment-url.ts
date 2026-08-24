@@ -6,9 +6,9 @@
  * their ticket page to get a fresh URL (prevents sharing).
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { verifySignedValue } from "#shared/crypto/signed-value.ts";
-import { base64ToBase64Url } from "#shared/crypto/utils.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { verifySignedValue } from "#crypto/signed-value.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { ATTACHMENT_URL_MAX_AGE_S } from "#shared/limits.ts";
 import { nowSeconds } from "#shared/now.ts";
 

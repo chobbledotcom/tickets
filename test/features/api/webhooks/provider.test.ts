@@ -3,9 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import * as v from "valibot";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { StripeConnectionError } from "#shared/stripe/request.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,8 +17,10 @@ import { mockWebhookRequest, withExpectedError } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeClient } from "#test-utils/stripe/fixtures.ts";
+
 // jscpd:ignore-end
 
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   debugLogged,
   errorLogged,
@@ -99,10 +100,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     const client = await stripeClient();
     using _retrieve = stub(client.checkout.sessions, "retrieve", () =>
       Promise.reject(
-        new StripeConnectionError(
-          "network_error",
-          "PRIVATE_STRIPE_READ_FAILURE",
-        ),
+        transportError.unreachable(providerDetail.stripe(), "network_error"),
       ),
     );
     using _verify = await stubWebhookVerify(
@@ -279,7 +277,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
   test("concurrent reservation returns 409 with being-processed message", async () => {
     await setupStripe();
     const l = await createTestListing({ maxAttendees: 50, unitPrice: 500 });
-    const { reserveSession } = await import("#shared/db/processed-payments.ts");
+    const { reserveSession } = await import("#db/processed-payments.ts");
     await reserveSession("cs_409b");
     const [res, verify] = await postWebhook(
       webhookEvent({

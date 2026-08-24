@@ -6,10 +6,36 @@ import type { ProviderName } from "#e2e/config.ts";
 import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
+import { mapNotNullish } from "#fp";
+import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
 /* jscpd:ignore-end */
+
+/**
+ * The last value the app server has logged for this pattern, or null when its
+ * log carries none — the pattern's first group is the value. The pattern is
+ * source text, not a `RegExp`, so a caller cannot hand over the one shape
+ * `matchAll` refuses (a non-global pattern): this compiles it global itself.
+ * A log file that does not exist yet reads as "nothing logged so far"; any
+ * other read failure is a real fault and is raised rather than polled past.
+ */
+export const lastLoggedMatch = (
+  logPath: string,
+  pattern: string,
+): string | null => {
+  let text = "";
+  try {
+    text = readFileSync(logPath, "utf8");
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ENOENT") throw err;
+  }
+  const values = mapNotNullish((match: RegExpMatchArray) => match[1])([
+    ...text.matchAll(new RegExp(pattern, "g")),
+  ]);
+  return values.at(-1) ?? null;
+};
 
 /**
  * Recover a provider-side id the app logged while creating a checkout (e.g.
@@ -21,22 +47,12 @@ import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
  */
 export const readLoggedId = async (
   logPath: string,
-  pattern: RegExp,
+  pattern: string,
   expectedLine: string,
 ): Promise<string> => {
-  const found = await pollUntil(10_000, () => {
-    let text = "";
-    try {
-      text = readFileSync(logPath, "utf8");
-    } catch (err) {
-      // Only "not created yet" is the wait state; any other read failure is
-      // a real fault the run must surface, not poll past.
-      if ((err as { code?: string }).code !== "ENOENT") throw err;
-    }
-    let last: string | null = null;
-    for (const m of text.matchAll(pattern)) last = m[1] ?? last;
-    return Promise.resolve(last);
-  });
+  const found = await pollUntil(10_000, () =>
+    Promise.resolve(lastLoggedMatch(logPath, pattern)),
+  );
   if (found) return found;
   throw new Error(
     `could not find the provider id in the app server log (${logPath}). ` +
@@ -181,7 +197,9 @@ export interface ProviderRequest {
 /**
  * One authenticated provider REST call that throws with the API's own answer
  * on a non-2xx and returns the parsed JSON (or `{}` for an empty body). A
- * response whose body is not valid JSON fails here, at the boundary.
+ * response whose body is not valid JSON fails here, at the boundary. Bounded
+ * by the same allowance the production transports use, so a hung sandbox
+ * read fails its step instead of outliving the scenario's hooks.
  */
 export const providerFetch = async (
   provider: ProviderName,
@@ -195,6 +213,7 @@ export const providerFetch = async (
       ...(init.headers ?? {}),
     },
     method: init.method ?? "GET",
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -276,6 +295,54 @@ export const hostedCheckout =
     await page.waitForLoadState("domcontentloaded");
     return await drive(page, ctx);
   };
+
+/** What one provider's connection test must say to count as passed. */
+export type ConnectionCheck = {
+  /** The line logged when it passes. */
+  passed: string;
+  /** Lines the answer must carry. */
+  require: readonly string[];
+  /** One more rule the provider owns, naming what is wrong, or null. */
+  alsoWrong?: ((text: string) => string | null) | undefined;
+};
+
+/**
+ * Ask a provider's "Test Connection" button, and read what it answered.
+ *
+ * A provider says only which lines its own answer must carry, and can add one
+ * rule of its own. The click, the wait, the success class, the log line and
+ * the dumped page on failure are the same for every provider.
+ */
+export const testProviderConnection = async (
+  session: BrowserSession,
+  provider: ProviderName,
+  check: ConnectionCheck,
+): Promise<void> => {
+  const result = session.page.locator(`#${provider}-test-result`);
+  await session.page.evaluate((id) => {
+    const button = document.getElementById(id);
+    if (button) button.click();
+  }, `${provider}-test-btn`);
+  await result.waitFor({ state: "visible", timeout: config.navTimeoutMs });
+
+  const text = await result.innerText();
+  const missing = check.require.filter((line) => !text.includes(line));
+  const alsoWrong = check.alsoWrong?.(text) ?? null;
+  const succeeded = await result.evaluate((element) =>
+    element.classList.contains("success"),
+  );
+  if (succeeded && missing.length === 0 && alsoWrong === null) {
+    log(`  ${check.passed}`);
+    return;
+  }
+
+  await session.dumpPage(`${provider}-connection-test-failed`);
+  throw new Error(
+    `The ${provider} connection test did not pass. ` +
+      `Missing: ${missing.join(", ") || "none"}. ` +
+      `${alsoWrong === null ? "" : `${alsoWrong}. `}Result:\n${text}`,
+  );
+};
 
 /** The honest no-op cleanup for providers whose sandbox resources are all
  * append-only (payments, refunds) with nothing ephemeral to remove. */

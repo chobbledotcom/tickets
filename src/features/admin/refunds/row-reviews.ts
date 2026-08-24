@@ -1,7 +1,7 @@
 /** Local payment-row review changes made while a refund fence is held. */
 
-import type { PaymentReviewReason } from "#shared/payment/review.ts";
-import type { PaymentReviewChange } from "#shared/payment/row-transitions.ts";
+import type { PaymentReviewReason } from "#payment/review.ts";
+import type { PaymentReviewChange } from "#payment/row-transitions.ts";
 import type { HeldRefundWork, RunFindings } from "./claim.ts";
 
 export const resolvePaymentReview = (

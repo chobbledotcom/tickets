@@ -1,4 +1,4 @@
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 type PageGroupProps = {
   as?: "article" | "div" | "section" | undefined;

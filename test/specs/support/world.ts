@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
+import type { ChargeMoney } from "#payment/resources.ts";
 import type { CleanupTask } from "#scripts/cleanup.ts";
 import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
@@ -12,7 +12,10 @@ import type {
   ThingKind,
   ThingsByKind,
 } from "#test/specs/support/memory.ts";
-import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
+import type {
+  BookingAttempt,
+  OrderInHand,
+} from "#test/specs/support/public-booking.ts";
 import type { RefundLedgerFault } from "#test/specs/support/refund-safety/faults.ts";
 import type { RefundSafetyState } from "#test/specs/support/refund-safety/state.ts";
 import type {
@@ -149,8 +152,11 @@ export interface TicketsWorld extends World, EvidencePages {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
+  orderFilledIn?: OrderInHand;
+  orderSent?: BookingAttempt;
   placeholderId?: number;
   providerCharges: Map<string, ChargeMoney>;
+  questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
   raceListing?: string;
   raceLoser?: BookingAttempt;

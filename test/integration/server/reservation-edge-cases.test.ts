@@ -1,16 +1,23 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
+import { getDb } from "#db/client.ts";
+import { modifiersTable } from "#db/modifiers.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
-import { getDb } from "#shared/db/client.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   bookFreeOrder,
   bookPaidReservation,
 } from "#test/integration/server/_shared-setup.ts";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
 import {
   createProgrammeCharge,
   createSave10Promo,
@@ -20,14 +27,7 @@ import {
   setPublicReservation,
   setupReservationListing,
   stubPaidSession,
-} from "#test/test-utils/reservation/helpers.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  modifierUsageAmount,
-  modifierUsageCount,
-} from "#test-utils/modifiers.ts";
+} from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end

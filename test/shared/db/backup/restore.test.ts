@@ -6,12 +6,12 @@ import {
   PostResetError,
   restoreFromSql,
   restoreFromZip,
-} from "#shared/db/backup.ts";
-import { exportTable } from "#shared/db/backup-snapshot.ts";
-import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
-import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
-import { initDb } from "#shared/db/migrations.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+} from "#db/backup.ts";
+import { exportTable } from "#db/backup-snapshot.ts";
+import { getDb, queryAll, queryOne } from "#db/client.ts";
+import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
+import { initDb } from "#db/migrations.ts";
+import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,

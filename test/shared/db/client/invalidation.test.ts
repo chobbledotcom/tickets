@@ -2,26 +2,25 @@ import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import {
-  registerTableInvalidation,
-  type Unregister,
-} from "#shared/cache-registry.ts";
-import {
   execute,
   executeBatch,
   executeBatchWithoutCacheInvalidation,
   rowExists,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
+import {
+  registerTableInvalidation,
+  type Unregister,
+} from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
 
 /**
- * Verb- and column-driven cache invalidation: after every write, the db client
- * classifies the statement's verb and (for UPDATEs) its SET columns, so a
- * column-gated registration fires only when a gated column is actually
- * assigned — while INSERT / DELETE / REPLACE always fire. These tests pin the
- * verb classification in `invalidateForSql` (src/shared/db/client.ts) through
+ * Column-driven cache invalidation: after every write, the db client reads the
+ * SET columns of an UPDATE, so a column-gated registration fires only when a
+ * gated column is actually assigned — while INSERT / DELETE / REPLACE always
+ * fire. These tests pin `invalidateForSql` (src/shared/db/client.ts) through
  * the public execute() + registry API.
  */
 describeWithEnv("db > client write invalidation", { db: true }, () => {

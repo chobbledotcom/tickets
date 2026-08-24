@@ -3,8 +3,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { queryOne } from "#shared/db/client.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
+import { queryOne } from "#db/client.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import {
   type AttendeeFormLine,
   attendeeBalanceNotice,
@@ -16,8 +18,6 @@ import {
   toDesiredLines,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
-import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 

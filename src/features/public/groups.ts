@@ -2,19 +2,19 @@
  * Group ticket context and routing
  */
 
-import { compact, requiredMapValue, uniqueBy } from "#fp";
-import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
   getGroupBySlugIndex,
   groupListings,
   groups,
   readGroupMembersWith,
-} from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
+} from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { compact, requiredMapValue, uniqueBy } from "#fp";
+import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import type { Group, Holiday, ListingWithCount } from "#shared/types.ts";
+import type { Group, Holiday, ListingWithCount } from "#types";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 

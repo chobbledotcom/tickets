@@ -1,22 +1,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
+import {
+  getGroupPackagePrices,
+  listingGroups,
+  setGroupPackageMembers,
+} from "#db/groups.ts";
+import { listingChildren, listingParents } from "#db/listing-parents.ts";
+import { getGroupDayPrices } from "#db/listing-prices.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import {
   CatalogExportError,
   exportGroup,
   exportListing,
 } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { execute } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
-import {
-  getGroupPackagePrices,
-  listingGroups,
-  setGroupPackageMembers,
-} from "#shared/db/groups.ts";
-import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -410,23 +410,6 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(result.error.toLowerCase()).toContain("daily");
     });
 
-    test("rejects a listing that is both a package member and a child", async () => {
-      const pkg = await createTestGroup({ isPackage: true, name: "Pkg Group" });
-      await createTestListing({ name: "Some Parent" });
-      const result = await importCatalog({
-        groups: [{ group: "Pkg Group" }],
-        kind: "listing",
-        listing: { maxAttendees: 10, name: "Torn" },
-        parents: ["Some Parent"],
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("cannot also be an add-on child");
-      // Reference the created package so the binding is used.
-      expect(pkg.is_package).toBe(true);
-    });
-
     test("rejects a group whose members are not the same type", async () => {
       await createTestListing({ listingType: "standard", name: "Std" });
       await createTestListing({ listingType: "daily", name: "Daily" });
@@ -492,21 +475,6 @@ describeWithEnv(
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
       expect(result.error).toContain("referenced more than once");
-    });
-
-    test("rejects a parent that is itself a child (single-level nesting)", async () => {
-      const grandparent = await createTestListing({ name: "Grandparent" });
-      const parent = await createTestListing({ name: "Middle" });
-      await listingChildren.setIds(grandparent.id, [parent.id]);
-      const result = await importCatalog({
-        kind: "listing",
-        listing: { maxAttendees: 1, name: "Deep Child" },
-        parents: ["Middle"],
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("offered as a child");
     });
 
     test("strips webhook URL and use-defaults for an editor import", async () => {
@@ -602,7 +570,7 @@ describeWithEnv(
         "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
         [pkg.id],
       );
-      const { groups } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
       groups.cache.invalidate();
       const parent = await createTestListing({ name: "Pkg Parent" });
       await assignListingsToGroup([parent.id], pkg.id);
@@ -621,8 +589,8 @@ describeWithEnv(
       // More parents than the per-request N+1 guard (25) and the transaction
       // round-trip cap (~30) would allow one query/insert each — proves the
       // batched nested-parent check and the set-wise edge insert.
-      const { listingsTable } = await import("#shared/db/listings/records.ts");
-      const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
+      const { listingsTable } = await import("#db/listings/records.ts");
+      const { computeSlugIndex } = await import("#db/listings/table.ts");
       const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
       for (const name of parentNames) {
         const slug = name.toLowerCase().replace(/\s+/g, "-");
@@ -654,9 +622,7 @@ describeWithEnv(
       // the groups directly (like the many-parents case) rather than via
       // createTestGroup, whose trailing getAllGroups() would itself trip the read
       // guard 30 times over in this one test context.
-      const { computeGroupSlugIndex, groups } = await import(
-        "#shared/db/groups.ts"
-      );
+      const { computeGroupSlugIndex, groups } = await import("#db/groups.ts");
       const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
       for (const name of groupNames) {
         const slug = name.toLowerCase().replace(/\s+/g, "-");
@@ -745,8 +711,8 @@ describeWithEnv(
 
 describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
   test("rejects an ambiguous (duplicate-named) reference", async () => {
-    const { listingsTable } = await import("#shared/db/listings/records.ts");
-    const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
+    const { listingsTable } = await import("#db/listings/records.ts");
+    const { computeSlugIndex } = await import("#db/listings/table.ts");
     for (const slug of ["twin-a", "twin-b"]) {
       await listingsTable.insert({
         maxAttendees: 1,

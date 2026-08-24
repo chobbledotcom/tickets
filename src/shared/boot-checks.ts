@@ -4,8 +4,8 @@
  * boot invariants rather than per-request validation concerns.
  */
 
+import { validateEncryptionKey } from "#crypto/encryption.ts";
 import { utf8ByteLength } from "#shared/bytes.ts";
-import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
 import { validateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { validateUptimeKumaConfig } from "#shared/uptime-kuma/config.ts";

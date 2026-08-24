@@ -8,11 +8,11 @@
  */
 
 import * as v from "valibot";
-import { WORLD, WRITEOFF } from "#shared/accounting/accounts.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { fromDb, selectById } from "#shared/accounting/rows.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { execute, executeUpdate } from "#shared/db/client.ts";
+import { WORLD, WRITEOFF } from "#accounting/accounts.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import { selectById } from "#accounting/rows.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { execute, executeUpdate, queryBatch } from "#db/client.ts";
 import type {
   AccountRef,
   Transfer,
@@ -222,7 +222,7 @@ export const postManualLedgerEntry = async (
 };
 
 export const getTransferById = (id: number): Promise<Transfer | null> =>
-  selectById(fromDb, id);
+  selectById(queryBatch, id);
 
 /**
  * The ledger is append-only except for owner-entered rows, and this module IS

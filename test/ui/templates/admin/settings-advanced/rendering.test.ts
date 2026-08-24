@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
+import {
+  type AdvancedSettingsPageState,
+  adminAdvancedSettingsPage,
+} from "#templates/admin/settings-advanced.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { advancedDefaultState } from "./state.ts";
 

@@ -1,17 +1,15 @@
 /** Durable refund identity attached to an attendee. */
 
-import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   paymentRowStateValues,
   type RowSettlement,
-} from "#shared/db/payment-claim.ts";
+} from "#db/payment-claim.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import { EMPTY_ROW_STATE } from "#payment/row-state.ts";
+import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
 import { nowIso } from "#shared/now.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import { EMPTY_ROW_STATE } from "#shared/payment/row-state.ts";
-import {
-  checkingClaimFor,
-  grantClaim,
-} from "#shared/payment/row-transitions.ts";
 import { paymentAnchorReference } from "./reference.ts";
 import { anchorSessionId } from "./session.ts";
 
@@ -37,7 +35,6 @@ export const prepareClaimedAttendeePaymentAnchor = async (
   unrecordedAt?: string,
 ): Promise<PreparedClaimedAttendeePaymentAnchor> => {
   const { matchingIndexes, stored } = await paymentAnchorReference(payment);
-  const matchingIndexSlots = inPlaceholders(matchingIndexes);
   const commandId = crypto.randomUUID();
   const heldSince = nowIso();
   const sessionIdFor = (attendeeId: number): string =>
@@ -67,32 +64,26 @@ export const prepareClaimedAttendeePaymentAnchor = async (
         heldSince,
         rows: new Map([[sessionId, { claim: "release", phase: "checking" }]]),
       },
-      statement: {
-        args: [
-          sessionId,
-          attendeeId,
-          heldSince,
-          stored.encrypted,
-          stored.index,
-          state.failureData,
-          state.protectedState,
-          attendeeId,
-          attendeeId,
-          ...matchingIndexes,
-        ],
-        sql: `INSERT INTO processed_payments
+      statement: numberedStatement((bind) => {
+        const attendee = bind(attendeeId);
+        const storedIndex = bind(stored.index);
+        const matchingIndexSlots = matchingIndexes
+          .map((index) => (index === stored.index ? storedIndex : bind(index)))
+          .join(", ");
+        return `INSERT INTO processed_payments
             (payment_session_id, attendee_id, processed_at, payment_reference,
              payment_reference_index, failure_data, protected_state)
-          SELECT ?, ?, ?, ?, ?, ?, ?
+          SELECT ${bind(sessionId)}, ${attendee}, ${bind(heldSince)}, ${bind(stored.encrypted)},
+                 ${storedIndex}, ${bind(state.failureData)}, ${bind(state.protectedState)}
            WHERE EXISTS (
-             SELECT 1 FROM attendees AS attendee WHERE attendee.id = ?
+             SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendee}
            )
-             AND NOT EXISTS (
-               SELECT 1 FROM processed_payments AS payment
-                WHERE payment.attendee_id = ?
+              AND NOT EXISTS (
+                SELECT 1 FROM processed_payments AS payment
+                WHERE payment.attendee_id = ${attendee}
                   AND payment.payment_reference_index IN (${matchingIndexSlots})
-             )`,
-      },
+              )`;
+      }),
     };
   };
   return {

@@ -2,20 +2,20 @@ import type { InStatement, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations/context.ts";
-import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
-import { baselineCurrentSchemaIfNeeded } from "#shared/db/migrations/runner.ts";
+import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
+import { loadMigrations } from "#db/migrations/context.ts";
+import { MigrationInProgressError } from "#db/migrations/errors.ts";
+import { baselineCurrentSchemaIfNeeded } from "#db/migrations/runner.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
   MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
-} from "#shared/db/migrations/schema/version.ts";
+} from "#db/migrations/schema/version.ts";
 import {
   fullSchemaCreateStatements,
   verifyCurrentAppSchema,
-} from "#shared/db/migrations/schema-sync.ts";
+} from "#db/migrations/schema-sync.ts";
 import {
   initDb,
   invalidateInitDbCache,
@@ -23,10 +23,10 @@ import {
   resetDatabase,
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
-} from "#shared/db/migrations.ts";
-import { createSession } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { markCurrentSchemaMigrationPending } from "#test/test-utils/db/migration-test-helpers.ts";
+} from "#db/migrations.ts";
+import { createSession } from "#db/sessions.ts";
+import { settings } from "#db/settings.ts";
+import { markCurrentSchemaMigrationPending } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";

@@ -7,7 +7,7 @@
  * `login_attempts` table but are namespaced so they never affect login lockouts.
  */
 
-import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";
+import { makeIpRateLimiter } from "#db/login-attempts.ts";
 import { BOOKING_LOCKOUT_MS, MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 
 /** "book:" namespaces the counters away from login and other limiters. */

@@ -2,15 +2,17 @@
  * Admin dashboard page template
  */
 
+import type { ActiveListingStats } from "#db/attendee-types.ts";
+import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
+/* jscpd:ignore-start -- imports */
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
+/* jscpd:ignore-end */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
-import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { filterListingsByAttributes } from "#shared/listing-attribute-filter.ts";
 import {
   filterListingsByType,
@@ -20,12 +22,6 @@ import {
 } from "#shared/listing-filter.ts";
 import type { ListingColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import type {
-  AdminSession,
-  DisplayAttendee,
-  Holiday,
-  ListingWithCount,
-} from "#shared/types.ts";
 import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
@@ -44,6 +40,12 @@ import {
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import type {
+  AdminSession,
+  DisplayAttendee,
+  Holiday,
+  ListingWithCount,
+} from "#types";
 
 /** Keeps only the listings that are still active. */
 const activeOnly = filter((e: ListingWithCount) => e.active);

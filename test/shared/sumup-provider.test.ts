@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { storeSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import { storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
@@ -29,9 +29,6 @@ describe("sumup-provider", () => {
     expect(sumupPaymentProvider.checkoutCompletedEventType).toBe(
       "CHECKOUT_STATUS_CHANGED",
     );
-    // SumUp does not sign its webhooks: authenticity comes from re-fetching
-    // the checkout, so the router must not demand a signature.
-    expect(sumupPaymentProvider.requiresWebhookSignature).toBe(false);
   });
 
   describe("retrieveSession", () => {

@@ -1,23 +1,23 @@
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
   booleanToCheckbox,
   entityToFieldValues,
 } from "#shared/forms/values.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import {
-  availableDayCounts,
-  dayPriceFor,
-  type Group,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
+import {
+  availableDayCounts,
+  dayPriceFor,
+  type Group,
+  type ListingWithCount,
+} from "#types";
 
 const groupToFieldValues = (
   group?: Group,

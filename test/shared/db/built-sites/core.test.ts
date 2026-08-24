@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { parseSiteDataBlob } from "#shared/db/built-sites/blob.ts";
+import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import {
   builtSites,
   builtSitesCrudTable,
   insertBuiltSite,
   siteBaseUrl,
-} from "#shared/db/built-sites.ts";
-import { execute } from "#shared/db/client.ts";
+} from "#db/built-sites.ts";
+import { execute } from "#db/client.ts";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 

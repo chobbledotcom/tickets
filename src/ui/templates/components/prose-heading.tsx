@@ -5,7 +5,7 @@
  * re-authored (and re-detected as a clone) on every page that adopts it.
  */
 
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { divWithClass } from "#templates/components/div-with-class.tsx";
 
 /** A `<div class="prose">` block — the standard prose styling wrapper the

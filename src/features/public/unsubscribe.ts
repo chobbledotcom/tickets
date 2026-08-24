@@ -6,15 +6,15 @@
  * on their own address via the capability in their link.
  */
 
-import { withCsrfForm } from "#routes/csrf.ts";
-import { flashForPage } from "#routes/flash-for-page.ts";
-import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
 import {
   forgetContact,
   isHashUnsubscribed,
   resubscribeHash,
   unsubscribeHash,
-} from "#shared/db/contact-preferences.ts";
+} from "#db/contact-preferences.ts";
+import { withCsrfForm } from "#routes/csrf.ts";
+import { flashForPage } from "#routes/flash-for-page.ts";
+import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
 const pagePath = (hash: string): string =>

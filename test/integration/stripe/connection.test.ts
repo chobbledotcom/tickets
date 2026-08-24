@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import {
@@ -8,16 +9,16 @@ import {
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import {
   noWebhooks,
   okBalance,
   signedWebhook,
   stripeClient,
   withBalanceAndList,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   /** Stub `balance.retrieve` to fail with `error`, then run `body`. */
@@ -231,30 +232,33 @@ describeStripe("stripe", () => {
     });
 
     test("extracts safe Stripe error fields", () => {
-      const err = new Error("Invalid API Key provided: sk_test_****1234");
-      Object.assign(err, {
-        code: "api_key_invalid",
-        requestId: "req_123",
-        statusCode: 401,
-        type: "StripeAuthenticationError",
-      });
+      const err = transportError.answered(
+        providerDetail.stripe({
+          code: "api_key_invalid",
+          requestId: "req_123",
+          type: "StripeAuthenticationError",
+        }),
+        401,
+        "Invalid API Key provided: sk_test_****1234",
+      );
       expect(sanitizeStripeError(err)).toBe(
         "status=401 code=api_key_invalid type=StripeAuthenticationError request=req_123",
       );
     });
 
     test("extracts partial Stripe fields", () => {
-      const err = new Error("Resource not found");
-      Object.assign(err, { statusCode: 404 });
+      const err = transportError.answered(providerDetail.stripe(), 404);
       expect(sanitizeStripeError(err)).toBe("status=404");
     });
 
-    test("extracts code and type without statusCode", () => {
-      const err = new Error("Connection failed");
-      Object.assign(err, {
-        code: "ECONNREFUSED",
-        type: "StripeConnectionError",
-      });
+    test("extracts code and type without a status", () => {
+      const err = transportError.unreachable(
+        providerDetail.stripe({
+          code: "ECONNREFUSED",
+          type: "StripeConnectionError",
+        }),
+        "network_error",
+      );
       expect(sanitizeStripeError(err)).toBe(
         "code=ECONNREFUSED type=StripeConnectionError",
       );
@@ -262,11 +266,11 @@ describeStripe("stripe", () => {
 
     test("never includes the raw error message in output", () => {
       const sensitiveMessage = "Invalid API Key provided: sk_live_realkey123";
-      const err = new Error(sensitiveMessage);
-      Object.assign(err, {
-        statusCode: 401,
-        type: "StripeAuthenticationError",
-      });
+      const err = transportError.answered(
+        providerDetail.stripe({ type: "StripeAuthenticationError" }),
+        401,
+        sensitiveMessage,
+      );
       const detail = sanitizeStripeError(err);
       expect(detail).not.toContain(sensitiveMessage);
       expect(detail).not.toContain("sk_live");

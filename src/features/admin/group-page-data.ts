@@ -7,38 +7,34 @@
  * pages used to.
  */
 
-import {
-  getVisibleGroupMembers,
-  groupBookable,
-} from "#routes/public/group-liveness.ts";
-import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
-import { emptyRange } from "#shared/accounting/range.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
-import { decryptAttendees } from "#shared/db/attendees/pii.ts";
-import { getListingsNotInGroup } from "#shared/db/groups/candidates.ts";
+import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import { emptyRange } from "#accounting/range.ts";
+import { decryptAttendees } from "#db/attendees/pii.ts";
+import { getListingsNotInGroup } from "#db/groups/candidates.ts";
 import {
   getGroupById,
   getGroupPackagePrices,
   getListingsByGroupId,
-} from "#shared/db/groups.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
-import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
-import { loadAttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/groups.ts";
+import { getActiveHolidays } from "#db/holidays.ts";
+import { getGroupDayPrices } from "#db/listing-prices.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { loadAttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import { settings } from "#db/settings.ts";
+import {
+  getVisibleGroupMembers,
+  groupBookable,
+} from "#routes/public/group-liveness.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import {
-  type Group,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import {
   GroupEditPanel,
   type PackageMemberValues,
 } from "#templates/admin/groups/form.tsx";
 import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
+import { type Group, isPaidListing, type ListingWithCount } from "#types";
 import { loadItemImagesPanel } from "./item-images.ts";
 
 /** The group entity page's loaded row is just the stored group; every tab's

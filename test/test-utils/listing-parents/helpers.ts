@@ -1,4 +1,4 @@
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -157,9 +157,7 @@ export const postListingEdit = async (
   listingId: number,
   updates: Record<string, unknown> & { groupId?: number; groupIds?: number[] },
 ): Promise<Response> => {
-  const { getListingWithCount } = await import(
-    "#shared/db/listings/records.ts"
-  );
+  const { getListingWithCount } = await import("#db/listings/records.ts");
   const { buildUpdateListingForm } = await import(
     "#test-utils/db-helpers/listing-forms.ts"
   );
@@ -191,7 +189,7 @@ export const postListingEdit = async (
 /** Turn a listing into a renewal tier (months_per_unit > 0). `execute`
  * invalidates the listings cache, so subsequent reads see the change. */
 export const makeRenewalTier = async (listingId: number): Promise<void> => {
-  const { execute } = await import("#shared/db/client.ts");
+  const { execute } = await import("#db/client.ts");
   await execute("UPDATE listings SET months_per_unit = 12 WHERE id = ?", [
     listingId,
   ]);

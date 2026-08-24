@@ -3,16 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   questionDisplayTypeError,
   requireQuestionDisplayType,
-} from "#shared/db/question-types.ts";
-import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { deleteAnswer, deleteQuestion } from "#shared/db/questions/delete.ts";
+} from "#db/question-types.ts";
+import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { deleteAnswer, deleteQuestion } from "#db/questions/delete.ts";
 import {
   getQuestionsForListing,
   getQuestionWithAnswers,
   listingQuestions,
-} from "#shared/db/questions/queries.ts";
-import { questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/questions/queries.ts";
+import { questionsTable } from "#db/questions/tables.ts";
 import {
   addAnswer,
   createAttendee,

@@ -1,13 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type {
-  ChargeMoney,
-  RefundObservation,
-} from "#shared/payment/resources.ts";
 import {
+  type ChargeMoney,
   chargeMoneyRead,
+  type RefundObservation,
   refundMoneyMatchesCapture,
-} from "#shared/payment/resources.ts";
+} from "#payment/resources.ts";
 import {
   chargeMoneyWith,
   gbp,

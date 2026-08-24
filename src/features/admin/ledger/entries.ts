@@ -1,4 +1,16 @@
 /* jscpd:ignore-start */
+
+import { isRowAccountType } from "#accounting/accounts.ts";
+import {
+  deleteManualLedgerEntry,
+  getTransferById,
+  isManualLedgerTransfer,
+  manualLedgerEntryOptionsFor,
+  postManualLedgerEntry,
+  updateManualLedgerEntry,
+} from "#accounting/manual-entries.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { verifyIdentifier } from "#routes/admin/confirmation.ts";
 import {
@@ -16,18 +28,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import type { IdParam } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { isRowAccountType } from "#shared/accounting/accounts.ts";
-import {
-  deleteManualLedgerEntry,
-  getTransferById,
-  isManualLedgerTransfer,
-  manualLedgerEntryOptionsFor,
-  postManualLedgerEntry,
-  updateManualLedgerEntry,
-} from "#shared/accounting/manual-entries.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";

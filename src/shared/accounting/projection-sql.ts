@@ -15,9 +15,9 @@ import {
   REVENUE,
   WORLD,
   WRITEOFF_TYPE,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { MANUAL_ATTENDEE_CHARGE } from "#shared/accounting/manual-entries.ts";
+} from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 
 /** Account type/id columns for one leg side of a `transfers` row — the single
  *  home for these names, so every projection (the interpolated subqueries here

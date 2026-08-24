@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import { handleRequest } from "#routes";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
 import {
   createPaidListing,
   type RefundCtx,

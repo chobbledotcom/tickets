@@ -2,9 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { hmacHash } from "#crypto/hashing.ts";
+import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,

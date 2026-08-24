@@ -4,41 +4,41 @@
 import {
   loadRefundAuthorityById,
   type RefundAuthorityRow,
-} from "#shared/db/provider-refund-authority.ts";
+} from "#db/provider-refund-authority.ts";
 import {
   completeRefundAuthority,
   transitionRefundAuthority,
-} from "#shared/db/provider-refund-authority-change.ts";
-import { type Money, sameMoney } from "#shared/payment/money.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/provider-refund-authority-change.ts";
+import { type Money, sameMoney } from "#payment/money.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundObservationDue,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
   mayReplaceRefundWithFreshEvidence,
-} from "#shared/payment/refund-authority-choice.ts";
-import { refundEvidenceActionAllowed } from "#shared/payment/refund-authority-lifecycle.ts";
+} from "#payment/refund-authority-choice.ts";
+import { refundEvidenceActionAllowed } from "#payment/refund-authority-lifecycle.ts";
 import type {
   RefundAuthorityState,
   RefundOwnerChoiceReason,
   RefundRequestGeneration,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import {
   type RefundConflictDecision,
   refundConflictDecision,
-} from "#shared/payment/refund-conflict-decision.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
-import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
+} from "#payment/refund-conflict-decision.ts";
+import { refundReplayUntil } from "#payment/refund-replay-window.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
+import { type ChargeMoney, returnedRefundMoney } from "#payment/resources.ts";
 import {
-  type ChargeMoney,
-  returnedRefundMoney,
-} from "#shared/payment/resources.ts";
+  PAYMENT_PROVIDERS,
+  type RefundProviderCapability,
+} from "#shared/payment-providers.ts";
 import type {
   ProviderRefundResult,
   ProviderRefundTarget,
@@ -127,7 +127,7 @@ export const refundAfterTransition = async (
 
 const requestGeneration = async (
   reference: TaggedPaymentReference,
-  capability: RefundEngineProvider["refundCapability"],
+  capability: RefundProviderCapability,
   generation: number,
   now: number,
 ): Promise<RefundRequestGeneration> => {
@@ -148,7 +148,7 @@ export const initialRefundState = async (
 ): Promise<Extract<RefundAuthorityState, { kind: "ready" }>> => {
   const request = await requestGeneration(
     reference,
-    REFUND_PROVIDER_CAPABILITIES[reference.provider],
+    PAYMENT_PROVIDERS[reference.provider].refundCapability,
     1,
     now,
   );
@@ -164,11 +164,7 @@ export const requireMatchingRefundProvider = (
   provider: RefundEngineProvider,
   reference: TaggedPaymentReference,
 ): void => {
-  if (
-    provider.type !== reference.provider ||
-    provider.refundCapability !==
-      REFUND_PROVIDER_CAPABILITIES[reference.provider]
-  ) {
+  if (provider.type !== reference.provider) {
     throw new Error("Refund provider does not match its durable identity");
   }
 };

@@ -1,16 +1,17 @@
 /* jscpd:ignore-start */
+
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
-import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
+import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   advancedSectionHasValues,
   listingFormPageState,

@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute, queryOne } from "#db/client.ts";
+import enabledFeaturesMigration from "#db/migrations/2026-07-15_enabled_features.ts";
+import { ADMIN_FEATURE_TRIGGER_NAMES } from "#db/migrations/schema/admin-feature-triggers.ts";
+import { syncTriggers } from "#db/migrations/schema-sync.ts";
+import { CONFIG_KEYS } from "#db/settings.ts";
 import {
   parseEnabledFeatures,
   serializeEnabledFeatures,
 } from "#shared/admin-features.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import enabledFeaturesMigration from "#shared/db/migrations/2026-07-15_enabled_features.ts";
-import { ADMIN_FEATURE_TRIGGER_NAMES } from "#shared/db/migrations/schema/admin-feature-triggers.ts";
-import { syncTriggers } from "#shared/db/migrations/schema-sync.ts";
-import { CONFIG_KEYS } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 import {

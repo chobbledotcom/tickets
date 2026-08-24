@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
+import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { execute } from "#shared/db/client.ts";
-import { assignListingsToGroup } from "#shared/db/groups/membership.ts";
-import { groups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -69,7 +70,7 @@ describeWithEnv("catalog import references", { db: true }, () => {
         parents: [parent.name],
         version: 1,
       },
-      '"Package child" is a member of the package "Child package", so it cannot also be an add-on child of another listing.',
+      t("error.package_child_is_member"),
     );
   });
 
@@ -87,9 +88,7 @@ describeWithEnv("catalog import references", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error).toBe(
-      `'${parent.name}' is itself offered as a child of another listing, so it can't also be a parent.`,
-    );
+    expect(result.error).toBe(t("error.parent_is_already_a_child"));
   });
 
   test("does not treat a visible ordinary-group member as a hidden-package parent", async () => {

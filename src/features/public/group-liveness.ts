@@ -1,21 +1,12 @@
 /** Loads public group members and decides which group booking links work. */
 
-/* jscpd:ignore-start */
-import { requiredMapValue, unique, uniqueBy } from "#fp";
-import { isRegistrationClosed } from "#routes/format.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
-import {
-  buildTicketListing,
-  type TicketListing,
-} from "#shared/booking/model.ts";
-import {
-  packageBundleLimit,
-  packageLimitInfo,
-} from "#shared/booking/package-cap.ts";
+import { buildBookingTree } from "#booking/build-tree.ts";
+import { buildTicketListing, type TicketListing } from "#booking/model.ts";
+import { packageBundleLimit, packageLimitInfo } from "#booking/package-cap.ts";
 import {
   getDatelessGroupRemaining,
   remainingByListingOverGroups,
-} from "#shared/db/attendees/capacity/groups.ts";
+} from "#db/attendees/capacity/groups.ts";
 import {
   getGroupPackagePricesByGroupIds,
   getHiddenPackageMemberIds,
@@ -23,16 +14,12 @@ import {
   groups,
   listingGroups,
   packageMemberMaps,
-} from "#shared/db/groups.ts";
-import {
-  hydrateListingLinks,
-  listingChildren,
-} from "#shared/db/listing-parents.ts";
-import type {
-  Group,
-  GroupWithMembers,
-  ListingWithCount,
-} from "#shared/types.ts";
+} from "#db/groups.ts";
+import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
+/* jscpd:ignore-start */
+import { requiredMapValue, unique, uniqueBy } from "#fp";
+import { isRegistrationClosed } from "#routes/format.ts";
+import type { Group, GroupWithMembers, ListingWithCount } from "#types";
 import {
   classifyForDiscovery,
   type DiscoveryClassification,

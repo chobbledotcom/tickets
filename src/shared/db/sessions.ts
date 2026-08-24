@@ -2,26 +2,26 @@
  * Sessions table operations
  */
 
-import { ttlCache } from "#fp";
-import {
-  type CacheInvalidation,
-  registerCache,
-  registerTableInvalidation,
-} from "#shared/cache-registry.ts";
-import { hashSessionToken } from "#shared/crypto/hashing.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
+import { hashSessionToken } from "#crypto/hashing.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
 import {
   deleteByField,
   execute,
   insert,
   queryAll,
   queryOne,
-} from "#shared/db/client.ts";
-import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
-import type { UserAuthFields } from "#shared/db/users.ts";
+} from "#db/client.ts";
+import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
+import type { UserAuthFields } from "#db/users.ts";
+import { ttlCache } from "#fp";
+import {
+  type CacheInvalidation,
+  registerCache,
+  registerTableInvalidation,
+} from "#shared/cache-registry.ts";
 import { requireValue } from "#shared/required-value.ts";
 
-import type { Session } from "#shared/types.ts";
+import type { Session } from "#types";
 
 /**
  * Session cache with TTL (10 seconds)

@@ -1,18 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { generateSecureToken } from "#crypto/utils.ts";
+import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { getApiKeysForUser, touchApiKeyLastUsed } from "#db/api-keys.ts";
+import { createSession } from "#db/sessions.ts";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { getApiKeysForUser, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
-import { createSession } from "#shared/db/sessions.ts";
 import {
   expectFlash,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
   inputNamed,
+  parseFlashCookie,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -162,12 +163,18 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const locationUrl = new URL(location, "http://localhost");
       locationUrl.searchParams.delete("flash");
       expect(locationUrl.pathname).toBe("/admin/api-keys");
-      // The whole flash is the fixed sentence plus the bare key — a corrupted
-      // key (e.g. an "undefined" prefix) fails the exact shape.
+      // The whole flash is the fixed sentence plus the bare key.
       expectFlash(
         response,
         expect.stringMatching(/^API key created\n[A-Za-z0-9_-]+$/),
       );
+
+      // The key it shows must be the key that works. A shape check cannot say
+      // so: a corrupted token like "undefined" + the real key is still all
+      // word characters, and only the lookup tells the two apart.
+      const shownKey = parseFlashCookie(response).success!.split("\n")[1]!;
+      const { getApiKeyByToken } = await import("#shared/db/api-keys.ts");
+      expect(await getApiKeyByToken(shownKey)).not.toBe(null);
 
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers

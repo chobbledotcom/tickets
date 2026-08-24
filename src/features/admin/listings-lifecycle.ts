@@ -6,6 +6,8 @@
  * confirmation flow, so they're built from a common base config.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
@@ -14,22 +16,17 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
 import {
   deactivationOrphanedAddOnError,
   deleteOrphanedAddOnError,
   performListingDelete,
 } from "#shared/listings-actions.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import {
   adminDeactivateListingPage,
   adminListingDeletePage,
   adminReactivateListingPage,
 } from "#templates/admin/listings/lifecycle.tsx";
+import type { AdminSession, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 

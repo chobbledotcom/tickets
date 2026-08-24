@@ -1,6 +1,6 @@
+import type { ManualLedgerEntryOption } from "#accounting/manual-entries.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import type { ManualLedgerEntryOption } from "#shared/accounting/manual-entries.ts";
-import { settings } from "#shared/db/settings.ts";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
 import { localToUtc } from "#shared/timezone.ts";

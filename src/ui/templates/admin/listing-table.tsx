@@ -14,9 +14,9 @@
  */
 
 import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import {
   configurableTableLayouts,
@@ -27,10 +27,10 @@ import {
   defineTable,
   type TableDefinition,
 } from "#shared/tables/definition.ts";
-import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
+import type { ListingWithCount } from "#types";
 
 type ListingRenderer = Omit<
   TableColumn<ListingWithCount, undefined, ListingColumnKey>,

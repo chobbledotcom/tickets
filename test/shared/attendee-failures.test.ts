@@ -5,6 +5,7 @@ import {
   AttendeeCreationFailureReasonSchema,
   AttendeeUpdateFailureReasonSchema,
   attendeeFailureFormatter,
+  refusedOrderItem,
 } from "#shared/attendee-failures.ts";
 
 describe("attendee failure schemas", () => {
@@ -76,4 +77,26 @@ describe("attendeeFailureFormatter", () => {
       );
     });
   }
+});
+
+describe("refusedOrderItem", () => {
+  const items = [
+    { listingId: 10, name: "first" },
+    { listingId: 20, name: "second" },
+  ];
+  const idOf = (item: { listingId: number }) => item.listingId;
+
+  test("names the first item the failure says is out of room", () => {
+    expect(refusedOrderItem(items, idOf, [20]).name).toBe("second");
+  });
+
+  test("falls back to the order's first item when none is named", () => {
+    expect(refusedOrderItem(items, idOf, []).name).toBe("first");
+  });
+
+  test("throws for an order with no items", () => {
+    expect(() => refusedOrderItem([], idOf, [])).toThrow(
+      "A refused order carries no items to name",
+    );
+  });
 });

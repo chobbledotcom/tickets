@@ -5,8 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { openPaymentReview } from "#shared/payment/review.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+import { openPaymentReview } from "#payment/review.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import {
   checkingClaimFor,
   claimHeldBy,
@@ -14,7 +14,7 @@ import {
   type PaymentRowSettlement,
   settledRowState,
   withOutcome,
-} from "#shared/payment/row-transitions.ts";
+} from "#payment/row-transitions.ts";
 
 const COMMAND = "row-transitions-command";
 const HELD_SINCE = "2026-08-16T10:00:00.000Z";

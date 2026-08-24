@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { runDatabasePruning } from "#shared/db/prune.ts";
-import { createSession, getAllSessions } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
+import { runDatabasePruning } from "#db/prune.ts";
+import { createSession, getAllSessions } from "#db/sessions.ts";
+import { settings } from "#db/settings.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,

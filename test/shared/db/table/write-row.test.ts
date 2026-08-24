@@ -2,13 +2,8 @@ import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  execute,
-  getDb,
-  queryAll,
-  withTransaction,
-} from "#shared/db/client.ts";
-import { col, defineTable, writeTableRow } from "#shared/db/table.ts";
+import { execute, getDb, queryAll, withTransaction } from "#db/client.ts";
+import { col, defineTable, writeTableRow } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 

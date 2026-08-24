@@ -9,17 +9,18 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encryptWithKey } from "#shared/crypto/encryption.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
-import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { getDb } from "#shared/db/client.ts";
+import { encryptWithKey } from "#crypto/encryption.ts";
+import { unwrapKeyWithToken } from "#crypto/keys.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
+import { getDb } from "#db/client.ts";
 import {
   getSealedSumupCheckout,
   getSumupCheckout,
   openSumupCheckout,
   setSumupCheckoutId,
   storeSumupCheckout,
-} from "#shared/db/sumup-checkouts.ts";
+} from "#db/sumup-checkouts.ts";
+import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { rejectedError } from "#test-utils/errors.ts";
 
@@ -110,6 +111,22 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
 
       expect((await getSumupCheckout(REFERENCE))!.sumupId).toBe("co_abc123");
       expect(await getSealedSumupCheckout("co_abc123")).not.toBeNull();
+    });
+
+    test("setSumupCheckoutId schedules the first check three hours out", async () => {
+      // Joining the queue and waiting out the retry window are one act: the
+      // first ask must not come before SumUp's own retries would have.
+      await storeSumupCheckout(REFERENCE, METADATA);
+      const before = Date.now();
+      await setSumupCheckoutId(REFERENCE, "co_first_check");
+      const after = Date.now();
+
+      const { rows } = await getDb().execute(
+        "SELECT next_check_at FROM sumup_checkouts WHERE sumup_id = 'co_first_check'",
+      );
+      const scheduled = Date.parse(String(rows[0]!.next_check_at));
+      expect(scheduled).toBeGreaterThanOrEqual(before + SUMUP_FIRST_CHECK_MS);
+      expect(scheduled).toBeLessThanOrEqual(after + SUMUP_FIRST_CHECK_MS);
     });
 
     test("setSumupCheckoutId updates only the matching reference", async () => {

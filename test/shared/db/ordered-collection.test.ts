@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   execute,
   insert,
   queryAll,
   queryOne,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   defineOrderedCollection,
   flatCollectionSwap,
   scopedCollectionSwap,
-} from "#shared/db/ordered-collection.ts";
+} from "#db/ordered-collection.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const statuses = defineOrderedCollection({

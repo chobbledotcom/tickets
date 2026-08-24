@@ -5,20 +5,19 @@
 
 /* jscpd:ignore-start -- imports */
 import type { InValue } from "@libsql/client";
-import { mapNotNullish, requiredMapValue } from "#fp";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   executeBatch,
   inPlaceholders,
-  queryBatchPrimary,
+  queryAllPrimary,
   resultRows,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import { nowIso } from "#shared/now.ts";
-import { mirrorFor } from "#shared/payment/admit-move.ts";
-import { refundAuthorityWorkSql } from "#shared/payment/refund-authority-lifecycle.ts";
+} from "#db/client.ts";
+import { mapNotNullish, requiredMapValue } from "#fp";
+import { mirrorFor } from "#payment/admit-move.ts";
+import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import {
   EMPTY_ROW_STATE,
   isEmptyRowState,
@@ -26,12 +25,13 @@ import {
   type RefundClaimPhase,
   readRowState,
   writeRowState,
-} from "#shared/payment/row-state.ts";
+} from "#payment/row-state.ts";
 import {
   claimHeldBy,
   type PaymentRowSettlement,
   settledRowState,
-} from "#shared/payment/row-transitions.ts";
+} from "#payment/row-transitions.ts";
+import { nowIso } from "#shared/now.ts";
 
 /* jscpd:ignore-end */
 
@@ -129,17 +129,15 @@ export const readAttendeeRowStates = async (
 /** Read payment-row work from the primary without opening a write transaction. */
 export const loadAttendeeRowStates = async (
   attendeeIds: readonly number[],
-): Promise<PaymentRowRecord[]> => {
-  const [read] = await queryBatchPrimary([
-    {
+): Promise<PaymentRowRecord[]> =>
+  asPaymentRowRecords(
+    await queryAllPrimary<StoredPaymentClaimRow>({
       args: [...attendeeIds],
       sql: paymentClaimRowsSql(
         `attendee_id IN (${inPlaceholders(attendeeIds)})`,
       ),
-    },
-  ]);
-  return asPaymentRowRecords(resultRows<StoredPaymentClaimRow>(read!));
-};
+    }),
+  );
 
 /** Fail when a confirmer no longer owns every payment row it started with. */
 export const assertRefundRowsHeld = async (
@@ -238,17 +236,13 @@ const rewriteRows = async (
   // write depends on it, and each write is conditioned on the exact record it
   // read. Pinned to the primary because a caller may be reading its own claim
   // — a lagging replica would match no write and leave the claim standing.
-  const [read] = await queryBatchPrimary([
-    {
-      args: [...sessionIds],
-      sql: paymentClaimRowsSql(
-        `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-      ),
-    },
-  ]);
-  const rows = await asPaymentRowRecords(
-    resultRows<StoredPaymentClaimRow>(read!),
-  );
+  const stored = await queryAllPrimary<StoredPaymentClaimRow>({
+    args: [...sessionIds],
+    sql: paymentClaimRowsSql(
+      `payment_session_id IN (${inPlaceholders(sessionIds)})`,
+    ),
+  });
+  const rows = await asPaymentRowRecords(stored);
   const writes = await Promise.all(
     mapNotNullish((row: PaymentRowRecord) => {
       const state = next(row);

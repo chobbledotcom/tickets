@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { buildTicketListing } from "#booking/model.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { holidays } from "#db/holidays.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import {
   foldSelectedChildren,
   getTicketContext,
@@ -8,11 +13,6 @@ import {
   withActiveListings,
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
-import { buildTicketListing } from "#shared/booking/model.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { holidays } from "#shared/db/holidays.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

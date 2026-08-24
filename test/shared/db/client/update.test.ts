@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { rawSql, update } from "#shared/db/client.ts";
+import { rawSql, update } from "#db/client.ts";
 
 /**
  * The update statement builder: column→value records become the SET and WHERE

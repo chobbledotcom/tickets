@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { getDb } from "#shared/db/client.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { getDb } from "#db/client.ts";
 import {
   ALL_SETTINGS_KEYS,
   bumpSettingsVersion,
   CONFIG_KEYS,
   settings,
-} from "#shared/db/settings.ts";
+} from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("page content cache", { db: true }, () => {
@@ -195,7 +195,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       const { getAllCacheStats } = await import("#shared/cache-registry.ts");
 
       // Load settings to populate cache
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       await s.loadKeys(ALL_SETTINGS_KEYS);
 
       const before = getAllCacheStats().find((s) => s.name === "settings");

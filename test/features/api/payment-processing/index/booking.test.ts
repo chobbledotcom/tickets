@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { listingQuestions } from "#db/questions/queries.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

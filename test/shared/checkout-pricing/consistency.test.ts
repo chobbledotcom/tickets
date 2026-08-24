@@ -1,21 +1,21 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
-import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb } from "#shared/db/client.ts";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { getDb } from "#db/client.ts";
+import { hashEmail } from "#db/contact-preferences.ts";
 import {
   answerModifierQuantities,
   resolveModifiers,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+} from "#db/query-log.ts";
+import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
+import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,

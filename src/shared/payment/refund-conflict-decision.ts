@@ -1,13 +1,13 @@
 /** Exact provider money and the owner resolution it can safely support. */
 
 import * as v from "valibot";
-import { type Money, MoneySchema } from "#shared/payment/money.ts";
+import { type Money, MoneySchema } from "#payment/money.ts";
 import {
   type ChargeMoney,
   refundMoneyAccountedFor,
   refundMoneyMatchesCapture,
   returnedRefundMoney,
-} from "#shared/payment/resources.ts";
+} from "#payment/resources.ts";
 
 const conflictDecision = <const Kind extends "not_sent" | "returned" | "wait">(
   kind: Kind,

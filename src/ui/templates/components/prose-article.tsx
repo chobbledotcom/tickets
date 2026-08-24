@@ -1,4 +1,4 @@
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 
 /** An article that opens with its heading (and any text that belongs with it)
  * in a "prose" block, then shows the rest of the section — like a table —

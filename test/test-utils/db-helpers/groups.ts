@@ -1,6 +1,11 @@
+import { listingGroups } from "#db/groups.ts";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
-import type { Group } from "#shared/types.ts";
+import type { Group } from "#types";
 import { doAuthenticatedFormRequest } from "./request.ts";
+
+/** The ids of the groups one listing belongs to, ascending. */
+export const listingGroupIdsOf = async (listingId: number): Promise<number[]> =>
+  [...(await listingGroups.getIds(listingId))].toSorted((a, b) => a - b);
 
 export const createTestGroup = async (
   overrides: Partial<Omit<GroupInput, "slugIndex">> = {},
@@ -25,7 +30,7 @@ export const createTestGroup = async (
       ...(input.isPackage ? { is_package: "1" } : {}),
     },
     async () => {
-      const { groups } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
       const all = await groups.cache.getAll();
       return all[all.length - 1] as Group;
     },
@@ -53,7 +58,7 @@ export const createHiddenPackageGroup = async (
   name = "Bundle",
 ): Promise<Group> => {
   const group = await createTestGroup({ isPackage: true, name });
-  const { groups } = await import("#shared/db/groups.ts");
+  const { groups } = await import("#db/groups.ts");
   await groups.table.update(group.id, { hidePackageListings: true });
   return group;
 };
@@ -62,7 +67,7 @@ export const updateTestGroup = async (
   groupId: number,
   updates: Partial<Omit<GroupInput, "slugIndex">>,
 ): Promise<Group> => {
-  const { groups } = await import("#shared/db/groups.ts");
+  const { groups } = await import("#db/groups.ts");
   const existing = (await groups.table.read.one({ id: groupId })) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
@@ -88,7 +93,7 @@ export const updateTestGroup = async (
 };
 
 export const deleteTestGroup = async (groupId: number): Promise<void> => {
-  const { groups } = await import("#shared/db/groups.ts");
+  const { groups } = await import("#db/groups.ts");
   const existing = (await groups.table.read.one({ id: groupId })) as Group;
 
   return doAuthenticatedFormRequest(
@@ -105,9 +110,29 @@ export const getTestPackagePrices = async (
   groupId: number,
 ): Promise<Map<number, number>> => {
   const { getGroupPackagePrices, packageMemberMaps } = await import(
-    "#shared/db/groups.ts"
+    "#db/groups.ts"
   );
   return packageMemberMaps(await getGroupPackagePrices(groupId)).prices;
+};
+
+/** Two roomy listings whose shared group has one place left in total. Each
+ * fits alone, so only a check that counts an order's own lines together can
+ * tell the second line tips the limit. */
+export const createTwoListingsSharingOnePlace = async (): Promise<{
+  first: { id: number };
+  second: { id: number };
+}> => {
+  const shared = await createTestGroup({ maxAttendees: 1 });
+  const { createTestListing } = await import("./listings.ts");
+  const first = await createTestListing({
+    groupId: shared.id,
+    maxAttendees: 10,
+  });
+  const second = await createTestListing({
+    groupId: shared.id,
+    maxAttendees: 10,
+  });
+  return { first, second };
 };
 
 export type SoldPackageMember = {

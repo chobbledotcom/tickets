@@ -3,7 +3,7 @@
  * how each one is applied and re-checked, and how partial progress is kept.
  */
 
-import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
+import { isDatabaseRoundTripLimited } from "#db/query-log.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
 import { retryWithBackoff } from "#shared/retry.ts";

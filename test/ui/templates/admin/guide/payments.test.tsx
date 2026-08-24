@@ -2,10 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import { MAX_DURATION_DAYS } from "#shared/types.ts";
-import type { GuideSection } from "#templates/admin/guide/components.tsx";
-import { renderGuideSections } from "#templates/admin/guide/components.tsx";
+import {
+  type GuideSection,
+  renderGuideSections,
+} from "#templates/admin/guide/components.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
+import { MAX_DURATION_DAYS } from "#types";
 
 const sections = paymentsSections();
 

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   makeSumupClient,
@@ -12,11 +13,11 @@ describe("sumup testSumupConnection", () => {
   setupSumupSuite();
 
   const expectMerchantLookupFails = async (
-    errorMessage: string,
+    refusal: Error,
     assertError: (error: string | undefined) => void,
   ): Promise<void> => {
     const client = makeSumupClient({
-      merchantGet: () => Promise.reject(new Error(errorMessage)),
+      merchantGet: () => Promise.reject(refusal),
     });
     await withSumupClient(client, async () => {
       const result = await sumupApi.testSumupConnection();
@@ -98,7 +99,11 @@ describe("sumup testSumupConnection", () => {
 
   test("turns a 401 from the merchant lookup into actionable guidance", async () => {
     await expectMerchantLookupFails(
-      '401: {"detail":"Unauthorized."}',
+      transportError.answered(
+        providerDetail.sumup(),
+        401,
+        '401: {"detail":"Unauthorized."}',
+      ),
       (err) => {
         // The opaque SumUp body is replaced with a hint about the likely causes:
         // the public-vs-secret key mix-up first, then the cross-account mismatch.
@@ -112,8 +117,15 @@ describe("sumup testSumupConnection", () => {
   });
 
   test("passes non-401 merchant lookup errors through unchanged", async () => {
-    await expectMerchantLookupFails("503 Service Unavailable", (err) => {
-      expect(err).toBe("503 Service Unavailable");
-    });
+    await expectMerchantLookupFails(
+      transportError.answered(
+        providerDetail.sumup(),
+        503,
+        "503 Service Unavailable",
+      ),
+      (err) => {
+        expect(err).toBe("503 Service Unavailable");
+      },
+    );
   });
 });

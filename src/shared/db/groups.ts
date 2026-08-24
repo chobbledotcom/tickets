@@ -4,6 +4,43 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
+import {
+  execute,
+  executeBatch,
+  inPlaceholders,
+  queryAll,
+  resultRows,
+  rowExists,
+  type SqlStatement,
+  type TxScope,
+} from "#db/client.ts";
+import {
+  cachedEntityTable,
+  encryptedNameSchema,
+  idAndEncryptedSlugSchema,
+} from "#db/common-schema.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
+import { linkTableSide } from "#db/link-table.ts";
+import { listingChildren, listingParents } from "#db/listing-parents.ts";
+import {
+  getGroupDayPricesByGroupIds,
+  groupDayPriceStatements,
+  groupFlatPriceStatements,
+  PRICE_TYPE_GROUP,
+  PRICE_TYPE_GROUP_DAY,
+  removeListingGroupPricesStatement,
+} from "#db/listing-prices.ts";
+import { decryptListingWithCount } from "#db/listings/records.ts";
+import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
+import { envNameSource, rowsByIds } from "#db/query.ts";
+import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
+import { equals, inList } from "#db/where-clauses.ts";
 import {
   flatMap,
   identity,
@@ -18,49 +55,10 @@ import {
   groupCatalogFields,
   type PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import {
-  execute,
-  executeBatch,
-  inPlaceholders,
-  queryAll,
-  resultRows,
-  rowExists,
-  type SqlStatement,
-  type TxScope,
-} from "#shared/db/client.ts";
-import {
-  cachedEntityTable,
-  encryptedNameSchema,
-  idAndEncryptedSlugSchema,
-} from "#shared/db/common-schema.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { validateListingGroupMembershipTx } from "#shared/db/groups/membership.ts";
-import { linkTableSide } from "#shared/db/link-table.ts";
-import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
-import {
-  getGroupDayPricesByGroupIds,
-  groupDayPriceStatements,
-  groupFlatPriceStatements,
-  PRICE_TYPE_GROUP,
-  PRICE_TYPE_GROUP_DAY,
-  removeListingGroupPricesStatement,
-} from "#shared/db/listing-prices.ts";
-import { decryptListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  type ListingRecordRow,
-  listingReader,
-} from "#shared/db/listings/select.ts";
-import { envNameSource, rowsByIds } from "#shared/db/query.ts";
-import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
-import { equals, inList } from "#shared/db/where-clauses.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
-import type { Group, GroupListing, ListingWithCount } from "#shared/types.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import type { Group, GroupListing, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -704,19 +702,20 @@ export const getGroupPackagePricesByGroupIds = async (
 const copyPackageOverridesStatement = (
   sourceListingId: number,
   newListingId: number,
-) => ({
-  args: [sourceListingId, newListingId, sourceListingId],
-  sql: `UPDATE group_listings AS cloneMembership
+): SqlStatement =>
+  numberedStatement((bind) => {
+    const sourceId = bind(sourceListingId);
+    return `UPDATE group_listings AS cloneMembership
         SET quantity = (
               SELECT sourceMembership.quantity FROM group_listings AS sourceMembership
-               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ?)
-      WHERE cloneMembership.listing_id = ?
+               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ${sourceId})
+      WHERE cloneMembership.listing_id = ${bind(newListingId)}
         AND cloneMembership.group_id IN (
               SELECT groupListing.group_id
                 FROM group_listings AS groupListing
-               WHERE groupListing.listing_id = ?)
-        AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
-});
+               WHERE groupListing.listing_id = ${sourceId})
+        AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`;
+  });
 
 /** Copy the source's package overrides onto the duplicate's membership rows in
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
@@ -735,27 +734,26 @@ export const copyPackageMemberOverridesTx = async (
   await tx.execute(
     copyPackageOverridesStatement(sourceListingId, newListingId),
   );
-  await tx.execute({
-    args: [
-      newListingId,
-      sourceListingId,
-      PRICE_TYPE_GROUP,
-      PRICE_TYPE_GROUP_DAY,
-      newListingId,
-    ],
-    sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
-          SELECT ?, sourcePrice.price_type, sourcePrice.price_id, sourcePrice.unit_price
+  await tx.execute(
+    numberedStatement((bind) => {
+      const newId = bind(newListingId);
+      const groupType = bind(PRICE_TYPE_GROUP);
+      const groupDayType = bind(PRICE_TYPE_GROUP_DAY);
+      return `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
+          SELECT ${newId}, sourcePrice.price_type, sourcePrice.price_id, sourcePrice.unit_price
             FROM listing_prices AS sourcePrice
-           WHERE sourcePrice.listing_id = ? AND sourcePrice.price_type IN (?, ?)
-             AND EXISTS (
-               SELECT 1 FROM group_listings AS groupListing
-                WHERE groupListing.listing_id = ?
-                  AND ((sourcePrice.price_type = '${PRICE_TYPE_GROUP}'
-                          AND sourcePrice.price_id = CAST(groupListing.group_id AS TEXT))
-                    OR (sourcePrice.price_type = '${PRICE_TYPE_GROUP_DAY}'
-                          AND sourcePrice.price_id LIKE (groupListing.group_id || '/%')))
-             )`,
-  });
+           WHERE sourcePrice.listing_id = ${bind(sourceListingId)}
+             AND sourcePrice.price_type IN (${groupType}, ${groupDayType})
+              AND EXISTS (
+                SELECT 1 FROM group_listings AS groupListing
+                 WHERE groupListing.listing_id = ${newId}
+                   AND ((sourcePrice.price_type = ${groupType}
+                           AND sourcePrice.price_id = CAST(groupListing.group_id AS TEXT))
+                     OR (sourcePrice.price_type = ${groupDayType}
+                           AND sourcePrice.price_id LIKE (groupListing.group_id || '/%')))
+              )`;
+    }),
+  );
 };
 
 /** Reset-every-member-to-default-quantity statement (quantity 1). The flat price

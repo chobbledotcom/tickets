@@ -1,9 +1,11 @@
-import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
+import { settings } from "#db/settings.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
   PRUNE_INTERVAL_MS,
+  SUMUP_RECOVERY_BATCH,
+  SUMUP_RECOVERY_INTERVAL_MS,
 } from "#shared/limits.ts";
 import {
   defineMaintenanceTasks,
@@ -35,7 +37,7 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxExternalCalls: 0,
     name: "database_pruning",
     run: async ({ checkpoint, requestFollowUp, setCheckpoint }) => {
-      const { runDatabasePruning } = await import("#shared/db/prune.ts");
+      const { runDatabasePruning } = await import("#db/prune.ts");
       const result = await runDatabasePruning(checkpoint);
       setCheckpoint(result.checkpoint);
       if (result.fullBatch) requestFollowUp();
@@ -61,7 +63,7 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
         return;
       }
       const { runActivityLogBackfill } = await import(
-        "#shared/db/activity-log-backfill.ts"
+        "#db/activity-log-backfill.ts"
       );
       const converted = await runActivityLogBackfill(settings.publicKey);
       if (converted < ACTIVITY_LOG_BACKFILL_BATCH) {
@@ -70,6 +72,35 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       } else {
         requestFollowUp();
       }
+    },
+    wakePolicy: "organic_safe",
+  },
+  {
+    check: {
+      // A site with no SumUp key has no staged checkouts to ask about, and
+      // syncMaintenanceTaskRows removes the task row while that is true.
+      enabled: () => settings.sumup.hasKey,
+      maxDatabaseCalls: 0,
+      maxExternalCalls: 0,
+      settingsKeys: [
+        CONFIG_KEYS.SUMUP_API_KEY,
+        CONFIG_KEYS.SUMUP_MERCHANT_CODE,
+      ],
+    },
+    deadlineMs: 20_000,
+    failureRetryIntervalMs: FAILURE_RETRY_MS,
+    intervalMs: SUMUP_RECOVERY_INTERVAL_MS,
+    // One read for the queue, then per checkout: one SumUp read plus the
+    // engine's own writes. A paid checkout needing a refund spends the most,
+    // which is what keeps the batch small.
+    maxDatabaseCalls: 1 + SUMUP_RECOVERY_BATCH * 6,
+    maxExternalCalls: SUMUP_RECOVERY_BATCH * 2,
+    name: "sumup_checkout_recovery",
+    run: async ({ requestFollowUp }) => {
+      const { runSumupRecovery } = await import(
+        "#shared/sumup/recovery-run.ts"
+      );
+      if (await runSumupRecovery()) requestFollowUp();
     },
     wakePolicy: "organic_safe",
   },

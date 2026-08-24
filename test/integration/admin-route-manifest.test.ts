@@ -4,17 +4,18 @@
  * - every lazy route lives under `/admin` and a segment its area declares;
  * - every declared segment serves at least one route (no stale entries);
  * - no two method/path pairs collide;
- * - every UI destination has a matching GET route.
+ * - every UI destination has a matching GET route;
+ * - every GET route has a destination declaring who may reach it.
  */
 
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { requiredMapValue } from "#fp";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
-import { adminPathSegment } from "#routes/admin/index.ts";
+import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { oneServedPath } from "#test-utils/admin-surface.ts";
 
 const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
   const routesByArea = new Map<string, string[]>();
@@ -29,6 +30,9 @@ const routeParts = (route: string): readonly [method: string, path: string] => {
   if (boundary === -1) throw new Error(`Invalid route: ${route}`);
   return [route.slice(0, boundary), route.slice(boundary + 1)];
 };
+
+const getRoutesOf = (routes: readonly string[]): readonly string[] =>
+  routes.filter((route) => routeParts(route)[0] === "GET");
 
 describe("admin route manifest", () => {
   let routesByArea: Map<string, string[]>;
@@ -79,47 +83,44 @@ describe("admin route manifest", () => {
   });
 
   test("every UI destination is served by a GET route in its area", () => {
-    for (const destination of ADMIN_SURFACE.destinations) {
-      const concretePath = destination.pattern
-        .replace(/:(\w+)/g, (_, name: string) =>
-          name === "id" || name.endsWith("Id") ? "1" : "value",
-        )
-        .replace(/\/$/, "");
+    for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
+      const servedPath = oneServedPath(destination.pattern);
       expect(
-        routesByArea.get(destination.area)!.some((route) => {
-          const [method, path] = routeParts(route);
-          return (
-            method === "GET" && routePathPatternToRegex(path).test(concretePath)
-          );
-        }),
+        getRoutesOf(
+          requiredMapValue(
+            routesByArea,
+            destination.area,
+            `No routes loaded for area ${destination.area}`,
+          ),
+        ).some((route) =>
+          routePathPatternToRegex(routeParts(route)[1]).test(servedPath),
+        ),
         `${destination.id}: GET ${destination.pattern}`,
       ).toBe(true);
     }
   });
 
-  test("adminPathSegment picks the part after /admin", () => {
-    expect(adminPathSegment("/admin")).toBe("");
-    expect(adminPathSegment("/admin/settings")).toBe("settings");
-    expect(adminPathSegment("/admin/listing/5/edit")).toBe("listing");
+  test("every GET route has a destination saying who may reach it", () => {
+    // The other way round from the check above, and what keeps the surface
+    // complete: a page nobody declared is a page the role matrix never asks,
+    // and a link the read-only gate and the nav both reason about wrongly.
+    const declared = Object.values(ADMIN_SURFACE.destinations);
+    const undeclared: string[] = [];
+    for (const routes of routesByArea.values()) {
+      for (const route of getRoutesOf(routes)) {
+        const pattern = routePathPatternToRegex(routeParts(route)[1]);
+        const covered = declared.some((destination) =>
+          pattern.test(oneServedPath(destination.pattern)),
+        );
+        if (!covered) undeclared.push(route);
+      }
+    }
+    expect(undeclared).toEqual([]);
   });
 
   test("guide message ownership rejects an undeclared segment", () => {
     expect(() => ADMIN_AREA_LOADERS.guide.messageGroupsFor("unknown")).toThrow(
       'No message groups declared for admin segment "unknown"',
     );
-  });
-});
-
-describeWithEnv("admin segment dispatch", { db: true }, () => {
-  test("a path under no declared segment gets a 404", async () => {
-    const response = await awaitTestRequest("/admin/no-such-area");
-    expect(response.status).toBe(404);
-  });
-
-  test("a repeat hit on a settings segment succeeds twice", async () => {
-    const first = await awaitTestRequest("/admin/settings");
-    const second = await awaitTestRequest("/admin/settings");
-    expect(first.status).toBe(302);
-    expect(second.status).toBe(302);
   });
 });

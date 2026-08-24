@@ -1,15 +1,21 @@
 /** Fixed-size database pruning used by the maintenance task and owner actions. */
 
-import { decrypt } from "#shared/crypto/encryption.ts";
-import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
-import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import { addressCachePruneStatement } from "#db/address-cache.ts";
+import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import {
   executeBatchWithResults,
+  inPlaceholders,
   queryAll,
   type SqlStatement,
-} from "#shared/db/client.ts";
-import { orphanIdsBatch } from "#shared/db/orphan-attendees.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/client.ts";
+import { orphanIdsBatch } from "#db/orphan-attendees.ts";
+import { settings } from "#db/settings.ts";
+import {
+  refundAuthorityPrunableSql,
+  refundAuthorityWorkSql,
+} from "#payment/refund-authority-lifecycle.ts";
+import { RECOVERY_PRUNABLE_NODES } from "#payment/sumup-recovery-machine-spec.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
@@ -23,12 +29,8 @@ import {
 import { logDebug } from "#shared/logger.ts";
 import { now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
-import {
-  refundAuthorityPrunableSql,
-  refundAuthorityWorkSql,
-} from "#shared/payment/refund-authority-lifecycle.ts";
-import type { User } from "#shared/types.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
+import type { User } from "#types";
 
 type PruneStatement = SqlStatement;
 
@@ -52,6 +54,12 @@ const boundedDelete = (
 
 const isoCutoff = (retentionMs: number): string =>
   new Date(nowMs() - retentionMs).toISOString();
+
+/** The states a staged SumUp checkout may be deleted in, as SQL literals.
+ * They are the machine's own words, so a node that stops being prunable stops
+ * being deleted without this query being touched. */
+const prunableSumupStates = (): string =>
+  RECOVERY_PRUNABLE_NODES.map((state) => `'${state}'`).join(", ");
 
 const paymentStatement = (): PruneStatement => ({
   args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
@@ -112,9 +120,14 @@ const paymentStatement = (): PruneStatement => ({
 
 const pruneStatements = (): PruneStatement[] => [
   paymentStatement(),
-  boundedDelete("sumup_checkouts", "created_at < ?", [
-    isoCutoff(PRUNE_SUMUP_RETENTION_MS),
-  ]),
+  // Only the rows the machine says may go. A checkout that may be holding
+  // money nobody has accounted for is kept however old it gets — deleting it
+  // is the exact harm the recovery task exists to prevent.
+  boundedDelete(
+    "sumup_checkouts",
+    `created_at < ? AND recovery_state IN (${prunableSumupStates()})`,
+    [isoCutoff(PRUNE_SUMUP_RETENTION_MS)],
+  ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),
@@ -175,19 +188,17 @@ const checkpointId = (checkpoint: string | null): number | null => {
 const expiredInvitePage = async (
   checkpoint: string | null,
 ): Promise<InvitePage> => {
+  // Both arms compare against the same saved position, bound once as ?1; the
+  // unnumbered LIMIT ? continues after the highest number, so it reads ?2.
   const rows = await queryAll<InviteCandidate>(
     `SELECT id, invite_expiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
-        AND (? IS NULL OR id > ?)
+        AND (?1 IS NULL OR id > ?1)
       ORDER BY id
       LIMIT ?`,
-    [
-      checkpointId(checkpoint),
-      checkpointId(checkpoint),
-      MAINTENANCE_PRUNE_BATCH + 1,
-    ],
+    [checkpointId(checkpoint), MAINTENANCE_PRUNE_BATCH + 1],
   );
   const candidates = rows.slice(0, MAINTENANCE_PRUNE_BATCH);
   const cutoff = now().getTime();
@@ -209,7 +220,7 @@ const expiredInvitePage = async (
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
-  const inIds = ids.map(() => "?").join(", ");
+  const inIds = inPlaceholders(ids);
   const unactivatedIds = `SELECT id FROM users
     WHERE id IN (${inIds})
       AND wrapped_data_key IS NULL

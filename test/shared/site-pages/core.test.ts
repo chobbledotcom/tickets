@@ -11,12 +11,8 @@ import {
   wouldCreateCycle,
 } from "#shared/site-pages/core.ts";
 import type { TargetKey, TargetMap } from "#shared/site-pages/types.ts";
-import type {
-  SitePageItem,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
-import { navKey } from "#test/test-utils/site-pages/nav-fixtures.ts";
+import { navKey } from "#test-utils/site-pages/nav-fixtures.ts";
+import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
 const page = (id: number, sort_order = id): SitePageNavRow => ({
   id,
@@ -213,6 +209,31 @@ describe("site-pages core", () => {
       expect(isReservedSlug("contact")).toBe(true);
       expect(isReservedSlug(" Listings ")).toBe(true);
       expect(isReservedSlug("about-us")).toBe(false);
+    });
+
+    // Every word a page may not take, written out so dropping one from the
+    // list has to be a deliberate edit here too. Each would otherwise shadow
+    // a real route or a nav label.
+    for (const word of [
+      "admin",
+      "api",
+      "contact",
+      "home",
+      "listings",
+      "news",
+      "order",
+      "page",
+      "terms",
+      "ticket",
+    ]) {
+      test(`keeps "${word}" for the system`, () => {
+        expect(isReservedSlug(word)).toBe(true);
+      });
+    }
+
+    test("allows a word that merely contains a reserved one", () => {
+      expect(isReservedSlug("admin-notes")).toBe(false);
+      expect(isReservedSlug("homes")).toBe(false);
     });
   });
 

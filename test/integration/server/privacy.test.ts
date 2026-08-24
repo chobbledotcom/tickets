@@ -4,11 +4,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb, insert, queryOne } from "#db/client.ts";
+import { hashEmail } from "#db/contact-preferences.ts";
+import { deleteListing } from "#db/listings/delete.ts";
+import { settings } from "#db/settings.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
-import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import {
   cachedAdminPage,

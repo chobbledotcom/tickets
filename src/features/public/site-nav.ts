@@ -19,13 +19,13 @@
  * keeps its link (its page serves with noindex). Page targets are always live.
  */
 
+import { fillTogether } from "#db/fill-together.ts";
+import { getHiddenPackageMemberIds, groups } from "#db/groups.ts";
+import { getListingsWithCountsByIds } from "#db/listings/records.ts";
+import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
+import { allPageItemsRead } from "#db/site-page-items.ts";
+import { sitePagesNavRead } from "#db/site-pages.ts";
 import { compact, filter, map, pipe, unique } from "#fp";
-import { fillTogether } from "#shared/db/fill-together.ts";
-import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
-import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
-import { hasNewsPosts, newsExistenceRead } from "#shared/db/news-posts.ts";
-import { allPageItemsRead } from "#shared/db/site-page-items.ts";
-import { sitePagesNavRead } from "#shared/db/site-pages.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import { buildNavModel } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
@@ -36,8 +36,8 @@ import type {
   TargetKey,
   TargetMap,
 } from "#shared/site-pages/types.ts";
-import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 import { navFlags, type PublicNavProps } from "#templates/public/shared.tsx";
+import type { SitePageItem, SitePageItemType } from "#types";
 import { classifyForDiscovery } from "./discovery.ts";
 import { loadBookableGroupIds } from "./group-liveness.ts";
 

@@ -1,23 +1,71 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  parseEnabledFeatures,
-  setFeatureEnabled,
-} from "#shared/admin-features.ts";
-import {
-  entityReturnPath,
-  readOnlyGetRoutePatterns,
-  visibleSections,
-  visibleTopLevel,
-} from "#shared/admin-pages.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import {
   ADMIN_SURFACE,
   adminDestination,
   adminDestinationAllowed,
+  adminDestinationAt,
   adminPath,
+  adminPattern,
+  adminRecordPath,
 } from "#shared/admin-surface.ts";
 
-const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
+describe("the pattern a route declares", () => {
+  test("is the one the surface holds, for every route", () => {
+    // adminPattern names the literal its declaration wrote, which the fold
+    // cannot carry through as a type. This reads all of them back, so the
+    // name and the value can never drift apart unnoticed.
+    const wrong = Object.entries(ADMIN_SURFACE.destinations)
+      .filter(
+        ([id, destination]) =>
+          adminPattern(id as AdminDestinationId) !== destination.pattern,
+      )
+      .map(([id]) => id);
+    expect(wrong).toEqual([]);
+  });
+
+  test("says which id was never declared", () => {
+    // Reached only past the types, which is how a page definition naming a
+    // route that does not exist shows itself.
+    expect(() => adminPattern("nowhere" as AdminDestinationId)).toThrow(
+      'No admin route is declared as "nowhere"',
+    );
+  });
+
+  test("refuses to mint a record URL for a route taking two parameters", () => {
+    // An entity page names the route it serves, so a route that needs a
+    // second value cannot be one, and saying so at the page definition beats
+    // minting a URL with a parameter still in it.
+    expect(() => adminRecordPath("answerEdit", 7)).toThrow(
+      'Admin route "answerEdit" does not address one record',
+    );
+  });
+
+  test("refuses to mint a record URL for a route taking none", () => {
+    // A collection's own path names no record either, and quietly returning
+    // it would send every record to the same page.
+    expect(() => adminRecordPath("holidays", 7)).toThrow(
+      'Admin route "holidays" does not address one record',
+    );
+  });
+
+  test("mints a record URL whatever the route calls its parameter", () => {
+    expect(adminRecordPath("attendee", 7)).toBe("/admin/attendees/7");
+    expect(adminRecordPath("holiday", 7)).toBe("/admin/holidays/7");
+  });
+
+  test("says which path has no route", () => {
+    expect(() => adminDestinationAt("/admin/nowhere")).toThrow(
+      'No admin route is declared at "/admin/nowhere"',
+    );
+  });
+
+  test("keeps the parameters the route takes", () => {
+    expect(adminPattern("holiday")).toBe("/admin/holidays/:id");
+    expect(adminPattern("holidays")).toBe("/admin/holidays");
+  });
+});
 
 describe("admin surface paths", () => {
   test("fills every named route parameter", () => {
@@ -40,138 +88,15 @@ describe("admin surface paths", () => {
     expect(adminDestinationAllowed("modifiers", "manager", true)).toBe(true);
   });
 
-  test("keeps the complete top-level section order", () => {
-    expect(ADMIN_SURFACE.sections.map((section) => section.id)).toEqual([
-      "home",
-      "listings",
-      "calendar",
-      "servicing",
-      "attendees",
-      "users",
-      "groups",
-      "images",
-      "modifiers",
-      "ledger",
-      "site",
-      "settings",
-    ]);
-  });
-
-  test("uses link and view defaults for ordinary destinations", () => {
-    expect(adminDestination("sessions").nav?.kind).toBe("link");
+  test("takes each route's intent from the group it is declared in", () => {
     expect(adminDestination("modifiers").intent).toBe("view");
+    expect(adminDestination("modifierEdit").intent).toBe("write-form");
   });
 
-  test("shows the Site section to editors only when Site is enabled", () => {
-    const context = {
-      active: "/admin",
-      adminLevel: "editor" as const,
-      builder: false,
-      enabledFeatures: DEFAULT_ENABLED_FEATURES,
-      isReadOnly: false,
-      storage: false,
-      support: false,
-    };
-    expect(visibleTopLevel(context).map((link) => link.href)).not.toContain(
-      "/admin/site",
-    );
-    expect(
-      visibleTopLevel({
-        ...context,
-        enabledFeatures: setFeatureEnabled(
-          DEFAULT_ENABLED_FEATURES,
-          "site",
-          true,
-        ),
-      }).map((link) => link.href),
-    ).toContain("/admin/site");
-  });
-
-  test("applies per-link feature visibility", () => {
-    const context = {
-      active: "/admin/settings",
-      adminLevel: "owner" as const,
-      builder: false,
-      enabledFeatures: DEFAULT_ENABLED_FEATURES,
-      isReadOnly: false,
-      storage: false,
-      support: false,
-    };
-    const hidden = visibleSections(context).flatMap((section) => section.items);
-    const visible = visibleSections({
-      ...context,
-      builder: true,
-      support: true,
-    }).flatMap((section) => section.items);
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/built-sites");
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/support");
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/attributes");
-    expect(hidden.map((link) => link.href)).not.toContain("/admin/questions");
-    expect(visible.map((link) => link.href)).toContain("/admin/built-sites");
-    expect(visible.map((link) => link.href)).toContain("/admin/support");
-    const featureLinks = visibleSections({
-      ...context,
-      enabledFeatures: setFeatureEnabled(
-        setFeatureEnabled(DEFAULT_ENABLED_FEATURES, "attributes", true),
-        "questions",
-        true,
-      ),
-    }).flatMap((section) => section.items);
-    expect(featureLinks.map((link) => link.href)).toContain(
-      "/admin/attributes",
-    );
-    expect(featureLinks.map((link) => link.href)).toContain("/admin/questions");
-  });
-
-  test("omits sections with no sub-navigation", () => {
-    const sections = visibleSections({
-      active: "/admin/ledger",
-      adminLevel: "owner",
-      builder: false,
-      enabledFeatures: DEFAULT_ENABLED_FEATURES,
-      isReadOnly: false,
-      storage: false,
-      support: false,
-    });
-    expect(sections.map((section) => section.topHref)).not.toContain(
-      "/admin/ledger",
-    );
-  });
-
-  test("derives read-only blocks from destination intent", () => {
-    expect(readOnlyGetRoutePatterns()).toContain("/admin/listing/new");
-    expect(readOnlyGetRoutePatterns()).not.toContain("/admin/listings");
-  });
-});
-
-describe("entityReturnPath (role-aware detail vs edit redirect)", () => {
-  test("editors are sent to the edit form (they can't open the detail page)", () => {
-    expect(entityReturnPath("/admin/listings", "editor", 5)).toBe(
-      "/admin/listing/5/edit",
-    );
-    expect(entityReturnPath("/admin/groups", "editor", 7)).toBe(
-      "/admin/groups/7/edit",
-    );
-  });
-
-  test("staff are sent to the detail page", () => {
-    expect(entityReturnPath("/admin/listings", "owner", 5)).toBe(
-      "/admin/listing/5",
-    );
-    expect(entityReturnPath("/admin/listings", "manager", 5)).toBe(
-      "/admin/listing/5",
-    );
-    expect(entityReturnPath("/admin/groups", "owner", 7)).toBe(
-      "/admin/groups/7",
-    );
-    expect(entityReturnPath("/admin/groups", "agent", 7)).toBe(
-      "/admin/groups/7",
-    );
-  });
-
-  test("a section with no detail page falls back to its list page", () => {
-    expect(entityReturnPath("/admin/settings", "owner", 1)).toBe(
-      "/admin/settings",
-    );
+  test("gives every route the audience its area declares", () => {
+    // holidayNew states no role of its own, so it takes the area's owner-only
+    // audience — the same one the handler enforces.
+    expect(adminDestination("holidayNew").audience).toEqual(["owner"]);
+    expect(adminDestination("holidays").audience).toEqual(["owner"]);
   });
 });

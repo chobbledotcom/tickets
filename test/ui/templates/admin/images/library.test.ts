@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { getAllImages } from "#db/images.ts";
 import { handleRequest } from "#routes";
-import { getDb } from "#shared/db/client.ts";
-import { getAllImages } from "#shared/db/images.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {

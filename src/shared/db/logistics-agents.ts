@@ -6,10 +6,10 @@
  * rest, matching the treatment of other owner-entered labels (e.g. holidays).
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { idAndEncryptedNameSchema } from "#shared/db/common-schema.ts";
-import { defineCachedListTable } from "#shared/db/table.ts";
-import type { LogisticsAgent } from "#shared/types.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { idAndEncryptedNameSchema } from "#db/common-schema.ts";
+import { defineCachedListTable } from "#db/table.ts";
+import type { LogisticsAgent } from "#types";
 
 /** Logistics agent input fields for create/update (camelCase). */
 export type LogisticsAgentInput = {

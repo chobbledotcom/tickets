@@ -1,4 +1,4 @@
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
 import {
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
   PRUNE_INTERVAL_MS,

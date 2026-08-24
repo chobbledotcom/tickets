@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeRemovalStatements } from "#shared/db/attendees/delete.ts";
-import { ATTENDEE_DATA_RULES } from "#shared/db/attendees/dependent-data.ts";
-import { APP_SCHEMA } from "#shared/db/migrations/schema/index.ts";
-import { paymentTables } from "#shared/db/migrations/schema/payments/index.ts";
+import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
+import { ATTENDEE_DATA_RULES } from "#db/attendees/dependent-data.ts";
+import { APP_SCHEMA } from "#db/migrations/schema/index.ts";
+import { paymentTables } from "#db/migrations/schema/payments/index.ts";
 
 const tableColumns = new Map(
   APP_SCHEMA.map(([name, table]) => [

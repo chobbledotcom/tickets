@@ -4,16 +4,13 @@ import {
   attendeeAccount,
   revenueAccount,
   WORLD,
-} from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import {
-  accountBalance,
-  transfersByAccount,
-} from "#shared/accounting/queries.ts";
-import { legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+} from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { bookingEventGroup } from "#accounting/mappers.ts";
+import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { legReference } from "#accounting/refs.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { balanceEventGroup } from "#db/attendees/balance.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import {
   ATTENDEE,

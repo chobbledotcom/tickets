@@ -1,8 +1,12 @@
 import { expect } from "@std/expect";
 import { fn } from "@std/expect/fn";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
-import { createSettingsHandler } from "#routes/admin/settings-helpers.ts";
+import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
+import {
+  createSettingsHandler,
+  type ErrorPageFn,
+} from "#routes/admin/settings-helpers.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -78,6 +82,38 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       expect(mockErrorPage).toHaveBeenCalledWith(message, "settings-test");
     });
   }
+
+  describe("taskName", () => {
+    test("saves under the task when the sent settings version matches", async () => {
+      await settings.loadKeys([]);
+      const { handler, saveFn } = makeCreate({ taskName: "settings-test" });
+      const res = await runHandler(
+        handler,
+        { settings_version: String(settings.version), value: "hello" },
+        mockErrorPage,
+      );
+
+      expect(res.status).toBe(302);
+      expect(saveFn).toHaveBeenCalledWith("hello");
+      expect(mockErrorPage).not.toHaveBeenCalled();
+    });
+
+    test("refuses the save when the sent settings version is stale", async () => {
+      await settings.loadKeys([]);
+      const { handler, saveFn } = makeCreate({ taskName: "settings-test" });
+      await runHandler(
+        handler,
+        { settings_version: String(settings.version + 1), value: "hello" },
+        mockErrorPage,
+      );
+
+      expect(saveFn).not.toHaveBeenCalled();
+      expect(mockErrorPage).toHaveBeenCalledWith(
+        t("error.settings_changed"),
+        "settings-test",
+      );
+    });
+  });
 
   test("proceeds without calling errorPage when no validate function provided", async () => {
     const { handler, saveFn } = makeCreate();

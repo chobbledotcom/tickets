@@ -1,15 +1,9 @@
+import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { formatCountdown } from "#routes/format.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
-import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
-import {
-  availableDayCounts,
-  clampDurationDays,
-  dayPriceFor,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import {
   CopyableInputRow,
   type CopyableInputRowSpec,
@@ -22,6 +16,12 @@ import {
 } from "#templates/admin/share-rows.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
+import {
+  availableDayCounts,
+  clampDurationDays,
+  dayPriceFor,
+  type ListingWithCount,
+} from "#types";
 import { ListingAggregateMismatchRow } from "./aggregates.tsx";
 import {
   ListingCapacityRows,

@@ -1,16 +1,16 @@
+import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
+import {
+  createKeyedCache,
+  type KeyedCache,
+  type KeyedCacheConfig,
+} from "#db/keyed-cache.ts";
+import { type ColumnDef, col, type Table } from "#db/table.ts";
 import {
   type DependsOnEntry,
   registerCache,
   registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  createKeyedCache,
-  type KeyedCache,
-  type KeyedCacheConfig,
-} from "#shared/db/keyed-cache.ts";
-import { type ColumnDef, col, type Table } from "#shared/db/table.ts";
 
 // Re-exported for users.ts, which caches a table-less query and so wires the
 // cache by hand rather than through cachedEntityTable.

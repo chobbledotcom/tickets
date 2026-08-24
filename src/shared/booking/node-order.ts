@@ -1,4 +1,4 @@
-import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
+import type { BookingNode, BookingTree } from "#booking/tree.ts";
 
 /**
  * Every node in the tree with the deepest children first and the top-level

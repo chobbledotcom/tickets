@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decryptWithKey } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { decryptWithKey } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   deriveKEKFromPassword,
   importPrivateKey,
   unwrapKey,
-} from "#shared/crypto/keys.ts";
-import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
-import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import { getDb, insert } from "#shared/db/client.ts";
-import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
-import { createSession, getSession } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+} from "#crypto/keys.ts";
+import type { KeyEncrypted, PasswordHash } from "#crypto/sealed.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { getDb, insert } from "#db/client.ts";
+import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
+import { createSession, getSession } from "#db/sessions.ts";
+import { settings } from "#db/settings.ts";
+import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -70,7 +70,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
 
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       // v2 derives the unwrap KEK from the raw old password, so a wrong one can't
       // unwrap the DATA_KEY and the change is rejected.
       const success = await s.updateUserPassword(user!.id, {

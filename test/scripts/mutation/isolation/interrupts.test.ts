@@ -157,6 +157,11 @@ describe("interrupting a snapshot run", () => {
         await eventually(
           async () => !(await pathExists(runClaimPath({ root: record.root }))),
         );
+        // The claim comes down first and the exit follows in a later turn, so
+        // wait for the exit itself. Reading exitCodes the moment the claim is
+        // gone can catch the gap — and the real Deno.exit then lands after the
+        // stub is disposed, taking the whole test run down with 130.
+        await eventually(() => Promise.resolve(exitCodes.length > 0));
         expect(exitCodes).toEqual([130]);
 
         // Only because the test stubbed the exit away does the run carry on

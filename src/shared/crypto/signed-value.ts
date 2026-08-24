@@ -7,8 +7,8 @@
  * supplies only what differs — its window and how it builds the message.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { base64ToBase64Url, constantTimeEqual } from "#shared/crypto/utils.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { base64ToBase64Url, constantTimeEqual } from "#crypto/utils.ts";
 import { nowSeconds } from "#shared/now.ts";
 
 export const verifySignedValue = async (

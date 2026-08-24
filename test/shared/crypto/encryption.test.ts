@@ -9,10 +9,10 @@ import {
   parseEncryptedPayload,
   setEncryptionKeyForTest,
   validateEncryptionKey,
-} from "#shared/crypto/encryption.ts";
-import { generateDataKey } from "#shared/crypto/keys.ts";
-import type { EnvKeyEncrypted, KeyEncrypted } from "#shared/crypto/sealed.ts";
-import { toBase64 } from "#shared/crypto/utils.ts";
+} from "#crypto/encryption.ts";
+import { generateDataKey } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted, KeyEncrypted } from "#crypto/sealed.ts";
+import { toBase64 } from "#crypto/utils.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   clearTestEncryptionKey,

@@ -3,9 +3,9 @@
  * Owner-only access enforced via defineProviderCredentialsRoute
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
+import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { sumupApi } from "#shared/sumup.ts";
@@ -21,7 +21,6 @@ export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
     merchantCode: form.getString("sumup_merchant_code"),
   }),
   formId: "settings-sumup",
-  hasSecret: () => settings.sumup.hasKey,
   logMessage: "SumUp credentials updated",
   provider: "sumup",
   saveFields: ({ merchantCode }) =>

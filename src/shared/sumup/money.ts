@@ -1,30 +1,28 @@
 /* jscpd:ignore-start -- imports */
-import type { EventStatus } from "@sumup/sdk";
 import { compact } from "#fp";
-import { toMinorUnits } from "#shared/currency.ts";
-import { isCurrency, money, sameMoney } from "#shared/payment/money.ts";
+import { isCurrency, money, sameMoney } from "#payment/money.ts";
 import {
   mapProviderReader,
   type ProviderRead,
   type ProviderReader,
-} from "#shared/payment/provider-read.ts";
+} from "#payment/provider-read.ts";
 import {
   type RefundAttemptResult,
   type RefundRequest,
   uncertainRefund,
-} from "#shared/payment/refund-attempt.ts";
-import type {
-  ChargeMoney,
-  RefundObservation,
-} from "#shared/payment/resources.ts";
+} from "#payment/refund-attempt.ts";
 import {
+  type ChargeMoney,
   chargeMoneyRead,
+  type RefundObservation,
   refundMoneyAccountedFor,
   refundMoneyMatchesCapture,
   refundMoneyReturned,
-} from "#shared/payment/resources.ts";
+} from "#payment/resources.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import type { SumupRefundSubmission } from "#shared/sumup/failures.ts";
 import type { SumupTransactionMoney } from "#shared/sumup/transaction.ts";
+import type { SumupEventStatus } from "#shared/sumup/wire.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 
@@ -38,7 +36,10 @@ const REFUND_STATUS_MEANING = {
   REFUNDED: "completed",
   SCHEDULED: "pending",
   SUCCESSFUL: "completed",
-} as const satisfies Record<EventStatus, RefundObservation["status"] | null>;
+} as const satisfies Record<
+  SumupEventStatus,
+  RefundObservation["status"] | null
+>;
 
 const isKnownEventStatus = (
   status: string | undefined,

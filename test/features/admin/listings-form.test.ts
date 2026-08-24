@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingAttributeOptions } from "#db/attributes.ts";
+import { getDb } from "#db/client.ts";
+import { getListingDayPrices } from "#db/listing-prices.ts";
+import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
@@ -7,12 +11,7 @@ import {
   parseGroupIds,
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { listingAttributeOptions } from "#shared/db/attributes.ts";
-import { getDb } from "#shared/db/client.ts";
-import { getListingDayPrices } from "#shared/db/listing-prices.ts";
-import { computeSlugIndex } from "#shared/db/listings/table.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
-import type { Listing } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -24,6 +23,7 @@ import {
   testFormParams,
 } from "#test-utils/form-values.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
+import type { Listing } from "#types";
 
 const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({

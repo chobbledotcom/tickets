@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { paymentReferenceIndex } from "#shared/db/payment-reference-store.ts";
+import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { markProviderRefundsReturned } from "#test-utils/payment-references.ts";
 import { chargeMoney, fullyRefundedMoney } from "#test-utils/payment-state.ts";

@@ -16,9 +16,9 @@
  * the check list, layered on a transaction-local read of the endpoints.
  */
 
+import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
-import { inPlaceholders, resultRows, type TxScope } from "#shared/db/client.ts";
-import { TransactionValidationError } from "#shared/db/transaction.ts";
 import {
   type PackageChildEdgeBlock,
   packageChildEdgeConflict,
@@ -69,7 +69,10 @@ const nestingError = (
     return null;
   }
   if (hasChildren) return t("error.child_listing_nested");
-  if (hasParent) return t("error.parent_listing_nested");
+  // The parents contract is the catalog import. "Reload and try again" is no
+  // help there. The named parent was already a child before the file was read,
+  // so the fix is to change the file.
+  if (hasParent) return t("error.parent_is_already_a_child");
   return null;
 };
 

@@ -2,11 +2,11 @@
  * Types for attendee operations
  */
 
+import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import type { AttendeeKind } from "#db/attendees/kind.ts";
+import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
-import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
-import type { BookingSource } from "#shared/db/contact-tokens.ts";
-import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
+import type { Attendee, ContactFields, ContactInfo } from "#types";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
  * `childId` chosen under `parentId` in one order. An order where the same child
@@ -41,7 +41,6 @@ export type EncryptedAttendeeData = {
 /** Input for encrypting attendee fields */
 export type EncryptInput = ContactInfo & {
   paymentId: string;
-  pricePaid: number;
 };
 
 /** Input for building an Attendee result from an insert */
@@ -63,10 +62,17 @@ export type BuildAttendeeInput = ContactInfo & {
   packageGroupId: number;
 };
 
-/** Result of atomic attendee creation */
+/** Result of atomic attendee creation. A failure carries the listings whose
+ * lines did not fit when the refusal was checked — empty when the failure was
+ * not one listing's capacity shortfall (a duplicate slot, a replayed ledger
+ * event, or a race that freed the room again before the check). */
 export type CreateAttendeeResult =
   | { success: true; attendees: Attendee[] }
-  | { success: false; reason: AttendeeCreationFailureReason };
+  | {
+      success: false;
+      reason: AttendeeCreationFailureReason;
+      listingIds: number[];
+    };
 
 /** A single listing booking within a multi-listing attendee creation */
 export type ListingBooking = {

@@ -1,22 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import {
-  signedWebhook,
-  stripeCheckoutSession,
-  stripeClient,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
 import { activateStripe } from "#test-utils/settings.ts";
+import {
+  signedWebhook,
+  stripeCheckoutSession,
+  stripeClient,
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 describeStripe("stripe-provider", () => {
@@ -109,7 +110,7 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("createCheckoutSession - via provider", () => {
-    test("throws when a created session has no URL", async () => {
+    test("refuses a created session that names no address", async () => {
       const client = await stripeClient();
       await withMocks(
         () =>
@@ -121,14 +122,14 @@ describeStripe("stripe-provider", () => {
               }),
             ),
           ),
-        async () => {
-          await expect(
+        () =>
+          expectClosedCheckoutFailure(
             stripePaymentProvider.createCheckoutSession(
               checkoutIntent({ email: "jane@example.com", name: "Jane" }),
               "http://localhost:3000",
             ),
-          ).rejects.toThrow("Stripe checkout response is missing its URL");
-        },
+            { provider: "stripe", reason: "invalid_response" },
+          ),
       );
     });
   });

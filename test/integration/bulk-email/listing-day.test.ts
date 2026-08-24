@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeesApi } from "#db/attendees/api.ts";
 import {
   describeTarget,
   resolveRecipientEmails,
@@ -13,7 +14,6 @@ import {
   targetFromQuery,
   targetQuery,
 } from "#shared/bulk-email.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

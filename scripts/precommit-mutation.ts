@@ -25,10 +25,13 @@ import { collectTestFiles } from "./test-groups.ts";
 const flaggedPaths = (flag: "--source" | "--test", paths: string[]): string[] =>
   paths.flatMap((path) => [flag, path]);
 
+// Operator flags such as `--deadline` pass through to the mutation runner,
+// so a branch too large for the default deadline can raise it.
 const mutationArgs = (sources: string[], tests: string[]): string[] => [
   ...flaggedPaths("--source", sources),
   ...flaggedPaths("--test", tests),
   "--harness",
+  ...Deno.args,
 ];
 
 if (import.meta.main) {

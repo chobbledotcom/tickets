@@ -1,6 +1,6 @@
 import type { Client, Transaction } from "@libsql/client";
 import { type Stub, stub } from "@std/testing/mock";
-import { getDb } from "#shared/db/client.ts";
+import { getDb } from "#db/client.ts";
 
 /**
  * Replace the guarded client's `transaction` with one that resolves to `tx`,

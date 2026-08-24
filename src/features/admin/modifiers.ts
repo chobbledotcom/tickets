@@ -1,37 +1,18 @@
 /* jscpd:ignore-start */
-import { once } from "#fp";
-import { t } from "#i18n";
-import {
-  createRecalculateHandlers,
-  createRecalculatePageRenderer,
-  parseEditableAggregateForm,
-} from "#routes/admin/aggregate-recalculation.ts";
-import {
-  defineEditEntityPage,
-  type EditEntityPage,
-} from "#routes/admin/entity-write-tab.ts";
-import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { defineRoutes } from "#routes/router.ts";
-import { modifierAccount } from "#shared/accounting/accounts.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { toMinorUnits } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { groups, listingGroups } from "#shared/db/groups.ts";
-import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
+
+import { modifierAccount } from "#accounting/accounts.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { groups, listingGroups } from "#db/groups.ts";
+import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import {
   childUnreachableAddOnError,
   type ListingGroupMembership,
   listingIdsInGroups,
   reachablePageIds,
   toListingGroupMembership,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
 import {
   adjustModifierRevenue,
   getAllModifiers,
@@ -48,8 +29,28 @@ import {
   resetModifierAggregateFields,
   setModifierAnswers,
   updateModifierAggregateValues,
-} from "#shared/db/modifiers.ts";
-import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
+} from "#db/modifiers.ts";
+import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
+import { once } from "#fp";
+import { t } from "#i18n";
+import {
+  createRecalculateHandlers,
+  createRecalculatePageRenderer,
+  parseEditableAggregateForm,
+} from "#routes/admin/aggregate-recalculation.ts";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
+import {
+  defineEditEntityPage,
+  type EditEntityPage,
+} from "#routes/admin/entity-write-tab.ts";
+import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type ModifierScope,
@@ -58,7 +59,6 @@ import {
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import type { Modifier } from "#shared/types.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
 import type {
@@ -77,6 +77,7 @@ import {
   getModifierForm,
   type ModifierFormValues,
 } from "#templates/fields/modifier.ts";
+import type { Modifier } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
@@ -310,8 +311,8 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
-  basePath: (id) => `/admin/modifiers/${id}`,
   deleteLabelKey: "modifiers.delete.submit",
+  destination: "modifier",
   edit: (modifier, ctx, rejected) =>
     loadModifierEditPanel(
       modifier,
@@ -319,10 +320,9 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
       rejected?.error,
       rejected?.form.toRenderValues(),
     ),
-  guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
-  navActive: { section: "/admin/modifiers" },
+  navActive: { section: adminPattern("modifiers") },
 });
 
 // The list and entity page load the ledger-projected Modifier; writes and the
@@ -330,7 +330,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
-  listPath: "/admin/modifiers",
+  list: "modifiers",
   operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,
@@ -506,8 +506,8 @@ const handleAnswerLinks: TypedRouteHandler<
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
 export const adminHandlers = defineRoutes({
-  ...crudRoutes("/admin/modifiers", crud),
-  ...entityTabRoutes("/admin/modifiers", modifierPage),
+  ...crudRoutes(adminPattern("modifiers"), crud),
+  ...entityTabRoutes(adminPattern("modifier"), modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,

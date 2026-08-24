@@ -15,7 +15,7 @@ import {
   isExpiredNow,
   isTokenObject,
   verifySignedToken,
-} from "#shared/crypto/signed-token.ts";
+} from "#crypto/signed-token.ts";
 
 /** Every signed-token payload carries its expiry as unix seconds. */
 export type ExpiringPayload = { e: number };

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { retryWrite } from "#shared/db/retry-write.ts";
+import { retryWrite } from "#db/retry-write.ts";
 
 test("retryWrite returns the first revision-fenced write that succeeds", async () => {
   let attempts = 0;

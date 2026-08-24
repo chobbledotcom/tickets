@@ -1,9 +1,20 @@
+/* jscpd:ignore-start */
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
+/* jscpd:ignore-end */
 /**
  * Admin API key management routes
  */
 
+import { unwrapSessionDataKey } from "#crypto/keys.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
+import {
+  createApiKey,
+  deleteApiKey,
+  getApiKeyForUser,
+  getApiKeysForUser,
+} from "#db/api-keys.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
@@ -18,17 +29,8 @@ import { withOwnerData } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
-import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
-import {
-  createApiKey,
-  deleteApiKey,
-  getApiKeyForUser,
-  getApiKeysForUser,
-} from "#shared/db/api-keys.ts";
 import {
   type ApiKeyDisplay,
   adminApiDocsPage,
@@ -129,12 +131,11 @@ const overviewTab: TabDef<ApiKeyDisplay> = {
 
 /** The owner-only API key summary and actions page. */
 const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
-  basePath: (id) => `/admin/api-keys/${id}`,
-  guard: requireOwnerOr,
+  destination: "apiKey",
   load: async (id, session) =>
     (await getApiKeysForUser(session.userId)).find((key) => key.id === id) ??
     null,
-  navActive: "/admin/api-keys",
+  navActive: adminPattern("apiKeys"),
   tabs: [
     overviewTab,
     deleteActionTab(
@@ -158,7 +159,7 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   );
 
 export const adminHandlers = defineRoutes({
-  ...entityTabRoutes("/admin/api-keys", apiKeyPage, "apiKeyId"),
+  ...entityTabRoutes(adminPattern("apiKey"), apiKeyPage),
   "GET /admin/api-keys": handleApiKeysGet,
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),

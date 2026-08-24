@@ -7,13 +7,13 @@ import {
   type RefundPaymentReferenceSet,
   type RefundPaymentReferenceSource,
   type TaggedRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
-import { createOrLoadRefundAuthority } from "#shared/db/provider-refund-authority.ts";
-import { completeRefundAuthority } from "#shared/db/provider-refund-authority-change.ts";
-import { readyRefund } from "#shared/payment/refund-authority.ts";
-import { REFUND_PROVIDER_CAPABILITIES } from "#shared/payment/refund-provider-authorization.ts";
-import { refundReplayUntil } from "#shared/payment/refund-replay-window.ts";
-import { refundRequestIdentityIndex } from "#shared/payment/refund-request-identity.ts";
+} from "#db/payment-references.ts";
+import { createOrLoadRefundAuthority } from "#db/provider-refund-authority.ts";
+import { completeRefundAuthority } from "#db/provider-refund-authority-change.ts";
+import { readyRefund } from "#payment/refund-authority.ts";
+import { refundReplayUntil } from "#payment/refund-replay-window.ts";
+import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { getTestPrivateKey } from "./crypto.ts";
 
@@ -25,7 +25,7 @@ export const markProviderRefundsReturned = async (
   local: "due" | "recorded" = "recorded",
 ): Promise<void> => {
   for (const reference of references) {
-    const capability = REFUND_PROVIDER_CAPABILITIES[reference.provider];
+    const capability = PAYMENT_PROVIDERS[reference.provider].refundCapability;
     const identityIndex = await refundRequestIdentityIndex(reference, 1);
     const request =
       capability === "keyless"

@@ -22,6 +22,11 @@ export const nowMs = (): number => Date.now();
 export const isoBefore = (durationMs: number): string =>
   new Date(nowMs() - durationMs).toISOString();
 
+/** ISO timestamp a fixed duration after the current time — for a column that
+ * says when to do something next, rather than when something happened. */
+export const isoAfter = (durationMs: number): string =>
+  new Date(nowMs() + durationMs).toISOString();
+
 /** Current time in whole epoch seconds — the unit signed-token expiry uses. */
 export const nowSeconds = (): number => Math.floor(nowMs() / 1000);
 

@@ -1,4 +1,4 @@
-import { executeBatch } from "#shared/db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import { schemaMigration } from "./define.ts";
 import { getExistingColumns } from "./schema-sync.ts";
 

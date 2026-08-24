@@ -15,10 +15,10 @@
  * directly — no caching is applied.
  */
 
+import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
 /* jscpd:ignore-start -- imports */
 import { type CollectionCache, requiredMapValue, unique } from "#fp";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
-import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { createScope } from "#shared/request-scoped.ts";
 
 /* jscpd:ignore-end */

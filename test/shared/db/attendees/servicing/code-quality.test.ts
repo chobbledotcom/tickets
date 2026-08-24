@@ -11,12 +11,9 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { ATTENDEE_FIELDS, attendeeColumns } from "#db/attendees/select.ts";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
-import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import {
-  ATTENDEE_FIELDS,
-  attendeeColumns,
-} from "#shared/db/attendees/select.ts";
 
 // Anchored to the repo root (the test runner's cwd) rather than this file's own
 // location, so the source scan keeps working wherever the test file lives.

@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingsTable } from "#db/listings/records.ts";
+import { setLogisticsAssignments } from "#db/logistics.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
+import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import { setLogisticsAssignments } from "#shared/db/logistics.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -118,6 +118,38 @@ describeWithEnv(
       const { d } = await setup();
       const html = await calendarHtml(`/admin/calendar?date=${d}&agent=none`);
       expect(html).not.toContain("Agent User");
+    });
+
+    test("keeps the chosen agent in the links that change the day", async () => {
+      const { d, assigned } = await setup();
+      const html = await calendarHtml(
+        `/admin/calendar?date=${d}&agent=${assigned.id}`,
+      );
+      const withAgent = `/admin/calendar?date=${d}&amp;agent=${assigned.id}`;
+
+      // Picking another day, stepping a month, and the address an attendee
+      // page returns by all carried only the date. The operator landed on the
+      // whole site's list for that day with nothing to say the run sheet had
+      // gone.
+      expect(html).toContain(`href="${withAgent}#attendees"`);
+      expect(html).toContain(`value="${withAgent}#attendees"`);
+      expect(html).toContain(`${withAgent}&amp;cal=`);
+    });
+
+    test("keeps the agent out of the link that shows every agent", async () => {
+      const { d, assigned } = await setup();
+      const html = await calendarHtml(
+        `/admin/calendar?date=${d}&agent=${assigned.id}`,
+      );
+      expect(html).toContain(`href="/admin/calendar?date=${d}#attendees"`);
+    });
+
+    test("clears the agent with the date, since its bar goes too", async () => {
+      const { d, assigned } = await setup();
+      const html = await calendarHtml(
+        `/admin/calendar?date=${d}&agent=${assigned.id}`,
+      );
+      expect(html).toContain('value="/admin/calendar#attendees"');
     });
 
     test("no filter bar when logistics is disabled", async () => {

@@ -1,35 +1,22 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 
 /**
- * Admin group management routes - accessible to owners and managers
+ * Admin group management routes. Each route declares its own audience in
+ * `admin-surface/areas.ts`, so the roles differ across this file: an editor
+ * reaches the list and the record page, but only staff may delete.
  */
 
-import { compact } from "#fp";
-import { t } from "#i18n";
-import {
-  createContentCrudHandlers,
-  createCrudHandlers,
-} from "#routes/admin/owner-crud.ts";
-import { redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { entityReturnPath } from "#shared/admin-pages.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import type {
-  GroupInput,
-  PackageMemberInput,
-} from "#shared/catalog-fields/fields.ts";
-import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   assignListingsToGroup,
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
-} from "#shared/db/groups/membership.ts";
+} from "#db/groups/membership.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
@@ -40,14 +27,23 @@ import {
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
-} from "#shared/db/groups.ts";
+} from "#db/groups.ts";
+import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { getListingsWithCountsByIds } from "#db/listings/records.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import { clearItemEdgesStatement } from "#db/site-page-items.ts";
+import { compact } from "#fp";
+import { t } from "#i18n";
+import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
+import { redirect } from "#routes/response.ts";
+import { entityReturnPath } from "#shared/admin-pages.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
-  clearImageUsesForItemStatement,
-  imageUseTargets,
-} from "#shared/db/images.ts";
-import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
-import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
-import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
+  type GroupInput,
+  groupCatalogFields,
+  type PackageMemberInput,
+} from "#shared/catalog-fields/fields.ts";
 import {
   GROUP_DEMO_FIELDS,
   wrapResourceForDemo,
@@ -57,12 +53,6 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type {
-  AdminSession,
-  DayPrices,
-  Group,
-  ListingWithCount,
-} from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
@@ -73,6 +63,7 @@ import {
   getGroupCreateForm,
   getGroupForm,
 } from "#templates/fields/group.ts";
+import type { DayPrices, Group, ListingWithCount } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
@@ -268,9 +259,8 @@ const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
   getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
-  getRowPath: (g: Group, session: AdminSession) =>
-    entityReturnPath("/admin/groups", session.adminLevel, g.id),
-  listPath: "/admin/groups",
+  getRowPath: (g: Group) => entityReturnPath(adminPattern("groups"), g.id),
+  list: "groups",
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
@@ -319,18 +309,15 @@ const groupsResource = defineNamedResource({
   toInput: extractGroupEditInput,
 });
 
-// Editors may create/edit groups, so list/new/create/edit use content-gated
-// handlers; group deletion is destructive and stays staff-only, so its routes
-// come from a staff CRUD below.
-const contentCreate = createContentCrudHandlers({
+// The two bundles differ only in which resource writes the row: creating a
+// group generates its slug, editing one does not. Each route takes its own
+// roles from its declaration, so editors reach the create and edit routes
+// while the destructive delete stays staff-only, from one bundle.
+const create = createCrudHandlers({
   ...crudConfig,
   operations: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
-const content = createContentCrudHandlers({
-  ...crudConfig,
-  operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
-});
-const staffCrud = createCrudHandlers({
+const crud = createCrudHandlers({
   ...crudConfig,
   operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
@@ -368,6 +355,7 @@ const packageListingError = async (
 
 /** Handle POST /admin/groups/:id/add-listings - assign ungrouped listings to group */
 const handleAddListingsToGroup = groupFormPost(async (group, form) => {
+  const groupPath = entityReturnPath(adminPattern("groups"), group.id);
   const listingIds = form
     .getAll("listing_ids")
     .map(Number)
@@ -376,26 +364,25 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     const listings = compact(await getListingsWithCountsByIds(listingIds));
     const packageError = await packageListingError(group, listings);
     if (packageError) {
-      return redirect(`/admin/groups/${group.id}`, packageError, false);
+      return redirect(groupPath, packageError, false);
     }
     const existingListingIds = listings.map((listing) => listing.id);
     const typeError = await assignListingsToGroup(listingIds, group.id);
     if (typeError) {
+      // Another operator can delete the group between the load above and this
+      // write, and the group's own page would then answer 404, so a group that
+      // went missing sends the operator back to the list instead.
       const target =
         typeError === t("error.selected_group_deleted")
-          ? "/admin/groups"
-          : `/admin/groups/${group.id}`;
+          ? adminPattern("groups")
+          : groupPath;
       return redirect(target, typeError, false);
     }
     await logActivity(
       `${existingListingIds.length} listing(s) added to group '${group.name}'`,
     );
   }
-  return redirect(
-    `/admin/groups/${group.id}`,
-    t("success.listings_added_to_group"),
-    true,
-  );
+  return redirect(groupPath, t("success.listings_added_to_group"), true);
 });
 
 const groupImageHandlers = createItemImageHandlers({
@@ -408,7 +395,7 @@ const groupImageHandlers = createItemImageHandlers({
 
 /** Group routes */
 export const adminHandlers = defineRoutes({
-  "GET /admin/groups": content.listGet,
+  "GET /admin/groups": crud.listGet,
 
   // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
   // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
@@ -417,14 +404,14 @@ export const adminHandlers = defineRoutes({
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
-  ...entityTabRoutes("/admin/groups", groupPage),
-  "GET /admin/groups/:id/delete": staffCrud.deleteGet,
+  ...entityTabRoutes(adminPattern("group"), groupPage),
+  "GET /admin/groups/:id/delete": crud.deleteGet,
   // Create uses the auto-generated-slug resource.
-  "GET /admin/groups/new": contentCreate.newGet,
-  "POST /admin/groups": contentCreate.createPost,
+  "GET /admin/groups/new": create.newGet,
+  "POST /admin/groups": create.createPost,
   "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
-  "POST /admin/groups/:id/delete": staffCrud.deletePost,
-  "POST /admin/groups/:id/edit": content.editPost,
+  "POST /admin/groups/:id/delete": crud.deletePost,
+  "POST /admin/groups/:id/edit": crud.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
 });

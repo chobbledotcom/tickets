@@ -2,33 +2,26 @@
  *  to already be in a particular state. */
 
 import { assert } from "@std/assert";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, inPlaceholders, queryAll, requireOne } from "#db/client.ts";
+import { type ClaimResult, claimAttendeeRows } from "#db/payment-claim/take.ts";
+import { settleAttendeeRows } from "#db/payment-claim.ts";
 import { requiredMapValue } from "#fp";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  execute,
-  inPlaceholders,
-  queryAll,
-  requireOne,
-} from "#shared/db/client.ts";
-import {
-  type ClaimResult,
-  claimAttendeeRows,
-} from "#shared/db/payment-claim/take.ts";
-import { settleAttendeeRows } from "#shared/db/payment-claim.ts";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
-import { mirrorFor } from "#shared/payment/admit-move.ts";
+import { mirrorFor } from "#payment/admit-move.ts";
 import type {
   PaymentReviewCase,
   PaymentReviewReason,
-} from "#shared/payment/review.ts";
-import type {
-  PaymentRowState,
-  RefundClaim,
-} from "#shared/payment/row-state.ts";
-import { readRowState, writeRowState } from "#shared/payment/row-state.ts";
-import type { PaymentRowSettlement } from "#shared/payment/row-transitions.ts";
+} from "#payment/review.ts";
+import {
+  type PaymentRowState,
+  type RefundClaim,
+  readRowState,
+  writeRowState,
+} from "#payment/row-state.ts";
+import type { PaymentRowSettlement } from "#payment/row-transitions.ts";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
+import { nowMs } from "#shared/now.ts";
 import { getCompleteRefundPaymentReferences } from "#test-utils/payment-references.ts";
 
 const SLOT = "processed_payments.failure_data";

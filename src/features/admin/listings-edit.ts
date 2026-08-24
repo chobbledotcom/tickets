@@ -6,6 +6,26 @@
  * this module wires them to the new/edit/duplicate pages.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import {
+  checkGroupCapAfterDurationChange,
+  recomputeListingBookingRanges,
+} from "#db/attendees/update.ts";
+import { anyHiddenPackageGroup, groups, listingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import {
+  adjustListingIncome,
+  getListingAggregateRecalculation,
+  type ListingAggregateRecalculation,
+  type ListingAggregateValues,
+  updateListingAggregateValues,
+} from "#db/listings/aggregates.ts";
+import {
+  getListingWithCount,
+  getStoredListingWithCount,
+  requireListingWithCount,
+} from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
@@ -25,30 +45,6 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  checkGroupCapAfterDurationChange,
-  recomputeListingBookingRanges,
-} from "#shared/db/attendees/update.ts";
-import {
-  anyHiddenPackageGroup,
-  groups,
-  listingGroups,
-} from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import {
-  adjustListingIncome,
-  getListingAggregateRecalculation,
-  type ListingAggregateRecalculation,
-  type ListingAggregateValues,
-  updateListingAggregateValues,
-} from "#shared/db/listings/aggregates.ts";
-import {
-  getListingWithCount,
-  getStoredListingWithCount,
-  requireListingWithCount,
-} from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
   LISTING_DEMO_FIELDS,
@@ -61,19 +57,19 @@ import {
   type ListingTemplate,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
-import type {
-  AdminSession,
-  Group,
-  Listing,
-  ListingWithCount,
-} from "#shared/types.ts";
-import { isListingType } from "#shared/types.ts";
 import {
   adminDuplicateListingPage,
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
+import {
+  type AdminSession,
+  type Group,
+  isListingType,
+  type Listing,
+  type ListingWithCount,
+} from "#types";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -300,12 +296,12 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       form,
       result.row.id,
     );
-    // Staff land on the dashboard (which renders flashes); editors can't open
-    // it, so they go to the new listing's edit page — which renders Flash, so
-    // the success message and any upload caveats are surfaced, not swallowed.
+    // Staff land on the dashboard, which renders flashes. An editor cannot
+    // open the dashboard, so they go to the new listing's own page, which
+    // renders Flash too: the success message and any upload caveats show.
     const createdRedirect =
       session.adminLevel === "editor"
-        ? entityReturnPath("/admin/listings", session.adminLevel, result.row.id)
+        ? entityReturnPath("/admin/listings", result.row.id)
         : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,
@@ -442,7 +438,6 @@ const handleListingEditSuccess = async (
   aggregateValues: ListingAggregateValues | null,
   formData: FormData,
   id: number,
-  session: AdminSession,
 ): Promise<Response> => {
   if (aggregateValues) {
     await updateListingAggregateValues(id, aggregateValues);
@@ -455,7 +450,7 @@ const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    entityReturnPath("/admin/listings", session.adminLevel, row.id),
+    entityReturnPath("/admin/listings", row.id),
     `Listing updated${durationWarning}`,
     existing.attachment_url,
   );
@@ -510,7 +505,6 @@ export const handleAdminListingEditPost: TypedRouteHandler<
           aggregates.input,
           formData,
           id,
-          session,
         );
       }
       if ("notFound" in result) return notFoundResponse();

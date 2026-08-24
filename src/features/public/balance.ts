@@ -6,6 +6,11 @@
  * live from plaintext columns, so no private key is needed here.
  */
 
+import {
+  getAttendeeBalanceState,
+  getAttendeeOrderSummary,
+  type OrderSummary,
+} from "#db/attendees/balance.ts";
 import { withCsrfForm } from "#routes/csrf.ts";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { htmlResponse } from "#routes/response.ts";
@@ -13,11 +18,6 @@ import type { PathMethodRoute } from "#routes/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import {
-  getAttendeeBalanceState,
-  getAttendeeOrderSummary,
-  type OrderSummary,
-} from "#shared/db/attendees/balance.ts";
 import {
   type CheckoutIntent,
   getActivePaymentProvider,

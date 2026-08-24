@@ -10,7 +10,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
+import { inPlaceholders, type SqlStatement } from "#db/client.ts";
 
 /** One filter clause and the arguments that fill its placeholders.
  * `matchesNothing` marks a clause that no row can ever pass, so a reader can

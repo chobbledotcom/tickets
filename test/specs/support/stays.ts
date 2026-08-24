@@ -5,10 +5,9 @@
  * listing offers move with the calendar.
  */
 
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import { addDays } from "#shared/dates.ts";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type { Attendee, Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
@@ -18,6 +17,7 @@ import {
 } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { Attendee, Listing } from "#types";
 // jscpd:ignore-end
 
 /** Somebody new each time, so two stays are never taken for one person. */

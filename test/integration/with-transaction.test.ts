@@ -1,20 +1,20 @@
 import { type Client, createClient, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   DatabaseBusyError,
   queryOne,
   setDb,
   withTransaction,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,

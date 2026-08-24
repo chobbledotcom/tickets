@@ -1,6 +1,4 @@
-import { compact, uniqueBy } from "#fp";
-import { t } from "#i18n";
-import { formatAtomicError, parseCustomPrice } from "#shared/booking/form.ts";
+import { formatAtomicError, parseCustomPrice } from "#booking/form.ts";
 import {
   childCanBeBooked,
   childDateOk,
@@ -9,23 +7,23 @@ import {
   childPassesAllChecks,
   childUsesSameDays,
   type TicketListing,
-} from "#shared/booking/model.ts";
-import { nodesDeepestFirst } from "#shared/booking/node-order.ts";
-import type { OrderSpan } from "#shared/booking/order-span.ts";
-import { priceRuleByListingId } from "#shared/booking/price-tree.ts";
-import type {
-  BookingNode,
-  BookingTree,
-  PriceRule,
-} from "#shared/booking/tree.ts";
+} from "#booking/model.ts";
+import { nodesDeepestFirst } from "#booking/node-order.ts";
+import type { OrderSpan } from "#booking/order-span.ts";
+import { priceRuleByListingId } from "#booking/price-tree.ts";
 import {
+  type BookingNode,
+  type BookingTree,
   childPriceFieldName,
   childQuantityFieldName,
-} from "#shared/booking/tree.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+  type PriceRule,
+} from "#booking/tree.ts";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import { compact, uniqueBy } from "#fp";
+import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Holiday } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
+import type { Holiday } from "#types";
 
 /**
  * The **unified fold** — one recursive walk over the {@link BookingTree} that

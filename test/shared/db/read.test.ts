@@ -7,8 +7,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { defineReader, readStatement } from "#shared/db/read.ts";
-import { equals, inList } from "#shared/db/where-clauses.ts";
+import { defineReader, readStatement } from "#db/read.ts";
+import { equals, inList } from "#db/where-clauses.ts";
 
 describe("readStatement", () => {
   test("says the plainest read with nothing but columns and a table", () => {

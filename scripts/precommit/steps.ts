@@ -36,6 +36,10 @@ export const getSteps = (): Step[] => {
     // do — Biome never reflows comment text (see "Comments are short" in
     // AGENTS.md, and docs/comment-policy.md for how the limits ratchet down).
     { cmd: [deno, "task", "check:comments"], name: "check:comments" },
+    // Keep one module to one name: no file importing the same module twice, and
+    // no import spelling a module longer than its own alias allows (see
+    // "Imports name a module one way" in AGENTS.md).
+    { cmd: [deno, "task", "check:imports"], name: "check:imports" },
     // Catch a known-equivalent entry that no longer points at a real mutant on
     // the branch that moved it, rather than in review. Resolution only — the
     // audit that re-proves equivalence runs lint and type-check per entry and

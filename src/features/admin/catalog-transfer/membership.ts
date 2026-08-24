@@ -14,19 +14,13 @@
 
 import type { InValue } from "@libsql/client";
 import {
+  inPlaceholders,
   queryAll,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import {
-  PRICE_TYPE_GROUP,
-  PRICE_TYPE_GROUP_DAY,
-} from "#shared/db/listing-prices.ts";
-import {
-  type DayPrices,
-  type GroupListing,
-  parseDayPrices,
-} from "#shared/types.ts";
+} from "#db/client.ts";
+import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/listing-prices.ts";
+import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
  * and quantity — the membership facet a catalog export captures for one listing.
@@ -66,7 +60,7 @@ const multiRowInsert = (
   rows: readonly InValue[][],
 ): SqlStatement | null => {
   if (rows.length === 0) return null;
-  const placeholder = `(${columns.map(() => "?").join(", ")})`;
+  const placeholder = `(${inPlaceholders(columns)})`;
   return {
     args: rows.flat(),
     sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${rows

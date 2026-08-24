@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
+import { getCurrentSettingsVersion, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { getCurrentSettingsVersion, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -3,8 +3,8 @@
  * the migrations from it.
  */
 
+import { getDb } from "#db/client.ts";
 import { once } from "#fp";
-import { getDb } from "#shared/db/client.ts";
 
 import { MIGRATION_REGISTRY } from "./registry.ts";
 import { EVENT_TO_LISTING_RENAME_PLAN } from "./rename-plan.ts";
@@ -47,7 +47,7 @@ const syncCurrentSchema = async (): Promise<void> => {
  *  attendee-statuses module into every cold start's eager graph. */
 export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   const { ensureDefaultAttendeeStatus: seedDefaultStatus } = await import(
-    "#shared/db/attendee-statuses.ts"
+    "#db/attendee-statuses.ts"
   );
   await seedDefaultStatus();
 };

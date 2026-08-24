@@ -1,21 +1,23 @@
 /**
  * Warning shown in the domain settings forms: changing the site's domain
- * changes the payment webhook URL, so webhook-based payment providers
- * (Square and Stripe) must be reconfigured afterwards or payments stop
- * being confirmed.
+ * changes the payment webhook URL, so a provider that sends webhooks must be
+ * set up again afterwards or payments stop being confirmed.
  *
- * SumUp has no webhook, so the warning is hidden for it (and when no
- * provider is configured).
+ * Which providers those are, and what each one's operator must redo, come
+ * from the provider registry. A provider that sends no webhook has nothing to
+ * repoint, so it gets no warning.
  */
 
 import { t } from "#i18n";
+import { providerWebhook } from "#shared/payment-providers.ts";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
+import type { PaymentProviderType } from "#types";
 
 export const DomainPaymentWebhookWarning = ({
   existingPaymentProvider,
   paymentProviderRecoveryNeeded,
 }: {
-  existingPaymentProvider: string | null;
+  existingPaymentProvider: PaymentProviderType | null;
   paymentProviderRecoveryNeeded: boolean;
 }): JSX.Element | null => {
   if (paymentProviderRecoveryNeeded) {
@@ -33,11 +35,11 @@ export const DomainPaymentWebhookWarning = ({
       </article>
     );
   }
-  if (
-    existingPaymentProvider !== "square" &&
-    existingPaymentProvider !== "stripe"
-  )
-    return null;
+  const webhook =
+    existingPaymentProvider === null
+      ? null
+      : providerWebhook(existingPaymentProvider);
+  if (webhook === null) return null;
   return (
     <article>
       <aside role="alert">
@@ -45,9 +47,7 @@ export const DomainPaymentWebhookWarning = ({
           <strong>{t("settings.domain_warning.title")}</strong>{" "}
           {t("settings.domain_warning.body")}
         </p>
-        {existingPaymentProvider === "square"
-          ? rawParagraph("settings.domain_warning.square")
-          : rawParagraph("settings.domain_warning.stripe")}
+        {rawParagraph(webhook.domainChangeFixKey)}
       </aside>
     </article>
   );

@@ -6,9 +6,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attributesTable } from "#shared/db/attributes.ts";
-import { rawListingsTable } from "#shared/db/listings/table.ts";
-import { col, defineTable } from "#shared/db/table.ts";
+import { attributesTable } from "#db/attributes.ts";
+import { rawListingsTable } from "#db/listings/table.ts";
+import { col, defineTable } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

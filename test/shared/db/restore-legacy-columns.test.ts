@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   dumpMigrationState,
   legacyColumnRestores,
-} from "#shared/db/restore-legacy-columns.ts";
+} from "#db/restore-legacy-columns.ts";
 
 describe("db > restore legacy columns", () => {
   describe("dumpMigrationState", () => {

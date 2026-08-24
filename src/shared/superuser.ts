@@ -1,26 +1,26 @@
-import { lazyRef, ttlCache } from "#fp";
-import { getEffectiveDomain } from "#shared/config.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
-import { wrapDataKeyForPassword } from "#shared/crypto/keys.ts";
-import { settings } from "#shared/db/settings.ts";
+import { hashPassword } from "#crypto/hashing.ts";
+import { wrapDataKeyForPassword } from "#crypto/keys.ts";
+import { settings } from "#db/settings.ts";
 import {
   createUser,
   getUserByUsername,
   onUsersInvalidated,
-} from "#shared/db/users.ts";
+} from "#db/users.ts";
+import { lazyRef, range, ttlCache } from "#fp";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
 import { getEnv } from "#shared/env.ts";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
-import type { SuperuserChoice } from "#shared/types.ts";
 import {
   emailLocalPart,
   parseEmail,
   type ValidEmail,
 } from "#shared/validation/email.ts";
 import { validateUsername } from "#templates/fields/validators.ts";
+import type { SuperuserChoice } from "#types";
 
 export type SuperuserState =
   | {
@@ -136,12 +136,17 @@ export const getSuperuserState = async (): Promise<SuperuserState> => {
 const PASSWORD_ALPHABET =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
+/** Each draw asks for twice the characters still needed, so one draw is almost
+ * always enough, and even a dozen is a freak run. A run that reaches this many
+ * draws has a randomness source that hands back nothing usable. */
+const MAX_PASSWORD_DRAWS = 100;
+
 export const generateSuperuserPassword = (length = 12): string => {
   const alphabetLength = PASSWORD_ALPHABET.length;
   const maxValidByte = 256 - (256 % alphabetLength);
   let result = "";
 
-  while (result.length < length) {
+  for (const _draw of range(0, MAX_PASSWORD_DRAWS)) {
     // Rejection sampling: bytes past the last whole multiple of the alphabet
     // are dropped so every character stays equally likely.
     const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
@@ -150,9 +155,10 @@ export const generateSuperuserPassword = (length = 12): string => {
       .slice(0, length - result.length)
       .map((byte) => PASSWORD_ALPHABET[byte % alphabetLength])
       .join("");
+    if (result.length >= length) return result;
   }
 
-  return result;
+  throw new Error("Could not draw enough random characters for a password");
 };
 
 export const createActivatedSuperuser = async (opts: {

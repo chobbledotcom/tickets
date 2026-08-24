@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
-import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
+import { queryAll } from "#db/client.ts";
+import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import {
   addAnswer,
   createAttendee,

@@ -13,7 +13,7 @@ import {
   type PaymentWork,
   paymentWorkFor,
   paymentWorkForMirrors,
-} from "#shared/payment/admit-move.ts";
+} from "#payment/admit-move.ts";
 import {
   ROW_EVENTS,
   ROW_MOVES,
@@ -21,8 +21,8 @@ import {
   type RowEventId,
   type RowNode,
   type RowNodeId,
-} from "#shared/payment/row-machine-spec.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
+} from "#payment/row-machine-spec.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import { machineGraph } from "#test-utils/machine-graph.ts";
 
 const graph = machineGraph({

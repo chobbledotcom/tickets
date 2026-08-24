@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
+import { runWithRequestTrace } from "#shared/request-trace.ts";
 import "#shared/sentry-sdk.ts";
 import { captureServerError, initSentry } from "#shared/sentry.ts";
 import {
@@ -123,5 +124,89 @@ describe("Sentry SDK transport", () => {
         ),
       ),
     ).rejects.toThrow("Blocked external operation: Sentry transport");
+  });
+
+  /**
+   * The scope carries everything that makes a report findable: what happened,
+   * where, on which site, and how to group it. Each of these assertions fails
+   * if the matching scope call stops running.
+   */
+  describe("the scope a report carries", () => {
+    const captureAndRead = async (
+      capture: () => Promise<void>,
+    ): Promise<string> => {
+      using fetchStub = stubFetch(() => new Response("{}", { status: 200 }));
+      await initSentry();
+      await capture();
+      const options = fetchStub.calls[0]!.args[1] as RequestInit;
+      return typeof options.body === "string"
+        ? options.body
+        : new TextDecoder().decode(options.body as Uint8Array);
+    };
+
+    /** A report with no exception: the 72-of-82 call sites that pass a code. */
+    const messageReportBody = (): Promise<string> =>
+      captureAndRead(() => captureServerError({ code: ErrorCode.DB_QUERY }));
+
+    /** A report that carries the exception that caused it. */
+    const errorReportBody = (): Promise<string> =>
+      captureAndRead(() =>
+        captureServerError({
+          code: ErrorCode.DB_QUERY,
+          error: new Error("kaboom"),
+        }),
+      );
+
+    test("marks the report as an error, tags it, and names its route", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+
+      const body = await captureAndRead(() =>
+        runWithRequestTrace(
+          new Request("https://venue.example.com/admin/listings/42"),
+          () =>
+            captureServerError({
+              code: ErrorCode.DB_QUERY,
+              detail: "select failed",
+              listingId: 42,
+            }),
+        ),
+      );
+
+      expect(body).toContain('"level":"error"');
+      expect(body).toContain('"code":"E_DB_QUERY"');
+      expect(body).toContain('"listingId":"42"');
+      expect(body).toContain('"extra":{"detail":"select failed"}');
+      expect(body).toContain('"transaction":"GET /admin/listings/[id]"');
+    });
+
+    test("groups a report with no stack even outside a request", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+
+      expect(await messageReportBody()).toContain(
+        '"fingerprint":["E_DB_QUERY"]',
+      );
+    });
+
+    test("leaves a report that carries a stack trace ungrouped", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+
+      expect(await errorReportBody()).not.toContain("fingerprint");
+    });
+
+    test("sends an attached error as an exception, not as prose", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+
+      const body = await errorReportBody();
+      expect(body).toContain('"stacktrace"');
+      expect(body).not.toContain('"message":"Error: Database query failed"');
+    });
+
+    test("sends a report with no error as a message", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+
+      const body = await messageReportBody();
+      expect(body).toContain('"message":"Error: Database query failed"');
+      expect(body).not.toContain('"stacktrace"');
+    });
   });
 });

@@ -6,6 +6,8 @@
  * images are linked from the image admin and item Images tabs.
  */
 
+import { logActivity } from "#db/activity-log.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
@@ -14,11 +16,6 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import {
-  getListingWithCount,
-  listingsTable,
-} from "#shared/db/listings/records.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
@@ -29,7 +26,7 @@ import {
   uploadAttachment,
   validateAttachment,
 } from "#shared/storage.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -146,13 +143,8 @@ const handleFileDelete = (
   getUrl: (e: ListingWithCount) => string,
   clearFields: Partial<ListingInput>,
 ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
-  listingUploadHandler(async (listing, session, _form, _request, { id }) => {
-    // Staff return to the detail page; editors (who can't open it) to edit.
-    const returnPath = entityReturnPath(
-      "/admin/listings",
-      session.adminLevel,
-      id,
-    );
+  listingUploadHandler(async (listing, _session, _form, _request, { id }) => {
+    const returnPath = entityReturnPath("/admin/listings", id);
     const url = getUrl(listing);
     if (url) {
       const [deleteResult] = await Promise.allSettled([deleteFile(url)]);

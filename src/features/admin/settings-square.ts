@@ -4,13 +4,11 @@
  * defineProviderCredentialsRoute / settingsSecret.
  */
 
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
-import {
-  defineProviderCredentialsRoute,
-  settingsSecret,
-} from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
+import { settingsSecret } from "#routes/admin/settings-helpers.ts";
+import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { squareApi } from "#shared/square/api.ts";
 /* jscpd:ignore-end */
@@ -31,7 +29,6 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
     sandbox: form.get("square_sandbox") === "on",
   }),
   formId: "settings-square",
-  hasSecret: () => settings.square.hasToken,
   logMessage: "Square credentials updated",
   provider: "square",
   saveFields: async ({ locationId, sandbox }) => {

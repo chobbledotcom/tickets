@@ -1,20 +1,19 @@
 /** The one durable path allowed to ask a payment provider for a refund. */
 
 /* jscpd:ignore-start -- imports */
-import type { RefundAuthorityRow } from "#shared/db/provider-refund-authority.ts";
-import { markRefundAuthorityRecorded } from "#shared/db/provider-refund-authority-change.ts";
+import type { RefundAuthorityRow } from "#db/provider-refund-authority.ts";
+import { markRefundAuthorityRecorded } from "#db/provider-refund-authority-change.ts";
+import {
+  admitObservedRefund,
+  type ObservedRefundAdmission,
+  type WithheldRefund,
+} from "#payment/admit-refund.ts";
+import { type Money, sameMoney } from "#payment/money.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import { nowMs } from "#shared/now.ts";
-import type {
-  ObservedRefundAdmission,
-  WithheldRefund,
-} from "#shared/payment/admit-refund.ts";
-import { admitObservedRefund } from "#shared/payment/admit-refund.ts";
-import { type Money, sameMoney } from "#shared/payment/money.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
-import type { RefundAuthorityState } from "#shared/payment/refund-authority-state.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { PaymentProvider } from "#shared/payments.ts";
-import { loadPaymentProvider } from "#shared/payments.ts";
+import { loadPaymentProvider, type PaymentProvider } from "#shared/payments.ts";
 import {
   armReadyRefund,
   continueActiveRefund,
@@ -35,8 +34,10 @@ import {
   loadRefundTarget,
   prepareTargetAuthority,
 } from "#shared/provider-refunds/target.ts";
-import type { RefundWorkFacts } from "#shared/provider-refunds/work.ts";
-import { withRefundWorkFacts } from "#shared/provider-refunds/work.ts";
+import {
+  type RefundWorkFacts,
+  withRefundWorkFacts,
+} from "#shared/provider-refunds/work.ts";
 /* jscpd:ignore-end */
 
 export type ProviderRefundEvidence =
@@ -87,9 +88,12 @@ export type ProviderRefundTarget =
   | DirectRefundTarget
   | OwnerRecoveryRefundTarget;
 
+/** The provider surface a durable refund needs: read the money, send the
+ * return, and say which provider it is. Everything else about the provider is
+ * declared in the registry, so nothing here has to be loaded to know it. */
 export type RefundEngineProvider = Pick<
   PaymentProvider,
-  "readCharge" | "refundCapability" | "refundCharge" | "type"
+  "readCharge" | "refundCharge" | "type"
 >;
 
 /** The facts shared by every step reconciling one durable refund. */

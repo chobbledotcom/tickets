@@ -4,11 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   accountBalance,
   accountBalancesForIds,
-  accountBalancesOfType,
   transfersByAccount,
   transfersByAccounts,
-} from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+} from "#accounting/queries.ts";
+import { postTransfers } from "#accounting/store.ts";
 import { account, accountKey } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
@@ -35,34 +34,6 @@ describe("db > accounting > balance queries", () => {
     expect(await accountBalance(revenue)).toBe(5000);
     expect(await accountBalance(attendee)).toBe(-3000); // still owes 3000
     expect(await accountBalance(account("revenue", 404))).toBe(0);
-  });
-
-  test("accountBalancesOfType returns every account of a type at once", async () => {
-    await postTransfers([
-      tx({
-        amount: 1000,
-        destination: account("revenue", 1),
-        eventGroup: "e1",
-        reference: "r1",
-        source: account("attendee", 1),
-      }),
-    ]);
-    await postTransfers([
-      tx({
-        amount: 3000,
-        destination: account("revenue", 2),
-        eventGroup: "e2",
-        reference: "r2",
-        source: account("attendee", 2),
-      }),
-    ]);
-    const income = await accountBalancesOfType("revenue");
-    expect(income).toEqual(
-      new Map([
-        ["1", 1000],
-        ["2", 3000],
-      ]),
-    );
   });
 
   test("accountBalancesForIds scopes to given ids; empty is a no-op", async () => {

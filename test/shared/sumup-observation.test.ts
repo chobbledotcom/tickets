@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ProviderInvalidReason } from "#shared/payment/provider-read.ts";
+import type { ProviderInvalidReason } from "#payment/provider-read.ts";
 import {
   classifySumupCheckout,
   type SumupReadFacts,

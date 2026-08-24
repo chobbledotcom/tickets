@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#shared/db/listings/records.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { publicDailyParentWithMondayChild } from "#test/integration/server/parents-booking/_shared-setup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookableStartDates } from "#test-utils/db-helpers/listings.ts";

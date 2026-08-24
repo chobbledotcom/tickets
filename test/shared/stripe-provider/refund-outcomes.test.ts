@@ -1,23 +1,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { REFUND_NETWORK_RETRIES } from "#shared/payment/refund-network.ts";
-import {
-  StripeConnectionError,
-  StripeProtocolError,
-} from "#shared/stripe/request.ts";
+import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { gbp } from "#test-utils/payment-state.ts";
 import {
   stripeApiError,
   stripeChargeMoney,
   stripeClient,
   stripeRefund,
   stripeRefundRequest,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { gbp } from "#test-utils/payment-state.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("Stripe refund outcomes", () => {
   test("names an unconfigured provider without sending", async () => {
@@ -175,11 +172,11 @@ describeStripe("Stripe refund outcomes", () => {
     [stripeApiError(500), "provider_error"],
     [stripeApiError(504), "timeout"],
     [
-      new StripeConnectionError("network_error", "Connection failed"),
+      transportError.unreachable(providerDetail.stripe(), "network_error"),
       "network_error",
     ],
-    [new StripeConnectionError("timeout", "Connection timed out"), "timeout"],
-    [new StripeProtocolError("Bad answer"), "malformed_response"],
+    [transportError.unreachable(providerDetail.stripe(), "timeout"), "timeout"],
+    [transportError.unusable(providerDetail.stripe()), "malformed_response"],
   ] as const) {
     test(`classifies an uncertain ${reason} answer`, async () => {
       const client = await stripeClient();
@@ -213,7 +210,7 @@ describeStripe("Stripe refund outcomes", () => {
 
   test("keeps a malformed 400 error body as a definite rejection", async () => {
     const client = await stripeClient();
-    const protocol = new StripeProtocolError("Bad 400 answer", 400);
+    const protocol = transportError.unusable(providerDetail.stripe(), 400);
     await withMocks(
       () => stub(client.refunds, "create", () => Promise.reject(protocol)),
       async () => {

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe } from "@std/testing/bdd";
-import type { SettingsData } from "#shared/db/settings.ts";
+import type { SettingsData } from "#db/settings.ts";
 import {
   exceedsCurrencyPrecision,
   parseNonNegativeMinorUnits,

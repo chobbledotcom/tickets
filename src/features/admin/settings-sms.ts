@@ -6,6 +6,7 @@
  * unchanged, an empty value clears it.
  */
 
+import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import {
   processSecretField,
@@ -13,7 +14,6 @@ import {
   saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
 /* jscpd:ignore-end */
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";

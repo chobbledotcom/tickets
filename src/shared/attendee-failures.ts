@@ -60,3 +60,19 @@ export const attendeeFailureFormatter =
   (messages: AttendeeFailureMessages): AttendeeFailureFormatter =>
   (reason, listingName = "") =>
     FAILURE_MESSAGE_BUILDERS[reason](messages, listingName);
+
+/** The item a refused order names: the first whose listing the failure says
+ * is out of room, else the order's first item — read in the order the
+ * customer sees them, the way the write met them. */
+export const refusedOrderItem = <Item>(
+  items: readonly Item[],
+  listingIdOf: (item: Item) => number,
+  unfitListingIds: readonly number[],
+): Item => {
+  const unfit = new Set(unfitListingIds);
+  const named = items.find((item) => unfit.has(listingIdOf(item))) ?? items[0];
+  if (named === undefined) {
+    throw new Error("A refused order carries no items to name");
+  }
+  return named;
+};

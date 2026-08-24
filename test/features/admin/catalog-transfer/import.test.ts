@@ -1,13 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { missingMemberId } from "#routes/admin/catalog-transfer/import-listing.ts";
-import { execute } from "#shared/db/client.ts";
-import {
-  getGroupPackagePrices,
-  getListingsByGroupId,
-} from "#shared/db/groups.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -95,16 +91,6 @@ describeWithEnv("catalog group import", { db: true }, () => {
     if (result.ok) throw new Error("The package import should be rejected");
     expect(result.error).toContain("5-day");
   });
-});
-
-test("missingMemberId finds the first gap", () => {
-  const found = new Map([
-    [1, {}],
-    [3, {}],
-  ]);
-  expect(missingMemberId([1, 3], found)).toBeNull();
-  expect(missingMemberId([1, 2, 3], found)).toBe(2);
-  expect(missingMemberId([], found)).toBeNull();
 });
 
 describeWithEnv("in-tx member validation", { db: true }, () => {

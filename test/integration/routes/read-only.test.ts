@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { allTransfers } from "#accounting/queries.ts";
 import { handleRequest } from "#routes";
-import { allTransfers } from "#shared/accounting/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -175,14 +175,12 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { groups, computeGroupSlugIndex } = await import(
-        "#shared/db/groups.ts"
-      );
+      const { groups, computeGroupSlugIndex } = await import("#db/groups.ts");
       const { assignListingsToGroup } = await import(
-        "#shared/db/groups/membership.ts"
+        "#db/groups/membership.ts"
       );
-      const { listingsTable } = await import("#shared/db/listings/records.ts");
-      const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
+      const { listingsTable } = await import("#db/listings/records.ts");
+      const { computeSlugIndex } = await import("#db/listings/table.ts");
       await enablePublicSite();
       const slugIndex = await computeGroupSlugIndex("ro-group");
       const group = await groups.table.insert({

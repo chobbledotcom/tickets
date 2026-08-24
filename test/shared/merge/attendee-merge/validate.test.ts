@@ -1,7 +1,7 @@
 /** Decision validation for the split attendee merge service test suite. */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { validateAttendeeMergeDecision } from "#shared/merge/attendee-merge.ts";
 import type {
   AttendeeMergeDecisionInput,

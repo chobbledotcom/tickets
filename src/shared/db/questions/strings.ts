@@ -7,9 +7,9 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 /* jscpd:ignore-start */
 import {
   executeBatchWithResults,
@@ -17,8 +17,8 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 /* jscpd:ignore-end */
 

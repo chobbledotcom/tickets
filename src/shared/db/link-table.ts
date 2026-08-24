@@ -19,8 +19,6 @@
  * which answers both directions from one read.
  */
 
-import { reduce, requiredMapValue, unique } from "#fp";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   deleteByField,
   executeBatch,
@@ -29,7 +27,9 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-} from "#shared/db/client.ts";
+} from "#db/client.ts";
+import { reduce, requiredMapValue, unique } from "#fp";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
 
 /** A link write run on a caller's open write transaction. */

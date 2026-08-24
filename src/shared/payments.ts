@@ -2,22 +2,19 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import type { ChildAllocation } from "#db/attendee-types.ts";
+import { settings } from "#db/settings.ts";
+import type { Currency } from "#payment/money.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
+import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
+import type { SessionRejection } from "#payment/validated-session.ts";
 import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { settings } from "#shared/db/settings.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
-import type { Currency } from "#shared/payment/money.ts";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import type { RefundAttemptResult } from "#shared/payment/refund-attempt.ts";
-import type {
-  AuthorizedRefundRequest,
-  RefundProviderCapability,
-} from "#shared/payment/refund-provider-authorization.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
-import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
-import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import type { ContactInfo, PaymentProviderType } from "#types";
 /* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -270,21 +267,9 @@ export interface PaymentProvider {
    */
   readCharge(paymentReference: string): Promise<ProviderRead<ChargeMoney>>;
 
-  /** Whether a refund this provider accepted can safely be asked for twice.
-   *  An idempotency key lands a repeat call on the original refund; SumUp has
-   *  no such key, so asking twice pays twice. Every adapter says which kind it
-   *  is rather than being assumed. */
-  readonly refundCapability: RefundProviderCapability;
-
   /** Ask for the observed charge to be refunded and preserve the provider's
    * exact completed, accepted, rejected, unsent, or uncertain answer. */
   refundCharge(request: AuthorizedRefundRequest): Promise<RefundAttemptResult>;
-
-  /** Whether incoming webhooks carry a verifiable signature. Providers that
-   * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
-   * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this
-   * false and instead establish authenticity by re-fetching from the API. */
-  readonly requiresWebhookSignature: boolean;
 
   /**
    * Resolve a validated session from a webhook event.

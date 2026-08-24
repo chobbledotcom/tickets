@@ -10,8 +10,8 @@
 
 // jscpd:ignore-start
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
-import type { Group, Listing } from "#shared/types.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Group, Listing } from "#types";
 // jscpd:ignore-end
 
 /** Every kind of thing a story can keep by name, and what each name holds. */

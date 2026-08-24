@@ -9,9 +9,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
-import { execute } from "#shared/db/client.ts";
-import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -34,6 +33,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { getCompleteRefundCandidates } from "#test-utils/refund-candidates.ts";
+import type { Attendee } from "#types";
 
 /** An attendee whose one charge the provider has already returned, so nothing
  *  is still out and their row reads refunded. */

@@ -12,12 +12,7 @@
  * `logistics-run-sheet.ts`.
  */
 
-import {
-  executeBatch,
-  inPlaceholders,
-  queryAll,
-  update,
-} from "#shared/db/client.ts";
+import { executeBatch, inPlaceholders, queryAll, update } from "#db/client.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for

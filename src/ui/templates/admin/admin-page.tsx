@@ -15,17 +15,23 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
+import type {
+  AdminPathParams,
+  AdminRecordDestinationId,
+} from "#shared/admin-surface/ids.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { AgentHeader } from "#templates/admin/agent-header.tsx";
 import {
   AdminNav,
   type NavActive,
   StaffAdminNav,
 } from "#templates/admin/nav.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { Layout } from "#templates/layout.tsx";
+import type { AdminSession, Theme } from "#types";
 /* jscpd:ignore-end */
 
 export type AdminPageProps = {
@@ -57,7 +63,7 @@ export const AdminPage = ({
   session,
   active,
   bodyClass,
-  contentClassName,
+  contentClassName = "admin-page",
   theme,
   flash,
   actions,
@@ -66,7 +72,7 @@ export const AdminPage = ({
   <Layout
     beforeContent={<AdminNav active={active} session={session} />}
     {...(bodyClass !== undefined ? { bodyClass } : {})}
-    contentClassName={contentClassName ?? "admin-page"}
+    contentClassName={contentClassName}
     {...(theme !== undefined ? { theme } : {})}
     title={title}
   >
@@ -239,6 +245,21 @@ export const editPanel =
       {children}
     </>
   );
+
+/** The Edit tab of a record page: the save form posting to the route that
+ * edits that record, with any rejection message above it. Naming the route
+ * once keeps the panel and the handler on the same path. */
+export const recordEditPanel =
+  <Id extends AdminRecordDestinationId>(route: Id, submitLabel: Child) =>
+  (id: number, error: string | undefined, fields: Child): JSX.Element =>
+    editPanel(error)(
+      <SaveForm
+        action={adminPath(route, { id } as AdminPathParams<Id>)}
+        submitLabel={submitLabel}
+      >
+        {fields}
+      </SaveForm>,
+    );
 
 export const errorAdminPage = adminOpenerFor(errorFlash);
 

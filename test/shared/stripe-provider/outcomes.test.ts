@@ -1,21 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
-import {
-  StripeConnectionError,
-  StripeProtocolError,
-} from "#shared/stripe/request.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import type { StripeExpandedPaymentIntent } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { withMocks } from "#test-utils/mocks.ts";
 import {
   stripeApiError,
   stripeChargeMoney,
   stripeClient,
-} from "#test/test-utils/stripe/fixtures.ts";
-import { describeStripe } from "#test/test-utils/stripe/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
+} from "#test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 type StripeCharge = NonNullable<StripeExpandedPaymentIntent["latest_charge"]>;
 const capturedCharge = (
@@ -89,18 +86,21 @@ describeStripe("Stripe provider outcomes", () => {
         { reason: "provider_error", status: "unavailable" },
       ],
       [
-        new StripeConnectionError("network_error", "Connection failed"),
+        transportError.unreachable(providerDetail.stripe(), "network_error"),
         { reason: "network_error", status: "unavailable" },
       ],
       [
-        new StripeConnectionError("timeout", "Connection timed out"),
+        transportError.unreachable(providerDetail.stripe(), "timeout"),
         { reason: "timeout", status: "unavailable" },
       ],
       [
-        new StripeProtocolError("Bad answer"),
+        transportError.unusable(providerDetail.stripe()),
         { reason: "malformed_response", status: "invalid" },
       ],
-      [new StripeProtocolError("Bad 404 answer", 404), { status: "missing" }],
+      [
+        transportError.unusable(providerDetail.stripe(), 404),
+        { status: "missing" },
+      ],
     ] as const) {
       test(`classifies ${error.name}: ${JSON.stringify(expected)}`, async () => {
         const client = await stripeClient();

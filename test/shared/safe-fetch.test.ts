@@ -21,6 +21,48 @@ describe("safe-fetch", () => {
     expect(result.status).toBe(302);
   });
 
+  // Every status the standard uses to say "go and ask over there". Written out
+  // rather than read from the source, so dropping one from the list has to be
+  // a deliberate edit here too.
+  for (const status of [301, 302, 303, 307, 308]) {
+    test(`follows a ${status} to its destination`, async () => {
+      const asked: string[] = [];
+      const result = await fetchTextFollowingSafeRedirects(
+        "https://example.com/start",
+        undefined,
+        (url) => {
+          asked.push(url);
+          return Promise.resolve(
+            asked.length === 1
+              ? response(status, "https://example.com/moved")
+              : response(200),
+          );
+        },
+      );
+
+      expect(asked).toEqual([
+        "https://example.com/start",
+        "https://example.com/moved",
+      ]);
+      expect(result.status).toBe(200);
+    });
+  }
+
+  test("leaves a status that is not a redirect alone", async () => {
+    const asked: string[] = [];
+    const result = await fetchTextFollowingSafeRedirects(
+      "https://example.com/start",
+      undefined,
+      (url) => {
+        asked.push(url);
+        return Promise.resolve(response(304, "https://example.com/moved"));
+      },
+    );
+
+    expect(asked).toEqual(["https://example.com/start"]);
+    expect(result.status).toBe(304);
+  });
+
   test("rejects syntactically invalid redirect locations", async () => {
     await expect(
       fetchTextFollowingSafeRedirects(

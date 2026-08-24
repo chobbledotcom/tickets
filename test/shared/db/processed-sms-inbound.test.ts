@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#db/client.ts";
 import {
   claimProcessedSmsInbound,
   pruneProcessedSmsInboundBefore,
-} from "#shared/db/processed-sms-inbound.ts";
+} from "#db/processed-sms-inbound.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const storedCount = async (): Promise<number> => {

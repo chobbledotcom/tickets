@@ -12,14 +12,15 @@
  * and never touches the database itself.
  */
 
-import type { SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#db/client.ts";
+import type { SqlParameterToken } from "#db/numbered-statement.ts";
 import {
   deleteWhere,
   equals,
   inList,
   inSubquery,
   type WhereClause,
-} from "#shared/db/where-clauses.ts";
+} from "#db/where-clauses.ts";
 
 /** One record: what kind of thing it is, and which one of that kind. */
 export interface RecordTarget<Kind extends string> {
@@ -57,9 +58,8 @@ export interface RecordTargets<Kind extends string> {
   ) => (kind: Kind, idsQuery: SqlStatement) => SqlStatement;
   /** Delete one record's rows from `table` (a trusted constant). */
   deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
-  /** A condition that only holds while the record itself still exists, to fold
-   *  into a write so a stale request cannot leave a link to nothing. */
-  exists: (target: RecordTarget<Kind>) => SqlStatement;
+  /** A condition that only holds while this kind of record still exists. */
+  existsSql: (kind: Kind, idSql: SqlParameterToken) => string;
   /** The record a key names. Refuses a key this domain could not have minted,
    *  because a key that names no record of ours is a bug, not a miss. */
   fromKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;
@@ -115,16 +115,13 @@ export const defineRecordTarget = <Kind extends string>({
     deleteChosenBy: (table) => (kind, idsQuery) =>
       deleteWhere(table)(whereChosenBy(kind, idsQuery)),
     deleteFrom: (table) => (target) => deleteWhere(table)(where(target)),
-    exists: (target) => {
+    existsSql: (kind, idSql) => {
       if (!tables) {
         throw new Error(
-          `No table listed for ${target.kind} records: this kind of target cannot be checked for existence`,
+          `No table listed for ${kind} records: this kind of target cannot be checked for existence`,
         );
       }
-      return {
-        args: [target.id],
-        sql: `EXISTS (SELECT 1 FROM ${tables[target.kind]} WHERE id = ?)`,
-      };
+      return `EXISTS (SELECT 1 FROM ${tables[kind]} WHERE id = ${idSql})`;
     },
     fromKey: (stored) => {
       const divider = stored.indexOf(":");

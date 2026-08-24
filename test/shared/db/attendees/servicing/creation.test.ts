@@ -15,8 +15,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { getDb, queryOne } from "#shared/db/client.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -76,7 +76,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
 
   test("a servicing event's stored token index is the HMAC of its ticket token", async () => {
     const { event } = await createServicingHold();
-    const { hmacHash } = await import("#shared/crypto/hashing.ts");
+    const { hmacHash } = await import("#crypto/hashing.ts");
     // A real (non-empty) token, and the stored index is exactly its HMAC — so a
     // mutant that stores a blank or wrong index (breaking token lookups) fails.
     expect(event.ticketToken).toMatch(/\S/);
@@ -86,9 +86,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
   });
 
   test("creating a servicing event records no contact activity", async () => {
-    const { getVisits, hashEmail } = await import(
-      "#shared/db/contact-preferences.ts"
-    );
+    const { getVisits, hashEmail } = await import("#db/contact-preferences.ts");
     const listing = await createTestListing({ maxAttendees: 10 });
     await createTestServicingEvent({
       ...SMUGGLED_CONTACT_FIELDS,
@@ -117,8 +115,9 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
       name: "First Hold",
     });
     // Only "Cap1" (a) is actually full for that date — "Cap1-b" (b) would have
-    // fit alone — so the rejection must name specifically the listing that
-    // didn't fit, not the other booking in the same (rolled-back) request.
+    // fit alone — so the rejection must name ONLY the listing that did not
+    // fit, not the other booking in the same (rolled-back) request. The
+    // anchors matter: a message listing every booking still contains "Cap1".
     await expectRejects(
       createTestServicingEvent({
         bookings: [
@@ -127,7 +126,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
         ],
         name: "Should Roll Back",
       }),
-      /Cap1(?!-b)/,
+      /^Not enough spots available for: Cap1$/,
     );
     expect((await servicingRowsForListing(b.id)).length).toBe(0);
   });

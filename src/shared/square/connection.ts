@@ -1,19 +1,19 @@
 /* jscpd:ignore-start */
-import { settings } from "#shared/db/settings.ts";
+import { settings } from "#db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { CredentialCheck } from "#shared/payment-helpers.ts";
-import type { GetSquareClient, SquareLocation } from "#shared/square/client.ts";
+import type { GetSquareClient } from "#shared/square/client.ts";
+import type { SquareLocation } from "#shared/square/wire.ts";
 /* jscpd:ignore-end */
 
 /** The operator-facing result of checking the stored Square configuration. */
 export type SquareConnectionTestResult = {
   ok: boolean;
   accessToken: CredentialCheck;
-  location: {
+  /** The chosen place, named as Square names it, plus what we make of it. */
+  location: Pick<SquareLocation, "name" | "status"> & {
     configured: boolean;
     locationId?: string | undefined;
-    name?: string | undefined;
-    status?: string | undefined;
     error?: string | undefined;
   };
   webhook: { configured: boolean; error?: string };
@@ -38,8 +38,7 @@ export const testSquareConnection = async (
 
   let locations: SquareLocation[] = [];
   try {
-    const response = await client.locations.list();
-    locations = response.locations ?? [];
+    locations = (await client.locations.list()).locations;
     result.accessToken = {
       mode: settings.square.sandbox ? "sandbox" : "production",
       valid: true,

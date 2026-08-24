@@ -1,5 +1,5 @@
-import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";

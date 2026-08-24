@@ -4,14 +4,14 @@
  * the membership joins that consume it.
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import type {
   Answer,
   Question,
   QuestionDisplayType,
-} from "#shared/db/question-types.ts";
-import { col, defineTable } from "#shared/db/table.ts";
+} from "#db/question-types.ts";
+import { col, defineTable } from "#db/table.ts";
 
 /** Shared column defs for tables with an encrypted text column */
 const generatedId = col.generated<number>();

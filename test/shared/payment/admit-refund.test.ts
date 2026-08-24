@@ -4,10 +4,9 @@ import {
   admissionReason,
   admitObservedRefund,
   admitRefund,
-} from "#shared/payment/admit-refund.ts";
-import type { ObservationOutcome } from "#shared/payment/diagnose.ts";
-import { refundOutcomeOf } from "#shared/payment/diagnose.ts";
-import type { ChargeMoney } from "#shared/payment/resources.ts";
+} from "#payment/admit-refund.ts";
+import { type ObservationOutcome, refundOutcomeOf } from "#payment/diagnose.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 import {
   chargeMoneyWith,
   gbp,

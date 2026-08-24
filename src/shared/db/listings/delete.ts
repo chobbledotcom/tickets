@@ -1,11 +1,8 @@
 /** Listing deletion and owned-row cleanup. */
 
-import { executeBatch } from "#shared/db/client.ts";
-import {
-  clearImageUsesForItemStatement,
-  imageUseTargets,
-} from "#shared/db/images.ts";
-import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
+import { executeBatch } from "#db/client.ts";
+import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 
 /** Delete one listing and its listing-owned relationships in one batch. */

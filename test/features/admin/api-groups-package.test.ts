@@ -3,9 +3,9 @@
 // api-groups.test.ts so each file stays under the ~400-line target.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getGroupPackagePrices, groups } from "#db/groups.ts";
+import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { t } from "#i18n";
-import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
-import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

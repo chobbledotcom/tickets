@@ -9,9 +9,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { UpdateTier } from "#db/built-sites/types.ts";
+import { insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
-import type { UpdateTier } from "#shared/db/built-sites/types.ts";
-import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";

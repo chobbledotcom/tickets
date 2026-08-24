@@ -1,3 +1,10 @@
+import type { BlindIndex } from "#crypto/sealed.ts";
+import { contactFields } from "#db/attendees/pii.ts";
+import {
+  pricePaidFromLedger,
+  remainingBalanceFromLedger,
+} from "#db/attendees/select.ts";
+import { queryAllPrimary } from "#db/client.ts";
 import {
   type CreatedEntry,
   pairEntriesByListing,
@@ -5,13 +12,6 @@ import {
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { contactFields } from "#shared/db/attendees/pii.ts";
-import {
-  pricePaidFromLedger,
-  remainingBalanceFromLedger,
-} from "#shared/db/attendees/select.ts";
-import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
 
 type CommittedBookingRow = {
   created: string;
@@ -36,10 +36,9 @@ export const committedEntries = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<CreatedEntry[]> => {
-  const [result] = await queryBatchPrimary([
-    {
-      args: [attendeeId],
-      sql: `SELECT attendee.created,
+  const rows = await queryAllPrimary<CommittedBookingRow>({
+    args: [attendeeId],
+    sql: `SELECT attendee.created,
                    SUBSTR(listingAttendee.start_at, 1, 10) AS date,
                    SUBSTR(listingAttendee.end_at, 1, 10) AS end_date,
                    attendee.kind,
@@ -60,11 +59,8 @@ export const committedEntries = async (
               ON listingAttendee.attendee_id = attendee.id
             WHERE attendee.id = ?
             ORDER BY listingAttendee.id`,
-    },
-  ]);
-  const attendees: CreatedEntry["attendee"][] = resultRows<CommittedBookingRow>(
-    result!,
-  ).map((row) => ({
+  });
+  const attendees: CreatedEntry["attendee"][] = rows.map((row) => ({
     ...contactFields(intent),
     attachment_downloads: 0,
     checked_in: false,

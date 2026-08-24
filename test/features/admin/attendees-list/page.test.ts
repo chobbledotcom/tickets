@@ -5,8 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createSystemNote } from "#shared/db/notes/queries.ts";
-import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { createSystemNote } from "#db/notes/queries.ts";
+import { attendeeNotes } from "#db/notes/target.ts";
 import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -24,6 +24,31 @@ const seedRegistrationPair = async (): Promise<void> => {
 describeWithEnv("the attendees browser page", { db: true }, () => {
   describe("GET /admin/attendees", () => {
     testRequiresAuth("/admin/attendees");
+
+    test("offers the export at its own address", async () => {
+      await seedRegistrationPair();
+      const html = await (await adminGet("/admin/attendees")).text();
+      expect(html).toContain("/admin/attendees/csv");
+    });
+
+    test("offers no check-in filter, which this page does not do", async () => {
+      await seedRegistrationPair();
+      const html = await (await adminGet("/admin/attendees")).text();
+      // The check-in bar links carry filter=in / filter=out when offered.
+      expect(html).not.toContain("filter=in");
+      expect(html).not.toContain("filter=out");
+    });
+
+    test("drops a date from the address, which this page does not use", async () => {
+      await seedRegistrationPair();
+      const html = await (
+        await adminGet("/admin/attendees?date=2026-01-01")
+      ).text();
+      // A page that took dates would carry the chosen one through its own
+      // links and form fields; this one has no date control, so it forgets it.
+      expect(html).toContain("Alice");
+      expect(html).not.toContain("2026-01-01");
+    });
 
     test("renders the attendees page with the registration", async () => {
       const listing = await makeListing("Gala Night");
@@ -44,6 +69,40 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       await makeListing("Empty Listing");
 
       await assertAdminHtml("/admin/attendees", "No attendees yet");
+    });
+
+    test("links to the spreadsheet of every attendee", async () => {
+      await makeListing("Gala Night");
+
+      await assertAdminHtml("/admin/attendees", 'href="/admin/attendees/csv"');
+    });
+
+    test("ignores a check-in filter asked for in the address", async () => {
+      // Checking in belongs to one listing's own attendee list. The browser
+      // spans every listing, so it offers no check-in filter and drops one
+      // that arrives in the address.
+      const listing = await makeListing("Gala Night");
+      await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+
+      const html = await (await adminGet("/admin/attendees?filter=in")).text();
+
+      expect(html).not.toContain("filter=in");
+      // Alice is not checked in, so a filter that took hold would drop her.
+      expect(html).toContain("Alice");
+    });
+
+    test("ignores a date asked for in the address", async () => {
+      // The browser has no day picker, so no link it renders carries a date.
+      const listing = await makeListing("Gala Night");
+      await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+
+      const html = await (
+        await adminGet("/admin/attendees?date=2026-01-01")
+      ).text();
+
+      expect(html).not.toContain("date=2026-01-01");
+      // Alice booked no day in 2026, so a date that took hold would drop her.
+      expect(html).toContain("Alice");
     });
 
     test("flags a deactivated listing in the filter dropdown", async () => {

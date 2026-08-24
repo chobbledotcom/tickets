@@ -1,33 +1,32 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryOne } from "#shared/db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import {
   type ProviderRefundOwnerChoice,
   resolveProviderRefundCase,
-} from "#shared/db/provider-refund-case-resolution.ts";
+} from "#db/provider-refund-case-resolution.ts";
 import {
   listProviderRefundCases,
   loadProviderRefundCase,
   type ProviderRefundCase,
   type ProviderRefundCasePage,
-} from "#shared/db/provider-refund-cases.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/provider-refund-cases.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
   markRefundCompleted,
   markRefundLocalRecorded,
   readyRefund,
-} from "#shared/payment/refund-authority.ts";
+} from "#payment/refund-authority.ts";
 import {
   markRefundOwnerChoiceNeeded,
   markRefundProviderConflict,
-} from "#shared/payment/refund-authority-choice.ts";
+} from "#payment/refund-authority-choice.ts";
 import {
   type RefundAuthorityState,
   readRefundAuthorityState,
-} from "#shared/payment/refund-authority-state.ts";
+} from "#payment/refund-authority-state.ts";
 import { readProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
-import type { PaymentProviderType } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -35,6 +34,7 @@ import {
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import type { PaymentProviderType } from "#types";
 
 const taggedReference = (
   reference: string,

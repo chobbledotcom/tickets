@@ -6,15 +6,15 @@
  * passes judge modifiers identically.
  */
 
-import type { AnswerInfo, extractContact } from "#routes/public/ticket-form.ts";
-import type { TicketCtx } from "#routes/public/types.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
 import {
   buyerVisits,
   oversubscribedAnswerTiers,
   type ResolveOptions,
   resolveModifiers,
-} from "#shared/db/modifier-resolve.ts";
+} from "#db/modifier-resolve.ts";
+import type { AnswerInfo, extractContact } from "#routes/public/ticket-form.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import type { TicketFormValues } from "#templates/fields/ticket.ts";

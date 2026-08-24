@@ -6,12 +6,11 @@
  */
 
 import { expect } from "@std/expect";
+import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import { map } from "#fp";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
-import type { Group, GroupListing } from "#shared/types.ts";
 import {
   openAdminPage,
   openAsNewcomer,
@@ -43,6 +42,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Group, GroupListing } from "#types";
 // jscpd:ignore-end
 
 /** One thing inside a bundle, and what the bundle charges for it. */

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   enablePublicOrder,
@@ -220,7 +220,7 @@ describeWithEnv(
           name: "Two Day Pass",
         });
         const start = orderDate();
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
         const fill = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { date: addDays(start, 1), listingId: daily.id, quantity: 1 },
@@ -281,7 +281,7 @@ describeWithEnv(
           name: "Day Boat",
         });
         const start = orderDate();
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const { attendeesApi } = await import("#db/attendees/api.ts");
         const fill = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { date: addDays(start, 1), listingId: dayBoat.id, quantity: 2 },

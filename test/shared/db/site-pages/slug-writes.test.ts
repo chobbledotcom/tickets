@@ -4,7 +4,7 @@ import {
   createSitePage,
   type SitePageWriteInput,
   updateSitePage,
-} from "#shared/db/site-pages.ts";
+} from "#db/site-pages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

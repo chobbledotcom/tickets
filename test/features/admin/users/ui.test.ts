@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { getDb } from "#shared/db/client.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { getDb } from "#db/client.ts";
+import { invalidateUsersCache } from "#db/users.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -46,10 +46,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("setup page", () => {
     test("setup includes admin_username field", async () => {
-      const { getDb: getDbFn } = await import("#shared/db/client.ts");
+      const { getDb: getDbFn } = await import("#db/client.ts");
       await getDbFn().execute("DELETE FROM settings");
       await getDbFn().execute("DELETE FROM users");
-      const { settings: s } = await import("#shared/db/settings.ts");
+      const { settings: s } = await import("#db/settings.ts");
       s.setup.clearCache();
       s.invalidateCache();
       invalidateUsersCache();

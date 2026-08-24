@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertAdminHtml,
   assertJson,

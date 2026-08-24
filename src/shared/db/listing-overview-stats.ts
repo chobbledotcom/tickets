@@ -18,18 +18,17 @@
  */
 
 /* jscpd:ignore-start */
-import { ATTENDEE, REVENUE } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
+import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
 import {
   accountPredicate,
   attendeeOwedSubquery,
   saleLegPredicate,
-} from "#shared/accounting/projection-sql.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { refundedForBooking } from "#shared/db/attendees/select.ts";
-import { requireOne } from "#shared/db/client.ts";
-import type { Listing } from "#shared/types.ts";
-import { isPaidListing } from "#shared/types.ts";
+} from "#accounting/projection-sql.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { refundedForBooking } from "#db/attendees/select.ts";
+import { requireOne } from "#db/client.ts";
+import { isPaidListing, type Listing } from "#types";
 
 /* jscpd:ignore-end */
 

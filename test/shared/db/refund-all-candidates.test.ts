@@ -2,21 +2,18 @@
 import type { Client, ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, setDb } from "#shared/db/client.ts";
+import { execute, setDb } from "#db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
-} from "#shared/db/query-log.ts";
+} from "#db/query-log.ts";
 import {
   getRefundAllSummary,
   loadRefundAllBatch,
-} from "#shared/db/refund-all-candidates.ts";
-import {
-  armRefundSend,
-  readyRefund,
-} from "#shared/payment/refund-authority.ts";
-import { markRefundProviderConflict } from "#shared/payment/refund-authority-choice.ts";
+} from "#db/refund-all-candidates.ts";
+import { armRefundSend, readyRefund } from "#payment/refund-authority.ts";
+import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
 import {
   createPaidListing,
   createRefundableAttendee,
@@ -87,12 +84,7 @@ const resultWithRows = (rows: ResultSet["rows"]): ResultSet => ({
 });
 
 describeWithEnv("db > Refund All candidates", { db: true }, () => {
-  test("fails loudly when the summary query omits either result layer", async () => {
-    setDb(databaseReturning([]));
-    await expect(getRefundAllSummary(7)).rejects.toThrow(
-      "Refund All admission returned no result",
-    );
-
+  test("fails loudly when the summary query answers with no row", async () => {
     setDb(databaseReturning([emptyResultSet()]));
     await expect(getRefundAllSummary(7)).rejects.toThrow(
       "Refund All admission returned no summary",

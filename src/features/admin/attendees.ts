@@ -1,27 +1,27 @@
 /* jscpd:ignore-start */
 import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /**
  * Admin attendee management routes
  */
 
-import { t } from "#i18n";
-import { redirect } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
-import { createAuthedFormRoute } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
+import { logActivity } from "#db/activity-log.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
+import { decryptAttendeeOrNull } from "#db/attendees/pii.ts";
 import {
   getAttendeePackageRowsRaw,
   hasActiveBookingLine,
-} from "#shared/db/attendees/queries.ts";
-import { updateCheckedIn } from "#shared/db/attendees/update.ts";
+} from "#db/attendees/queries.ts";
+import { updateCheckedIn } from "#db/attendees/update.ts";
 import {
   getListingWithCount,
   requireListingWithCount,
-} from "#shared/db/listings/records.ts";
-import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
+} from "#db/listings/records.ts";
+import { hasAnyPaymentReference } from "#db/payment-references.ts";
+import { t } from "#i18n";
+import { redirect } from "#routes/response.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
@@ -30,17 +30,17 @@ import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import {
-  availableDayCounts,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { adminResendNotificationPage } from "#templates/admin/attendees.tsx";
 import {
   type AddAttendeeFormValues,
   getAddAttendeeFields,
 } from "#templates/fields/add-attendee.ts";
+import {
+  availableDayCounts,
+  isPaidListing,
+  type ListingWithCount,
+} from "#types";
 import {
   deleteAttendeeAndRedirect,
   handleAdminAttendeeDeleteGet,
@@ -324,7 +324,7 @@ const handleResendNotification = attendeeActions[
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineRoutes({
-  ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
+  ...entityTabRoutes(adminPattern("attendee"), attendeePage),
   ...paymentReviewHandlers,
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,

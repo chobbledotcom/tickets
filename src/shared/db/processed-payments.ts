@@ -11,37 +11,31 @@
  * upsert. A lookup in the same batch returns any existing outcome.
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type {
-  EnvKeyEncrypted,
-  OwnerKeyEncrypted,
-} from "#shared/crypto/sealed.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import {
   execute,
   executeBatchWithResults,
-  queryBatchPrimary,
+  queryOnePrimary,
   resultRows,
   type SqlStatement,
   withTransaction,
-} from "#shared/db/client.ts";
-import { paymentRowStateValues } from "#shared/db/payment-claim.ts";
+} from "#db/client.ts";
+import { paymentRowStateValues } from "#db/payment-claim.ts";
 import {
   storePaymentReference,
   unclaimedPaymentReference,
-} from "#shared/db/payment-reference-store.ts";
-import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { isoBefore, nowIso } from "#shared/now.ts";
-import type { TaggedPaymentReference } from "#shared/payment/provider-reference.ts";
+} from "#db/payment-reference-store.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   EMPTY_ROW_STATE,
   readRowState,
   type StoredPaymentFailure,
   writeRowState,
-} from "#shared/payment/row-state.ts";
-import {
-  hasLiveRowWork,
-  withOutcome,
-} from "#shared/payment/row-transitions.ts";
+} from "#payment/row-state.ts";
+import { hasLiveRowWork, withOutcome } from "#payment/row-transitions.ts";
+import { STALE_RESERVATION_MS } from "#shared/limits.ts";
+import { isoBefore, nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 export { STALE_RESERVATION_MS };
@@ -267,14 +261,11 @@ export const prepareSessionFailure = async (
 const readStoredOutcome = async (
   sessionId: string,
 ): Promise<EnvKeyEncrypted | "" | null> => {
-  const [read] = await queryBatchPrimary([
-    {
-      args: [sessionId],
-      sql: "SELECT failure_data FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
-    },
-  ]);
-  const row = resultRows<{ failure_data: EnvKeyEncrypted | "" }>(read!)[0];
-  return row === undefined ? null : row.failure_data;
+  const row = await queryOnePrimary<{ failure_data: EnvKeyEncrypted | "" }>(
+    "SELECT failure_data FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+    [sessionId],
+  );
+  return row === null ? null : row.failure_data;
 };
 
 const unexpectedOutcomeMove = (sessionId: string): Error =>

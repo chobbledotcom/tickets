@@ -1,12 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  decrypt,
-  ENCRYPTION_PREFIX,
-  encrypt,
-} from "#shared/crypto/encryption.ts";
-import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt, ENCRYPTION_PREFIX, encrypt } from "#crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#crypto/keys.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   getAllActivityLog,
   getAttendeeActivityLog,
@@ -14,9 +10,9 @@ import {
   getListingWithActivityLogOrNull,
   logActivities,
   logActivity,
-} from "#shared/db/activity-log.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+} from "#db/activity-log.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

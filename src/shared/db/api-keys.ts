@@ -10,18 +10,18 @@
  */
 
 /* jscpd:ignore-start */
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
-import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
-import type { BlindIndex, WrappedKey } from "#shared/crypto/sealed.ts";
-import { execute, executeUpdate } from "#shared/db/client.ts";
-import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
-import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { col } from "#shared/db/table.ts";
-import { readerFor } from "#shared/db/table-reader.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { wrapKeyWithToken } from "#crypto/keys.ts";
+import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
+import { execute, executeUpdate } from "#db/client.ts";
+import { idAndCreatedSchema } from "#db/common-schema.ts";
+import { defineIdTable } from "#db/define-id-table.ts";
+import { col } from "#db/table.ts";
+import { readerFor } from "#db/table-reader.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
-import type { ApiKey } from "#shared/types.ts";
+import type { ApiKey } from "#types";
 
 /* jscpd:ignore-end */
 

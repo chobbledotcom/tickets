@@ -12,11 +12,8 @@ import {
   ITEM_TARGET_COLUMNS,
   type RecordTarget,
   type RecordTargets,
-} from "#shared/db/record-target.ts";
-import {
-  type SitePageItemType,
-  SitePageItemTypeSchema,
-} from "#shared/types.ts";
+} from "#db/record-target.ts";
+import { type SitePageItemType, SitePageItemTypeSchema } from "#types";
 
 /** One thing a page points at: its kind, and which one of that kind. */
 export type SitePageItemTarget = RecordTarget<SitePageItemType>;

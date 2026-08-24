@@ -1,11 +1,13 @@
 import * as v from "valibot";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
-  isAbortOrTimeoutError,
-  isTimeoutError,
-  namedError,
-} from "#shared/named-error.ts";
+  connectionReasonOf,
+  type ProviderConnectionReason,
+  type ProviderTransportError,
+  providerDetail,
+  transportError,
+} from "#payment/transport-error.ts";
 import { delay } from "#shared/now.ts";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
 import { parseStripeErrorBody } from "./schemas.ts";
@@ -55,50 +57,6 @@ interface RequestConfig {
   secretKey: string;
   sleep: (milliseconds: number) => Promise<void>;
   timeout: number;
-}
-
-export class StripeApiError extends Error {
-  readonly code: string | undefined;
-  readonly requestId: string | undefined;
-  readonly statusCode: number;
-  readonly type: string | undefined;
-
-  constructor(
-    message: string,
-    fields: {
-      code: string | undefined;
-      requestId: string | undefined;
-      statusCode: number;
-      type: string | undefined;
-    },
-  ) {
-    super(message);
-    this.name = "StripeApiError";
-    this.code = fields.code;
-    this.requestId = fields.requestId;
-    this.statusCode = fields.statusCode;
-    this.type = fields.type;
-  }
-}
-
-export type StripeConnectionFailure = "network_error" | "timeout";
-
-export class StripeConnectionError extends namedError("StripeConnectionError") {
-  readonly reason: StripeConnectionFailure;
-
-  constructor(reason: StripeConnectionFailure, message: string) {
-    super(message);
-    this.reason = reason;
-  }
-}
-
-export class StripeProtocolError extends namedError("StripeProtocolError") {
-  readonly statusCode: number | undefined;
-
-  constructor(message: string, statusCode?: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
 }
 
 class StripeBodyReadError extends Error {
@@ -161,24 +119,20 @@ const isLockTimeoutResponse = async (response: Response): Promise<boolean> => {
 };
 
 const connectionError = (
-  error: unknown,
+  reason: ProviderConnectionReason,
   retry: number,
   timeout: number,
-): StripeConnectionError => {
-  const timedOut = isTimeoutError(error);
-  return new StripeConnectionError(
-    timedOut ? "timeout" : "network_error",
-    timedOut
+): ProviderTransportError =>
+  transportError.unreachable(
+    providerDetail.stripe(),
+    reason,
+    reason === "timeout"
       ? `Request aborted due to timeout being reached (${timeout}ms)`
       : `An error occurred with our connection to Stripe. Request was retried ${retry} times.`,
   );
-};
 
 const retriesRemain = (retry: number, maximum: number): boolean =>
   retry < maximum;
-
-const isTransportFailure = (error: unknown): boolean =>
-  error instanceof TypeError || isAbortOrTimeoutError(error);
 
 const headerOrUndefined = (
   headers: Headers,
@@ -193,13 +147,16 @@ const responseError = (
   message: string,
   code: string | undefined,
   type: string | undefined,
-): StripeApiError =>
-  new StripeApiError(message, {
-    code,
-    requestId: headerOrUndefined(response.headers, "request-id"),
-    statusCode: response.status,
-    type,
-  });
+): ProviderTransportError =>
+  transportError.answered(
+    providerDetail.stripe({
+      code,
+      requestId: headerOrUndefined(response.headers, "request-id"),
+      type,
+    }),
+    response.status,
+    message,
+  );
 
 const responseText = async (response: Response): Promise<string> => {
   try {
@@ -209,17 +166,20 @@ const responseText = async (response: Response): Promise<string> => {
   }
 };
 
-const stripeError = async (response: Response): Promise<StripeApiError> => {
+const stripeError = async (
+  response: Response,
+): Promise<ProviderTransportError> => {
   const text = await responseText(response);
   let parsed: ReturnType<typeof parseStripeErrorBody>;
   try {
     parsed = parseStripeErrorBody(text);
   } catch (error) {
-    throw new StripeProtocolError(
+    throw transportError.unusable(
+      providerDetail.stripe(),
+      response.status,
       error instanceof SyntaxError
         ? "Invalid JSON received from the Stripe API"
         : "Invalid response received from the Stripe API",
-      response.status,
     );
   }
   return responseError(
@@ -248,12 +208,18 @@ const parseResponse = async <T>(
   try {
     body = JSON.parse(text);
   } catch {
-    throw new StripeProtocolError("Invalid JSON received from the Stripe API");
+    throw transportError.unusable(
+      providerDetail.stripe(),
+      undefined,
+      "Invalid JSON received from the Stripe API",
+    );
   }
   try {
     return v.parse(schema, body);
   } catch {
-    throw new StripeProtocolError(
+    throw transportError.unusable(
+      providerDetail.stripe(),
+      undefined,
       "Invalid response received from the Stripe API",
     );
   }
@@ -312,9 +278,11 @@ export const createStripeRequest = (
     if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
 
     async function retryConnection(error: unknown, retry: number): Promise<T> {
-      if (!isTransportFailure(error)) throw error;
+      // A failure to reach Stripe at all is the only one worth another try.
+      const reason = connectionReasonOf(error);
+      if (reason === undefined) throw error;
       if (!retriesRemain(retry, maxNetworkRetries)) {
-        throw connectionError(error, retry, config.timeout);
+        throw connectionError(reason, retry, config.timeout);
       }
       await config.sleep(retryDelay(retry, null, config.random));
       return attempt(retry + 1);

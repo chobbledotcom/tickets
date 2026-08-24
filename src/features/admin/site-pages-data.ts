@@ -5,16 +5,16 @@
  * the tabbed entity page (site-pages-page.ts), so both build the same data.
  */
 
-import { fieldById } from "#fp";
-import { t } from "#i18n";
-import { getAllGroupNames } from "#shared/db/groups.ts";
-import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
+import { getAllGroupNames } from "#db/groups.ts";
+import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import {
   getListingPickerNames,
   type ListingOfferFlags,
-} from "#shared/db/listings/catalog.ts";
-import { getAllPageItems } from "#shared/db/site-page-items.ts";
-import { sitePages } from "#shared/db/site-pages.ts";
+} from "#db/listings/catalog.ts";
+import { getAllPageItems } from "#db/site-page-items.ts";
+import { sitePages } from "#db/site-pages.ts";
+import { fieldById } from "#fp";
+import { t } from "#i18n";
 // jscpd:ignore-start
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import { buildForest, eligibleChildPages } from "#shared/site-pages/core.ts";
@@ -23,14 +23,14 @@ import {
   sitePageItemTargets,
   targetOfPageItem,
 } from "#shared/site-pages/target.ts";
-// jscpd:ignore-end
-import type { SitePage, SitePageItemType } from "#shared/types.ts";
 import type {
   EditModel,
   ListModel,
   PickerOption,
   ResolvedItem,
 } from "#templates/admin/site-pages.tsx";
+// jscpd:ignore-end
+import type { SitePage, SitePageItemType } from "#types";
 
 /** May this listing be placed on a page? Active (its public page must not
  * 404), not a renewal tier ({@link isQualifyingTierListing} — the renewal

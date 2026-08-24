@@ -9,11 +9,10 @@ import {
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
-import { rememberListing } from "#test/specs/support/listings.ts";
+import { putsOnSaleByTheDay } from "#test/specs/support/listings.ts";
 import { daysOfferedFor } from "#test/specs/support/public-booking.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Something bookable by the day, every day, so any day a story finds gone
  * can only be gone because of the holiday. */
@@ -21,7 +20,7 @@ export const sellsDayPlaces = async (
   world: TicketsWorld,
   name: string,
 ): Promise<void> => {
-  rememberListing(world, name, await createDailyTestListing({ name }));
+  await putsOnSaleByTheDay(world, name);
 };
 
 const addsHoliday = makesRecordThroughForm({

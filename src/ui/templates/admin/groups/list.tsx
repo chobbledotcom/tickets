@@ -1,26 +1,20 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import type { AdminSession, Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import type { AdminSession, Group } from "#types";
 
 /* jscpd:ignore-end */
 
-const groupLink = (
-  group: Group,
-  adminLevel: AdminSession["adminLevel"],
-): JSX.Element => (
-  // Staff open the detail page; editors can't (it decrypts attendee PII), so
-  // they link straight to the edit form.
-  <a href={entityReturnPath("/admin/groups", adminLevel, group.id)}>
-    {group.name}
-  </a>
+const groupLink = (group: Group): JSX.Element => (
+  <a href={entityReturnPath(adminPattern("groups"), group.id)}>{group.name}</a>
 );
 
 const groupColumns: readonly TableColumn<Group, AdminSession["adminLevel"]>[] =
@@ -42,7 +36,7 @@ const groupsTable = defineTable(groupColumns);
 /** Admin groups list page. */
 export const adminGroupsPage = successListPage<Group[]>(
   "terms.groups",
-  "/admin/groups",
+  adminPattern("groups"),
   (groups, session) => (
     <>
       {itemsOrEmptyNote(groups, t("groups.no_groups"), (rows) =>

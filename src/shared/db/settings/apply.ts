@@ -11,20 +11,20 @@
  * setting loaded.
  */
 
-/* jscpd:ignore-start */
-import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   ENCRYPTED_KEY_SET,
   PLAINTEXT_KEY_SET,
-} from "#shared/db/settings/accessors.ts";
+} from "#db/settings/accessors.ts";
 import {
   type BoolSettingKey,
   data,
   type SettingsData,
   setSnapshotField,
-} from "#shared/db/settings/snapshot.ts";
+} from "#db/settings/snapshot.ts";
+/* jscpd:ignore-start */
+import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
@@ -40,7 +40,7 @@ import {
   type EmailTemplateType,
   isPaymentProvider,
   isPaymentProviderSetting,
-} from "#shared/types.ts";
+} from "#types";
 
 /* jscpd:ignore-end */
 

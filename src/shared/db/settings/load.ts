@@ -12,13 +12,8 @@
  * tests) puts the next reader back on a clean footing.
  */
 
-import { unique } from "#fp";
-import {
-  type CacheInvalidation,
-  registerTableInvalidation,
-} from "#shared/cache-registry.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { applyKeys } from "#shared/db/settings/apply.ts";
+import { inPlaceholders, queryAll } from "#db/client.ts";
+import { applyKeys } from "#db/settings/apply.ts";
 import {
   currentVersion,
   getCacheState,
@@ -26,13 +21,18 @@ import {
   resetCache,
   setCacheState,
   settingsReadRefill,
-} from "#shared/db/settings/cache.ts";
+} from "#db/settings/cache.ts";
 import {
   defaults,
   type SettingsData,
   setSnapshotField,
-} from "#shared/db/settings/snapshot.ts";
-import { recordSettingsLoaded } from "#shared/db/settings-audit.ts";
+} from "#db/settings/snapshot.ts";
+import { recordSettingsLoaded } from "#db/settings-audit.ts";
+import { unique } from "#fp";
+import {
+  type CacheInvalidation,
+  registerTableInvalidation,
+} from "#shared/cache-registry.ts";
 
 /**
  * Load only the given config keys, fetching just the ones not already resolved
@@ -51,9 +51,7 @@ export const loadKeys = async (keys: readonly string[]): Promise<void> => {
   if (missing.length === 0) return;
   const rows = await settingsReadRefill.fetch(() =>
     queryAll<{ key: string; value: string }>(
-      `SELECT key, value FROM settings WHERE key IN (${missing
-        .map(() => "?")
-        .join(", ")})`,
+      `SELECT key, value FROM settings WHERE key IN (${inPlaceholders(missing)})`,
       missing,
     ),
   );

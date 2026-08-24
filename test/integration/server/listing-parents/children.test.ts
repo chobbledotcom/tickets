@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import { execute } from "#shared/db/client.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { linkedParentChild } from "#test/test-utils/listing-parents/helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { linkedParentChild } from "#test-utils/listing-parents/helpers.ts";
 import {
   listingEditPageHtml,
   listingRosterPageHtml,
@@ -190,7 +190,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
-    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const { attendeesApi } = await import("#db/attendees/api.ts");
     const { parent, child } = await linkedParentChild();
     // Both lines booked on the one attendee — the gate is satisfied.
     const result = await attendeesApi.createAttendeeAtomic({

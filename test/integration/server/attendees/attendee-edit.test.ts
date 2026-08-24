@@ -2,14 +2,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-// jscpd:ignore-end
-import {
-  createDualPackageAttendee,
-  dualPackageRows,
-  expectFlashPage,
-  firstAttendee,
-  setupListingAndAttendee,
-} from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -17,6 +9,14 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+// jscpd:ignore-end
+import {
+  createDualPackageAttendee,
+  dualPackageRows,
+  expectFlashPage,
+  firstAttendee,
+  setupListingAndAttendee,
+} from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -239,9 +239,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(302);
 
-        const { getAttendeeRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
+        const { getAttendeeRaw } = await import("#db/attendees/queries.ts");
         const updated = await getAttendeeRaw(attendee.id);
         expect(updated!.quantity).toBe(3);
       });
@@ -322,7 +320,7 @@ describeWithEnv(
         );
 
         // Manually set listing to inactive after creating attendee
-        const { getDb } = await import("#shared/db/client.ts");
+        const { getDb } = await import("#db/client.ts");
         await getDb().execute({
           args: [inactiveListing.id],
           sql: "UPDATE listings SET active = 0 WHERE id = ?",

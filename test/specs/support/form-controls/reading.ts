@@ -44,12 +44,37 @@ export const chooserFor = (
   return null;
 };
 
-/** The one option carrying this value, or null when the dropdown has none. */
-export const optionFor = (options: string, value: string): string | null => {
+/** The first option in a dropdown's markup that passes the test: its whole
+ * tag and its attributes, or null when none does. */
+const optionWhere = (
+  options: string,
+  test: (tag: string, attributes: string) => boolean,
+): { attributes: string; tag: string } | null => {
   for (const option of options.matchAll(/<option\s([^>]*)>/g)) {
-    if (attribute(option[1]!, "value") === value) return option[0];
+    if (test(option[0], option[1]!)) {
+      return { attributes: option[1]!, tag: option[0] };
+    }
   }
   return null;
+};
+
+/** The one option carrying this value, or null when the dropdown has none. */
+export const optionFor = (options: string, value: string): string | null =>
+  optionWhere(
+    options,
+    (_tag, attributes) => attribute(attributes, "value") === value,
+  )?.tag ?? null;
+
+/** The dropdown the page must offer for one field, or a loud failure — so
+ * "the choice is missing" and "the control is missing" stay separate
+ * failures. */
+const chooserOffered = (
+  html: string,
+  field: string,
+): NonNullable<ReturnType<typeof chooserFor>> => {
+  const chooser = chooserFor(html, field);
+  if (!chooser) throw new Error(`The page offers no ${field} to choose`);
+  return chooser;
 };
 
 /** The box the visitor types in for one field, if it is one — its opening tag,
@@ -79,8 +104,7 @@ export const choicesOffered = (
   html: string,
   field: string,
 ): ChoiceOffered[] => {
-  const chooser = chooserFor(html, field);
-  if (!chooser) throw new Error(`The page offers no ${field} to choose`);
+  const chooser = chooserOffered(html, field);
   return [
     ...chooser.options.matchAll(/<option\s([^>]*)>([\s\S]*?)<\/option>/g),
   ].map((option) => ({
@@ -92,6 +116,34 @@ export const choicesOffered = (
 /** The values a dropdown on the page offers. */
 export const optionsOffered = (html: string, field: string): string[] =>
   choicesOffered(html, field).map(({ value }) => value);
+
+/** The attributes of the option a dropdown has marked as picked, or null when
+ * it marks none. */
+export const optionMarkedChosen = (options: string): string | null =>
+  optionWhere(options, (tag) => hasFlag(tag, "selected"))?.attributes ?? null;
+
+/** The value a dropdown on the page has explicitly marked as picked, or null
+ * when it marks none. An untouched dropdown shows its first option, but that
+ * is the browser's default, not a choice the page recorded — deliberately
+ * null here, so a re-fill story cannot pass on a page that restored nothing
+ * (`chosenByDefault` in rules.ts answers the what-would-the-browser-send
+ * question). Throws when the page has no such dropdown, so "nothing is
+ * picked" and "the control is missing" stay separate failures. */
+export const optionChosen = (html: string, field: string): string | null => {
+  const marked = optionMarkedChosen(chooserOffered(html, field).options);
+  return marked === null ? null : (attribute(marked, "value") ?? "");
+};
+
+/** The answer a question on the page has already picked, or null when none
+ * is. A choice with no value of its own sends "on", as a browser does. */
+export const answerTicked = (html: string, field: string): string | null => {
+  for (const { field: name, tag } of usableInputsOfKind(html, "radio")) {
+    if (name === field && hasFlag(tag, "checked")) {
+      return attribute(tag, "value") ?? "on";
+    }
+  }
+  return null;
+};
 
 /** One checkbox somebody could really tick: which field it belongs to, the
  * value ticking it would send, whether the page has ticked it already, and

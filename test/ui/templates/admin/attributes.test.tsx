@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { AttributeOption, AttributeWithOptions } from "#db/attributes.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
-import type {
-  AttributeOption,
-  AttributeWithOptions,
-} from "#shared/db/attributes.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -275,6 +272,51 @@ describe("ListingAttributesPanel", () => {
       'No attributes created yet. <a href="/admin/attributes">Create attributes</a>.',
     );
     expect(html).toContain('<a class="btn small" href="/admin/attributes">');
+  });
+
+  test("says an attribute has no options yet rather than showing none", () => {
+    const html = String(
+      ListingAttributesPanel({
+        attributes: [ATTRIBUTE_B],
+        listing: LISTING,
+        selectedOptionIds: new Set(),
+      }),
+    );
+
+    expect(html).toContain("<em>No options for this attribute yet.</em>");
+    expect(html).not.toContain('name="option_ids"');
+  });
+
+  test("offers the one option an attribute has", () => {
+    const oneOption: AttributeWithOptions = {
+      ...ATTRIBUTE,
+      options: [OPTION],
+    };
+
+    const html = String(
+      ListingAttributesPanel({
+        attributes: [oneOption],
+        listing: LISTING,
+        selectedOptionIds: new Set(),
+      }),
+    );
+
+    expect(html).toContain(
+      '<input name="option_ids" type="checkbox" value="10">',
+    );
+    expect(html).not.toContain("No options for this attribute yet.");
+  });
+
+  test("flows each attribute's options as a wrapping row", () => {
+    const html = String(
+      ListingAttributesPanel({
+        attributes: [ATTRIBUTE],
+        listing: LISTING,
+        selectedOptionIds: new Set(),
+      }),
+    );
+
+    expect(html).toContain('class="checkboxes listing-section"');
   });
 });
 

@@ -11,7 +11,6 @@ import {
   type FormValues,
 } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
-import { AdminLevelSchema } from "#shared/types.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
@@ -21,6 +20,7 @@ import {
   validateUpdateTier,
   validateUsername,
 } from "#templates/fields/validators.ts";
+import { AdminLevelSchema } from "#types";
 
 /**
  * Login form field definitions (per-request builder)

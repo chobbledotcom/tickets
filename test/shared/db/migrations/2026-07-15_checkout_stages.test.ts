@@ -1,13 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import checkoutStagesMigration from "#shared/db/migrations/2026-07-15_checkout_stages.ts";
-import dropCheckoutStageRevisionsMigration from "#shared/db/migrations/2026-07-16_drop_checkout_stage_revisions.ts";
-import {
-  applySchemaChanges,
-  syncIndexes,
-} from "#shared/db/migrations/schema-sync.ts";
-import { additive } from "#shared/db/migrations/verify.ts";
+import { getDb } from "#db/client.ts";
+import checkoutStagesMigration from "#db/migrations/2026-07-15_checkout_stages.ts";
+import dropCheckoutStageRevisionsMigration from "#db/migrations/2026-07-16_drop_checkout_stage_revisions.ts";
+import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { additive } from "#db/migrations/verify.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 

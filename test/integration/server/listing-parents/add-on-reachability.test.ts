@@ -1,17 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
-import { listingGroups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { getAllModifiers, modifierListings } from "#shared/db/modifiers.ts";
-import {
-  apiCreateListing,
-  groupScopedAddOn,
-  linkedParentChild,
-  linkGroupAddOn,
-  postListingEdit,
-} from "#test/test-utils/listing-parents/helpers.ts";
+import { execute } from "#db/client.ts";
+import { listingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -19,6 +12,13 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  apiCreateListing,
+  groupScopedAddOn,
+  linkedParentChild,
+  linkGroupAddOn,
+  postListingEdit,
+} from "#test-utils/listing-parents/helpers.ts";
 import {
   insertModifier,
   linkModifierGroup,
@@ -203,7 +203,7 @@ describeWithEnv(
       const { validateListingInput } = await import(
         "#shared/listings-actions.ts"
       );
-      const { listingsTable } = await import("#shared/db/listings/records.ts");
+      const { listingsTable } = await import("#db/listings/records.ts");
       const { parent, child } = await groupScopedAddOn();
       await postChildren(parent.id, [child.id]);
 

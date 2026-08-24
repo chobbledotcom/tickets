@@ -5,13 +5,13 @@
  * enhancement: the same data, with labels already resolved, is embedded once
  * as JSON and `client/admin/schema-atlas.ts` turns it into an SVG map. */
 
+import type { SchemaAnomaly } from "#db/schema-anomaly-scan.ts";
 import { t } from "#i18n";
-import type { JointAnomaly } from "#shared/db/joint-state-scan.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsArticlePage } from "#templates/admin/settings/page-shell.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
+import type { AdminSession, Theme } from "#types";
 
 const ACTOR_CLASS: Record<AtlasActor, string> = {
   owner: "schema-actor-owner",
@@ -85,7 +85,7 @@ const StateArticle = ({ state }: { state: ViewState }): JSX.Element => (
       {state.start && ` · ${t("schema.state.start")}`}
     </h3>
     <p>{state.detail}</p>
-    {state.facts.length > 0 && (
+    {state.facts.some(Boolean) && (
       <dl class="schema-facts">
         {state.facts.map((fact) => (
           <>
@@ -98,9 +98,7 @@ const StateArticle = ({ state }: { state: ViewState }): JSX.Element => (
       </dl>
     )}
     <h4>{t("schema.list.heading")}</h4>
-    {state.edges.length === 0 ? (
-      <p>{t("schema.list.none")}</p>
-    ) : (
+    {state.edges.length ? (
       <ul>
         {state.edges.map((edge) => (
           <li>
@@ -111,6 +109,8 @@ const StateArticle = ({ state }: { state: ViewState }): JSX.Element => (
           </li>
         ))}
       </ul>
+    ) : (
+      <p>{t("schema.list.none")}</p>
     )}
   </article>
 );
@@ -133,13 +133,21 @@ const MachineSection = ({ machine }: { machine: ViewMachine }): JSX.Element => (
   </section>
 );
 
+const ANOMALY_MESSAGES: Record<SchemaAnomaly["key"], () => string> = {
+  armed_without_claim: () => t("schema.check.armed_without_claim"),
+  claim_without_charge: () => t("schema.check.claim_without_charge"),
+  sumup_check_time_mismatch: () => t("schema.check.sumup_check_time_mismatch"),
+  sumup_checkout_id_mismatch: () =>
+    t("schema.check.sumup_checkout_id_mismatch"),
+  sumup_unknown_state: () => t("schema.check.sumup_unknown_state"),
+};
+
 /** The live answer to the promises above: every row the scan flagged, or
- * the all-clear. Findings render the plain words for the broken rule plus
- * the record's own id, so the operator can go look at it. */
+ * the all-clear. Findings name the broken rule and the stored record. */
 const LiveCheckSection = ({
   anomalies,
 }: {
-  anomalies: readonly JointAnomaly[];
+  anomalies: readonly SchemaAnomaly[];
 }): JSX.Element => (
   <section id="schema-check">
     <h2>{t("schema.check.heading")}</h2>
@@ -150,7 +158,13 @@ const LiveCheckSection = ({
       <ul>
         {anomalies.map((anomaly) => (
           <li>
-            {t(`schema.check.${anomaly.key}`)} <code>{anomaly.sessionId}</code>
+            {ANOMALY_MESSAGES[anomaly.key]()} <code>{anomaly.recordId}</code>
+            {anomaly.kind === "sumup" && (
+              <>
+                {" "}
+                <code>{anomaly.state}</code>
+              </>
+            )}
           </li>
         ))}
       </ul>
@@ -161,7 +175,7 @@ const LiveCheckSection = ({
 export const adminSchemaAtlasPage = (
   session: AdminSession,
   theme: Theme,
-  anomalies: readonly JointAnomaly[],
+  anomalies: readonly SchemaAnomaly[],
 ): string => {
   const machines = SCHEMA_ATLAS_MACHINES.map(viewMachine);
   return settingsArticlePage(

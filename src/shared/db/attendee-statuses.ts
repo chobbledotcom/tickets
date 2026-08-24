@@ -8,7 +8,7 @@
  * the human-readable `name` is encrypted at rest.
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   execute,
   queryAll,
@@ -16,10 +16,11 @@ import {
   type SqlStatement,
   type TxScope,
   withTransaction,
-} from "#shared/db/client.ts";
-import type { NamedSortOrderInput } from "#shared/db/common-schema.ts";
-import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import { col, defineCachedListTable, writeTableRow } from "#shared/db/table.ts";
+} from "#db/client.ts";
+import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -164,12 +165,15 @@ const clearChosenDefaults = async (
   const clearDefault = async (
     column: "is_public_default" | "is_paid_default",
   ): Promise<void> => {
-    await executeStatusWrite(tx, {
-      args: [id, id],
-      sql: `UPDATE attendee_statuses AS status
+    await executeStatusWrite(
+      tx,
+      numberedStatement((bind) => {
+        const statusId = bind(id);
+        return `UPDATE attendee_statuses AS status
                SET ${column} = 0
-             WHERE (? IS NULL OR status.id != ?) AND status.${column} = 1`,
-    });
+             WHERE (${statusId} IS NULL OR status.id != ${statusId}) AND status.${column} = 1`;
+      }),
+    );
   };
   if (input.isPublicDefault) {
     await clearDefault("is_public_default");

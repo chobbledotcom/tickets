@@ -1,18 +1,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, withTransaction } from "#shared/db/client.ts";
-import { loadPaymentMoveSnapshot } from "#shared/db/payment-admit-move.ts";
+import { execute, withTransaction } from "#db/client.ts";
+import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
 import {
   type PaymentRowRecord,
   readAttendeeRowStates,
-} from "#shared/db/payment-claim.ts";
+} from "#db/payment-claim.ts";
 import {
   acknowledgeCurrentPaymentReview,
   getPaymentReviewState,
-} from "#shared/db/payment-review.ts";
+} from "#db/payment-review.ts";
+import type { PaymentReviewCase } from "#payment/review.ts";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import { nowIso } from "#shared/now.ts";
-import type { PaymentReviewCase } from "#shared/payment/review.ts";
-import type { PaymentRowState } from "#shared/payment/row-state.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

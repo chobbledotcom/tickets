@@ -4,8 +4,10 @@
  */
 
 import * as v from "valibot";
+import { signedEdgeFor } from "#booking/signed-metadata.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { lazyRef, map } from "#fp";
-import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
+import { checkoutFailure } from "#payment/checkout-failure.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -17,7 +19,6 @@ import type {
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
 import {
   type ErrorCodeType,
@@ -39,7 +40,7 @@ import type {
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import type { ContactInfo, PaymentProviderType } from "#types";
 
 /**
  * Normalise a provider timestamp to the ledger's canonical ISO 8601 form
@@ -440,49 +441,30 @@ type SuccessfulCheckoutResult = Exclude<
   CheckoutSessionResult,
   null | { error: string }
 >;
-type CheckoutResultReader<Missing> = (
+
+/** Read the created checkout a provider answered with. A checkout the buyer
+ * cannot be sent to is an answer we cannot use, so it is refused in the words
+ * every other unusable provider answer is refused in. */
+const createdCheckout = (
+  provider: PaymentProviderType,
   sessionId: string | undefined,
   url: string | undefined | null,
-  label: LogCategory,
-) => Missing | SuccessfulCheckoutResult;
-type MissingCheckoutField = "id" | "URL";
-
-function checkoutResultReader<Missing>(
-  whenMissing: (label: LogCategory, field: MissingCheckoutField) => Missing,
-): CheckoutResultReader<Missing> {
-  return (sessionId, url, label) => {
-    if (!sessionId) return whenMissing(label, "id");
-    if (!url) return whenMissing(label, "URL");
-    return { checkoutUrl: url, sessionId };
-  };
-}
-
-/**
- * Convert a provider-specific checkout result to a CheckoutSessionResult.
- * Returns null if session ID or URL is missing.
- */
-export const toCheckoutResult: CheckoutResultReader<null> =
-  checkoutResultReader((label) => {
-    logDebug(label, "Checkout result missing session ID or URL");
-    return null;
-  });
-
-const requiredCheckoutResult: CheckoutResultReader<never> =
-  checkoutResultReader((label, field) => {
-    throw new Error(`${label} checkout response is missing its ${field}`);
-  });
+): SuccessfulCheckoutResult => {
+  if (!sessionId || !url) throw checkoutFailure.invalidResponse(provider);
+  return { checkoutUrl: url, sessionId };
+};
 
 /**
  * Build a provider's `createCheckoutSession`: call the provider's own create
  * function, read the session id and URL off whatever shape it returns, and map
  * that to a shared CheckoutSessionResult — all inside the standard checkout
- * error guard. Each provider only supplies its create call, how to read the
- * id/url, and its display label. A null create answer means the provider is not
- * configured; a non-null answer must contain both documented fields.
+ * error guard. Each provider only supplies its create call and how to read the
+ * id/url. A null create answer means the provider is not configured; a non-null
+ * answer must contain both documented fields.
  */
 export const makeCreateCheckoutSession =
   <Result>(
-    label: LogCategory,
+    provider: PaymentProviderType,
     create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result | null>,
     readResult: (result: Result) => {
       id: string | undefined;
@@ -497,7 +479,7 @@ export const makeCreateCheckoutSession =
       const result = await create(intent, baseUrl);
       if (result === null) return null;
       const { id, url } = readResult(result);
-      return requiredCheckoutResult(id, url, label);
+      return createdCheckout(provider, id, url);
     });
 
 /**

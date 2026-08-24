@@ -1,23 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import type { ProviderRead } from "#shared/payment/provider-read.ts";
+import type { ProviderRead } from "#payment/provider-read.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square/api.ts";
-import type { SquarePayment } from "#shared/square/payment-outcomes.ts";
+import type { SquarePayment } from "#shared/square/wire.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import {
-  SQUARE_ORDER_META,
-  setupSquareProviderSuite,
-  squareMoney,
-} from "#test/test-utils/square/fixtures.ts";
-import { squareOrderRead } from "#test/test-utils/square/outcomes.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import {
   asSession,
   BLANK_SESSION_METADATA,
 } from "#test-utils/payment-session.ts";
+import {
+  SQUARE_ORDER_META,
+  setupSquareProviderSuite,
+  squareMoney,
+} from "#test-utils/square/fixtures.ts";
+import { squareOrderRead } from "#test-utils/square/outcomes.ts";
 
 const foundPayment = (
   resource: SquarePayment,
@@ -99,7 +99,6 @@ describe("square-provider", () => {
     expect(squarePaymentProvider.checkoutCompletedEventType).toBe(
       "payment.updated",
     );
-    expect(squarePaymentProvider.requiresWebhookSignature).toBe(true);
   });
 
   describe("retrieveSession", () => {

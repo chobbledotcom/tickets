@@ -5,16 +5,16 @@
  * the owner-key-decrypted free-text table cells.
  */
 
+import { decryptWithOwnerKey } from "#crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import { queryAll } from "#db/client.ts";
+import { type ListsByIds, rowsByIds } from "#db/query.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
+import { answersTable } from "#db/questions/tables.ts";
 /* jscpd:ignore-start */
 import { groupToMap, mapParallel } from "#fp";
-import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { type ListsByIds, rowsByIds } from "#shared/db/query.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
-import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
-import { answersTable } from "#shared/db/questions/tables.ts";
 
 /* jscpd:ignore-end */
 

@@ -1,54 +1,55 @@
 /* jscpd:ignore-start */
-import { sumByKey, sumOf, unique } from "#fp";
-import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { KIND } from "#shared/accounting/kinds.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import type { TransferEndpoints } from "#shared/accounting/rows.ts";
-import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
-import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
+
+import { costAccount, WORLD } from "#accounting/accounts.ts";
+import { KIND } from "#accounting/kinds.ts";
+import { eventGroup, legReference } from "#accounting/refs.ts";
+import type { TransferEndpoints } from "#accounting/rows.ts";
+import { postTransfers, postTransfersTx } from "#accounting/store.ts";
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { logActivity } from "#db/activity-log.ts";
 import type {
   AttendeeInput,
   DesiredListingLine,
   ListingAttendeeRow,
   ListingBooking,
   UpdateAttendeePIIInput,
-} from "#shared/db/attendee-types.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
+} from "#db/attendee-types.ts";
+import { attendeesApi } from "#db/attendees/api.ts";
 import {
   type ExistingLine,
   loadExistingLines,
-} from "#shared/db/attendees/atomic-update.ts";
-import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
-import { loadAttendeeRows } from "#shared/db/attendees/queries.ts";
-import {
-  type AttendeeRowFor,
-  getAttendees,
-} from "#shared/db/attendees/select.ts";
+} from "#db/attendees/atomic-update.ts";
+import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { deleteAttendee } from "#db/attendees/delete.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import { decryptAttendeeFields } from "#db/attendees/pii.ts";
+import { loadAttendeeRows } from "#db/attendees/queries.ts";
+import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
 import {
   inPlaceholders,
   queryAll,
   queryOne,
   requireOne,
   withTransaction,
-} from "#shared/db/client.ts";
-import { listingNames } from "#shared/db/listings/records.ts";
+} from "#db/client.ts";
+import { listingNames } from "#db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
-} from "#shared/db/questions/attendee-answers/reads.ts";
+} from "#db/questions/attendee-answers/reads.ts";
 import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
-} from "#shared/db/questions/attendee-answers/save.ts";
+} from "#db/questions/attendee-answers/save.ts";
+import { sumByKey, sumOf, unique } from "#fp";
+import {
+  type AttendeeUpdateFailureReason,
+  attendeeFailureFormatter,
+} from "#shared/attendee-failures.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
-import { type Attendee, clampDurationDays } from "#shared/types.ts";
+import { type Attendee, clampDurationDays } from "#types";
 /* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`
@@ -159,6 +160,20 @@ const joinedListingNames = async (ids: number[]): Promise<string> => {
     .join(", ");
 };
 
+/** The error a refused servicing write throws: a capacity failure names the
+ * listings its diagnosis blames ([] means none — the generic message), and
+ * anything else gets the fallback. Shared by the create and edit paths. */
+const servicingRefusalError = async (failure: {
+  listingIds: number[];
+  reason: AttendeeUpdateFailureReason;
+}): Promise<Error> =>
+  new Error(
+    formatServicingCapacityError(
+      failure.reason,
+      await joinedListingNames(failure.listingIds),
+    ),
+  );
+
 const normalizedCreateInput = (
   input: ServicingEventInput,
   name: string,
@@ -265,10 +280,7 @@ export const createServicingEvent = async (
     normalizedCreateInput(input, name),
   );
   if (!createResult.success) {
-    const names = await joinedListingNames(
-      unique(input.bookings.map((booking) => booking.listingId)),
-    );
-    throw new Error(formatServicingCapacityError(createResult.reason, names));
+    throw await servicingRefusalError(createResult);
   }
   const id = createResult.attendees[0]!.id;
   // The attendee + bookings are committed by the atomic create; the remaining
@@ -489,12 +501,7 @@ export const updateServicingEvent = async (
   // (`no_lines` can't actually happen here — the edit input asserter already
   // rejects empty bookings, and desiredLines maps them one-to-one.)
   if (!editResult.success) {
-    throw new Error(
-      formatServicingCapacityError(
-        editResult.reason,
-        await joinedListingNames(editResult.listingIds),
-      ),
-    );
+    throw await servicingRefusalError(editResult);
   }
   // The booking + name edit is committed by the atomic edit; the answer save is
   // a separate batch. If it fails, compensate by restoring the pre-edit state

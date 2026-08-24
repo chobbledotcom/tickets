@@ -1,23 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
-import {
-  costAccount,
-  revenueAccount,
-  WORLD,
-} from "#shared/accounting/accounts.ts";
-import { bookingEventGroup } from "#shared/accounting/mappers.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { execute } from "#shared/db/client.ts";
-import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
-import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
-import { listingChildren } from "#shared/db/listing-parents.ts";
+import { costAccount, revenueAccount, WORLD } from "#accounting/accounts.ts";
+import { bookingEventGroup } from "#accounting/mappers.ts";
+import { postTransfers } from "#accounting/store.ts";
+import { execute } from "#db/client.ts";
+import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
+import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import {
   modifierGroups,
   modifierListings,
   modifiersTable,
-} from "#shared/db/modifiers.ts";
+} from "#db/modifiers.ts";
+import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -109,6 +105,39 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     );
 
     expect(calls).toBe(1);
+  });
+
+  test("does not take an owner from another ledger event", async () => {
+    const listing = await createTestListing({ unitPrice: 500 });
+    const { attendee } = await createTestAttendeeDirect(
+      listing.id,
+      "Other event buyer",
+      "other-event@example.com",
+    );
+    const requestedGroup = await bookingEventGroup("snapshot-requested-event");
+    const otherGroup = await bookingEventGroup("snapshot-other-event");
+    await execute(
+      "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+      [otherGroup, attendee.id],
+    );
+    await postTransfers([
+      {
+        amount: 500,
+        destination: revenueAccount(listing.id),
+        eventGroup: requestedGroup,
+        kind: "manual_income",
+        occurredAt: "2026-08-06T00:00:00.000Z",
+        reference: "snapshot-requested-income",
+        source: WORLD,
+      },
+    ]);
+
+    const snapshot = await loadPaidOrderSnapshot(
+      "snapshot-requested-event",
+      bookingIntent([{ e: listing.id, p: 500, q: 1 }]),
+    );
+
+    expect(snapshot.ledger).toEqual({ status: "orphaned" });
   });
 
   test("loads a standalone listing when optional selections are empty", async () => {

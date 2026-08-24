@@ -2,13 +2,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
   expect404ForNonGetStatic,
   expectLongCacheHeaders,
   expectStaticFile,
-} from "#test/test-utils/public/static-route-checks.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
+} from "#test-utils/public/static-route-checks.ts";
 
 // jscpd:ignore-end
 

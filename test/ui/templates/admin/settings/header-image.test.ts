@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encryptBytes } from "#crypto/encryption.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { settings } from "#shared/db/settings.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   assertAdminHtml,

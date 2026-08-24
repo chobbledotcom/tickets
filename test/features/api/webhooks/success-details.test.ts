@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#db/client.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import { handleRequest } from "#routes";
-import { getDb } from "#shared/db/client.ts";
-import { deleteListing } from "#shared/db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";

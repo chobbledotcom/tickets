@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   createOwnerNote,
   createSystemNote,
@@ -13,12 +13,9 @@ import {
   loadNotesForAttendees,
   loadNotesForListing,
   noteDeleteStatement,
-} from "#shared/db/notes/queries.ts";
-import { openNotes } from "#shared/db/notes/sealing.ts";
-import {
-  attendeeNotes,
-  groupNotesByTargetId,
-} from "#shared/db/notes/target.ts";
+} from "#db/notes/queries.ts";
+import { openNotes } from "#db/notes/sealing.ts";
+import { attendeeNotes, groupNotesByTargetId } from "#db/notes/target.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";

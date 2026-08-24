@@ -5,13 +5,9 @@ import {
 } from "#shared/attendee-list-controls.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
-import {
-  type Attendee,
-  type AttendeeTableRow,
-  isPaidListing,
-} from "#shared/types.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
+import { type Attendee, type AttendeeTableRow, isPaidListing } from "#types";
 import {
   AddAttendeeSection,
   AttendeesSection,

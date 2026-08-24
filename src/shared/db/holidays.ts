@@ -2,13 +2,13 @@
  * Holidays table operations
  */
 
+import { decrypt, encrypt } from "#crypto/encryption.ts";
+import { idAndEncryptedNameSchema } from "#db/common-schema.ts";
+import { settings } from "#db/settings.ts";
+import { col, defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { idAndEncryptedNameSchema } from "#shared/db/common-schema.ts";
-import { settings } from "#shared/db/settings.ts";
-import { col, defineCachedListTable } from "#shared/db/table.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { Holiday } from "#shared/types.ts";
+import type { Holiday } from "#types";
 
 /** Holiday input fields for create/update (camelCase) */
 export type HolidayInput = {

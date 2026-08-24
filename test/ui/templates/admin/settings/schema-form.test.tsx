@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { t } from "#i18n";
-import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 

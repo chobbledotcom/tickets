@@ -6,7 +6,7 @@ import {
   builtSitesCrudTable,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
-} from "#shared/db/built-sites.ts";
+} from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { builtSiteFormInput } from "./fixtures.ts";
 

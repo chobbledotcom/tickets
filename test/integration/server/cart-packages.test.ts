@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { queryAll } from "#db/client.ts";
+import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { queryAll } from "#shared/db/client.ts";
-import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -119,7 +119,7 @@ describeWithEnv(
         name: "Generator",
         unitPrice: 0,
       });
-      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#db/listing-parents.ts");
       await listingChildren.setIds(parent.id, [child.id]);
 
       // The child keeps its own quantity row beside the parent's fold —
@@ -192,7 +192,7 @@ describeWithEnv(
         "mystery-box",
         "Secret Widget",
       );
-      const { groups } = await import("#shared/db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
       await groups.table.update(group.id, { hidePackageListings: true });
       const solo = await createTestListing({ name: "Lantern", unitPrice: 0 });
 
@@ -297,7 +297,7 @@ describeWithEnv(
         name: "Addon B",
         unitPrice: 0,
       });
-      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#db/listing-parents.ts");
       await listingChildren.setIds(parent.id, [childA.id, childB.id]);
 
       const html = await pageHtml(`${a.slug}+${b.slug}`);
@@ -367,7 +367,7 @@ describeWithEnv(
         "Addon Widget",
       );
       const parent = await createTestListing({ name: "Big Parent" });
-      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      const { listingChildren } = await import("#db/listing-parents.ts");
       await listingChildren.setIds(parent.id, [member.id]);
 
       const response = await handleRequest(

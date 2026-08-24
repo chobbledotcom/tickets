@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { OrderGalleryStates } from "#templates/public/order-gallery.tsx";
-import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
+import {
+  type OrderGalleryStates,
+  orderGalleryPage,
+} from "#templates/public/order-gallery.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import { getRealEnv, withEnv } from "#test-utils/env.ts";
 import { testGroup } from "#test-utils/factories.ts";
