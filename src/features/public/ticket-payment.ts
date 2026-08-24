@@ -462,7 +462,11 @@ export const createFreeReservation = async ({
       items.find((item) => unfit.has(item.listingId)) ?? items[0]!;
     const errorName = items.some((item) => item.packageGroupId !== undefined)
       ? ""
-      : listingById.get(namedItem.listingId)!.name;
+      : requiredMapValue(
+          listingById,
+          namedItem.listingId,
+          `Listing ${namedItem.listingId} was not loaded for checkout`,
+        ).name;
     return {
       error: formatAtomicError(result.reason, errorName),
       success: false,
