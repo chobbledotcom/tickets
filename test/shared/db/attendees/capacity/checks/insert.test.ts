@@ -38,7 +38,7 @@ describe("buildCapacityCheckedInsert", () => {
         parentListingId: 19,
         quantity: 3,
       },
-      (bind) => `attendee_id = ${bind(41)}`,
+      (bind) => bind(41),
       true,
     );
 
@@ -52,9 +52,16 @@ describe("buildCapacityCheckedInsert", () => {
       19,
       23,
     ]);
-    expect(statement.sql).toContain(
-      "SELECT ?1, attendee_id = ?2, ?3, ?4, ?5, ?6, ?7, ?8",
+    expect(statement.sql).toContain("SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8");
+  });
+
+  test("omits the capacity clause when overbooking is allowed", () => {
+    const statement = buildCapacityCheckedInsert(
+      { date: "2026-06-24", listingId: 17 },
+      (bind) => bind(41),
+      true,
     );
+
     expect(statement.sql).not.toContain("WHERE");
   });
 });
