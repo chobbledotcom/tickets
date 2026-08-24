@@ -234,6 +234,7 @@ src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated"   #
 # signature state: a timestamp assignment remains undefined and a v1 signature
 # is added only when its value is truthy. These alternate key expressions differ
 # only for that value-less case, so every parsed result is identical.
+src/shared/stripe/runtime.ts::requestConfig.configured~1bwwf56  ?? → ||   # mockConfig returns a config object or undefined; every object is truthy, so both operators pick the same config
 src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
 src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
