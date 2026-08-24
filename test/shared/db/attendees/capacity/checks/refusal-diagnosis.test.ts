@@ -28,6 +28,18 @@ const line = (
   quantity = 1,
 ): LineBooking => ({ date, durationDays: 1, listingId, quantity });
 
+/** A one-place daily listing whose place on DAY is already taken. */
+const dailyTakenOnDay = async (): Promise<{ id: number }> => {
+  const daily = await createDailyTestListing({ maxAttendees: 1 });
+  const taken = await attendeesApi.createAttendeeAtomic({
+    bookings: [{ date: DAY, listingId: daily.id, quantity: 1 }],
+    email: "first@example.com",
+    name: "First",
+  });
+  if (!taken.success) throw new Error("Setup: the day did not book");
+  return daily;
+};
+
 describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   test("names the first line that does not fit on its predecessors", async () => {
     const { first, second } = await createTwoListingsSharingOnePlace();
@@ -59,13 +71,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   test("a day with room is judged on that day, not the listing's total", async () => {
     // A booking on another day fills the running total but not this day, so
     // the order's own day must reach the probes.
-    const daily = await createDailyTestListing({ maxAttendees: 1 });
-    const taken = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ date: DAY, listingId: daily.id, quantity: 1 }],
-      email: "first@example.com",
-      name: "First",
-    });
-    if (!taken.success) throw new Error("Setup: the day did not book");
+    const daily = await dailyTakenOnDay();
 
     expect(
       await refusedOrderUnfitListingIds([line(daily.id, "2026-10-05")]),
@@ -73,14 +79,8 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   });
 
   test("an order whose FIRST line is the unfit one names it", async () => {
-    const daily = await createDailyTestListing({ maxAttendees: 1 });
+    const daily = await dailyTakenOnDay();
     const roomy = await createTestListing({ maxAttendees: 10 });
-    const taken = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ date: DAY, listingId: daily.id, quantity: 1 }],
-      email: "first@example.com",
-      name: "First",
-    });
-    if (!taken.success) throw new Error("Setup: the day did not book");
 
     expect(
       await refusedOrderUnfitListingIds([line(daily.id, DAY), line(roomy.id)]),
@@ -107,20 +107,8 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   });
 
   test("asks each line alone when the lines sit on different days", async () => {
-    const daily = await createDailyTestListing({
-      maxAttendees: 1,
-      maximumDaysAfter: 60,
-    });
-    const roomyDaily = await createDailyTestListing({
-      maxAttendees: 10,
-      maximumDaysAfter: 60,
-    });
-    const taken = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ date: DAY, listingId: daily.id, quantity: 1 }],
-      email: "first@example.com",
-      name: "First",
-    });
-    if (!taken.success) throw new Error("Setup: the day did not book");
+    const daily = await dailyTakenOnDay();
+    const roomyDaily = await createDailyTestListing({ maxAttendees: 10 });
 
     expect(
       await refusedOrderUnfitListingIds([
