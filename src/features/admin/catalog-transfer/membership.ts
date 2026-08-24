@@ -13,7 +13,12 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { queryAll, type SqlStatement, type TxScope } from "#db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  type SqlStatement,
+  type TxScope,
+} from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/listing-prices.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
@@ -55,7 +60,7 @@ const multiRowInsert = (
   rows: readonly InValue[][],
 ): SqlStatement | null => {
   if (rows.length === 0) return null;
-  const placeholder = `(${columns.map(() => "?").join(", ")})`;
+  const placeholder = `(${inPlaceholders(columns)})`;
   return {
     args: rows.flat(),
     sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${rows

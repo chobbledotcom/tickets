@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
+import type { PaymentProviderType } from "#types";
 
-const renderWarning = (paymentProvider: string): string =>
+const renderWarning = (paymentProvider: PaymentProviderType): string =>
   String(
     DomainPaymentWebhookWarning({
       existingPaymentProvider: paymentProvider,

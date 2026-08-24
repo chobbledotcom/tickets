@@ -36,7 +36,10 @@ import {
   logDebug,
   logError,
 } from "#shared/logger.ts";
-import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
+import {
+  providerWebhook,
+  WEBHOOK_SIGNATURE_HEADERS,
+} from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   type ExistingPaymentProvider,
@@ -212,7 +215,7 @@ const authenticateWebhook = async (
   }
 
   const signature = getWebhookSignatureHeader(request) ?? "";
-  if (provider.requiresWebhookSignature && !signature) {
+  if (providerWebhook(provider.type) !== null && !signature) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: "Webhook missing signature header",

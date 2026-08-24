@@ -120,6 +120,38 @@ describeWithEnv(
       expect(html).not.toContain("Agent User");
     });
 
+    test("keeps the chosen agent in the links that change the day", async () => {
+      const { d, assigned } = await setup();
+      const html = await calendarHtml(
+        `/admin/calendar?date=${d}&agent=${assigned.id}`,
+      );
+      const withAgent = `/admin/calendar?date=${d}&amp;agent=${assigned.id}`;
+
+      // Picking another day, stepping a month, and the address an attendee
+      // page returns by all carried only the date. The operator landed on the
+      // whole site's list for that day with nothing to say the run sheet had
+      // gone.
+      expect(html).toContain(`href="${withAgent}#attendees"`);
+      expect(html).toContain(`value="${withAgent}#attendees"`);
+      expect(html).toContain(`${withAgent}&amp;cal=`);
+    });
+
+    test("keeps the agent out of the link that shows every agent", async () => {
+      const { d, assigned } = await setup();
+      const html = await calendarHtml(
+        `/admin/calendar?date=${d}&agent=${assigned.id}`,
+      );
+      expect(html).toContain(`href="/admin/calendar?date=${d}#attendees"`);
+    });
+
+    test("clears the agent with the date, since its bar goes too", async () => {
+      const { d, assigned } = await setup();
+      const html = await calendarHtml(
+        `/admin/calendar?date=${d}&agent=${assigned.id}`,
+      );
+      expect(html).toContain('value="/admin/calendar#attendees"');
+    });
+
     test("no filter bar when logistics is disabled", async () => {
       const { d } = await setup();
       settings.setForTest(featureSetting());

@@ -1,12 +1,12 @@
 import type { RowSettlement } from "#db/payment-claim.ts";
 import type { RefundPaymentReference } from "#db/payment-references.ts";
-import type { RefundProviderCapability } from "#payment/refund-provider-authorization.ts";
 import type { RowClaim } from "#routes/admin/refunds/claim.ts";
 import type { RefundRunDependencies } from "#routes/admin/refunds/provider.ts";
 import type {
   ReadyRefundCandidate,
   RefundReadinessResult,
 } from "#routes/admin/refunds/readiness.ts";
+import type { RefundProviderCapability } from "#shared/payment-providers.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { completedRefund } from "#test-utils/payment-state.ts";
 import type { PaymentProviderType } from "#types";

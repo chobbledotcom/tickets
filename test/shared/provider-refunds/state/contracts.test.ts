@@ -20,7 +20,6 @@ import {
   requireCurrentRefund,
   requireMatchingRefundProvider,
 } from "#shared/provider-refunds/state.ts";
-import type { RefundEngineProvider } from "#shared/provider-refunds.ts";
 import {
   notSentRefundProvider,
   refundReference,
@@ -61,13 +60,13 @@ test("pending provider evidence waits five minutes before another check", () => 
   expect(REFUND_OBSERVATION_DELAY_MS).toBe(300_000);
 });
 
-test("only the exact provider and its declared capability may use an authority", () => {
+test("only the exact provider may use an authority", () => {
   const stripe = notSentRefundProvider("stripe").provider;
-  const keyedSumUp = {
-    ...stripe,
-    type: "sumup",
-  } satisfies RefundEngineProvider;
 
+  // The capability half of this rule is now unrepresentable: a provider's
+  // refund capability is a column on the provider registry, read by the id,
+  // so a loaded adapter cannot carry one that contradicts its own reference.
+  // The id is the only thing left that can disagree.
   expect(() =>
     requireMatchingRefundProvider(
       stripe,
@@ -76,8 +75,8 @@ test("only the exact provider and its declared capability may use an authority",
   ).toThrow("Refund provider does not match its durable identity");
   expect(() =>
     requireMatchingRefundProvider(
-      keyedSumUp,
-      refundReference("sumup-reference"),
+      stripe,
+      refundReference("sumup-reference", "sumup"),
     ),
   ).toThrow("Refund provider does not match its durable identity");
 });

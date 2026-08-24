@@ -88,9 +88,12 @@ export type ProviderRefundTarget =
   | DirectRefundTarget
   | OwnerRecoveryRefundTarget;
 
+/** The provider surface a durable refund needs: read the money, send the
+ * return, and say which provider it is. Everything else about the provider is
+ * declared in the registry, so nothing here has to be loaded to know it. */
 export type RefundEngineProvider = Pick<
   PaymentProvider,
-  "readCharge" | "refundCapability" | "refundCharge" | "type"
+  "readCharge" | "refundCharge" | "type"
 >;
 
 /** The facts shared by every step reconciling one durable refund. */

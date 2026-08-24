@@ -99,7 +99,6 @@ describe("square-provider", () => {
     expect(squarePaymentProvider.checkoutCompletedEventType).toBe(
       "payment.updated",
     );
-    expect(squarePaymentProvider.requiresWebhookSignature).toBe(true);
   });
 
   describe("retrieveSession", () => {
