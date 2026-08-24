@@ -9,6 +9,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 /* jscpd:ignore-end */
 import { formatDateLabel } from "#shared/dates.ts";
+import { filterHref, type ParamWriter } from "#shared/filter-href.ts";
 import {
   type AgentFilter,
   agentFilterParam,
@@ -31,6 +32,31 @@ import type {
   AttendeeTableRow,
   LogisticsAgent,
 } from "#types";
+
+/** What the calendar is showing: the day, who is assigned, and the month the
+ * date picker is browsing. */
+type CalendarView = {
+  readonly agent: AgentFilter;
+  readonly date: string | null;
+  readonly month: string | null;
+};
+
+const CALENDAR_PARAMS: ParamWriter<CalendarView>[] = [
+  { name: "date", value: ({ date }) => date },
+  {
+    name: "agent",
+    value: ({ agent }) => agentFilterParam(agent) || null,
+  },
+  { name: "cal", value: ({ month }) => month },
+];
+
+/** An address for the calendar with some of what it is showing changed. Every
+ * link goes through this, so choosing another day or month keeps the agent
+ * the operator picked instead of quietly returning the whole site's list. */
+const calendarLink =
+  (view: CalendarView) =>
+  (changes: Partial<CalendarView>, hash: string, path = "/admin/calendar") =>
+    filterHref(CALENDAR_PARAMS, path, { ...view, ...changes }, hash);
 
 /** Attendee row with listing context for display */
 export type CalendarAttendeeRow = Attendee & {
@@ -65,28 +91,25 @@ export const adminCalendarPage = (
     ),
   )(attendees);
 
-  const returnUrl = dateFilter
-    ? `/admin/calendar?date=${dateFilter}#attendees`
-    : "/admin/calendar#attendees";
+  const view: CalendarView = {
+    agent: agentFilter,
+    date: dateFilter,
+    month: viewMonth,
+  };
+  const link = calendarLink(view);
+  // The picker browses months, so a link out of the list leaves it behind.
+  const returnUrl = link({ month: null }, "#attendees");
 
   const emptyMessage = dateFilter
     ? t("admin.calendar.no_attendees")
     : t("admin.calendar.select_date_prompt");
 
-  const agentHref = (f: AgentFilter): string => {
-    const params = new URLSearchParams();
-    if (dateFilter) params.set("date", dateFilter);
-    const param = agentFilterParam(f);
-    if (param) params.set("agent", param);
-    return `/admin/calendar?${params.toString()}#attendees`;
-  };
+  const agentHref = (agent: AgentFilter): string =>
+    link({ agent, month: null }, "#attendees");
 
   // The export carries the active agent filter so it matches the on-screen
   // list — i.e. a per-agent run sheet.
-  const agentParam = agentFilterParam(agentFilter);
-  const exportHref = `/admin/calendar/export?date=${dateFilter}${
-    agentParam ? `&agent=${agentParam}` : ""
-  }`;
+  const exportHref = link({ month: null }, "", "/admin/calendar/export");
 
   const sharedRows =
     dateFilter && attendees.length > 0
@@ -108,14 +131,13 @@ export const adminCalendarPage = (
       <article id="attendees">
         <DatePicker
           ariaLabel="Select a date"
-          clearHref="/admin/calendar#attendees"
+          clearHref={link(
+            { agent: "all", date: null, month: null },
+            "#attendees",
+          )}
           dates={availableDates}
-          dayHref={(value) => `/admin/calendar?date=${value}#attendees`}
-          monthHref={(month) =>
-            `/admin/calendar?${
-              dateFilter ? `date=${dateFilter}&` : ""
-            }cal=${month}#calendar`
-          }
+          dayHref={(value) => link({ date: value, month: null }, "#attendees")}
+          monthHref={(month) => link({ month }, "#calendar")}
           selected={dateFilter}
           today={today}
           viewMonth={viewMonth}
