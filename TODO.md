@@ -22,6 +22,17 @@ checkout preflight (`checkBatchAvailabilityImpl`) hits it first, at checkout
 time. To lift it, aggregate the per-day counting inside the SQL (one clause per
 listing with a grouped per-day subquery) instead of one clause per day.
 
+Related divergence, same code: the guarded insert evaluates its capacity and
+active conditions for a zero-quantity line, but the read preflight and the
+diagnosis drop zero-total buckets — a pinned contract ("treats a zero-quantity
+item as a no-op that fits" in
+`test/shared/db/attendees/capacity/checks/batch.test.ts`). A zero line on an
+inactive or over-cap listing can therefore abort a write the preflight passed,
+and the refusal then names no listing (the pre-existing first-item fallback
+message). Aligning the three needs a behavior-contract decision on what a zero
+line promises, so it belongs to the same follow-up as the per-date diagnosis
+above.
+
 Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2127#discussion_r3842274321>
 
