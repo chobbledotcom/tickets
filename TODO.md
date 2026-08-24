@@ -15,6 +15,13 @@ date, and keep the write order when naming the first failed line. Codex and
 CodeRabbit both proposed this on PR #2127; it was declined there as
 operator-only polish outside the fix's scope.
 
+Related ceiling, same code: `buildBatchCapacitySql` and the diagnosis probes
+emit one clause per listing-day, so a same-date cart of roughly 12 daily lines
+at the 90-day maximum can pass SQLite's expression-depth limit (1,000). The paid
+checkout preflight (`checkBatchAvailabilityImpl`) hits it first, at checkout
+time. To lift it, aggregate the per-day counting inside the SQL (one clause per
+listing with a grouped per-day subquery) instead of one clause per day.
+
 Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2127#discussion_r3842274321>
 
