@@ -1363,33 +1363,53 @@ out of scope for #1873, and a starting point._
 
 ---
 
-## ~~Recover paid SumUp checkouts without a webhook or redirect~~ **Done.**
+## Tell the story of a payment whose callback was lost
 
-_Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
-documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918)._
+_Origin: `SUMUP_RECOVERY_PLAN.md` named this story for the SumUp recovery work
+that shipped in #2109. Nobody wrote it._
 
-Shipped in #2109. `sumup_checkout_recovery` in
-`src/shared/maintenance/registry.ts` takes a bounded page of staged checkouts
-each run, asks SumUp about each one through `resolveSumupCheckoutById`, and
-settles it through `settlePaymentCallback` — the same engine the webhook and the
-redirect use, taking an already-fetched session so the task makes no second
-provider request. A full page asks to be run again. The row's state is a node on
-the declared machine in `src/shared/payment/sumup-recovery-machine-spec.ts`,
-which is also what pruning reads, so a checkout that may still be holding money
-is no longer deleted after 24 hours. The concurrency regression test this asked
-for is `test/integration/server/sumup-recovery/races-the-webhook.test.ts`.
+The plan named `specs/payments/a-payment-with-no-callback.feature`. The story
+must buy through the real public booking page, drop the callback, run
+maintenance, and find the ticket.
 
-Still outstanding from that work: **the Cucumber story was never written.**
-`SUMUP_RECOVERY_PLAN.md` named
-`specs/payments/a-payment-with-no-callback.feature` — buy through the real
-public booking page, drop the callback, run maintenance, find the ticket. The
-behaviour is covered by
-`test/integration/server/sumup-recovery/recovers.test.ts` ("books a paid
-checkout whose callback never arrived"), so this is a coverage-shape gap rather
-than an untested path: per E2E_TESTS.md, Cucumber owns the user journey and the
-integration test owns the technical contract. Start from
-`specs/payments/recovering-the-money-record.feature` for the house shape, and
-from `recovers.test.ts` for the fixture and the maintenance trigger.
+`test/integration/server/sumup-recovery/recovers.test.ts` covers the behaviour
+today, in the case "books a paid checkout whose callback never arrived". No path
+is untested. The gap is the shape of the coverage. E2E_TESTS.md gives the user
+journey to Cucumber and the technical contract to the integration test.
+
+Start from `specs/payments/recovering-the-money-record.feature` for the house
+shape. Start from `recovers.test.ts` for the fixture and the maintenance
+trigger.
+
+---
+
+## Show the operator the SumUp rows that nobody answered for
+
+_Origin: found during the review of #2132, while somebody checked what the live
+check on `/admin/schema` actually lists._
+
+A `waiting` row holds a checkout that SumUp never answered for. That row can
+hold money. Pruning never deletes it, which is correct and deliberate.
+
+The operator cannot see these rows. `SUMUP_SCAN` in
+`src/shared/db/schema-anomaly-scan.ts` selects three faults:
+
+- a state word that the machine does not have,
+- a checkout id that disagrees with the state,
+- a check time that is malformed or missing. A `waiting` row on a site that
+  disconnected SumUp carries none of those faults. The scan reports nothing, and
+  the row is invisible.
+
+This matters most in the case that the recovery work exists to close. The task
+stops when the site removes its SumUp key, because `enabled` reads
+`settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
+counts them.
+
+To fix: add a scan, or a panel on `/admin/schema`, that lists `waiting` rows
+whose `next_check_at` passed by a wide margin. Keep the bound of `SCAN_LIMIT`.
+Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
+`RECOVERY_CHECKABLE_NODES`. A new state then cannot compile until the query
+knows how to find it.
 
 ---
 
