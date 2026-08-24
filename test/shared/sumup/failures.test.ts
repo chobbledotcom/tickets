@@ -2,7 +2,6 @@
 import { assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { APIError } from "@sumup/sdk";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
@@ -30,16 +29,16 @@ type FailureCase = {
 
 const knownFailures: FailureCase[] = [
   {
-    error: new APIError(404, "missing", new Response()),
+    error: transportError.answered(providerDetail.sumup(), 404, "missing"),
     log: "[SumUp] Transaction read answered 404",
-    name: "an SDK HTTP answer",
+    name: "an answer that says the record is not there",
     read: { status: "missing" },
     refund: { kind: "rejected", reason: "rejected" },
   },
   {
     error: transportError.answered(providerDetail.sumup(), 429),
     log: "[SumUp] Transaction read answered 429",
-    name: "a transport HTTP answer",
+    name: "an answer that says to slow down",
     read: { reason: "rate_limited", status: "unavailable" },
     refund: { kind: "uncertain", reason: "rate_limited" },
   },
@@ -51,23 +50,16 @@ const knownFailures: FailureCase[] = [
     refund: { kind: "uncertain", reason: "malformed_response" },
   },
   {
-    error: new TypeError("connection reset"),
+    error: transportError.unreachable(providerDetail.sumup(), "network_error"),
     log: "[SumUp] Transaction read failed before SumUp answered",
     name: "a connection failure",
     read: { reason: "network_error", status: "unavailable" },
     refund: { kind: "uncertain", reason: "network_error" },
   },
   {
-    error: new DOMException("cancelled", "AbortError"),
+    error: transportError.unreachable(providerDetail.sumup(), "timeout"),
     log: "[SumUp] Transaction read failed before SumUp answered",
-    name: "an aborted request",
-    read: { reason: "timeout", status: "unavailable" },
-    refund: { kind: "uncertain", reason: "timeout" },
-  },
-  {
-    error: new DOMException("late", "TimeoutError"),
-    log: "[SumUp] Transaction read failed before SumUp answered",
-    name: "a timed-out request",
+    name: "a request that ran out of time",
     read: { reason: "timeout", status: "unavailable" },
     refund: { kind: "uncertain", reason: "timeout" },
   },
@@ -97,10 +89,8 @@ describe("SumUp failures", () => {
     expectPropagated(new Error("broken adapter"));
   });
 
-  test("does not claim an HTTP error with no status", () => {
-    const failure = new APIError(500, "missing status", new Response());
-    Object.defineProperty(failure, "status", { value: undefined });
-    expectPropagated(failure);
+  test("does not claim a raw connection failure the transport did not name", () => {
+    expectPropagated(new TypeError("connection reset"));
   });
 
   test("does not claim another kind of DOM failure", () => {

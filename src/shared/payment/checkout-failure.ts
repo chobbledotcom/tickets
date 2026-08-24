@@ -1,4 +1,5 @@
 import type { ProviderFailureFacts } from "#payment/provider-failures.ts";
+import { ProviderTransportError } from "#payment/transport-error.ts";
 import type { PaymentProviderType } from "#types";
 
 type ProviderCheckoutFailure =
@@ -74,3 +75,13 @@ export const checkoutFailure = {
       statusCode,
     }),
 };
+
+/** The checkout mapper every provider runs its calls under: a transport
+ * failure becomes closed provider facts, and anything else is a bug in our own
+ * code, so it keeps travelling. */
+export const closedCheckoutErrorFor =
+  (provider: PaymentProviderType) =>
+  (error: unknown): ProviderCheckoutError => {
+    if (!(error instanceof ProviderTransportError)) throw error;
+    return checkoutErrorFrom(provider, error.facts);
+  };

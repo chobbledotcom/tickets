@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { APIError, SumUpError } from "@sumup/sdk";
 import { settings } from "#db/settings.ts";
 import { getSumupCheckout } from "#db/sumup-checkouts.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   expectClosedCheckoutFailure,
@@ -86,10 +86,10 @@ describe("sumup createCheckout", () => {
 
   test("closes SumUp API bodies before they reach diagnostics", async () => {
     const privateBody = "buyer private.person@example.com checkout co_private";
-    const providerError = new APIError(
+    const providerError = transportError.answered(
+      providerDetail.sumup(),
       422,
-      { detail: privateBody },
-      Response.json({ detail: privateBody }, { status: 422 }),
+      privateBody,
     );
     await expectClosedCheckoutFailure(
       checkoutFailure(providerError),
@@ -101,7 +101,11 @@ describe("sumup createCheckout", () => {
 
   test("closes SumUp network failures", async () => {
     const privateMessage = "network failed beside checkout co_private";
-    const providerError = new TypeError(privateMessage);
+    const providerError = transportError.unreachable(
+      providerDetail.sumup(),
+      "network_error",
+      privateMessage,
+    );
     await expectClosedCheckoutFailure(
       checkoutFailure(providerError),
       { provider: "sumup", reason: "network_error" },
@@ -110,21 +114,23 @@ describe("sumup createCheckout", () => {
     );
   });
 
-  for (const name of ["AbortError", "TimeoutError"]) {
-    test(`closes SumUp ${name} transport failures`, async () => {
-      const privateMessage = `transport failed beside checkout co_${name}`;
-      const providerError = new DOMException(privateMessage, name);
-      await expectClosedCheckoutFailure(
-        checkoutFailure(providerError),
-        { provider: "sumup", reason: "timeout" },
-        [privateMessage],
-        providerError,
-      );
-    });
-  }
+  test("closes SumUp checkout timeouts", async () => {
+    const privateMessage = "timed out beside checkout co_private";
+    const providerError = transportError.unreachable(
+      providerDetail.sumup(),
+      "timeout",
+      privateMessage,
+    );
+    await expectClosedCheckoutFailure(
+      checkoutFailure(providerError),
+      { provider: "sumup", reason: "timeout" },
+      [privateMessage],
+      providerError,
+    );
+  });
 
   test("closes malformed SumUp checkout responses", async () => {
-    const providerError = new SumUpError("Unexpected non-json response.");
+    const providerError = transportError.unusable(providerDetail.sumup());
     await expectClosedCheckoutFailure(
       checkoutFailure(providerError),
       { provider: "sumup", reason: "invalid_response" },
@@ -133,15 +139,9 @@ describe("sumup createCheckout", () => {
     );
   });
 
-  test("closes SumUp checkout timeouts", async () => {
-    const privateMessage = "Request timed out after 12345ms.";
-    const providerError = new SumUpError(privateMessage);
-    await expectClosedCheckoutFailure(
-      checkoutFailure(providerError),
-      { provider: "sumup", reason: "timeout" },
-      [privateMessage],
-      providerError,
-    );
+  test("does not relabel a raw transport failure the transport did not name", async () => {
+    const raw = new TypeError("network failed beside checkout co_private");
+    await expectSameThrown(checkoutFailure(raw), raw);
   });
 
   test("does not relabel an internal SumUp checkout failure", async () => {

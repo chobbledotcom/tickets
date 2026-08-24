@@ -1,9 +1,6 @@
 import { settings } from "#db/settings.ts";
 import { compact } from "#fp";
-import {
-  checkoutErrorFrom,
-  type ProviderCheckoutError,
-} from "#payment/checkout-failure.ts";
+import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { ProviderTransportError } from "#payment/transport-error.ts";
 import { getEnv } from "#shared/env.ts";
@@ -100,13 +97,9 @@ const cache = cachedClientFactory({
 });
 
 const get = (): Promise<StripeClient | null> => cache.getClient();
-const closedCheckoutError = (error: unknown): ProviderCheckoutError => {
-  if (!(error instanceof ProviderTransportError)) throw error;
-  return checkoutErrorFrom("stripe", error.facts);
-};
 
 const runCheckout = createWithClient(get, {
-  replaceError: closedCheckoutError,
+  replaceError: closedCheckoutErrorFor("stripe"),
 });
 
 /** Shared Stripe client lifecycle for payment and endpoint operations. */

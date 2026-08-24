@@ -1,14 +1,11 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { isNotNullish } from "#fp";
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { providerCaller } from "#payment/provider-fetch.ts";
 import {
-  connectionReasonOf,
   providerDetail,
   type RejectedBuyerField,
-  transportError,
 } from "#payment/transport-error.ts";
-import { type FetchResult, fetchText } from "#shared/fetch.ts";
 /* jscpd:ignore-end */
 
 /** Square API version for all requests. */
@@ -80,42 +77,17 @@ export const squareRequestInit = (
   };
 };
 
-const fetchSquareResponse = async (
-  url: string,
-  init: ReturnType<typeof squareRequestInit>,
-): Promise<FetchResult> => {
-  try {
-    return await fetchText(url, {
-      ...init,
-      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const reason = connectionReasonOf(error);
-    if (!reason) throw error;
-    throw transportError.unreachable(providerDetail.square(), reason);
-  }
-};
+/** Square names the buyer field it rejected in the answer body, and that is
+ *  the one failure the buyer can act on, so its detail reads that body. */
+const squareCaller = providerCaller((body) =>
+  providerDetail.square(readInvalidField(body)),
+);
 
 /** Make one authenticated request to the Square REST API. */
-export const squareFetch = async (
+export const squareFetch = (
   token: string,
   baseUrl: string,
   path: string,
   options?: SquareRequestOptions,
-): Promise<unknown> => {
-  const response = await fetchSquareResponse(
-    `${baseUrl}${path}`,
-    squareRequestInit(token, options),
-  );
-  if (!response.ok) {
-    throw transportError.answered(
-      providerDetail.square(readInvalidField(response.text)),
-      response.status,
-    );
-  }
-  try {
-    return JSON.parse(response.text);
-  } catch {
-    throw transportError.unusable(providerDetail.square());
-  }
-};
+): Promise<unknown> =>
+  squareCaller.json(`${baseUrl}${path}`, squareRequestInit(token, options));

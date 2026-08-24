@@ -2,8 +2,8 @@
 
 import { settings } from "#db/settings.ts";
 import {
-  checkoutErrorFrom,
   checkoutFailure,
+  closedCheckoutErrorFor,
 } from "#payment/checkout-failure.ts";
 import {
   ProviderTransportError,
@@ -34,17 +34,19 @@ const SQUARE_FIELD_LABELS: Record<RejectedBuyerField, string> = {
   phone: "phone number",
 };
 
+const closedSquareError = closedCheckoutErrorFor("square");
+
 /** A rejected buyer field is the one failure the buyer can act on, so it is
  * told to them in their own words before the closed provider facts. */
 const rethrowAsUserError = (error: unknown): never => {
-  if (!(error instanceof ProviderTransportError)) throw error;
-  const rejectedField = rejectedBuyerFieldOf(error);
-  if (rejectedField !== null) {
-    throw new PaymentUserError(
-      `The payment processor rejected the ${SQUARE_FIELD_LABELS[rejectedField]} as invalid. Please correct it and try again.`,
-    );
-  }
-  throw checkoutErrorFrom("square", error.facts);
+  const rejectedField =
+    error instanceof ProviderTransportError
+      ? rejectedBuyerFieldOf(error)
+      : null;
+  if (rejectedField === null) throw closedSquareError(error);
+  throw new PaymentUserError(
+    `The payment processor rejected the ${SQUARE_FIELD_LABELS[rejectedField]} as invalid. Please correct it and try again.`,
+  );
 };
 
 type PaymentLinkConfig = { locationId: string; currency: string };

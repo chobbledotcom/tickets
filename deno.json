@@ -102,7 +102,6 @@
     "@sentry/core": "npm:@sentry/core@^10.60.0",
     "@sentry/deno": "npm:@sentry/deno@^10.60.0",
     "stripe": "npm:stripe@^22.0.1",
-    "@sumup/sdk": "npm:@sumup/sdk@^0.1.6",
     "esbuild": "npm:esbuild@^0.28.0",
     "sass": "npm:sass@^1.101.0",
     "@bunny.net/edgescript-sdk": "npm:@bunny.net/edgescript-sdk@^0.12.1",
