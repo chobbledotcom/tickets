@@ -64,6 +64,28 @@ describe("squareAnswer", () => {
       });
     });
 
+    // A charge nothing has come back on states its refunded total as zero,
+    // and zero is a figure Square gave rather than one it left out.
+    test("reads a zero total as money Square stated", () => {
+      expect(
+        squareAnswer.payment({
+          payment: {
+            id: "pay_1",
+            refunded_money: { amount: 0, currency: "GBP" },
+            status: "COMPLETED",
+          },
+        }),
+      ).toEqual({
+        payment: {
+          amountMoney: undefined,
+          id: "pay_1",
+          orderId: undefined,
+          refundedMoney: { amount: 0n, currency: "GBP" },
+          status: "COMPLETED",
+        },
+      });
+    });
+
     test("reads an answer carrying no payment as none", () => {
       expect(squareAnswer.payment({})).toEqual({ payment: null });
     });

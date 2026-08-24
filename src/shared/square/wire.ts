@@ -177,8 +177,8 @@ const LocationsAnswer = v.pipe(
       status: OptionalStringSchema,
     }),
   }),
-  v.transform(({ locations }): { locations: SquareLocation[] } => ({
-    locations: locations ?? [],
+  v.transform(({ locations = [] }): { locations: SquareLocation[] } => ({
+    locations,
   })),
 );
 
