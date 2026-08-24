@@ -27,7 +27,8 @@ describeSquare(() => {
             reason: "missing_documented_resource",
             status: "invalid",
           });
-          expect(ordersGet.calls[0]!.args[0]).toEqual({
+          expect(ordersGet.calls).toHaveLength(1);
+          expect(ordersGet.calls[0]?.args[0]).toEqual({
             orderId: "order_missing",
           });
         },
