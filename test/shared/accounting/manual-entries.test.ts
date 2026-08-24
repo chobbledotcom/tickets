@@ -11,6 +11,7 @@ import {
   MANUAL_MODIFIER_INCOME,
   MANUAL_MODIFIER_REDUCTION,
   type ManualLedgerEntryType,
+  ManualLedgerEntryTypeSchema,
   manualEntrySpecByType,
   manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
@@ -171,6 +172,22 @@ describe("db > accounting > manual ledger entries", () => {
     ];
     expect(stored!.eventGroup).toBe(await eventGroup(parts));
     expect(stored!.reference).toBe(await legReference([...parts, "transfer"]));
+  });
+
+  test("keeps the stored word for every entry type, in the order shown", () => {
+    // Each word is written into transfers.kind and finds that row again, so a
+    // changed word orphans every entry a site already stored. The literals are
+    // the point: the constants would move with the change and hide it. The
+    // order is what the owner sees in the add-entry menu.
+    expect(ManualLedgerEntryTypeSchema.options).toEqual([
+      "manual_attendee_payment",
+      "manual_attendee_charge",
+      "manual_attendee_writeoff",
+      "manual_listing_income",
+      "manual_listing_cost",
+      "manual_modifier_income",
+      "manual_modifier_reduction",
+    ]);
   });
 
   test("every entry type's user-facing keys have translations", () => {
