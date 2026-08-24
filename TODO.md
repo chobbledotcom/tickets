@@ -1381,8 +1381,9 @@ even though each part of it is covered. E2E_TESTS.md gives the user journey to
 Cucumber and the technical contract to the integration test.
 
 Start from `specs/payments/recovering-the-money-record.feature` for the house
-shape. Start from `recovers.test.ts` for the fixture and the maintenance
-trigger.
+shape. Start from `recovers.test.ts` for the fixture. Take the maintenance
+trigger from `test/features/scheduled/server.test.ts`, because
+`recovers.test.ts` calls `runSumupRecovery` directly.
 
 ---
 
@@ -1454,7 +1455,8 @@ The operator cannot see either kind. `SUMUP_SCAN` in
 
 - a state word that the machine does not have,
 - a checkout id that disagrees with the state,
-- a check time that is malformed or missing.
+- a check time that does not fit the state. A checkable row needs a well-formed
+  check time. A closed row needs none at all.
 
 An `owed` row is well formed, and so is a `waiting` row on a site that
 disconnected SumUp. Neither carries any of those faults, so the scan reports

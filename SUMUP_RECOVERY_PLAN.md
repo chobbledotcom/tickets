@@ -353,7 +353,7 @@ until somebody decides what that outcome means for the money.
 | The budget of 50 subrequests on Bunny              | Three separate bounds. `validateTask` refuses a declaration whose `maxDatabaseCalls + maxExternalCalls` is above `MAINTENANCE_TASK_CALL_LIMIT`. `maintenanceStartupCalls` sums the enabled-check calls of every task against `MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT` and `MAINTENANCE_REQUEST_CALL_LIMIT`. At run time, `taskFits` picks a task only if its declared calls fit what remains of the allowance for this request |
 | Does this work refund money in the background?     | Only through the path that the webhook already runs for a rejected paid charge. It is the same engine, because a second engine was forbidden                                                                                                                                                                                                                                                                                    |
 | Square: does the throw break the browser redirect? | No. Only the `missing` read is conditional: it throws when a `paidPaymentId` is present, and only the webhook supplies one. The redirect keeps `null` for `missing`, where a lost order really is "not ours". Any other unreadable status throws for both callers, as it did before                                                                                                                                             |
-| A later change adds a node or an event             | It must satisfy the laws, or the suite fails. A money-holding node cannot be prunable and cannot be a dead end. A terminal node cannot grow an edge                                                                                                                                                                                                                                                                             |
+| A later change adds a node or an event             | The laws bind every node in `RECOVERY_NODES` and every event in `RECOVERY_EVENTS`. Such a change must satisfy them, or the suite fails: a money-holding node cannot be prunable and cannot be a dead end, and a terminal node cannot grow an edge. An id added to the `RecoveryEventId` union alone escapes the laws, because the sweep reads the array. See the note in section 2                                              |
 | SumUp returns a status we do not know              | `SumupCheckoutStatusSchema` is a closed picklist. An unknown word fails the boundary and arrives as `read_unavailable`. The row stays where it is, and something asks again                                                                                                                                                                                                                                                     |
 
 The review made one product choice and held it. **The site never deletes a row
@@ -373,7 +373,9 @@ lost payment for a tidier table, which is the wrong way round.
 **One gap is open, and it is not in the code above. No surface shows a retained
 row to the operator.** `SUMUP_SCAN` in `src/shared/db/schema-anomaly-scan.ts`
 selects an unknown state word, a checkout id that disagrees with the state, or a
-malformed check time. It reports a broken row, not an unanswered one.
+check time that does not fit the state. A checkable row needs a well-formed
+check time, and a closed row needs none at all. The scan reports a broken row,
+not an unanswered one.
 
 This covers both states that the site keeps:
 
