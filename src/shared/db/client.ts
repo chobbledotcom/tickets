@@ -370,10 +370,10 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
 };
 
 /**
- * {@link queryAll} for a caller that must read its own writes: the same rows,
+ * {@link queryAll} for a caller that must read its own writes. The same rows,
  * pinned to the primary, because a replica can lag behind the write and miss
- * them. See {@link queryBatchPrimary}. It takes the statement whole — the shape
- * a batch runs — so a caller holding one hands it over as it is.
+ * them. See {@link queryBatchPrimary}. It takes the statement whole, which is
+ * the shape a batch runs, so a caller that holds one hands it over as it is.
  */
 export const queryAllPrimary = async <T>(
   statement: SqlStatement,
@@ -382,7 +382,7 @@ export const queryAllPrimary = async <T>(
   return resultRows<T>(result!);
 };
 
-/** Query all rows, returning a typed array. A read whose cache refill requires
+/** Query all rows as a typed array. A read whose cache refill requires
  *  read-your-writes goes to the primary instead. */
 export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
   mustReadFromPrimary() && primaryReadMode() !== "read"

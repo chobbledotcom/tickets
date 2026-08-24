@@ -196,7 +196,7 @@ export const bookingLegBatchInsert = (
     ),
   );
 
-/** The transfers one answered query holds. */
+/** The transfers held by one answered query. */
 const transfersIn = (result: ResultSet): Transfer[] =>
   resultRows<TransferRow>(result).map(rowToTransfer);
 
@@ -213,13 +213,12 @@ type TransfersPerQuery<Queries extends readonly TransferRead[]> = {
   [Index in keyof Queries]: Transfer[];
 };
 
-/** Select several sets of transfers at once, each saying which rows it wants
- * and in what order rather than writing the query. `read` decides where the
- * rows come from — the client's `queryBatch`, or an open transaction's own
- * `batch` for the write path, whose write lock makes concurrent posters of one
- * event take turns — and answers them all in one round trip. A query that can
- * match no row is answered as empty without being asked, so wanting none of
- * something still costs nothing. */
+/** Select several sets of transfers at once, in one round trip. Each set names
+ * the rows it wants and their order instead of the SQL. `read` decides where
+ * the rows come from: the client's `queryBatch`, or an open transaction's own
+ * `batch`. The write path reads through its transaction, so the write lock
+ * makes two posters of one event take turns. A query that can match no row is
+ * answered as empty without a trip to the database. */
 export const selectTransfersMany = async <
   const Queries extends readonly TransferRead[],
 >(
