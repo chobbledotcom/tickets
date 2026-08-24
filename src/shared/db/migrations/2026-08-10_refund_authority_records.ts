@@ -1,4 +1,8 @@
-import { executeBatch, queryBatchPrimary } from "#db/client.ts";
+import {
+  executeBatch,
+  queryAllPrimary,
+  queryBatchPrimary,
+} from "#db/client.ts";
 import { noArgStatements } from "./schema-sync.ts";
 import type { MigrationBuilder } from "./types.ts";
 
@@ -21,15 +25,12 @@ const tableSlots = DORMANT_PAYMENT_TABLES.map(() => "?").join(", ");
 
 /** How many rows each dormant table that still exists is holding. */
 const storedRowCounts = async (): Promise<Map<string, number>> => {
-  const [present] = await queryBatchPrimary([
-    {
-      args: [...DORMANT_PAYMENT_TABLES],
-      sql:
-        "SELECT name FROM sqlite_master " +
-        `WHERE type = 'table' AND name IN (${tableSlots})`,
-    },
-  ]);
-  const names = present!.rows.map((row) => String(row.name));
+  const present = await queryAllPrimary<{ name: string }>(
+    "SELECT name FROM sqlite_master " +
+      `WHERE type = 'table' AND name IN (${tableSlots})`,
+    [...DORMANT_PAYMENT_TABLES],
+  );
+  const names = present.map((row) => row.name);
   if (names.length === 0) return new Map();
   const counts = await queryBatchPrimary(
     names.map((name) => ({

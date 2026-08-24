@@ -14,6 +14,7 @@ import {
   insert,
   orIgnore,
   queryAll,
+  queryAllPrimary,
   queryBatch,
   queryOne,
   queryOnePrimary,
@@ -268,6 +269,20 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
+  });
+
+  test("queryAllPrimary returns every matching row from the primary", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES" +
+        " ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')",
+    );
+    const rows = await queryAllPrimary<{ value: string }>(
+      "SELECT value FROM settings WHERE key LIKE ? ORDER BY key",
+      ["query_all_primary_%"],
+    );
+    // Every match in order: a plural that answered with the first row alone
+    // would be the singular wearing the wrong name.
+    expect(rows.map(({ value }) => value)).toEqual(["first", "second"]);
   });
 
   test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {

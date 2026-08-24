@@ -21,8 +21,8 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
-  queryBatchPrimary,
   queryIdColumn,
+  queryOnePrimary,
   type TxScope,
 } from "#db/client.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-parents.ts";
@@ -401,12 +401,9 @@ export const syncListingPricesForIds = async (
  * lagging replica. A missing listing is a no-op. Day-count rows are written from
  * input by the write paths, not re-derived here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const [result] = await queryBatchPrimary([
-    {
-      args: [listingId],
-      sql: "SELECT id, unit_price FROM listings WHERE id = ?",
-    },
-  ]);
-  const row = (result?.rows as unknown as ListingPriceSourceRow[])[0];
+  const row = await queryOnePrimary<ListingPriceSourceRow>(
+    "SELECT id, unit_price FROM listings WHERE id = ?",
+    [listingId],
+  );
   if (row) await executeBatch(sourceRowStatements(row));
 };

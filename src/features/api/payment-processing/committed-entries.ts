@@ -4,7 +4,7 @@ import {
   pricePaidFromLedger,
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
-import { queryBatchPrimary, resultRows } from "#db/client.ts";
+import { queryAllPrimary } from "#db/client.ts";
 import {
   type CreatedEntry,
   pairEntriesByListing,
@@ -36,10 +36,8 @@ export const committedEntries = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<CreatedEntry[]> => {
-  const [result] = await queryBatchPrimary([
-    {
-      args: [attendeeId],
-      sql: `SELECT attendee.created,
+  const rows = await queryAllPrimary<CommittedBookingRow>(
+    `SELECT attendee.created,
                    SUBSTR(listingAttendee.start_at, 1, 10) AS date,
                    SUBSTR(listingAttendee.end_at, 1, 10) AS end_date,
                    attendee.kind,
@@ -60,11 +58,9 @@ export const committedEntries = async (
               ON listingAttendee.attendee_id = attendee.id
             WHERE attendee.id = ?
             ORDER BY listingAttendee.id`,
-    },
-  ]);
-  const attendees: CreatedEntry["attendee"][] = resultRows<CommittedBookingRow>(
-    result!,
-  ).map((row) => ({
+    [attendeeId],
+  );
+  const attendees: CreatedEntry["attendee"][] = rows.map((row) => ({
     ...contactFields(intent),
     attachment_downloads: 0,
     checked_in: false,
