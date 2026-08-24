@@ -17,7 +17,6 @@ src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1keal
 src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → ||   # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::isPaymentsEnabled~02tsswb  ?? → ||   # providerValue returns boolean or null, and false stays false with either fallback operator
 src/shared/config.ts::getDebugKey~036uuok  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
@@ -241,7 +240,6 @@ src/shared/db/listings/attendees.ts::getListingWithAttendeeRaw.attendeeRaw~0x3k1
 src/shared/db/client.ts::extractUpdateColumns.addAssignment~17cdcum  0 → 1   # an "=" at the very start leaves an empty column name, which the `if (col)` guard drops, so returning early adds the same nothing
 src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # the captured tail has to start with INSERT, UPDATE, DELETE, REPLACE or SELECT, so the group is never the empty string
 src/shared/db/client.ts::GUARDED_CLIENT~1cajdnv  guarded-db-client → ""   # a symbol's description only names it in a debugger; the guard compares symbol identity, which the description cannot change
-src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # args is an array or a named-args object when present, and both are always truthy
 src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # a result row is always an object, so the only falsy first element is the missing one the fallback is there for
 
 # crypto/hashing.ts — the explicit radix on the stored round count. The line
