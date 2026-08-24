@@ -46,9 +46,12 @@ SumUp credentials: `enabled: () => settings.sumup.hasKey` gates the task, and
 `syncMaintenanceTaskRows` removes a disabled task, so a site that removes its
 key stops asking. SumUp must also answer at last: a provider that returns
 nothing usable leaves the row where it is through `read_unavailable`, which
-moves only the clock. While either condition fails, the row is kept and retried.
-It is never deleted, and it is never read as unpaid. The answer comes when the
-key returns or SumUp replies.
+moves only the clock. The two conditions fail differently. Without credentials
+the task does not run at all, so nothing asks and the row is only retained. With
+credentials and an unusable provider, the task keeps asking, and
+`read_unavailable` moves the clock each time. Neither case deletes the row, and
+neither reads it as unpaid. The answer comes when the key returns or SumUp
+replies.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
 accepts becomes a booking. A paid checkout that the engine rejects does not
