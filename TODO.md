@@ -2753,7 +2753,8 @@ that some of them answer. The exemption list in
 that no rule asks for the export. `checkout-ledger.ts`, `accounting/store.ts`
 and `accounting/mappers.ts` gained production callers, so they left the list.
 
-Seven exports have test callers alone, and they are not alike:
+Eight exports have test callers alone, and they are not alike. The usage check
+flags seven of them. The blind spot below hides the eighth.
 
 - `reconcile.ts` (`reconcileExternal`, `reconcileLegs`) answer rule 2, which
   needs the refund total of the provider. `accounting/queries.ts`
@@ -2767,7 +2768,7 @@ Seven exports have test callers alone, and they are not alike:
 
 "Remove dead code" in `AGENTS.md` says to delete an export that only tests call,
 and to recover it from history when a caller arrives. Against that stands a
-contract that names a future caller for four of the seven. The person who owns
+contract that names a future caller for five of the eight. The person who owns
 the payment aggregate must settle that half. The three exports that answer no
 rule have no such defence, so delete them first.
 
