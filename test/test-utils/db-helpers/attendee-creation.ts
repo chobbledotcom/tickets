@@ -37,6 +37,10 @@ export const expectBookingOk = (
 /** The one attendee a successful create returned, checked rather than assumed. */
 export const requireAttendee = (result: CreateAttendeeResult): Attendee => {
   assert(result.success, "Expected attendee creation to succeed");
+  assert(
+    result.attendees.length === 1,
+    "Expected the create to return exactly one attendee",
+  );
   const attendee = result.attendees[0];
   assert(attendee !== undefined, "Expected the create to return one attendee");
   return attendee;

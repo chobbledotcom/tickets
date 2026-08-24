@@ -189,31 +189,40 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     expect(await listingGroupIdsOf(named.id)).toEqual([group.id]);
   });
 
-  test("a package member that is not in the group is ignored", async () => {
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Package Unknown Group",
-    });
-    const member = await createTestListing({ name: "Package Real Member" });
-    const outsider = await createTestListing({ name: "Package Outsider" });
+  const packageWithOutsider = async (name: string) => {
+    const group = await createTestGroup({ isPackage: true, name });
+    const member = await createTestListing({ name: `${name} Member` });
+    const outsider = await createTestListing({ name: `${name} Outsider` });
     await assignListingsToGroup([member.id], group.id);
     await setGroupPackageMembers(group.id, [
       { listingId: member.id, price: 500 },
     ]);
+    return { group, member, outsider };
+  };
 
-    // A submission naming only a non-member is a no-op, not a full wipe.
+  test("a submission naming only a non-member is a no-op, not a full wipe", async () => {
+    const { group, member, outsider } = await packageWithOutsider(
+      "Package Outsider Only",
+    );
+
     await setGroupPackageMembers(group.id, [
       { listingId: outsider.id, price: 999 },
     ]);
+
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[member.id, 500]]),
     );
+  });
 
-    // A mixed submission applies the member entry and drops the non-member.
+  test("a mixed submission applies the member entry and drops the non-member", async () => {
+    const { group, member, outsider } =
+      await packageWithOutsider("Package Mixed");
+
     await setGroupPackageMembers(group.id, [
       { listingId: member.id, price: 700 },
       { listingId: outsider.id, price: 999 },
     ]);
+
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[member.id, 700]]),
     );
