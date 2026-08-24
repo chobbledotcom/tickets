@@ -95,10 +95,11 @@ describeWithEnv(
     });
 
     test("lines on different days still name the full day's listing", async () => {
-      // An operator can build one creation with lines on different days; the
-      // one-day cumulative check does not apply, so each line is checked
-      // alone and the full day's listing is still the one named.
-      const { daily } = await roomyAndFullDaily();
+      // An operator can build one creation with lines on different days — a
+      // dateless one included; the one-day cumulative check does not apply,
+      // so each line is checked alone and the full day's listing is still
+      // the one named.
+      const { daily, roomy } = await roomyAndFullDaily();
       const roomyDaily = await createDailyTestListing({
         maxAttendees: 10,
         maximumDaysAfter: 60,
@@ -106,6 +107,7 @@ describeWithEnv(
 
       await expectLateOrderRefusedNaming(
         [
+          { listingId: roomy.id, quantity: 1 },
           { date: "2026-10-02", listingId: roomyDaily.id, quantity: 1 },
           { date: FULL_DAY, listingId: daily.id, quantity: 1 },
         ],
