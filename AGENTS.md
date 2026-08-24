@@ -1317,7 +1317,9 @@ query logging and table-scoped cache invalidation stay automatic.
   (writes, returns each `ResultSet` — ideal for cascading deletes and multi-step
   writes), `queryBatch` (reads in one round-trip), or `queryBatchPrimary` (reads
   pinned to the primary when you must read your own just-committed writes).
-  `deleteByFieldBatch` is a ready-made multi-table delete.
+  `deleteByFieldBatch` is a ready-made multi-table delete. One statement is not
+  a batch: for a single read pinned to the primary, use `queryAllPrimary` for
+  its rows or `queryOnePrimary` for the first one, never a batch of one.
 
 - **Interactive transaction — logic between steps.** When a later statement
   depends on the result of an earlier one, use `withTransaction`. One example is
