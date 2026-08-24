@@ -1383,6 +1383,45 @@ trigger.
 
 ---
 
+## Prove that a replayed Square webhook books nobody twice
+
+_Origin: found during the review of #2132. The slice notes for #2106 said that
+the existing idempotency tests already covered this case. They do not._
+
+The replay suites under `test/integration/server/webhooks/` configure Stripe.
+`test/integration/server/webhooks/square.test.ts` delivers one webhook and
+asserts the retryable answer. No test delivers the same completed Square webhook
+twice.
+
+The replay identity of Square is the order id. `retrieveSession` puts it on the
+session as `id: order.id`, and that value becomes
+`processed_payments.payment_session_id`. A redelivery must therefore reserve the
+same row.
+
+To fix: configure Square, let the order become readable, deliver the same
+completed webhook twice, and assert one `attendees` row, one
+`processed_payments` row, and no second refund.
+
+---
+
+## Count the ledger groups in the SumUp recovery race test
+
+_Origin: found during the review of #2132._
+
+`test/integration/server/sumup-recovery/races-the-webhook.test.ts` runs the
+webhook and the recovery check together. It asserts one `attendees` row, one
+`processed_payments` row, and a state that is not `owed`. It reads no ledger
+row.
+
+A race that writes the ledger twice therefore passes this test. The original
+request for this work asked for a test that proves the attendee rows and the
+ledger rows are created exactly once.
+
+To fix: read the ledger in that test, and assert one event group for the
+payment.
+
+---
+
 ## Show the operator the SumUp rows that nobody answered for
 
 _Origin: found during the review of #2132, while somebody checked what the live

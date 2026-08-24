@@ -42,13 +42,18 @@ What is true now:
 > acknowledged.
 
 "Answered for" is not the same as "booked". A paid checkout that the engine
-accepts becomes a booking. A paid checkout that the engine rejects takes the
-existing refund path instead. A rejection can happen because the listing closed,
-because the capacity went, or because the signed price proof did not verify. If
-a required refund does not go through, the row lands on `owed`. The site keeps
-that row and shows it to the owner. The guarantee is that the money is never
-forgotten in silence. It is not a promise that every payment ends in a ticket.
-The five `read_paid_*` events carry exactly this distinction.
+accepts becomes a booking. A paid checkout that the engine rejects does not
+become a booking. Two rejections behave differently, and the difference is
+deliberate. A proof that verifies against a charge we must not keep takes the
+existing refund path, through `settleRejectedCharge`. A proof that does not
+verify at all takes no money action. `classifiedOutcome` returns `unverifiable`
+before `processPaymentSession` runs, and `PAID_EVENTS` maps that answer to
+`read_paid_contradiction`. The row lands on `owed`, and the site touches no
+money on a proof that it cannot trust. A required refund that does not go
+through also lands the row on `owed`. The site keeps that row and shows it to
+the owner. The guarantee is that the money is never forgotten in silence. It is
+not a promise that every payment ends in a ticket. The five `read_paid_*` events
+carry exactly this distinction.
 
 Production receivers: the `sumup_checkout_recovery` maintenance task,
 `runDatabasePruning`, the `/admin/schema` page, and `POST /payment/webhook` for
@@ -64,13 +69,13 @@ is therefore never selected after a public request.
 
 ### Trusted facts
 
-| Fact                                              | Source                                                        | Why we trust it                                                                                                  |
-| ------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sumup_checkouts.sumup_id`                        | Written by `setSumupCheckoutId` before the buyer sees the URL | Ours by construction. Not sensitive. The webhook pre-filter already uses it                                      |
-| `sumup_checkouts.reference_index`                 | `hmacHash(reference)` at staging                              | Signed by our key. It proves that a fetched reference names this row                                             |
-| `sumup_checkouts.created_at`                      | Our clock at staging                                          | Ours. It schedules the first check, and `prune.ts` deletes a prunable row by it. It never decides a payment fact |
-| The signed price proof inside the staged metadata | `assembleCheckoutMetadata`                                    | Nobody can forge it without our key. It is already the ownership test                                            |
-| Square webhook that names a `COMPLETED` payment   | Verified Square signature                                     | `requiresWebhookSignature: true`. The signature proves the sender                                                |
+| Fact                                              | Source                                                        | Why we trust it                                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sumup_checkouts.sumup_id`                        | Written by `setSumupCheckoutId` before the buyer sees the URL | Ours by construction. Not sensitive. The webhook pre-filter already uses it                                                                                     |
+| `sumup_checkouts.reference_index`                 | `hmacHash(reference)` at staging                              | Signed by our key. It proves that a fetched reference names this row                                                                                            |
+| `sumup_checkouts.created_at`                      | Our clock at staging                                          | Ours. It schedules the first check, and `prune.ts` deletes a prunable row by it. It never decides a payment fact                                                |
+| The signed price proof inside the staged metadata | `assembleCheckoutMetadata`                                    | Nobody can forge it without our key. It is already the ownership test                                                                                           |
+| Square webhook that names a `COMPLETED` payment   | Verified Square signature                                     | `authenticateWebhook` refuses a missing signature when `providerWebhook(provider.type)` is not `null`, then `provider.verifyWebhookSignature` proves the sender |
 
 Observed facts stay separate. They never stand in for the facts above.
 
@@ -169,20 +174,24 @@ The declaration cannot carry the reasons below, so they stay here:
 Prose can promise these laws. Only a check enforces them. Each law started as a
 finding from this review. Each one is now something that cannot happen again.
 
-| Law                                                               | Enforced by                                                                                                                 |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| A node that can hold money is never `prunable`                    | `machine.test.ts`, "a row that may hold money is never deleted on age alone"                                                |
-| A node that can hold money has an outgoing system edge            | `machine.test.ts`, "…always has something that will act on it"                                                              |
-| A node that can hold money can still reach a closed answer        | `machine.test.ts`, "…can still reach a closed answer"                                                                       |
-| A terminal node has no outgoing edge                              | `graph.test.ts`, "a closed row has no way back out"                                                                         |
-| Every node is reachable, and every node can reach a closed answer | `graph.test.ts`                                                                                                             |
-| `recoveryNodeOf` is total, and throws on the impossible           | `graph.test.ts` refusal cases, and the unknown-word case in `machine.test.ts`                                               |
-| Every edge that lands on a non-terminal node writes the schedule  | Structure. `applySumupRecoveryEvent` is the only writer. It sets `next_check_at` unless the landing node is terminal        |
-| Every self-move fences on the schedule, not on the state alone    | Structure. `moveSumupRecoveryRow` is the only `UPDATE`. It matches `reference_index`, `recovery_state`, and `next_check_at` |
+| Law                                                               | Enforced by                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A node that can hold money is never `prunable`                    | `machine.test.ts`, "a row that may hold money is never deleted on age alone"                                                                                                                                                      |
+| A node that can hold money has an outgoing system edge            | `machine.test.ts`, "…always has something that will act on it"                                                                                                                                                                    |
+| A node that can hold money can still reach a closed answer        | `machine.test.ts`, "…can still reach a closed answer"                                                                                                                                                                             |
+| A terminal node has no outgoing edge                              | `graph.test.ts`, "a closed row has no way back out"                                                                                                                                                                               |
+| Every node is reachable, and every node can reach a closed answer | `graph.test.ts`                                                                                                                                                                                                                   |
+| `recoveryNodeOf` is total, and throws on the impossible           | `graph.test.ts` refusal cases, and the unknown-word case in `machine.test.ts`                                                                                                                                                     |
+| Every edge that lands on a non-terminal node writes the schedule  | Structure, across two writers. `applySumupRecoveryEvent` sets `next_check_at` unless the landing node is terminal. `setSumupCheckoutId` writes the `checkout_created` edge, and it sets `next_check_at` to `SUMUP_FIRST_CHECK_MS` |
+| Every self-move fences on the schedule, not on the state alone    | Structure. `moveSumupRecoveryRow` is the only `UPDATE`. It matches `reference_index`, `recovery_state`, and `next_check_at`                                                                                                       |
 
-The last two laws are structural, not declared. One write helper carries both of
-them, so no second implementation can drift. That is a stronger guarantee than a
-test over a declaration, and it is why nobody wrote them as laws.
+The last two laws are structural, not declared. The fence law has one write
+helper behind it, `moveSumupRecoveryRow`, so no second implementation can drift.
+The schedule law has two writers. `setSumupCheckoutId` writes the
+`checkout_created` edge on its own, and it takes the landing state from
+`recoveryMoveTo`, so it reads the same declaration. Both writers obey the law
+today. Two writers are weaker than one, and a test over the declaration would
+hold this law better than structure does.
 
 Two laws deserve plain words. **The site never deletes a row that can hold money
 nobody accounted for. That row always has something that will act on it.** That
@@ -361,10 +370,11 @@ Tests:
   whose order is not readable yet retryable".
 
 Two things differed from the plan. Nobody wrote the redelivery test that the
-plan named. The existing idempotency tests already deliver the same Square
-webhook twice and assert one attendee, so a third test only restates a pinned
-test. #2107 then followed. It closed three gaps that the mutation gate found in
-the same file:
+plan named. The slice recorded a reason for that, and the reason was wrong: the
+replay suites configure Stripe, and no Square test delivers the same completed
+webhook twice. The replay identity of Square therefore has no direct test.
+TODO.md records that gap. #2107 then followed. It closed three gaps that the
+mutation gate found in the same file:
 
 - a payment id of one character, which the code discarded,
 - two different order faults, which logged the same line,
@@ -402,8 +412,10 @@ Tests, by what each one holds:
 - `test/integration/server/sumup-recovery/crash-windows.test.ts` — a failed
   state write finishes the row on the next check.
 - `test/integration/server/sumup-recovery/races-the-webhook.test.ts` — the
-  webhook and the recovery run together, and produce one attendee and one ledger
-  group.
+  webhook and the recovery run together. The test asserts one `attendees` row,
+  one `processed_payments` row, and a row that does not end on `owed`. It reads
+  no ledger row, so it does not prove that the ledger holds one group. TODO.md
+  records that gap.
 - `test/integration/server/sumup-recovery/lost-race.test.ts` and
   `test/integration/server/sumup-recovery/queue-order.test.ts` — the loser of
   the fence, and a stuck row that does not hold the front of the queue.
