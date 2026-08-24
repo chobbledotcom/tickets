@@ -1,10 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { withTransaction } from "#db/client.ts";
 import {
   asPaymentRowRecord,
   assertRefundRowsHeld,
   readAttendeeRowStates,
+  type StoredPaymentClaimRow,
 } from "#db/payment-claim.ts";
 import type { PaymentReviewReason } from "#payment/review.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -50,18 +53,45 @@ const reviewOf = async (attendeeId: number) =>
   (await withTransaction((tx) => readAttendeeRowStates(tx, [attendeeId])))[0]
     ?.state.review;
 
+/** One stored row as the claim query returns it, with nothing on it yet. */
+const storedRow = (): StoredPaymentClaimRow => ({
+  attendee_id: 1,
+  failure_data: "",
+  payment_reference_index: "reference-index",
+  payment_session_id: "session-one",
+  provider_refund_work: 0,
+  refund_state_name: null,
+});
+
 describeWithEnv("db > payment claim", { db: true, encryptionKey: true }, () => {
   test("rejects an invalid provider-work projection at the database boundary", async () => {
     await expect(
-      asPaymentRowRecord({
-        attendee_id: 1,
-        failure_data: "",
-        payment_reference_index: "reference-index",
-        payment_session_id: "session-one",
-        provider_refund_work: 2,
-        refund_state_name: null,
-      }),
+      asPaymentRowRecord({ ...storedRow(), provider_refund_work: 2 }),
     ).rejects.toThrow("Provider refund work projection is invalid");
+  });
+
+  test("reads the provider-work projection the way the query means it", async () => {
+    // 1 is the charge still owing refund work and 0 is none. Read the two the
+    // other way round and a refund runs against a charge that is already done.
+    expect(
+      (await asPaymentRowRecord({ ...storedRow(), provider_refund_work: 1 }))
+        .providerRefundWork,
+    ).toBe(true);
+    expect(
+      (await asPaymentRowRecord({ ...storedRow(), provider_refund_work: 0 }))
+        .providerRefundWork,
+    ).toBe(false);
+  });
+
+  test("names the column when a stored record will not read", async () => {
+    // The slot decrypts but holds no record, which is corruption. The message
+    // must name where it was read from, or nobody can find the broken row.
+    await expect(
+      asPaymentRowRecord({
+        ...storedRow(),
+        failure_data: (await encrypt("not-a-record")) as EnvKeyEncrypted,
+      }),
+    ).rejects.toThrow("Invalid stored JSON in processed_payments.failure_data");
   });
 
   describe("releasing", () => {
