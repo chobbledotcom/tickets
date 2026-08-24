@@ -112,5 +112,15 @@ describeWithEnv(
         [daily.id],
       );
     });
+
+    test("a line whose listing does not exist keeps the refusal", async () => {
+      // The naming read cannot answer for a listing that is not there. The
+      // refusal must still come back — with no listing named — rather than
+      // being replaced by the diagnosis's own failure.
+      await expectLateOrderRefusedNaming(
+        [{ listingId: 999_999, quantity: 1 }],
+        [],
+      );
+    });
   },
 );

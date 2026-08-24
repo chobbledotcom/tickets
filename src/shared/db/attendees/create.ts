@@ -240,18 +240,24 @@ const firstUnfitInOrder = async (
     quantity: booking.quantity ?? 1,
   }));
   const days = unique(compact(bookings.map((booking) => booking.date)));
-  if (days.length > 1) {
-    return unfitListingIds(
-      items.map((item, index) => ({
-        ...item,
-        date: bookings[index]!.date ?? null,
-      })),
-    );
-  }
-  for (let end = 1; end <= items.length; end++) {
-    if (!(await checkBatchAvailabilityImpl(items.slice(0, end), days[0]))) {
-      return [bookings[end - 1]!.listingId];
+  try {
+    if (days.length > 1) {
+      return await unfitListingIds(
+        items.map((item, index) => ({
+          ...item,
+          date: bookings[index]!.date ?? null,
+        })),
+      );
     }
+    for (let end = 1; end <= items.length; end++) {
+      if (!(await checkBatchAvailabilityImpl(items.slice(0, end), days[0]))) {
+        return [bookings[end - 1]!.listingId];
+      }
+    }
+  } catch {
+    // The refusal already stands; this read only picks the name. A line the
+    // check cannot answer for — its listing gone before this read, or never
+    // real — keeps the refusal and names no listing, the documented fallback.
   }
   return [];
 };
