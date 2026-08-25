@@ -63,6 +63,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # No later step runs an authenticated git command, and the job
+          # runs repository code with provider secrets in its environment.
+          persist-credentials: false
 
       - name: Set up Deno
         uses: ./.github/actions/setup-deno
