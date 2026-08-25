@@ -3,8 +3,8 @@
 End-to-end email tests against the **real** provider APIs. The main test suite
 stubs every email fetch. This harness sends real requests through the production
 delivery code and reports what each provider answered. It catches the one class
-of bug that stubs cannot: request URLs, auth headers, and body shapes that
-drift from what the providers accept.
+of bug that stubs cannot: request URLs, auth headers, and body shapes that drift
+from what the providers accept.
 
 The harness runs the production code directly — `sendEmail`
 (`src/shared/email.ts`) and `sendBulkEmails` (`src/shared/email/bulk.ts`). It
