@@ -110,10 +110,14 @@ describeWithEnv(
         const listing1 = await createTestListing({ closesAt: pastDate });
         const listing2 = await createTestListing({ closesAt: pastDate });
 
-        await assertPublicHtml(
+        const html = await assertPublicHtml(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Registration closed.",
         );
+        // The story owns the customer-facing claim; this owns the render
+        // branch: a fully-closed page carries no booking controls at all.
+        expect(html).not.toContain("Continue");
+        expect(html).not.toContain(`name="quantity_${listing1.id}"`);
       });
 
       test("shows 'Registration Closed' label for individual closed listing in ticket", async () => {

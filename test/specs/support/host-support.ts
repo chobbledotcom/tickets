@@ -8,9 +8,9 @@
 // jscpd:ignore-start
 import { settings } from "#db/settings.ts";
 import {
+  openAdminPage,
   openAsNewcomer,
   organiserSendsAndIsTold,
-  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import {
   answersTheEmailProviderWith,
@@ -72,14 +72,15 @@ export const siteCanSendFrom = async (address: string): Promise<void> => {
 };
 
 /** The owner writes to the host through the form on the page, and is told
- * something back. */
+ * something back. The words they typed are kept, so the story can prove
+ * those words are what left the site. */
 export const ownerWritesToTheHost = async (
   world: TicketsWorld,
   message: string,
 ): Promise<void> => {
-  await withAdminPage(world, SUPPORT_PAGE, (browser) =>
-    organiserSendsAndIsTold(world, browser, { message }, SEND),
-  );
+  const browser = await openAdminPage(world, SUPPORT_PAGE);
+  world.messageWritten = message;
+  await organiserSendsAndIsTold(world, browser, { message }, SEND);
 };
 
 /** A stranger looks for the Support page and lands wherever the site puts

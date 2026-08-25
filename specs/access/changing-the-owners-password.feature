@@ -40,8 +40,10 @@ Feature: The owner changes their own password
     @case:password.change-signs-out-and-lets-them-back-in
     Scenario: The owner changes their password
       Given the owner is signed in, in their own window
+      And the owner is signed in, in a second window
       When the owner changes their password to a-new-long-password
       Then the owner is told the password changed and to log in again
       And their old window is signed out
+      And their second window is signed out too
       And they can sign in with the new password
       And they cannot sign in with the old one

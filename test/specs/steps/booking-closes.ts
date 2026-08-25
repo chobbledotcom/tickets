@@ -120,11 +120,32 @@ const openTripAndMugPage = (world: TicketsWorld) =>
     }`,
   );
 
+/** The part of the page between the Trip's own closed row and the Mug's own
+ * booking control — a closed label found there belongs to the Trip's row,
+ * not to a marker somewhere else on the page. An open listing renders its
+ * name with its controls inside one label, so the Mug's quantity field is
+ * the reliable edge of its row. */
+const tripRowOn = (html: string, mugField: string): string => {
+  const start = html.indexOf("<label>Trip</label>");
+  const end = html.indexOf(mugField);
+  if (start < 0 || end < start) {
+    throw new Error(
+      "The page shows no closed Trip row in front of the Mug's controls",
+    );
+  }
+  return html.slice(start, end);
+};
+
 Then(
   "the page selling both says the Trip is closed",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await openTripAndMugPage(this);
-    expect(browser.pageText).toContain(t("public.registration_closed"));
+    const { currentHtml } = await openTripAndMugPage(this);
+    const mugField = `name="${quantityFieldName(
+      listingNamed(this, "Mug").id,
+    )}"`;
+    expect(tripRowOn(currentHtml, mugField)).toContain(
+      t("public.registration_closed"),
+    );
   },
 );
 
@@ -142,8 +163,16 @@ Then(
 Then(
   "the page selling both is closed to booking",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await openTripAndMugPage(this);
-    expect(browser.pageText).toContain(t("public.ticket.registration_closed"));
+    const { currentHtml } = await openTripAndMugPage(this);
+    expect(currentHtml).toContain(t("public.ticket.registration_closed"));
+    // Closed to booking means nothing to book with: no count for either
+    // thing, and no button to send anything.
+    for (const name of ["Trip", "Mug"]) {
+      expect(currentHtml).not.toContain(
+        `name="${quantityFieldName(listingNamed(this, name).id)}"`,
+      );
+    }
+    expect(currentHtml).not.toContain("Continue");
   },
 );
 
@@ -160,5 +189,14 @@ Then(
   "nothing was booked on the {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
     expect((await getAttendeesRaw(listingNamed(this, name).id)).length).toBe(0);
+  },
+);
+
+Then(
+  "one place was booked on the {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // A thanked order is only half the proof: an order that silently dropped
+    // one of its lines would thank its customer just the same.
+    expect((await getAttendeesRaw(listingNamed(this, name).id)).length).toBe(1);
   },
 );

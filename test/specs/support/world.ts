@@ -146,6 +146,9 @@ export interface TicketsWorld extends World, EvidencePages {
     calls: RecordedFetchCall[];
     emailCall: () => RecordedFetchCall | undefined;
   };
+  /** The words somebody last wrote into a message box, kept so a later step
+   * can prove those words — not just any words — were what got sent. */
+  messageWritten?: string;
   modifierId?: number;
   moneyFault?: RefundLedgerFault;
   newStayLength?: number;

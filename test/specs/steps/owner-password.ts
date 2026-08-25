@@ -16,6 +16,8 @@ import {
   A_GOOD_NEW_PASSWORD,
   ownerCanSignInWith,
   ownerChangesPassword,
+  ownerSignInASecondWindow,
+  secondWindowStillSignedIn,
 } from "#test/specs/support/owner-password.ts";
 import {
   type TicketsWorld,
@@ -29,6 +31,13 @@ Given(
   "the owner is signed in, in their own window",
   async function (this: TicketsWorld): Promise<void> {
     await adminBrowser(this);
+  },
+);
+
+Given(
+  "the owner is signed in, in a second window",
+  async function (this: TicketsWorld): Promise<void> {
+    await ownerSignInASecondWindow(this);
   },
 );
 
@@ -103,6 +112,16 @@ Then(
     const answered = await browser.visit("/admin/settings");
     expect(answered).toBe(200);
     expect(browser.pageText).toContain("Login");
+  },
+);
+
+Then(
+  "their second window is signed out too",
+  async function (this: TicketsWorld): Promise<void> {
+    // This window sent nothing, so its cookie was never cleared by a
+    // response: being signed out proves the change ended the sessions the
+    // server holds, not just the sending window's own.
+    expect(await secondWindowStillSignedIn(this)).toBe(false);
   },
 );
 

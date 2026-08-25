@@ -7,8 +7,8 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
-import { supportSubject } from "#shared/support.ts";
 import {
   adminBrowser,
   ORGANISER,
@@ -32,6 +32,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 
@@ -49,10 +50,24 @@ const ENTER_A_MESSAGE = "Please enter a message.";
  * words before that value are the same on every visit. */
 const LAST_SUBMITTED = "You last submitted this form";
 
-/** The words every support message's subject opens with, read from the
- * production builder: an empty domain leaves just the wording, and the
- * story's own site name follows it. */
-const SUBJECT_OPENS_WITH = supportSubject("").trim();
+/** The words every support message's subject opens with, written out here
+ * rather than read from the production builder, so a builder that drops or
+ * rewords the site's name fails the story instead of moving with it. The
+ * domain is read from the site's own config: it is the address this story's
+ * site really runs on, not a wording the code under test chose. */
+const expectedSubject = (): string =>
+  `Support message from Chobble Tickets site ${getEffectiveDomain()}`;
+
+/** The email the site sent, or a loud failure — reading "no email" as the
+ * answer would let a send with nothing readable in it pass for a delivery. */
+const sentEmail = (world: TicketsWorld): RecordedFetchCall => {
+  const sent = requiredWorldValue(
+    world.messagesOut,
+    "the outgoing watch",
+  ).emailCall();
+  if (!sent) throw new Error("The site sent no email to read");
+  return sent;
+};
 
 /** The stranger in a story of their own, keeping their own window. */
 const STRANGER = "the stranger";
@@ -234,11 +249,15 @@ Then(
 );
 
 Then("the message reaches the host", function (this: TicketsWorld): void {
-  const sent = requiredWorldValue(
-    this.messagesOut,
-    "the outgoing watch",
-  ).emailCall();
-  expect(sent?.body?.to).toEqual([HOST_ADDRESS]);
+  const sent = sentEmail(this);
+  expect(sent.body?.to).toEqual([HOST_ADDRESS]);
+  // The words the owner typed are the message: a delivery that dropped them
+  // or swapped them for something else is not the message reaching anybody.
+  const written = requiredWorldValue(
+    this.messageWritten,
+    "the message written",
+  );
+  expect(String(sent.body?.html ?? "")).toContain(written);
 });
 
 Then("nothing reaches the host", function (this: TicketsWorld): void {
@@ -249,11 +268,7 @@ Then("nothing reaches the host", function (this: TicketsWorld): void {
 Then(
   "the message names the site it came from",
   function (this: TicketsWorld): void {
-    const sent = requiredWorldValue(
-      this.messagesOut,
-      "the outgoing watch",
-    ).emailCall();
-    expect(String(sent?.body?.subject)).toContain(SUBJECT_OPENS_WITH);
+    expect(String(sentEmail(this).body?.subject)).toBe(expectedSubject());
   },
 );
 

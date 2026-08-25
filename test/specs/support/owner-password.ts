@@ -8,9 +8,13 @@
 import { t } from "#i18n";
 import {
   adminBrowser,
+  browserSeenBy,
   organiserSendsAndIsTold,
 } from "#test/specs/support/browser.ts";
-import { signsInAndCanOpen } from "#test/specs/support/staff-accounts.ts";
+import {
+  signInAndRemember,
+  signsInAndCanOpen,
+} from "#test/specs/support/staff-accounts.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   TEST_ADMIN_PASSWORD,
@@ -21,6 +25,15 @@ import {
 
 /** The settings page, where the password form lives. */
 const SETTINGS_PAGE = "/admin/settings";
+
+/** The window the owner's second, independent sign-in is kept under. */
+const OWNERS_SECOND_WINDOW = "the owner's second window";
+
+/** The owner's own way in, as the seeded admin. */
+const OWNER_CREDENTIALS = {
+  password: TEST_ADMIN_PASSWORD,
+  username: TEST_ADMIN_USERNAME,
+};
 
 /** What the owner types when the story is not about the password itself. */
 export const A_GOOD_NEW_PASSWORD = "a-new-long-password";
@@ -48,6 +61,26 @@ export const ownerChangesPassword = async (
     },
     t("settings.change_password"),
   );
+};
+
+/** The owner signs in a second time, in a window of their own that sends
+ * nothing and changes nothing. Only a change that ends the server-side
+ * sessions — not merely the sending window's own cookie — can sign this
+ * window out. */
+export const ownerSignInASecondWindow = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  await signInAndRemember(OWNER_CREDENTIALS)(world, OWNERS_SECOND_WINDOW);
+};
+
+/** Whether the owner's second window — the one that sent nothing — can
+ * still open a page only the signed-in owner may see. */
+export const secondWindowStillSignedIn = async (
+  world: TicketsWorld,
+): Promise<boolean> => {
+  const browser = browserSeenBy(world, OWNERS_SECOND_WINDOW);
+  await browser.visit(SETTINGS_PAGE);
+  return !browser.pageText.includes("Login");
 };
 
 /** Whether the owner can sign in with this password, proved by opening the

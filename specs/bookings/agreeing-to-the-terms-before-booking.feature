@@ -31,6 +31,7 @@ Feature: A customer agrees to the terms before booking
       Given a Ticket to book, where orders must agree to terms first
       When a customer tries to book the Ticket agreeing to the terms
       Then the customer is thanked for their order
+      And one place was booked on the Ticket
 
   @rule:bookings.one-agreement-covers-a-whole-order
   Rule: One agreement covers a whole order
@@ -53,6 +54,8 @@ Feature: A customer agrees to the terms before booking
       And the shop also sells a Mug
       When a customer tries to order the Ticket and the Mug agreeing to the terms
       Then the customer is thanked for their order
+      And one place was booked on the Ticket
+      And one place was booked on the Mug
 
   @rule:bookings.a-site-that-asks-nothing-adds-no-box
   Rule: A site that asks nothing adds no box
@@ -65,3 +68,4 @@ Feature: A customer agrees to the terms before booking
       Then the Ticket page offers no box to agree to
       When a customer tries to book the Ticket
       Then the customer is thanked for their order
+      And one place was booked on the Ticket

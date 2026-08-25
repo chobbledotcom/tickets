@@ -85,6 +85,19 @@ const signsInOnAFreshPage = async (
   return browser;
 };
 
+/** Sign in with these credentials and keep the window under one story name,
+ * for whoever needs a signed-in window of their own — a staff member's, or
+ * the owner's second one. Curried on the credentials, so each caller names
+ * whose they are. */
+export const signInAndRemember =
+  (credentials: { password: string; username: string }) =>
+  async (world: TicketsWorld, browserName: string): Promise<TestBrowser> =>
+    rememberBrowser(
+      world,
+      browserName,
+      await signsInOnAFreshPage(credentials.username, credentials.password),
+    );
+
 /** The activated staff member signs in, then keeps that signed-in browser
  * for their later actions. */
 export const logStaffIn = async (
@@ -92,10 +105,9 @@ export const logStaffIn = async (
   who: string,
   browserName: string,
 ): Promise<TestBrowser> =>
-  rememberBrowser(
+  signInAndRemember({ password: STAFF_PASSWORD, username: who })(
     world,
     browserName,
-    await signsInOnAFreshPage(who, STAFF_PASSWORD),
   );
 
 /** The owner invites a manager through the rendered Users form. */
