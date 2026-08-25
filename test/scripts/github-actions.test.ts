@@ -42,4 +42,10 @@ describe("publishExecutedResult", () => {
     using _env = withEnv({ GITHUB_OUTPUT: undefined });
     expect(publishExecutedResult()).toBe(false);
   });
+
+  test("throws when the required handshake cannot be written", () => {
+    using dir = tempDir({ prefix: "gha-output-dir-" });
+    using _env = withEnv({ GITHUB_OUTPUT: dir.path });
+    expect(() => publishExecutedResult()).toThrow();
+  });
 });
