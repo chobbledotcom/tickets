@@ -273,11 +273,6 @@ const RECOVERY_DERIVED = derivedNodeIds({
   nodes: RECOVERY_NODES,
 });
 
-/** The nodes a row can never leave. Derived, so a cell added to a closed
- * row's line changes this rather than quietly contradicting it. */
-export const RECOVERY_TERMINAL_NODES: readonly RecoveryNodeId[] =
-  RECOVERY_DERIVED.terminal();
-
 /** The nodes still worth asking SumUp about: the ones some check can move.
  * Derived, so a node stops being asked about the moment its last check is
  * taken away, and a new one joins by being declared. A row carries a next

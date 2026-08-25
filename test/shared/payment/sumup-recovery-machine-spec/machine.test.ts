@@ -8,13 +8,12 @@ import {
   RECOVERY_MOVES,
   RECOVERY_NODES,
   RECOVERY_PRUNABLE_NODES,
-  RECOVERY_TERMINAL_NODES,
   RECOVERY_UNANSWERED_NODES,
   RECOVERY_UNANSWERED_WHEN_OLD_NODES,
   type RecoveryNodeId,
   recoveryNodeOf,
 } from "#payment/sumup-recovery-machine-spec.ts";
-import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
+import { derivedNodeIds, movesIn } from "#shared/schema-atlas/machine-spec.ts";
 import {
   registerConformanceSweep,
   registerTableChecks,
@@ -30,6 +29,10 @@ const spec = {
 };
 
 const reader = movesIn(RECOVERY_MOVES);
+
+/** The closed nodes, read off the declared table the way production reads
+ * its own derived lists. */
+const RECOVERY_TERMINAL = derivedNodeIds(spec).terminal();
 
 /** The nodes that may be holding money nobody has accounted for. */
 const unaccountedNodes = RECOVERY_NODES.filter(
@@ -65,7 +68,7 @@ describe("sumup recovery machine", () => {
   test("a row that may hold money can still reach a closed answer", () => {
     for (const node of unaccountedNodes) {
       const closing = RECOVERY_EVENTS.filter((event) =>
-        RECOVERY_TERMINAL_NODES.includes(
+        RECOVERY_TERMINAL.includes(
           reader.expected(node.id, event.id, "") as RecoveryNodeId,
         ),
       );
@@ -74,7 +77,7 @@ describe("sumup recovery machine", () => {
   });
 
   test("the closed nodes are exactly the two that answer nothing", () => {
-    expect([...RECOVERY_TERMINAL_NODES].sort()).toEqual(["finished", "unpaid"]);
+    expect([...RECOVERY_TERMINAL].sort()).toEqual(["finished", "unpaid"]);
   });
 
   test("only unanswered rows stay in the recovery queue", () => {
