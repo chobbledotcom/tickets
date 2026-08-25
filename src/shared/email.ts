@@ -293,19 +293,25 @@ const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
  * Resend and Mailgun `message`, Postmark `Message`, SendGrid `errors`. */
 const PROVIDER_ERROR_KEYS = ["message", "Message", "errors", "error"];
 
-/** Cap on how much of a provider's reply can enter a log line or a flash
- * message, so a verbose body cannot flood either. */
+/** How much of a provider's reply can enter a log line or a flash message,
+ * so a verbose body cannot flood either. A cut reply keeps this many
+ * characters and then a three-character `...` marker, like the bulk-send
+ * summary. */
 const MAX_REASON_LENGTH = 300;
 
 /** Pull the reason out of a provider's error reply: the parsed message or the
- * raw body, on one line, capped, and without the message's own addresses —
+ * raw body, on one line, capped, and without the send's own addresses —
  * they must not reach the logs. Empty when the reply body says nothing. */
-const failureReason = (text: string, msg: EmailMessage): string => {
+const failureReason = (
+  text: string,
+  config: EmailConfig,
+  msg: EmailMessage,
+): string => {
   const withoutAddresses = reduce(
     (reason: string, address: string) =>
       reason.replaceAll(address, "[redacted]"),
     apiErrorMessage(text, PROVIDER_ERROR_KEYS),
-  )(compact([msg.to, msg.replyTo]));
+  )(compact([msg.to, msg.replyTo, config.fromAddress]));
   const oneLine = withoutAddresses.replace(/\s+/g, " ").trim();
   return oneLine.length > MAX_REASON_LENGTH
     ? `${oneLine.slice(0, MAX_REASON_LENGTH)}...`
@@ -321,7 +327,7 @@ const emailDelivery =
         buildRequest(config, msg),
       );
       if (ok) return { delivered: true, status };
-      const reason = failureReason(text, msg);
+      const reason = failureReason(text, config, msg);
       const base = `provider=${config.provider} status=${status}`;
       return {
         delivered: false,

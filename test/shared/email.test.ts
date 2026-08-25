@@ -252,9 +252,9 @@ describe("sendEmail", () => {
     );
   });
 
-  test("scrubs the message's own addresses from the reason", async () => {
+  test("scrubs the send's own addresses from the reason", async () => {
     restubReply(
-      '{"message":"a@b.com and reply@test.com are not allowed"}',
+      '{"message":"a@b.com, reply@test.com and tickets@example.com are not allowed"}',
       400,
     );
 
@@ -263,8 +263,26 @@ describe("sendEmail", () => {
       { ...minimalMsg, replyTo: validEmail("reply@test.com") },
       {
         logged:
-          'detail="provider=resend status=400: [redacted] and [redacted] are not allowed"',
+          'detail="provider=resend status=400: [redacted], [redacted] and [redacted] are not allowed"',
         status: 400,
+      },
+    );
+  });
+
+  test("scrubs the configured from address on an unverified-sender reply", async () => {
+    restubReply(
+      '{"errors":[{"message":"The from address tickets@example.com is not a verified Sender Identity"}]}',
+      403,
+    );
+
+    await sendEmailExpectingError(
+      { ...testConfig, provider: "sendgrid" },
+      minimalMsg,
+      {
+        logged:
+          'detail="provider=sendgrid status=403: The from address [redacted] is not a verified Sender Identity"',
+        reason: "The from address [redacted] is not a verified Sender Identity",
+        status: 403,
       },
     );
   });
