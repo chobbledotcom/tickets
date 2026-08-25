@@ -6,6 +6,7 @@ import {
 } from "#test/specs/support/form-controls/reading.ts";
 import {
   fillInAndSend,
+  type SendingAForm,
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
@@ -45,6 +46,18 @@ export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
 
 export const scenarioBrowser = (world: TicketsWorld): TestBrowser =>
   browserOf(world, ORGANISER);
+
+/** The organiser sends a form on the admin page in front of them, and what
+ * the site says back is kept for the story to read — the tail every one of
+ * their actions ends in. */
+export const organiserSendsAndIsTold = async (
+  world: TicketsWorld,
+  browser: TestBrowser,
+  ...sending: SendingAForm
+): Promise<void> => {
+  await fillInAndSend(browser, ...sending);
+  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+};
 
 /** Take a thing down from its own page: follow its delete link, type a name
  * to confirm, and keep what the site said for the story to read. Curried on
@@ -135,6 +148,17 @@ export const opensPagesAs =
 /** The organiser opens one of their own pages, signing in first if they are not
  * already. Every admin page a story reads starts here. */
 export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
+
+/** The organiser opens one of their own pages, and something is done with
+ * the window they are looking at — the opening every organiser action on a
+ * page shares. */
+export const withAdminPage = async (
+  world: TicketsWorld,
+  path: string,
+  act: (browser: TestBrowser) => Promise<void>,
+): Promise<void> => {
+  await act(await openAdminPage(world, path));
+};
 
 export const submitRenderedAdminForm = async (
   world: TicketsWorld,

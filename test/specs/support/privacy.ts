@@ -17,26 +17,25 @@ import {
 } from "#db/contact-preferences.ts";
 import { t } from "#i18n";
 // jscpd:ignore-start
-import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  openAdminPage,
+  organiserSendsAndIsTold,
+} from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   choicesOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
-import {
-  fillInAndSend,
-  takeDownFromActions,
-} from "#test/specs/support/form-controls.ts";
+import { takeDownFromActions } from "#test/specs/support/form-controls.ts";
 import {
   listingIdNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
-import {
-  type ActOnOneThing,
-  type AsksAboutOneThing,
-  keepWhatTheyWereTold,
-  type TicketsWorld,
+import type {
+  ActOnOneThing,
+  AsksAboutOneThing,
+  TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -197,13 +196,13 @@ const pressesOnOrphansForm =
     // The box starts ticked, so a story that clears it is really changing
     // something. A page that came back already clear would make that a no-op.
     expect(tickedCheckboxes(browser.currentHtml, BY_ITSELF)).toContain(tick);
-    await fillInAndSend(
+    await organiserSendsAndIsTold(
+      world,
       browser,
       { [AGE_CHOOSER]: ageOffered(browser.currentHtml, age) },
       t(choice.pressingKey),
       { [BY_ITSELF]: choice.byItself ? [tick] : [] },
     );
-    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
   };
 
 /** The organiser clears out the records left behind, choosing how old one has
@@ -244,12 +243,12 @@ const sendsEraseForm = async (
   found: { by: WayOfKnowingSomebody; typing: string },
 ): Promise<void> => {
   const browser = await openPrivacyPage(world);
-  await fillInAndSend(
+  await organiserSendsAndIsTold(
+    world,
     browser,
     { contact_type: CHANNEL_OF[found.by], identifier: found.typing },
     t("privacy.erase.button"),
   );
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
 /** The organiser forgets Ada, found by one of the two ways they are known. */

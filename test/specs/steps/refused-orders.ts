@@ -32,8 +32,8 @@ import {
 import {
   listingIdNamed,
   listingNamed,
-  putsOnSale,
   putsOnSaleByTheDay,
+  putsPlainThingOnSale,
   sellSomethingAt,
 } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -68,15 +68,11 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-/** A plain listing's shape here: a handful of places, the site's own
- * thank-you page so a booking's outcome can be read. */
-const PLAIN_THING = { maxAttendees: 10, maxQuantity: 5, thankYouUrl: "" };
-
 Given(
   "the shop sells an Alpha and a Bravo, and a Charlie booked by the day with room for {int} a day",
   async function (this: TicketsWorld, room: number): Promise<void> {
-    await putsOnSale(this, "Alpha", PLAIN_THING);
-    await putsOnSale(this, "Bravo", PLAIN_THING);
+    await putsPlainThingOnSale(this, "Alpha");
+    await putsPlainThingOnSale(this, "Bravo");
     await sellDayBookedThing(this, "Charlie", room);
   },
 );
@@ -124,7 +120,7 @@ Given(
 Given(
   "a Ticket to book, where orders must agree to terms first",
   async function (this: TicketsWorld): Promise<void> {
-    await putsOnSale(this, "Ticket", PLAIN_THING);
+    await putsPlainThingOnSale(this, "Ticket");
     await settings.update.terms("You must accept the rules to book.");
   },
 );

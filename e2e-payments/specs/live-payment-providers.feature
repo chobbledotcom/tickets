@@ -27,6 +27,7 @@ Feature: Real sandbox payments finish safely
       When a separate visitor books the listing
       Then the visitor sees the booking confirmation
       And the owner sees one attendee and no payment income
+      And the owner's system map answers clean
 
   @rule:payments.live-stripe-refund-survives-local-failure @surface:admin @surface:public @surface:return @surface:webhook
   Rule: A returned Stripe payment survives a local Money failure
@@ -56,6 +57,7 @@ Feature: Real sandbox payments finish safely
       Then Money shows exactly one refund
       And the booking says the payment was refunded
       And Refund is unavailable while Delete is reachable
+      And the owner's system map answers clean
 
   @rule:payments.live-square-refund-is-safe @surface:admin @surface:public @surface:return
   Rule: A Square refund reaches a safe durable result
@@ -78,6 +80,7 @@ Feature: Real sandbox payments finish safely
       When the owner refreshes the payment without submitting Refund again
       Then the provider's returned amount and Money refund count do not grow
       And no second Refund action is available
+      And the owner's system map answers clean
 
   @rule:payments.live-sumup-refund-is-safe @surface:admin @surface:public @surface:return @surface:webhook
   Rule: A SumUp callback and refund reach a safe durable result
@@ -104,6 +107,7 @@ Feature: Real sandbox payments finish safely
       When the owner refreshes the payment without submitting Refund again
       Then the provider's returned amount and Money refund count do not grow
       And no second Refund action is available
+      And the owner's system map answers clean
 
   @rule:payments.live-invalidated-checkout-is-refunded @surface:admin @surface:public @surface:return @surface:webhook
   Rule: A checkout invalidated while the visitor pays is retained and refunded

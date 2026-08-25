@@ -1,17 +1,25 @@
+/**
+ * Tests for the terms-agreement branches on the public ticket pages
+ * POST /ticket/:slug(+…) — server-side refusal and acceptance with terms
+ *
+ * Sits beside the story `@story:bookings.agreeing-to-the-terms-before-booking`:
+ * the story owns what a real browser experiences — the checkbox render is
+ * owned by the template unit tests (reservations/form.test.ts, ticket-page),
+ * and the page's insistence on the ticked box is the story's. These own the
+ * server guard in src/features/public/ticket-submit/parse.ts: an order that
+ * arrives without the agreement is refused for that reason and books
+ * nothing. The page's own checkbox is required, so no browser can send
+ * these — only a crafted POST can.
+ */
+
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
-import { expectBasicTicketBookingRedirectsToThanks } from "#test/integration/server/public/basic-ticket-booking.ts";
-import {
-  assertPublicHtml,
-  expectFlash,
-  expectRedirect,
-  expectReservedRedirectWithTokens,
-} from "#test-utils/assertions.ts";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import {
   expectBookOneEachRejected,
-  submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -24,25 +32,7 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("terms and conditions (single ticket)", () => {
-      test("shows terms checkbox when terms are configured", async () => {
-        await settings.update.terms("I agree to the listing rules.");
-
-        const listing = await createTestListing({ maxAttendees: 50 });
-        await assertPublicHtml(
-          `/ticket/${listing.slug}`,
-          "agree_terms",
-          "I agree to the listing rules.",
-          "I agree to the terms above",
-        );
-      });
-
-      test("does not show terms checkbox when no terms configured", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const html = await assertPublicHtml(`/ticket/${listing.slug}`);
-        expect(html).not.toContain("agree_terms");
-      });
-
-      test("rejects submission without agreeing to terms", async () => {
+      test("rejects a submission without agreeing, and books nothing", async () => {
         await settings.update.terms("You must accept the rules.");
 
         const listing = await createTestListing({ maxAttendees: 50 });
@@ -56,9 +46,10 @@ describeWithEnv(
           expect.stringContaining("You must agree to the terms and conditions"),
           false,
         );
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       });
 
-      test("accepts submission when terms are agreed to", async () => {
+      test("accepts a submission when terms are agreed to", async () => {
         await settings.update.terms("You must accept the rules.");
 
         const listing = await createTestListing({
@@ -72,32 +63,10 @@ describeWithEnv(
         });
         expectRedirect(response, "https://example.com/thanks");
       });
-
-      test("succeeds without checkbox when no terms configured", async () => {
-        await expectBasicTicketBookingRedirectsToThanks();
-      });
     });
 
     describe("terms and conditions (ticket)", () => {
-      test("shows terms checkbox on ticket page when configured", async () => {
-        await settings.update.terms("Multi-listing terms apply.");
-
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "TC Multi 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "TC Multi 2",
-        });
-        await assertPublicHtml(
-          `/ticket/${listing1.slug}+${listing2.slug}`,
-          "agree_terms",
-          "Multi-listing terms apply.",
-        );
-      });
-
-      test("rejects ticket submission without agreeing to terms", async () => {
+      test("rejects a joint submission without agreeing, and books nothing", async () => {
         await settings.update.terms("Must agree to policy.");
 
         const listing1 = await createTestListing({
@@ -115,31 +84,9 @@ describeWithEnv(
           listing2.id,
           "You must agree to the terms and conditions",
         );
-      });
-
-      test("accepts ticket submission when terms are agreed to", async () => {
-        await settings.update.terms("Must agree to policy.");
-
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "TC Multi Ok 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "TC Multi Ok 2",
-        });
-
-        const response = await submitMultiTicketForm(
-          `${listing1.slug}+${listing2.slug}`,
-          {
-            agree_terms: "1",
-            email: "john@example.com",
-            name: "John Doe",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "1",
-          },
-        );
-        expectReservedRedirectWithTokens(response);
+        // The refusal leaves nothing behind on either part of the order.
+        expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
+        expect((await getAttendeesRaw(listing2.id)).length).toBe(0);
       });
     });
   },

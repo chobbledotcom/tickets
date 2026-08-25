@@ -11,7 +11,9 @@ const FEATURE_PATH = "specs/payments/capacity-after-payment.feature";
 describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
+      "access.changing-the-owners-password",
       "access.letting-another-system-in",
+      "access.removing-a-persons-access",
       "access.setting-a-site-up",
       "access.what-an-editor-can-do",
       "attendees.asking-to-be-left-alone",
@@ -26,6 +28,7 @@ describe("Cucumber story catalog", () => {
       "attendees.writing-to-the-people-who-booked",
       "bookings.add-ons-sold-on-their-own",
       "bookings.adding-a-booking-by-hand",
+      "bookings.agreeing-to-the-terms-before-booking",
       "bookings.book-through-the-site",
       "bookings.booking-from-a-code-on-the-door",
       "bookings.booking-several-days",
@@ -38,12 +41,14 @@ describe("Cucumber story catalog", () => {
       "bookings.selling-things-as-one-bundle",
       "bookings.taking-a-holiday",
       "bookings.volunteer-sign-up",
+      "bookings.when-booking-closes",
       "catalogue.asking-buyers-a-question",
       "catalogue.choosing-a-bulk-action-for-a-group",
       "catalogue.copy-a-group-of-listings",
       "catalogue.describing-what-is-on-offer",
       "catalogue.narrowing-a-long-list-down",
       "catalogue.taking-a-group-off-sale",
+      "pages.asking-the-host-for-help",
       "pages.hearing-from-a-visitor",
       "pages.telling-people-the-news",
       "pages.the-front-pages-of-the-site",

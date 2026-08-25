@@ -5,13 +5,22 @@ import { requireRefundGeneration } from "#payment/refund-generation.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
-type KeyedProvider = {
+export type KeyedProvider = {
   [Provider in PaymentProviderType]: (typeof PAYMENT_PROVIDERS)[Provider]["refundCapability"] extends "keyed"
     ? Provider
     : never;
 }[PaymentProviderType];
 
-type KeylessProvider = Exclude<PaymentProviderType, KeyedProvider>;
+export type KeylessProvider = Exclude<PaymentProviderType, KeyedProvider>;
+
+/** Whether this provider refunds without an idempotency key, read from the
+ * registry's declared capability and narrowed so the permit type follows: a
+ * keyed provider's authorization must carry its key, a keyless one must
+ * not. The one way to branch on the capability — never on a provider name. */
+export const isKeylessProvider = (
+  provider: PaymentProviderType,
+): provider is KeylessProvider =>
+  PAYMENT_PROVIDERS[provider].refundCapability === "keyless";
 
 type RefundSendIdentity<Provider extends PaymentProviderType> = {
   readonly generation: number;

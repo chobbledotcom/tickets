@@ -4,6 +4,7 @@ import type { RefundRequest } from "#payment/refund-attempt.ts";
 import {
   type AuthorizedRefundRequest,
   authorizeDurableRefundSend,
+  isKeylessProvider,
   type RefundAuthorization,
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
@@ -27,6 +28,21 @@ const keyedAuthorization = {
 } as const satisfies RefundAuthorization<"stripe">;
 
 describe("durable refund provider authorization", () => {
+  test("answers keyless exactly where the registry declares it", () => {
+    // The guard is the registry read, so the two can never disagree.
+    for (const provider of PAYMENT_PROVIDER_IDS) {
+      expect(isKeylessProvider(provider), provider).toBe(
+        PAYMENT_PROVIDERS[provider].refundCapability === "keyless",
+      );
+    }
+  });
+
+  test("names SumUp as the one keyless provider today", () => {
+    expect(isKeylessProvider("sumup")).toBe(true);
+    expect(isKeylessProvider("stripe")).toBe(false);
+    expect(isKeylessProvider("square")).toBe(false);
+  });
+
   test("mints one frozen provider-bound request", () => {
     const mutableAuthorization = {
       ...keyedAuthorization,

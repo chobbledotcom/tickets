@@ -61,5 +61,28 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
         "<code>abandoned</code>",
       );
     });
+
+    test("answers clean when no SumUp money is unanswered", async () => {
+      await page(
+        'id="schema-unanswered"',
+        "Money nobody has answered for",
+        "No SumUp checkout needs your attention.",
+      );
+    });
+
+    test("counts and lists a SumUp row that still owes money", async () => {
+      await plantSumupRecoveryRow(
+        "co_atlas_owed",
+        "owed",
+        "2999-01-01T00:00:00.000Z",
+      );
+
+      await assertAdminHtml(
+        "/admin/schema",
+        "1 checkout needs an answer.",
+        "Money not accounted for",
+        "<code>idx_co_atlas_owed</code>",
+      );
+    });
   });
 });

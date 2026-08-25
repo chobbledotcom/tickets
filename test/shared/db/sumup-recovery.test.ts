@@ -2,13 +2,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { SCAN_LIMIT } from "#db/schema-anomaly-scan.ts";
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
   delaySumupRecoveryCheck,
   getDueSumupCheckouts,
+  listUnansweredSumupMoney,
 } from "#db/sumup-recovery.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
+import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantSumupRecoveryRow, sumupRecoveryRow } from "#test-utils/sumup.ts";
 
@@ -188,5 +191,83 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
     expect((await sumupRecoveryRow("co_delay_moved")).nextCheckAt).toBe(
       "2000-01-05T00:00:00.000Z",
     );
+  });
+});
+
+describeWithEnv("db > unanswered sumup money", { db: true }, () => {
+  test("answers all-clear on a clean database", async () => {
+    expect(await listUnansweredSumupMoney()).toEqual({ rows: [], total: 0 });
+  });
+
+  test("lists an owed row however young it is", async () => {
+    const createdAt = nowIso();
+    await plantSumupRecoveryRow("co_owed_now", "owed", FUTURE, createdAt);
+
+    expect(await listUnansweredSumupMoney()).toEqual({
+      rows: [{ createdAt, referenceIndex: "idx_co_owed_now", state: "owed" }],
+      total: 1,
+    });
+  });
+
+  test("lists a waiting row only once it is old", async () => {
+    await plantSumupRecoveryRow("co_wait_young", "waiting", FUTURE, nowIso());
+    await plantSumupRecoveryRow("co_wait_old", "waiting", FUTURE);
+
+    expect(await listUnansweredSumupMoney()).toEqual({
+      rows: [
+        {
+          createdAt: "2026-08-01T00:00:00.000Z",
+          referenceIndex: "idx_co_wait_old",
+          state: "waiting",
+        },
+      ],
+      total: 1,
+    });
+  });
+
+  test("never lists a row with a clear answer, however old", async () => {
+    await plantSumupRecoveryRow("", "staged", null);
+    await plantSumupRecoveryRow("co_no_pay", "unpaid", null);
+    await plantSumupRecoveryRow("co_done", "finished", null);
+
+    expect(await listUnansweredSumupMoney()).toEqual({ rows: [], total: 0 });
+  });
+
+  test("counts every row but lists only the oldest sample", async () => {
+    const values = Array.from(
+      { length: SCAN_LIMIT + 1 },
+      (_, index) =>
+        `('idx_bulk_${String(index).padStart(2, "0")}', '', '', 'co_bulk_${index}',
+          '2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z', 'owed', '${FUTURE}')`,
+    );
+    await execute(
+      `INSERT INTO sumup_checkouts
+         (reference_index, wrapped_key, metadata, sumup_id, created_at,
+          recovery_state, next_check_at)
+       VALUES ${values.join(", ")}`,
+    );
+
+    const unanswered = await listUnansweredSumupMoney();
+    expect(unanswered.total).toBe(SCAN_LIMIT + 1);
+    expect(unanswered.rows).toHaveLength(SCAN_LIMIT);
+    // Oldest first: the newest row is the one the bound leaves out.
+    expect(unanswered.rows[0]?.referenceIndex).toBe("idx_bulk_00");
+    expect(
+      unanswered.rows.some(
+        (row) => row.referenceIndex === `idx_bulk_${SCAN_LIMIT}`,
+      ),
+    ).toBe(false);
+  });
+
+  test("refuses a stored word the machine does not have", async () => {
+    // An unknown word in a listed row means the database and this code
+    // disagree — raised, never shown as a state the operator can trust.
+    await plantSumupRecoveryRow("co_owed_ok", "owed", FUTURE);
+    await execute(
+      "UPDATE sumup_checkouts SET recovery_state = 'owing' WHERE sumup_id = 'co_owed_ok'",
+    );
+    // The unknown word is outside the listed states, so it is simply not
+    // counted — the live check reports it as an anomaly instead.
+    expect(await listUnansweredSumupMoney()).toEqual({ rows: [], total: 0 });
   });
 });

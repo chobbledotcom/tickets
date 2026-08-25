@@ -917,9 +917,10 @@ mechanisms, each with its reference:
   through the production transitions, events, and an exhaustive moves table — a
   cell missing from the table is a declared refusal, never a fallthrough. The
   framework is `src/shared/schema-atlas/machine-spec.ts`; the machines are
-  `src/shared/payment/{row,refund,review}-machine-spec.ts`, with whole-graph
-  properties (all reachable, all can end, one declared provider-wait) in their
-  `graph.test.ts` suites over the shared `#test-utils/machine-graph.ts` walker.
+  `src/shared/payment/{row,refund,review,sumup-recovery}-machine-spec.ts`, with
+  whole-graph properties (all reachable, all can end, one declared
+  provider-wait) in their `graph.test.ts` suites over the shared
+  `#test-utils/machine-graph.ts` walker.
 - **Derive, never restate.** SQL guards (`rowWorkMirrorSql`), status words,
   danger flags, and the operator map (`SCHEMA_ATLAS_MACHINES`, rendered at
   `/admin/schema`) all derive from the spec. Vocabulary lists derive from the

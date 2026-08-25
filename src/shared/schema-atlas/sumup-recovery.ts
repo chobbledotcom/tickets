@@ -15,7 +15,8 @@ import {
 } from "#payment/sumup-recovery-machine-spec.ts";
 /* jscpd:ignore-start -- imports */
 import {
-  atlasStatesFromSpec,
+  atlasMachineFrom,
+  factsFromNode,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
@@ -33,26 +34,24 @@ const LAYOUTS: MachineLayouts<RecoveryNodeId> = {
 };
 
 /** The whole recovery machine, with each node's two operator-facing facts. */
-export const sumupRecoveryAtlas = (): AtlasMachine => ({
-  id: "sumup_recovery",
-  introKey: "schema.sumup_recovery.intro",
-  states: atlasStatesFromSpec(
+export const sumupRecoveryAtlas = (): AtlasMachine =>
+  atlasMachineFrom(
     { events: RECOVERY_EVENTS, nodeOf: recoveryNodeOf, nodes: RECOVERY_NODES },
-    "schema.sumup_recovery.state",
-    LAYOUTS,
-    (node) => ({
-      facts: [
-        {
-          labelKey: "schema.sumup_recovery.fact.owes_money",
-          value: node.owesMoney,
-        },
-        {
-          labelKey: "schema.sumup_recovery.fact.kept",
-          value: node.prunable ? "deleted once old" : "kept until answered",
-        },
-      ],
-      ...(node.id === "staged" ? { start: true as const } : {}),
-    }),
-  ),
-  titleKey: "schema.sumup_recovery.title",
-});
+    {
+      extraOf: factsFromNode(
+        (node) => [
+          {
+            labelKey: "schema.sumup_recovery.fact.owes_money",
+            value: node.owesMoney,
+          },
+          {
+            labelKey: "schema.sumup_recovery.fact.kept",
+            value: node.prunable ? "deleted once old" : "kept until answered",
+          },
+        ],
+        "staged",
+      ),
+      id: "sumup_recovery",
+      layouts: LAYOUTS,
+    },
+  );
