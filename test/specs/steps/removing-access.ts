@@ -12,7 +12,10 @@ import {
   ownerTakesDown,
   rowAddressFor,
 } from "#test/specs/support/removing-access.ts";
-import { staffMemberCanSignIn } from "#test/specs/support/staff-accounts.ts";
+import {
+  managerBrowser,
+  staffMemberCanSignIn,
+} from "#test/specs/support/staff-accounts.ts";
 import {
   type TicketsWorld,
   whatTheyWereTold,
@@ -91,5 +94,17 @@ Then(
   "{word} cannot sign in any more",
   async function (this: TicketsWorld, who: string): Promise<void> {
     expect(await staffMemberCanSignIn(who)).toBe(false);
+  },
+);
+
+Then(
+  "Sam's own window is signed out",
+  async function (this: TicketsWorld): Promise<void> {
+    // The removal claims to end every signed-in window. Sam's own browser,
+    // signed in before the removal, is the proof: opening a page he could see
+    // before now lands him on the sign-in page.
+    const browser = managerBrowser(this, "Sam");
+    await browser.visit("/admin/attendees");
+    expect(browser.pageText).toContain("Login");
   },
 );

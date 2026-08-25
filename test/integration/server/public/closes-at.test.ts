@@ -1,13 +1,15 @@
 /**
  * Tests for the registration-deadline branches on the public ticket pages
- * GET /ticket/:slug(+…) — closed/open page render
+ * GET /ticket/:slug(+…) — the closed render branches
  * POST /ticket/:slug(+…) — refusal when closing passed mid-submission
  *
  * Sits beside the story `@story:bookings.when-booking-closes`: the story
- * owns the customer's journey (the closed page, the partly-closed order, the
- * last-second send), so these own the branch cover — the null/future/past
- * deadline renders, the closed-part label on a joint page, and the
- * closed-while-submitting redirect for the single and joint forms.
+ * owns the customer's journey through the real pages, so these own the
+ * branch cover — the closed render for a single listing and for a joint
+ * page, the per-listing closed label beside an open one, and the
+ * closed-while-submitting refusal for both page shapes. The open renders
+ * (future or unset deadline) need no dedicated test: every other ticket
+ * page test renders one.
  */
 
 // jscpd:ignore-start
@@ -82,28 +84,6 @@ describeWithEnv(
           "Registration closed.",
         );
         expect(html).not.toContain("Continue");
-      });
-
-      test("shows form when closes_at is in the future", async () => {
-        const listing = await createTestListing({
-          closesAt: futureCloseTime(),
-        });
-
-        const html = await assertPublicHtml(
-          `/ticket/${listing.slug}`,
-          "Continue",
-        );
-        expect(html).not.toContain("Registration closed.");
-      });
-
-      test("shows form when closes_at is null", async () => {
-        const listing = await createTestListing();
-
-        const html = await assertPublicHtml(
-          `/ticket/${listing.slug}`,
-          "Continue",
-        );
-        expect(html).not.toContain("Registration closed.");
       });
 
       test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {

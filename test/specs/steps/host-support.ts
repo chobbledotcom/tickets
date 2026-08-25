@@ -49,6 +49,11 @@ const ENTER_A_MESSAGE = "Please enter a message.";
  * words before that value are the same on every visit. */
 const LAST_SUBMITTED = "You last submitted this form";
 
+/** The words every support message's subject opens with, read from the
+ * production builder: an empty domain leaves just the wording, and the
+ * story's own site name follows it. */
+const SUBJECT_OPENS_WITH = supportSubject("").trim();
+
 /** The stranger in a story of their own, keeping their own window. */
 const STRANGER = "the stranger";
 
@@ -248,7 +253,7 @@ Then(
       this.messagesOut,
       "the outgoing watch",
     ).emailCall();
-    expect(String(sent?.body?.subject)).toContain(supportSubject("").trim());
+    expect(String(sent?.body?.subject)).toContain(SUBJECT_OPENS_WITH);
   },
 );
 

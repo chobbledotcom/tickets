@@ -4,14 +4,14 @@
 
 _Origin: the e2e→Cucumber migration survey behind the five-story batch (support
 page, owner password, removing access, booking closes, terms agreement). Those
-five shipped with stories beside slimmed direct remnants; these are the next
-candidates the survey ranked, in order._
+five shipped with stories beside slimmed direct remnants. The sections below are
+the next candidates the survey ranked, in order._
 
 Each is a file whose claims read as actor-facing rules no existing `@story:`
 covers. A migration is a replacement: move the journey to the Feature, keep a
 slimmed direct remnant with a header naming the story for branch cover (Cucumber
-runs do not count towards coverage), and record every old claim as in the story,
-the remnant, or deliberately dropped.
+runs do not count towards coverage), and record where every old claim went — the
+story, the remnant, or a deliberate drop.
 
 - `test/integration/server/tickets.test.ts` (797 lines) — the customer's
   `/t/:token` ticket page: what a booker sees after booking. Also needs

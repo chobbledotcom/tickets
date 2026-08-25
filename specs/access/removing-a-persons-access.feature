@@ -37,3 +37,4 @@ Feature: The owner removes a person's access to the site
       Then the owner is told Sam was deleted
       And the Users list no longer offers Sam
       And Sam cannot sign in any more
+      And Sam's own window is signed out
