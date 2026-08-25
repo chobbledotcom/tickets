@@ -8,11 +8,18 @@ import {
   watchAfterPay,
 } from "#e2e/providers/post-pay.ts";
 
-/** A clock that only moves when the loop waits, so no test sleeps for real. */
-const scriptedClock = (): AfterPayClock & { waits: number[] } => {
+/** A clock that only moves when the loop waits, so no test sleeps for real.
+ * `advance` stands in for the real time a slow probe spends. */
+const scriptedClock = (): AfterPayClock & {
+  advance: (ms: number) => void;
+  waits: number[];
+} => {
   const waits: number[] = [];
   let time = 0;
   return {
+    advance: (ms) => {
+      time += ms;
+    },
     now: () => time,
     wait: (ms) => {
       waits.push(ms);
@@ -104,6 +111,21 @@ describe("watching the page after Pay", () => {
     expect(await watchAfterPay(probes, clock, 750)).toBe("timed_out");
     expect(clock.waits).toEqual([500, 250]);
     expect(clock.now()).toBe(750);
+  });
+
+  it("skips the wait when a slow probe already spent the deadline", async () => {
+    const clock = scriptedClock();
+    const probes = scriptedProbes({});
+    const slowProbes = {
+      ...probes,
+      declineVisible: () => {
+        clock.advance(800);
+        return Promise.resolve(false);
+      },
+    };
+    expect(await watchAfterPay(slowProbes, clock, 750)).toBe("timed_out");
+    expect(probes.asks.back).toBe(1);
+    expect(clock.waits).toEqual([]);
   });
 
   it("times out at once on a zero deadline, with no asks", async () => {

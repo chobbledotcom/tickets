@@ -46,8 +46,12 @@ export const watchAfterPay = async (
     if (!probes.onProvider()) return "left_provider";
     if (await probes.declineVisible()) return "declined";
     if (await probes.clickBack()) return "clicked_back";
-    // The last wait shrinks to the time left, so the deadline holds exactly.
-    await clock.wait(Math.min(POLL_MS, deadline - clock.now()));
+    // Probes spend real time too, so the time left can already be gone here.
+    // The last wait shrinks to the time left, and a spent deadline skips the
+    // wait so the loop can end. Every probe still gets its full iteration:
+    // a late click that goes home is better than a timeout.
+    const remaining = deadline - clock.now();
+    if (remaining > 0) await clock.wait(Math.min(POLL_MS, remaining));
   }
   return "timed_out";
 };
