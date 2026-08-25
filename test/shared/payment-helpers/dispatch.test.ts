@@ -260,6 +260,12 @@ describe("payment-helpers", () => {
     });
   });
 
+  test("parseWebhookPayload refuses JSON its provider cannot read", () => {
+    expect(
+      parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => null),
+    ).toEqual({ error: "Invalid JSON payload", valid: false });
+  });
+
   // A bug in the reading step is ours, not a payload the provider mangled, so
   // it must not come back as the invalid-JSON refusal.
   test("parseWebhookPayload lets a broken reading step throw", () => {

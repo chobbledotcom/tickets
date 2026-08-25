@@ -12,6 +12,7 @@
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
+import * as v from "valibot";
 import { getSumupCheckout } from "#db/sumup-checkouts.ts";
 import {
   type RefundAttemptResult,
@@ -41,14 +42,27 @@ import {
 import { readSumupCharge, sumupRefundOutcome } from "#shared/sumup/money.ts";
 import { sumupApi } from "#shared/sumup.ts";
 
-/** Build the provider-agnostic event from the two fields SumUp posts. A
- *  callback naming neither is not one of ours: resolveWebhookSession refuses a
- *  blank id before it looks anything up, so the absence is carried through
- *  rather than guessed at. */
-const sumupWebhookEvent = (body: unknown): WebhookEvent => {
-  const posted = body as { event_type?: string; id?: string };
-  const id = posted.id ?? "";
-  return { data: { object: { id } }, id, type: posted.event_type ?? "" };
+/** SumUp posts an object carrying two fields. A body that is not an object
+ *  names no checkout at all, and this public door is unsigned, so anyone can
+ *  post one. */
+const SumupWebhookBodySchema = v.object({
+  event_type: v.optional(v.string()),
+  id: v.optional(v.string()),
+});
+
+/** Build the provider-agnostic event from the two fields SumUp posts, or
+ *  nothing when the body is not one of its callbacks. A callback naming
+ *  neither field is still read: resolveWebhookSession refuses a blank id
+ *  before it looks anything up, so that absence is carried through rather
+ *  than guessed at. */
+const sumupWebhookEvent = (body: unknown): WebhookEvent | null => {
+  // valibot reads a list as an object carrying none of the fields, and a
+  // SumUp callback is never a list.
+  if (Array.isArray(body)) return null;
+  const posted = v.safeParse(SumupWebhookBodySchema, body);
+  if (!posted.success) return null;
+  const id = posted.output.id ?? "";
+  return { data: { object: { id } }, id, type: posted.output.event_type ?? "" };
 };
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
