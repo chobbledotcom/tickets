@@ -284,11 +284,13 @@ export const sumup: PaymentProvider = {
 };
 
 /** Is this locator visible right now? A probe that lands mid-navigation or on
- * a detached node reads as "not visible yet", and the caller's loop asks again. */
+ * a detached node reads as "not visible yet", and the caller's loop asks
+ * again. A closed page can never answer later, so that fault propagates. */
 const visibleNow = async (target: Locator): Promise<boolean> => {
   try {
-    return await target.isVisible({ timeout: 500 });
-  } catch {
+    return await target.isVisible();
+  } catch (error) {
+    if (target.page().isClosed()) throw error;
     return false;
   }
 };
