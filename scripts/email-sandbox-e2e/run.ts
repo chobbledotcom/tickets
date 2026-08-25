@@ -175,14 +175,14 @@ export const runEmailLeg = async (
   }
   const timeout = legTimeout();
   try {
+    // finally() cancels the timer on both settlements, so a finished leg
+    // leaves no pending timeout behind.
     return await Promise.race([
       runReadyLeg(plan.config, plan.to),
       timeout.expired,
-    ]);
+    ]).finally(timeout.cancel);
   } catch (error) {
     // One leg's crash must not stop the later legs from running and reporting.
     return { detail: errorMessage(error), provider, state: "failed" };
-  } finally {
-    timeout.cancel();
   }
 };
