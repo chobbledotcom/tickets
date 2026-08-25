@@ -1367,25 +1367,128 @@ out of scope for #1873, and a starting point._
 
 ---
 
-## Recover paid SumUp checkouts without a webhook or redirect
+## Tell the story of a payment whose callback was lost
 
-_Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
-documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918)._
+_Origin: `SUMUP_RECOVERY_PLAN.md` named this story for the SumUp recovery work
+that shipped in #2109. Nobody wrote it._
 
-SumUp does not sign its webhooks. If its webhook is lost and the customer never
-returns to the redirect URL, SumUp can charge the customer without creating a
-booking or payment record. Only the staged checkout remains, and database
-pruning removes it after 24 hours.
+The plan named `specs/payments/a-payment-with-no-callback.feature`. The story
+must buy through the real public booking page, drop the callback, run
+maintenance, and find the ticket.
 
-Add a bounded maintenance task to `src/shared/maintenance/registry.ts` that
-checks a page of staged SumUp checkouts on each run. Fetch each checkout once.
-When SumUp reports it as `PAID`, pass the fetched session through the same
-classification and `processPaymentSession` path used by webhooks and redirects.
-Extract a shared entry point that accepts an already fetched session so the task
-does not make a second provider request. Keep each run within the edge request
-budget and request a follow-up run when a full page remains. Add a regression
-test that runs webhook, redirect, and maintenance attempts concurrently and
-proves they create the attendee and ledger rows exactly once.
+`test/integration/server/sumup-recovery/recovers.test.ts` covers the recovery
+itself, in the case "books a paid checkout whose callback never arrived". It
+calls `stageSignedSumupCheckout` and `runSumupRecovery` directly. It does not
+buy through the rendered public page, and it does not go through the scheduled
+maintenance receiver. The journey as a buyer meets it is therefore untested,
+even though each part of it is covered. E2E_TESTS.md gives the user journey to
+Cucumber and the technical contract to the integration test.
+
+Start from `specs/payments/recovering-the-money-record.feature` for the house
+shape. Start from `recovers.test.ts` for the fixture. Take the maintenance
+trigger from `test/features/scheduled/server.test.ts`, because
+`recovers.test.ts` calls `runSumupRecovery` directly.
+
+---
+
+## Prove that a replayed Square webhook books nobody twice
+
+_Origin: found during the review of #2132. The slice notes for #2106 said that
+the existing idempotency tests already covered this case. They do not._
+
+The replay suites under `test/integration/server/webhooks/` configure Stripe.
+`test/integration/server/webhooks/square.test.ts` delivers one webhook and
+asserts the retryable answer. No test delivers the same completed Square webhook
+twice.
+
+The replay identity of Square is the order id. `retrieveSession` puts it on the
+session as `id: order.id`, and that value becomes
+`processed_payments.payment_session_id`. A redelivery must therefore reserve the
+same row.
+
+To fix:
+
+1. Configure Square.
+2. Let the order become readable.
+3. Deliver the same completed webhook twice.
+4. Assert one `attendees` row.
+5. Assert one `processed_payments` row.
+6. Assert that no refund was requested at all.
+
+---
+
+## Finish the SumUp recovery race test
+
+_Origin: found during the review of #2132._
+
+`test/integration/server/sumup-recovery/races-the-webhook.test.ts` runs the
+webhook and the recovery check together. It asserts one `attendees` row, one
+`processed_payments` row, and a state that is not `owed`. It reads no ledger
+row, so a race that writes the ledger twice passes it.
+
+The browser redirect is also missing. `late-callback.test.ts` calls the redirect
+only after the recovery check finished, so no test runs all three at once.
+
+The request that this work came from asked for two things. The webhook, the
+redirect, and maintenance must all attempt the same payment at once. The test
+must then prove that the attendee rows and the ledger rows are created exactly
+once. Neither half is met yet.
+
+To fix:
+
+1. Read the ledger in the two-way race test.
+2. Assert one event group for the payment.
+3. Add a case that runs the webhook, the redirect, and the recovery together.
+4. Assert one `attendees` row for that case.
+5. Assert one ledger event group for that case.
+
+---
+
+## Show the operator the SumUp rows that nobody answered for
+
+_Origin: found during the review of #2132, while somebody checked what the live
+check on `/admin/schema` actually lists._
+
+Two states keep a row that can hold money, and pruning deletes neither. That is
+correct and deliberate. An `owed` row holds a checkout that a provider took
+money for, where the booking did not happen. A `waiting` row holds a checkout
+that SumUp never answered for.
+
+The operator cannot see either kind. `SUMUP_SCAN` in
+`src/shared/db/schema-anomaly-scan.ts` selects three faults:
+
+- a state word that the machine does not have,
+- a checkout id that disagrees with the state,
+- a check time that does not fit the state. A checkable row needs a well-formed
+  check time. A closed row needs none at all.
+
+An `owed` row is well formed, and so is a `waiting` row on a site that
+disconnected SumUp. Neither carries any of those faults, so the scan reports
+nothing. `/admin/schema` renders the machine itself, the nodes and the edges. It
+does not list stored rows, so it does not show them either.
+
+This matters most in the case that the recovery work exists to close. The task
+stops when the site removes its SumUp key, because `enabled` reads
+`settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
+counts them.
+
+To fix:
+
+1. Add a scan, or a panel on `/admin/schema`.
+2. Select `owed` rows, and `waiting` rows whose check time passed by a wide
+   margin.
+3. Keep the bound of `SCAN_LIMIT` on the rows returned.
+4. Report the total count beside them, so a bounded page still tells the
+   operator how many exist.
+
+Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
+`RECOVERY_CHECKABLE_NODES`. For a compile-time refusal, key the scan by the
+literal union with an exhaustive `Record`. Copy the shape of
+`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`.
+
+A new state then joins the query by declaration. That is inclusion, not
+exhaustiveness. `inPlaceholders` over an array still compiles when the union
+grows. It never forces an author to decide what a new state means.
 
 ---
 

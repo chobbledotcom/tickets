@@ -51,6 +51,40 @@ dormant foundation.
 Add the following sections to the feature plan. Use tables where there is more
 than one case. Write `None` when a section truly does not apply; do not omit it.
 
+**When the feature has a stateful lifecycle, declare the machine once. Let these
+sections read off that declaration.** Separate hand-maintained tables drift. The
+states, the commands, the failures, the retries, and the races fall out of step
+with each other and with the code. The drift is silent, because nothing compares
+a plan's tables. A fix to one disagreement then creates the next one.
+
+Declare the machine instead:
+
+1. Declare the nodes, the events, and an exhaustive moves table. Use the shape
+   that `src/shared/schema-atlas/machine-spec.ts` defines.
+2. Put every fact that the separate tables carried onto a node or an edge. Can
+   this node hold money that nobody accounted for? Can the site delete it? What
+   does this edge write? What does it match before it writes?
+3. Write the sections below as projections. A projection names no fact of its
+   own.
+
+A cell that the table leaves out is a declared refusal. The mirror sweep proves
+that the transition refuses.
+
+Then write the invariants of the plan as laws over that declaration. Do not
+write them as promises in prose. A law stops a later node or event from a quiet
+break. "A node that can hold money that nobody accounted for is never deletable
+and is never a dead end" is a test, not a sentence.
+
+`SUMUP_RECOVERY_PLAN.md` is the worked example, and it is honest about where it
+falls short. Its events carry `kind` and `movesMoney`, not the write and the
+fence. Those two facts stay structural, in one write helper each, and its laws
+table says so.
+
+Put a fact on the declaration when you can. Where a fact stays structural, name
+the single place that carries it. Say that one place is weaker than a declared
+fact. The AGENTS.md section "Checked forwards and backwards" names the
+mechanisms.
+
 #### Trusted facts
 
 List every input and state whether it is trusted. Explain the basis for that
