@@ -10,21 +10,12 @@ import {
   sendEmail,
   sendTestEmail,
 } from "#shared/email.ts";
-import { validEmail } from "#test-utils/email.ts";
+import {
+  minimalEmailMessage,
+  testEmailConfig,
+  validEmail,
+} from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
-
-const testConfig: EmailConfig = {
-  apiKey: "re_test_key",
-  fromAddress: validEmail("tickets@example.com"),
-  provider: "resend",
-};
-
-const minimalMsg: EmailMessage = {
-  html: "h",
-  subject: "s",
-  text: "t",
-  to: validEmail("a@b.com"),
-};
 
 const plainMsg: EmailMessage = {
   html: "<p>Hi</p>",
@@ -35,8 +26,8 @@ const plainMsg: EmailMessage = {
 
 const sendWithProvider = (
   provider: EmailConfig["provider"],
-  msg: EmailMessage = minimalMsg,
-) => sendEmail({ ...testConfig, provider }, msg);
+  msg: EmailMessage = minimalEmailMessage,
+) => sendEmail({ ...testEmailConfig, provider }, msg);
 
 type ExpectedFailure = {
   /** Substring the E_EMAIL_SEND log line must carry — pass the whole
@@ -97,7 +88,7 @@ describe("sendEmail", () => {
       to: validEmail("user@test.com"),
     };
 
-    const delivery = await sendEmail(testConfig, msg);
+    const delivery = await sendEmail(testEmailConfig, msg);
 
     expect(delivery).toEqual({ delivered: true, status: 200 });
     expect(fetch.callCount()).toBe(1);
@@ -213,7 +204,7 @@ describe("sendEmail", () => {
   test("logs the provider's reply body on a non-OK response", async () => {
     restubReply("Error", 500);
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: 'detail="provider=resend status=500: Error"',
       reason: "Error",
       status: 500,
@@ -229,8 +220,8 @@ describe("sendEmail", () => {
     );
 
     await sendEmailExpectingError(
-      { ...testConfig, provider: "sendgrid" },
-      minimalMsg,
+      { ...testEmailConfig, provider: "sendgrid" },
+      minimalEmailMessage,
       {
         logged: `detail="provider=sendgrid status=403: ${message}"`,
         reason: message,
@@ -243,8 +234,8 @@ describe("sendEmail", () => {
     restubReply('{"ErrorCode":10,"Message":"Bad API token"}', 401);
 
     await sendEmailExpectingError(
-      { ...testConfig, provider: "postmark" },
-      minimalMsg,
+      { ...testEmailConfig, provider: "postmark" },
+      minimalEmailMessage,
       {
         logged: 'detail="provider=postmark status=401: Bad API token"',
         status: 401,
@@ -259,8 +250,8 @@ describe("sendEmail", () => {
     );
 
     await sendEmailExpectingError(
-      testConfig,
-      { ...minimalMsg, replyTo: validEmail("reply@test.com") },
+      testEmailConfig,
+      { ...minimalEmailMessage, replyTo: validEmail("reply@test.com") },
       {
         logged:
           'detail="provider=resend status=400: [redacted] [redacted] and [redacted] are not allowed"',
@@ -275,7 +266,7 @@ describe("sendEmail", () => {
       403,
     );
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged:
         'detail="provider=resend status=403: You can only send testing emails to your own email address [redacted]"',
       reason:
@@ -291,8 +282,8 @@ describe("sendEmail", () => {
     );
 
     await sendEmailExpectingError(
-      { ...testConfig, provider: "sendgrid" },
-      minimalMsg,
+      { ...testEmailConfig, provider: "sendgrid" },
+      minimalEmailMessage,
       {
         logged:
           'detail="provider=sendgrid status=403: The from address [redacted] is not a verified Sender Identity"',
@@ -305,7 +296,7 @@ describe("sendEmail", () => {
   test("puts a multi-line reply onto one log line", async () => {
     restubReply("Access\n\n  denied", 403);
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: 'detail="provider=resend status=403: Access denied"',
       reason: "Access denied",
       status: 403,
@@ -315,7 +306,7 @@ describe("sendEmail", () => {
   test("caps an over-long reply", async () => {
     restubReply("x".repeat(1000), 500);
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: `detail="provider=resend status=500: ${"x".repeat(300)}..."`,
       reason: `${"x".repeat(300)}...`,
       status: 500,
@@ -325,7 +316,7 @@ describe("sendEmail", () => {
   test("keeps a reply exactly at the cap whole", async () => {
     restubReply("y".repeat(300), 500);
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: `detail="provider=resend status=500: ${"y".repeat(300)}"`,
       status: 500,
     });
@@ -334,7 +325,7 @@ describe("sendEmail", () => {
   test("logs only provider and status when the reply body is empty", async () => {
     restubReply(null, 500);
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: 'detail="provider=resend status=500"',
       reason: "",
       status: 500,
@@ -344,7 +335,7 @@ describe("sendEmail", () => {
   test("returns no status on fetch failure", async () => {
     fetch.restubFetch(() => Promise.reject(new Error("Network error")));
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: 'detail="Network error"',
       reason: "",
       status: undefined,
@@ -354,7 +345,7 @@ describe("sendEmail", () => {
   test("returns no status for non-Error thrown values", async () => {
     fetch.restubFetch(() => Promise.reject("string error"));
 
-    await sendEmailExpectingError(testConfig, minimalMsg, {
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: 'detail="string error"',
       status: undefined,
     });
@@ -363,7 +354,9 @@ describe("sendEmail", () => {
   test("registration delivery returns network failures", async () => {
     fetch.restubFetch(() => Promise.reject(new TypeError("Network error")));
 
-    expect(await deliverRegistrationEmail(testConfig, minimalMsg)).toEqual({
+    expect(
+      await deliverRegistrationEmail(testEmailConfig, minimalEmailMessage),
+    ).toEqual({
       delivered: false,
       detail: "Network error",
       reason: "",
@@ -375,9 +368,9 @@ describe("sendEmail", () => {
     const failure = new Error("Internal error");
     fetch.restubFetch(() => Promise.reject(failure));
 
-    await expect(deliverRegistrationEmail(testConfig, minimalMsg)).rejects.toBe(
-      failure,
-    );
+    await expect(
+      deliverRegistrationEmail(testEmailConfig, minimalEmailMessage),
+    ).rejects.toBe(failure);
   });
 });
 
@@ -396,7 +389,7 @@ describe("sendTestEmail", () => {
 
   test("sends the translated test message", async () => {
     const delivery = await sendTestEmail(
-      testConfig,
+      testEmailConfig,
       validEmail("admin@test.com"),
     );
 
@@ -427,7 +420,7 @@ describe("sendEmail with attachments", () => {
   };
 
   test("Resend includes attachments with filename and content", async () => {
-    await sendEmail(testConfig, msgWithAttachment);
+    await sendEmail(testEmailConfig, msgWithAttachment);
 
     expect(fetch.getFetchJsonBody().attachments).toEqual([
       { content: attachment.content, filename: "ticket.svg" },
@@ -470,7 +463,7 @@ describe("sendEmail with attachments", () => {
   });
 
   test("omits attachments field when no attachments provided", async () => {
-    await sendEmail(testConfig, minimalMsg);
+    await sendEmail(testEmailConfig, minimalEmailMessage);
 
     expect(fetch.getFetchJsonBody().attachments).toBeUndefined();
   });
