@@ -183,7 +183,7 @@ describe("the system map page", () => {
     const page = html();
     expect(page).toContain('id="schema-unanswered"');
     expect(page).toContain("Money nobody has answered for");
-    expect(page).toContain("Every SumUp checkout has a clear answer.");
+    expect(page).toContain("No SumUp checkout needs your attention.");
   });
 
   test("the unanswered section counts and lists the oldest rows", () => {
@@ -201,7 +201,7 @@ describe("the system map page", () => {
     expect(page).toContain("Showing the oldest 1.");
     expect(page).toContain("Money not accounted for");
     expect(page).toContain("<code>idx_owed_row</code>");
-    expect(page).not.toContain("Every SumUp checkout has a clear answer.");
+    expect(page).not.toContain("No SumUp checkout needs your attention.");
   });
 
   test("the unanswered section falls back to the stored time on clock skew", () => {

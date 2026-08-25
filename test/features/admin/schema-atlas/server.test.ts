@@ -66,7 +66,7 @@ describeWithEnv("server (admin schema map)", { db: true }, () => {
       await page(
         'id="schema-unanswered"',
         "Money nobody has answered for",
-        "Every SumUp checkout has a clear answer.",
+        "No SumUp checkout needs your attention.",
       );
     });
 

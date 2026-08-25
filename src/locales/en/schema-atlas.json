@@ -24,7 +24,7 @@
   "schema.check.sumup_check_time_mismatch": "A SumUp recovery record's state and next check time do not match. The record and stored state follow.",
   "schema.unanswered.heading": "Money nobody has answered for",
   "schema.unanswered.intro": "These SumUp checkouts may hold money that is not matched to a booking or a refund. The site keeps them until they get a clear answer. Each row shows its state, its age, and its one-way code.",
-  "schema.unanswered.none": "Every SumUp checkout has a clear answer.",
+  "schema.unanswered.none": "No SumUp checkout needs your attention.",
   "schema.unanswered.count": "{count, plural, one {1 checkout needs an answer.} other {# checkouts need an answer.}}",
   "schema.unanswered.truncated": "Showing the oldest {shown}.",
   "schema.refund.title": "A refund at the payment provider",

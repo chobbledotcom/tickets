@@ -35,6 +35,9 @@ describe("durable refund provider authorization", () => {
         PAYMENT_PROVIDERS[provider].refundCapability === "keyless",
       );
     }
+  });
+
+  test("names SumUp as the one keyless provider today", () => {
     expect(isKeylessProvider("sumup")).toBe(true);
     expect(isKeylessProvider("stripe")).toBe(false);
     expect(isKeylessProvider("square")).toBe(false);
