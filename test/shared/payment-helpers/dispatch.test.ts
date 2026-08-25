@@ -243,19 +243,15 @@ describe("payment-helpers", () => {
     ).toEqual({ error: "Invalid JSON payload", valid: false });
   });
 
-  test("parseWebhookPayload reads the body the way its provider says", () => {
+  test("parseWebhookPayload hands the parsed body to its provider", () => {
     expect(
-      parseWebhookPayload('{"id":"evt_1"}', ErrorCode.PAYMENT_CHECKOUT, () => ({
-        data: { object: { id: "shaped" } },
-        id: "shaped",
-        type: "shaped.type",
-      })),
+      parseWebhookPayload(
+        '{"id":"evt_1"}',
+        ErrorCode.PAYMENT_CHECKOUT,
+        readIdField,
+      ),
     ).toEqual({
-      listing: {
-        data: { object: { id: "shaped" } },
-        id: "shaped",
-        type: "shaped.type",
-      },
+      listing: { data: { object: { id: "evt_1" } }, id: "evt_1", type: "x" },
       valid: true,
     });
   });
@@ -264,6 +260,18 @@ describe("payment-helpers", () => {
     expect(
       parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => null),
     ).toEqual({ error: "Invalid JSON payload", valid: false });
+  });
+
+  test("parseWebhookPayload records the body its provider could not read", () => {
+    const errorSpy = spy(console, "error");
+    try {
+      parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => null);
+      expect(errorSpy.calls[0]?.args[0]).toBe(
+        '[Error] E_PAYMENT_CHECKOUT detail="JSON payload is not an event"',
+      );
+    } finally {
+      errorSpy.restore();
+    }
   });
 
   // A bug in the reading step is ours, not a payload the provider mangled, so

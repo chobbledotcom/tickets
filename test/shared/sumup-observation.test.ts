@@ -70,6 +70,9 @@ describe("classifySumupCheckout", () => {
     const read = classify(wirePending());
     expect(read).toEqual({
       resource: expect.objectContaining({
+        // A still-open checkout has taken nothing, but its own amount is what
+        // the buyer is being asked for, so it stays readable.
+        amountMinor: 1000,
         status: "PENDING",
         transactionId: "",
       }),
@@ -96,7 +99,12 @@ describe("classifySumupCheckout", () => {
       wirePending({ status: "FAILED", transactions: [failedTxn] }),
     );
     expect(read).toEqual({
-      resource: expect.objectContaining({ status: "FAILED" }),
+      // A dead checkout carries no captured charge to dispute its amount, so
+      // the amount it states stays readable.
+      resource: expect.objectContaining({
+        amountMinor: 1000,
+        status: "FAILED",
+      }),
       status: "found",
     });
   });
