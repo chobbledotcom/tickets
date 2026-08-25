@@ -80,12 +80,16 @@ laws live beside it, in `machine.test.ts` and `graph.test.ts`. That machine also
 shows the limit of this rule. Its events carry `kind` and `movesMoney`, not the
 write and the fence.
 
-Those two facts stay structural, and each has two writers.
+Those two facts stay structural, and each has three writers.
 `moveSumupRecoveryRow` carries the recovery moves. It fences on
 `reference_index`, the state, and the schedule. `setSumupCheckoutId` carries the
 creation edge through `executeUpdate`. It fences on `reference_index` and the
-`staged` state, because a staged row has no schedule yet. Two writers are weaker
-than one, and weaker again than a declared fact.
+`staged` state, because a staged row has no schedule yet. The migration
+`2026-08-18_sumup_recovery_state.ts` writes both columns once, for the rows that
+predate the machine.
+
+A migration is the writer that an author forgets, because it is not an edge.
+Three writers are weaker than one, and weaker again than a declared fact.
 
 Put a fact on the declaration when you can. Where a fact stays structural, name
 every place that carries it. Count them, and say that a structural fact is

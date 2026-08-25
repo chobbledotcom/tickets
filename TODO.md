@@ -1468,11 +1468,17 @@ the success page, not the booking.
 
 Two questions sit behind this, and the second waits on the first.
 
-1. Decide whether the success page must work past the retention window. Keeping
-   it means keeping staged rows longer, which costs storage on every site.
+1. Decide whether the success page must work past the retention window.
 2. Add a regression test for whichever answer wins.
    `test/integration/server/sumup-recovery/late-callback.test.ts` runs the
    return immediately and never advances the clock, so it proves nothing here.
+
+Two ways exist to keep the page working, and they cost very differently. One
+keeps staged rows longer, which costs storage on every site. The other replays
+the durable result that recovery already wrote. `processed_payments` holds the
+attendee and the encrypted `ticket_tokens` under the same session reference.
+`validatePaidSession` asks the provider first, so it answers "not found" before
+it ever reads that row.
 
 ---
 
