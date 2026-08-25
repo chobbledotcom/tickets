@@ -259,7 +259,18 @@ describe("runEmailLeg on a ready postmark leg", () => {
     using _fetched = stubFetch(okJson(), new Response("{}"));
     expect(await runEmailLeg("postmark")).toEqual({
       detail:
-        "single 200, bulk 200 — Postmark batch reply carries no per-message results",
+        "single 200, bulk 200 — Postmark batch reply does not carry the probe's one result",
+      provider: "postmark",
+      state: "failed",
+    });
+  });
+
+  test("fails when an accepted batch reply is an empty list", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(okJson(), new Response("[]"));
+    expect(await runEmailLeg("postmark")).toEqual({
+      detail:
+        "single 200, bulk 200 — Postmark batch reply does not carry the probe's one result",
       provider: "postmark",
       state: "failed",
     });
@@ -271,6 +282,15 @@ describe("runEmailLeg on a ready postmark leg", () => {
     const outcome = await runEmailLeg("postmark");
     expect(outcome.state).toBe("failed");
     expect(outcome.detail).toContain("JSON");
+  });
+
+  test("blanks an address a malformed batch reply quotes", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(okJson(), new Response("to@example.com"));
+    const outcome = await runEmailLeg("postmark");
+    expect(outcome.state).toBe("failed");
+    expect(outcome.detail).toContain("[redacted]");
+    expect(outcome.detail).not.toContain("to@example.com");
   });
 
   test("skips the per-message read when the batch itself was refused", async () => {

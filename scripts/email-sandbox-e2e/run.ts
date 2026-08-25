@@ -83,8 +83,11 @@ const oneLine = (text: string): string =>
     .trim()
     .slice(0, 160);
 
-const PostmarkBatchSchema = v.array(
-  v.looseObject({ ErrorCode: v.number(), Message: v.string() }),
+// The bulk probe sends one message, so an accepted reply must carry
+// exactly one per-message result.
+const PostmarkBatchSchema = v.pipe(
+  v.array(v.looseObject({ ErrorCode: v.number(), Message: v.string() })),
+  v.length(1),
 );
 
 /** Postmark can accept a batch with HTTP 200 and still refuse a message
@@ -95,7 +98,7 @@ const postmarkReplyProblems = (responses: BulkBatchResponse[]): string[] =>
     if (!response.ok) return [];
     const results = v.safeParse(PostmarkBatchSchema, JSON.parse(response.body));
     if (!results.success) {
-      return ["Postmark batch reply carries no per-message results"];
+      return ["Postmark batch reply does not carry the probe's one result"];
     }
     return results.output
       .filter((result) => result.ErrorCode !== 0)
@@ -181,7 +184,8 @@ export const runEmailLeg = async (
       timeout.expired,
     ]).finally(timeout.cancel);
   } catch (error) {
-    // One leg's crash must not stop the later legs from running and reporting.
-    return { detail: errorMessage(error), provider, state: "failed" };
+    // One leg's crash must not stop the later legs from running and
+    // reporting. A parse error can quote the reply, so redact it too.
+    return { detail: oneLine(errorMessage(error)), provider, state: "failed" };
   }
 };
