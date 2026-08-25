@@ -254,7 +254,7 @@ describe("sendEmail", () => {
 
   test("scrubs the send's own addresses from the reason", async () => {
     restubReply(
-      '{"message":"a@b.com, reply@test.com and tickets@example.com are not allowed"}',
+      '{"message":"a@b.com reply@test.com and tickets@example.com are not allowed"}',
       400,
     );
 
@@ -263,10 +263,25 @@ describe("sendEmail", () => {
       { ...minimalMsg, replyTo: validEmail("reply@test.com") },
       {
         logged:
-          'detail="provider=resend status=400: [redacted], [redacted] and [redacted] are not allowed"',
+          'detail="provider=resend status=400: [redacted] [redacted] and [redacted] are not allowed"',
         status: 400,
       },
     );
+  });
+
+  test("scrubs an address the send never named", async () => {
+    restubReply(
+      '{"message":"You can only send testing emails to your own email address (owner@gmail.com)"}',
+      403,
+    );
+
+    await sendEmailExpectingError(testConfig, minimalMsg, {
+      logged:
+        'detail="provider=resend status=403: You can only send testing emails to your own email address [redacted]"',
+      reason:
+        "You can only send testing emails to your own email address [redacted]",
+      status: 403,
+    });
   });
 
   test("scrubs the configured from address on an unverified-sender reply", async () => {
