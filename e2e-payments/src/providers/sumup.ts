@@ -1,8 +1,9 @@
 /* jscpd:ignore-start */
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
 import type { BrowserSession } from "#e2e/browser.ts";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
+import { type AfterPayOutcome, watchAfterPay } from "./post-pay.ts";
 import {
   awaitReturnToApp,
   configureProvider,
@@ -282,6 +283,55 @@ export const sumup: PaymentProvider = {
   setupCountry: "GB",
 };
 
+/** Is this locator visible right now? A probe that lands mid-navigation or on
+ * a detached node reads as "not visible yet", and the caller's loop asks
+ * again. A closed page can never answer later, so that fault propagates. */
+const visibleNow = async (target: Locator): Promise<boolean> => {
+  try {
+    return await target.isVisible();
+  } catch (error) {
+    if (target.page().isClosed()) throw error;
+    return false;
+  }
+};
+
+/** Click the control when it is visible. False when it is absent, or when the
+ * click lost a race with a navigation, so the loop asks again. */
+const clickIfVisible = async (link: Locator): Promise<boolean> => {
+  if (!(await visibleNow(link))) return false;
+  try {
+    await link.click({ timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** How long the harness watches the paid page for a way home. */
+const RETURN_WATCH_MS = 30_000;
+
+/** What each watch outcome does. "declined" fails at once with the true cause
+ * instead of a missing-return-URL timeout two minutes later. */
+const AFTER_PAY_ACTIONS: Record<AfterPayOutcome, () => void> = {
+  clicked_back: () =>
+    log("  clicked SumUp's 'Back to merchant website' to return to the app"),
+  declined: () => {
+    throw new Error(
+      'SumUp\'s hosted checkout says "Payment Declined" — the sandbox refused the payment, ' +
+        "so the browser can never return to the app. The harness sent the approved test " +
+        "card. If the charged total is a documented decline amount (11.00, 42.01, 42.76, " +
+        "42.91), this run configured the decline. Any other total means a SumUp-side fault.",
+    );
+  },
+  // Already redirected home — nothing to click and nothing to report.
+  left_provider: () => undefined,
+  timed_out: () =>
+    warn(
+      "  SumUp: no 'Back to merchant website' button appeared after paying — " +
+        "relying on an auto-redirect that may not happen.",
+    ),
+};
+
 /**
  * SumUp's sandbox checkout does NOT auto-redirect after a successful payment: it
  * parks on a "Payment successful" confirmation page (still on checkout.sumup.com)
@@ -290,9 +340,14 @@ export const sumup: PaymentProvider = {
  * stalls on the SumUp page and dies as a misleading "did not land on a success
  * page" timeout even though the payment (and its webhook) already succeeded.
  *
- * Best-effort and non-fatal: if a future SumUp variant auto-redirects, the
- * button never appears (or the browser has already left the SumUp origin) and we
- * simply return, letting the caller's return-URL wait confirm the landing.
+ * A refused payment parks here too, on a "Payment Declined" banner whose only
+ * button is "Try Again", so no return home can ever come.
+ *
+ * The loop itself is `watchAfterPay` (post-pay.ts), which holds the order and
+ * the cadence under direct tests. This wrapper owns only the SumUp locators
+ * and what each outcome does. A timeout stays best-effort and non-fatal: if a
+ * future SumUp variant auto-redirects, the caller's return-URL wait confirms
+ * the landing.
  */
 const returnToMerchant = async (page: Page): Promise<void> => {
   const namePattern = /back to merchant|return to merchant|merchant website/i;
@@ -300,6 +355,9 @@ const returnToMerchant = async (page: Page): Promise<void> => {
     .getByRole("link", { name: namePattern })
     .or(page.getByRole("button", { name: namePattern }))
     .first();
+  // The visible headline of SumUp's decline page. Its other occurrence sits in
+  // a script-tag i18n bundle, which text matching never reads.
+  const declined = page.getByText(/payment declined/i).first();
 
   // SumUp serves its hosted checkout from more than one host — the docs return
   // checkout.sumup.com, but pay.sumup.com is also used (the app's CSP allows
@@ -314,25 +372,14 @@ const returnToMerchant = async (page: Page): Promise<void> => {
     }
   };
 
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    // Already redirected away from SumUp's checkout — nothing to click.
-    if (!onSumUp()) return;
-    try {
-      if (await link.isVisible({ timeout: 500 })) {
-        await link.click({ timeout: 5_000 });
-        log(
-          "  clicked SumUp's 'Back to merchant website' to return to the app",
-        );
-        return;
-      }
-    } catch {
-      // Page navigating or the node detached mid-check; re-evaluate next loop.
-    }
-    await page.waitForTimeout(500);
-  }
-  warn(
-    "  SumUp: no 'Back to merchant website' button appeared after paying — " +
-      "relying on an auto-redirect that may not happen.",
+  const outcome = await watchAfterPay(
+    {
+      clickBack: () => clickIfVisible(link),
+      declineVisible: () => visibleNow(declined),
+      onProvider: onSumUp,
+    },
+    { now: Date.now, wait: (ms) => page.waitForTimeout(ms) },
+    RETURN_WATCH_MS,
   );
+  AFTER_PAY_ACTIONS[outcome]();
 };
