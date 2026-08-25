@@ -20,11 +20,13 @@
 import { settings } from "#db/settings.ts";
 import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
+import { askProvider } from "#payment/provider-call.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   providerResourceReader,
   type ResourceReader,
 } from "#payment/provider-resource-read.ts";
+import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -246,21 +248,16 @@ export const sumupApi: {
     ),
 
   /** Submit a full refund without overstating SumUp's empty success body. */
-  refundTransaction: async (
-    transactionId: string,
-  ): Promise<SumupRefundSubmission> => {
-    const account = configuredSumupAccount();
-    if (account === null) return { kind: "not_sent", reason: "not_configured" };
-    try {
-      await account.client.refundTransaction(
-        account.merchantCode,
-        transactionId,
-      );
-      return { kind: "sent" };
-    } catch (err) {
-      return sumupRefundFailure(err);
-    }
-  },
+  refundTransaction: (transactionId: string): Promise<SumupRefundSubmission> =>
+    askProvider({
+      account: configuredSumupAccount(),
+      ask: (account: SumupAccount) =>
+        account.client.refundTransaction(account.merchantCode, transactionId),
+      failure: sumupRefundFailure,
+      // An empty success body only proves the request was sent.
+      judge: (): SumupRefundSubmission => ({ kind: "sent" }),
+      unconfigured: REFUND_NOT_SENT,
+    }),
 
   /** Test connection: verify API key + merchant code + currency support. */
   testSumupConnection: async (): Promise<SumupConnectionTestResult> => {

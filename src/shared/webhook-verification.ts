@@ -1,6 +1,6 @@
 import type { ErrorCodeType } from "#shared/logger.ts";
 import { parseWebhookPayload } from "#shared/payment-helpers.ts";
-import type { WebhookVerifyResult } from "#shared/payments.ts";
+import type { WebhookEvent, WebhookVerifyResult } from "#shared/payments.ts";
 
 /** Turn a signature check outcome into the standard verify result: a plain
  * failure when the signature did not match, or the parsed event when it did.
@@ -13,5 +13,6 @@ export const finishWebhookVerification = (
   errorCode: ErrorCodeType,
 ): WebhookVerifyResult =>
   matched
-    ? parseWebhookPayload(payload, errorCode)
+    ? // A provider that signs its webhooks posts the event itself.
+      parseWebhookPayload(payload, errorCode, (body) => body as WebhookEvent)
     : { error: "Signature verification failed", valid: false };

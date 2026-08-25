@@ -232,9 +232,41 @@ describe("payment-helpers", () => {
     expect(build).toEqual(expect.objectContaining({ createdAt }));
   });
 
+  const readIdField = (body: unknown) => {
+    const posted = body as { id: string };
+    return { data: { object: { id: posted.id } }, id: posted.id, type: "x" };
+  };
+
   test("parseWebhookPayload returns the invalid JSON error", () => {
-    expect(parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT)).toEqual(
-      { error: "Invalid JSON payload", valid: false },
-    );
+    expect(
+      parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT, readIdField),
+    ).toEqual({ error: "Invalid JSON payload", valid: false });
+  });
+
+  test("parseWebhookPayload reads the body the way its provider says", () => {
+    expect(
+      parseWebhookPayload('{"id":"evt_1"}', ErrorCode.PAYMENT_CHECKOUT, () => ({
+        data: { object: { id: "shaped" } },
+        id: "shaped",
+        type: "shaped.type",
+      })),
+    ).toEqual({
+      listing: {
+        data: { object: { id: "shaped" } },
+        id: "shaped",
+        type: "shaped.type",
+      },
+      valid: true,
+    });
+  });
+
+  // A bug in the reading step is ours, not a payload the provider mangled, so
+  // it must not come back as the invalid-JSON refusal.
+  test("parseWebhookPayload lets a broken reading step throw", () => {
+    expect(() =>
+      parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => {
+        throw new Error("reading step is broken");
+      }),
+    ).toThrow("reading step is broken");
   });
 });

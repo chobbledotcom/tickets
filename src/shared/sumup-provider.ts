@@ -21,7 +21,11 @@ import {
   type AuthorizedRefundRequest,
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
-import { makeCreateCheckoutSession } from "#shared/payment-helpers.ts";
+import { ErrorCode } from "#shared/logger.ts";
+import {
+  makeCreateCheckoutSession,
+  parseWebhookPayload,
+} from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
   RetrieveSessionResult,
@@ -36,6 +40,16 @@ import {
 } from "#shared/sumup/checkout-resolution.ts";
 import { readSumupCharge, sumupRefundOutcome } from "#shared/sumup/money.ts";
 import { sumupApi } from "#shared/sumup.ts";
+
+/** Build the provider-agnostic event from the two fields SumUp posts. A
+ *  callback naming neither is not one of ours: resolveWebhookSession refuses a
+ *  blank id before it looks anything up, so the absence is carried through
+ *  rather than guessed at. */
+const sumupWebhookEvent = (body: unknown): WebhookEvent => {
+  const posted = body as { event_type?: string; id?: string };
+  const id = posted.id ?? "";
+  return { data: { object: { id } }, id, type: posted.event_type ?? "" };
+};
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
@@ -124,24 +138,9 @@ export const sumupPaymentProvider: PaymentProvider = {
 
   verifyWebhookSignature(payload: string): Promise<WebhookVerifyResult> {
     // SumUp does not sign webhooks; authenticity is established in
-    // resolveWebhookSession. We only parse the tiny payload
-    // ({ event_type, id }) into the provider-agnostic event shape here.
-    try {
-      const parsed = JSON.parse(payload) as {
-        event_type?: string;
-        id?: string;
-      };
-      const id = parsed.id ?? "";
-      return Promise.resolve({
-        listing: {
-          data: { object: { id } },
-          id,
-          type: parsed.event_type ?? "",
-        },
-        valid: true,
-      });
-    } catch {
-      return Promise.resolve({ error: "Invalid JSON payload", valid: false });
-    }
+    // resolveWebhookSession. This door only reads the tiny payload.
+    return Promise.resolve(
+      parseWebhookPayload(payload, ErrorCode.SUMUP_WEBHOOK, sumupWebhookEvent),
+    );
   },
 };
