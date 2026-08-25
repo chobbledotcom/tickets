@@ -73,23 +73,28 @@ export const handleEmailTestPost = advancedSettingsRoute(
     if (!businessEmail) {
       return errorPage(t("error.no_business_email"), "settings-email-test");
     }
-    const status = await sendTestEmail(config, businessEmail);
-    if (!status) {
+    const delivery = await sendTestEmail(config, businessEmail);
+    if (delivery.delivered) {
+      return ok(
+        "/admin/settings-advanced",
+        t("success.test_email_sent", { status: delivery.status }),
+        { formId: "settings-email-test" },
+      );
+    }
+    if (delivery.status === undefined) {
       return errorPage(
         t("error.test_email_no_response"),
         "settings-email-test",
       );
     }
-    if (status >= 300) {
-      return errorPage(
-        `Test email failed (status ${status})`,
-        "settings-email-test",
-      );
-    }
-    return ok(
-      "/admin/settings-advanced",
-      `Test email sent (status ${status})`,
-      { formId: "settings-email-test" },
+    return errorPage(
+      delivery.reason
+        ? t("error.test_email_failed_reason", {
+            reason: delivery.reason,
+            status: delivery.status,
+          })
+        : t("error.test_email_failed", { status: delivery.status }),
+      "settings-email-test",
     );
   },
 );

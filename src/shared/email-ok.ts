@@ -14,6 +14,5 @@ export const sendEmailOk = async (
   message: EmailMessage,
 ): Promise<boolean> => {
   const { sendEmail } = await import("#shared/email.ts");
-  const status = await sendEmail(config, message);
-  return status !== undefined && status >= 200 && status < 300;
+  return (await sendEmail(config, message)).delivered;
 };

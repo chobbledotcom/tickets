@@ -178,9 +178,41 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Test email failed (status 403)"),
+        "Test email failed (status 403). Your email provider said: Forbidden",
         false,
       );
+    });
+
+    test("shows SendGrid's own message when the reply carries one", async () => {
+      await configureEmailForTest();
+      const { settings } = await import("#db/settings.ts");
+      await settings.update.email.provider("sendgrid");
+      settings.invalidateCache();
+      using _fetch = stubFetch(
+        new Response(
+          '{"errors":[{"message":"The from address does not match a verified Sender Identity","field":"from","help":null}]}',
+          { status: 403 },
+        ),
+      );
+
+      const { response } = await adminFormPost("/admin/settings/email/test");
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        "Test email failed (status 403). Your email provider said: The from address does not match a verified Sender Identity",
+        false,
+      );
+    });
+
+    test("shows just the status when the reply body is empty", async () => {
+      await configureEmailForTest();
+      using _fetch = stubFetch(new Response(null, { status: 403 }));
+
+      const { response } = await adminFormPost("/admin/settings/email/test");
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "Test email failed (status 403)", false);
     });
 
     test("shows error when email send encounters network error", async () => {

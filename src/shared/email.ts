@@ -5,12 +5,12 @@
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start -- imports */
-import { lazyRef } from "#fp";
+import { compact, lazyRef, reduce } from "#fp";
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
 /* jscpd:ignore-end */
 import { errorMessage } from "#shared/error-message.ts";
-import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { apiErrorMessage, type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   emailHost,
@@ -266,15 +266,48 @@ const postBody = (
 export const sendEmailRequest = (request: EmailRequest): Promise<FetchResult> =>
   postBody(...request);
 
-type EmailDeliveryResult =
+export type EmailDeliveryResult =
   | { delivered: true; status: number }
-  | { delivered: false; detail: string; status: number | undefined };
+  | {
+      delivered: false;
+      /** For the log line: provider, status, and the reason when known. */
+      detail: string;
+      /** The provider's own error message, safe to show to the operator.
+       * Empty when there is no usable message — a network failure has no
+       * reply, and some replies carry none — so callers branch on it. */
+      reason: string;
+      status: number | undefined;
+    };
 
 const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
   delivered: false,
   detail: errorMessage(error),
+  reason: "",
   status: undefined,
 });
+
+/** Keys the email providers use for the message in an error reply:
+ * Resend and Mailgun `message`, Postmark `Message`, SendGrid `errors`. */
+const PROVIDER_ERROR_KEYS = ["message", "Message", "errors", "error"];
+
+/** Cap on how much of a provider's reply can enter a log line or a flash
+ * message, so a verbose body cannot flood either. */
+const MAX_REASON_LENGTH = 300;
+
+/** Pull the reason out of a provider's error reply: the parsed message or the
+ * raw body, on one line, capped, and without the message's own addresses —
+ * they must not reach the logs. Empty when the reply body says nothing. */
+const failureReason = (text: string, msg: EmailMessage): string => {
+  const withoutAddresses = reduce(
+    (reason: string, address: string) =>
+      reason.replaceAll(address, "[redacted]"),
+    apiErrorMessage(text, PROVIDER_ERROR_KEYS),
+  )(compact([msg.to, msg.replyTo]));
+  const oneLine = withoutAddresses.replace(/\s+/g, " ").trim();
+  return oneLine.length > MAX_REASON_LENGTH
+    ? `${oneLine.slice(0, MAX_REASON_LENGTH)}...`
+    : oneLine;
+};
 
 const emailDelivery =
   (recover: (error: unknown) => EmailDeliveryResult) =>
@@ -284,14 +317,18 @@ const emailDelivery =
   ): Promise<EmailDeliveryResult> => {
     const buildRequest = PROVIDERS[config.provider];
     try {
-      const { ok, status } = await sendEmailRequest(buildRequest(config, msg));
-      return ok
-        ? { delivered: true, status }
-        : {
-            delivered: false,
-            detail: `provider=${config.provider} status=${status}`,
-            status,
-          };
+      const { ok, status, text } = await sendEmailRequest(
+        buildRequest(config, msg),
+      );
+      if (ok) return { delivered: true, status };
+      const reason = failureReason(text, msg);
+      const base = `provider=${config.provider} status=${status}`;
+      return {
+        delivered: false,
+        detail: reason ? `${base}: ${reason}` : base,
+        reason,
+        status,
+      };
     } catch (error) {
       return recover(error);
     }
@@ -310,18 +347,18 @@ export const deliverRegistrationEmail: (
 export const sendEmail = async (
   config: EmailConfig,
   msg: EmailMessage,
-): Promise<number | undefined> => {
+): Promise<EmailDeliveryResult> => {
   const delivery = await reportedEmailDelivery(config, msg);
   if (!delivery.delivered) {
     logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
   }
-  return delivery.status;
+  return delivery;
 };
 
 export const sendTestEmail = async (
   config: EmailConfig,
   to: ValidEmail,
-): Promise<number | undefined> =>
+): Promise<EmailDeliveryResult> =>
   await sendEmail(config, {
     html: `<p>${t("fields.email.test_body")}</p>`,
     subject: t("fields.email.test_subject"),
