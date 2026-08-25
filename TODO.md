@@ -1497,9 +1497,15 @@ Nothing fails until `recoveryMoveTo` throws in production.
 
 To fix:
 
-1. Make `RECOVERY_EVENTS` a `Record<RecoveryEventId, RecoveryMachineEvent>`.
-2. Derive the event list of the sweep from that record.
-3. Add a new id to the union. Make sure that the build then fails.
+1. Make `RECOVERY_EVENTS` a mapped record keyed by `RecoveryEventId`.
+2. Bind each value's `id` to its own key, or derive the `id` from the key.
+3. Derive the event list of the sweep from that record.
+4. Add a new id to the union. Make sure that the build then fails.
+
+A plain `Record<RecoveryEventId, RecoveryMachineEvent>` is not enough. It checks
+the keys, but `RecoveryMachineEvent` types `id` as the whole union. A new key
+can therefore hold an old event, and `Object.values` then hands the sweep a
+duplicate.
 
 `STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts` is the shape to
 copy. It is the exhaustive mapped record that this repository already uses for

@@ -80,21 +80,17 @@ laws live beside it, in `machine.test.ts` and `graph.test.ts`. That machine also
 shows the limit of this rule. Its events carry `kind` and `movesMoney`, not the
 write and the fence.
 
-Those two facts stay structural, and each has three writers.
-`moveSumupRecoveryRow` carries the recovery moves. It fences on
-`reference_index`, the state, and the schedule. `setSumupCheckoutId` carries the
-creation edge through `executeUpdate`. It fences on `reference_index` and the
-`staged` state, because a staged row has no schedule yet. The migration
-`2026-08-18_sumup_recovery_state.ts` writes both columns once, for the rows that
-predate the machine.
+Those two facts stay structural, so no declaration holds them. More than one
+place writes `recovery_state` and `next_check_at`, and this document does not
+list them. A count in prose goes stale, and this paragraph proved it: review
+corrected the count four times, and each round found another writer. The code is
+where that list belongs. A structural fact is weaker than a declared one, and it
+gets weaker with every writer that nobody counted.
 
-A migration is the writer that an author forgets, because it is not an edge.
-Three writers are weaker than one, and weaker again than a declared fact.
-
-Put a fact on the declaration when you can. Where a fact stays structural, name
-every place that carries it. Count them, and say that a structural fact is
-weaker than a declared one. Read the AGENTS.md section "Checked forwards and
-backwards" for the mechanisms.
+Put a fact on the declaration when you can. Where a fact stays structural, count
+every place that carries it while you plan. Do not carry that count into a
+long-lived document. Read the AGENTS.md section "Checked forwards and backwards"
+for the mechanisms.
 
 #### Trusted facts
 
