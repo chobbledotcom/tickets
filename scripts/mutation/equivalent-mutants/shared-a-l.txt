@@ -254,11 +254,7 @@ src/shared/crypto/hashing.ts::verifyPassword.iterations~10pid9h  10 → 0   # th
 # attendee-failures.ts: refusedOrderItem picks its fallback with .find over an
 # array of order items — objects, always truthy — so ?? and || agree.
 src/shared/attendee-failures.ts::refusedOrderItem.named~1wyyjdl  ?? → ||   # find over item objects → undefined|truthy; never falsy-non-null
-
-# email.ts: two empty-string fallbacks feed parseEmail, which maps "" and
-# "mutated" both to null, so the mutated literal is unobservable. The host
-# fallback pair also agrees between ?? and || because the fallback is "".
-src/shared/email.ts::getEmailConfig.fromAddress~1bacov9   → "mutated"   # parseEmail("") and parseEmail("mutated") both return null, so the config is null either way
-src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li   → "mutated"   # same parseEmail fallback: "" and "mutated" both parse to null
-src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → ||   # getEnv yields string|undefined and the fallback is "" itself, so ?? and || pick the same value for every input
-src/shared/email.ts::mailgunBody~0u9dcxo  ?? → ||   # msg.attachments is an array or undefined; an array is never falsy, so ?? and || agree
+src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated"   # only reached when both stored addresses are falsy, and parseEmail("mutated") === parseEmail("") === null
+src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated"   # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
+src/shared/email.ts::mailgunBody~0u9dcxo  ?? → ||   # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input

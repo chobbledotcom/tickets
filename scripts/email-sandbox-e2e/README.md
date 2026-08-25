@@ -6,11 +6,11 @@ delivery code and reports what each provider answered. It catches the one class
 of bug that stubs cannot: request URLs, auth headers, and body shapes that drift
 from what the providers accept.
 
-The harness runs the production code directly — `buildEmailRequest` and
-`sendEmailRequest` (`src/shared/email.ts`) for the single probe, and
-`sendBulkEmails` (`src/shared/email/bulk.ts`) for the bulk probe. It does not
-boot the app server or a browser, because outbound HTTP is the whole
-provider-facing surface for email.
+The harness runs the production code directly — `sendEmail`
+(`src/shared/email.ts`) for the single probe, and `sendBulkEmails`
+(`src/shared/email/bulk.ts`) for the bulk probe. It does not boot the app server
+or a browser, because outbound HTTP is the whole provider-facing surface for
+email.
 
 It is not a PR gate. See `.github/workflows/email-sandbox-e2e.yml` — it runs
 nightly and on demand.

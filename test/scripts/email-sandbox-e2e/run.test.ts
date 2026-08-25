@@ -153,6 +153,7 @@ describe("runEmailLeg failure containment", () => {
 
   test("counts a non-2xx single status as failed even when bulk passes", async () => {
     using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
     using _fetched = stubFetch(
       new Response("multiple choices", { status: 300 }),
       okJson(),
@@ -166,6 +167,7 @@ describe("runEmailLeg failure containment", () => {
 
   test("leans on the status alone when a refusal body is empty", async () => {
     using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
     using _fetched = stubFetch(new Response(null, { status: 500 }), okJson());
     expect(await runEmailLeg("resend")).toEqual({
       detail: "single 500, bulk 200",
@@ -174,11 +176,12 @@ describe("runEmailLeg failure containment", () => {
     });
   });
 
-  test("contains a thrown single send to a failed outcome for that leg", async () => {
+  test("reads a thrown single send as no response", async () => {
     using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
     using _fetched = stubFetch(new Error("connection refused"), okJson());
     expect(await runEmailLeg("resend")).toEqual({
-      detail: "connection refused",
+      detail: "single no response, bulk 200",
       provider: "resend",
       state: "failed",
     });

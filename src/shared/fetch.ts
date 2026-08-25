@@ -8,7 +8,7 @@
  */
 
 import { concatBytes } from "#crypto/utils.ts";
-import { extendedBy } from "#fp";
+import { extendedBy, mapNotNullish } from "#fp";
 import { errorResult, type Result } from "#shared/result.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
@@ -63,6 +63,47 @@ export const jsonHeaders: (
   "Content-Type": "application/json",
 });
 
+/** A non-empty string, or null when the value is anything else. */
+const nonEmptyString = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
+
+/** One error entry's message: the entry itself when it is a string, or its
+ * `message` field. */
+const entryMessage = (entry: unknown): string | null =>
+  entry !== null && typeof entry === "object" && "message" in entry
+    ? nonEmptyString(entry.message)
+    : nonEmptyString(entry);
+
+/** The message at one candidate key: the string itself, or the joined
+ * messages when the key holds an array of error entries (SendGrid's
+ * `errors` shape). */
+const keyMessage = (value: unknown): string | null => {
+  if (!Array.isArray(value)) return nonEmptyString(value);
+  const messages = mapNotNullish(entryMessage)(value);
+  return messages.length > 0 ? messages.join("; ") : null;
+};
+
+/**
+ * Pull the human-readable message out of an API error response body.
+ * Tries each key in `keys` (default: ["message", "error"]) in order.
+ * Returns the raw text when the body is not JSON or no key matches.
+ */
+export const apiErrorMessage = (
+  text: string,
+  keys: string[] = ["message", "error"],
+): string => {
+  try {
+    const json = JSON.parse(text);
+    for (const key of keys) {
+      const message = keyMessage(json?.[key]);
+      if (message !== null) return message;
+    }
+  } catch {
+    /* use raw text */
+  }
+  return text;
+};
+
 /**
  * Parse a JSON error response into a structured error.
  * Tries each key in `keys` (default: ["message", "error"]) in order.
@@ -70,22 +111,11 @@ export const jsonHeaders: (
 export const parseApiError = (
   response: { status: number; text: string },
   label: string,
-  keys: string[] = ["message", "error"],
-): Result<never> & { ok: false } => {
-  let message = response.text;
-  try {
-    const json = JSON.parse(response.text);
-    for (const key of keys) {
-      if (json[key]) {
-        message = json[key] as string;
-        break;
-      }
-    }
-  } catch {
-    /* use raw text */
-  }
-  return errorResult(`${label} failed (${response.status}): ${message}`);
-};
+  keys?: string[],
+): Result<never> & { ok: false } =>
+  errorResult(
+    `${label} failed (${response.status}): ${apiErrorMessage(response.text, keys)}`,
+  );
 
 /** Fetch a URL and eagerly read the response body, preventing resource leaks. */
 export const fetchText = async (

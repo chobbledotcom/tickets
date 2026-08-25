@@ -16,11 +16,10 @@ import {
   sendBulkEmails,
 } from "#shared/email/bulk.ts";
 import {
-  buildEmailRequest,
   type EmailConfig,
   type EmailMessage,
   type EmailProvider,
-  sendEmailRequest,
+  sendEmail,
 } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { ValidEmail } from "#shared/validation/email.ts";
@@ -121,31 +120,28 @@ const runReadyLeg = async (
   to: ValidEmail,
 ): Promise<EmailLegOutcome> => {
   const runId = randomId();
-  const single = await sendEmailRequest(
-    buildEmailRequest(config, probeMessage(config, to, runId)),
-  );
+  const single = await sendEmail(config, probeMessage(config, to, runId));
   const bulk = await sendBulkEmails(
     config,
     bulkProbePayload(config.provider, to, runId),
   );
-  const replies: BulkBatchResponse[] = [
-    { body: single.text, ok: single.ok, status: single.status },
-    ...bulk.responses,
-  ];
-  const problems = [
-    ...replies
-      .filter((reply) => !reply.ok)
-      .map((reply) => oneLine(reply.body))
-      // A refusal can come with an empty body; the status already says it.
-      .filter((body) => body !== ""),
-    ...BULK_REPLY_CHECKS[config.provider](bulk.responses),
-  ];
-  const sent = replies.every((reply) => reply.ok) && problems.length === 0;
-  const statuses = `single ${single.status}, bulk ${bulk.responses
+  const replyProblems = BULK_REPLY_CHECKS[config.provider](bulk.responses);
+  const sent =
+    single.delivered && bulk.failed === 0 && replyProblems.length === 0;
+  const refusals = [
+    // sendEmail already parses, redacts, and caps the single reply's reason.
+    ...(single.delivered ? [] : [oneLine(single.reason)]),
+    ...bulk.responses
+      .filter((response) => !response.ok)
+      .map((response) => oneLine(response.body)),
+    // A refusal can come with an empty body; the status already says it.
+  ].filter((text) => text !== "");
+  // A thrown single send has no status; sendEmail reports it as undefined.
+  const statuses = `single ${single.status ?? "no response"}, bulk ${bulk.responses
     .map((response) => response.status)
     .join(", ")}`;
   return {
-    detail: [statuses, ...problems].join(" — "),
+    detail: [statuses, ...refusals, ...replyProblems].join(" — "),
     provider: config.provider,
     state: sent ? "sent" : "failed",
   };

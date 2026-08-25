@@ -10,7 +10,7 @@ import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
 /* jscpd:ignore-end */
 import { errorMessage } from "#shared/error-message.ts";
-import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { apiErrorMessage, type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   emailHost,
@@ -248,12 +248,6 @@ export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   sendgrid: "SendGrid",
 };
 
-/** Build the provider request one message send makes, without sending it. */
-export const buildEmailRequest = (
-  config: EmailConfig,
-  msg: EmailMessage,
-): EmailRequest => PROVIDERS[config.provider](config, msg);
-
 const postBody = (
   url: string,
   headers: Headers,
@@ -272,33 +266,76 @@ const postBody = (
 export const sendEmailRequest = (request: EmailRequest): Promise<FetchResult> =>
   postBody(...request);
 
-type EmailDeliveryResult =
+export type EmailDeliveryResult =
   | { delivered: true; status: number }
-  | { delivered: false; detail: string; status: number | undefined };
+  | {
+      delivered: false;
+      /** For the log line: provider, status, and the reason when known. */
+      detail: string;
+      /** The provider's own error message, safe to show to the operator.
+       * Empty when there is no usable message — a network failure has no
+       * reply, and some replies carry none — so callers branch on it. */
+      reason: string;
+      status: number | undefined;
+    };
+
+/** Deliver one message with a config — the shape every sender shares. */
+type EmailDeliveryFn = EmailProviderFn<Promise<EmailDeliveryResult>>;
 
 const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
   delivered: false,
   detail: errorMessage(error),
+  reason: "",
   status: undefined,
 });
 
+/** Keys the email providers use for the message in an error reply:
+ * Resend and Mailgun `message`, Postmark `Message`, SendGrid `errors`. */
+const PROVIDER_ERROR_KEYS = ["message", "Message", "errors", "error"];
+
+/** How much of a provider's reply can enter a log line or a flash message,
+ * so a verbose body cannot flood either. A cut reply keeps this many
+ * characters and then a three-character `...` marker, like the bulk-send
+ * summary. */
+const MAX_REASON_LENGTH = 300;
+
+/** Any email-shaped token in a reply is an address that must not reach the
+ * logs — a provider can echo the recipient, the sender, or an account
+ * address the send never named. Greedy on purpose: better to blank an odd
+ * token than to let an address through. */
+const EMAIL_SHAPED = /\S+@\S+/g;
+
+/** Pull the reason out of a provider's error reply: the parsed message or the
+ * raw body, on one line, capped, and with every email-shaped value blanked.
+ * Empty when the reply body says nothing. */
+const failureReason = (text: string): string => {
+  const withoutAddresses = apiErrorMessage(text, PROVIDER_ERROR_KEYS).replace(
+    EMAIL_SHAPED,
+    "[redacted]",
+  );
+  const oneLine = withoutAddresses.replace(/\s+/g, " ").trim();
+  return oneLine.length > MAX_REASON_LENGTH
+    ? `${oneLine.slice(0, MAX_REASON_LENGTH)}...`
+    : oneLine;
+};
+
 const emailDelivery =
-  (recover: (error: unknown) => EmailDeliveryResult) =>
-  async (
-    config: EmailConfig,
-    msg: EmailMessage,
-  ): Promise<EmailDeliveryResult> => {
+  (recover: (error: unknown) => EmailDeliveryResult): EmailDeliveryFn =>
+  async (config, msg) => {
+    const buildRequest = PROVIDERS[config.provider];
     try {
-      const { ok, status } = await sendEmailRequest(
-        buildEmailRequest(config, msg),
+      const { ok, status, text } = await sendEmailRequest(
+        buildRequest(config, msg),
       );
-      return ok
-        ? { delivered: true, status }
-        : {
-            delivered: false,
-            detail: `provider=${config.provider} status=${status}`,
-            status,
-          };
+      if (ok) return { delivered: true, status };
+      const reason = failureReason(text);
+      const base = `provider=${config.provider} status=${status}`;
+      return {
+        delivered: false,
+        detail: reason ? `${base}: ${reason}` : base,
+        reason,
+        status,
+      };
     } catch (error) {
       return recover(error);
     }
@@ -306,29 +343,25 @@ const emailDelivery =
 
 const reportedEmailDelivery = emailDelivery(failedEmailDelivery);
 
-export const deliverRegistrationEmail: (
-  config: EmailConfig,
-  msg: EmailMessage,
-) => Promise<EmailDeliveryResult> = emailDelivery((error) => {
-  if (!(error instanceof TypeError)) throw error;
-  return failedEmailDelivery(error);
-});
+export const deliverRegistrationEmail: EmailDeliveryFn = emailDelivery(
+  (error) => {
+    if (!(error instanceof TypeError)) throw error;
+    return failedEmailDelivery(error);
+  },
+);
 
-export const sendEmail = async (
-  config: EmailConfig,
-  msg: EmailMessage,
-): Promise<number | undefined> => {
+export const sendEmail: EmailDeliveryFn = async (config, msg) => {
   const delivery = await reportedEmailDelivery(config, msg);
   if (!delivery.delivered) {
     logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
   }
-  return delivery.status;
+  return delivery;
 };
 
 export const sendTestEmail = async (
   config: EmailConfig,
   to: ValidEmail,
-): Promise<number | undefined> =>
+): Promise<EmailDeliveryResult> =>
   await sendEmail(config, {
     html: `<p>${t("fields.email.test_body")}</p>`,
     subject: t("fields.email.test_subject"),

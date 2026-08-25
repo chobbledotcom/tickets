@@ -10,21 +10,12 @@ import {
   sendEmail,
   sendTestEmail,
 } from "#shared/email.ts";
-import { validEmail } from "#test-utils/email.ts";
+import {
+  minimalEmailMessage,
+  testEmailConfig,
+  validEmail,
+} from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
-
-const testConfig: EmailConfig = {
-  apiKey: "re_test_key",
-  fromAddress: validEmail("tickets@example.com"),
-  provider: "resend",
-};
-
-const minimalMsg: EmailMessage = {
-  html: "h",
-  subject: "s",
-  text: "t",
-  to: validEmail("a@b.com"),
-};
 
 const plainMsg: EmailMessage = {
   html: "<p>Hi</p>",
@@ -35,28 +26,37 @@ const plainMsg: EmailMessage = {
 
 const sendWithProvider = (
   provider: EmailConfig["provider"],
-  msg: EmailMessage = minimalMsg,
-) => sendEmail({ ...testConfig, provider }, msg);
+  msg: EmailMessage = minimalEmailMessage,
+) => sendEmail({ ...testEmailConfig, provider }, msg);
+
+type ExpectedFailure = {
+  /** Substring the E_EMAIL_SEND log line must carry — pass the whole
+   * `detail="…"` fragment to pin the exact detail. */
+  logged: string;
+  /** The operator-facing reason, asserted exactly when given. */
+  reason?: string;
+  status: number | undefined;
+};
 
 const sendEmailExpectingError = async (
   config: EmailConfig,
   msg: EmailMessage,
-  expectedStatus: number | undefined,
-  expectedLogSubstring: string,
+  expected: ExpectedFailure,
 ): Promise<void> => {
   const errorSpy = spy(console, "error");
   try {
-    const status = await sendEmail(config, msg);
-    if (expectedStatus === undefined) {
-      expect(status).toBeUndefined();
-    } else {
-      expect(status).toBe(expectedStatus);
+    const delivery = await sendEmail(config, msg);
+    expect(delivery.delivered).toBe(false);
+    if (delivery.delivered) return;
+    expect(delivery.status).toBe(expected.status);
+    if (expected.reason !== undefined) {
+      expect(delivery.reason).toBe(expected.reason);
     }
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
     expect(logs.join("\n")).not.toContain(msg.to);
     expect(
       logs.some(
-        (l) => l.includes("E_EMAIL_SEND") && l.includes(expectedLogSubstring),
+        (l) => l.includes("E_EMAIL_SEND") && l.includes(expected.logged),
       ),
     ).toBe(true);
   } finally {
@@ -88,9 +88,9 @@ describe("sendEmail", () => {
       to: validEmail("user@test.com"),
     };
 
-    const status = await sendEmail(testConfig, msg);
+    const delivery = await sendEmail(testEmailConfig, msg);
 
-    expect(status).toBe(200);
+    expect(delivery).toEqual({ delivered: true, status: 200 });
     expect(fetch.callCount()).toBe(1);
     const [url, init] = fetch.getFetchArgs();
     expect(url).toBe("https://api.resend.com/emails");
@@ -199,47 +199,178 @@ describe("sendEmail", () => {
     expect(fetch.getFetchFormBody().get("h:Reply-To")).toBeNull();
   });
 
-  test("returns status code on non-OK response", async () => {
-    fetch.restubFetch(() =>
-      Promise.resolve(new Response("Error", { status: 500 })),
+  const restubReply = (body: string | null, status: number): void =>
+    fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
+
+  test("logs the provider's reply body on a non-OK response", async () => {
+    restubReply("Error", 500);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="provider=resend status=500: Error"',
+      reason: "Error",
+      status: 500,
+    });
+  });
+
+  test("logs SendGrid's message from its errors array", async () => {
+    const message =
+      "The from address does not match a verified Sender Identity";
+    restubReply(
+      JSON.stringify({ errors: [{ field: "from", help: null, message }] }),
+      403,
     );
 
     await sendEmailExpectingError(
-      testConfig,
-      minimalMsg,
-      500,
-      "provider=resend status=500",
+      { ...testEmailConfig, provider: "sendgrid" },
+      minimalEmailMessage,
+      {
+        logged: `detail="provider=sendgrid status=403: ${message}"`,
+        reason: message,
+        status: 403,
+      },
     );
   });
 
-  test("returns undefined on fetch failure", async () => {
+  test("reads a plain error key in a reply", async () => {
+    restubReply('{"error":"Invalid API key"}', 401);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="provider=resend status=401: Invalid API key"',
+      reason: "Invalid API key",
+      status: 401,
+    });
+  });
+
+  test("reads Postmark's capitalised Message key", async () => {
+    restubReply('{"ErrorCode":10,"Message":"Bad API token"}', 401);
+
+    await sendEmailExpectingError(
+      { ...testEmailConfig, provider: "postmark" },
+      minimalEmailMessage,
+      {
+        logged: 'detail="provider=postmark status=401: Bad API token"',
+        status: 401,
+      },
+    );
+  });
+
+  test("scrubs the send's own addresses from the reason", async () => {
+    restubReply(
+      '{"message":"a@b.com reply@test.com and tickets@example.com are not allowed"}',
+      400,
+    );
+
+    await sendEmailExpectingError(
+      testEmailConfig,
+      { ...minimalEmailMessage, replyTo: validEmail("reply@test.com") },
+      {
+        logged:
+          'detail="provider=resend status=400: [redacted] [redacted] and [redacted] are not allowed"',
+        status: 400,
+      },
+    );
+  });
+
+  test("scrubs an address the send never named", async () => {
+    restubReply(
+      '{"message":"You can only send testing emails to your own email address (owner@gmail.com)"}',
+      403,
+    );
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged:
+        'detail="provider=resend status=403: You can only send testing emails to your own email address [redacted]"',
+      reason:
+        "You can only send testing emails to your own email address [redacted]",
+      status: 403,
+    });
+  });
+
+  test("scrubs the configured from address on an unverified-sender reply", async () => {
+    restubReply(
+      '{"errors":[{"message":"The from address tickets@example.com is not a verified Sender Identity"}]}',
+      403,
+    );
+
+    await sendEmailExpectingError(
+      { ...testEmailConfig, provider: "sendgrid" },
+      minimalEmailMessage,
+      {
+        logged:
+          'detail="provider=sendgrid status=403: The from address [redacted] is not a verified Sender Identity"',
+        reason: "The from address [redacted] is not a verified Sender Identity",
+        status: 403,
+      },
+    );
+  });
+
+  test("puts a multi-line reply onto one log line", async () => {
+    restubReply("Access\n\n  denied", 403);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="provider=resend status=403: Access denied"',
+      reason: "Access denied",
+      status: 403,
+    });
+  });
+
+  test("caps an over-long reply", async () => {
+    restubReply("x".repeat(1000), 500);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: `detail="provider=resend status=500: ${"x".repeat(300)}..."`,
+      reason: `${"x".repeat(300)}...`,
+      status: 500,
+    });
+  });
+
+  test("keeps a reply exactly at the cap whole", async () => {
+    restubReply("y".repeat(300), 500);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: `detail="provider=resend status=500: ${"y".repeat(300)}"`,
+      status: 500,
+    });
+  });
+
+  test("logs only provider and status when the reply body is empty", async () => {
+    restubReply(null, 500);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="provider=resend status=500"',
+      reason: "",
+      status: 500,
+    });
+  });
+
+  test("returns no status on fetch failure", async () => {
     fetch.restubFetch(() => Promise.reject(new Error("Network error")));
 
-    await sendEmailExpectingError(
-      testConfig,
-      minimalMsg,
-      undefined,
-      "Network error",
-    );
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="Network error"',
+      reason: "",
+      status: undefined,
+    });
   });
 
-  test("returns undefined for non-Error thrown values", async () => {
+  test("returns no status for non-Error thrown values", async () => {
     fetch.restubFetch(() => Promise.reject("string error"));
 
-    await sendEmailExpectingError(
-      testConfig,
-      minimalMsg,
-      undefined,
-      "string error",
-    );
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="string error"',
+      status: undefined,
+    });
   });
 
   test("registration delivery returns network failures", async () => {
     fetch.restubFetch(() => Promise.reject(new TypeError("Network error")));
 
-    expect(await deliverRegistrationEmail(testConfig, minimalMsg)).toEqual({
+    expect(
+      await deliverRegistrationEmail(testEmailConfig, minimalEmailMessage),
+    ).toEqual({
       delivered: false,
       detail: "Network error",
+      reason: "",
       status: undefined,
     });
   });
@@ -248,9 +379,9 @@ describe("sendEmail", () => {
     const failure = new Error("Internal error");
     fetch.restubFetch(() => Promise.reject(failure));
 
-    await expect(deliverRegistrationEmail(testConfig, minimalMsg)).rejects.toBe(
-      failure,
-    );
+    await expect(
+      deliverRegistrationEmail(testEmailConfig, minimalEmailMessage),
+    ).rejects.toBe(failure);
   });
 });
 
@@ -268,12 +399,12 @@ describe("sendTestEmail", () => {
   const fetch = useFetchStub();
 
   test("sends the translated test message", async () => {
-    const status = await sendTestEmail(
-      testConfig,
+    const delivery = await sendTestEmail(
+      testEmailConfig,
       validEmail("admin@test.com"),
     );
 
-    expect(status).toBe(200);
+    expect(delivery).toEqual({ delivered: true, status: 200 });
     expect(fetch.callCount()).toBe(1);
     const body = fetch.getFetchJsonBody();
     expect(body.to).toEqual(["admin@test.com"]);
@@ -300,7 +431,7 @@ describe("sendEmail with attachments", () => {
   };
 
   test("Resend includes attachments with filename and content", async () => {
-    await sendEmail(testConfig, msgWithAttachment);
+    await sendEmail(testEmailConfig, msgWithAttachment);
 
     expect(fetch.getFetchJsonBody().attachments).toEqual([
       { content: attachment.content, filename: "ticket.svg" },
@@ -343,7 +474,7 @@ describe("sendEmail with attachments", () => {
   });
 
   test("omits attachments field when no attachments provided", async () => {
-    await sendEmail(testConfig, minimalMsg);
+    await sendEmail(testEmailConfig, minimalEmailMessage);
 
     expect(fetch.getFetchJsonBody().attachments).toBeUndefined();
   });
