@@ -1,5 +1,23 @@
 # TODO — remaining follow-ups
 
+## Thread an abort signal through the email send APIs (from PR #2140)
+
+`runEmailLeg` (`scripts/email-sandbox-e2e/run.ts`) races each leg against a
+two-minute timer. The timer only settles the race: an in-flight provider request
+keeps running, so a stalled request can fire one orphan probe after its leg
+reported failed. The harness exits right after the report, and the orphan cannot
+change the summary or the exit status, so the harm today is one duplicate probe
+to a discard or authorized address. Codex and CodeRabbit both asked for a real
+abort on PR #2140. It was declined there because it threads `AbortSignal`
+through `sendEmail`, `deliverRegistrationEmail`, `sendBulkEmails`, and
+`fetchText` for a parameter no production caller passes. If cancellable sends
+ever earn a production caller, add an optional `signal` to those APIs, abort it
+in `legTimeout`, and pass it to both probes.
+
+Review threads:
+<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856012838>
+<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856612016>
+
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
 `logError` sends one `detail` string to the console, the activity log, and

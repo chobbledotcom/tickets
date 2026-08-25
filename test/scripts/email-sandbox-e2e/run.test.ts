@@ -165,6 +165,22 @@ describe("runEmailLeg failure containment", () => {
     });
   });
 
+  test("blanks an echoed address before the report", async () => {
+    using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(
+      okJson(),
+      new Response("recipient delivered@resend.dev is not allowed", {
+        status: 422,
+      }),
+    );
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "single 200, bulk 422 — recipient [redacted] is not allowed",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+
   test("leans on the status alone when a refusal body is empty", async () => {
     using _env = withEnv(resendEnv);
     using _quiet = stub(console, "error");

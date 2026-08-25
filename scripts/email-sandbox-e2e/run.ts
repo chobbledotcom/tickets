@@ -73,9 +73,12 @@ const bulkProbePayload = (
   text: `Bulk probe ${runId} for ${provider}. Unsubscribe: ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
 });
 
-/** A response body flattened to one short Markdown-table-safe line. */
+/** A reply flattened to one short Markdown-table-safe line, with every
+ * email-shaped token blanked — a provider can echo the configured sender
+ * or recipient, and an address must not reach a CI log. */
 const oneLine = (text: string): string =>
   text
+    .replaceAll(/\S+@\S+/g, "[redacted]")
     .replaceAll(/[|\s]+/g, " ")
     .trim()
     .slice(0, 160);
