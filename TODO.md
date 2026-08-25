@@ -1373,8 +1373,14 @@ _Origin: the SumUp recovery work that shipped in #2109 named this story. Nobody
 wrote it._
 
 That work named `specs/payments/a-payment-with-no-callback.feature`. The story
-must buy through the real public booking page, drop the callback, run
-maintenance, and find the ticket.
+must buy through the real public booking page. It must then drop the callback,
+run maintenance, and find the ticket.
+
+Dropping the callback is not enough on its own. `createCheckout` sets
+`redirect_url` to `/payment/success` beside the `return_url` webhook, and
+`processSessionAndRedirect` books the payment from that redirect. A story that
+drops only the callback can pass without running recovery at all. The buyer must
+reach the success page only after maintenance recovers the checkout.
 
 `test/integration/server/sumup-recovery/recovers.test.ts` covers the recovery
 itself, in the case "books a paid checkout whose callback never arrived". It
@@ -1409,7 +1415,9 @@ same row.
 To fix:
 
 1. Configure Square.
-2. Let the order become readable.
+2. Let the order become readable. Let the payment read back as `COMPLETED` too.
+   `readOrderPayment` throws for a completed webhook until it does, so a
+   readable order alone keeps both deliveries retryable.
 3. Deliver the same completed webhook twice.
 4. Assert one `attendees` row.
 5. Assert one `processed_payments` row.
@@ -1496,14 +1504,25 @@ stops when the site removes its SumUp key, because `enabled` reads
 `settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
 counts them.
 
+A second case reaches the same place. A site that keeps its key, and a SumUp
+that never returns a usable read, retries for ever and answers nothing.
+
 To fix:
 
 1. Add a scan, or a panel on `/admin/schema`.
-2. Select `owed` rows, and `waiting` rows whose check time passed by a wide
-   margin.
-3. Keep the bound of `SCAN_LIMIT` on the rows returned.
-4. Report the total count beside them, so a bounded page still tells the
+2. Select every `owed` row.
+3. Select every `waiting` row whose `created_at` is old.
+4. Keep the bound of `SCAN_LIMIT` on the rows returned.
+5. Report the total count beside them, so a bounded page still tells the
    operator how many exist.
+
+`created_at` is the right clock, and `next_check_at` is not. A row under active
+retry never looks overdue. `applySumupRecoveryEvent` and
+`delaySumupRecoveryCheck` both write `isoAfter(SUMUP_RECHECK_MS)`, so the check
+time moves forward after every attempt. A site that keeps its key, and a SumUp
+that never answers, stays invisible behind an overdue test. `created_at` never
+moves after staging, so it catches that case and the disconnected-key case
+alike.
 
 Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
 `RECOVERY_CHECKABLE_NODES`. For a compile-time refusal, key the scan by the
