@@ -121,6 +121,9 @@ const sumupAnomaly = (row: SumupScanRow): SchemaAnomaly => {
 };
 
 const SUMUP_SCAN: DeclaredScan = declaredScan<SumupScanRow>(
+  // The operator sees `reference_index`, a one-way code this database cannot
+  // turn back into the buyer's reference. `sumup_id` only picks which fault
+  // the row has, and no amount or buyer fact is selected.
   `SELECT reference_index AS record_id, recovery_state, sumup_id
           FROM sumup_checkouts
          WHERE recovery_state NOT IN (${SUMUP_STATE_SLOTS})

@@ -1369,12 +1369,18 @@ out of scope for #1873, and a starting point._
 
 ## Tell the story of a payment whose callback was lost
 
-_Origin: `SUMUP_RECOVERY_PLAN.md` named this story for the SumUp recovery work
-that shipped in #2109. Nobody wrote it._
+_Origin: the SumUp recovery work that shipped in #2109 named this story. Nobody
+wrote it._
 
-The plan named `specs/payments/a-payment-with-no-callback.feature`. The story
-must buy through the real public booking page, drop the callback, run
-maintenance, and find the ticket.
+That work named `specs/payments/a-payment-with-no-callback.feature`. The story
+must buy through the real public booking page. It must then drop the callback,
+run maintenance, and find the ticket.
+
+Dropping the callback is not enough on its own. `createCheckout` sets
+`redirect_url` to `/payment/success` beside the `return_url` webhook, and
+`processSessionAndRedirect` books the payment from that redirect. A story that
+drops only the callback can pass without running recovery at all. The buyer must
+reach the success page only after maintenance recovers the checkout.
 
 `test/integration/server/sumup-recovery/recovers.test.ts` covers the recovery
 itself, in the case "books a paid checkout whose callback never arrived". It
@@ -1409,7 +1415,9 @@ same row.
 To fix:
 
 1. Configure Square.
-2. Let the order become readable.
+2. Let the order become readable. Let the payment read back as `COMPLETED` too.
+   `readOrderPayment` throws for a completed webhook until it does, so a
+   readable order alone keeps both deliveries retryable.
 3. Deliver the same completed webhook twice.
 4. Assert one `attendees` row.
 5. Assert one `processed_payments` row.
@@ -1444,6 +1452,67 @@ To fix:
 
 ---
 
+## Decide what a buyer sees after the SumUp staging row is pruned
+
+_Origin: the SumUp recovery work that shipped in #2109. The behaviour is read
+from the code. No test pins it._
+
+A recovered booking outlives the row that the success page needs.
+`validatePaidSession` calls `retrieveSession`, and the SumUp member reads the
+staging row through `getSumupCheckout` (`src/shared/sumup-provider.ts`).
+`finished` is prunable, so `runDatabasePruning` deletes the row after
+`PRUNE_SUMUP_RETENTION_HOURS`. The return then answers "not found".
+
+The ticket is unaffected, because recovery already booked it. The buyer loses
+the success page, not the booking.
+
+Two questions sit behind this, and the second waits on the first.
+
+1. Decide whether the success page must work past the retention window.
+2. Add a regression test for whichever answer wins.
+   `test/integration/server/sumup-recovery/late-callback.test.ts` runs the
+   return immediately and never advances the clock, so it proves nothing here.
+
+Two ways exist to keep the page working, and they cost very differently. One
+keeps staged rows longer, which costs storage on every site. The other replays
+the durable result that recovery already wrote. `processed_payments` holds the
+attendee and the encrypted `ticket_tokens` under the same session reference.
+`validatePaidSession` asks the provider first, so it answers "not found" before
+it ever reads that row.
+
+---
+
+## Make a new recovery event impossible to half-declare
+
+_Origin: the review of #2132. Both reviewers reached this on their own. The note
+lived in `SUMUP_RECOVERY_PLAN.md`, which #2134 deleted._
+
+`RecoveryEventId` is a hand-written union in
+`src/shared/payment/sumup-recovery-machine-spec.ts`. `RECOVERY_EVENTS` is a
+separate array beside it, and `RECOVERY_MOVES` is partial per node.
+
+An id added to the union alone still compiles. The mirror sweep in
+`machine.test.ts` iterates `RECOVERY_EVENTS`, so it never visits that id.
+Nothing fails until `recoveryMoveTo` throws in production.
+
+To fix:
+
+1. Make `RECOVERY_EVENTS` a mapped record keyed by `RecoveryEventId`.
+2. Bind each value's `id` to its own key, or derive the `id` from the key.
+3. Derive the event list of the sweep from that record.
+4. Add a new id to the union. Make sure that the build then fails.
+
+A plain `Record<RecoveryEventId, RecoveryMachineEvent>` is not enough. It checks
+the keys, but `RecoveryMachineEvent` types `id` as the whole union. A new key
+can therefore hold an old event, and `Object.values` then hands the sweep a
+duplicate.
+
+`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts` is the shape to
+copy. It is the exhaustive mapped record that this repository already uses for
+the same job.
+
+---
+
 ## Show the operator the SumUp rows that nobody answered for
 
 _Origin: found during the review of #2132, while somebody checked what the live
@@ -1472,14 +1541,25 @@ stops when the site removes its SumUp key, because `enabled` reads
 `settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
 counts them.
 
+A second case reaches the same place. A site that keeps its key, and a SumUp
+that never returns a usable read, retries for ever and answers nothing.
+
 To fix:
 
 1. Add a scan, or a panel on `/admin/schema`.
-2. Select `owed` rows, and `waiting` rows whose check time passed by a wide
-   margin.
-3. Keep the bound of `SCAN_LIMIT` on the rows returned.
-4. Report the total count beside them, so a bounded page still tells the
+2. Select every `owed` row.
+3. Select every `waiting` row whose `created_at` is old.
+4. Keep the bound of `SCAN_LIMIT` on the rows returned.
+5. Report the total count beside them, so a bounded page still tells the
    operator how many exist.
+
+`created_at` is the right clock, and `next_check_at` is not. A row under active
+retry never looks overdue. `applySumupRecoveryEvent` and
+`delaySumupRecoveryCheck` both write `isoAfter(SUMUP_RECHECK_MS)`, so the check
+time moves forward after every attempt. A site that keeps its key, and a SumUp
+that never answers, stays invisible behind an overdue test. `created_at` never
+moves after staging, so it catches that case and the disconnected-key case
+alike.
 
 Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
 `RECOVERY_CHECKABLE_NODES`. For a compile-time refusal, key the scan by the
