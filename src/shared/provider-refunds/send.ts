@@ -12,7 +12,10 @@ import {
   returnRefundToReady,
 } from "#payment/refund-authority.ts";
 import type { RefundAuthorityState } from "#payment/refund-authority-state.ts";
-import { authorizeDurableRefundSend } from "#payment/refund-provider-authorization.ts";
+import {
+  authorizeDurableRefundSend,
+  isKeylessProvider,
+} from "#payment/refund-provider-authorization.ts";
 import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { type ChargeMoney, returnedRefundMoney } from "#payment/resources.ts";
 import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
@@ -51,9 +54,14 @@ const authorizeSend = async (
     throw new Error("Refund generation identity does not match its charge");
   }
   const refund = { charge, paymentReference: reference.reference };
-  if (request.capability === "keyless") {
-    if (reference.provider !== "sumup") {
-      throw new Error("Keyless refund generation does not belong to SumUp");
+  // The stored generation's capability must agree with what the registry
+  // declares for the tagged provider — a mismatch means the record and the
+  // declaration disagree about how this provider refunds.
+  if (isKeylessProvider(reference.provider)) {
+    if (request.capability !== "keyless") {
+      throw new Error(
+        "A keyed refund generation cannot name a keyless provider",
+      );
     }
     return authorizeDurableRefundSend(refund, {
       capability: "keyless",
@@ -62,8 +70,8 @@ const authorizeSend = async (
       provider: reference.provider,
     });
   }
-  if (reference.provider === "sumup") {
-    throw new Error("Keyed refund generation cannot belong to SumUp");
+  if (request.capability !== "keyed") {
+    throw new Error("A keyless refund generation cannot name a keyed provider");
   }
   return authorizeDurableRefundSend(refund, {
     capability: "keyed",

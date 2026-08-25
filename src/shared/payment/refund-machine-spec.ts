@@ -39,6 +39,7 @@ import type {
 import type { RefundConflictDecision } from "#payment/refund-conflict-decision.ts";
 import { refundReplayUntil } from "#payment/refund-replay-window.ts";
 import {
+  derivedNodeIds,
   type ExpectedMove,
   type MachineEvent,
   type MachineMoves,
@@ -524,11 +525,16 @@ export const refundChoiceTarget = (
   choice: RefundOwnerChoiceName,
 ): RefundNodeId => REFUND_MOVES.plain("choice_open", OWNER_EVENT_FOR[choice]);
 
+const MONEY_SENDING_NODES: ReadonlySet<RefundNodeId> = new Set(
+  derivedNodeIds({
+    events: REFUND_EVENTS,
+    moves: EXPECTED_MOVES,
+    nodes: REFUND_NODES,
+  }).movedBy((event) => event.movesMoney),
+);
+
 /** Whether the machine declares any money-sending move out of this node.
  * An owner action that runs the engine in "send" mode from such a node can
  * move real money; pure evidence checks ("observe only") never can. */
 export const refundNodeSendsMoney = (node: RefundNodeId): boolean =>
-  REFUND_EVENTS.some(
-    (event) =>
-      event.movesMoney && REFUND_MOVES.targets(node, event.id).length > 0,
-  );
+  MONEY_SENDING_NODES.has(node);

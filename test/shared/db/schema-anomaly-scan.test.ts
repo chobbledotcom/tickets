@@ -18,7 +18,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "armed_without_claim",
-        kind: "payment",
         recordId: "cs_scan_armed",
       },
     ]);
@@ -35,7 +34,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "claim_without_charge",
-        kind: "payment",
         recordId: "cs_scan_unbacked",
       },
     ]);
@@ -47,7 +45,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_unknown_state",
-        kind: "sumup",
         recordId: "idx_co_scan_unknown",
         state: "abandoned",
       },
@@ -60,7 +57,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_checkout_id_mismatch",
-        kind: "sumup",
         recordId: "idx_co_scan_staged",
         state: "staged",
       },
@@ -77,7 +73,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_checkout_id_mismatch",
-        kind: "sumup",
         recordId: "idx_co_scan_missing",
         state: "waiting",
       },
@@ -90,7 +85,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_check_time_mismatch",
-        kind: "sumup",
         recordId: "idx_co_scan_no_clock",
         state: "waiting",
       },
@@ -103,7 +97,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_check_time_mismatch",
-        kind: "sumup",
         recordId: "idx_co_scan_bad_clock",
         state: "waiting",
       },
@@ -120,7 +113,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_check_time_mismatch",
-        kind: "sumup",
         recordId: "idx_co_scan_bad_date",
         state: "waiting",
       },
@@ -137,7 +129,6 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
     expect(await scanSchemaAnomalies()).toEqual([
       {
         key: "sumup_check_time_mismatch",
-        kind: "sumup",
         recordId: "idx_co_scan_closed_clock",
         state: "finished",
       },

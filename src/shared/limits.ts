@@ -422,6 +422,20 @@ export const SUMUP_RECOVERY_INTERVAL_MINUTES = limit(
 );
 
 /**
+ * How long a SumUp checkout may sit without a definitive answer before the
+ * system map lists it for the operator (default: 24 hours). The first check
+ * runs at 3 hours and rechecks every 6, so a healthy row is settled well
+ * inside a day — one still waiting after this is a task that cannot get an
+ * answer, or cannot run at all (for example after the SumUp key is removed).
+ */
+export const SUMUP_UNANSWERED_AFTER_HOURS = limit(
+  "SUMUP_UNANSWERED_AFTER_HOURS",
+  24,
+  "SumUp recovery: list a still-unanswered checkout after",
+  "hours",
+);
+
+/**
  * How many checkouts one SumUp recovery run may take (default: 3). Each costs
  * one SumUp read, and a paid one can also spend the refund path's calls, so
  * this is what keeps the task inside the edge subrequest budget.
@@ -548,6 +562,8 @@ export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
 export const SUMUP_FIRST_CHECK_MS = SUMUP_FIRST_CHECK_HOURS * 60 * 60 * 1000;
 export const SUMUP_RECHECK_MS = SUMUP_RECHECK_HOURS * 60 * 60 * 1000;
+export const SUMUP_UNANSWERED_AFTER_MS =
+  SUMUP_UNANSWERED_AFTER_HOURS * 60 * 60 * 1000;
 export const SUMUP_RECOVERY_INTERVAL_MS =
   SUMUP_RECOVERY_INTERVAL_MINUTES * 60 * 1000;
 export const PRUNE_UNUSED_STRINGS_RETENTION_MS =

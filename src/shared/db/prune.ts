@@ -55,12 +55,6 @@ const boundedDelete = (
 const isoCutoff = (retentionMs: number): string =>
   new Date(nowMs() - retentionMs).toISOString();
 
-/** The states a staged SumUp checkout may be deleted in, as SQL literals.
- * They are the machine's own words, so a node that stops being prunable stops
- * being deleted without this query being touched. */
-const prunableSumupStates = (): string =>
-  RECOVERY_PRUNABLE_NODES.map((state) => `'${state}'`).join(", ");
-
 const paymentStatement = (): PruneStatement => ({
   args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
   sql: `DELETE FROM processed_payments
@@ -125,8 +119,8 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    `created_at < ? AND recovery_state IN (${prunableSumupStates()})`,
-    [isoCutoff(PRUNE_SUMUP_RETENTION_MS)],
+    `created_at < ? AND recovery_state IN (${inPlaceholders(RECOVERY_PRUNABLE_NODES)})`,
+    [isoCutoff(PRUNE_SUMUP_RETENTION_MS), ...RECOVERY_PRUNABLE_NODES],
   ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),

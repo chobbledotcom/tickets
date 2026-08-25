@@ -15,7 +15,7 @@ import {
 } from "#payment/row-machine-spec.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 import {
-  atlasStatesFromSpec,
+  atlasMachineFrom,
   factsAndStart,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
@@ -52,14 +52,8 @@ const rowFacts = (state: PaymentRowState): AtlasState["facts"] => {
 
 /** The whole row machine: shapes from the spec's constructors, edges from
  * the real transitions succeeding. */
-export const rowLifecycleAtlas = (): AtlasMachine => ({
-  id: "row",
-  introKey: "schema.row.intro",
-  states: atlasStatesFromSpec(
+export const rowLifecycleAtlas = (): AtlasMachine =>
+  atlasMachineFrom(
     { events: ROW_EVENTS, nodeOf: rowNodeOf, nodes: ROW_NODES },
-    "schema.row.state",
-    LAYOUTS,
-    factsAndStart(rowFacts, "free"),
-  ),
-  titleKey: "schema.row.title",
-});
+    { extraOf: factsAndStart(rowFacts, "free"), id: "row", layouts: LAYOUTS },
+  );

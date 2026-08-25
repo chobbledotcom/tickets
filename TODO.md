@@ -1482,96 +1482,6 @@ it ever reads that row.
 
 ---
 
-## Make a new recovery event impossible to half-declare
-
-_Origin: the review of #2132. Both reviewers reached this on their own. The note
-lived in `SUMUP_RECOVERY_PLAN.md`, which #2134 deleted._
-
-`RecoveryEventId` is a hand-written union in
-`src/shared/payment/sumup-recovery-machine-spec.ts`. `RECOVERY_EVENTS` is a
-separate array beside it, and `RECOVERY_MOVES` is partial per node.
-
-An id added to the union alone still compiles. The mirror sweep in
-`machine.test.ts` iterates `RECOVERY_EVENTS`, so it never visits that id.
-Nothing fails until `recoveryMoveTo` throws in production.
-
-To fix:
-
-1. Make `RECOVERY_EVENTS` a mapped record keyed by `RecoveryEventId`.
-2. Bind each value's `id` to its own key, or derive the `id` from the key.
-3. Derive the event list of the sweep from that record.
-4. Add a new id to the union. Make sure that the build then fails.
-
-A plain `Record<RecoveryEventId, RecoveryMachineEvent>` is not enough. It checks
-the keys, but `RecoveryMachineEvent` types `id` as the whole union. A new key
-can therefore hold an old event, and `Object.values` then hands the sweep a
-duplicate.
-
-`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts` is the shape to
-copy. It is the exhaustive mapped record that this repository already uses for
-the same job.
-
----
-
-## Show the operator the SumUp rows that nobody answered for
-
-_Origin: found during the review of #2132, while somebody checked what the live
-check on `/admin/schema` actually lists._
-
-Two states keep a row that can hold money, and pruning deletes neither. That is
-correct and deliberate. An `owed` row holds a checkout that a provider took
-money for, where the booking did not happen. A `waiting` row holds a checkout
-that SumUp never answered for.
-
-The operator cannot see either kind. `SUMUP_SCAN` in
-`src/shared/db/schema-anomaly-scan.ts` selects three faults:
-
-- a state word that the machine does not have,
-- a checkout id that disagrees with the state,
-- a check time that does not fit the state. A checkable row needs a well-formed
-  check time. A closed row needs none at all.
-
-An `owed` row is well formed, and so is a `waiting` row on a site that
-disconnected SumUp. Neither carries any of those faults, so the scan reports
-nothing. `/admin/schema` renders the machine itself, the nodes and the edges. It
-does not list stored rows, so it does not show them either.
-
-This matters most in the case that the recovery work exists to close. The task
-stops when the site removes its SumUp key, because `enabled` reads
-`settings.sumup.hasKey`. Rows then stay `waiting` for ever, and no surface
-counts them.
-
-A second case reaches the same place. A site that keeps its key, and a SumUp
-that never returns a usable read, retries for ever and answers nothing.
-
-To fix:
-
-1. Add a scan, or a panel on `/admin/schema`.
-2. Select every `owed` row.
-3. Select every `waiting` row whose `created_at` is old.
-4. Keep the bound of `SCAN_LIMIT` on the rows returned.
-5. Report the total count beside them, so a bounded page still tells the
-   operator how many exist.
-
-`created_at` is the right clock, and `next_check_at` is not. A row under active
-retry never looks overdue. `applySumupRecoveryEvent` and
-`delaySumupRecoveryCheck` both write `isoAfter(SUMUP_RECHECK_MS)`, so the check
-time moves forward after every attempt. A site that keeps its key, and a SumUp
-that never answers, stays invisible behind an overdue test. `created_at` never
-moves after staging, so it catches that case and the disconnected-key case
-alike.
-
-Take the states from the machine declaration, the way `SUMUP_SCAN` already takes
-`RECOVERY_CHECKABLE_NODES`. For a compile-time refusal, key the scan by the
-literal union with an exhaustive `Record`. Copy the shape of
-`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts`.
-
-A new state then joins the query by declaration. That is inclusion, not
-exhaustiveness. `inPlaceholders` over an array still compiles when the union
-grows. It never forces an author to decide what a new state means.
-
----
-
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
@@ -2982,3 +2892,65 @@ No test imports `#shared/sumup/money.ts` at all today. Its exports
 `src/shared/sumup-provider.ts`, so this is a missing direct suite rather than a
 file to move. Write `test/shared/sumup/money.test.ts` against the two exports,
 then run `deno task precommit:mutation` on the module and close its survivors.
+
+---
+
+## Fold the last hand-rolled provider judges onto the shared ladders
+
+_Origin: the payment-plans architecture review (August 2026). PR #2129 built
+`readProviderResource`, `judgeThrough`, and `parsedBy` as the one read shell,
+and PR #2131 moved Square's answers onto them. These call sites still hand-roll
+the same shapes beside the shared ones._
+
+Each item is one mechanical fold. Do them one at a time, and run the targeted
+mutation gate on each touched module.
+
+- **`classifySumupCheckout` is an `if` chain beside the ladder it predates.**
+  `src/shared/sumup-observation.ts:201-232` runs `v.safeParse` and six
+  sequential `if (…) return invalidRead(…)` arms, and `checkChildren` (`:148`)
+  re-implements "first rule to name a reason wins". `readSumupTransaction`
+  (`src/shared/sumup/transaction.ts:118`) already shows the target shape:
+  `judgeThrough` + `parsedBy` + a declared rung ladder.
+- **Square's `readCharge` open-codes `mapProviderReader`.**
+  `src/shared/square-provider.ts:249-264` hand-writes the found-branch mapping
+  that Stripe (`stripe-provider.ts:78`) and SumUp (`sumup/money.ts:103`) get
+  from the combinator.
+- **Three refund-send shells do the same four steps.**
+  `src/shared/square/payment-outcomes.ts:103-132`, `src/shared/sumup.ts`
+  (`refundTransaction`), and `withStripeClient` in `src/shared/stripe.ts` each
+  do account → null-check → try/catch → known-failure mapping, and all three
+  return the identical `{ kind: "not_sent", reason: "not_configured" }`. A
+  `sendProviderResource` beside `readProviderResource`
+  (`src/shared/payment/provider-resource-read.ts:47`) collapses them.
+- **SumUp's webhook door parses by hand.** `verifyWebhookSignature` in
+  `src/shared/sumup-provider.ts:125-146` runs its own `JSON.parse` while
+  `parseWebhookPayload` (`src/shared/payment-helpers.ts:701`) is the shared door
+  both signing providers use. Square's `webhookPayment`
+  (`src/shared/square-provider.ts:104-125`) reads its body with bare throws
+  rather than a schema; M6's observer must reuse or replace that declaration
+  atomically (see "Build whole-checkout diagnosis" above).
+
+Out of scope for the machine-declaration work that recorded this: each fold
+touches a live money path and needs its own targeted mutation runs, and the send
+shell changes three providers at once.
+
+---
+
+## Move Stripe's transport onto the one provider HTTP boundary
+
+_Origin: the payment-plans architecture review (August 2026)._
+
+`src/shared/payment/provider-fetch.ts` says it is "the one HTTP boundary every
+payment provider is asked through". Stripe bypasses it:
+`src/shared/stripe/request.ts:302-326` calls `config.fetch` directly, counts its
+own subrequest, and sets its own timeout. The visible cost of the split is in
+`src/shared/payment/refund-network.ts:9` — `stripe: 0` is hard-coded while
+Square and SumUp import their transport's retry constant, because
+`STRIPE_MAX_NETWORK_RETRIES` (`src/shared/stripe/request.ts:16`) lives on the
+other side of the boundary.
+
+Add a retry option to `providerCaller` and pass Stripe's policy (`shouldRetry`,
+`isLockTimeoutResponse`, and the retry-after handling) in as configuration. Keep
+the response parsing where it is. This is its own pull request: it rewires every
+Stripe call and must re-prove the retry behaviour with the existing transport
+tests.

@@ -146,18 +146,20 @@ export const makeSumupCheckoutDue = (
   ]);
 
 /** Store one recovery row exactly as SQL sees it. Machine scan tests use this
- * to plant combinations that no production writer can make. */
+ * to plant combinations that no production writer can make. `createdAt`
+ * defaults to a date old enough to count as unanswered. */
 export const plantSumupRecoveryRow = (
   id: string,
   state: string,
   nextCheckAt: string | null,
+  createdAt = "2026-08-01T00:00:00.000Z",
 ): Promise<unknown> =>
   execute(
     `INSERT INTO sumup_checkouts
        (reference_index, wrapped_key, metadata, sumup_id, created_at,
         recovery_state, next_check_at)
-     VALUES (?, '', '', ?, '2026-08-01T00:00:00.000Z', ?, ?)`,
-    [`idx_${id}`, id, state, nextCheckAt],
+     VALUES (?, '', '', ?, ?, ?, ?)`,
+    [`idx_${id}`, id, createdAt, state, nextCheckAt],
   );
 
 /** How a staged checkout's recovery row reads right now. Every caller has

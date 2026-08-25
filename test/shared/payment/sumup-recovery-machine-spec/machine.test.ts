@@ -9,6 +9,8 @@ import {
   RECOVERY_NODES,
   RECOVERY_PRUNABLE_NODES,
   RECOVERY_TERMINAL_NODES,
+  RECOVERY_UNANSWERED_NODES,
+  RECOVERY_UNANSWERED_WHEN_OLD_NODES,
   type RecoveryNodeId,
   recoveryNodeOf,
 } from "#payment/sumup-recovery-machine-spec.ts";
@@ -81,6 +83,20 @@ describe("sumup recovery machine", () => {
 
   test("only rows with a final money answer can be pruned", () => {
     expect(RECOVERY_PRUNABLE_NODES).toEqual(["staged", "unpaid", "finished"]);
+  });
+
+  test("exactly the two settle answers stand for money moving", () => {
+    expect(
+      RECOVERY_EVENTS.filter((event) => event.movesMoney).map(({ id }) => id),
+    ).toEqual(["read_paid_settled", "read_paid_unsettled"]);
+  });
+
+  test("the operator always hears about rows that owe money", () => {
+    expect(RECOVERY_UNANSWERED_NODES).toEqual(["owed"]);
+  });
+
+  test("the operator hears about old rows whose money is unknown", () => {
+    expect(RECOVERY_UNANSWERED_WHEN_OLD_NODES).toEqual(["waiting"]);
   });
 
   test("every node id is a word the row reader accepts", () => {

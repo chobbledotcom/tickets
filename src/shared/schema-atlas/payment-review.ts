@@ -14,7 +14,8 @@ import {
 } from "#payment/review-machine-spec.ts";
 /* jscpd:ignore-start -- imports */
 import {
-  atlasStatesFromSpec,
+  atlasMachineFrom,
+  factsFromNode,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
@@ -30,14 +31,12 @@ const LAYOUTS: MachineLayouts<ReviewNodeId> = {
 
 /** The whole review machine: slots from the spec's constructors, edges
  * from the real functions succeeding. */
-export const paymentReviewAtlas = (): AtlasMachine => ({
-  id: "review",
-  introKey: "schema.review.intro",
-  states: atlasStatesFromSpec(
+export const paymentReviewAtlas = (): AtlasMachine =>
+  atlasMachineFrom(
     { events: REVIEW_EVENTS, nodeOf: reviewNodeOf, nodes: REVIEW_NODES },
-    "schema.review.state",
-    LAYOUTS,
-    ({ id }) => (id === "none" ? { start: true as const } : {}),
-  ),
-  titleKey: "schema.review.title",
-});
+    {
+      extraOf: factsFromNode(() => [], "none"),
+      id: "review",
+      layouts: LAYOUTS,
+    },
+  );

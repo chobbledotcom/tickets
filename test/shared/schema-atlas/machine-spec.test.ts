@@ -1,27 +1,48 @@
 /** The machine-spec framework against a toy machine: the resolver's
- * absent-means-refused contract, split handling, target listing, and the
- * shared atlas builder. The real machines' mirror tests sweep production
- * transitions; this file pins the framework's own edges. */
+ * absent-means-refused contract, split handling, target listing, the
+ * derived node lists, and the shared atlas builder. The real machines'
+ * mirror tests sweep production transitions; this file pins the
+ * framework's own edges. */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  atlasStatesFromSpec,
+  atlasMachineFrom,
+  derivedNodeIds,
   factsAndStart,
+  factsFromNode,
   type MachineEvent,
   machineRep,
   movesIn,
+  nodeIdsWhere,
 } from "#shared/schema-atlas/machine-spec.ts";
 
-// A two-node toy: node "" proves a present value passes through verbatim —
-// only an ABSENT cell means refused, even when the stored value is falsy.
-type ToyNodeId = "" | "on";
+// A three-node toy: node "" proves a present value passes through verbatim —
+// only an ABSENT cell means refused, even when the stored value is falsy —
+// and "end" is the node no cell moves.
+type ToyNodeId = "" | "end" | "on";
 type ToyEventId = "flip" | "halt";
 
-const reader = movesIn<ToyNodeId, ToyEventId>({
+const TOY_MOVES = {
   "": { flip: "on" },
+  end: {},
   on: { flip: { perRep: { lit: "" } }, halt: "on" },
-});
+} as const;
+
+const TOY_TABLE = {
+  events: [
+    { id: "flip", kind: "toggle" },
+    { id: "halt", kind: "stop" },
+  ] as const,
+  moves: TOY_MOVES,
+  nodes: [
+    { id: "", reps: [machineRep("off", false)] },
+    { id: "on", reps: [machineRep("on", true)] },
+    { id: "end", reps: [machineRep("done", true)] },
+  ],
+} as const;
+
+const reader = movesIn<ToyNodeId, ToyEventId>(TOY_MOVES);
 const resolve = reader.expected;
 
 describe("the machine-spec framework", () => {
@@ -44,6 +65,46 @@ describe("the machine-spec framework", () => {
       facts: [{ labelKey: "toy.fact", value: "lit" }],
       start: true,
     });
+  });
+
+  test("factsFromNode reads the node itself and flags only the start node", () => {
+    const extras = factsFromNode(
+      (node: { id: string; kept: string; reps: never[] }) => [
+        { labelKey: "toy.kept", value: node.kept },
+      ],
+      "on",
+    );
+    expect(extras({ id: "", kept: "for a day", reps: [] })).toEqual({
+      facts: [{ labelKey: "toy.kept", value: "for a day" }],
+    });
+    expect(extras({ id: "on", kept: "forever", reps: [] })).toEqual({
+      facts: [{ labelKey: "toy.kept", value: "forever" }],
+      start: true,
+    });
+  });
+
+  test("nodeIdsWhere keeps declaration order and only matching nodes", () => {
+    expect(nodeIdsWhere(TOY_TABLE.nodes, (node) => node.id !== "on")).toEqual([
+      "",
+      "end",
+    ]);
+    expect(nodeIdsWhere(TOY_TABLE.nodes, () => false)).toEqual([]);
+  });
+
+  test("movedBy answers from the cells the matching events name", () => {
+    // A split cell still moves its node, and the event filter is real: only
+    // "on" has a halt cell, while flip moves both non-terminal nodes.
+    const derived = derivedNodeIds(TOY_TABLE);
+    expect(derived.movedBy((event) => event.kind === "stop")).toEqual(["on"]);
+    expect(derived.movedBy((event) => event.kind === "toggle")).toEqual([
+      "",
+      "on",
+    ]);
+    expect(derived.movedBy(() => false)).toEqual([]);
+  });
+
+  test("terminal names exactly the nodes no cell moves", () => {
+    expect(derivedNodeIds(TOY_TABLE).terminal()).toEqual(["end"]);
   });
 
   test("a plain cell names the move for every shape", () => {
@@ -69,6 +130,7 @@ describe("the machine-spec framework", () => {
   test("a plain resolver answers plain cells and refuses the rest", () => {
     const plain = movesIn<ToyNodeId, ToyEventId>({
       "": { flip: "on" },
+      end: {},
       on: { flip: { perRep: { lit: "" } } },
     }).plain;
     expect(plain("", "flip")).toBe("on");
@@ -92,7 +154,7 @@ describe("the machine-spec framework", () => {
     expect(machineRep("tag", 7)).toEqual({ state: 7, tag: "tag" });
   });
 
-  test("the atlas builder draws nodes, discovered edges, and extras", () => {
+  test("the atlas builder draws nodes, discovered edges, and its own keys", () => {
     // A one-bit machine: flipping toggles, halting only works when on.
     const flip: MachineEvent<boolean, ToyEventId> = {
       actor: "system",
@@ -111,7 +173,7 @@ describe("the machine-spec framework", () => {
         return state;
       },
     };
-    const states = atlasStatesFromSpec(
+    const machine = atlasMachineFrom(
       {
         events: [flip, halt],
         nodeOf: (state: boolean) => (state ? "on" : ""),
@@ -120,31 +182,38 @@ describe("the machine-spec framework", () => {
           { id: "on", reps: [machineRep("on", true)] },
         ],
       },
-      "toy.state",
-      { "": { x: 1, y: 2 }, on: { x: 3, y: 4 } },
-      ({ id }) => (id === "" ? { start: true as const } : {}),
+      {
+        extraOf: ({ id }) => (id === "" ? { start: true as const } : {}),
+        id: "toy",
+        layouts: { "": { x: 1, y: 2 }, on: { x: 3, y: 4 } },
+      },
     );
-    expect(states).toEqual([
-      {
-        detailKey: "toy.state..detail",
-        edges: [{ actor: "system", labelKey: "toy.flip", to: "on" }],
-        facts: [],
-        id: "",
-        labelKey: "toy.state.",
-        layout: { x: 1, y: 2 },
-        start: true,
-      },
-      {
-        detailKey: "toy.state.on.detail",
-        edges: [
-          { actor: "system", labelKey: "toy.flip", to: "" },
-          { actor: "owner", labelKey: "toy.halt", to: "on" },
-        ],
-        facts: [],
-        id: "on",
-        labelKey: "toy.state.on",
-        layout: { x: 3, y: 4 },
-      },
-    ]);
+    expect(machine).toEqual({
+      id: "toy",
+      introKey: "schema.toy.intro",
+      states: [
+        {
+          detailKey: "schema.toy.state..detail",
+          edges: [{ actor: "system", labelKey: "toy.flip", to: "on" }],
+          facts: [],
+          id: "",
+          labelKey: "schema.toy.state.",
+          layout: { x: 1, y: 2 },
+          start: true,
+        },
+        {
+          detailKey: "schema.toy.state.on.detail",
+          edges: [
+            { actor: "system", labelKey: "toy.flip", to: "" },
+            { actor: "owner", labelKey: "toy.halt", to: "on" },
+          ],
+          facts: [],
+          id: "on",
+          labelKey: "schema.toy.state.on",
+          layout: { x: 3, y: 4 },
+        },
+      ],
+      titleKey: "schema.toy.title",
+    });
   });
 });

@@ -85,6 +85,26 @@ describe("the refund machine table", () => {
     ).toEqual(["arm", "replay"]);
   });
 
+  test("every event's map key follows the machine's own naming", () => {
+    for (const event of REFUND_EVENTS) {
+      expect(event.labelKey, event.id).toBe(`schema.refund.edge.${event.id}`);
+    }
+  });
+
+  test("fresh not-sent evidence advances the revision fence by one", () => {
+    // The engine passes evidenceRevision + 1 when a fresh read proves the
+    // send never left; a replayed judgment must never reuse the old fence.
+    const provedNotSent = REFUND_EVENTS.find(
+      ({ id }) => id === "proved_not_sent",
+    )!;
+    const armed = REFUND_NODES.find(({ id }) => id === "send_armed")!;
+    for (const { state, tag } of armed.reps) {
+      expect(provedNotSent.run(state).evidenceRevision, tag).toBe(
+        state.evidenceRevision + 1,
+      );
+    }
+  });
+
   test("the table's owner exits are exactly the choices the code admits", () => {
     let checkedShapes = 0;
     for (const node of REFUND_NODES) {
