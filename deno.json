@@ -54,7 +54,8 @@
     "screenshot:attendees-list": "deno task screenshot attendees-list",
     "screenshot:listing": "deno task screenshot listing",
     "screenshot:listing-attendees": "deno task screenshot listing-attendees",
-    "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts"
+    "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts",
+    "e2e:email": "deno run -A scripts/email-sandbox-e2e/main.ts"
   },
   "fmt": {
     "include": [

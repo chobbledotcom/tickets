@@ -1,0 +1,97 @@
+# End-to-end email tests against the REAL provider APIs.
+#
+# The main suite stubs every email fetch. This run sends real requests
+# through the production delivery code (src/shared/email.ts and
+# src/shared/email/bulk.ts) to each provider's live API. Each leg does one
+# single send (with an attachment and a reply-to address) and one bulk send
+# (with the unsubscribe substitution). Every message goes to a safe
+# recipient: a provider discard address, or an address the operator chose.
+#
+# This run is NOT a PR gate. It needs network access to third parties, so it
+# runs nightly and on demand.
+#
+# Secret semantics differ from the payment sandbox run on purpose: a leg
+# whose on-switch secret is absent is SKIPPED and reported, not failed.
+# Operators enable exactly the legs they hold credentials for. A leg whose
+# on-switch secret is set must run and pass: a bad companion secret or a
+# provider refusal fails the job.
+#
+# Repository secrets (all optional; each leg lists its own):
+#   MAILGUN_EU_API_KEY      — Mailgun EU-region API key (the on-switch)
+#   MAILGUN_EU_FROM         — sender on a domain in that Mailgun account
+#   MAILGUN_EU_TO           — recipient; a sandbox domain only accepts its
+#                             authorized recipients, so authorize this one
+#   MAILGUN_US_API_KEY      — Mailgun US-region API key (the on-switch)
+#   MAILGUN_US_FROM         — as above, for the US region
+#   MAILGUN_US_TO           — as above, for the US region
+#   POSTMARK_SERVER_TOKEN   — Postmark server token (the on-switch); the
+#                             public POSTMARK_API_TEST token also works
+#   POSTMARK_FROM           — a verified sender signature (any valid
+#                             address with the test token)
+#   POSTMARK_TO             — optional; default test@blackhole.postmarkapp.com
+#   RESEND_API_KEY          — Resend API key (the on-switch)
+#   RESEND_FROM             — optional; default onboarding@resend.dev
+#   RESEND_TO               — optional; default delivered@resend.dev
+#   SENDGRID_API_KEY        — SendGrid API key (the on-switch)
+#   SENDGRID_FROM           — a verified sender identity
+#   SENDGRID_TO             — optional; default e2e@sink.sendgrid.net
+#   NTFY_URL                — optional; ntfy topic URL pinged on failure
+
+name: Email sandbox e2e
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:47 UTC nightly — the same off-peak window as the payment run,
+    # offset half an hour so the two never contend.
+    - cron: "47 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: email-sandbox-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # Each leg is two HTTP calls; a healthy run finishes in well under a
+    # minute. The limit stops a stalled runner step from holding the job.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: ./.github/actions/setup-deno
+
+      - name: Run email sandbox e2e
+        id: email-run
+        env:
+          MAILGUN_EU_API_KEY: ${{ secrets.MAILGUN_EU_API_KEY }}
+          MAILGUN_EU_FROM: ${{ secrets.MAILGUN_EU_FROM }}
+          MAILGUN_EU_TO: ${{ secrets.MAILGUN_EU_TO }}
+          MAILGUN_US_API_KEY: ${{ secrets.MAILGUN_US_API_KEY }}
+          MAILGUN_US_FROM: ${{ secrets.MAILGUN_US_FROM }}
+          MAILGUN_US_TO: ${{ secrets.MAILGUN_US_TO }}
+          POSTMARK_SERVER_TOKEN: ${{ secrets.POSTMARK_SERVER_TOKEN }}
+          POSTMARK_FROM: ${{ secrets.POSTMARK_FROM }}
+          POSTMARK_TO: ${{ secrets.POSTMARK_TO }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          RESEND_TO: ${{ secrets.RESEND_TO }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_FROM: ${{ secrets.SENDGRID_FROM }}
+          SENDGRID_TO: ${{ secrets.SENDGRID_TO }}
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+        run: deno task e2e:email
+
+      - name: Verify email run execution
+        env:
+          ACTUAL_RESULT: ${{ steps.email-run.outputs.result }}
+        run: |
+          if [[ "$ACTUAL_RESULT" != "executed" ]]; then
+            echo "The email run did not report that it executed." >&2
+            exit 1
+          fi

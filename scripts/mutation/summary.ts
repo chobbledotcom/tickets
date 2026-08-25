@@ -9,6 +9,7 @@
  * running inside GitHub Actions.
  */
 
+import { appendStepSummary } from "#scripts/github-actions.ts";
 import { bold, dim, green, red, yellow } from "#scripts/precommit/colors.ts";
 import { rel } from "#scripts/project-root.ts";
 import type { Mutant } from "./generate.ts";
@@ -349,16 +350,10 @@ const markdownSummary = (s: Summary): string => {
 
 /**
  * Append the Markdown summary to GitHub's per-step summary panel, when running
- * inside Actions (`GITHUB_STEP_SUMMARY` set). A no-op everywhere else, and
- * best-effort: a failure to write the cosmetic summary never fails the run.
+ * inside Actions (`GITHUB_STEP_SUMMARY` set). A no-op everywhere else.
  */
 export const writeStepSummary = (s: Summary): void => {
-  const path = Deno.env.get("GITHUB_STEP_SUMMARY");
-  if (!path) return;
-  try {
-    Deno.writeTextFileSync(path, markdownSummary(s), { append: true });
+  if (appendStepSummary(markdownSummary(s))) {
     console.log(dim("Wrote Markdown summary to $GITHUB_STEP_SUMMARY."));
-  } catch {
-    // The step summary is best-effort cosmetics; never fail a run over it.
   }
 };

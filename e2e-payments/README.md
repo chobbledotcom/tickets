@@ -118,6 +118,7 @@ environment variables before running the corresponding target.
 ```
 src/
   main.ts              thin target boundary → runSpecs
+  entry.ts             the failure boundary both sandbox harnesses share
   targets.ts           exhaustive target→case selection + catalog handshake
   config.ts            env-driven config, required secrets, identity generation
   server.ts            boot/teardown the real Deno app server on a file DB

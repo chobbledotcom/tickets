@@ -1,0 +1,205 @@
+/** Direct tests for one email leg's probes, outcomes, and containment. */
+
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { runEmailLeg } from "#scripts/email-sandbox-e2e/run.ts";
+import { BULK_UNSUBSCRIBE_PLACEHOLDER } from "#shared/email/bulk.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+
+const resendEnv = {
+  RESEND_API_KEY: "re_test_123",
+  RESEND_FROM: undefined,
+  RESEND_TO: undefined,
+};
+
+const mailgunEnv = {
+  MAILGUN_EU_API_KEY: "key-abc",
+  MAILGUN_EU_FROM: "e2e@sandbox123.mailgun.org",
+  MAILGUN_EU_TO: "authorized@example.com",
+};
+
+const okJson = (): Response => new Response("{}", { status: 200 });
+
+const callArgs = (
+  fetched: ReturnType<typeof stubFetch>,
+  index: number,
+): [string, RequestInit] => fetched.calls[index]!.args as [string, RequestInit];
+
+const jsonBody = (init: RequestInit): Record<string, unknown> =>
+  JSON.parse(String(init.body));
+
+describe("runEmailLeg on a ready resend leg", () => {
+  test("sends the single probe production-shaped to the real endpoint", async () => {
+    using _env = withEnv(resendEnv);
+    using fetched = stubFetch(okJson(), okJson());
+    await runEmailLeg("resend");
+    const [url, init] = callArgs(fetched, 0);
+    expect(url).toBe("https://api.resend.com/emails");
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer re_test_123",
+    );
+    const body = jsonBody(init);
+    expect(body.from).toBe("onboarding@resend.dev");
+    expect(body.to).toEqual(["delivered@resend.dev"]);
+    expect(body.reply_to).toBe("onboarding@resend.dev");
+    expect(body.subject).toMatch(
+      /^Email sandbox e2e [0-9a-f]{10} \(resend, single\)$/,
+    );
+    const attachments = body.attachments as {
+      content: string;
+      filename: string;
+    }[];
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]!.filename).toBe("probe.svg");
+    expect(atob(attachments[0]!.content)).toContain("<svg");
+  });
+
+  test("sends the bulk probe with the unsubscribe substitution filled in", async () => {
+    using _env = withEnv(resendEnv);
+    using fetched = stubFetch(okJson(), okJson());
+    await runEmailLeg("resend");
+    const [url, init] = callArgs(fetched, 1);
+    expect(url).toBe("https://api.resend.com/emails/batch");
+    const batch = JSON.parse(String(init.body)) as {
+      html: string;
+      subject: string;
+      to: string[];
+    }[];
+    expect(batch).toHaveLength(1);
+    expect(batch[0]!.to).toEqual(["delivered@resend.dev"]);
+    expect(batch[0]!.subject).toMatch(/\(resend, bulk\)$/);
+    expect(batch[0]!.html).toContain('href="https://example.com/unsubscribe"');
+    expect(batch[0]!.html).not.toContain(BULK_UNSUBSCRIBE_PLACEHOLDER);
+  });
+
+  test("reports both accepted sends as one sent leg", async () => {
+    using _env = withEnv(resendEnv);
+    using fetched = stubFetch(okJson(), okJson());
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "single 200, bulk 200",
+      provider: "resend",
+      state: "sent",
+    });
+    expect(fetched.calls).toHaveLength(2);
+  });
+});
+
+describe("runEmailLeg on a ready mailgun leg", () => {
+  test("derives the regional endpoint from the sender's domain", async () => {
+    using _env = withEnv(mailgunEnv);
+    using fetched = stubFetch(okJson(), okJson());
+    expect((await runEmailLeg("mailgun-eu")).state).toBe("sent");
+    const [singleUrl, init] = callArgs(fetched, 0);
+    expect(singleUrl).toBe(
+      "https://api.eu.mailgun.net/v3/sandbox123.mailgun.org/messages",
+    );
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      `Basic ${btoa("api:key-abc")}`,
+    );
+    const form = init.body as FormData;
+    expect(form.get("from")).toBe("e2e@sandbox123.mailgun.org");
+    expect(form.get("to")).toBe("authorized@example.com");
+    expect(form.get("h:Reply-To")).toBe("e2e@sandbox123.mailgun.org");
+    const attachment = form.get("attachment") as File;
+    expect(attachment.type).toBe("image/svg+xml");
+  });
+
+  test("keys the bulk recipient variables by the authorized recipient", async () => {
+    using _env = withEnv(mailgunEnv);
+    using fetched = stubFetch(okJson(), okJson());
+    await runEmailLeg("mailgun-eu");
+    const [, init] = callArgs(fetched, 1);
+    const form = init.body as FormData;
+    expect(JSON.parse(String(form.get("recipient-variables")))).toEqual({
+      "authorized@example.com": { unsub: "https://example.com/unsubscribe" },
+    });
+  });
+});
+
+describe("runEmailLeg failure containment", () => {
+  test("fails the leg and keeps the refusal body when the provider says no", async () => {
+    using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(
+      new Response("nope", { status: 500 }),
+      new Response("bad | request\nline", { status: 422 }),
+    );
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "single 500, bulk 422 — bad request line",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+
+  test("truncates a long refusal body to one short line", async () => {
+    using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(
+      okJson(),
+      new Response("x".repeat(300), { status: 400 }),
+    );
+    const outcome = await runEmailLeg("resend");
+    expect(outcome.detail).toBe(`single 200, bulk 400 — ${"x".repeat(160)}`);
+  });
+
+  test("counts a non-2xx single status as failed even when bulk passes", async () => {
+    using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(
+      new Response("multiple choices", { status: 300 }),
+      okJson(),
+    );
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "single 300, bulk 200",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+
+  test("reads a thrown single send as no response", async () => {
+    using _env = withEnv(resendEnv);
+    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(new Error("connection refused"), okJson());
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "single no response, bulk 200",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+
+  test("contains a bulk crash to a failed outcome for that leg", async () => {
+    using _env = withEnv(resendEnv);
+    using _fetched = stubFetch(okJson(), new Error("boom"));
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "boom",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+});
+
+describe("runEmailLeg without a runnable plan", () => {
+  test("passes a skip through without touching the network", async () => {
+    using _env = withEnv({ RESEND_API_KEY: undefined });
+    using fetched = stubFetch(new Error("no call expected"));
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "RESEND_API_KEY is not set",
+      provider: "resend",
+      state: "skipped",
+    });
+    expect(fetched.calls).toHaveLength(0);
+  });
+
+  test("fails a switched-on leg with a bad companion before any request", async () => {
+    using _env = withEnv({ SENDGRID_API_KEY: "SG.key", SENDGRID_FROM: "" });
+    using fetched = stubFetch(new Error("no call expected"));
+    expect(await runEmailLeg("sendgrid")).toEqual({
+      detail: "SENDGRID_FROM is not set",
+      provider: "sendgrid",
+      state: "failed",
+    });
+    expect(fetched.calls).toHaveLength(0);
+  });
+});
