@@ -1,6 +1,9 @@
 /**
  * Agreeing to the site's terms before an order goes through: what the page
- * shows, what a refusal says, and what an agreement covers.
+ * shows, that it insists on the agreement before it will send, and what an
+ * agreement covers. The server's own refusal of an order that arrives
+ * without the agreement is a crafted POST no browser can make — the page's
+ * checkbox is required — so it lives in the direct suite.
  */
 
 // jscpd:ignore-start
@@ -8,6 +11,8 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { openAsNewcomer } from "#test/specs/support/browser.ts";
+import { boxOffered } from "#test/specs/support/form-controls/reading.ts";
 import {
   listingNamed,
   putsPlainThingOnSale,
@@ -27,13 +32,19 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
-/** The site's refusal when the terms were never agreed to. The wording lives
- * beside the check that makes it, src/features/public/ticket-submit/parse.ts. */
-const MUST_AGREE = "You must agree to the terms and conditions";
-
 /** The box a customer ticks to agree, read from the page by its own label
  * when the story needs it (the catalog is not loaded at import time). */
 const agreeBoxLabel = (): string => t("public.ticket.agree_terms");
+
+/** The page selling the Ticket and the Mug together, opened fresh. */
+const openTicketAndMugPage = (world: TicketsWorld) =>
+  openAsNewcomer(
+    combinedPath(
+      [listingNamed(world, "Ticket"), listingNamed(world, "Mug")].map(
+        (listing) => ({ listing, places: 1 }),
+      ),
+    ),
+  );
 
 Given(
   "a {word} to book",
@@ -55,6 +66,16 @@ Then(
 );
 
 Then(
+  "the page selling both shows the terms and a box to agree to them",
+  async function (this: TicketsWorld): Promise<void> {
+    const { currentHtml } = await openTicketAndMugPage(this);
+    expect(currentHtml).toContain(await settings.terms);
+    expect(currentHtml).toContain(agreeBoxLabel());
+    expect(currentHtml).toContain('name="agree_terms"');
+  },
+);
+
+Then(
   "the {word} page offers no box to agree to",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const html = (await openBookingPage(listingNamed(this, name))).currentHtml;
@@ -62,9 +83,27 @@ Then(
   },
 );
 
+Then(
+  "the {word} page insists the terms box is ticked before it will send",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const html = (await openBookingPage(listingNamed(this, name))).currentHtml;
+    // A browser will not send a form with a required box clear, so the
+    // insistence is what stops a real customer — the server's own refusal
+    // of an order that arrives without the agreement is the direct suite's.
+    expect(boxOffered(html, "agree_terms").insisted).toBe(true);
+  },
+);
+
+Then(
+  "the page selling both insists the terms box is ticked before it will send",
+  async function (this: TicketsWorld): Promise<void> {
+    const { currentHtml } = await openTicketAndMugPage(this);
+    expect(boxOffered(currentHtml, "agree_terms").insisted).toBe(true);
+  },
+);
+
 /** The customer asks for one place on this thing, with or without the
- * agreement. One place is asked for, so a missing agreement is the only
- * thing standing between this customer and a booking. */
+ * agreement. */
 const triesToBookOne = async (
   world: TicketsWorld,
   name: string,
@@ -76,13 +115,6 @@ const triesToBookOne = async (
     ...extra,
   });
 };
-
-When(
-  "a customer tries to book the {word} without agreeing to the terms",
-  async function (this: TicketsWorld, name: string): Promise<void> {
-    await triesToBookOne(this, name);
-  },
-);
 
 When(
   "a customer tries to book the {word} agreeing to the terms",
@@ -99,39 +131,15 @@ When(
 );
 
 When(
-  "a customer tries to order the Ticket and the Mug without agreeing to the terms",
-  async function (this: TicketsWorld): Promise<void> {
-    await orderTicketAndMug(this, false);
-  },
-);
-
-When(
   "a customer tries to order the Ticket and the Mug agreeing to the terms",
   async function (this: TicketsWorld): Promise<void> {
-    await orderTicketAndMug(this, true);
-  },
-);
-
-/** One order covering the Ticket and the Mug, with or without the agreement. */
-const orderTicketAndMug = async (
-  world: TicketsWorld,
-  agreesToTerms: boolean,
-): Promise<void> => {
-  const lines = [listingNamed(world, "Ticket"), listingNamed(world, "Mug")].map(
-    (listing) => ({ listing, places: 1 }),
-  );
-  world.orderSent = await visitorTriesToOrder(combinedPath(lines), lines, {
-    ...THE_CUSTOMER,
-    agreesToTerms,
-  });
-};
-
-Then(
-  "the customer is told they must agree to the terms and conditions",
-  function (this: TicketsWorld): void {
-    const attempt = sentOrder(this);
-    expect(attempt.wasBooked).toBe(false);
-    expect(attempt.browser.pageText).toContain(MUST_AGREE);
+    const lines = [listingNamed(this, "Ticket"), listingNamed(this, "Mug")].map(
+      (listing) => ({ listing, places: 1 }),
+    );
+    this.orderSent = await visitorTriesToOrder(combinedPath(lines), lines, {
+      ...THE_CUSTOMER,
+      agreesToTerms: true,
+    });
   },
 );
 

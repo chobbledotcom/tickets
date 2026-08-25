@@ -196,7 +196,10 @@ Then(
   "one place was booked on the {word}",
   async function (this: TicketsWorld, name: string): Promise<void> {
     // A thanked order is only half the proof: an order that silently dropped
-    // one of its lines would thank its customer just the same.
-    expect((await getAttendeesRaw(listingNamed(this, name).id)).length).toBe(1);
+    // one of its lines would thank its customer just the same, and so would
+    // a line that booked the wrong number of places.
+    const booked = await getAttendeesRaw(listingNamed(this, name).id);
+    expect(booked.length).toBe(1);
+    expect(booked[0]?.quantity).toBe(1);
   },
 );
