@@ -67,4 +67,8 @@ const run = async (): Promise<void> => {
   );
 };
 
-runHarness(run, () => notifyEmailFailure(requestedTarget()));
+runHarness(run, () => notifyEmailFailure(requestedTarget())).then(() =>
+  // A provider socket a timed-out leg left stalled must not hold the
+  // finished process open, so leave explicitly once the report is out.
+  process.exit(),
+);

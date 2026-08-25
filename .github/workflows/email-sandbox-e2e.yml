@@ -56,9 +56,10 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    # Each leg is two HTTP calls; a healthy run finishes in well under a
-    # minute. The limit stops a stalled runner step from holding the job.
-    timeout-minutes: 10
+    # A healthy run finishes in well under a minute. The worst case — five
+    # stalled legs at two minutes each, plus setup and reporting — still
+    # fits, so the harness reports every leg before this limit can strike.
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
