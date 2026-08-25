@@ -78,12 +78,18 @@ and is never a dead end" is a test, not a sentence.
 `src/shared/payment/sumup-recovery-machine-spec.ts` is the worked example. Its
 laws live beside it, in `machine.test.ts` and `graph.test.ts`. That machine also
 shows the limit of this rule. Its events carry `kind` and `movesMoney`, not the
-write and the fence. Those two facts stay structural, in one write helper each.
+write and the fence.
+
+Those two facts stay structural, and they are not alike. One write helper
+carries the fence, because `moveSumupRecoveryRow` is the only `UPDATE`. Two
+writers carry the schedule. `moveSumupRecoveryRow` sets the next check for every
+event, and `setSumupCheckoutId` sets the first one when the checkout id lands.
+Two writers are weaker than one, and weaker again than a declared fact.
 
 Put a fact on the declaration when you can. Where a fact stays structural, name
-the single place that carries it. Say that one place is weaker than a declared
-fact. The AGENTS.md section "Checked forwards and backwards" names the
-mechanisms.
+every place that carries it. Count them, and say that a structural fact is
+weaker than a declared one. Read the AGENTS.md section "Checked forwards and
+backwards" for the mechanisms.
 
 #### Trusted facts
 
