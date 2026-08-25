@@ -19,6 +19,8 @@
     "@cucumber/messages": "npm:@cucumber/messages@34.0.1",
     "@cucumber/tag-expressions": "npm:@cucumber/tag-expressions@10.0.0",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
+    "@std/expect": "jsr:@std/expect@^1.0.18",
+    "@std/testing": "jsr:@std/testing@^1.0.17",
     "playwright": "npm:playwright@1.61.1",
     "valibot": "npm:valibot@^1.4.1",
     "#fp": "../src/fp.ts",
