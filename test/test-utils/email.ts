@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
-import { resetHostEmailConfig } from "#shared/email.ts";
+import {
+  type EmailConfig,
+  type EmailMessage,
+  resetHostEmailConfig,
+} from "#shared/email.ts";
 import {
   parseEmail,
   updateBusinessEmail,
@@ -19,6 +23,19 @@ export const validEmail = (address: string): ValidEmail => {
   const parsed = parseEmail(address);
   if (!parsed) throw new Error(`Test fixture is not a valid email: ${address}`);
   return parsed;
+};
+
+export const testEmailConfig: EmailConfig = {
+  apiKey: "re_test_key",
+  fromAddress: validEmail("tickets@example.com"),
+  provider: "resend",
+};
+
+export const minimalEmailMessage: EmailMessage = {
+  html: "h",
+  subject: "s",
+  text: "t",
+  to: validEmail("a@b.com"),
 };
 
 export const configureTestEmail = async (

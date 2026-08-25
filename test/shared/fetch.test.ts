@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { fetchText, jsonHeaders, parseApiError } from "#shared/fetch.ts";
+import {
+  apiErrorMessage,
+  fetchText,
+  jsonHeaders,
+  parseApiError,
+} from "#shared/fetch.ts";
 import {
   getSubrequestUsage,
   runWithSubrequestBudget,
@@ -170,5 +175,50 @@ describe("parseApiError", () => {
       "Api",
     );
     expect(result.error).toBe('Api failed (400): {"unexpected":"shape"}');
+  });
+});
+
+describe("apiErrorMessage", () => {
+  test("joins the messages of an errors array (SendGrid's shape)", () => {
+    expect(
+      apiErrorMessage(
+        '{"errors":[{"message":"first","field":"from"},{"message":"second"}]}',
+        ["message", "errors"],
+      ),
+    ).toBe("first; second");
+  });
+
+  test("accepts plain-string entries in an error array", () => {
+    expect(apiErrorMessage('{"errors":["bad key"]}', ["errors"])).toBe(
+      "bad key",
+    );
+  });
+
+  test("skips array entries that carry no message", () => {
+    expect(
+      apiErrorMessage('{"errors":[null,{"code":9},{"message":"kept"}]}', [
+        "errors",
+      ]),
+    ).toBe("kept");
+  });
+
+  test("returns the raw text when no array entry carries a message", () => {
+    expect(apiErrorMessage('{"errors":[{"code":9}]}', ["errors"])).toBe(
+      '{"errors":[{"code":9}]}',
+    );
+  });
+
+  test("skips an empty-string message and tries the next key", () => {
+    expect(apiErrorMessage('{"message":"","error":"boom"}')).toBe("boom");
+  });
+
+  test("ignores a non-string message value", () => {
+    expect(apiErrorMessage('{"message":{"nested":true}}')).toBe(
+      '{"message":{"nested":true}}',
+    );
+  });
+
+  test("returns the raw text for a non-object JSON body", () => {
+    expect(apiErrorMessage("null")).toBe("null");
   });
 });

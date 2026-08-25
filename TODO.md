@@ -1,5 +1,29 @@
 # TODO — remaining follow-ups
 
+## Keep provider reply text out of the console and Sentry (from PR #2139)
+
+`logError` sends one `detail` string to the console, the activity log, and
+Sentry. PR #2139 put the email provider's error message into the `E_EMAIL_SEND`
+detail, with every email-shaped token blanked and a 300-character cap
+(`failureReason` in `src/shared/email.ts`). A Codex review argued that a
+provider reply can quote other personal data — a name, a phone number, a subject
+line — which must not reach the console or Sentry (`src/shared/logger.ts`
+promises "without PII"). No real provider message that quotes such data is
+known, and registration sends never log a reason (`deliverRegistrationEmail` has
+no `logError`), so the reply text stays in the detail for now.
+
+For the stronger guarantee: add an `operatorDetail` field to `ErrorContext` that
+reaches only the encrypted activity log — the same per-sink pattern as the
+existing `error` field, which reaches only Sentry. `sendEmail` would then log
+`provider=x status=y` as `detail` and the scrubbed reason as `operatorDetail`.
+Start at `logErrorLocal`, `formatErrorMessage`, and `captureServerError` in
+`src/shared/logger.ts` and `src/shared/sentry.ts`.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2139#discussion_r3855944310>
+
+---
+
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 
 `refusedOrderUnfitListingIds` (`src/shared/db/attendees/capacity/checks.ts`)
