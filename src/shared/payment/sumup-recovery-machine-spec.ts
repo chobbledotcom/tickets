@@ -220,11 +220,11 @@ export const RECOVERY_EVENTS: readonly RecoveryMachineEvent[] = [
  *
  * Read the refusals, because they are the contract too. `staged` takes no
  * read event — a row with no checkout id has nothing to ask SumUp about.
- * `unpaid` and `finished` take nothing at all: they are closed. Only a
- * recovery check raises an event, so a late callback reaches the payment
- * engine and never this table. `owed` refuses
- * `read_pending` and `read_expired_or_failed`, because every `owed` row got
- * there from a read that said PAID and a checkout never moves back off it. */
+ * `unpaid` and `finished` take nothing at all: they are closed. No callback
+ * raises an event, so a late one reaches the payment engine and never this
+ * table. `owed` refuses `read_pending` and `read_expired_or_failed`, because
+ * every `owed` row got there from a read that said PAID and a checkout never
+ * moves back off it. */
 export const RECOVERY_MOVES: MachineMoves<RecoveryNodeId, RecoveryEventId> = {
   finished: {},
   owed: {
