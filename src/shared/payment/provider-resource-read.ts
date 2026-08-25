@@ -14,7 +14,7 @@
  */
 
 import * as v from "valibot";
-import { askProvider, type ProviderCall } from "#payment/provider-call.ts";
+import { askProvider } from "#payment/provider-call.ts";
 import { malformedProviderRead } from "#payment/provider-failures.ts";
 import type {
   ProviderInvalidReason,
@@ -31,39 +31,6 @@ const NOT_CONFIGURED: ProviderRead<never> = {
   status: "unavailable",
 };
 
-/** What one provider read needs to know beyond the call itself: it asks the
- *  same way any provider call does, and unwraps any envelope in that step so an
- *  answer carrying no resource comes back as null. A read then says only how it
- *  judges the answer, and what a failed call proves — never a found resource. */
-type ProviderResourceRead<Account, Answer, Resource> = Pick<
-  ProviderCall<Account, Answer | null | undefined, ProviderRead<Resource>>,
-  "account" | "ask"
-> & {
-  failure: (error: unknown) => ProviderRead<never> | undefined;
-  judge: (answer: Answer, account: Account) => ProviderRead<Resource>;
-};
-
-/** Read one provider resource: the shared call shell, told what an unconfigured
- * provider and an empty answer mean for a read. */
-export const readProviderResource = <Account, Answer, Resource>({
-  account,
-  ask,
-  judge,
-  failure,
-}: ProviderResourceRead<Account, Answer, Resource>): Promise<
-  ProviderRead<Resource>
-> =>
-  askProvider({
-    account,
-    ask,
-    failure,
-    judge: (answer, account) =>
-      answer === null || answer === undefined
-        ? MISSING
-        : judge(answer, account),
-    unconfigured: NOT_CONFIGURED,
-  });
-
 /** One provider's reads, once its account and failure reading are bound. The
  *  call and the judging are the only two things one read differs by. */
 export type ResourceReader<Account> = <Answer, Resource>(
@@ -72,14 +39,24 @@ export type ResourceReader<Account> = <Answer, Resource>(
 ) => Promise<ProviderRead<Resource>>;
 
 /** Bind one provider's way of resolving its account and of reading a failed
- * call, so no read has to repeat either. */
+ * call, so no read has to repeat either. A failed call proves a refusal, never
+ * a found resource, which is why its reader answers a `ProviderRead<never>`. */
 export const providerResourceReader =
   <Account>(
     account: () => Account | null | Promise<Account | null>,
     failure: (error: unknown) => ProviderRead<never> | undefined,
   ): ResourceReader<Account> =>
   async (ask, judge) =>
-    readProviderResource({ account: await account(), ask, failure, judge });
+    askProvider({
+      account: await account(),
+      ask,
+      failure,
+      judge: (answer, resolved) =>
+        answer === null || answer === undefined
+          ? MISSING
+          : judge(answer, resolved),
+      unconfigured: NOT_CONFIGURED,
+    });
 
 /** One rung of a refusal ladder: it names the reason the answer is refused, or
  *  null when the answer passes this rung. */

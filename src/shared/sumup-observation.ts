@@ -227,9 +227,15 @@ const toSumupCheckout = (
     amountMinor: readable ? toMinorUnits(amount, conversionCurrency) : null,
     createdAt: c.date,
     currency,
-    // The two rungs above accepted this checkout on exactly these answers.
-    reference: requireValue(reference, "Accepted a checkout of nobody's"),
-    status: requireValue(status, "Accepted a checkout with no lifecycle"),
+    // The ladder refuses a checkout that states neither, so both are here.
+    reference: requireValue(
+      reference,
+      "The ladder accepted a SumUp checkout with no reference of ours",
+    ),
+    status: requireValue(
+      status,
+      "The ladder accepted a SumUp checkout with no known lifecycle",
+    ),
     transactionId: c.transaction_id ?? "",
   };
 };
