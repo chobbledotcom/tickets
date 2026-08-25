@@ -40,6 +40,7 @@ import {
   requireMoneyRefunds,
   requireOnScenarioRoster,
   requireSingleBooking,
+  requireSystemMapAnswersClean,
 } from "./pages.ts";
 
 /** Where the app accepts its payment callbacks, for this scenario. */
@@ -253,6 +254,13 @@ Then(
       1,
       `booking for ${this.scenario.booker.email} after the replay`,
     );
+  },
+);
+
+Then(
+  "the owner's system map answers clean",
+  async function (this: LiveWorld): Promise<void> {
+    await requireSystemMapAnswersClean(this);
   },
 );
 
