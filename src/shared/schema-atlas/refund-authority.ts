@@ -17,7 +17,7 @@ import {
 } from "#payment/refund-machine-spec.ts";
 /* jscpd:ignore-start -- imports */
 import {
-  atlasStatesFromSpec,
+  atlasMachineFrom,
   factsAndStart,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
@@ -49,14 +49,12 @@ const lifecycleFacts = (state: RefundAuthorityState): AtlasState["facts"] => {
 
 /** The whole refund machine: states from the spec's constructors, edges from
  * the real transitions succeeding. */
-export const refundAuthorityAtlas = (): AtlasMachine => ({
-  id: "refund",
-  introKey: "schema.refund.intro",
-  states: atlasStatesFromSpec(
+export const refundAuthorityAtlas = (): AtlasMachine =>
+  atlasMachineFrom(
     { events: REFUND_EVENTS, nodeOf: refundNodeOf, nodes: REFUND_NODES },
-    "schema.refund.state",
-    LAYOUTS,
-    factsAndStart(lifecycleFacts, "ready"),
-  ),
-  titleKey: "schema.refund.title",
-});
+    {
+      extraOf: factsAndStart(lifecycleFacts, "ready"),
+      id: "refund",
+      layouts: LAYOUTS,
+    },
+  );

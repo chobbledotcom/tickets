@@ -10,6 +10,7 @@
 
 import { compact } from "#fp";
 import {
+  type AtlasMachine,
   type AtlasState,
   type AtlasTrigger,
   atlasState,
@@ -140,34 +141,99 @@ export const movesIn = <NodeId extends string, EventId extends string>(
   };
 };
 
+/** The ids of every node a rule holds for, in declaration order — the one
+ * reading of the node list every derived list shares, so none of them can
+ * drift into reading the nodes differently. */
+export const nodeIdsWhere = <Node extends MachineNode<unknown, string>>(
+  nodes: readonly Node[],
+  holds: (node: Node) => boolean,
+): readonly Node["id"][] => nodes.filter(holds).map((node) => node.id);
+
+/** The node lists a declared table can answer. */
+export type DerivedNodeIds<NodeId extends string, Event> = {
+  /** The nodes some matching event can move: the table names a cell for
+   * the node and the event. Any shape's cell counts — a split cell moves
+   * the node for the shapes it names. */
+  readonly movedBy: (holds: (event: Event) => boolean) => readonly NodeId[];
+  /** The nodes a row can never leave: no declared cell moves them.
+   * Derived, so a cell added to a closed node's line changes this rather
+   * than quietly contradicting it. */
+  readonly terminal: () => readonly NodeId[];
+};
+
+/** The derived node lists of one declared table — the nodes, the events,
+ * and the raw moves table, in the same shape the mirror tests take. The
+ * factory takes the machine; each reader takes only its question. */
+export const derivedNodeIds = <
+  NodeId extends string,
+  EventId extends string,
+  Event extends { readonly id: EventId },
+>(machine: {
+  readonly events: readonly Event[];
+  readonly moves: MachineMoves<NodeId, EventId>;
+  readonly nodes: readonly MachineNode<unknown, NodeId>[];
+}): DerivedNodeIds<NodeId, Event> => {
+  const reader = movesIn(machine.moves);
+  const movedBy = (holds: (event: Event) => boolean): readonly NodeId[] =>
+    nodeIdsWhere(machine.nodes, (node) =>
+      machine.events.some(
+        (event) => holds(event) && reader.targets(node.id, event.id).length > 0,
+      ),
+    );
+  return {
+    movedBy,
+    terminal: () => {
+      const movable = new Set(movedBy(() => true));
+      return nodeIdsWhere(machine.nodes, (node) => !movable.has(node.id));
+    },
+  };
+};
+
 type AtlasStateExtras = Parameters<typeof atlasState>[4];
+
+type AtlasFacts = NonNullable<NonNullable<AtlasStateExtras>["facts"]>;
+
+/** Node extras whose facts read the node itself — for a machine whose facts
+ * are declared on the node (a flag, a rule) rather than in its stored
+ * shapes — plus the start flag on one named node. */
+export const factsFromNode =
+  <Node extends MachineNode<unknown, string>>(
+    factsOf: (node: Node) => AtlasFacts,
+    startId: string,
+  ) =>
+  (node: Node): AtlasStateExtras => ({
+    facts: factsOf(node),
+    ...(node.id === startId ? { start: true as const } : {}),
+  });
 
 /** The usual node extras: facts read from the node's first shape, and the
  * start flag on one named node. A node always carries at least one shape,
  * and all of a node's shapes share its lifecycle rule (the graph suites pin
  * both), so the first shape speaks for the whole node. */
-export const factsAndStart =
-  <State>(
-    factsOf: (
-      state: State,
-    ) => NonNullable<NonNullable<AtlasStateExtras>["facts"]>,
-    startId: string,
-  ) =>
-  (node: MachineNode<State, string>): AtlasStateExtras => ({
-    facts: factsOf(node.reps[0]!.state),
-    ...(node.id === startId ? { start: true as const } : {}),
-  });
+export const factsAndStart = <State>(
+  factsOf: (state: State) => AtlasFacts,
+  startId: string,
+): ((node: MachineNode<State, string>) => AtlasStateExtras) =>
+  factsFromNode((node) => factsOf(node.reps[0]!.state), startId);
 
 /** Where each of a machine's nodes sits on its map. */
 export type MachineLayouts<NodeId extends string> = Readonly<
   Record<NodeId, AtlasState["layout"]>
 >;
 
-/** The map states of one machine spec: nodes and edges from the spec, so
- * the /admin/schema page and the mirror tests share one source. Layouts and
- * wording keys are the map's own; `extraOf` adds a node's facts and start
- * flag. */
-export const atlasStatesFromSpec = <
+/** What one machine's map adds to its spec: an id that names its wording
+ * keys, a layout per node, and each node's facts and start flag. */
+export type AtlasView<NodeId extends string, Node> = {
+  readonly extraOf: (node: Node) => AtlasStateExtras;
+  readonly id: string;
+  readonly layouts: MachineLayouts<NodeId>;
+};
+
+/** One machine's whole `/admin/schema` entry: nodes and edges from the
+ * spec, wording keys from the machine id, layout and facts from the view.
+ * One builder, so the machines' map modules cannot drift apart, and the map
+ * and the mirror tests keep reading one source. */
+export const atlasMachineFrom = <
   State,
   NodeId extends string,
   EventId extends string,
@@ -178,20 +244,22 @@ export const atlasStatesFromSpec = <
     readonly nodeOf: (state: State) => NodeId;
     readonly nodes: readonly Node[];
   },
-  stateKeyPrefix: string,
-  layouts: MachineLayouts<NodeId>,
-  extraOf: (node: Node) => AtlasStateExtras,
-): AtlasState[] =>
-  machine.nodes.map((node) =>
+  view: AtlasView<NodeId, Node>,
+): AtlasMachine => ({
+  id: view.id,
+  introKey: `schema.${view.id}.intro`,
+  states: machine.nodes.map((node) =>
     atlasState(
-      stateKeyPrefix,
+      `schema.${view.id}.state`,
       node.id,
-      layouts[node.id],
+      view.layouts[node.id],
       edgesFromTriggers(
         machine.events,
         machine.nodeOf,
         node.reps.map(({ state }) => state),
       ),
-      extraOf(node),
+      view.extraOf(node),
     ),
-  );
+  ),
+  titleKey: `schema.${view.id}.title`,
+});

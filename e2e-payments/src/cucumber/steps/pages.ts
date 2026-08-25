@@ -20,6 +20,7 @@ import {
 } from "#e2e/flow.ts";
 import type { SandboxRefundObservation } from "#e2e/providers/types.ts";
 import type { RefundPageFacts } from "#e2e/refund-outcome.ts";
+import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 
 /** Fail loudly with what was counted when a number is not what the scenario
  * promised. */
@@ -254,6 +255,39 @@ export const attendeeOverviewFacts = async (
 export const openRefundForm = async (world: LiveWorld): Promise<void> => {
   await attendeeTabOf(world, "actions");
   await ownerOf(world).clickLink("Refund");
+};
+
+/**
+ * The system map's promises this scenario must leave true: every declared
+ * machine renders, the live check finds no stored rule break, and no SumUp
+ * money is waiting on the operator. This runs against the scenario's real
+ * stored rows, so a refund mid-observation and a young SumUp staging row
+ * must both read as clean — a flagged row here is a machine whose declared
+ * rules and real writes disagree.
+ */
+export const requireSystemMapAnswersClean = async (
+  world: LiveWorld,
+): Promise<void> => {
+  const session = ownerOf(world);
+  await session.goto("/admin/schema");
+  const body = await session.bodyText();
+  const promises = [
+    "All stored records fit the system rules.",
+    "No SumUp checkout needs your attention.",
+  ];
+  const missing = promises.filter((line) => !body.includes(line));
+  const machines = await session.page
+    .locator("[data-schema-atlas-machine]")
+    .count();
+  if (missing.length === 0 && machines === SCHEMA_ATLAS_MACHINES.length) {
+    return;
+  }
+  await session.dumpPage("system-map-not-clean");
+  throw new Error(
+    "the system map did not answer clean: " +
+      `${machines}/${SCHEMA_ATLAS_MACHINES.length} machines rendered; ` +
+      `missing: ${missing.join(" | ") || "none"}`,
+  );
 };
 
 /** Submit the currently-rendered refund confirmation form. */

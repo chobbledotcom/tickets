@@ -79,7 +79,7 @@ describeWithEnv("provider refund engine outcomes", { db: true }, () => {
         generation: request.generation,
         identityIndex: request.identityIndex,
       }),
-      error: "Keyless refund generation does not belong to SumUp",
+      error: "A keyless refund generation cannot name a keyed provider",
       payment: refundReference("txn-keyless-stripe", "stripe"),
     },
     {
@@ -89,7 +89,7 @@ describeWithEnv("provider refund engine outcomes", { db: true }, () => {
         identityIndex: request.identityIndex,
         replayUntil: 500,
       }),
-      error: "Keyed refund generation cannot belong to SumUp",
+      error: "A keyed refund generation cannot name a keyless provider",
       payment: refundReference("txn-keyed-sumup"),
     },
   ] as const) {

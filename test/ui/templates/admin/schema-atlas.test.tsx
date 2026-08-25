@@ -6,8 +6,10 @@ import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
+const NO_UNANSWERED = { rows: [], total: 0 };
+
 const html = (): string =>
-  adminSchemaAtlasPage({ adminLevel: "owner" }, "light", []);
+  adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [], NO_UNANSWERED);
 
 describe("the system map page", () => {
   beforeAll(async () => {
@@ -95,13 +97,12 @@ describe("the system map page", () => {
   });
 
   test("the live check lists each flagged record in plain words", () => {
-    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
-      {
-        key: "armed_without_claim",
-        kind: "payment",
-        recordId: "cs_seam",
-      },
-    ]);
+    const page = adminSchemaAtlasPage(
+      { adminLevel: "owner" },
+      "light",
+      [{ key: "armed_without_claim", recordId: "cs_seam" }],
+      NO_UNANSWERED,
+    );
     expect(page).toContain(
       "A refund is set to send, but no job holds this row. <code>cs_seam</code>",
     );
@@ -109,13 +110,12 @@ describe("the system map page", () => {
   });
 
   test("the live check names a payment with no charge record", () => {
-    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
-      {
-        key: "claim_without_charge",
-        kind: "payment",
-        recordId: "cs_without_charge",
-      },
-    ]);
+    const page = adminSchemaAtlasPage(
+      { adminLevel: "owner" },
+      "light",
+      [{ key: "claim_without_charge", recordId: "cs_without_charge" }],
+      NO_UNANSWERED,
+    );
     expect(page).toContain(
       "A job holds this row, but its payment has no charge record. " +
         "<code>cs_without_charge</code>",
@@ -123,14 +123,18 @@ describe("the system map page", () => {
   });
 
   test("the live check names an unknown SumUp state", () => {
-    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
-      {
-        key: "sumup_unknown_state",
-        kind: "sumup",
-        recordId: "idx_unknown",
-        state: "abandoned",
-      },
-    ]);
+    const page = adminSchemaAtlasPage(
+      { adminLevel: "owner" },
+      "light",
+      [
+        {
+          key: "sumup_unknown_state",
+          recordId: "idx_unknown",
+          state: "abandoned",
+        },
+      ],
+      NO_UNANSWERED,
+    );
     expect(page).toContain(
       "A SumUp recovery record has a state this site does not know.",
     );
@@ -138,14 +142,18 @@ describe("the system map page", () => {
   });
 
   test("the live check names a SumUp checkout id mismatch", () => {
-    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
-      {
-        key: "sumup_checkout_id_mismatch",
-        kind: "sumup",
-        recordId: "idx_mismatch",
-        state: "staged",
-      },
-    ]);
+    const page = adminSchemaAtlasPage(
+      { adminLevel: "owner" },
+      "light",
+      [
+        {
+          key: "sumup_checkout_id_mismatch",
+          recordId: "idx_mismatch",
+          state: "staged",
+        },
+      ],
+      NO_UNANSWERED,
+    );
     expect(page).toContain(
       "A SumUp recovery record's state and checkout ID do not match.",
     );
@@ -153,18 +161,86 @@ describe("the system map page", () => {
   });
 
   test("the live check names a SumUp check time mismatch", () => {
-    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [
-      {
-        key: "sumup_check_time_mismatch",
-        kind: "sumup",
-        recordId: "idx_clock",
-        state: "waiting",
-      },
-    ]);
+    const page = adminSchemaAtlasPage(
+      { adminLevel: "owner" },
+      "light",
+      [
+        {
+          key: "sumup_check_time_mismatch",
+          recordId: "idx_clock",
+          state: "waiting",
+        },
+      ],
+      NO_UNANSWERED,
+    );
     expect(page).toContain(
       "A SumUp recovery record's state and next check time do not match.",
     );
     expect(page).toContain("<code>idx_clock</code> <code>waiting</code>");
+  });
+
+  test("the unanswered section answers clean when nothing is waiting", () => {
+    const page = html();
+    expect(page).toContain('id="schema-unanswered"');
+    expect(page).toContain("Money nobody has answered for");
+    expect(page).toContain("No SumUp checkout needs your attention.");
+  });
+
+  test("the unanswered section counts and lists the oldest rows", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [], {
+      rows: [
+        {
+          createdAt: "2026-08-01T00:00:00.000Z",
+          referenceIndex: "idx_owed_row",
+          state: "owed",
+        },
+      ],
+      total: 3,
+    });
+    expect(page).toContain("3 checkouts need an answer.");
+    expect(page).toContain("Showing the oldest 1.");
+    expect(page).toContain("Money not accounted for");
+    expect(page).toContain("<code>idx_owed_row</code>");
+    expect(page).not.toContain("No SumUp checkout needs your attention.");
+  });
+
+  test("the unanswered section falls back to the stored time on clock skew", () => {
+    // A writer's clock slightly ahead of the renderer's makes a fresh row
+    // read as future, where an age label would be a lie — the raw stored
+    // time is shown instead.
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [], {
+      rows: [
+        {
+          createdAt: "2999-01-01T00:00:00.000Z",
+          referenceIndex: "idx_skewed_row",
+          state: "owed",
+        },
+      ],
+      total: 1,
+    });
+    // The exact joined row: label, separator, stored time, then the code —
+    // deterministic here because the fallback shows the raw stored time.
+    expect(page).toContain(
+      "Money not accounted for · 2999-01-01T00:00:00.000Z " +
+        "<code>idx_skewed_row</code>",
+    );
+  });
+
+  test("the unanswered section says nothing about truncation when whole", () => {
+    const page = adminSchemaAtlasPage({ adminLevel: "owner" }, "light", [], {
+      rows: [
+        {
+          createdAt: "2026-08-01T00:00:00.000Z",
+          referenceIndex: "idx_waiting_row",
+          state: "waiting",
+        },
+      ],
+      total: 1,
+    });
+    expect(page).toContain("1 checkout needs an answer.");
+    expect(page).not.toContain("Showing the oldest");
+    expect(page).toContain("Waiting for an answer");
+    expect(page).toContain("<code>idx_waiting_row</code>");
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {

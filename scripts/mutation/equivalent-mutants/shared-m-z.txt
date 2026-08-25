@@ -41,8 +41,7 @@ src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1li3bw3  
 src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~0om8fcb  never_paid → ""   # tag labels one conformance case; production reads only the representative state
 src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~08wuvsv  accounted_for → ""   # tag labels one conformance case; production reads only the representative state
 src/shared/payment/sumup-recovery-machine-spec.ts::RECOVERY_NODES.reps~1qx9w2z  unaccounted_for → ""   # tag labels one conformance case; production reads only the representative state
-src/shared/payment/sumup-recovery-machine-spec.ts::recoveryMoveTo.to~02jvf42   → "mutated"   # all cells are plain or absent, so the tag argument has no effect
-src/shared/payment/sumup-recovery-machine-spec.ts::accepts~0mzva1m   → "mutated"   # all cells are plain or absent, so the tag argument has no effect
+src/shared/payment/sumup-recovery-machine-spec.ts::recoveryMoveTo.to~0p0vik6   →"mutated"   # all cells are plain or absent, so the tag argument has no effect
 
 # admit-move.ts declares every lifecycle rank in the closed 0/1/2 order.
 # Array.sort observes only the comparator's sign, so subtraction and division
@@ -310,3 +309,30 @@ src/shared/db/modifier-resolve.ts::eligibleCandidates~1oaufcv  1 → 0   # resol
 src/shared/sumup.ts::sumupApi.testSumupConnection.result%2eapiKey.mode~109o082  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
 src/shared/payment-provider-status.ts::providerMode.stripe~0bfh0wn  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
 src/shared/payment-provider-status.ts::providerMode.sumup~109o082  ?? → ||   # keyMode is "test"|"live"|null; no falsy-non-null value exists
+
+# refund-machine-spec.ts fixtures: the spec runs the machine at one instant
+# (NOW). Every replay-window comparison is strict (refund-authority.ts:54
+# and :116, refund-authority-state.ts:130), so a live window at exactly NOW
+# behaves as one an hour later; the past-window rep is expired by its
+# request's own closed window, not by when it was armed; and the
+# next-action instant is stored by transitions, never compared.
+src/shared/payment/refund-machine-spec.ts::NEXT~0t2ipiv 60000→0   # stored by transitions, never compared to NOW
+src/shared/payment/refund-machine-spec.ts::KEYED~1io4set 3600000→0   # strict comparisons keep a window at exactly NOW live
+src/shared/payment/refund-machine-spec.ts::armedPastWindow~0fsqlbf 3600000→0   # expiry comes from EXPIRED_KEYED's window, not the armed moment
+
+# refund-machine-spec.ts representative tags on nodes whose cells are all
+# plain: no split names them, so the tag only labels one conformance case;
+# production reads only the representative state. (The tags that split
+# cells DO name sit on send_armed/observing and are killed by the table
+# checks.)
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1wbd2os keyed→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0z99ikg keyless→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~10afzhu keyed_expired→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~122j3pc keyless_possibly_sent→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1nd1r6c keyed_rejected→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~0ktfgvw keyed_unreadable→""   # tag labels one conformance case; no split names it
+src/shared/payment/refund-machine-spec.ts::REFUND_NODES.reps~1hsgkm2 keyed_window_expired→""   # tag labels one conformance case; no split names it
+
+# refund-provider-authorization.ts: the permit is the symbol's identity;
+# the description only names it in debugger output.
+src/shared/payment/refund-provider-authorization.ts::durableRefundPermit~0u81rxu durable refund permit→""   # the permit is checked by symbol identity; the description is diagnostic text

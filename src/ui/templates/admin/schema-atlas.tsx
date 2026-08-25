@@ -6,7 +6,10 @@
  * as JSON and `client/admin/schema-atlas.ts` turns it into an SVG map. */
 
 import type { SchemaAnomaly } from "#db/schema-anomaly-scan.ts";
+import type { UnansweredSumupMoney } from "#db/sumup-recovery.ts";
 import { t } from "#i18n";
+import { formatTimeAgo } from "#shared/dates.ts";
+import { nowMs } from "#shared/now.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
 import { settingsArticlePage } from "#templates/admin/settings/page-shell.tsx";
@@ -143,7 +146,8 @@ const ANOMALY_MESSAGES: Record<SchemaAnomaly["key"], () => string> = {
 };
 
 /** The live answer to the promises above: every row the scan flagged, or
- * the all-clear. Findings name the broken rule and the stored record. */
+ * the all-clear. Findings name the broken rule, the stored record, and the
+ * stored state word when the rule judged one. */
 const LiveCheckSection = ({
   anomalies,
 }: {
@@ -159,7 +163,7 @@ const LiveCheckSection = ({
         {anomalies.map((anomaly) => (
           <li>
             {ANOMALY_MESSAGES[anomaly.key]()} <code>{anomaly.recordId}</code>
-            {anomaly.kind === "sumup" && (
+            {anomaly.state !== undefined && (
               <>
                 {" "}
                 <code>{anomaly.state}</code>
@@ -172,10 +176,48 @@ const LiveCheckSection = ({
   </section>
 );
 
+/** The SumUp checkouts that may be holding money nobody has answered for:
+ * the exact count, and the oldest rows. Legal states, not anomalies — but
+ * states an operator must see, because nothing else counts them. */
+const UnansweredMoneySection = ({
+  unanswered,
+}: {
+  unanswered: UnansweredSumupMoney;
+}): JSX.Element => (
+  <section id="schema-unanswered">
+    <h2>{t("schema.unanswered.heading")}</h2>
+    <p>{t("schema.unanswered.intro")}</p>
+    {unanswered.total === 0 ? (
+      <p>{t("schema.unanswered.none")}</p>
+    ) : (
+      <>
+        <p>
+          {t("schema.unanswered.count", { count: unanswered.total })}
+          {unanswered.total > unanswered.rows.length &&
+            ` ${t("schema.unanswered.truncated", {
+              shown: unanswered.rows.length,
+            })}`}
+        </p>
+        <ul>
+          {unanswered.rows.map((row) => (
+            <li>
+              {t(`schema.sumup_recovery.state.${row.state}`)}
+              {" · "}
+              {formatTimeAgo(row.createdAt, nowMs()) ?? row.createdAt}{" "}
+              <code>{row.referenceIndex}</code>
+            </li>
+          ))}
+        </ul>
+      </>
+    )}
+  </section>
+);
+
 export const adminSchemaAtlasPage = (
   session: AdminSession,
   theme: Theme,
   anomalies: readonly SchemaAnomaly[],
+  unanswered: UnansweredSumupMoney,
 ): string => {
   const machines = SCHEMA_ATLAS_MACHINES.map(viewMachine);
   return settingsArticlePage(
@@ -205,6 +247,7 @@ export const adminSchemaAtlasPage = (
           <MachineSection machine={machine} />
         ))}
         <LiveCheckSection anomalies={anomalies} />
+        <UnansweredMoneySection unanswered={unanswered} />
       </div>
       <JsonScript id="schema-atlas-data" value={{ machines }} />
     </>,

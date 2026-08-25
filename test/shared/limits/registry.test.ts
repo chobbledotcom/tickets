@@ -12,6 +12,10 @@ import {
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
   positiveIntOrDefault,
+  SUMUP_FIRST_CHECK_MS,
+  SUMUP_RECHECK_MS,
+  SUMUP_RECOVERY_INTERVAL_MS,
+  SUMUP_UNANSWERED_AFTER_MS,
 } from "#shared/limits.ts";
 
 const metadata = LIMIT_ENTRIES.map(({ defaultValue, envKey, label, unit }) => [
@@ -113,6 +117,12 @@ describe("limit registry contract", () => {
         "minutes",
       ],
       [
+        "SUMUP_UNANSWERED_AFTER_HOURS",
+        24,
+        "SumUp recovery: list a still-unanswered checkout after",
+        "hours",
+      ],
+      [
         "SUMUP_RECOVERY_BATCH",
         3,
         "SumUp recovery: checkouts per run",
@@ -162,6 +172,10 @@ describe("limit registry contract", () => {
       sessions: PRUNE_SESSIONS_RETENTION_MS,
       strings: PRUNE_UNUSED_STRINGS_RETENTION_MS,
       sumup: PRUNE_SUMUP_RETENTION_MS,
+      sumupFirstCheck: SUMUP_FIRST_CHECK_MS,
+      sumupRecheck: SUMUP_RECHECK_MS,
+      sumupRecoveryInterval: SUMUP_RECOVERY_INTERVAL_MS,
+      sumupUnanswered: SUMUP_UNANSWERED_AFTER_MS,
       tokens: PRUNE_TOKENS_RETENTION_MS,
     }).toEqual({
       activityLogBackfill: 60_000,
@@ -172,6 +186,10 @@ describe("limit registry contract", () => {
       sessions: 7_776_000_000,
       strings: 604_800_000,
       sumup: 86_400_000,
+      sumupFirstCheck: 10_800_000,
+      sumupRecheck: 21_600_000,
+      sumupRecoveryInterval: 1_800_000,
+      sumupUnanswered: 86_400_000,
       tokens: 604_800_000,
     });
   });

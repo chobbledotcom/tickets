@@ -223,3 +223,11 @@ src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.step~1qj
 src/shared/db/attendees/create.ts::capacityFailure.listingIds.date~1ifkn3h ??→||   # date is a validated string, null, or undefined; never ""
 src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 ??→||   # a 0 duration clamps to 1 day, the same as the default
 src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 1→0   # a 0 default clamps to 1 day inside expandDailyRange
+
+# sumup-recovery.ts: libsql's batch returns exactly one ResultSet per
+# statement, and COUNT(*) always returns one row, so these requireValue
+# messages name states only the index types demand handling. The text is
+# diagnostic and the paths are unreachable.
+src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3 The unanswered SumUp count returned no result→""   # unreachable: one ResultSet per batch statement
+src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w The unanswered SumUp count returned no row→""   # unreachable: COUNT(*) always returns one row
+src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn The unanswered SumUp listing returned no result→""   # unreachable: one ResultSet per batch statement

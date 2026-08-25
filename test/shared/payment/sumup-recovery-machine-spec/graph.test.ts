@@ -5,13 +5,12 @@ import {
   RECOVERY_EVENTS,
   RECOVERY_MOVES,
   RECOVERY_NODES,
-  RECOVERY_TERMINAL_NODES,
   type RecoveryNodeId,
   recoveryMoveTo,
   recoveryNodeOf,
   recoveryRowAfter,
 } from "#payment/sumup-recovery-machine-spec.ts";
-import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
+import { derivedNodeIds, movesIn } from "#shared/schema-atlas/machine-spec.ts";
 import { machineGraph } from "#test-utils/machine-graph.ts";
 
 /* jscpd:ignore-end */
@@ -22,6 +21,14 @@ const graph = machineGraph({
   nodes: RECOVERY_NODES,
   targets: movesIn(RECOVERY_MOVES).targets,
 });
+
+/** The closed nodes, read off the declared table the way production reads
+ * its own derived lists. */
+const RECOVERY_TERMINAL = derivedNodeIds({
+  events: RECOVERY_EVENTS,
+  moves: RECOVERY_MOVES,
+  nodes: RECOVERY_NODES,
+}).terminal();
 
 describe("sumup recovery machine graph", () => {
   test("every node is reachable from a freshly staged row", () => {
@@ -34,13 +41,13 @@ describe("sumup recovery machine graph", () => {
   test("every node can still reach a closed answer", () => {
     for (const node of RECOVERY_NODES) {
       const reached = graph.reachableFrom(node.id);
-      const closes = RECOVERY_TERMINAL_NODES.some((id) => reached.has(id));
+      const closes = RECOVERY_TERMINAL.some((id) => reached.has(id));
       expect(closes, `${node.id} can never be closed`).toBe(true);
     }
   });
 
   test("a closed row has no way back out", () => {
-    for (const id of RECOVERY_TERMINAL_NODES) {
+    for (const id of RECOVERY_TERMINAL) {
       expect([...graph.reachableFrom(id)], id).toEqual([id]);
     }
   });

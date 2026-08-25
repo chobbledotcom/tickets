@@ -18,6 +18,45 @@ const stateById = (id: RecoveryNodeId) => {
 };
 
 describe("sumup recovery atlas", () => {
+  test("declares its identity, keys, and every node's place on the map", () => {
+    expect(atlas.id).toBe("sumup_recovery");
+    expect(atlas.titleKey).toBe("schema.sumup_recovery.title");
+    expect(atlas.introKey).toBe("schema.sumup_recovery.intro");
+    expect(
+      atlas.states.map(({ id, labelKey, layout }) => ({
+        id,
+        labelKey,
+        layout,
+      })),
+    ).toEqual([
+      {
+        id: "staged",
+        labelKey: "schema.sumup_recovery.state.staged",
+        layout: { x: 140, y: 240 },
+      },
+      {
+        id: "waiting",
+        labelKey: "schema.sumup_recovery.state.waiting",
+        layout: { x: 480, y: 240 },
+      },
+      {
+        id: "unpaid",
+        labelKey: "schema.sumup_recovery.state.unpaid",
+        layout: { x: 820, y: 240 },
+      },
+      {
+        id: "finished",
+        labelKey: "schema.sumup_recovery.state.finished",
+        layout: { x: 820, y: 80 },
+      },
+      {
+        id: "owed",
+        labelKey: "schema.sumup_recovery.state.owed",
+        layout: { x: 820, y: 400 },
+      },
+    ]);
+  });
+
   test("draws every node the machine declares, and no others", () => {
     expect(atlas.states.map((state) => state.id).sort()).toEqual(
       RECOVERY_NODES.map((node) => node.id).sort(),

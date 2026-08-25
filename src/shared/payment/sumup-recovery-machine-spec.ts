@@ -15,10 +15,12 @@
 
 import * as v from "valibot";
 import {
+  derivedNodeIds,
   type MachineEvent,
   type MachineMoves,
   type MachineNode,
   movesIn,
+  nodeIdsWhere,
   machineRep as rep,
 } from "#shared/schema-atlas/machine-spec.ts";
 
@@ -133,18 +135,22 @@ export type RecoveryMachineEvent = MachineEvent<
   readonly kind: RecoveryEventKind;
 };
 
+/** Whether the two stored columns agree: every state except the one before
+ * SumUp answers carries a checkout id. This is the one statement of that
+ * rule — the node reader refuses a row that breaks it, and the live check
+ * uses it to name the broken rule for the operator. */
+export const recoveryCheckoutIdAgrees = (row: SumupRecoveryRow): boolean =>
+  (row.sumupId !== "") ===
+  (row.recoveryState !== RECOVERY_STATE_WITHOUT_CHECKOUT_ID);
+
 /** The node one stored row sits on. Total: a state word and a checkout id
  * that disagree are a combination no writer can produce, so it is raised
  * rather than normalised — the live check is what finds those. */
 export const recoveryNodeOf = (row: SumupRecoveryRow): RecoveryNodeId => {
-  const hasCheckoutId = row.sumupId !== "";
-  if (
-    hasCheckoutId ===
-    (row.recoveryState === RECOVERY_STATE_WITHOUT_CHECKOUT_ID)
-  ) {
+  if (!recoveryCheckoutIdAgrees(row)) {
     throw new Error(
       `A sumup_checkouts row cannot be ${row.recoveryState} with ` +
-        `${hasCheckoutId ? "a" : "no"} checkout id`,
+        `${row.sumupId !== "" ? "a" : "no"} checkout id`,
     );
   }
   return row.recoveryState;
@@ -156,7 +162,7 @@ export const recoveryMoveTo = (
   from: RecoveryNodeId,
   event: RecoveryEventId,
 ): RecoveryNodeId => {
-  const to = movesIn(RECOVERY_MOVES).expected(from, event, "");
+  const to = RECOVERY_MOVES_READER.expected(from, event, "");
   if (to === "refused") {
     throw new Error(`A ${from} SumUp checkout refuses ${event}`);
   }
@@ -187,10 +193,10 @@ const moves =
   (row: SumupRecoveryRow): SumupRecoveryRow =>
     recoveryRowAfter(row, event, A_CHECKOUT_ID);
 
-const systemEvent = (
-  id: RecoveryEventId,
+const systemEvent = <Id extends RecoveryEventId>(
+  id: Id,
   kind: RecoveryEventKind = "check",
-): RecoveryMachineEvent => ({
+): RecoveryMachineEvent & { readonly id: Id } => ({
   actor: "system",
   id,
   kind,
@@ -199,21 +205,30 @@ const systemEvent = (
   run: moves(id),
 });
 
+/** One entry per event id, each value bound to its own key, so an id added
+ * to the union alone refuses to compile until its event is declared here —
+ * and a key holding another id's event refuses too. The sweep and the queue
+ * both derive from this record, so a declared event is a swept event. */
+const RECOVERY_EVENT_OF: {
+  readonly [Id in RecoveryEventId]: RecoveryMachineEvent & { readonly id: Id };
+} = {
+  checkout_created: systemEvent("checkout_created", "create"),
+  read_expired_or_failed: systemEvent("read_expired_or_failed"),
+  read_paid_booked: systemEvent("read_paid_booked"),
+  read_paid_contradiction: systemEvent("read_paid_contradiction"),
+  read_paid_settled: systemEvent("read_paid_settled"),
+  read_paid_unreadable: systemEvent("read_paid_unreadable"),
+  read_paid_unsettled: systemEvent("read_paid_unsettled"),
+  read_pending: systemEvent("read_pending"),
+  read_unavailable: systemEvent("read_unavailable"),
+};
+
 /** Every way a staged checkout can move. The five `read_paid_*` events are
  * exhaustive over what the payment engine can answer for a paid checkout,
  * and each is named for the money fact it establishes, because that is what
  * decides whether the row may ever be deleted. */
-export const RECOVERY_EVENTS: readonly RecoveryMachineEvent[] = [
-  systemEvent("checkout_created", "create"),
-  systemEvent("read_unavailable"),
-  systemEvent("read_pending"),
-  systemEvent("read_expired_or_failed"),
-  systemEvent("read_paid_booked"),
-  systemEvent("read_paid_settled"),
-  systemEvent("read_paid_unsettled"),
-  systemEvent("read_paid_unreadable"),
-  systemEvent("read_paid_contradiction"),
-];
+export const RECOVERY_EVENTS: readonly RecoveryMachineEvent[] =
+  Object.values(RECOVERY_EVENT_OF);
 
 /** The declared machine. Every cell present is a required landing node;
  * every cell absent is a refusal the sweep executes.
@@ -249,35 +264,58 @@ export const RECOVERY_MOVES: MachineMoves<RecoveryNodeId, RecoveryEventId> = {
   },
 };
 
-/** Whether the table has a cell for this pair at all. */
-const accepts = (node: RecoveryNodeId, event: RecoveryEventId): boolean =>
-  movesIn(RECOVERY_MOVES).expected(node, event, "") !== "refused";
+/** The one reader over the declared table, built once. */
+const RECOVERY_MOVES_READER = movesIn(RECOVERY_MOVES);
 
-/** The ids of every node a rule holds for — the one shape the derived lists
- * below share, so none of them can drift into reading the table differently. */
-const nodeIdsWhere = (
-  holds: (node: RecoveryNode) => boolean,
-): readonly RecoveryNodeId[] =>
-  RECOVERY_NODES.filter(holds).map((node) => node.id);
-
-/** The nodes a row can never leave. Derived, so a cell added to a closed
- * row's line changes this rather than quietly contradicting it. */
-export const RECOVERY_TERMINAL_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
-  (node) => RECOVERY_EVENTS.every((event) => !accepts(node.id, event.id)),
-);
+const RECOVERY_DERIVED = derivedNodeIds({
+  events: RECOVERY_EVENTS,
+  moves: RECOVERY_MOVES,
+  nodes: RECOVERY_NODES,
+});
 
 /** The nodes still worth asking SumUp about: the ones some check can move.
  * Derived, so a node stops being asked about the moment its last check is
- * taken away, and a new one joins by being declared. */
-export const RECOVERY_CHECKABLE_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
-  (node) =>
-    RECOVERY_EVENTS.some(
-      (event) => event.kind === "check" && accepts(node.id, event.id),
-    ),
-);
+ * taken away, and a new one joins by being declared. A row carries a next
+ * check time exactly when its state is on this list — the queue reads the
+ * time, the writers set it, and the live check reports a row that breaks
+ * the rule. */
+export const RECOVERY_CHECKABLE_NODES: readonly RecoveryNodeId[] =
+  RECOVERY_DERIVED.movedBy((event) => event.kind === "check");
 
 /** The nodes pruning may delete on age alone. Everything else is kept until
  * it has a definitive answer, however old it gets. */
 export const RECOVERY_PRUNABLE_NODES: readonly RecoveryNodeId[] = nodeIdsWhere(
+  RECOVERY_NODES,
   (node) => node.prunable,
 );
+
+/** When the operator hears about a state's rows, keyed by the money answer
+ * itself: money known to be unaccounted for is always listed, money nobody
+ * has answered for is listed once the row is old, and money answered "no"
+ * never is. A new money answer refuses to compile until someone decides
+ * when the operator hears about its rows. */
+const OPERATOR_LISTING_OF: {
+  readonly [Owes in RecoveryOwesMoney]: "always" | "never" | "when_old";
+} = {
+  no: "never",
+  unknown: "when_old",
+  yes: "always",
+};
+
+const nodesHeardOf = (
+  listing: "always" | "when_old",
+): readonly RecoveryNodeId[] =>
+  nodeIdsWhere(
+    RECOVERY_NODES,
+    (node) => OPERATOR_LISTING_OF[node.owesMoney] === listing,
+  );
+
+/** The nodes whose rows the operator always sees as unanswered money. */
+export const RECOVERY_UNANSWERED_NODES: readonly RecoveryNodeId[] =
+  nodesHeardOf("always");
+
+/** The nodes whose rows the operator sees once they are old. A young row
+ * here is normal — the task simply has not settled it yet — but an old one
+ * means the task cannot get an answer, or cannot run at all. */
+export const RECOVERY_UNANSWERED_WHEN_OLD_NODES: readonly RecoveryNodeId[] =
+  nodesHeardOf("when_old");
