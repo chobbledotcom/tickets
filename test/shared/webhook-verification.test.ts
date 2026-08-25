@@ -35,6 +35,17 @@ describe("finishWebhookVerification", () => {
     });
   });
 
+  // Every reader of a WebhookEvent reads fields off it, so a body with no
+  // fields to read is refused at the door rather than at the first reader.
+  for (const body of ["null", "123", '"text"', "true", "[]"]) {
+    test(`refuses a signed payload that is JSON but not an event: ${body}`, () => {
+      expect(finish(true, body)).toEqual({
+        error: "Invalid JSON payload",
+        valid: false,
+      });
+    });
+  }
+
   test("refuses a signed payload that is not JSON", () => {
     expect(finish(true, "{not json")).toEqual({
       error: "Invalid JSON payload",
