@@ -80,11 +80,12 @@ laws live beside it, in `machine.test.ts` and `graph.test.ts`. That machine also
 shows the limit of this rule. Its events carry `kind` and `movesMoney`, not the
 write and the fence.
 
-Those two facts stay structural, and they are not alike. One write helper
-carries the fence, because `moveSumupRecoveryRow` is the only `UPDATE`. Two
-writers carry the schedule. `moveSumupRecoveryRow` sets the next check for every
-event, and `setSumupCheckoutId` sets the first one when the checkout id lands.
-Two writers are weaker than one, and weaker again than a declared fact.
+Those two facts stay structural, and each has two writers.
+`moveSumupRecoveryRow` carries the recovery moves. It fences on
+`reference_index`, the state, and the schedule. `setSumupCheckoutId` carries the
+creation edge through `executeUpdate`. It fences on `reference_index` and the
+`staged` state, because a staged row has no schedule yet. Two writers are weaker
+than one, and weaker again than a declared fact.
 
 Put a fact on the declaration when you can. Where a fact stays structural, name
 every place that carries it. Count them, and say that a structural fact is
