@@ -274,19 +274,24 @@ describe("sumup-provider", () => {
       });
     });
 
-    // A SumUp callback names its checkout with text. A body whose id is a
-    // number never named one, so the door refuses it rather than carrying a
-    // value the session lookup would only refuse later.
-    test("rejects an id and event_type that are not text", async () => {
-      expect(await verify('{"event_type":false,"id":0}')).toEqual({
-        error: "Invalid JSON payload",
-        valid: false,
+    // A SumUp callback names its checkout with text. A body naming it with
+    // anything else never named one, so the door refuses it rather than
+    // carrying a value the session lookup would only refuse later. Each field
+    // is refused on its own, so neither rule can stand in for the other.
+    for (const [field, body] of [
+      ["id", '{"event_type":"CHECKOUT_STATUS_CHANGED","id":0}'],
+      ["event_type", '{"event_type":false,"id":"co_42"}'],
+    ] as const) {
+      test(`rejects a ${field} that is not text`, async () => {
+        expect(await verify(body)).toEqual({
+          error: "Invalid JSON payload",
+          valid: false,
+        });
       });
-    });
+    }
 
-    // A public unsigned door: anyone can post any JSON at all. None of these
-    // is an object carrying SumUp's two fields, and reading a field off one
-    // used to crash the request instead of refusing it.
+    // A public unsigned door: anyone can post any JSON at all, and none of
+    // these is an object carrying SumUp's two fields.
     for (const body of ["null", "123", '"text"', "true", "[]"]) {
       test(`refuses a payload that is JSON but not a callback: ${body}`, async () => {
         expect(await verify(body)).toEqual({

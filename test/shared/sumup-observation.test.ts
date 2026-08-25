@@ -49,7 +49,8 @@ const wirePending = (over: Record<string, unknown> = {}) => {
   return paidWithoutTxnId;
 };
 
-const classify = (body: unknown) => classifySumupCheckout(body, FACTS);
+const classify = (body: unknown, facts: SumupReadFacts = FACTS) =>
+  classifySumupCheckout(body, facts);
 
 describe("classifySumupCheckout", () => {
   test("reads a paid checkout into the normalized shape", () => {
@@ -268,11 +269,15 @@ describe("classifySumupCheckout", () => {
   // record prices the booking, so what each absence costs differs.
   test("reads the money when only the charge names the currency", () => {
     const { currency: _, ...noCurrency } = wirePaid();
-    expect(classify(noCurrency)).toEqual({
+    // A site currency that holds no minor units at all, so the amount proves
+    // which currency read it: 10 in yen, and 1000 had it read the pounds the
+    // charge names.
+    const inYen = { ...FACTS, siteCurrency: "JPY" };
+    expect(classify(noCurrency, inYen)).toEqual({
       resource: expect.objectContaining({
         // Read in the site currency, because the checkout named none, and
         // carried as null so the boundary can see that it named none.
-        amountMinor: 1000,
+        amountMinor: 10,
         currency: null,
       }),
       status: "found",
