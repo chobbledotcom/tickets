@@ -279,6 +279,9 @@ export type EmailDeliveryResult =
       status: number | undefined;
     };
 
+/** Deliver one message with a config — the shape every sender shares. */
+type EmailDeliveryFn = EmailProviderFn<Promise<EmailDeliveryResult>>;
+
 const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
   delivered: false,
   detail: errorMessage(error),
@@ -310,11 +313,8 @@ const failureReason = (text: string, msg: EmailMessage): string => {
 };
 
 const emailDelivery =
-  (recover: (error: unknown) => EmailDeliveryResult) =>
-  async (
-    config: EmailConfig,
-    msg: EmailMessage,
-  ): Promise<EmailDeliveryResult> => {
+  (recover: (error: unknown) => EmailDeliveryResult): EmailDeliveryFn =>
+  async (config, msg) => {
     const buildRequest = PROVIDERS[config.provider];
     try {
       const { ok, status, text } = await sendEmailRequest(
@@ -336,18 +336,14 @@ const emailDelivery =
 
 const reportedEmailDelivery = emailDelivery(failedEmailDelivery);
 
-export const deliverRegistrationEmail: (
-  config: EmailConfig,
-  msg: EmailMessage,
-) => Promise<EmailDeliveryResult> = emailDelivery((error) => {
-  if (!(error instanceof TypeError)) throw error;
-  return failedEmailDelivery(error);
-});
+export const deliverRegistrationEmail: EmailDeliveryFn = emailDelivery(
+  (error) => {
+    if (!(error instanceof TypeError)) throw error;
+    return failedEmailDelivery(error);
+  },
+);
 
-export const sendEmail = async (
-  config: EmailConfig,
-  msg: EmailMessage,
-): Promise<EmailDeliveryResult> => {
+export const sendEmail: EmailDeliveryFn = async (config, msg) => {
   const delivery = await reportedEmailDelivery(config, msg);
   if (!delivery.delivered) {
     logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
