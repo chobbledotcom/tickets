@@ -46,7 +46,8 @@ export const watchAfterPay = async (
     if (!probes.onProvider()) return "left_provider";
     if (await probes.declineVisible()) return "declined";
     if (await probes.clickBack()) return "clicked_back";
-    await clock.wait(POLL_MS);
+    // The last wait shrinks to the time left, so the deadline holds exactly.
+    await clock.wait(Math.min(POLL_MS, deadline - clock.now()));
   }
   return "timed_out";
 };

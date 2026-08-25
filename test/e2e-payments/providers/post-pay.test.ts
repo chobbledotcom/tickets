@@ -98,6 +98,14 @@ describe("watching the page after Pay", () => {
     expect(clock.now()).toBe(1_500);
   });
 
+  it("never waits past a deadline that is not a multiple of the poll step", async () => {
+    const clock = scriptedClock();
+    const probes = scriptedProbes({});
+    expect(await watchAfterPay(probes, clock, 750)).toBe("timed_out");
+    expect(clock.waits).toEqual([500, 250]);
+    expect(clock.now()).toBe(750);
+  });
+
   it("times out at once on a zero deadline, with no asks", async () => {
     const clock = scriptedClock();
     const probes = scriptedProbes({});
