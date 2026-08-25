@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
 import type { BrowserSession } from "#e2e/browser.ts";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
@@ -282,6 +282,16 @@ export const sumup: PaymentProvider = {
   setupCountry: "GB",
 };
 
+/** Is this locator visible right now? A probe that lands mid-navigation or on
+ * a detached node reads as "not visible yet", and the caller's loop asks again. */
+const visibleNow = async (target: Locator): Promise<boolean> => {
+  try {
+    return await target.isVisible({ timeout: 500 });
+  } catch {
+    return false;
+  }
+};
+
 /**
  * SumUp's sandbox checkout does NOT auto-redirect after a successful payment: it
  * parks on a "Payment successful" confirmation page (still on checkout.sumup.com)
@@ -290,8 +300,12 @@ export const sumup: PaymentProvider = {
  * stalls on the SumUp page and dies as a misleading "did not land on a success
  * page" timeout even though the payment (and its webhook) already succeeded.
  *
- * Best-effort and non-fatal: if a future SumUp variant auto-redirects, the
- * button never appears (or the browser has already left the SumUp origin) and we
+ * A refused payment parks here too, on a "Payment Declined" banner whose only
+ * button is "Try Again", so no return home can ever come. Fail at once with
+ * the true cause instead of a missing-return-URL timeout two minutes later.
+ *
+ * Best-effort and non-fatal otherwise: if a future SumUp variant auto-redirects,
+ * the button never appears (or the browser has already left the SumUp origin) and we
  * simply return, letting the caller's return-URL wait confirm the landing.
  */
 const returnToMerchant = async (page: Page): Promise<void> => {
@@ -300,6 +314,9 @@ const returnToMerchant = async (page: Page): Promise<void> => {
     .getByRole("link", { name: namePattern })
     .or(page.getByRole("button", { name: namePattern }))
     .first();
+  // The visible headline of SumUp's decline page. Its other occurrence sits in
+  // a script-tag i18n bundle, which text matching never reads.
+  const declined = page.getByText(/payment declined/i).first();
 
   // SumUp serves its hosted checkout from more than one host — the docs return
   // checkout.sumup.com, but pay.sumup.com is also used (the app's CSP allows
@@ -318,16 +335,24 @@ const returnToMerchant = async (page: Page): Promise<void> => {
   while (Date.now() < deadline) {
     // Already redirected away from SumUp's checkout — nothing to click.
     if (!onSumUp()) return;
-    try {
-      if (await link.isVisible({ timeout: 500 })) {
+    if (await visibleNow(declined)) {
+      throw new Error(
+        'SumUp\'s hosted checkout says "Payment Declined" — the sandbox refused the payment, ' +
+          "so the browser can never return to the app. The harness sent the documented " +
+          "approved test card, so this decline is SumUp-side. A decline that repeats " +
+          "across nights means the sandbox rules changed.",
+      );
+    }
+    if (await visibleNow(link)) {
+      try {
         await link.click({ timeout: 5_000 });
         log(
           "  clicked SumUp's 'Back to merchant website' to return to the app",
         );
         return;
+      } catch {
+        // Node detached between the probe and the click; ask again next loop.
       }
-    } catch {
-      // Page navigating or the node detached mid-check; re-evaluate next loop.
     }
     await page.waitForTimeout(500);
   }
