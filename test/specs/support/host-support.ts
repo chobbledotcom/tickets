@@ -43,7 +43,10 @@ const hostWithinReach = (
   putAWatchInPlace: PutsAWatchInPlace,
 ): void => {
   world.cleanup.add(
-    withEnv({ ADMIN_EMAIL_ADDRESS: HOST_ADDRESS, SUPPORT_PAGE_TEXT: undefined }),
+    withEnv({
+      ADMIN_EMAIL_ADDRESS: HOST_ADDRESS,
+      SUPPORT_PAGE_TEXT: undefined,
+    }),
   );
   putAWatchInPlace(world);
 };
