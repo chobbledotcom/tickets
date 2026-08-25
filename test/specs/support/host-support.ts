@@ -33,12 +33,18 @@ const SEND = "Send message";
 
 /** The host there to be written to, with the email provider answering the
  * way one story needs it to. The address is put back when the scenario ends,
- * so one story's host cannot still be listening in the next. */
+ * so one story's host cannot still be listening in the next. The host's
+ * page words start unset — a machine whose shell already exports
+ * SUPPORT_PAGE_TEXT would otherwise write the host's introduction for every
+ * story here, and the one about the host who wrote nothing would fail on
+ * that machine alone. */
 const hostWithinReach = (
   world: TicketsWorld,
   putAWatchInPlace: PutsAWatchInPlace,
 ): void => {
-  world.cleanup.add(withEnv({ ADMIN_EMAIL_ADDRESS: HOST_ADDRESS }));
+  world.cleanup.add(
+    withEnv({ ADMIN_EMAIL_ADDRESS: HOST_ADDRESS, SUPPORT_PAGE_TEXT: undefined }),
+  );
   putAWatchInPlace(world);
 };
 
