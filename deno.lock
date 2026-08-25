@@ -2470,6 +2470,8 @@
     "members": {
       "e2e-payments": {
         "dependencies": [
+          "jsr:@std/expect@^1.0.18",
+          "jsr:@std/testing@^1.0.17",
           "npm:@cucumber/cucumber@13.2.0",
           "npm:@cucumber/gherkin@41.0.0",
           "npm:@cucumber/messages@34.0.1",

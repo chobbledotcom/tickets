@@ -1,32 +1,5 @@
 # TODO — remaining follow-ups
 
-## Browser test for the SumUp decline banner wiring (from PR #2135)
-
-Codex asked for an in-process test of the SumUp decline path. The wait loop has
-direct tests (`test/e2e-payments/providers/post-pay.test.ts`), but two pieces
-run only in the nightly: the "Payment Declined" locator, and the `declined`
-action that throws (`AFTER_PAY_ACTIONS` in
-`e2e-payments/src/providers/sumup.ts`). A unit test cannot present a real hosted
-page, and the main suite must run without a browser, so the ask was declined on
-that PR. The idea is still good as a Chromium-gated test, beside
-`deno task test:screenshot-contract`.
-
-To build it:
-
-1. Serve a canned page for a `checkout.sumup.com` URL with `page.route`.
-2. Copy the decline banner markup from the run 32807391290 artifacts.
-3. Drive the post-pay wait against that page.
-4. Make sure that it fails at once with the "Payment Declined" error.
-
-One decision is open. The wait lives in the module-private `returnToMerchant`,
-so the test needs an export for it, or the canned page must carry card fields so
-`payHostedCheckout` can drive the whole journey.
-
-Review thread:
-<https://github.com/chobbledotcom/tickets/pull/2135#discussion_r3852742287>
-
----
-
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 
 `refusedOrderUnfitListingIds` (`src/shared/db/attendees/capacity/checks.ts`)
