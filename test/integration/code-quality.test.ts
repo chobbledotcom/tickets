@@ -79,18 +79,19 @@ const LIBRARY_PATHS = [
   "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
   "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
   "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
-  // The transfer ledger (src/shared/ledger + src/shared/accounting) is being
-  // wired in incrementally; like fp.ts, some exports have no production
-  // caller yet. account.ts and validate.ts are already consumed by the store
-  // adapter, so they are no longer exempt — the remaining modules lose their
-  // exemption as the event mappers and checkout wiring land.
-  "shared/ledger/project.ts",
+  // The transfer ledger (src/shared/ledger + src/shared/accounting) is built
+  // ahead of the payment aggregate that consumes it, so some exports have no
+  // production caller. Each entry below names the rule it answers in
+  // docs/payment-aggregate-acceptance.md, or says that no rule asks for it. A
+  // module leaves this list when its last unconsumed export gains a caller.
+  "shared/ledger/project.ts", // profitOfListing, sumOfKind: no rule
+  "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs: rule 2
+  "shared/accounting/queries.ts", // whole-account reads: rules 1 and 3
+  // Only tests call reverseOf, and no rule asks for it: reverse.ts scopes it to
+  // an admin void or correction, and refunds use a separate multi-row model.
+  // The usage check cannot see this, because the {@link reverseOf} in its own
+  // JSDoc reads as a production use. isInverseOf beside it has a live caller.
   "shared/ledger/reverse.ts",
-  "shared/ledger/reconcile.ts",
-  "shared/checkout-ledger.ts",
-  "shared/accounting/store.ts",
-  "shared/accounting/queries.ts",
-  "shared/accounting/mappers.ts",
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /
   // public route / recursive-nav slices that consume them, so — like the

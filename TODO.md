@@ -738,6 +738,10 @@ test corpus can only make an export look test-used (which then flags it,
 loudly). This is a long-standing property of the whole detector file, not new to
 the dynamic-import clauses.
 
+`reverseOf` in `src/shared/ledger/reverse.ts` is a live example of the masking
+case. The export has test callers alone, and the `{@link reverseOf}` in its own
+JSDoc hides that.
+
 Proposed fix (the reviewer suggested syntax-aware parsing): a code-only
 preprocessing pass before matching. The file already has the pieces — the
 call-site scanner's `skipString`/`skipComment` lexer helpers skip comments and
@@ -2736,20 +2740,43 @@ so it went with them.
 
 ---
 
-## The ledger's unreachable half, a decision for the repository owner
+## Three ledger exports no rule has asked for
 
-_Origin: the consolidation review. This entry records a decision, not a job to
-pick up unread._
+_Origin: the consolidation review. That review claimed that about 500 lines of
+the ledger were unreachable, and it called the deletion an owner decision. Both
+claims were wrong. This entry replaces them._
 
-The ledger carries reconcilers, reversal builders, and four projections with no
-production caller. They stay alive through an exemption in the usage check. The
-house rule in `AGENTS.md` says to delete dead code and recover it from history.
-The exemption's own comment says the ledger is wired in a slice at a time, and
-asks the reader to wait.
+The ledger is not half dead. Someone wrote its unconsumed exports before the
+payment aggregate, and `docs/payment-aggregate-acceptance.md` names the rule
+that some of them answer. The exemption list in
+`test/integration/code-quality.test.ts` now names that rule per module, or says
+that no rule asks for the export. `checkout-ledger.ts`, `accounting/store.ts`
+and `accounting/mappers.ts` gained production callers, so they left the list.
 
-About 500 lines sit on that disagreement. The two rules point opposite ways, so
-the call belongs to the repository owner and not to a reviewer. Starting point:
-the `LIBRARY_PATHS` exemption in `test/integration/code-quality.test.ts`.
+Eight exports have test callers alone, and they are not alike. The usage check
+flags seven of them. The blind spot below hides the eighth.
+
+- `reconcile.ts` (`reconcileExternal`, `reconcileLegs`) answer rule 2, which
+  needs the refund total of the provider. `accounting/queries.ts`
+  (`allTransfers`, `recentTransfers`, `accountBalance`) answer the owner review
+  pages of rules 1 and 3.
+- `project.ts` (`profitOfListing`, `sumOfKind`) and `reverse.ts` (`reverseOf`)
+  answer no rule. Profit per listing and totals by kind appear nowhere in the
+  contract. `reverseOf` builds an admin void or a correction, and the contract
+  names no such action. The refunds of rule 1 use a separate model of many rows
+  per original, which does not call it.
+
+"Remove dead code" in `AGENTS.md` says to delete an export that only tests call,
+and to recover it from history when a caller arrives. Against that stands a
+contract that names a future caller for five of the eight. The person who owns
+the payment aggregate must settle that half. The three exports that answer no
+rule have no such defence, so delete them first.
+
+Read this before you change any of it. The usage check cannot see that only
+tests call `reverseOf`, because the `{@link reverseOf}` in the JSDoc of that
+module reads as a production use. `isInverseOf` beside it has a live caller in
+`accounting/conflicts.ts`, so the module stays exempt either way. See
+"Dead-export scanner matches raw text" above.
 
 ---
 
