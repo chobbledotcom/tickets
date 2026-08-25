@@ -24,8 +24,8 @@ import {
   rememberListing,
 } from "#test/specs/support/listings.ts";
 import {
+  answersTheEmailProviderWith,
   type PutsAWatchInPlace,
-  watchesOutgoing,
 } from "#test/specs/support/outgoing.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
@@ -36,6 +36,7 @@ import {
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { connectResendProvider } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -59,15 +60,13 @@ export interface MessageWritten {
 /** The owner's own email provider. Without one the site still composes and
  * previews, but will not send in bulk. */
 export const ownerHasAnEmailProvider = async (): Promise<void> => {
-  await settings.update.email.provider("resend");
-  await settings.update.email.apiKey("re_key");
+  await connectResendProvider();
   await settings.update.email.fromAddress("tickets@example.com");
 };
 
 /** Answer the email provider for one story, and remember every send. */
-export const watchWhatIsSent: PutsAWatchInPlace = watchesOutgoing((url) =>
-  url.includes("api.resend.com") ? new Response(null, { status: 200 }) : null,
-);
+export const watchWhatIsSent: PutsAWatchInPlace =
+  answersTheEmailProviderWith(200);
 
 /** Every send the site really made to the email provider. */
 const sendsMade = (world: TicketsWorld) =>

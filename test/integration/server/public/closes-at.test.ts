@@ -1,3 +1,15 @@
+/**
+ * Tests for the registration-deadline branches on the public ticket pages
+ * GET /ticket/:slug(+…) — closed/open page render
+ * POST /ticket/:slug(+…) — refusal when closing passed mid-submission
+ *
+ * Sits beside the story `@story:bookings.when-booking-closes`: the story
+ * owns the customer's journey (the closed page, the partly-closed order, the
+ * last-second send), so these own the branch cover — the null/future/past
+ * deadline renders, the closed-part label on a joint page, and the
+ * closed-while-submitting redirect for the single and joint forms.
+ */
+
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";

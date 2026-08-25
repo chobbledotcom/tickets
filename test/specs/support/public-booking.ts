@@ -65,7 +65,9 @@ export interface BookingAttempt {
   wasBooked: boolean;
 }
 
-const THANK_YOU = "Thank you for your order";
+/** What the site says on the page a booking lands on. Shared with the steps
+ * that read a booking's outcome back. */
+export const THANK_YOU = "Thank you for your order";
 
 /** A control a visitor could really use to send this value. */
 const expectControlCanSend = (

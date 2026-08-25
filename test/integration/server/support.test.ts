@@ -1,3 +1,15 @@
+/**
+ * Tests for the admin Support page routes
+ * GET /admin/support — page render (404 when the feature is off)
+ * POST /admin/support — message delivery to the host
+ *
+ * Sits beside the story `@story:pages.asking-the-host-for-help`: the story
+ * owns the owner's journey through the rendered page and form, so these own
+ * the branch cover and the requests only a crafted POST can make — a missing
+ * CSRF token, an injected submitter email the form never offered, a message
+ * past the textarea's browser-enforced limit, and the 404/403 guards.
+ */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";

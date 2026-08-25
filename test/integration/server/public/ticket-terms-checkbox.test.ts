@@ -1,3 +1,14 @@
+/**
+ * Tests for the terms-agreement branches on the public ticket pages
+ * GET /ticket/:slug(+…) — the agree box and terms text render
+ * POST /ticket/:slug(+…) — refusal and acceptance with terms set
+ *
+ * Sits beside the story `@story:bookings.agreeing-to-the-terms-before-booking`:
+ * the story owns the customer's journey (box shown, refusal named, order
+ * through), so these own the branch cover — the checkbox render on the
+ * single and joint pages, and the accept/refuse submits for each shape.
+ */
+
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";

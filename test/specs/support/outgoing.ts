@@ -32,3 +32,14 @@ export const watchesOutgoing =
     world.messagesOut = watching;
     return watching;
   };
+
+/** Answer the email provider with this status for one story, and remember
+ * every send. Curried on how the provider's day is going, so a story about a
+ * delivery and a story about a failure are the same watch with different
+ * answers. */
+export const answersTheEmailProviderWith = (
+  status: number,
+): PutsAWatchInPlace =>
+  watchesOutgoing((url) =>
+    url.includes("api.resend.com") ? new Response(null, { status }) : null,
+  );
