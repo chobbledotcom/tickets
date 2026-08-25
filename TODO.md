@@ -1476,6 +1476,31 @@ Two questions sit behind this, and the second waits on the first.
 
 ---
 
+## Make a new recovery event impossible to half-declare
+
+_Origin: the review of #2132. Both reviewers reached this on their own. The note
+lived in `SUMUP_RECOVERY_PLAN.md`, which #2134 deleted._
+
+`RecoveryEventId` is a hand-written union in
+`src/shared/payment/sumup-recovery-machine-spec.ts`. `RECOVERY_EVENTS` is a
+separate array beside it, and `RECOVERY_MOVES` is partial per node.
+
+An id added to the union alone still compiles. The mirror sweep in
+`machine.test.ts` iterates `RECOVERY_EVENTS`, so it never visits that id.
+Nothing fails until `recoveryMoveTo` throws in production.
+
+To fix:
+
+1. Make `RECOVERY_EVENTS` a `Record<RecoveryEventId, RecoveryMachineEvent>`.
+2. Derive the event list of the sweep from that record.
+3. Add a new id to the union. Make sure that the build then fails.
+
+`STORED_AUTHORITY_FACTS` in `src/shared/payment/joint-state.ts` is the shape to
+copy. It is the exhaustive mapped record that this repository already uses for
+the same job.
+
+---
+
 ## Show the operator the SumUp rows that nobody answered for
 
 _Origin: found during the review of #2132, while somebody checked what the live
