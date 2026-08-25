@@ -255,6 +255,32 @@ describe("classifySumupCheckout", () => {
     });
   }
 
+  // The clauses above forgive a checkout that states less than its charge
+  // does, rather than reading silence as a dispute. Only the checkout's own
+  // record prices the booking, so what each absence costs differs.
+  test("reads the money when only the charge names the currency", () => {
+    const { currency: _, ...noCurrency } = wirePaid();
+    expect(classify(noCurrency)).toEqual({
+      resource: expect.objectContaining({
+        // Read in the site currency, because the checkout named none, and
+        // carried as null so the boundary can see that it named none.
+        amountMinor: 1000,
+        currency: null,
+      }),
+      status: "found",
+    });
+  });
+
+  test("cannot read the money when only the charge names the amount", () => {
+    const { amount: _, ...noAmount } = wirePaid();
+    expect(classify(noAmount)).toEqual({
+      // The charge vouches for the checkout, but a booking is priced by the
+      // checkout's own amount, and this one states none.
+      resource: expect.objectContaining({ amountMinor: null }),
+      status: "found",
+    });
+  });
+
   test("refuses a second successful charge on a pending checkout", () => {
     const second = { ...WIRE_TXN, id: "txn_2" };
     const read = classify(wirePending({ transactions: [WIRE_TXN, second] }));
