@@ -116,6 +116,7 @@ describe("sendEmail", () => {
 
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.postmarkapp.com/email");
+    expect(fetch.getFetchHeaders().Accept).toBe("application/json");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe(
       "re_test_key",
     );
@@ -228,6 +229,16 @@ describe("sendEmail", () => {
         status: 403,
       },
     );
+  });
+
+  test("reads a plain error key in a reply", async () => {
+    restubReply('{"error":"Invalid API key"}', 401);
+
+    await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
+      logged: 'detail="provider=resend status=401: Invalid API key"',
+      reason: "Invalid API key",
+      status: 401,
+    });
   });
 
   test("reads Postmark's capitalised Message key", async () => {
