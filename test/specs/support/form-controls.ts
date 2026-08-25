@@ -38,11 +38,19 @@ export interface TakesThingsDown extends FillsInForms {
  * and leaving one clear sends nothing at all. Those are checked against the
  * page too — a box the form stopped rendering, or one switched off, fails here
  * rather than going through as a send nobody could have made. */
-export const fillInAndSend = async (
-  browser: FillsInForms,
+/** What somebody sends through a form: the values they type, the button they
+ * press, and any boxes they tick. Declared once so a wrapper that adds to a
+ * send — keeping what the site said back, say — takes the same shape without
+ * restating it. */
+export type SendingAForm = [
   values: Record<string, string>,
   buttonText: string,
-  ticked: Record<string, string[]> = {},
+  ticked?: Record<string, string[]>,
+];
+
+export const fillInAndSend = async (
+  browser: FillsInForms,
+  ...[values, buttonText, ticked = {}]: SendingAForm
 ): Promise<void> => {
   // The form this button belongs to, not the whole page: a control in some
   // other form is one this send could never carry, however present it looks.

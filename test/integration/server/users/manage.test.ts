@@ -1,3 +1,15 @@
+/**
+ * Tests for the confirmed-delete user routes
+ * GET /admin/users/:id/delete — confirmation page
+ * POST /admin/users/:id/delete — confirmed deletion
+ *
+ * Sits beside the story `@story:access.removing-a-persons-access`: the story
+ * owns the journey through the rendered Users list and confirmation page, so
+ * these own the branch cover and the requests only a crafted POST can make —
+ * an empty confirmation the browser's required rule blocks, a removal of the
+ * owner's own account (the UI hides that tab), and unknown user ids.
+ */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllUsers } from "#db/users.ts";
@@ -33,6 +45,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("rejects deleting self", async () => {
+      // The UI hides the delete tab for the viewer's own account, so only a
+      // crafted address reaches this guard.
       const response = await adminGet("/admin/users/1/delete");
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
     });
@@ -80,6 +94,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("rejects deletion without confirmation", async () => {
+      // The rendered confirm box is required, so a browser cannot send this;
+      // only a crafted POST can leave the field out entirely.
       await adminFormPost("/admin/users", {
         admin_level: "manager",
         username: "keepme2",
@@ -98,27 +114,6 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         confirm_identifier: TEST_ADMIN_USERNAME,
       });
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
-    });
-
-    test("deletes another owner with correct confirmation", async () => {
-      await adminFormPost("/admin/users", {
-        admin_level: "owner",
-        username: "otheradmin",
-      });
-
-      const usersBefore = await getAllUsers();
-      expect(usersBefore.length).toBe(2);
-
-      const { response } = await adminFormPost("/admin/users/2/delete", {
-        confirm_identifier: "otheradmin",
-      });
-      await expectFlashRedirect(
-        "/admin/users",
-        expect.stringContaining("deleted"),
-      )(response);
-
-      const usersAfter = await getAllUsers();
-      expect(usersAfter.length).toBe(1);
     });
   });
 

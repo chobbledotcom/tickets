@@ -1,3 +1,15 @@
+/**
+ * Tests for the owner password change route
+ * POST /admin/settings (current_password / new_password / new_password_confirm)
+ *
+ * Sits beside the story `@story:access.changing-the-owners-password`: the
+ * story owns the journey through the rendered settings form, so these own
+ * the branch cover and the requests only a crafted POST can make — a CSRF
+ * token attack, missing fields a browser would refuse to send, a too-short
+ * password the browser's own minlength rule blocks, and a corrupted data key
+ * forcing the update itself to fail.
+ */
+
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { invalidateUsersCache } from "#db/users.ts";
@@ -9,18 +21,13 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils/internal.ts";
-import { mockAdminLoginRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
-  adminGet,
   reloginAsAdmin,
   testCookie,
 } from "#test-utils/session.ts";
@@ -67,6 +74,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects password shorter than 8 characters", async () => {
+      // The browser's own minlength rule blocks this send; only a crafted
+      // POST can reach the server-side length check.
       const { response } = await adminFormPost("/admin/settings", {
         current_password: TEST_ADMIN_PASSWORD,
         new_password: "short",
@@ -78,16 +87,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         expect.stringContaining("at least 8 characters"),
         false,
       );
-    });
-
-    test("rejects mismatched passwords", async () => {
-      const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "differentpassword",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("do not match"), false);
     });
 
     test("rejects incorrect current password", async () => {
@@ -104,14 +103,24 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
-    test("changes password and invalidates session", async () => {
+    test("rejects mismatched passwords", async () => {
+      const { response } = await adminFormPost("/admin/settings", {
+        current_password: TEST_ADMIN_PASSWORD,
+        new_password: "newpassword123",
+        new_password_confirm: "differentpassword",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("do not match"), false);
+    });
+
+    test("clears the session and records the change in the activity log", async () => {
       const { response } = await adminFormPost("/admin/settings", {
         current_password: TEST_ADMIN_PASSWORD,
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
 
-      // Should redirect to admin login with success message and session cleared
+      // The change signs every window out: the session cookie is cleared.
       expect(response.status).toBe(302);
       expectRedirect(response, "/admin");
       expectFlash(response, expect.stringContaining("Password changed"));
@@ -120,19 +129,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
       expect(sessionCookie).toContain("Max-Age=0");
 
-      // Verify old session is invalidated
-      const dashboardResponse = await adminGet("/admin/");
-      const html = await dashboardResponse.text();
-      expect(html).toContain("Login"); // Should show login, not dashboard
-
-      // Verify new password works
-      const newLoginResponse = await handleRequest(
-        await mockAdminLoginRequest({
-          password: "newpassword123",
-          username: TEST_ADMIN_USERNAME,
-        }),
+      // Changing the password deletes existing sessions; re-authenticate
+      // with the new one so the owner-key log can be read back.
+      await reloginAsAdmin("newpassword123");
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("Password changed"))).toBe(
+        true,
       );
-      expectRedirectWithFlash("/admin", "Logged in")(newLoginResponse);
     });
 
     test("returns error when password update fails", async () => {
@@ -154,22 +157,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         response,
         expect.stringContaining("Failed to update password"),
         false,
-      );
-    });
-
-    test("logs activity when password is changed", async () => {
-      await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
-      });
-
-      // Changing the password deletes existing sessions; re-authenticate with
-      // the new password so the owner-key log can be read back.
-      await reloginAsAdmin("newpassword123");
-      const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Password changed"))).toBe(
-        true,
       );
     });
   });

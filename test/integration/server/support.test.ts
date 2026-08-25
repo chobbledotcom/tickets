@@ -1,7 +1,20 @@
+/**
+ * Tests for the admin Support page routes
+ * GET /admin/support — page render (404 when the feature is off)
+ * POST /admin/support — message delivery to the host
+ *
+ * Sits beside the story `@story:pages.asking-the-host-for-help`: the story
+ * owns the owner's journey through the rendered page and form, so these own
+ * the branch cover and the requests only a crafted POST can make — a missing
+ * CSRF token, an injected submitter email the form never offered, a message
+ * past the textarea's browser-enforced limit, and the 404/403 guards. The
+ * delivery, nag, and failed-delivery tests stay because Cucumber runs do
+ * not count towards coverage and these routes have no other direct cover.
+ */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
-import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
@@ -11,7 +24,6 @@ import {
   awaitTestRequest,
   installRecordingFetch,
   mockFormRequest,
-  mockRequest,
 } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -42,62 +54,25 @@ describeWithEnv(
   { db: true, env: ADMIN_ENV },
   () => {
     describe("GET /admin/support", () => {
-      test("shows the fallback message when SUPPORT_PAGE_TEXT is unset", async () => {
-        using _env = withEnv({ SUPPORT_PAGE_TEXT: undefined });
-        const response = await adminGet("/admin/support");
+      test("shows the Support link in the settings sub-nav", async () => {
+        // The story proves the link is gone when the host is silent; this
+        // owns the other side of that branch — the link when they listen.
+        const response = await adminGet("/admin/settings");
         const html = await response.text();
-        expect(response.status).toBe(200);
-        expect(html).toContain(t("support.missing_text"));
-        expect(html).not.toContain("SUPPORT_PAGE_TEXT");
+        expect(html).toContain('href="/admin/support"');
       });
 
-      test("renders SUPPORT_PAGE_TEXT as markdown", async () => {
+      test("renders the host's SUPPORT_PAGE_TEXT as markdown", async () => {
+        // The story proves the owner reads the host's words; this owns the
+        // template branch that renders them (the story's runs do not count
+        // towards coverage).
         using _env = withEnv({
           SUPPORT_PAGE_TEXT: "# Help Center\\n\\nReach out anytime",
         });
         const response = await adminGet("/admin/support");
         const html = await response.text();
         expect(html).toContain("<h1>Help Center</h1>");
-        expect(html).toContain("Reach out anytime");
-        expect(html).not.toContain(t("support.missing_text"));
-      });
-
-      test("renders no form (and no note) when no business email is set", async () => {
-        const response = await adminGet("/admin/support");
-        const html = await response.text();
-        // The page (support text) still renders, but the form section is empty.
-        expect(response.status).toBe(200);
-        expect(html).not.toContain('name="message"');
-        expect(html).not.toContain('action="/admin/support"');
-      });
-
-      test("shows just a message box when a business email is set", async () => {
-        await settings.update.businessEmail("owner@example.com");
-        const response = await adminGet("/admin/support");
-        const html = await response.text();
-        expect(html).toContain('action="/admin/support"');
-        expect(html).toContain('name="message"');
-        // No email field at all: support always sends from the business email.
-        expect(html).not.toContain('name="email"');
-      });
-
-      test("shows the Support link in the settings sub-nav", async () => {
-        const response = await adminGet("/admin/settings");
-        const html = await response.text();
-        expect(html).toContain('href="/admin/support"');
-      });
-
-      test("returns 403 for a non-owner (manager) session", async () => {
-        const managerCookie = await createTestManagerSession();
-        const response = await awaitTestRequest("/admin/support", {
-          cookie: managerCookie,
-        });
-        expect(response.status).toBe(403);
-      });
-
-      test("redirects an unauthenticated visitor to /admin", async () => {
-        const response = await handleRequest(mockRequest("/admin/support"));
-        expectRedirect(response, "/admin");
+        expect(html).toContain("<p>Reach out anytime</p>");
       });
     });
 
@@ -144,28 +119,18 @@ describeWithEnv(
           expect(settings.supportFormLastSubmitted).not.toBe("");
           const response = await adminGet("/admin/support");
           const html = await response.text();
-          // Notice sits inside the form with the time value in bold.
-          expect(html).toContain("You last submitted this form <strong>");
-          // ...and it's between the message box and the submit button.
-          const body = html.slice(html.indexOf('name="message"'));
-          expect(body.indexOf("You last submitted this form")).toBeLessThan(
-            body.indexOf("Send message"),
-          );
+          // The nag branch of the page: rendered only when a submission was
+          // recorded inside the nag window. The words before the bold time
+          // value come from the catalog key support.last_submitted.
+          expect(html).toContain("You last submitted this form");
         } finally {
           mock.restore();
         }
       });
 
-      test("rejects an empty message", async () => {
-        await settings.update.businessEmail("owner@example.com");
-        const { response } = await adminFormPost("/admin/support", {
-          message: "   ",
-        });
-        expectRedirect(response, "/admin/support");
-        expectFlash(response, "Please enter a message.", false);
-      });
-
       test("rejects a message that exceeds the maximum length", async () => {
+        // The browser's own maxlength rule blocks this send; only a crafted
+        // POST can reach the server-side length check.
         await settings.update.businessEmail("owner@example.com");
         const { response } = await adminFormPost("/admin/support", {
           message: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
@@ -197,6 +162,8 @@ describeWithEnv(
       });
 
       test("404s when the form is not active (no business email)", async () => {
+        // The page renders no form in this state, so no browser could send
+        // this POST; only a crafted request reaches the guard.
         const { response } = await adminFormPost("/admin/support", {
           message: "Help",
         });
@@ -232,15 +199,11 @@ describeWithEnv("server (admin support, disabled)", { db: true }, () => {
   });
 
   test("POST 404s when ADMIN_EMAIL_ADDRESS is unset", async () => {
+    // No page exists to render a form, so no browser could send this POST.
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: undefined });
     const { response } = await adminFormPost("/admin/support", {
       message: "Help",
     });
     expect(response.status).toBe(404);
-  });
-
-  test("hides the Support link in the settings sub-nav", async () => {
-    const response = await adminGet("/admin/settings");
-    const html = await response.text();
-    expect(html).not.toContain('href="/admin/support"');
   });
 });

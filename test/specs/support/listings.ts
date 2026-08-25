@@ -65,6 +65,22 @@ const putsUpForSale =
 export const putsOnSale = putsUpForSale(createTestListing);
 export const putsOnSaleByTheDay = putsUpForSale(createDailyTestListing);
 
+/** A plain thing for sale with room for several places at once, keeping the
+ * site's own thank-you page so a booking's outcome can be read. The shape
+ * every story's "something to book" takes when the listing itself is not
+ * what the story is about. */
+const PLAIN_THING: TestListingOverrides = {
+  maxAttendees: 10,
+  maxQuantity: 5,
+  thankYouUrl: "",
+};
+
+/** Something plain on sale, remembered by the story's name for it. */
+export const putsPlainThingOnSale = (
+  world: TicketsWorld,
+  name: string,
+): Promise<Listing> => putsOnSale(world, name, PLAIN_THING);
+
 /** Something the site sells at a price, remembered under the name the story
  * calls it. The listing a money story starts from, so its price and its id are
  * in one place rather than set up slightly differently each time. */

@@ -222,6 +222,14 @@ export const enablePublicSite = async (): Promise<void> => {
 /** The address the site both sends from and delivers contact messages to. */
 export const CONTACT_OWNER_EMAIL = "owner@example.com";
 
+/** Point the site's email at the stand-in provider, so every kind of message
+ * the site sends — contact, support, bulk — shares one set-up. The key is
+ * never checked; only that a provider is configured. */
+export const connectResendProvider = async (): Promise<void> => {
+  await settings.update.email.provider("resend");
+  await settings.update.email.apiKey("re_test_key");
+};
+
 /** Everything the public contact form needs before anybody can use it. Shared
  * by the story and the direct tests so the two can never drift into checking
  * different set-ups. */
@@ -229,8 +237,7 @@ export const activateContactForm = async (): Promise<void> => {
   await enablePublicSite();
   await settings.update.businessEmail(CONTACT_OWNER_EMAIL);
   await settings.update.contactFormEnabled(true);
-  await settings.update.email.provider("resend");
-  await settings.update.email.apiKey("re_test_key");
+  await connectResendProvider();
 };
 
 export const stubWebhookVerify = async (listingData: {

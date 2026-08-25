@@ -1,5 +1,41 @@
 # TODO — remaining follow-ups
 
+## Convert the remaining journey-style direct tests to Cucumber stories
+
+_Origin: the e2e→Cucumber migration survey behind the five-story batch (support
+page, owner password, removing access, booking closes, terms agreement). Those
+five shipped with stories beside slimmed direct remnants. The sections below are
+the next candidates the survey ranked, in order._
+
+Each is a file whose claims read as actor-facing rules no existing `@story:`
+covers. A migration is a replacement: move the journey to the Feature, keep a
+slimmed direct remnant with a header naming the story for branch cover (Cucumber
+runs do not count towards coverage), and record where every old claim went — the
+story, the remnant, or a deliberate drop.
+
+- `test/integration/server/tickets.test.ts` (797 lines) — the customer's
+  `/t/:token` ticket page: what a booker sees after booking. Also needs
+  splitting under the 400-line rule. Keep the rate-limit and token-abuse
+  contracts direct.
+- `test/integration/server/public/listings-display.test.ts` (424 lines) — the
+  catalogue page card rules (Book now vs Buy now, hidden listings, CTA
+  suppression, galleries). Keep the `x-robots-tag` and leak checks direct.
+- `test/integration/server/users/invite.test.ts` — the owner-side invite journey
+  (form render, duplicate refusal, join link). The invitee side is already
+  `@story:access.what-an-editor-can-do`.
+- `test/integration/server/settings/features.test.ts` — the feature explanation
+  pages and the Site toggle that publishes the public site. Keep the concurrency
+  and cache-invalidation tests direct.
+- `test/integration/server/settings/email.test.ts` and `email-templates.test.ts`
+  — connecting a provider and editing email templates. Keep encryption-at-rest,
+  Liquid-syntax, and length contracts direct.
+- `test/integration/servicing/admin-homepage.test.ts` — the organiser's
+  service-event list and edit pages beside `@story:servicing.hold-and-cost`.
+- `test/integration/admin/sms.test.ts` — the organiser texting an attendee
+  (gateway gate, queue, log, inbound link).
+
+---
+
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
 `logError` sends one `detail` string to the console, the activity log, and

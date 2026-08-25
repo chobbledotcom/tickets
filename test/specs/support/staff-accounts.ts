@@ -74,21 +74,41 @@ export const rememberAcceptedStaffInvite = async (
 ): Promise<TestBrowser> =>
   rememberBrowser(world, browserName, await acceptStaffInvite(invite));
 
-/** The activated staff member signs in through the ordinary login form from
- * a fresh browser, then keeps that signed-in browser for their later actions. */
+/** Sign in through the ordinary login form from a fresh browser, and hand
+ * back the browser they are now looking at. */
+const signsInOnAFreshPage = async (
+  who: string,
+  password: string,
+): Promise<TestBrowser> => {
+  const browser = await openAsNewcomer("/admin/");
+  await fillInAndSend(browser, { password, username: who }, t("login.submit"));
+  return browser;
+};
+
+/** Sign in with these credentials and keep the window under one story name,
+ * for whoever needs a signed-in window of their own — a staff member's, or
+ * the owner's second one. Curried on the credentials, so each caller names
+ * whose they are. */
+export const signInAndRemember =
+  (credentials: { password: string; username: string }) =>
+  async (world: TicketsWorld, browserName: string): Promise<TestBrowser> =>
+    rememberBrowser(
+      world,
+      browserName,
+      await signsInOnAFreshPage(credentials.username, credentials.password),
+    );
+
+/** The activated staff member signs in, then keeps that signed-in browser
+ * for their later actions. */
 export const logStaffIn = async (
   world: TicketsWorld,
   who: string,
   browserName: string,
-): Promise<TestBrowser> => {
-  const browser = await openAsNewcomer("/admin/");
-  await fillInAndSend(
-    browser,
-    { password: STAFF_PASSWORD, username: who },
-    t("login.submit"),
+): Promise<TestBrowser> =>
+  signInAndRemember({ password: STAFF_PASSWORD, username: who })(
+    world,
+    browserName,
   );
-  return rememberBrowser(world, browserName, browser);
-};
 
 /** The owner invites a manager through the rendered Users form. */
 export const ownerInvitesManager: ActOnOnePerson = async (world, who) => {
@@ -123,3 +143,26 @@ export const openManagerPage = async (
   await browser.visit(path);
   return browser;
 };
+
+/** Whether somebody can sign in with this password, proved by opening a page
+ * only the signed-in staff may see. Merely being refused once proves
+ * nothing: the sign-in page shows everybody the same form, so the page they
+ * land on afterwards is the answer. */
+export const signsInAndCanOpen = async (
+  who: string,
+  password: string,
+  maySeeWhenSignedIn: string,
+): Promise<boolean> => {
+  const browser = await signsInOnAFreshPage(who, password);
+  const answered = await browser.visit(maySeeWhenSignedIn);
+  return (
+    answered === 200 &&
+    browser.currentUrl.replace(/\/$/, "") === maySeeWhenSignedIn
+  );
+};
+
+/** Whether an invited staff member can still sign in with the password they
+ * chose. The site files usernames in lower case, so the name is typed the
+ * way the site keeps it. */
+export const staffMemberCanSignIn = (who: string): Promise<boolean> =>
+  signsInAndCanOpen(who.toLowerCase(), STAFF_PASSWORD, "/admin/attendees");
