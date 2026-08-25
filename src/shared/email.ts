@@ -248,6 +248,12 @@ export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   sendgrid: "SendGrid",
 };
 
+/** Build the provider request one message send makes, without sending it. */
+export const buildEmailRequest = (
+  config: EmailConfig,
+  msg: EmailMessage,
+): EmailRequest => PROVIDERS[config.provider](config, msg);
+
 const postBody = (
   url: string,
   headers: Headers,
@@ -282,9 +288,10 @@ const emailDelivery =
     config: EmailConfig,
     msg: EmailMessage,
   ): Promise<EmailDeliveryResult> => {
-    const buildRequest = PROVIDERS[config.provider];
     try {
-      const { ok, status } = await sendEmailRequest(buildRequest(config, msg));
+      const { ok, status } = await sendEmailRequest(
+        buildEmailRequest(config, msg),
+      );
       return ok
         ? { delivered: true, status }
         : {

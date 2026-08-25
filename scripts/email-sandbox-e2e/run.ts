@@ -6,18 +6,21 @@
  * surfaces as a refused request.
  */
 
+import * as v from "valibot";
 import { toBase64 } from "#crypto/utils.ts";
 import { randomId } from "#e2e/config.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
+  type BulkBatchResponse,
   type BulkEmailPayload,
   sendBulkEmails,
 } from "#shared/email/bulk.ts";
 import {
+  buildEmailRequest,
   type EmailConfig,
   type EmailMessage,
   type EmailProvider,
-  sendEmail,
+  sendEmailRequest,
 } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { ValidEmail } from "#shared/validation/email.ts";
@@ -36,6 +39,10 @@ const PROBE_SVG =
 
 /** The address the bulk unsubscribe substitution writes into the message. */
 const PROBE_UNSUBSCRIBE_URL = "https://example.com/unsubscribe";
+
+/** One leg's allowance for its two live requests. A provider that accepts
+ * the connection and then stalls becomes a failed leg, not a killed job. */
+const LEG_TIMEOUT_MS = 120_000;
 
 const probeMessage = (
   config: EmailConfig,
@@ -67,9 +74,6 @@ const bulkProbePayload = (
   text: `Bulk probe ${runId} for ${provider}. Unsubscribe: ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
 });
 
-const isAccepted = (status: number | undefined): boolean =>
-  status !== undefined && status >= 200 && status < 300;
-
 /** A response body flattened to one short Markdown-table-safe line. */
 const oneLine = (text: string): string =>
   text
@@ -77,32 +81,85 @@ const oneLine = (text: string): string =>
     .trim()
     .slice(0, 160);
 
+const PostmarkBatchSchema = v.array(
+  v.looseObject({ ErrorCode: v.number(), Message: v.string() }),
+);
+
+/** Postmark can accept a batch with HTTP 200 and still refuse a message
+ * inside it (a nonzero per-message ErrorCode, for example a suppressed
+ * recipient), so read each accepted reply's per-message results. */
+const postmarkReplyProblems = (responses: BulkBatchResponse[]): string[] =>
+  responses.flatMap((response) => {
+    if (!response.ok) return [];
+    const results = v.safeParse(PostmarkBatchSchema, JSON.parse(response.body));
+    if (!results.success) {
+      return ["Postmark batch reply carries no per-message results"];
+    }
+    return results.output
+      .filter((result) => result.ErrorCode !== 0)
+      .map((result) =>
+        oneLine(`Postmark ErrorCode ${result.ErrorCode}: ${result.Message}`),
+      );
+  });
+
+type BulkReplyCheck = (responses: BulkBatchResponse[]) => string[];
+
+/** For most providers the HTTP status is the whole verdict. */
+const acceptedByStatus: BulkReplyCheck = () => [];
+
+/** Providers whose accepted bulk reply needs a second read. */
+const BULK_REPLY_CHECKS: Record<EmailProvider, BulkReplyCheck> = {
+  "mailgun-eu": acceptedByStatus,
+  "mailgun-us": acceptedByStatus,
+  postmark: postmarkReplyProblems,
+  resend: acceptedByStatus,
+  sendgrid: acceptedByStatus,
+};
+
 const runReadyLeg = async (
   config: EmailConfig,
   to: ValidEmail,
 ): Promise<EmailLegOutcome> => {
   const runId = randomId();
-  const singleStatus = await sendEmail(config, probeMessage(config, to, runId));
+  const single = await sendEmailRequest(
+    buildEmailRequest(config, probeMessage(config, to, runId)),
+  );
   const bulk = await sendBulkEmails(
     config,
     bulkProbePayload(config.provider, to, runId),
   );
-  // One recipient means one batch, so zero failed means it was accepted.
-  const sent = isAccepted(singleStatus) && bulk.failed === 0;
-  const statuses = bulk.responses.map((response) => response.status).join(", ");
-  const refusalBodies = bulk.responses
-    .filter((response) => !response.ok)
-    .map((response) => oneLine(response.body));
-  const detail = [
-    // sendEmail reports a thrown send as undefined — show it as "no response".
-    `single ${singleStatus ?? "no response"}, bulk ${statuses}`,
-    ...refusalBodies,
-  ].join(" — ");
+  const replies: BulkBatchResponse[] = [
+    { body: single.text, ok: single.ok, status: single.status },
+    ...bulk.responses,
+  ];
+  const problems = [
+    ...replies
+      .filter((reply) => !reply.ok)
+      .map((reply) => oneLine(reply.body))
+      // A refusal can come with an empty body; the status already says it.
+      .filter((body) => body !== ""),
+    ...BULK_REPLY_CHECKS[config.provider](bulk.responses),
+  ];
+  const sent = replies.every((reply) => reply.ok) && problems.length === 0;
+  const statuses = `single ${single.status}, bulk ${bulk.responses
+    .map((response) => response.status)
+    .join(", ")}`;
   return {
-    detail,
+    detail: [statuses, ...problems].join(" — "),
     provider: config.provider,
     state: sent ? "sent" : "failed",
   };
+};
+
+const legTimeout = (): { cancel: () => void; expired: Promise<never> } => {
+  const timer = { id: 0 };
+  const expired = new Promise<never>((_, reject) => {
+    timer.id = setTimeout(
+      () => reject(new Error(`leg timed out after ${LEG_TIMEOUT_MS / 1000}s`)),
+      LEG_TIMEOUT_MS,
+    );
+  });
+  return { cancel: () => clearTimeout(timer.id), expired };
 };
 
 /** Resolve and run one provider's leg, and say what happened. */
@@ -116,10 +173,16 @@ export const runEmailLeg = async (
   if (plan.state === "broken") {
     return { detail: plan.reason, provider, state: "failed" };
   }
+  const timeout = legTimeout();
   try {
-    return await runReadyLeg(plan.config, plan.to);
+    return await Promise.race([
+      runReadyLeg(plan.config, plan.to),
+      timeout.expired,
+    ]);
   } catch (error) {
     // One leg's crash must not stop the later legs from running and reporting.
     return { detail: errorMessage(error), provider, state: "failed" };
+  } finally {
+    timeout.cancel();
   }
 };

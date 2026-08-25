@@ -20,11 +20,10 @@ export const failRun = async (
 export const runHarness = (
   main: () => Promise<void>,
   notify: () => Promise<void>,
-): void => {
+): Promise<void> =>
   main().catch((err) =>
     failRun(
       err instanceof Error ? (err.stack ?? err.message) : String(err),
       notify,
     ),
   );
-};

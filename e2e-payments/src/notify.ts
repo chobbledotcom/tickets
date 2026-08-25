@@ -14,9 +14,12 @@ import { log, warn } from "./log.ts";
 
 const NOTIFY_TIMEOUT_MS = 5_000;
 
+/** What a harness calls with the name of the target that failed. */
+export type TargetNotifier = (target: string) => Promise<void>;
+
 /** A notifier for one harness; call it with the target that failed. */
 export const failureNotifier =
-  (harness: string) =>
+  (harness: string): TargetNotifier =>
   async (target: string): Promise<void> => {
     const ntfyUrl = config.ntfyUrl;
     if (!ntfyUrl) return;
@@ -50,6 +53,6 @@ export const failureNotifier =
     }
   };
 
-export const notifyFailure: (target: string) => Promise<void> = failureNotifier(
+export const notifyFailure: TargetNotifier = failureNotifier(
   "payment sandbox e2e",
 );

@@ -1,5 +1,18 @@
 # TODO — remaining follow-ups
 
+## Count Postmark per-message batch errors in `sendBulkEmails` (from PR #2140)
+
+`sendBulkEmails` (`src/shared/email/bulk.ts`) counts a batch as failed only when
+the HTTP response is not ok. Postmark's `/email/batch` can answer 200 with a
+nonzero per-message `ErrorCode` (for example a suppressed or inactive
+recipient), so such a message counts as sent in the bulk report. Codex raised
+this on PR #2140. The email sandbox harness now reads the per-message results
+itself (`postmarkReplyProblems` in `scripts/email-sandbox-e2e/run.ts`), and that
+is the shape to lift into the shared boundary: parse each accepted Postmark
+reply, add the nonzero `ErrorCode` entries to `failed`, and surface them in the
+bulk send report. PR #2140 only adds the harness, so a change to production bulk
+accounting was out of its scope.
+
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 
 `refusedOrderUnfitListingIds` (`src/shared/db/attendees/capacity/checks.ts`)

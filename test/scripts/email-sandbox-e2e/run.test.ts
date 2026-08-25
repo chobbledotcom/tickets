@@ -3,6 +3,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { runEmailLeg } from "#scripts/email-sandbox-e2e/run.ts";
 import { BULK_UNSUBSCRIBE_PLACEHOLDER } from "#shared/email/bulk.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -18,6 +19,12 @@ const mailgunEnv = {
   MAILGUN_EU_API_KEY: "key-abc",
   MAILGUN_EU_FROM: "e2e@sandbox123.mailgun.org",
   MAILGUN_EU_TO: "authorized@example.com",
+};
+
+const postmarkEnv = {
+  POSTMARK_FROM: "sender@example.com",
+  POSTMARK_SERVER_TOKEN: "POSTMARK_API_TEST",
+  POSTMARK_TO: undefined,
 };
 
 const okJson = (): Response => new Response("{}", { status: 200 });
@@ -119,7 +126,7 @@ describe("runEmailLeg on a ready mailgun leg", () => {
 });
 
 describe("runEmailLeg failure containment", () => {
-  test("fails the leg and keeps the refusal body when the provider says no", async () => {
+  test("fails the leg and keeps both refusal bodies when the provider says no", async () => {
     using _env = withEnv(resendEnv);
     using _quiet = stub(console, "error");
     using _fetched = stubFetch(
@@ -127,7 +134,7 @@ describe("runEmailLeg failure containment", () => {
       new Response("bad | request\nline", { status: 422 }),
     );
     expect(await runEmailLeg("resend")).toEqual({
-      detail: "single 500, bulk 422 — bad request line",
+      detail: "single 500, bulk 422 — nope — bad request line",
       provider: "resend",
       state: "failed",
     });
@@ -146,24 +153,32 @@ describe("runEmailLeg failure containment", () => {
 
   test("counts a non-2xx single status as failed even when bulk passes", async () => {
     using _env = withEnv(resendEnv);
-    using _quiet = stub(console, "error");
     using _fetched = stubFetch(
       new Response("multiple choices", { status: 300 }),
       okJson(),
     );
     expect(await runEmailLeg("resend")).toEqual({
-      detail: "single 300, bulk 200",
+      detail: "single 300, bulk 200 — multiple choices",
       provider: "resend",
       state: "failed",
     });
   });
 
-  test("reads a thrown single send as no response", async () => {
+  test("leans on the status alone when a refusal body is empty", async () => {
     using _env = withEnv(resendEnv);
-    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(new Response(null, { status: 500 }), okJson());
+    expect(await runEmailLeg("resend")).toEqual({
+      detail: "single 500, bulk 200",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+
+  test("contains a thrown single send to a failed outcome for that leg", async () => {
+    using _env = withEnv(resendEnv);
     using _fetched = stubFetch(new Error("connection refused"), okJson());
     expect(await runEmailLeg("resend")).toEqual({
-      detail: "single no response, bulk 200",
+      detail: "connection refused",
       provider: "resend",
       state: "failed",
     });
@@ -175,6 +190,80 @@ describe("runEmailLeg failure containment", () => {
     expect(await runEmailLeg("resend")).toEqual({
       detail: "boom",
       provider: "resend",
+      state: "failed",
+    });
+  });
+
+  test("turns a stalled provider into a failed leg instead of a hung run", async () => {
+    using _env = withEnv(resendEnv);
+    using time = new FakeTime();
+    using _fetched = stubFetch(() => new Promise<Response>(() => {}));
+    const pending = runEmailLeg("resend");
+    await time.tickAsync(120_000);
+    expect(await pending).toEqual({
+      detail: "leg timed out after 120s",
+      provider: "resend",
+      state: "failed",
+    });
+  });
+});
+
+describe("runEmailLeg on a ready postmark leg", () => {
+  const acceptedBatch = '[{"ErrorCode":0,"Message":"OK"}]';
+
+  test("counts an accepted batch with clean per-message results as sent", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(okJson(), new Response(acceptedBatch));
+    expect(await runEmailLeg("postmark")).toEqual({
+      detail: "single 200, bulk 200",
+      provider: "postmark",
+      state: "sent",
+    });
+  });
+
+  test("fails on a nonzero per-message ErrorCode behind an accepted batch", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(
+      okJson(),
+      new Response('[{"ErrorCode":406,"Message":"Inactive recipient"}]'),
+    );
+    expect(await runEmailLeg("postmark")).toEqual({
+      detail:
+        "single 200, bulk 200 — Postmark ErrorCode 406: Inactive recipient",
+      provider: "postmark",
+      state: "failed",
+    });
+  });
+
+  test("fails when an accepted batch reply has no per-message results", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(okJson(), new Response("{}"));
+    expect(await runEmailLeg("postmark")).toEqual({
+      detail:
+        "single 200, bulk 200 — Postmark batch reply carries no per-message results",
+      provider: "postmark",
+      state: "failed",
+    });
+  });
+
+  test("fails loudly when an accepted batch reply is not JSON", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(okJson(), new Response("not json"));
+    const outcome = await runEmailLeg("postmark");
+    expect(outcome.state).toBe("failed");
+    expect(outcome.detail).toContain("JSON");
+  });
+
+  test("skips the per-message read when the batch itself was refused", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _quiet = stub(console, "error");
+    using _fetched = stubFetch(
+      okJson(),
+      new Response("Unauthorized", { status: 401 }),
+    );
+    expect(await runEmailLeg("postmark")).toEqual({
+      detail: "single 200, bulk 401 — Unauthorized",
+      provider: "postmark",
       state: "failed",
     });
   });

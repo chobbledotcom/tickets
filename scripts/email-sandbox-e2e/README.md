@@ -6,9 +6,10 @@ delivery code and reports what each provider answered. It catches the one class
 of bug that stubs cannot: request URLs, auth headers, and body shapes that drift
 from what the providers accept.
 
-The harness runs the production code directly — `sendEmail`
-(`src/shared/email.ts`) and `sendBulkEmails` (`src/shared/email/bulk.ts`). It
-does not boot the app server or a browser, because outbound HTTP is the whole
+The harness runs the production code directly — `buildEmailRequest` and
+`sendEmailRequest` (`src/shared/email.ts`) for the single probe, and
+`sendBulkEmails` (`src/shared/email/bulk.ts`) for the bulk probe. It does not
+boot the app server or a browser, because outbound HTTP is the whole
 provider-facing surface for email.
 
 It is not a PR gate. See `.github/workflows/email-sandbox-e2e.yml` — it runs
@@ -30,14 +31,17 @@ Exit codes: 0 = executed (each leg sent or skipped), 1 = failed.
 
 Each leg makes two real API calls with a unique run id in the subject:
 
-1. A **single send** with an SVG attachment and a reply-to address, through
-   `sendEmail`. This is the path the registration and test emails use.
+1. A **single send** with an SVG attachment and a reply-to address — the request
+   shape the registration and test emails use.
 2. A **bulk send** with one recipient and an unsubscribe URL, through
    `sendBulkEmails`. This exercises the batch endpoint and the per-provider
    unsubscribe substitution.
 
-A leg passes when the provider accepts both requests. The refusal body is
-reported when a request fails.
+A leg passes when the provider accepts both requests. For Postmark the harness
+also reads the per-message results, because its batch endpoint can answer 200
+and still refuse a message inside it. The refusal body is reported when a
+request fails. Each leg has a two-minute allowance, so a provider that stalls
+becomes a failed leg instead of a killed job.
 
 ## Secrets per leg
 
