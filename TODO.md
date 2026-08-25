@@ -1369,10 +1369,10 @@ out of scope for #1873, and a starting point._
 
 ## Tell the story of a payment whose callback was lost
 
-_Origin: `SUMUP_RECOVERY_PLAN.md` named this story for the SumUp recovery work
-that shipped in #2109. Nobody wrote it._
+_Origin: the SumUp recovery work that shipped in #2109 named this story. Nobody
+wrote it._
 
-The plan named `specs/payments/a-payment-with-no-callback.feature`. The story
+That work named `specs/payments/a-payment-with-no-callback.feature`. The story
 must buy through the real public booking page, drop the callback, run
 maintenance, and find the ticket.
 
@@ -1441,6 +1441,30 @@ To fix:
 3. Add a case that runs the webhook, the redirect, and the recovery together.
 4. Assert one `attendees` row for that case.
 5. Assert one ledger event group for that case.
+
+---
+
+## Decide what a buyer sees after the SumUp staging row is pruned
+
+_Origin: the SumUp recovery work that shipped in #2109. The behaviour is read
+from the code. No test pins it._
+
+A recovered booking outlives the row that the success page needs.
+`validatePaidSession` calls `retrieveSession`, and the SumUp member reads the
+staging row through `getSumupCheckout` (`src/shared/sumup-provider.ts`).
+`finished` is prunable, so `runDatabasePruning` deletes the row after
+`PRUNE_SUMUP_RETENTION_HOURS`. The return then answers "not found".
+
+The ticket is unaffected, because recovery already booked it. The buyer loses
+the success page, not the booking.
+
+Two questions sit behind this, and the second waits on the first.
+
+1. Decide whether the success page must work past the retention window. Keeping
+   it means keeping staged rows longer, which costs storage on every site.
+2. Add a regression test for whichever answer wins.
+   `test/integration/server/sumup-recovery/late-callback.test.ts` runs the
+   return immediately and never advances the clock, so it proves nothing here.
 
 ---
 

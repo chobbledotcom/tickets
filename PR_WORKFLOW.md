@@ -75,10 +75,10 @@ write them as promises in prose. A law stops a later node or event from a quiet
 break. "A node that can hold money that nobody accounted for is never deletable
 and is never a dead end" is a test, not a sentence.
 
-`SUMUP_RECOVERY_PLAN.md` is the worked example, and it is honest about where it
-falls short. Its events carry `kind` and `movesMoney`, not the write and the
-fence. Those two facts stay structural, in one write helper each, and its laws
-table says so.
+`src/shared/payment/sumup-recovery-machine-spec.ts` is the worked example. Its
+laws live beside it, in `machine.test.ts` and `graph.test.ts`. That machine also
+shows the limit of this rule. Its events carry `kind` and `movesMoney`, not the
+write and the fence. Those two facts stay structural, in one write helper each.
 
 Put a fact on the declaration when you can. Where a fact stays structural, name
 the single place that carries it. Say that one place is weaker than a declared

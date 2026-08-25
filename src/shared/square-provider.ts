@@ -325,6 +325,9 @@ export const squarePaymentProvider: PaymentProvider = {
       amountTotal: minorUnitNumber(amountTotal),
       createdAt: toCanonicalIso(order.createdAt),
       currency: charged?.currency,
+      // The order id is the replay identity. It becomes
+      // `processed_payments.payment_session_id`, so a redelivered webhook
+      // reserves the same row. `payment.id` is only the payment reference.
       id: order.id,
       metadata,
       paymentReference,
