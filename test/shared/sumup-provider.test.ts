@@ -274,16 +274,32 @@ describe("sumup-provider", () => {
       });
     });
 
-    // A falsy non-string id/type is not the missing-field marker: `?? ""`
-    // passes it through, while `|| ""` would replace it — the webhook then
-    // rejects the session either way (a falsy id), but the parsed shape pins
-    // the `??` behavior.
-    test("passes falsy non-string id and event_type through unchanged", async () => {
-      expect(await verify('{"event_type":false,"id":0}')).toEqual({
-        listing: { data: { object: { id: 0 } }, id: 0, type: false },
-        valid: true,
+    // A SumUp callback names its checkout with text. A body naming it with
+    // anything else never named one, so the door refuses it rather than
+    // carrying a value the session lookup would only refuse later. Each field
+    // is refused on its own, so neither rule can stand in for the other.
+    for (const [field, body] of [
+      ["id", '{"event_type":"CHECKOUT_STATUS_CHANGED","id":0}'],
+      ["event_type", '{"event_type":false,"id":"co_42"}'],
+    ] as const) {
+      test(`rejects a ${field} that is not text`, async () => {
+        expect(await verify(body)).toEqual({
+          error: "Invalid JSON payload",
+          valid: false,
+        });
       });
-    });
+    }
+
+    // A public unsigned door: anyone can post any JSON at all, and none of
+    // these is an object carrying SumUp's two fields.
+    for (const body of ["null", "123", '"text"', "true", "[]"]) {
+      test(`refuses a payload that is JSON but not a callback: ${body}`, async () => {
+        expect(await verify(body)).toEqual({
+          error: "Invalid JSON payload",
+          valid: false,
+        });
+      });
+    }
 
     test("rejects an unparseable payload", async () => {
       expect(await verify("{not json")).toEqual({

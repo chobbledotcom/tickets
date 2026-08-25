@@ -2457,9 +2457,11 @@ terminally misclassify an older damaged checkout as foreign.
 Preserve the other live Square boundary too: payment webhook status is exactly
 `APPROVED | PENDING | COMPLETED | CANCELED | FAILED`. Missing, non-text, empty,
 or unknown values throw; only a known non-completed status may be acknowledged
-without processing, and `COMPLETED` requires an Order id. M6 must reuse or
-replace that declaration atomically, never leave a permissive legacy webhook
-parser beside its observer.
+without processing, and `COMPLETED` requires an Order id. That declaration is
+`webhookPayment` in `src/shared/square-provider.ts`, written as bare throws
+rather than a schema, and it is the one webhook door the provider fold left
+hand-rolled. M6 must reuse or replace it atomically, never leave a permissive
+legacy webhook parser beside its observer.
 
 Reads must be bounded and fenced on an evidence revision or fingerprint. A
 provider-controlled sibling list cannot cause an unbounded request; evidence
@@ -2952,47 +2954,6 @@ No test imports `#shared/sumup/money.ts` at all today. Its exports
 `src/shared/sumup-provider.ts`, so this is a missing direct suite rather than a
 file to move. Write `test/shared/sumup/money.test.ts` against the two exports,
 then run `deno task precommit:mutation` on the module and close its survivors.
-
----
-
-## Fold the last hand-rolled provider judges onto the shared ladders
-
-_Origin: the payment-plans architecture review (August 2026). PR #2129 built
-`readProviderResource`, `judgeThrough`, and `parsedBy` as the one read shell,
-and PR #2131 moved Square's answers onto them. These call sites still hand-roll
-the same shapes beside the shared ones._
-
-Each item is one mechanical fold. Do them one at a time, and run the targeted
-mutation gate on each touched module.
-
-- **`classifySumupCheckout` is an `if` chain beside the ladder it predates.**
-  `src/shared/sumup-observation.ts:201-232` runs `v.safeParse` and six
-  sequential `if (…) return invalidRead(…)` arms, and `checkChildren` (`:148`)
-  re-implements "first rule to name a reason wins". `readSumupTransaction`
-  (`src/shared/sumup/transaction.ts:118`) already shows the target shape:
-  `judgeThrough` + `parsedBy` + a declared rung ladder.
-- **Square's `readCharge` open-codes `mapProviderReader`.**
-  `src/shared/square-provider.ts:249-264` hand-writes the found-branch mapping
-  that Stripe (`stripe-provider.ts:78`) and SumUp (`sumup/money.ts:103`) get
-  from the combinator.
-- **Three refund-send shells do the same four steps.**
-  `src/shared/square/payment-outcomes.ts:103-132`, `src/shared/sumup.ts`
-  (`refundTransaction`), and `withStripeClient` in `src/shared/stripe.ts` each
-  do account → null-check → try/catch → known-failure mapping, and all three
-  return the identical `{ kind: "not_sent", reason: "not_configured" }`. A
-  `sendProviderResource` beside `readProviderResource`
-  (`src/shared/payment/provider-resource-read.ts:47`) collapses them.
-- **SumUp's webhook door parses by hand.** `verifyWebhookSignature` in
-  `src/shared/sumup-provider.ts:125-146` runs its own `JSON.parse` while
-  `parseWebhookPayload` (`src/shared/payment-helpers.ts:701`) is the shared door
-  both signing providers use. Square's `webhookPayment`
-  (`src/shared/square-provider.ts:104-125`) reads its body with bare throws
-  rather than a schema; M6's observer must reuse or replace that declaration
-  atomically (see "Build whole-checkout diagnosis" above).
-
-Out of scope for the machine-declaration work that recorded this: each fold
-touches a live money path and needs its own targeted mutation runs, and the send
-shell changes three providers at once.
 
 ---
 

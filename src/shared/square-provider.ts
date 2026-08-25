@@ -12,9 +12,13 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
+import {
+  mapProviderReader,
+  type ProviderRead,
+} from "#payment/provider-read.ts";
 import { refundWithOneReread } from "#payment/refund-attempt.ts";
 import { requireProviderRefundAuthorization } from "#payment/refund-provider-authorization.ts";
-import { chargeMoneyRead } from "#payment/resources.ts";
+import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
@@ -231,6 +235,27 @@ const readOrderPayment = async (
   return { payment, paymentReference };
 };
 
+/** Read one Square payment as the shared charge-money shape. */
+const readSquareCharge = mapProviderReader(
+  // A lambda, not the member itself: resolving it per call keeps test stubs live.
+  (reference: string) => squareApi.readPayment(reference),
+  (payment: SquarePayment): ProviderRead<ChargeMoney> => {
+    if (payment.status !== "COMPLETED") {
+      return { reason: "unsupported_status", status: "invalid" };
+    }
+    const captured = payment.amountMoney;
+    const refunded = payment.refundedMoney;
+    if (captured && refunded && captured.currency !== refunded.currency) {
+      return { reason: "mismatched_money", status: "invalid" };
+    }
+    return chargeMoneyRead(
+      captured?.amount,
+      captured?.currency,
+      squareMoneyReturned(refunded, captured),
+    );
+  },
+);
+
 /** Square's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSquareCheckoutSession = makeCreateCheckoutSession(
   "square",
@@ -246,22 +271,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
   createCheckoutSession: createSquareCheckoutSession,
 
-  async readCharge(
-    paymentReference: string,
-  ): ReturnType<PaymentProvider["readCharge"]> {
-    const read = await squareApi.readPayment(paymentReference);
-    if (read.status !== "found") return read;
-    if (read.resource.status !== "COMPLETED") {
-      return { reason: "unsupported_status", status: "invalid" };
-    }
-    const captured = read.resource.amountMoney;
-    const refunded = read.resource.refundedMoney;
-    if (captured && refunded && captured.currency !== refunded.currency) {
-      return { reason: "mismatched_money", status: "invalid" };
-    }
-    const returned = squareMoneyReturned(refunded, captured);
-    return chargeMoneyRead(captured?.amount, captured?.currency, returned);
-  },
+  readCharge: readSquareCharge,
 
   refundCharge: refundWithOneReread(
     (request) => {
