@@ -37,8 +37,9 @@ export type PaymentProviderMeta = {
    * twice. */
   readonly refundCapability: RefundProviderCapability;
   /** The settings-form field carrying this provider's secret credential. The
-   * form renders it masked and the save route reads the mask back out of it,
-   * so both work from the one name. */
+   * field is rendered under this name, the form masks a stored value by it,
+   * and the save route reads the mask back out of it, so a change here moves
+   * all three together. */
   readonly secretField: string;
   /** How this provider's webhook is wired, or null when it sends none.
    *

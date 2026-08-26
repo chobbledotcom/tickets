@@ -11,6 +11,7 @@ import {
   type FormValues,
 } from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms/field.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
@@ -305,7 +306,7 @@ export const getStripeKeyFields = (): Field[] => [
   secretField({
     hint: t("fields.stripe.secret_key_hint"),
     label: t("fields.stripe.secret_key"),
-    name: "stripe_secret_key",
+    name: PAYMENT_PROVIDERS.stripe.secretField,
     placeholder: t("fields.stripe.secret_key_placeholder"),
   }),
 ];
@@ -317,7 +318,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
   secretField({
     hint: t("fields.square.access_token_hint"),
     label: t("fields.square.access_token"),
-    name: "square_access_token",
+    name: PAYMENT_PROVIDERS.square.secretField,
     placeholder: t("fields.square.access_token_placeholder"),
   }),
   secretField({
@@ -347,7 +348,7 @@ export const getSumupFields = (): Field[] => [
   secretField({
     hint: t("fields.sumup.api_key_hint"),
     label: t("fields.sumup.api_key"),
-    name: "sumup_api_key",
+    name: PAYMENT_PROVIDERS.sumup.secretField,
     placeholder: t("fields.sumup.api_key_placeholder"),
   }),
   secretField({
