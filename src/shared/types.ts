@@ -136,8 +136,6 @@ export const EmailTemplateTypeSchema = v.picklist(["confirmation", "admin"]);
 /** Persisted email template type */
 export type EmailTemplateType = v.InferOutput<typeof EmailTemplateTypeSchema>;
 
-/** Type guard: check if a string is a valid EmailTemplateType */
-export const isEmailTemplateType = guardFor(EmailTemplateTypeSchema);
 
 /** Schema for the parts of an email template: the subject line, the html
  *  body, and the plain-text body. */
@@ -152,8 +150,6 @@ export type EmailTemplateFormat = v.InferOutput<
   typeof EmailTemplateFormatSchema
 >;
 
-/** Type guard: check if a string is a valid EmailTemplateFormat */
-export const isEmailTemplateFormat = guardFor(EmailTemplateFormatSchema);
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */

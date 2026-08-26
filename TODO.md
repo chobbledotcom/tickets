@@ -41,6 +41,28 @@ story, the remnant, or a deliberate drop.
 
 ---
 
+## Un-export `renderTemplate`, or move its tests onto `renderEmailContent`
+
+_Origin: deleting the dead email-template preview route (PR for the email
+settings migration). That route was the last caller outside the tests._
+
+`renderTemplate` in `src/shared/email-renderer.ts` is exported, and
+`deno task find-unused-src` now names it as reached only by
+`test/shared/email-renderer/render-template.test.ts`. The function itself is
+live: `renderEmailContent` calls it twice, at lines 333 and 337 of the same
+file.
+
+The export was kept on purpose. Its 125-line test covers the Liquid filters that
+real emails are built from — `currency`, `pluralize`, loops, conditionals, and
+the trailing trim — so deleting the test to remove the export would trade real
+coverage of live behaviour for a cosmetic win.
+
+The tidy version is to make `renderTemplate` module-private and rewrite those
+tests to drive `renderEmailContent`. Do this only if the rewritten tests still
+pin each filter. If they cannot, leave the export and delete this entry.
+
+---
+
 ## Move the routes' flash messages into the message catalog
 
 _Origin: found while migrating `test/integration/admin/sms.test.ts` to

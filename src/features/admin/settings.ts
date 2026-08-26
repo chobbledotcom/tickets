@@ -16,7 +16,6 @@ import {
 } from "#routes/admin/settings-email.ts";
 import {
   handleEmailTemplatePost,
-  handleEmailTemplatePreviewPost,
 } from "#routes/admin/settings-email-templates.ts";
 import {
   handleFeatureGet,
@@ -87,8 +86,6 @@ export const adminHandlers = defineRoutes({
     handleEmailTemplatePost("admin"),
   "POST /admin/settings/email-templates/confirmation":
     handleEmailTemplatePost("confirmation"),
-  "POST /admin/settings/email-templates/preview":
-    handleEmailTemplatePreviewPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
   "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
   "POST /admin/settings/external-order": handleExternalOrderPost,

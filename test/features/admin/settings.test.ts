@@ -25,7 +25,6 @@ const settingsRoutes: ReadonlyArray<readonly [string, string]> = [
   ["POST", "/admin/settings/email"],
   ["POST", "/admin/settings/email-templates/admin"],
   ["POST", "/admin/settings/email-templates/confirmation"],
-  ["POST", "/admin/settings/email-templates/preview"],
   ["POST", "/admin/settings/email/test"],
   ["POST", "/admin/settings/embed-hosts"],
   ["POST", "/admin/settings/external-order"],

@@ -4,7 +4,6 @@ import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { resetEngine } from "#shared/email-renderer.ts";
 import {
-  assertJson,
   expectFlash,
   expectHtmlResponse,
   testRequiresAuth,
@@ -12,10 +11,8 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-import { useSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("admin email templates", { db: true }, () => {
-  useSetting({ currency: "GBP" });
   beforeEach(resetEngine);
   afterEach(resetEngine);
 
@@ -51,23 +48,6 @@ describeWithEnv("admin email templates", { db: true }, () => {
     expect(templates.subject).toBe("");
     expect(templates.html).toBe("");
     expect(templates.text).toBe("");
-  }
-
-  async function postPreviewForm(fields: Record<string, string>) {
-    return await postTemplateForm(
-      "/admin/settings/email-templates/preview",
-      fields,
-    );
-  }
-
-  function assertJsonError(
-    request: Promise<Response>,
-    status: number,
-    errorSubstring: string,
-  ) {
-    return assertJson(request, status, (json) => {
-      expect(json.error).toContain(errorSubstring);
-    });
   }
 
   describe("settings page", () => {
@@ -247,86 +227,4 @@ describeWithEnv("admin email templates", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/settings/email-templates/preview", () => {
-    test("renders template preview with sample data", async () => {
-      await assertJson(
-        postPreviewForm({
-          format: "text",
-          template: "Hello {{ attendee.name }}",
-          type: "confirmation",
-        }),
-        200,
-        (json) => {
-          expect(json.rendered).toBe("Hello Jane Smith");
-        },
-      );
-    });
-
-    test("returns error for invalid template syntax", async () => {
-      await assertJsonError(
-        postPreviewForm({
-          format: "text",
-          template: "{% invalid %}",
-          type: "confirmation",
-        }),
-        400,
-        "Template syntax error",
-      );
-    });
-
-    test("returns error for invalid template type", async () => {
-      await assertJsonError(
-        postPreviewForm({
-          format: "text",
-          template: "test",
-          type: "invalid",
-        }),
-        400,
-        "Invalid template type",
-      );
-    });
-
-    test("returns error for invalid template format", async () => {
-      await assertJsonError(
-        postPreviewForm({
-          format: "markdown",
-          template: "test",
-          type: "confirmation",
-        }),
-        400,
-        "Invalid template format",
-      );
-    });
-
-    test("defaults missing preview fields to empty and rejects invalid type", async () => {
-      await assertJsonError(postPreviewForm({}), 400, "Invalid template type");
-    });
-
-    test("returns error when template render throws", async () => {
-      await assertJsonError(
-        postPreviewForm({
-          format: "text",
-          template: '{% render "nonexistent" %}',
-          type: "confirmation",
-        }),
-        400,
-        "nonexistent",
-      );
-    });
-
-    test("renders currency filter in preview", async () => {
-      await assertJson(
-        postPreviewForm({
-          format: "html",
-          template:
-            "{% for entry in entries %}{{ entry.attendee.price_paid | currency }}{% endfor %}",
-          type: "confirmation",
-        }),
-        200,
-        (json) => {
-          expect(json.rendered).toContain("£");
-        },
-      );
-    });
-  });
 });
