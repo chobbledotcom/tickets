@@ -157,10 +157,10 @@ claim is anything the old test asserted: a status code, a count, a rendered
 figure, a stored row, a ledger balance, a log entry, an absence.
 
 **Build that list from the diff, never from the new file.** Read the old test as
-it was on the base branch and enumerate its assertions one by one. This is the
-step people skip, because reading the finished story feels like checking the
-work, and a good story reads as though it covers everything. It does not tell
-you what is missing. Only the old file does.
+it stood on the base branch. Enumerate its assertions one by one. This is the
+step that people skip. A finished story feels like a check of the work, but it
+is not one. A good story reads as though it covers everything, so it never says
+what is missing. Only the old file says that.
 
 ```bash
 git fetch origin main
@@ -169,9 +169,9 @@ git show origin/main:<the file you changed>                    # the old file wh
 git diff origin/main...HEAD -- <file> | grep '^-' | grep expect  # the assertions
 ```
 
-Do this for **every** file the change touches, not only the ones you deleted
-outright. A file you rewrote in place hides its losses the same way, and a
-rewrite is where the losses have actually happened here.
+Do this for **every** file that the change touches, not only the ones that you
+deleted outright. A file that you rewrote in place hides its losses the same
+way, and the rewrites are where the real losses occurred.
 
 Each claim ends up in exactly one of three places, and you must be able to say
 which:
@@ -200,20 +200,21 @@ problem:
 - that a race was settled by capacity rather than by one request simply failing,
 - the exact reason a refusal was given, where only its absence was checked.
 
-Three more went missing in one batch (PR #2154) **after** this checklist
-existed, because the list was built by reading the new files rather than the old
-ones. Each was found by a reviewer, not by the checklist:
+One batch (PR #2154) lost three more claims **after** this checklist existed.
+The author built that list from the new files instead of the old ones. A
+reviewer found each loss, not the checklist:
 
 - the stored contact record's last subject, so a text filed under the wrong
-  words would have passed,
-- the journey that takes the public site back down again, leaving only the one
-  that puts it up,
+  words still passed,
+- the journey that takes the public site back down again, which left only the
+  journey that puts it up,
 - six markup claims out of one rewritten template test, among them the only link
-  out of a warning that tells the owner to go and change a setting.
+  out of a warning that tells the owner to change a setting.
 
-The second and third are the instructive ones. Neither file was deleted. Both
-were rewritten, both read well afterwards, and both had lost claims nothing else
-covered. Running the diff takes a minute and would have caught all three.
+The second and third losses are the instructive ones. Nobody deleted either
+file. The author rewrote both, both read well afterwards, and both lost claims
+that nothing else covered. The diff takes a minute to read, and it names all
+three.
 
 Then finish the job:
 

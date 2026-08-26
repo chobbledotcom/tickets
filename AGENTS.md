@@ -1701,17 +1701,18 @@ categories, the authored Feature hierarchy and tags, how specs are run, the
 checklist for migrating an existing test into a story, and the pitfalls that
 have caught people out before.
 
-One rule from that checklist is repeated here because it is the one people skip,
-and skipping it has silently lost real coverage more than once. **Moving a test
-into a story is a replacement, so prove it replaced everything: build the list
-of the old test's claims from the diff, never from the new file.**
-`git diff origin/main...HEAD -- <file>` and `git show origin/main:<file>` are
-the whole technique. Reading the finished story feels like checking the work and
-is not: a good story reads as though it covers everything, and only the old file
-says what is missing. This applies to a file you rewrote in place as much as one
-you deleted — the rewrites are where the losses have actually happened. Every
-claim then lands in the story, in a direct test you keep, or in a drop you state
-out loud.
+One rule from that checklist is repeated here, because it is the rule that
+people skip, and a skipped check lost real coverage more than once. **A test
+that moves into a story is a replacement, so prove that it replaced everything.
+Build the list of the old test's claims from the diff, never from the new
+file.** `git diff origin/main...HEAD -- <file>` and
+`git show origin/main:<file>` are the whole technique. A finished story feels
+like a check of the work, but it is not one: a good story reads as though it
+covers everything, so only the old file says what is missing. This applies to a
+file that you rewrote in place as much as to one that you deleted, and the
+rewrites are where the real losses occurred. Every claim then lands in one of
+three places: in the story, in a direct test that you keep, or in a drop that
+you state out loud.
 
 ## Test Quality Standards
 
