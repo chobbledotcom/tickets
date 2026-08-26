@@ -20,7 +20,8 @@ export const decodeEntities = (text: string): string =>
     .replace(/&#39;/g, "'")
     .replace(/&larr;/g, "\u2190")
     .replace(/&mdash;/g, "\u2014")
-    .replace(/&nbsp;/g, " ");
+    .replace(/&nbsp;/g, " ")
+    .replace(/&times;/g, "\u00d7");
 
 /** Collect all capture-group matches for a regex against a string */
 export const regexCollect = <T>(

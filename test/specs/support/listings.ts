@@ -75,11 +75,16 @@ const PLAIN_THING: TestListingOverrides = {
   thankYouUrl: "",
 };
 
-/** Something plain on sale, remembered by the story's name for it. */
+/** Something plain on sale, remembered by the story's name for it. Anything a
+ * story needs on top — a forwarding address, a description, a file to hand
+ * out — rides along beside the plain shape rather than in a fixture of its
+ * own. */
 export const putsPlainThingOnSale = (
   world: TicketsWorld,
   name: string,
-): Promise<Listing> => putsOnSale(world, name, PLAIN_THING);
+  alsoSet: TestListingOverrides = {},
+): Promise<Listing> =>
+  putsOnSale(world, name, { ...PLAIN_THING, ...alsoSet });
 
 /** Something the site sells at a price, remembered under the name the story
  * calls it. The listing a money story starts from, so its price and its id are

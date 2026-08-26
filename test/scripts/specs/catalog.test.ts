@@ -25,6 +25,7 @@ describe("Cucumber story catalog", () => {
       "attendees.removing-one-part-of-an-order",
       "attendees.the-record-kept-about-someone",
       "attendees.the-states-a-booking-can-be-in",
+      "attendees.the-ticket-a-customer-holds",
       "attendees.writing-to-the-people-who-booked",
       "bookings.add-ons-sold-on-their-own",
       "bookings.adding-a-booking-by-hand",

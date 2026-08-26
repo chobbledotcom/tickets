@@ -13,10 +13,6 @@ slimmed direct remnant with a header naming the story for branch cover (Cucumber
 runs do not count towards coverage), and record where every old claim went — the
 story, the remnant, or a deliberate drop.
 
-- `test/integration/server/tickets.test.ts` (797 lines) — the customer's
-  `/t/:token` ticket page: what a booker sees after booking. Also needs
-  splitting under the 400-line rule. Keep the rate-limit and token-abuse
-  contracts direct.
 - `test/integration/server/public/listings-display.test.ts` (424 lines) — the
   catalogue page card rules (Book now vs Buy now, hidden listings, CTA
   suppression, galleries). Keep the `x-robots-tag` and leak checks direct.
