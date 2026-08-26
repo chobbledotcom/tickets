@@ -19,7 +19,11 @@ import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { resetEngine } from "#shared/email-renderer.ts";
-import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectRedirectWithFlash,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -27,21 +31,47 @@ import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 // jscpd:ignore-end
 
 const CONFIRMATION_PATH = "/admin/settings/email-templates/confirmation";
+const ADMIN_PATH = "/admin/settings/email-templates/admin";
 
 const NOTHING_KEPT = { html: "", subject: "", text: "" };
+
+/** Wording no Liquid engine can read, whichever box it is typed into. */
+const UNREADABLE = "{% for x in items %}unclosed";
+
+/** Where each email's save lands, and what it says when it gets there. Both
+ * emails share one handler, so a swapped label tells the owner they saved the
+ * other email, and the wrong page leaves them nowhere near their boxes. */
+const SAVING_EACH_EMAIL = [
+  {
+    formId: "settings-email-tpl-confirmation",
+    path: CONFIRMATION_PATH,
+    said: "Confirmation email template updated",
+  },
+  {
+    formId: "settings-email-tpl-admin",
+    path: ADMIN_PATH,
+    said: "Admin notification email template updated",
+  },
+] as const;
 
 describeWithEnv("admin email templates", { db: true }, () => {
   beforeEach(resetEngine);
   afterEach(resetEngine);
 
-  const postTemplateForm = async (fields: Record<string, string>) =>
+  const postTemplateFormTo = async (
+    path: string,
+    fields: Record<string, string>,
+  ) =>
     await handleRequest(
       mockFormRequest(
-        CONFIRMATION_PATH,
+        path,
         { ...fields, csrf_token: await testCsrfToken() },
         await testCookie(),
       ),
     );
+
+  const postTemplateForm = (fields: Record<string, string>) =>
+    postTemplateFormTo(CONFIRMATION_PATH, fields);
 
   const storedTemplate = async (): Promise<{
     html: string;
@@ -105,7 +135,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     expect(response.status).toBe(302);
     expectFlash(
       response,
-      expect.stringContaining("exceeds maximum length"),
+      expect.stringContaining("Template html exceeds maximum length"),
       false,
     );
     expect(await storedTemplate()).toEqual(NOTHING_KEPT);
@@ -125,24 +155,36 @@ describeWithEnv("admin email templates", { db: true }, () => {
     expect((await storedTemplate()).html).toBe(atTheLimit);
   });
 
-  test("refuses wording the site cannot read, and keeps nothing", async () => {
-    // The syntax check runs per field and names which one, so this reaches
-    // the branch the story cannot: a Cucumber run does not count towards
-    // coverage, and this is the only arm that rejects a parse failure.
-    const response = await postTemplateForm({
-      html: "",
-      subject: "{% for x in items %}unclosed",
-      text: "",
-    });
+  for (const box of ["subject", "html", "text"] as const) {
+    test(`names the ${box} box when it holds wording the site cannot read`, async () => {
+      // The story reads the refusal, but a Cucumber run does not count towards
+      // coverage, so this arm needs direct tests. One per box, because a
+      // refusal that does not say which box is one the owner cannot act on.
+      const response = await postTemplateForm({
+        ...NOTHING_KEPT,
+        [box]: UNREADABLE,
+      });
 
-    expect(response.status).toBe(302);
-    expectFlash(
-      response,
-      expect.stringContaining("Invalid template syntax"),
-      false,
-    );
-    expect(await storedTemplate()).toEqual(NOTHING_KEPT);
-  });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(`Invalid template syntax in ${box}`),
+        false,
+      );
+      expect(await storedTemplate()).toEqual(NOTHING_KEPT);
+    });
+  }
+
+  for (const { formId, path, said } of SAVING_EACH_EMAIL) {
+    test(`says "${said}" and lands beside those boxes`, async () => {
+      // Where a save lands is a URL contract a story cannot see, because the
+      // browser follows the redirect before the scenario reads the page.
+      expectRedirectWithFlash(
+        `/admin/settings-advanced?form=${formId}#${formId}`,
+        said,
+      )(await postTemplateFormTo(path, NOTHING_KEPT));
+    });
+  }
 
   test("treats a send carrying no fields at all as clearing the wording", async () => {
     // The form always carries all three boxes, so this send is one no browser
