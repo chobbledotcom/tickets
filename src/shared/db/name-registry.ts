@@ -1,17 +1,11 @@
 /**
- * Cross-entity display-name uniqueness and name→id resolution for listings and
- * groups.
- *
  * A name must be unique across **both** tables. A listing may not share one
  * with another listing *or* with a group. That is what lets catalog transfer
  * reference either by name alone. Names are stable across installs, ids are not.
  *
- * Names are field-level encrypted with no blind index, so this reads the
- * cached, already-decrypted listing and group sets — the very loads the admin
- * collection pages already make — and matches in memory. The catalog is a
- * bounded, admin-scale set, so the scan is cheap and needs no extra query or
- * schema column. The module is a thin shell over those two cached reads, and
- * comparison and lookup are pure functions over the loaded rows.
+ * Names are field-level encrypted with no blind index, so this matches in
+ * memory over the already-cached sets rather than querying. The catalog is
+ * bounded and admin-scale, so the scan is cheap and needs no schema column.
  */
 
 import { groups } from "#db/groups.ts";

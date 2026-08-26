@@ -68,19 +68,13 @@ export type LiveSchema = {
 };
 
 /**
- * Snapshot the entire live schema in a single batched round-trip.
+ * Two SELECTs in one read batch, because an edge request caps outbound
+ * subrequests and a per-table probe loop spends dozens of them.
  *
- * Edge requests cap outbound subrequests (each libsql `execute`/`batch` is one
- * `fetch`), so the per-table `PRAGMA table_info`/`sqlite_master` probes that
- * schema sync and verification used to fire in loops — dozens of subrequests —
- * are collapsed into two SELECTs sent as one read batch. The first joins
- * `sqlite_master` against the `pragma_table_info` table-valued function to read
- * every column of every table at once; the second lists every index name.
- *
- * Pinned to the primary (not a replica): every caller runs inside a migration,
+ * Pinned to the primary, not a replica. Every caller runs inside a migration,
  * where the snapshot must reflect DDL applied moments earlier in the same run.
- * A replica that lags behind that write would report a just-created table as
- * missing, failing verify() spuriously (see queryBatchPrimary).
+ * A lagging replica reports a just-created table as missing and fails verify()
+ * spuriously.
  */
 export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
@@ -260,19 +254,17 @@ const canCreateTrigger = (
   });
 
 /**
- * Recreate a table from its SCHEMA definition, preserving data for matching
- * columns. The copy, its indexes and its triggers all run inside one
- * interactive transaction, so the table is never committed without the indexes
- * and triggers that enforce its invariants. Any failure rolls the whole rebuild
- * back, rather than leave a live table missing a UNIQUE index in a window where
- * duplicates can land and permanently break it. The statements run as one
- * structured batch inside that transaction, so each trigger body stays a single
+ * The copy, its indexes and its triggers all run inside one interactive
+ * transaction. A failure that left a live table missing a UNIQUE index would
+ * open a window for duplicates to land and break it permanently.
+ *
+ * The statements go as one structured batch, so a trigger body stays a single
  * statement whose semicolons are not read as separators.
  *
- * The new table is created without foreign keys, so any the original had are
- * removed. If other tables hold FKs that reference this one and contain data,
- * recreate those first, or DROP TABLE fails. `PRAGMA foreign_keys=OFF` is no
- * help, because it does not persist across HTTP requests in remote libsql.
+ * The new table has no foreign keys, so any the original had are removed. If
+ * other tables hold FKs referencing this one and contain data, recreate those
+ * first, or DROP TABLE fails. `PRAGMA foreign_keys=OFF` is no help: it does not
+ * persist across HTTP requests in remote libsql.
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);

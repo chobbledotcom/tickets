@@ -25,20 +25,15 @@ const LISTING_AGGREGATE_USES = {
 } as const;
 
 /**
- * Triggers that keep the listing count aggregates (booked_quantity,
- * tickets_count) in lockstep with listing_attendees, so the hot listing reads
- * and the active-listing stats cost one row read instead of a scan. Income is
- * not an aggregate column: it projects from the transfers ledger at read time.
+ * The aggregates exist so a hot listing read costs one row instead of a scan.
+ * Income is NOT one: it projects from the transfers ledger at read time.
  *
- * The UPDATE trigger is scoped to `OF quantity, listing_id` so the frequent
- * check-in, refund, attachment-download and price writes do not fire it. It
- * subtracts the OLD row's contribution from its old listing and adds the NEW
- * row's to its new listing, so a moved row stays correct and an edit nets out.
+ * The UPDATE trigger is scoped to `OF quantity, listing_id`, so the frequent
+ * check-in, refund and price writes do not fire it.
  *
- * booked_quantity counts every row toward capacity, the quantity = 0 sentinel
- * included, which adds nothing. tickets_count counts only quantity > 0 rows
- * (see TICKET_COUNTS_PREDICATE), so the sentinel keeps its attendee↔listing
- * link and does not inflate the ticket total.
+ * booked_quantity counts every row, the quantity = 0 sentinel included, which
+ * adds nothing. tickets_count counts only quantity > 0, so the sentinel keeps
+ * its attendee↔listing link without inflating the ticket total.
  */
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
@@ -97,18 +92,12 @@ const MODIFIER_AGGREGATE_USES = {
 } as const;
 
 /**
- * Modifier aggregate triggers keep modifiers.total_uses and modifiers.usage_count
- * in step with the modifier_usages ledger, the same way the listing triggers
- * maintain the listings aggregates. The UPDATE trigger is scoped to OF quantity,
- * modifier_id so the only writes that affect the counts fire it, and it subtracts
- * the OLD row's contribution from its old modifier and adds the NEW row's to its
- * new modifier so a row moving between modifiers stays correct.
+ * The same shape as the listing aggregate triggers above, over
+ * `modifier_usages`.
  *
- * Semantics mirror the previous SUM(quantity) / COUNT(*) queries over
- * modifier_usages exactly. The money figure (total_revenue) is no longer a
- * maintained column — it is projected from the transfers ledger at read time —
- * so amount_applied no longer drives any aggregate and is out of the UPDATE OF
- * list.
+ * `total_revenue` is NOT a maintained column. It projects from the transfers
+ * ledger at read time, so `amount_applied` drives no aggregate and stays out of
+ * the UPDATE OF list.
  */
 const MODIFIER_AGGREGATE_TRIGGERS: Trigger[] = [
   {

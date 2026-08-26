@@ -15,17 +15,13 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
 ] as const;
 
 /**
- * The predicate deciding whether a listing_attendees row counts toward
- * listings.tickets_count. A quantity = 0 line is the "no quantity" sentinel — it
- * keeps the attendee↔listing link but is not a ticket — so tickets_count counts
- * only rows where quantity > 0. booked_quantity (SUM(quantity)) already treats 0
- * correctly and must NOT use this predicate.
+ * A quantity = 0 line is the "no quantity" sentinel. It keeps the
+ * attendee↔listing link but is not a ticket, so tickets_count counts only
+ * quantity > 0. booked_quantity already treats 0 correctly and must NOT use
+ * this predicate.
  *
- * Every site that computes tickets_count references this one constant so the
- * rule cannot silently diverge (mirrors LISTING_AGGREGATE_WRITE_COLUMNS): the
- * three triggers below, the two queries in listings/aggregates.ts (reset and recalculation),
- * the schema-sync backfill, and the hold-delete restore in attendees/delete.ts.
- * A guard test asserts the predicate appears at every one of those sites.
+ * Every site computing tickets_count references this one constant, so the rule
+ * cannot silently diverge. A guard test asserts it appears at every one.
  */
 export const TICKET_COUNTS_PREDICATE = `quantity > 0 AND kind = '${ATTENDEE_KIND}'`;
 

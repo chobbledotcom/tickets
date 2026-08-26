@@ -185,20 +185,15 @@ const scopeReachesPage = (
 ): boolean => scope === null || scope.some((id) => pageIds.has(id));
 
 /**
- * The single reachability test shared by both child-scoped-add-on hard blocks
- * (the parent's edge save and a modifier's own scope/trigger save), so they can
- * never diverge. An opt-in add-on is a dead end exactly when its resolved scope
- * is a **listing set** (a whole-order scope, `null`, is reachable everywhere)
- * that **names at least one suppressed child** yet **reaches none of the pages
- * that would load it**, so no direct `/ticket/<listing>` page (which loads
- * add-ons from only that listing's own id) and no group page can ever offer it.
+ * The single reachability test shared by both child-scoped-add-on hard blocks,
+ * so the edge save and the modifier save can never diverge.
  *
- * Callers supply the two id sets that define "reachable" from their own side.
- * The **edge save** treats the new child as the only `suppressed` id and the
- * parent's own page id as the only `reachable` one. The **modifier save**
- * treats every existing child as `suppressed` and every active non-child
- * listing as `reachable`, because each has its own bookable page and an
- * inactive listing serves no public page.
+ * An opt-in add-on is a dead end exactly when its resolved scope is a listing
+ * set that names a suppressed child yet reaches none of the pages that would
+ * load it. A whole-order scope (`null`) is reachable everywhere.
+ *
+ * Callers define "reachable" from their own side, which is why the two id sets
+ * are parameters rather than derived here.
  */
 export const scopeIsChildDeadEnd = (
   scope: number[] | null,
@@ -485,20 +480,15 @@ export const getOptionalAddOns = async (
 };
 
 /**
- * The name of an active opt-in add-on that would become **unreachable** if
- * `childId` were made a child of a parent whose own booking page loads add-ons
- * from `parentPageListingIds`, or null when none would. A direct
- * `/ticket/<parent>` page loads add-ons from **only the parent's own listing
- * id** (`getTicketContext` → `getOptionalAddOns([parent.id])`), never its group
- * siblings. So `parentPageListingIds` is the parent's *actual* page id set
- * (`[parent.id]`), not the wider group: an add-on scoped to
- * {child, parent-sibling} but not the parent is a dead end the direct parent
- * page cannot reach, and must block.
+ * A direct `/ticket/<parent>` page loads add-ons from **only the parent's own
+ * listing id**, never its group siblings. So `parentPageListingIds` is the
+ * parent's *actual* page id set, not the wider group. An add-on scoped to
+ * {child, parent-sibling} but not the parent is a dead end that page cannot
+ * reach, and must block.
  *
- * v1 has no child-scoped add-ons: a child is never one of a parent page's
- * listing ids. The test is **reachability**, not "the child appears in the
- * scope" — an add-on scoped to the child *and also* to the parent still loads
- * through the parent's page ids and must NOT block the edge.
+ * The test is **reachability**, not "the child appears in the scope". An add-on
+ * scoped to the child *and also* to the parent still loads through the parent's
+ * page ids and must NOT block the edge.
  */
 export const childOnlyAddOnName = async (
   childId: number,
@@ -612,18 +602,14 @@ export type AddOnReachabilityCheck = {
 };
 
 /**
- * The error to show when saving an opt-in add-on (created, or its
- * scope/trigger/active edited) would leave it reachable **only** through a
- * suppressed child listing — the modifier-side mirror of {@link childOnlyAddOnName},
- * sharing one reachability core ({@link scopeIsChildDeadEnd}) so the edge-save
- * and modifier-save blocks can't drift, or null when the save is allowed.
+ * The modifier-side mirror of {@link childOnlyAddOnName}, over the same
+ * reachability core, so the two blocks cannot drift.
  *
- * Only an **active, opt-in** add-on is gated: an inactive or non-`optional`
- * modifier never loads on a booking page, so it can't dead-end. The resolved
- * scope is treated as reachable from each listing in `reachablePageIds` — the
- * **active, non-child** listings, since only those serve a public booking page
- * that loads add-ons — and a dead end only when it names a child but reaches
- * none of those pages.
+ * Only an **active, opt-in** add-on is gated. An inactive or non-`optional`
+ * modifier never loads on a booking page, so it cannot dead-end.
+ *
+ * `reachablePageIds` is the **active, non-child** listings, because only those
+ * serve a public booking page that loads add-ons.
  */
 export const childUnreachableAddOnError = (
   candidate: AddOnReachabilityCheck,
@@ -637,20 +623,13 @@ export const childUnreachableAddOnError = (
 };
 
 /**
- * The name of the first **active opt-in add-on** that would be left a dead end
- * (reachable only through a suppressed child) given an **in-memory** listing set,
- * or null when every add-on still has a live page that can offer it. Used by a
- * listing save that flips `active` to re-check reachability for the *whole* set
- * of add-ons — not just edges touching the saved listing: a
- * plain non-child page that is the only thing rescuing a child-scoped add-on has
- * no edge of its own, so the edge-touching traversal would miss it.
+ * Re-checks the *whole* add-on set, not just edges touching the saved listing.
+ * A plain non-child page can be the only thing rescuing a child-scoped add-on,
+ * and it has no edge of its own, so an edge-touching traversal misses it.
  *
- * `allListings` carries the save's would-be state (the deactivated listing
- * marked inactive). `childListingIds` are the suppressed children; the reachable
- * pages are the **active, non-child** listings in `allListings` (only those
- * serve a public booking page that loads add-ons), so deactivating the sole such
- * page drops it from the reachable set and surfaces the dead end. Group scopes
- * resolve against `allListings` so a group-scoped add-on reflects the same set.
+ * `allListings` carries the save's would-be state, with the deactivated listing
+ * already marked inactive. Deactivating the sole reachable page therefore drops
+ * it from the set and surfaces the dead end.
  */
 /** The ids of listings that can still offer an add-on to a booker: an active
  *  listing that isn't one of the suppressed children (only those serve their
