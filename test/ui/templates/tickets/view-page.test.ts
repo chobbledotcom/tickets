@@ -6,7 +6,7 @@ import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
 
-describe("ticketViewPage listing date and location", () => {
+describe("ticketViewPage ticket cards", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
