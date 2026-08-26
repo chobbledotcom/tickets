@@ -1,14 +1,14 @@
 import * as v from "valibot";
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
-  connectionReasonOf,
-  type ProviderConnectionReason,
+  type ProviderRetries,
+  providerCaller,
+} from "#payment/provider-fetch.ts";
+import {
   type ProviderTransportError,
   providerDetail,
   transportError,
 } from "#payment/transport-error.ts";
-import { delay } from "#shared/now.ts";
-import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
+import type { FetchResult } from "#shared/fetch.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
 import { parseStripeErrorBody } from "./schemas.ts";
 
@@ -20,13 +20,18 @@ const INITIAL_RETRY_MS = 500;
 const MAX_RETRY_MS = 5_000;
 const MAX_RETRY_AFTER_SECONDS = 60;
 
-type Fetch = (
-  input: string | URL | Request,
-  init?: RequestInit,
-) => Promise<Response>;
 type StripeParams = Readonly<Record<string, StripeFormValue>>;
 type Method = "DELETE" | "GET" | "POST";
 type ResponseSchema<T> = v.BaseSchema<unknown, T, v.BaseIssue<unknown>>;
+
+/** One call to the Stripe API: what to ask for, and the shape to read back. */
+type StripeRequest = <T>(
+  method: Method,
+  path: string,
+  params: StripeParams,
+  schema: ResponseSchema<T>,
+  options?: StripeRequestOptions,
+) => Promise<T>;
 
 /**
  * Per-request options. `idempotencyKey` overrides the default per-POST retry
@@ -42,38 +47,12 @@ export interface StripeRequestOptions {
 
 export interface StripeClientConfig {
   apiBase?: string;
-  fetch?: Fetch;
   maxNetworkRetries?: number;
-  random?: () => number;
-  sleep?: (milliseconds: number) => Promise<void>;
-  timeout?: number;
 }
 
-interface RequestConfig {
-  apiBase: string;
-  fetch: Fetch;
-  maxNetworkRetries: number;
-  random: () => number;
-  secretKey: string;
-  sleep: (milliseconds: number) => Promise<void>;
-  timeout: number;
-}
-
-class StripeBodyReadError extends Error {
-  readonly source: unknown;
-
-  constructor(source: unknown) {
-    super();
-    this.source = source;
-  }
-}
-
-const retryDelay = (
-  retry: number,
-  retryAfter: string | null,
-  random: () => number,
-): number => {
-  const jittered = INITIAL_RETRY_MS * 2 ** (retry - 1) * 0.5 * (1 + random());
+const retryDelay = (retry: number, retryAfter: string | null): number => {
+  const jittered =
+    INITIAL_RETRY_MS * 2 ** (retry - 1) * 0.5 * (1 + Math.random());
   const base = Math.min(MAX_RETRY_MS, Math.max(INITIAL_RETRY_MS, jittered));
   if (retryAfter === null) return base;
   const retryAfterSeconds = Number(retryAfter);
@@ -83,11 +62,11 @@ const retryDelay = (
     : base;
 };
 
-const shouldRetry = (response: Response): boolean => {
-  const requested = response.headers.get("stripe-should-retry");
+const shouldRetry = (answer: FetchResult): boolean => {
+  const requested = answer.headers.get("stripe-should-retry");
   if (requested === "false") return false;
   if (requested === "true") return true;
-  return response.status === 409 || response.status >= 500;
+  return answer.status === 409 || answer.status >= 500;
 };
 
 /**
@@ -98,41 +77,35 @@ const shouldRetry = (response: Response): boolean => {
  * refund or PaymentIntent lookup fail immediately instead of using the
  * configured retry budget. The rate-limit 429 (no lock_timeout) is NOT
  * retried here — Stripe marks those with `stripe-should-retry` when it wants
- * a retry, otherwise they should surface immediately. The clone keeps the
- * original body readable for the error path if we do not retry.
+ * a retry, otherwise they should surface immediately.
  *
  * https://docs.stripe.com/rate-limits#object-lock-timeouts
  */
-const isLockTimeoutResponse = async (response: Response): Promise<boolean> => {
-  if (response.status !== 429) return false;
+const isLockTimeout = ({ status, text }: FetchResult): boolean => {
+  if (status !== 429) return false;
+  let body: { error?: { code?: unknown; type?: unknown } };
   try {
-    const body = (await response.clone().json()) as {
-      error?: { code?: unknown; type?: unknown };
-    };
-    return (
-      body?.error?.code === "lock_timeout" ||
-      body?.error?.type === "lock_timeout"
-    );
+    body = JSON.parse(text);
   } catch {
+    // A 429 we cannot read is a rate limit, and Stripe marks the rate limits
+    // it wants another attempt for with `stripe-should-retry`.
     return false;
   }
+  return (
+    body?.error?.code === "lock_timeout" || body?.error?.type === "lock_timeout"
+  );
 };
 
-const connectionError = (
-  reason: ProviderConnectionReason,
-  retry: number,
-  timeout: number,
-): ProviderTransportError =>
-  transportError.unreachable(
-    providerDetail.stripe(),
-    reason,
-    reason === "timeout"
-      ? `Request aborted due to timeout being reached (${timeout}ms)`
-      : `An error occurred with our connection to Stripe. Request was retried ${retry} times.`,
-  );
-
-const retriesRemain = (retry: number, maximum: number): boolean =>
-  retry < maximum;
+/** Stripe's own rules for asking again, spent by the shared boundary. */
+const stripeRetries = (limit: number): ProviderRetries => ({
+  again: (answer) => shouldRetry(answer) || isLockTimeout(answer),
+  limit,
+  waitBefore: (retry, answer) =>
+    retryDelay(
+      retry,
+      answer === null ? null : answer.headers.get("retry-after"),
+    ),
+});
 
 const headerOrUndefined = (
   headers: Headers,
@@ -142,189 +115,119 @@ const headerOrUndefined = (
   return value === null ? undefined : value;
 };
 
-const responseError = (
-  response: Response,
-  message: string,
-  code: string | undefined,
-  type: string | undefined,
+/** The two ways one Stripe answer can be unreadable. */
+const unusableAnswer = (
+  statusCode: number | undefined,
+  problem: "json" | "shape",
 ): ProviderTransportError =>
-  transportError.answered(
-    providerDetail.stripe({
-      code,
-      requestId: headerOrUndefined(response.headers, "request-id"),
-      type,
-    }),
-    response.status,
-    message,
+  transportError.unusable(
+    providerDetail.stripe(),
+    statusCode,
+    problem === "json"
+      ? "Invalid JSON received from the Stripe API"
+      : "Invalid response received from the Stripe API",
   );
 
-const responseText = async (response: Response): Promise<string> => {
-  try {
-    return await response.text();
-  } catch (error) {
-    throw new StripeBodyReadError(error);
-  }
-};
-
-const stripeError = async (
-  response: Response,
-): Promise<ProviderTransportError> => {
-  const text = await responseText(response);
+/** Refuse one answer Stripe did not accept, in the words Stripe used. An
+ *  error body we cannot read is unusable instead, because there is no refusal
+ *  to quote. */
+const refuseAnswer = (answer: FetchResult): never => {
   let parsed: ReturnType<typeof parseStripeErrorBody>;
   try {
-    parsed = parseStripeErrorBody(text);
+    parsed = parseStripeErrorBody(answer.text);
   } catch (error) {
-    throw transportError.unusable(
-      providerDetail.stripe(),
-      response.status,
-      error instanceof SyntaxError
-        ? "Invalid JSON received from the Stripe API"
-        : "Invalid response received from the Stripe API",
+    throw unusableAnswer(
+      answer.status,
+      error instanceof SyntaxError ? "json" : "shape",
     );
   }
-  return responseError(
-    response,
+  throw transportError.answered(
+    providerDetail.stripe({
+      code: parsed.error.code,
+      requestId: headerOrUndefined(answer.headers, "request-id"),
+      type: parsed.error.type,
+    }),
+    answer.status,
     parsed.error.message,
-    parsed.error.code,
-    parsed.error.type,
   );
 };
 
-const cancelResponseBody = async (response: Response): Promise<void> => {
-  try {
-    await response.body?.cancel();
-  } catch {
-    // Cancellation only frees resources; its failure must not hide the retry.
-  }
-};
-
-const parseResponse = async <T>(
-  response: Response,
-  schema: ResponseSchema<T>,
-): Promise<T> => {
-  if (!response.ok) throw await stripeError(response);
-  const text = await responseText(response);
+const readAnswer = <T>(answer: FetchResult, schema: ResponseSchema<T>): T => {
+  if (!answer.ok) refuseAnswer(answer);
   let body: unknown;
   try {
-    body = JSON.parse(text);
+    body = JSON.parse(answer.text);
   } catch {
-    throw transportError.unusable(
-      providerDetail.stripe(),
-      undefined,
-      "Invalid JSON received from the Stripe API",
-    );
+    throw unusableAnswer(undefined, "json");
   }
   try {
     return v.parse(schema, body);
   } catch {
-    throw transportError.unusable(
-      providerDetail.stripe(),
-      undefined,
-      "Invalid response received from the Stripe API",
-    );
+    throw unusableAnswer(undefined, "shape");
   }
 };
 
-const fullConfig = (
+/** Where one call goes. A GET carries its form on the query string. */
+const requestUrl = (
+  apiBase: string,
+  method: Method,
+  path: string,
+  encoded: string,
+): string =>
+  `${apiBase}${path}${method === "GET" && encoded ? `?${encoded}` : ""}`;
+
+/** The key that lands a repeated POST on the original operation. A caller's
+ *  own key wins; otherwise only a POST that may be asked again needs one. */
+const idempotencyKeyFor = (
+  method: Method,
+  retries: number,
+  given: string | undefined,
+): string | undefined =>
+  given ??
+  (method === "POST" && retries > 0
+    ? `tickets-stripe-retry-${crypto.randomUUID()}`
+    : undefined);
+
+const requestHeaders = (
   secretKey: string,
-  {
-    apiBase = STRIPE_API_URL,
-    fetch: fetchImpl = (input, init) => fetch(input, init),
-    maxNetworkRetries = STRIPE_MAX_NETWORK_RETRIES,
-    random = Math.random,
-    sleep: sleepImpl = delay,
-    timeout = PROVIDER_TIMEOUT_MS,
-  }: StripeClientConfig,
-): RequestConfig => ({
-  apiBase,
-  fetch: fetchImpl,
-  maxNetworkRetries,
-  random,
-  secretKey,
-  sleep: sleepImpl,
-  timeout,
-});
+  idempotencyKey: string | undefined,
+): Headers => {
+  const headers = new Headers({
+    Accept: "application/json",
+    Authorization: `Bearer ${secretKey}`,
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Stripe-Version": STRIPE_API_VERSION,
+  });
+  if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
+  return headers;
+};
 
 /** Build the versioned Stripe request transport with bounded retries. */
 export const createStripeRequest = (
   secretKey: string,
-  clientConfig: StripeClientConfig = {},
-) => {
-  const config = fullConfig(secretKey, clientConfig);
-  return async <T>(
-    method: Method,
-    path: string,
-    params: StripeParams,
-    schema: ResponseSchema<T>,
-    options: StripeRequestOptions = {},
-  ): Promise<T> => {
-    const maxNetworkRetries =
-      options.maxNetworkRetries ?? config.maxNetworkRetries;
+  {
+    apiBase = STRIPE_API_URL,
+    maxNetworkRetries = STRIPE_MAX_NETWORK_RETRIES,
+  }: StripeClientConfig = {},
+): StripeRequest => {
+  const namedBy = () => providerDetail.stripe();
+  const askOnce = providerCaller(namedBy);
+  const askAgain = providerCaller(namedBy, stripeRetries(maxNetworkRetries));
+
+  return async (method, path, params, schema, options = {}) => {
+    const retries = options.maxNetworkRetries ?? maxNetworkRetries;
     const encoded = encodeStripeForm(params);
-    const url = `${config.apiBase}${path}${
-      method === "GET" && encoded ? `?${encoded}` : ""
-    }`;
-    const idempotencyKey =
-      options.idempotencyKey ??
-      (method === "POST" && maxNetworkRetries > 0
-        ? `tickets-stripe-retry-${crypto.randomUUID()}`
-        : undefined);
-    const headers = new Headers({
-      Accept: "application/json",
-      Authorization: `Bearer ${config.secretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": STRIPE_API_VERSION,
-    });
-    if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
-
-    async function retryConnection(error: unknown, retry: number): Promise<T> {
-      // A failure to reach Stripe at all is the only one worth another try.
-      const reason = connectionReasonOf(error);
-      if (reason === undefined) throw error;
-      if (!retriesRemain(retry, maxNetworkRetries)) {
-        throw connectionError(reason, retry, config.timeout);
-      }
-      await config.sleep(retryDelay(retry, null, config.random));
-      return attempt(retry + 1);
-    }
-
-    async function finish(response: Response, retry: number): Promise<T> {
-      try {
-        return await parseResponse(response, schema);
-      } catch (error) {
-        if (error instanceof StripeBodyReadError) {
-          return retryConnection(error.source, retry);
-        }
-        throw error;
-      }
-    }
-
-    async function attempt(retry: number): Promise<T> {
-      let response: Response;
-      countExternalSubrequest("Stripe API request");
-      try {
-        response = await config.fetch(url, {
-          ...(method === "POST" ? { body: encoded } : {}),
-          headers,
-          method,
-          signal: AbortSignal.timeout(config.timeout),
-        });
-      } catch (error) {
-        return retryConnection(error, retry);
-      }
-      if (
-        retriesRemain(retry, maxNetworkRetries) &&
-        (shouldRetry(response) || (await isLockTimeoutResponse(response)))
-      ) {
-        await cancelResponseBody(response);
-        await config.sleep(
-          retryDelay(retry, response.headers.get("retry-after"), config.random),
-        );
-        return attempt(retry + 1);
-      }
-      return finish(response, retry);
-    }
-
-    return attempt(0);
+    const answer = await (retries > 0 ? askAgain : askOnce).answer(
+      requestUrl(apiBase, method, path, encoded),
+      {
+        ...(method === "POST" ? { body: encoded } : {}),
+        headers: requestHeaders(
+          secretKey,
+          idempotencyKeyFor(method, retries, options.idempotencyKey),
+        ),
+        method,
+      },
+    );
+    return readAnswer(answer, schema);
   };
 };

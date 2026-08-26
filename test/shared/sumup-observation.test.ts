@@ -49,7 +49,8 @@ const wirePending = (over: Record<string, unknown> = {}) => {
   return paidWithoutTxnId;
 };
 
-const classify = (body: unknown) => classifySumupCheckout(body, FACTS);
+const classify = (body: unknown, facts: SumupReadFacts = FACTS) =>
+  classifySumupCheckout(body, facts);
 
 describe("classifySumupCheckout", () => {
   test("reads a paid checkout into the normalized shape", () => {
@@ -70,6 +71,9 @@ describe("classifySumupCheckout", () => {
     const read = classify(wirePending());
     expect(read).toEqual({
       resource: expect.objectContaining({
+        // A still-open checkout has taken nothing, but its own amount is what
+        // the buyer is being asked for, so it stays readable.
+        amountMinor: 1000,
         status: "PENDING",
         transactionId: "",
       }),
@@ -96,7 +100,12 @@ describe("classifySumupCheckout", () => {
       wirePending({ status: "FAILED", transactions: [failedTxn] }),
     );
     expect(read).toEqual({
-      resource: expect.objectContaining({ status: "FAILED" }),
+      // A dead checkout carries no captured charge to dispute its amount, so
+      // the amount it states stays readable.
+      resource: expect.objectContaining({
+        amountMinor: 1000,
+        status: "FAILED",
+      }),
       status: "found",
     });
   });
@@ -254,6 +263,36 @@ describe("classifySumupCheckout", () => {
       });
     });
   }
+
+  // The clauses above forgive a checkout that states less than its charge
+  // does, rather than reading silence as a dispute. Only the checkout's own
+  // record prices the booking, so what each absence costs differs.
+  test("reads the money when only the charge names the currency", () => {
+    const { currency: _, ...noCurrency } = wirePaid();
+    // A site currency that holds no minor units at all, so the amount proves
+    // which currency read it: 10 in yen, and 1000 had it read the pounds the
+    // charge names.
+    const inYen = { ...FACTS, siteCurrency: "JPY" };
+    expect(classify(noCurrency, inYen)).toEqual({
+      resource: expect.objectContaining({
+        // Read in the site currency, because the checkout named none, and
+        // carried as null so the boundary can see that it named none.
+        amountMinor: 10,
+        currency: null,
+      }),
+      status: "found",
+    });
+  });
+
+  test("cannot read the money when only the charge names the amount", () => {
+    const { amount: _, ...noAmount } = wirePaid();
+    expect(classify(noAmount)).toEqual({
+      // The charge vouches for the checkout, but a booking is priced by the
+      // checkout's own amount, and this one states none.
+      resource: expect.objectContaining({ amountMinor: null }),
+      status: "found",
+    });
+  });
 
   test("refuses a second successful charge on a pending checkout", () => {
     const second = { ...WIRE_TXN, id: "txn_2" };

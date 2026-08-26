@@ -2486,9 +2486,11 @@ terminally misclassify an older damaged checkout as foreign.
 Preserve the other live Square boundary too: payment webhook status is exactly
 `APPROVED | PENDING | COMPLETED | CANCELED | FAILED`. Missing, non-text, empty,
 or unknown values throw; only a known non-completed status may be acknowledged
-without processing, and `COMPLETED` requires an Order id. M6 must reuse or
-replace that declaration atomically, never leave a permissive legacy webhook
-parser beside its observer.
+without processing, and `COMPLETED` requires an Order id. That declaration is
+`webhookPayment` in `src/shared/square-provider.ts`, written as bare throws
+rather than a schema, and it is the one webhook door the provider fold left
+hand-rolled. M6 must reuse or replace it atomically, never leave a permissive
+legacy webhook parser beside its observer.
 
 Reads must be bounded and fenced on an evidence revision or fingerprint. A
 provider-controlled sibling list cannot cause an unbounded request; evidence
@@ -2962,84 +2964,61 @@ module reads as a production use. `isInverseOf` beside it has a live caller in
 
 ---
 
-## `src/shared/sumup/money.ts` has no test at its mirror path
+## Six payment modules have no test at their mirror path
 
-_Origin: the provider boundary work. The original entry named five more modules.
-Four of them (`sumup/transport.ts`, `sumup/wire.ts`,
-`payment/checkout-failure.ts`, and Square's `transport.ts`) already have a test
-at their mirror, and Square's other modules moved to theirs with the
-answer-reading work. This entry records what is left._
+_Origin: the provider boundary work. The original entry named six modules, and
+four of them (`sumup/transport.ts`, `sumup/wire.ts`,
+`payment/checkout-failure.ts`, and Square's `transport.ts`) reached their mirror
+with the answer-reading work. A sweep of `payment/`, `square/`, `stripe/` and
+`sumup/` during the Stripe transport move found five more._
 
 `deno task precommit:mutation` selects a source's direct tests by the mirror
-path alone (`scripts/mutation/test-map.ts`). `src/shared/sumup/money.ts` looks
-for `test/shared/sumup/money.test.ts` or `test/shared/sumup/money/`, and finds
-neither. The gate refuses to run for a source with no test at its mirror, so a
-branch that changes that module cannot pass it.
+path alone (`scripts/mutation/test-map.ts`). The gate refuses to run for a
+source that has mutants and no test at its mirror, so a branch that changes one
+of these modules cannot pass it. A source with no mutants at all is exempt,
+which is why `payment/conflict.ts` and `square/api.ts` stay off this list.
+
+| Module                                    | Mutants | Mirror path the gate looks for                  |
+| ----------------------------------------- | ------: | ----------------------------------------------- |
+| `src/shared/sumup/money.ts`               |      92 | `test/shared/sumup/money.test.ts`               |
+| `src/shared/payment/review.ts`            |       7 | `test/shared/payment/review.test.ts`            |
+| `src/shared/payment/provider-read.ts`     |       4 | `test/shared/payment/provider-read.test.ts`     |
+| `src/shared/payment/refund-generation.ts` |       3 | `test/shared/payment/refund-generation.test.ts` |
+| `src/shared/payment/provider-timeout.ts`  |       1 | `test/shared/payment/provider-timeout.test.ts`  |
+| `src/shared/payment/refund-network.ts`    |       1 | `test/shared/payment/refund-network.test.ts`    |
+
+The counts come from the gate's own mutant generator in its default mode. A
+directory at the same path works too, so `test/shared/sumup/money/` is as good
+as `money.test.ts`.
 
 No test imports `#shared/sumup/money.ts` at all today. Its exports
 (`readSumupCharge`, `sumupRefundOutcome`) are reached through
 `src/shared/sumup-provider.ts`, so this is a missing direct suite rather than a
-file to move. Write `test/shared/sumup/money.test.ts` against the two exports,
-then run `deno task precommit:mutation` on the module and close its survivors.
+file to move. Write each missing suite, then run `deno task mutation` on the
+module and close its survivors.
 
 ---
 
-## Fold the last hand-rolled provider judges onto the shared ladders
+## A refund send makes one attempt, said three ways
 
-_Origin: the payment-plans architecture review (August 2026). PR #2129 built
-`readProviderResource`, `judgeThrough`, and `parsedBy` as the one read shell,
-and PR #2131 moved Square's answers onto them. These call sites still hand-roll
-the same shapes beside the shared ones._
+_Origin: the Stripe transport move, which put every provider on one HTTP
+boundary and left this table behind._
 
-Each item is one mechanical fold. Do them one at a time, and run the targeted
-mutation gate on each touched module.
+`REFUND_NETWORK_RETRIES` in `src/shared/payment/refund-network.ts` says how many
+transport retries one refund command allows per provider. Its own comment states
+the rule: durable claims, stable keys, and a fresh provider read own recovery,
+so every provider makes one attempt. The table does not state it. Square and
+SumUp read `SQUARE_MAX_NETWORK_RETRIES` and `SUMUP_MAX_NETWORK_RETRIES`, two
+constants whose only caller is this table, and Stripe writes a literal `0`
+because its transport allows two retries that a refund waives.
 
-- **`classifySumupCheckout` is an `if` chain beside the ladder it predates.**
-  `src/shared/sumup-observation.ts:201-232` runs `v.safeParse` and six
-  sequential `if (…) return invalidRead(…)` arms, and `checkChildren` (`:148`)
-  re-implements "first rule to name a reason wins". `readSumupTransaction`
-  (`src/shared/sumup/transaction.ts:118`) already shows the target shape:
-  `judgeThrough` + `parsedBy` + a declared rung ladder.
-- **Square's `readCharge` open-codes `mapProviderReader`.**
-  `src/shared/square-provider.ts:249-264` hand-writes the found-branch mapping
-  that Stripe (`stripe-provider.ts:78`) and SumUp (`sumup/money.ts:103`) get
-  from the combinator.
-- **Three refund-send shells do the same four steps.**
-  `src/shared/square/payment-outcomes.ts:103-132`, `src/shared/sumup.ts`
-  (`refundTransaction`), and `withStripeClient` in `src/shared/stripe.ts` each
-  do account → null-check → try/catch → known-failure mapping, and all three
-  return the identical `{ kind: "not_sent", reason: "not_configured" }`. A
-  `sendProviderResource` beside `readProviderResource`
-  (`src/shared/payment/provider-resource-read.ts:47`) collapses them.
-- **SumUp's webhook door parses by hand.** `verifyWebhookSignature` in
-  `src/shared/sumup-provider.ts:125-146` runs its own `JSON.parse` while
-  `parseWebhookPayload` (`src/shared/payment-helpers.ts:701`) is the shared door
-  both signing providers use. Square's `webhookPayment`
-  (`src/shared/square-provider.ts:104-125`) reads its body with bare throws
-  rather than a schema; M6's observer must reuse or replace that declaration
-  atomically (see "Build whole-checkout diagnosis" above).
+The two imported constants make those rows look derived. They are not: a
+transport that gained a retry would let a refund spend it, against the rule
+above. State the rule once for all three providers, and delete the two
+constants, which then have no caller at all.
 
-Out of scope for the machine-declaration work that recorded this: each fold
-touches a live money path and needs its own targeted mutation runs, and the send
-shell changes three providers at once.
-
----
-
-## Move Stripe's transport onto the one provider HTTP boundary
-
-_Origin: the payment-plans architecture review (August 2026)._
-
-`src/shared/payment/provider-fetch.ts` says it is "the one HTTP boundary every
-payment provider is asked through". Stripe bypasses it:
-`src/shared/stripe/request.ts:302-326` calls `config.fetch` directly, counts its
-own subrequest, and sets its own timeout. The visible cost of the split is in
-`src/shared/payment/refund-network.ts:9` — `stripe: 0` is hard-coded while
-Square and SumUp import their transport's retry constant, because
-`STRIPE_MAX_NETWORK_RETRIES` (`src/shared/stripe/request.ts:16`) lives on the
-other side of the boundary.
-
-Add a retry option to `providerCaller` and pass Stripe's policy (`shouldRetry`,
-`isLockTimeoutResponse`, and the retry-after handling) in as configuration. Keep
-the response parsing where it is. This is its own pull request: it rewires every
-Stripe call and must re-prove the retry behaviour with the existing transport
-tests.
+Two things to know first. `refund-network.ts` has one mutant and no test at its
+mirror path, so `deno task precommit:mutation` refuses to run for a branch that
+changes it — see the mirror-path entry above.
+`src/features/admin/refunds/budget.ts` reads the table per provider to price the
+refund subrequest budget, so keep the record shape and the per-provider read.

@@ -698,15 +698,33 @@ export const extractSessionMetadata = (
   };
 };
 
+const UNREADABLE_WEBHOOK: WebhookVerifyResult = {
+  error: "Invalid JSON payload",
+  valid: false,
+};
+
+/** The one door every webhook body comes through. A body that is not JSON is
+ * refused the same way for every provider. What the body then means differs —
+ * a signed provider posts the event itself, SumUp posts two fields we build one
+ * from — so each provider passes its own reading, run outside the catch so a
+ * bug in it never reads as bad JSON. A reading that answers nothing means the
+ * body is JSON this provider cannot read, which earns the same refusal. */
 export const parseWebhookPayload = (
   payload: string,
   errorCode: ErrorCodeType,
+  toEvent: (body: unknown) => WebhookEvent | null,
 ): WebhookVerifyResult => {
+  let body: unknown;
   try {
-    const listing = JSON.parse(payload) as WebhookEvent;
-    return { listing, valid: true };
+    body = JSON.parse(payload);
   } catch (err) {
     logError({ code: errorCode, detail: `invalid JSON: ${err}` });
-    return { error: "Invalid JSON payload", valid: false };
+    return UNREADABLE_WEBHOOK;
   }
+  const listing = toEvent(body);
+  if (listing === null) {
+    logError({ code: errorCode, detail: "JSON payload is not an event" });
+    return UNREADABLE_WEBHOOK;
+  }
+  return { listing, valid: true };
 };

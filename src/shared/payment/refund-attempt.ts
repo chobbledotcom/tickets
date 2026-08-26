@@ -68,6 +68,13 @@ const needsReread = (
   attempt: RefundAttemptResult,
 ): attempt is RereadableRefundAttempt => REREAD_AFTER_SEND[attempt.kind];
 
+/** The answer when a refund never left this process, because the provider it
+ *  belongs to is not set up at all. Every adapter returns this same one. */
+export const REFUND_NOT_SENT: Extract<
+  RefundAttemptResult,
+  { kind: "not_sent" }
+> = { kind: "not_sent", reason: "not_configured" };
+
 /** Name an uncertain send without repeating its tagged-result shape. */
 export const uncertainRefund = (
   reason: UncertainRefundAttempt["reason"],

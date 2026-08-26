@@ -232,9 +232,55 @@ describe("payment-helpers", () => {
     expect(build).toEqual(expect.objectContaining({ createdAt }));
   });
 
+  const readIdField = (body: unknown) => {
+    const posted = body as { id: string };
+    return { data: { object: { id: posted.id } }, id: posted.id, type: "x" };
+  };
+
   test("parseWebhookPayload returns the invalid JSON error", () => {
-    expect(parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT)).toEqual(
-      { error: "Invalid JSON payload", valid: false },
-    );
+    expect(
+      parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT, readIdField),
+    ).toEqual({ error: "Invalid JSON payload", valid: false });
+  });
+
+  test("parseWebhookPayload hands the parsed body to its provider", () => {
+    expect(
+      parseWebhookPayload(
+        '{"id":"evt_1"}',
+        ErrorCode.PAYMENT_CHECKOUT,
+        readIdField,
+      ),
+    ).toEqual({
+      listing: { data: { object: { id: "evt_1" } }, id: "evt_1", type: "x" },
+      valid: true,
+    });
+  });
+
+  test("parseWebhookPayload refuses JSON its provider cannot read", () => {
+    expect(
+      parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => null),
+    ).toEqual({ error: "Invalid JSON payload", valid: false });
+  });
+
+  test("parseWebhookPayload records the body its provider could not read", () => {
+    const errorSpy = spy(console, "error");
+    try {
+      parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => null);
+      expect(errorSpy.calls[0]?.args[0]).toBe(
+        '[Error] E_PAYMENT_CHECKOUT detail="JSON payload is not an event"',
+      );
+    } finally {
+      errorSpy.restore();
+    }
+  });
+
+  // A bug in the reading step is ours, not a payload the provider mangled, so
+  // it must not come back as the invalid-JSON refusal.
+  test("parseWebhookPayload lets a broken reading step throw", () => {
+    expect(() =>
+      parseWebhookPayload("{}", ErrorCode.PAYMENT_CHECKOUT, () => {
+        throw new Error("reading step is broken");
+      }),
+    ).toThrow("reading step is broken");
   });
 });

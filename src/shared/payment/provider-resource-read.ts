@@ -1,15 +1,12 @@
 /**
- * The one shell every provider read runs inside.
+ * Reading a provider's records: the shared call shell bound to what a read
+ * means, and the ladder each answer is judged by.
  *
- * A read of a provider's records is the same four steps for all three
- * providers: check that the provider is configured at all, ask it, judge the
- * answer against facts we hold independently, and give a failed call its
- * {@link ProviderRead} meaning. Only asking and judging differ per provider,
- * so only those two are passed in.
- *
- * "Absent" means one thing here, for every provider: a call that comes back
- * with nothing is a documented resource the provider did not send, never a
- * provider that is not configured and never a malformed answer.
+ * A read is {@link askProvider} with two answers fixed for every provider. A
+ * provider nothing is configured for is unavailable. "Absent" means one thing
+ * too: a call that comes back with nothing is a documented resource the
+ * provider did not send, never a provider that is not configured and never a
+ * malformed answer.
  *
  * The judging step is declared as a ladder of refusals rather than written as
  * a chain of `if`s, so each refusal sits beside the reason it returns and a
@@ -17,6 +14,7 @@
  */
 
 import * as v from "valibot";
+import { askProvider } from "#payment/provider-call.ts";
 import { malformedProviderRead } from "#payment/provider-failures.ts";
 import type {
   ProviderInvalidReason,
@@ -28,43 +26,9 @@ const MISSING: ProviderRead<never> = {
   status: "invalid",
 };
 
-/** What one provider read needs to know beyond the call itself. */
-type ProviderResourceRead<Account, Answer, Resource> = {
-  /** The account facts the call needs, or null when nothing is configured. */
-  account: Account | null;
-  /** Ask the provider. Unwrap any envelope here, so an answer that carries no
-   *  resource comes back as null. */
-  ask: (account: Account) => Promise<Answer | null | undefined>;
-  /** Judge the answer: the resource, or the one reason it is refused. */
-  judge: (answer: Answer, account: Account) => ProviderRead<Resource>;
-  /** The read meaning of a caught provider failure, or nothing when the error
-   *  is a bug of ours rather than the provider's. */
-  failure: (error: unknown) => ProviderRead<never> | undefined;
-};
-
-/** Read one provider resource. Only the call is caught: a bug in the judging
- * step stays an internal error rather than becoming a provider answer. */
-export const readProviderResource = async <Account, Answer, Resource>({
-  account,
-  ask,
-  judge,
-  failure,
-}: ProviderResourceRead<Account, Answer, Resource>): Promise<
-  ProviderRead<Resource>
-> => {
-  if (account === null) {
-    return { reason: "not_configured", status: "unavailable" };
-  }
-  let answer: Answer | null | undefined;
-  try {
-    answer = await ask(account);
-  } catch (error) {
-    const read = failure(error);
-    if (read === undefined) throw error;
-    return read;
-  }
-  if (answer === null || answer === undefined) return MISSING;
-  return judge(answer, account);
+const NOT_CONFIGURED: ProviderRead<never> = {
+  reason: "not_configured",
+  status: "unavailable",
 };
 
 /** One provider's reads, once its account and failure reading are bound. The
@@ -75,14 +39,24 @@ export type ResourceReader<Account> = <Answer, Resource>(
 ) => Promise<ProviderRead<Resource>>;
 
 /** Bind one provider's way of resolving its account and of reading a failed
- * call, so no read has to repeat either. */
+ * call, so no read has to repeat either. A failed call proves a refusal, never
+ * a found resource, which is why its reader answers a `ProviderRead<never>`. */
 export const providerResourceReader =
   <Account>(
     account: () => Account | null | Promise<Account | null>,
     failure: (error: unknown) => ProviderRead<never> | undefined,
   ): ResourceReader<Account> =>
   async (ask, judge) =>
-    readProviderResource({ account: await account(), ask, failure, judge });
+    askProvider({
+      account: await account(),
+      ask,
+      failure,
+      judge: (answer, resolved) =>
+        answer === null || answer === undefined
+          ? MISSING
+          : judge(answer, resolved),
+      unconfigured: NOT_CONFIGURED,
+    });
 
 /** One rung of a refusal ladder: it names the reason the answer is refused, or
  *  null when the answer passes this rung. */

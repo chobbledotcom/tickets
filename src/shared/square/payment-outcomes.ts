@@ -1,10 +1,12 @@
 /* jscpd:ignore-start */
+import { askProvider } from "#payment/provider-call.ts";
 import { withExactRefundMoney } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { judgedBy, refuseUnless } from "#payment/provider-resource-read.ts";
-import type {
-  RefundAttemptResult,
-  RefundRequest,
+import {
+  REFUND_NOT_SENT,
+  type RefundAttemptResult,
+  type RefundRequest,
 } from "#payment/refund-attempt.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -98,35 +100,39 @@ const refundResult = (
     },
   );
 
+/** Record every failed send, whether or not Square owns the failure. */
+const loggedSquareRefundFailure = (
+  error: unknown,
+): RefundAttemptResult | undefined => {
+  const failure = squareRefundFailure(error);
+  logError({
+    code: ErrorCode.SQUARE_REFUND,
+    detail: failure
+      ? `outcome=${failure.kind} reason=${failure.reason}`
+      : "outcome=thrown reason=internal_error",
+    error,
+  });
+  return failure;
+};
+
 /** Send the exact admitted charge and keep Square's evidence as a tagged
  * result. Unknown internal errors still propagate. */
 export const refundSquareCharge = async (
   getClient: GetSquarePaymentClient,
   request: AuthorizedRefundRequest<"square">,
-): Promise<RefundAttemptResult> => {
-  const client = await getClient();
-  if (!client) return { kind: "not_sent", reason: "not_configured" };
-  let answer: { refund: SquareRefund };
-  try {
-    answer = await client.refunds.refundPayment({
-      amountMoney: {
-        amount: BigInt(request.charge.captured.amount),
-        currency: request.charge.captured.currency,
-      },
-      idempotencyKey: request.authorization.idempotencyKey,
-      paymentId: request.paymentReference,
-    });
-  } catch (error) {
-    const failure = squareRefundFailure(error);
-    logError({
-      code: ErrorCode.SQUARE_REFUND,
-      detail: failure
-        ? `outcome=${failure.kind} reason=${failure.reason}`
-        : "outcome=thrown reason=internal_error",
-      error,
-    });
-    if (failure) return failure;
-    throw error;
-  }
-  return refundResult(answer.refund, request);
-};
+): Promise<RefundAttemptResult> =>
+  askProvider({
+    account: await getClient(),
+    ask: (client: SquarePaymentClient) =>
+      client.refunds.refundPayment({
+        amountMoney: {
+          amount: BigInt(request.charge.captured.amount),
+          currency: request.charge.captured.currency,
+        },
+        idempotencyKey: request.authorization.idempotencyKey,
+        paymentId: request.paymentReference,
+      }),
+    failure: loggedSquareRefundFailure,
+    judge: (answer) => refundResult(answer.refund, request),
+    unconfigured: REFUND_NOT_SENT,
+  });

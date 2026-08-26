@@ -50,6 +50,7 @@ describe("error codes", () => {
       STRIPE_SESSION: "E_STRIPE_SESSION",
       STRIPE_SIGNATURE: "E_STRIPE_SIGNATURE",
       STRIPE_WEBHOOK_SETUP: "E_STRIPE_WEBHOOK_SETUP",
+      SUMUP_WEBHOOK: "E_SUMUP_WEBHOOK",
       VALIDATION_CONTENT_TYPE: "E_VALIDATION_CONTENT_TYPE",
       VALIDATION_FORM: "E_VALIDATION_FORM",
       WEBHOOK_PRICE_SIGNATURE: "E_WEBHOOK_PRICE_SIGNATURE",
@@ -98,6 +99,7 @@ describe("error codes", () => {
       E_STRIPE_SESSION: "Stripe session retrieval failed",
       E_STRIPE_SIGNATURE: "Stripe signature verification failed",
       E_STRIPE_WEBHOOK_SETUP: "Stripe webhook setup failed",
+      E_SUMUP_WEBHOOK: "SumUp webhook could not be read",
       E_VALIDATION_CONTENT_TYPE: "Invalid content type",
       E_VALIDATION_FORM: "Form validation error",
       E_WEBHOOK_PRICE_SIGNATURE:

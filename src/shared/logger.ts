@@ -162,6 +162,10 @@ const ERROR_DEFS = {
     "E_STRIPE_WEBHOOK_SETUP",
     "Stripe webhook setup failed",
   ],
+
+  // SumUp does not sign its callbacks, so an unreadable body is all its door
+  // can refuse.
+  SUMUP_WEBHOOK: ["E_SUMUP_WEBHOOK", "SumUp webhook could not be read"],
   VALIDATION_CONTENT_TYPE: [
     "E_VALIDATION_CONTENT_TYPE",
     "Invalid content type",

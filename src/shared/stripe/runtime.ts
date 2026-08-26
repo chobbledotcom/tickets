@@ -1,7 +1,6 @@
 import { settings } from "#db/settings.ts";
 import { compact } from "#fp";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { ProviderTransportError } from "#payment/transport-error.ts";
 import { getEnv } from "#shared/env.ts";
 import {
@@ -38,7 +37,6 @@ export const sanitizeStripeError = (error: unknown): string => {
 
 const PRODUCTION_CONFIG = {
   maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
-  timeout: PROVIDER_TIMEOUT_MS,
 } satisfies StripeClientConfig;
 
 interface StripeRuntimeConfig {
@@ -51,7 +49,6 @@ const mockConfig = (): StripeClientConfig | undefined => {
   if (!host) return;
   const port = stripeMock.port(getEnv("STRIPE_MOCK_PORT"));
   return {
-    ...PRODUCTION_CONFIG,
     apiBase: `http://${host}:${port}`,
     maxNetworkRetries: 0,
   };
@@ -89,8 +86,7 @@ const cache = cachedClientFactory({
   isSameConfig: (a: StripeRuntimeConfig, b: StripeRuntimeConfig) =>
     a.secretKey === b.secretKey &&
     a.clientConfig.apiBase === b.clientConfig.apiBase &&
-    a.clientConfig.maxNetworkRetries === b.clientConfig.maxNetworkRetries &&
-    a.clientConfig.timeout === b.clientConfig.timeout,
+    a.clientConfig.maxNetworkRetries === b.clientConfig.maxNetworkRetries,
   missingMessage: "No secret key configured, cannot create client",
   provider: "Stripe",
 });

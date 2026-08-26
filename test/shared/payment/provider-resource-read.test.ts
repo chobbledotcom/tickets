@@ -8,7 +8,6 @@ import {
   judgeThrough,
   parsedBy,
   providerResourceReader,
-  readProviderResource,
   refuseUnless,
   refuseUnlessAll,
 } from "#payment/provider-resource-read.ts";
@@ -30,49 +29,46 @@ const neverJudged = (): never => {
 };
 
 describe("provider resource read", () => {
+  /** A reader for an account this provider has, and a failure reading that
+   *  claims nothing, so each test overrides only what it is about. */
+  const readFrom = (
+    resolve: () => Account | null | Promise<Account | null>,
+    failure: (error: unknown) => ProviderRead<never> | undefined = neverJudged,
+  ) => providerResourceReader(resolve, failure);
+
   test("does not ask an unconfigured provider anything", async () => {
-    expect(
-      await readProviderResource({
-        account: null,
-        ask: neverAsked,
-        failure: neverJudged,
-        judge: neverJudged,
-      }),
-    ).toEqual({ reason: "not_configured", status: "unavailable" });
+    expect(await readFrom(() => null)(neverAsked, neverJudged)).toEqual({
+      reason: "not_configured",
+      status: "unavailable",
+    });
   });
 
   test("hands the account to the call and to the judging", async () => {
     expect(
-      await readProviderResource({
-        account,
-        ask: (given) => Promise.resolve(given.token),
-        failure: neverJudged,
-        judge: (answer, given) => found(`${answer}:${given.token}`),
-      }),
+      await readFrom(() => account)(
+        (given) => Promise.resolve(given.token),
+        (answer, given) => found(`${answer}:${given.token}`),
+      ),
     ).toEqual(found("k:k"));
   });
 
   test("reads an answer that carries nothing as a resource not sent", async () => {
     for (const nothing of [null, undefined]) {
       expect(
-        await readProviderResource({
-          account,
-          ask: () => Promise.resolve(nothing),
-          failure: neverJudged,
-          judge: neverJudged,
-        }),
+        await readFrom(() => account)(
+          () => Promise.resolve(nothing),
+          neverJudged,
+        ),
       ).toEqual({ reason: "missing_documented_resource", status: "invalid" });
     }
   });
 
   test("gives a failed call the meaning its failure reader proves", async () => {
     expect(
-      await readProviderResource({
-        account,
-        ask: () => Promise.reject(new Error("down")),
-        failure: () => ({ reason: "rate_limited", status: "unavailable" }),
-        judge: neverJudged,
-      }),
+      await readFrom(
+        () => account,
+        () => ({ reason: "rate_limited", status: "unavailable" }),
+      )(() => Promise.reject(new Error("down")), neverJudged),
     ).toEqual({ reason: "rate_limited", status: "unavailable" });
   });
 
@@ -80,12 +76,10 @@ describe("provider resource read", () => {
     const ours = new Error("a bug of ours");
     await assertRejects(
       () =>
-        readProviderResource({
-          account,
-          ask: () => Promise.reject(ours),
-          failure: () => undefined,
-          judge: neverJudged,
-        }),
+        readFrom(
+          () => account,
+          () => undefined,
+        )(() => Promise.reject(ours), neverJudged),
       Error,
       "a bug of ours",
     );
@@ -94,14 +88,15 @@ describe("provider resource read", () => {
   test("does not catch a bug in the judging step", async () => {
     await assertRejects(
       () =>
-        readProviderResource({
-          account,
-          ask: () => Promise.resolve("answer"),
-          failure: () => ({ status: "missing" }),
-          judge: () => {
+        readFrom(
+          () => account,
+          () => ({ status: "missing" }),
+        )(
+          () => Promise.resolve("answer"),
+          () => {
             throw new Error("judging bug");
           },
-        }),
+        ),
       Error,
       "judging bug",
     );

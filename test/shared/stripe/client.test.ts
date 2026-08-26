@@ -1,46 +1,43 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createStripeClient } from "#shared/stripe/client.ts";
-import { refundHeaderProbe } from "#test/shared/stripe/refund-header-probe.ts";
 import { stripeResponseFor } from "#test-utils/stripe/responses.ts";
+import { refundKeySentWith, withStripeWire } from "./request/fixtures.ts";
 
 test("maps every used Stripe operation to its endpoint", async () => {
-  const requests: { body: string; method: string; path: string }[] = [];
-  const client = createStripeClient("sk_test_client", {
-    fetch: async (input, init = {}) => {
-      const url = new URL(String(input));
-      const path = url.pathname + url.search;
-      const method = init.method ?? "GET";
-      requests.push({
-        body: String(init.body ?? ""),
-        method,
-        path,
+  const requests = await withStripeWire(
+    [
+      (url, init) =>
+        stripeResponseFor(new URL(url).pathname, init?.method ?? "GET"),
+    ],
+    async (client, wire) => {
+      await client.balance.retrieve();
+      await client.checkout.sessions.create({
+        cancel_url: "https://example.com/cancel",
+        line_items: [],
+        metadata: {},
+        mode: "payment",
+        payment_method_types: ["card"],
+        success_url: "https://example.com/success",
       });
-      return stripeResponseFor(url.pathname, method);
+      await client.checkout.sessions.retrieve("cs/1");
+      await client.paymentIntents.retrieveWithLatestCharge("pi/1");
+      await client.refunds.create({ amount: 1000, payment_intent: "pi_1" });
+      await client.webhookEndpoints.list();
+      await client.webhookEndpoints.list("we/cursor");
+      await client.webhookEndpoints.create({
+        api_version: "2026-04-22.dahlia",
+        enabled_events: ["checkout.session.completed"],
+        url: "https://example.com/payment/webhook",
+      });
+      await client.webhookEndpoints.del("we/1");
+      return wire.sent.map(({ init, url }) => ({
+        body: String(init.body ?? ""),
+        method: init.method ?? "GET",
+        path: new URL(url).pathname + new URL(url).search,
+      }));
     },
-    maxNetworkRetries: 0,
-  });
-
-  await client.balance.retrieve();
-  await client.checkout.sessions.create({
-    cancel_url: "https://example.com/cancel",
-    line_items: [],
-    metadata: {},
-    mode: "payment",
-    payment_method_types: ["card"],
-    success_url: "https://example.com/success",
-  });
-  await client.checkout.sessions.retrieve("cs/1");
-  await client.paymentIntents.retrieveWithLatestCharge("pi/1");
-  await client.refunds.create({ amount: 1000, payment_intent: "pi_1" });
-  await client.webhookEndpoints.list();
-  await client.webhookEndpoints.list("we/cursor");
-  await client.webhookEndpoints.create({
-    api_version: "2026-04-22.dahlia",
-    enabled_events: ["checkout.session.completed"],
-    url: "https://example.com/payment/webhook",
-  });
-  await client.webhookEndpoints.del("we/1");
+    { maxNetworkRetries: 0 },
+  );
 
   expect(requests).toEqual([
     { body: "", method: "GET", path: "/v1/balance" },
@@ -76,14 +73,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
 });
 
 test("sends the supplied idempotency key as the Idempotency-Key header on a refund", async () => {
-  // The probe enables one retry, so a retry-generated key would exist by
-  // default; the caller's key must take precedence over it.
-  const { client, capturedKey } = refundHeaderProbe("sk_test_client");
-
-  await client.refunds.create(
-    { amount: 1000, payment_intent: "pi_1" },
+  expect(await refundKeySentWith("stable-refund-key")).toBe(
     "stable-refund-key",
   );
-
-  expect(capturedKey()).toBe("stable-refund-key");
 });

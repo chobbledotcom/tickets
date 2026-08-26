@@ -12,6 +12,7 @@
  * - No webhook endpoint to set up (return_url is set per checkout)
  */
 
+import * as v from "valibot";
 import { getSumupCheckout } from "#db/sumup-checkouts.ts";
 import {
   type RefundAttemptResult,
@@ -21,7 +22,11 @@ import {
   type AuthorizedRefundRequest,
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
-import { makeCreateCheckoutSession } from "#shared/payment-helpers.ts";
+import { ErrorCode } from "#shared/logger.ts";
+import {
+  makeCreateCheckoutSession,
+  parseWebhookPayload,
+} from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
   RetrieveSessionResult,
@@ -36,6 +41,29 @@ import {
 } from "#shared/sumup/checkout-resolution.ts";
 import { readSumupCharge, sumupRefundOutcome } from "#shared/sumup/money.ts";
 import { sumupApi } from "#shared/sumup.ts";
+
+/** SumUp posts an object carrying two fields. A body that is not an object
+ *  names no checkout at all, and this public door is unsigned, so anyone can
+ *  post one. */
+const SumupWebhookBodySchema = v.object({
+  event_type: v.optional(v.string()),
+  id: v.optional(v.string()),
+});
+
+/** Build the provider-agnostic event from the two fields SumUp posts, or
+ *  nothing when the body is not one of its callbacks. A callback naming
+ *  neither field is still read: resolveWebhookSession refuses a blank id
+ *  before it looks anything up, so that absence is carried through rather
+ *  than guessed at. */
+const sumupWebhookEvent = (body: unknown): WebhookEvent | null => {
+  // valibot reads a list as an object carrying none of the fields, and a
+  // SumUp callback is never a list.
+  if (Array.isArray(body)) return null;
+  const posted = v.safeParse(SumupWebhookBodySchema, body);
+  if (!posted.success) return null;
+  const id = posted.output.id ?? "";
+  return { data: { object: { id } }, id, type: posted.output.event_type ?? "" };
+};
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
@@ -124,24 +152,9 @@ export const sumupPaymentProvider: PaymentProvider = {
 
   verifyWebhookSignature(payload: string): Promise<WebhookVerifyResult> {
     // SumUp does not sign webhooks; authenticity is established in
-    // resolveWebhookSession. We only parse the tiny payload
-    // ({ event_type, id }) into the provider-agnostic event shape here.
-    try {
-      const parsed = JSON.parse(payload) as {
-        event_type?: string;
-        id?: string;
-      };
-      const id = parsed.id ?? "";
-      return Promise.resolve({
-        listing: {
-          data: { object: { id } },
-          id,
-          type: parsed.event_type ?? "",
-        },
-        valid: true,
-      });
-    } catch {
-      return Promise.resolve({ error: "Invalid JSON payload", valid: false });
-    }
+    // resolveWebhookSession. This door only reads the tiny payload.
+    return Promise.resolve(
+      parseWebhookPayload(payload, ErrorCode.SUMUP_WEBHOOK, sumupWebhookEvent),
+    );
   },
 };
