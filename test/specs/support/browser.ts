@@ -225,17 +225,23 @@ export const opensPagesAs =
  * already. Every admin page a story reads starts here. */
 export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
 
-/** Somebody opens one page whose address never changes. */
-export type OpensOneFixedPage = (world: TicketsWorld) => Promise<void>;
+/** Somebody opens one page whose address never changes, and is handed the
+ * window they are looking at it through. A caller that only needs the page
+ * open can ignore what comes back. */
+export type OpensOneFixedPage = (world: TicketsWorld) => Promise<TestBrowser>;
+
+/** Where a page lives: an address that never changes, or one worked out from
+ * the story so far. */
+export type PageAddress = string | ((world: TicketsWorld) => string);
 
 /** The organiser opens one page of their own, named once. Every "the owner
  * looks at X" step is this with a different address, so the address is the
- * only thing each caller says. */
+ * only thing each caller says. The window comes back for a caller that reads
+ * it, and a step that only needs the page open can ignore it. */
 export const opensAdminPageAt =
-  (path: string): OpensOneFixedPage =>
-  async (world) => {
-    await openAdminPage(world, path);
-  };
+  (where: PageAddress): OpensOneFixedPage =>
+  (world) =>
+    openAdminPage(world, typeof where === "string" ? where : where(world));
 
 /** What one of the owner's own pages says right now. Opening and reading are
  * one step, so no caller can assert against a window it opened earlier. */

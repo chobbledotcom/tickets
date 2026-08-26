@@ -17,7 +17,6 @@ import {
   parseDraft,
   resolveRecipientEmails,
   serializeDraft,
-  summarizeProviderResponse,
   targetComposeControl,
   targetFromForm,
   targetFromQuery,
@@ -217,67 +216,6 @@ describe("contactFrequencySummary", () => {
   });
 });
 
-describe("summarizeProviderResponse", () => {
-  test("notes when there were no responses at all", () => {
-    expect(summarizeProviderResponse([])).toBe(
-      "The email provider sent no response.",
-    );
-  });
-
-  test("reports just the status when the body is empty", () => {
-    expect(
-      summarizeProviderResponse([{ body: "", ok: true, status: 200 }]),
-    ).toBe("The email provider responded with HTTP 200.");
-  });
-
-  test("includes the provider's reply body when present", () => {
-    expect(
-      summarizeProviderResponse([
-        { body: '{"id":"abc-123"}', ok: true, status: 200 },
-      ]),
-    ).toBe('The email provider responded with HTTP 200: {"id":"abc-123"}.');
-  });
-
-  test("surfaces a failed batch's status and reason", () => {
-    expect(
-      summarizeProviderResponse([
-        { body: "rate limit exceeded", ok: false, status: 429 },
-      ]),
-    ).toBe("The email provider responded with HTTP 429: rate limit exceeded.");
-  });
-
-  test("de-duplicates identical replies across batches", () => {
-    expect(
-      summarizeProviderResponse([
-        { body: "queued", ok: true, status: 200 },
-        { body: "queued", ok: true, status: 200 },
-      ]),
-    ).toBe("The email provider responded with HTTP 200: queued.");
-  });
-
-  test("joins distinct per-batch replies", () => {
-    expect(
-      summarizeProviderResponse([
-        { body: "queued", ok: true, status: 200 },
-        { body: "rejected", ok: false, status: 422 },
-      ]),
-    ).toBe(
-      "The email provider responded with HTTP 200: queued; HTTP 422: rejected.",
-    );
-  });
-
-  test("truncates an over-long reply", () => {
-    const long = "x".repeat(1000);
-    const summary = summarizeProviderResponse([
-      { body: long, ok: true, status: 200 },
-    ]);
-    expect(summary).toContain("...");
-    // Capped well below the raw body, which is never echoed in full.
-    expect(summary.length).toBeLessThan(long.length);
-    expect(summary).not.toContain(long);
-  });
-});
-
 describe("mailto and unsubscribe footers", () => {
   test("buildMailtoLink addresses a lone recipient directly without BCC", () => {
     // One recipient: there's no one to hide them from, so put them in To.
@@ -340,6 +278,12 @@ describe("mailto and unsubscribe footers", () => {
       '<a href="https://x/u">',
     );
     expect(marketingFooterText("https://x/u")).toContain("https://x/u");
+  });
+
+  test("footers say why the reader is getting the email", () => {
+    const why = "You're receiving this because you registered for one of our";
+    expect(marketingFooterHtml("https://x/u")).toContain(why);
+    expect(marketingFooterText("https://x/u")).toContain(why);
   });
 });
 

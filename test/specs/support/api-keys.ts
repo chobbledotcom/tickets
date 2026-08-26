@@ -10,7 +10,7 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
   findsTheWayInFrom,
-  openAdminPage,
+  opensAdminPageAt,
   opensListAtRow,
   type TakesOneThingDown,
   takesDownFromList,
@@ -40,8 +40,7 @@ const WHAT_THE_SITE_SELLS = "/api/admin/listings";
 /** The owner's own page listing the keys they have handed out, open in front
  * of them. Everything the owner does with a key starts here, the way it would
  * for a real person. */
-const openKeysPage = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, KEYS_PAGE);
+const openKeysPage = opensAdminPageAt(KEYS_PAGE);
 
 /** The owner opens their keys page, and it is theirs to read. */
 export const ownerOpensKeys = async (world: TicketsWorld): Promise<void> => {

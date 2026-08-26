@@ -259,9 +259,8 @@ export const assertPublicHtml = async (
   path: string,
   ...substrings: string[]
 ): Promise<string> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
-  const response = await handleRequest(mockRequest(path));
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  const response = await awaitTestRequest(path);
   return expectHtmlResponse(response, 200, ...substrings);
 };
 

@@ -74,13 +74,8 @@ const cleanupUnlessKept = (
   };
 };
 
-const prepareTestClient = async (triggers = false): Promise<void> => {
-  if (getTestDbResource()) resetDb();
-  // Keep libsql's leaked file descriptors from exhausting the process limit
-  // under high `--parallel` worker counts (see reclaim-fds.ts).
-  maybeReclaimLeakedFds();
-  setupTestEncryptionKey();
-  settings.setup.clearCache();
+/** Drop every cached read a fresh database must not inherit. */
+const invalidateEntityCaches = (): void => {
   invalidateCachesForTable("sessions");
   invalidateUsersCache();
   invalidateListingsCache();
@@ -88,16 +83,22 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   groups.cache.invalidate();
   logisticsAgents.invalidate();
   attendeeStatuses.invalidate();
+};
 
-  // A temp file, not ":memory:": interactive transactions (withTransaction) open
-  // a second connection, and each ":memory:" connection is its own *separate*
-  // empty database — a transaction would see no schema. A file is shared across
-  // connections. `createTestDbClient` keeps the speed settings on it.
-  //
-  // Copy the golden DB (schema + default status, prebuilt by the harness for
-  // the whole run, else built once per isolate — see test-state.ts) rather
-  // than re-running the schema SQL on every test — a file copy is much cheaper
-  // than executing 100+ CREATE TABLE / INDEX / TRIGGER statements.
+/**
+ * Copy the golden database into a fresh temp file and open a client on it,
+ * with `DB_URL` pointed at the copy.
+ *
+ * A temp file, not ":memory:": interactive transactions (withTransaction) open
+ * a second connection, and each ":memory:" connection is its own *separate*
+ * empty database — a transaction would see no schema. A file is shared across
+ * connections. `createTestDbClient` keeps the speed settings on it.
+ *
+ * Copying the golden DB (schema + default status, prebuilt by the harness for
+ * the whole run, else built once per isolate — see test-state.ts) is much
+ * cheaper than executing 100+ CREATE TABLE / INDEX / TRIGGER statements.
+ */
+const openGoldenDbCopy = async (triggers: boolean): Promise<TestDbResource> => {
   const goldenPath = await getOrCreateGoldenDb();
   const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
@@ -105,10 +106,22 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
-  const client = await createTestDbClient(path);
-  setTestDbResource({ client, env, path });
+  return { client: await createTestDbClient(path), env, path };
+};
+
+const prepareTestClient = async (triggers = false): Promise<void> => {
+  if (getTestDbResource()) resetDb();
+  // Keep libsql's leaked file descriptors from exhausting the process limit
+  // under high `--parallel` worker counts (see reclaim-fds.ts).
+  maybeReclaimLeakedFds();
+  setupTestEncryptionKey();
+  settings.setup.clearCache();
+  invalidateEntityCaches();
+
+  const resource = await openGoldenDbCopy(triggers);
+  setTestDbResource(resource);
   using rollback = cleanupUnlessKept(resetDb);
-  setDb(client);
+  setDb(resource.client);
   rollback.keep();
 };
 
@@ -132,14 +145,7 @@ export const setupTransactionalTestDb = async (): Promise<
   // file-backed client per test and runs many `withTransaction` writes.
   maybeReclaimLeakedFds();
   setupTestEncryptionKey();
-  const goldenPath = await getOrCreateGoldenDb();
-  const path = await createTrackedTestDbFile(".db");
-  await Deno.copyFile(goldenPath, path);
-  const env = withEnv({
-    DB_URL: `file:${path}`,
-    DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
-  });
-  const client = await createTestDbClient(path);
+  const { client, env, path } = await openGoldenDbCopy(false);
   setDb(client);
   return async () => {
     setDb(null);
@@ -194,13 +200,7 @@ export const resetDb = (): void => {
     setDb(null);
     settings.setup.clearCache();
     settings.invalidateCache();
-    invalidateUsersCache();
-    invalidateListingsCache();
-    holidays.invalidate();
-    groups.cache.invalidate();
-    logisticsAgents.invalidate();
-    attendeeStatuses.invalidate();
-    invalidateCachesForTable("sessions");
+    invalidateEntityCaches();
     setTestSession(null);
     setDemoModeForTest(false);
     resetEffectiveDomain();

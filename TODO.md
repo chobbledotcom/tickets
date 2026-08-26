@@ -1,5 +1,45 @@
 # TODO — remaining follow-ups
 
+## Remove the alias exports in the test helpers
+
+_Origin: the test-helper duplication pass (`docs/test-duplication.md`). Found
+while reading the helper tree; too many call sites to fold into that change._
+
+Three helper names are second names for a call that already exists, which "No
+alias exports" in AGENTS.md forbids.
+
+- `errorLogged` and `debugLogged` in `test/test-utils/debug-log.ts` are both
+  `logLogged` with no change at all. Export `logLogged` and migrate the 52 call
+  sites across `test/`, then delete both aliases.
+- `getAdminLoginCsrfToken`, `getJoinCsrfToken`, `getSetupCsrfToken` and
+  `getTicketCsrfToken` in `test/test-utils/csrf.ts` are each `extractCsrfToken`
+  with no change. Callers must use `extractCsrfToken`.
+
+Neither is flagged by jscpd, because an alias is too short to reach any
+`minTokens` setting we can use. Both are found by reading.
+
+---
+
+## One way for a test helper to reach the app
+
+_Origin: the test-helper duplication pass (`docs/test-duplication.md`). The
+merges landed; this is the design question they left behind._
+
+`test/test-utils` reaches `handleRequest` two ways. 11 helper modules import it
+statically from `#routes`. The rest go through `sendToApp`, `awaitTestRequest`
+or `testPageHtml` in `mocks.ts`, which import `#routes` lazily so that loading
+the helper module never pulls the app graph in.
+
+Decide which is right and make every helper do it. The lazy seam costs one
+dynamic import for each call and keeps the graph out of an isolate that does not
+need it. The static import is plainer to read. Every test isolate evaluates the
+app graph anyway when it loads a helper that needs it, so measure the cold cost
+of an isolate that does not, before you choose. `test-browser.ts` caches
+`handleRequest` in a private field and is a third way; fold it into whichever
+wins.
+
+---
+
 ## Add a once-per-order option for answer-triggered modifiers
 
 _Origin: Codex review of PR #2150 (the delivery-area pricing guide entry). The
@@ -60,24 +100,6 @@ Left out of the migration that found it, because it changes production copy
 across twenty files rather than the tests being moved.
 
 ---
-## Thread an abort signal through the email send APIs (from PR #2140)
-
-`runEmailLeg` (`scripts/email-sandbox-e2e/run.ts`) races each leg against a
-two-minute timer. The timer only settles the race: an in-flight provider request
-keeps running, so a stalled request can fire one orphan probe after its leg
-reported failed. The harness exits right after the report, and the orphan cannot
-change the summary or the exit status, so the harm today is one duplicate probe
-to a discard or authorized address. Codex and CodeRabbit both asked for a real
-abort on PR #2140. It was declined there because it threads `AbortSignal`
-through `sendEmail`, `deliverRegistrationEmail`, `sendBulkEmails`, and
-`fetchText` for a parameter no production caller passes. If cancellable sends
-ever earn a production caller, add an optional `signal` to those APIs, abort it
-in `legTimeout`, and pass it to both probes.
-
-Review threads:
-<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856012838>
-<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856612016>
-
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
 `logError` sends one `detail` string to the console, the activity log, and
@@ -100,19 +122,6 @@ Start at `logErrorLocal`, `formatErrorMessage`, and `captureServerError` in
 Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2139#discussion_r3855944310>
 ---
-
-## Count Postmark per-message batch errors in `sendBulkEmails` (from PR #2140)
-
-`sendBulkEmails` (`src/shared/email/bulk.ts`) counts a batch as failed only when
-the HTTP response is not ok. Postmark's `/email/batch` can answer 200 with a
-nonzero per-message `ErrorCode` (for example a suppressed or inactive
-recipient), so such a message counts as sent in the bulk report. Codex raised
-this on PR #2140. The email sandbox harness now reads the per-message results
-itself (`postmarkReplyProblems` in `scripts/email-sandbox-e2e/run.ts`), and that
-is the shape to lift into the shared boundary: parse each accepted Postmark
-reply, add the nonzero `ErrorCode` entries to `failed`, and surface them in the
-bulk send report. PR #2140 only adds the harness, so a change to production bulk
-accounting was out of its scope.
 
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 

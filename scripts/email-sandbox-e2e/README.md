@@ -37,11 +37,15 @@ Each leg makes two real API calls with a unique run id in the subject:
    `sendBulkEmails`. This exercises the batch endpoint and the per-provider
    unsubscribe substitution.
 
-A leg passes when the provider accepts both requests. For Postmark the harness
-also reads the per-message results, because its batch endpoint can answer 200
-and still refuse a message inside it. The refusal body is reported when a
-request fails. Each leg has a two-minute allowance, so a provider that stalls
-becomes a failed leg instead of a killed job.
+A leg passes when the provider accepts both requests and the bulk reply accounts
+for the probe message. `sendBulkEmails` reads Postmark's per-message results,
+because its batch endpoint can answer 200 and still refuse a message inside it.
+A reply that refuses the probe fails the leg. A reply that does not account for
+it fails the leg too, because an unconfirmed message is not a sent one. The
+harness reports what the production code found, and the refusal body when a
+request fails. Each leg has a two-minute allowance. A provider that stalls
+becomes a failed leg instead of a killed job, and the harness cancels the
+request it left in flight.
 
 ## Secrets per leg
 
