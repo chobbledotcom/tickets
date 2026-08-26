@@ -85,6 +85,7 @@ describe("Cucumber story catalog", () => {
       "servicing.the-work-coming-up",
       "settings.connecting-an-email-provider",
       "settings.turning-features-on-and-off",
+      "settings.writing-the-emails-the-site-sends",
     ]);
   });
 

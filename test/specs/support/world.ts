@@ -22,6 +22,7 @@ import type {
   CodeOnScreen,
   WhereTheCodeLed,
 } from "#test/specs/support/shown-code.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 import type {
@@ -184,6 +185,9 @@ export interface TicketsWorld extends World, EvidencePages {
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;
+  /** The three parts of an email's wording the owner last saved, kept so a
+   * later step can prove those exact words are what the site stored. */
+  wordingWritten?: EmailContent;
   wordsWritten?: string;
   writeoffBefore?: number;
 }

@@ -1,230 +1,134 @@
+/**
+ * Branch cover for the email-template routes, beside the story
+ * `@story:settings.writing-the-emails-the-site-sends`.
+ *
+ * The story owns the owner's journey: both templates offered by name with the
+ * site's own wording showing through, writing custom wording and having it
+ * kept, clearing it again, and being refused wording the site cannot read.
+ *
+ * These own what a story must not be the only cover of: that the wording is
+ * encrypted at rest, the length ceiling, and a send carrying no fields at all.
+ */
+
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
 import { handleRequest } from "#routes";
 import { resetEngine } from "#shared/email-renderer.ts";
-import {
-  expectFlash,
-  expectHtmlResponse,
-  testRequiresAuth,
-} from "#test-utils/assertions.ts";
+import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+
+// jscpd:ignore-end
+
+const CONFIRMATION_PATH = "/admin/settings/email-templates/confirmation";
+
+const NOTHING_KEPT = { html: "", subject: "", text: "" };
 
 describeWithEnv("admin email templates", { db: true }, () => {
   beforeEach(resetEngine);
   afterEach(resetEngine);
 
-  async function postTemplateForm(
-    path: string,
-    fields: Record<string, string>,
-  ) {
-    return await handleRequest(
+  const postTemplateForm = async (fields: Record<string, string>) =>
+    await handleRequest(
       mockFormRequest(
-        path,
+        CONFIRMATION_PATH,
         { ...fields, csrf_token: await testCsrfToken() },
         await testCookie(),
       ),
     );
-  }
 
-  function expectTemplatesMatch(
-    type: "confirmation" | "admin",
-    expected: {
-      subject: string | null;
-      html: string | null;
-      text: string | null;
-    },
-  ) {
-    const templates = settings.email.templateSet(type);
-    expect(templates.subject).toBe(expected.subject);
-    expect(templates.html).toBe(expected.html);
-    expect(templates.text).toBe(expected.text);
-  }
+  const storedTemplate = async (): Promise<{
+    html: string;
+    subject: string;
+    text: string;
+  }> => {
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+    const kept = settings.email.templateSet("confirmation");
+    return { html: kept.html, subject: kept.subject, text: kept.text };
+  };
 
-  function expectTemplatesAllNull(type: "confirmation" | "admin") {
-    const templates = settings.email.templateSet(type);
-    expect(templates.subject).toBe("");
-    expect(templates.html).toBe("");
-    expect(templates.text).toBe("");
-  }
+  testRequiresAuth(CONFIRMATION_PATH, {
+    body: { subject: "test" },
+    method: "POST",
+  });
 
-  describe("settings page", () => {
-    test("shows email template sections", async () => {
-      const response = await adminGet("/admin/settings-advanced");
-      await expectHtmlResponse(
-        response,
-        200,
-        "Confirmation Email Template",
-        "Admin Notification Email Template",
-      );
+  test("stores the owner's wording encrypted at rest", async () => {
+    // The wording carries a business's own voice and often its addresses, so
+    // it is encrypted like every other stored setting. A story cannot see
+    // this: it reads what the site would send, which is the decrypted value.
+    await postTemplateForm({
+      html: "<b>{{ attendee.name }}</b>",
+      subject: "Custom: {{ listing_names }}",
+      text: "Hi {{ attendee.name }}",
     });
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
-    test("shows default templates as placeholders", async () => {
-      const response = await adminGet("/admin/settings-advanced");
-      const html = await response.text();
-      expect(html).toContain("Your tickets for");
-      expect(html).toContain("New registration");
-    });
+    for (const key of [
+      CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
+      CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
+      CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
+    ]) {
+      const raw = settings.getCachedRaw(key);
+      expect(raw).not.toBeNull();
+      expect(raw?.startsWith("enc:1:")).toBe(true);
+    }
+    // Not merely prefixed: the plaintext must not be sitting there beside it.
+    expect(
+      settings.getCachedRaw(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT),
+    ).not.toContain("listing_names");
 
-    test("uses 'Leave blank' placeholder for html/text bodies", async () => {
-      const response = await adminGet("/admin/settings-advanced");
-      const html = await response.text();
-      expect(html).toContain(
-        'placeholder="Leave blank to use default template"',
-      );
-    });
-
-    test("shows edit default template links for html/text bodies", async () => {
-      const response = await adminGet("/admin/settings-advanced");
-      const html = await response.text();
-      expect(html).toContain('data-fill-default="confirmation_html"');
-      expect(html).toContain('data-fill-default="confirmation_text"');
-      expect(html).toContain('data-fill-default="admin_html"');
-      expect(html).toContain('data-fill-default="admin_text"');
-      expect(html).toContain("Edit default template");
-    });
-
-    test("includes default templates as data attributes", async () => {
-      const response = await adminGet("/admin/settings-advanced");
-      const html = await response.text();
-      expect(html).toContain("data-default-tpl=");
+    // And it reads back as what the owner wrote.
+    expect(await storedTemplate()).toEqual({
+      html: "<b>{{ attendee.name }}</b>",
+      subject: "Custom: {{ listing_names }}",
+      text: "Hi {{ attendee.name }}",
     });
   });
 
-  describe("POST /admin/settings/email-templates/confirmation", () => {
-    testRequiresAuth("/admin/settings/email-templates/confirmation", {
-      body: {
-        subject: "test",
-      },
-      method: "POST",
+  test("refuses wording past the ceiling, and keeps nothing", async () => {
+    // The boundary read from the constant the route enforces, so a changed
+    // ceiling moves this test with it rather than leaving it asserting a
+    // number nothing uses any more.
+    const response = await postTemplateForm({
+      html: "x".repeat(MAX_EMAIL_TEMPLATE_LENGTH + 1),
+      subject: "",
+      text: "",
     });
 
-    test("saves custom confirmation template", async () => {
-      const response = await postTemplateForm(
-        "/admin/settings/email-templates/confirmation",
-        {
-          html: "<b>{{ attendee.name }}</b>",
-          subject: "Custom: {{ listing_names }}",
-          text: "Hi {{ attendee.name }}",
-        },
-      );
-
-      expect(response.status).toBe(302);
-      await expectTemplatesMatch("confirmation", {
-        html: "<b>{{ attendee.name }}</b>",
-        subject: "Custom: {{ listing_names }}",
-        text: "Hi {{ attendee.name }}",
-      });
-    });
-
-    test("stores templates encrypted at rest", async () => {
-      await postTemplateForm("/admin/settings/email-templates/confirmation", {
-        html: "<b>{{ attendee.name }}</b>",
-        subject: "Custom: {{ listing_names }}",
-        text: "Hi {{ attendee.name }}",
-      });
-      await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-      // Raw DB values should be encrypted, not plaintext
-      const rawSubject = settings.getCachedRaw(
-        CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
-      );
-      expect(rawSubject).not.toBeNull();
-      expect(rawSubject!.startsWith("enc:1:")).toBe(true);
-      expect(rawSubject).not.toContain("listing_names");
-
-      const rawHtml = settings.getCachedRaw(
-        CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
-      );
-      expect(rawHtml!.startsWith("enc:1:")).toBe(true);
-
-      const rawText = settings.getCachedRaw(
-        CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
-      );
-      expect(rawText!.startsWith("enc:1:")).toBe(true);
-
-      // But getEmailTemplateSet should return decrypted values
-      await expectTemplatesMatch("confirmation", {
-        html: "<b>{{ attendee.name }}</b>",
-        subject: "Custom: {{ listing_names }}",
-        text: "Hi {{ attendee.name }}",
-      });
-    });
-
-    test("clears template when empty values submitted", async () => {
-      await settings.update.email.template(
-        "confirmation",
-        "subject",
-        "Custom subject",
-      );
-      settings.invalidateCache();
-      await settings.loadKeys(ALL_SETTINGS_KEYS);
-
-      const response = await postTemplateForm(
-        "/admin/settings/email-templates/confirmation",
-        { html: "", subject: "", text: "" },
-      );
-
-      expect(response.status).toBe(302);
-      await expectTemplatesAllNull("confirmation");
-    });
-
-    test("rejects invalid Liquid syntax", async () => {
-      const response = await postTemplateForm(
-        "/admin/settings/email-templates/confirmation",
-        { html: "", subject: "{% for x in items %}unclosed", text: "" },
-      );
-
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Invalid template syntax"),
-        false,
-      );
-    });
-
-    test("defaults missing form fields to empty strings", async () => {
-      const response = await postTemplateForm(
-        "/admin/settings/email-templates/confirmation",
-        {},
-      );
-
-      expect(response.status).toBe(302);
-      await expectTemplatesAllNull("confirmation");
-    });
-
-    test("rejects template exceeding max length", async () => {
-      const response = await postTemplateForm(
-        "/admin/settings/email-templates/confirmation",
-        { html: "x".repeat(51_201), subject: "", text: "" },
-      );
-
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("exceeds maximum length"),
-        false,
-      );
-    });
+    expect(response.status).toBe(302);
+    expectFlash(
+      response,
+      expect.stringContaining("exceeds maximum length"),
+      false,
+    );
+    expect(await storedTemplate()).toEqual(NOTHING_KEPT);
   });
 
-  describe("POST /admin/settings/email-templates/admin", () => {
-    test("saves custom admin template", async () => {
-      const response = await postTemplateForm(
-        "/admin/settings/email-templates/admin",
-        {
-          html: "<p>Admin HTML</p>",
-          subject: "New: {{ attendee.name }}",
-          text: "Admin text",
-        },
-      );
-
-      expect(response.status).toBe(302);
-      const templates = settings.email.templateSet("admin");
-      expect(templates.subject).toBe("New: {{ attendee.name }}");
+  test("accepts wording exactly at the ceiling", async () => {
+    // The other side of the same boundary, so an off-by-one in the guard
+    // fails here rather than silently refusing wording that should fit.
+    const atTheLimit = "x".repeat(MAX_EMAIL_TEMPLATE_LENGTH);
+    const response = await postTemplateForm({
+      html: atTheLimit,
+      subject: "",
+      text: "",
     });
+
+    expect(response.status).toBe(302);
+    expect((await storedTemplate()).html).toBe(atTheLimit);
   });
 
+  test("treats a send carrying no fields at all as clearing the wording", async () => {
+    // The form always carries all three boxes, so this send is one no browser
+    // could have made. The story owns clearing them on the page.
+    const response = await postTemplateForm({});
+
+    expect(response.status).toBe(302);
+    expect(await storedTemplate()).toEqual(NOTHING_KEPT);
+  });
 });

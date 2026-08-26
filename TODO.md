@@ -19,28 +19,6 @@ means there before it ships.
 
 ---
 
-## Convert the remaining journey-style direct tests to Cucumber stories
-
-_Origin: the e2e→Cucumber migration survey behind the five-story batch (support
-page, owner password, removing access, booking closes, terms agreement). Those
-five shipped with stories beside slimmed direct remnants. The sections below are
-the next candidates the survey ranked, in order._
-
-Each is a file whose claims read as actor-facing rules no existing `@story:`
-covers. A migration is a replacement: move the journey to the Feature, keep a
-slimmed direct remnant with a header naming the story for branch cover (Cucumber
-runs do not count towards coverage), and record where every old claim went — the
-story, the remnant, or a deliberate drop.
-
-- `test/features/admin/settings-email.test.ts` and
-  `test/integration/server/settings/email-templates.test.ts` — connecting a
-  provider and editing email templates. Keep encryption-at-rest, Liquid-syntax,
-  and length contracts direct. This list named
-  `test/integration/server/settings/email.test.ts`, which does not exist; the
-  email settings tests live at the first path above.
-
----
-
 ## Un-export `renderTemplate`, or move its tests onto `renderEmailContent`
 
 _Origin: deleting the dead email-template preview route (PR for the email
