@@ -19,7 +19,7 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
 } from "#db/modifiers.ts";
-import { unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -237,8 +237,13 @@ export const answerModifierQuantities = async (
   const quantities = new Map<number, number>();
   for (const [listingIdStr, ids] of entries) {
     const listingId = Number(listingIdStr);
-    // Every key here is a selected listing, so it always has a chosen quantity.
-    const count = listingQuantities.get(listingId)!;
+    // Answers are filed under the order's own lines, so every key here has a
+    // chosen quantity. A miss would price the modifier by NaN, so say so.
+    const count = requiredMapValue(
+      listingQuantities,
+      listingId,
+      `Listing ${listingId} carries answers but no chosen quantity`,
+    );
     const modifierIds = ids.flatMap((id) => modifiersByAnswer.get(id) ?? []);
     for (const modifierId of modifierIds) {
       if (scopeCoversListing(scopes.get(modifierId), listingId)) {
