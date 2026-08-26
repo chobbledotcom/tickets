@@ -8,12 +8,12 @@ import {
   gatewayIsSwitchedOff,
   gatewayWillAnswer,
   historyShownTo,
-  messagesCountedAgainstPhone,
   messagesQueued,
   organiserOpensSomebodysTexts,
   organiserOpensTheTextsPage,
   organiserTexts,
   PHONE_GIVEN,
+  recordAgainstPhone,
   somebodyBooks,
   textingCopy,
 } from "#test/specs/support/texting.ts";
@@ -178,6 +178,19 @@ Then(
     counted: number,
     _who: string,
   ): Promise<void> {
-    expect(await messagesCountedAgainstPhone()).toBe(counted);
+    expect((await recordAgainstPhone()).counted).toBe(counted);
+  },
+);
+
+Then(
+  "the last thing kept against {word}'s phone is {string}",
+  async function (
+    this: TicketsWorld,
+    _who: string,
+    said: string,
+  ): Promise<void> {
+    // The count alone would pass on a text the site filed under the wrong
+    // words, and those words are what the organiser reads back later.
+    expect((await recordAgainstPhone()).lastSaid).toBe(said);
   },
 );

@@ -8,13 +8,14 @@ import {
   everyFeatureName,
   featureNamed,
   featurePageHtml,
+  featureRowOn,
   keepSiteForReadingOnly,
   linkToFeature,
   ownerChoosesFeature,
   ownerLooksAtSettings,
   ownerOpensFeature,
   saveAModifiersItem,
-  statusShownFor,
+  statusIn,
 } from "#test/specs/support/features.ts";
 import {
   answerTicked,
@@ -83,9 +84,11 @@ Then(
     // Every feature's own row, not one word found anywhere: a list that named
     // eight and said Enabled against one would pass a single search.
     for (const name of await everyFeatureName()) {
-      expect(await statusShownFor(list, name)).toBe(
-        t("features.status.disabled"),
-      );
+      // The row has to name the feature too. A row that kept its address and
+      // its status while losing its words is not a feature listed.
+      const row = await featureRowOn(list, name);
+      expect(row).toContain(name);
+      expect(statusIn(row, name)).toBe(t("features.status.disabled"));
     }
   },
 );
@@ -104,9 +107,8 @@ Then(
   "{string} is listed as Enabled",
   async function (this: TicketsWorld, printed: string): Promise<void> {
     const list = whatTheyWereTold(this, ORGANISER);
-    expect(await statusShownFor(list, printed)).toBe(
-      t("features.status.enabled"),
-    );
+    const row = await featureRowOn(list, printed);
+    expect(statusIn(row, printed)).toBe(t("features.status.enabled"));
   },
 );
 
@@ -114,7 +116,11 @@ Then(
   "they are told what {string} does, above the choice",
   async function (this: TicketsWorld, printed: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    const says = t((await featureNamed(printed)).descriptionKey);
+    const feature = await featureNamed(printed);
+    // Named as well as described: a correctly explained page with no name on
+    // it leaves the owner guessing which feature they are about to change.
+    expect(page).toContain(t(feature.labelKey));
+    const says = t(feature.descriptionKey);
     expect(page).toContain(says);
     // Where each sits, not merely that both are there: a page that offered
     // the choice first would ask the owner to decide before reading.

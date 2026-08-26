@@ -107,16 +107,20 @@ export const ownerLooksAtSettings = async (
   keepWhatTheyWereTold(world, ORGANISER, featureListOn(page));
 };
 
-/** The word one feature's own row says, read from that row alone. The list's
- * own introduction uses both words, and every other feature has a row of its
- * own, so anything wider than one row answers for the wrong feature. */
-export const statusShownFor = async (
+/** One feature's own row on the list. Every other feature has a row of its
+ * own and the list's introduction uses both status words, so anything wider
+ * than one row answers for the wrong feature. */
+export const featureRowOn = async (
   list: string,
   printed: string,
 ): Promise<string> => {
   const start = list.indexOf(linkToFeature(await featureNamed(printed)));
   if (start < 0) throw new Error(`The list does not offer "${printed}"`);
-  const row = list.slice(start, list.indexOf("</tr>", start));
+  return list.slice(start, list.indexOf("</tr>", start));
+};
+
+/** The word one row says about where its feature stands. */
+export const statusIn = (row: string, printed: string): string => {
   const said = [
     t("features.status.enabled"),
     t("features.status.disabled"),

@@ -74,6 +74,7 @@ Feature: The organiser sends somebody a text message
       Then the organiser is told the text was queued
       And Nina's history holds "Doors open at seven"
       And the site counts 1 message against Nina's phone
+      And the last thing kept against Nina's phone is "Doors open at seven"
 
   @rule:sms.a-text-that-does-not-get-away-is-said-so
   Rule: A text that does not get away is said so

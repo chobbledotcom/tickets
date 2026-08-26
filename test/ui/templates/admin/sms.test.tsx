@@ -59,9 +59,37 @@ describe("admin sms page", () => {
     expect(html).toContain("Contact Nina");
     expect(html).toContain(PHONE);
     expect(html).toContain("Send a text message");
-    expect(html).toContain('name="message"');
-    expect(html).toContain('value="7"');
-    expect(html).toContain('value="3"');
+    // The box's own limit: the route trims and refuses an empty message but
+    // sets no maximum, so this attribute is the only length guard a normal
+    // send meets.
+    expect(html).toMatch(
+      /name="message"[^>]*maxlength="1000"|maxlength="1000"[^>]*name="message"/,
+    );
+    // Each hidden value bound to its own field: two loose values would pass
+    // just as well with the listing and the attendee swapped.
+    expect(html).toMatch(
+      /name="listing"[^>]*value="7"|value="7"[^>]*name="listing"/,
+    );
+    expect(html).toMatch(
+      /name="attendee"[^>]*value="3"|value="3"[^>]*name="attendee"/,
+    );
+  });
+
+  test("shows a message's markup as text, never as markup", () => {
+    // An inbound text is somebody else's words. The webhook puts them in the
+    // activity log and this table renders them, so markup that survived would
+    // be markup a stranger chose.
+    const html = render({
+      history: [
+        {
+          created: "2026-08-26T10:00:00.000Z",
+          message: "<script>alert(1)</script>",
+        },
+      ],
+    });
+
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
   });
 
   test("warns and offers no form when the gateway is not configured", () => {

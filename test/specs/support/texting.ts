@@ -127,13 +127,16 @@ export const historyShownTo = (world: TicketsWorld): string => {
  * saying nothing went is not the same as nothing being queued. */
 export const messagesQueued = (): Promise<number> => countSmsMessages();
 
-/** How many messages the site has counted against the number they booked
- * with. Read through the site's own contact record, which is what the
- * organiser reads on the person's history page. */
-export const messagesCountedAgainstPhone = async (): Promise<number> =>
-  (
-    await getContactRecord(
-      await hashPhone(PHONE_GIVEN),
-      await getTestPrivateKey(),
-    )
-  ).contactCount;
+/** What the site has kept against the number they booked with: how many
+ * messages, and the last thing said. Read through the site's own contact
+ * record, which is what the organiser reads on the person's history page. */
+export const recordAgainstPhone = async (): Promise<{
+  counted: number;
+  lastSaid: string;
+}> => {
+  const record = await getContactRecord(
+    await hashPhone(PHONE_GIVEN),
+    await getTestPrivateKey(),
+  );
+  return { counted: record.contactCount, lastSaid: record.lastSubject };
+};
