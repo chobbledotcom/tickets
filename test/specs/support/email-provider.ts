@@ -39,7 +39,7 @@ const BUSINESS_EMAIL = "owner@example.com";
 export const KEY_ALREADY_GIVEN = "re_key_from_earlier";
 
 /** The owner opens their advanced settings and keeps what the page said. */
-export const ownerOpensAdvancedSettings = organiserReads(() => ADVANCED_PATH);
+export const ownerOpensAdvancedSettings = organiserReads(ADVANCED_PATH);
 
 /** What the site is set to send with right now, read out of the store rather
  * than off the page, because a saved key is never rendered back. */

@@ -62,12 +62,19 @@ export const organiserSendsAndIsTold = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
-/** Where one page lives, worked out from the world and from whatever the
- * story's own words named — a person, a thing for sale, or nothing at all. */
-export type PageAddress<Args extends unknown[]> = (
+/** Where one page lives: an address that never changes, or one worked out from
+ * the world and from whatever the story's own words named — a person, a thing
+ * for sale, or nothing at all. */
+export type PageAddress<Args extends unknown[] = []> =
+  | string
+  | ((world: TicketsWorld, ...args: Args) => string);
+
+/** The address itself, whichever of the two ways it was given. */
+const addressOf = <Args extends unknown[]>(
+  where: PageAddress<Args>,
   world: TicketsWorld,
   ...args: Args
-) => string;
+): string => (typeof where === "string" ? where : where(world, ...args));
 
 /** The organiser opens one of their own pages and keeps what it said, so the
  * Then steps read the same page the When opened. Curried on which page,
@@ -78,7 +85,7 @@ export const organiserReads = <Args extends unknown[]>(
   where: PageAddress<Args>,
 ): StoryJourney<Args, void> =>
   keepsAnswerAs(ORGANISER, (world, ...args) =>
-    adminPageHtmlAt(world, where(world, ...args)),
+    adminPageHtmlAt(world, addressOf(where, world, ...args)),
   );
 
 /** The organiser writes one message on a page and sends it, keeping what the
@@ -90,7 +97,7 @@ export const writesOneMessage =
     button: () => string | Promise<string>,
   ): StoryJourney<[string, ...Args], void> =>
   async (world, message, ...args) => {
-    const page = await openAdminPage(world, where(world, ...args));
+    const page = await openAdminPage(world, addressOf(where, world, ...args));
     await organiserSendsAndIsTold(world, page, { message }, await button());
   };
 
@@ -230,10 +237,6 @@ export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
  * open can ignore what comes back. */
 export type OpensOneFixedPage = (world: TicketsWorld) => Promise<TestBrowser>;
 
-/** Where a page lives: an address that never changes, or one worked out from
- * the story so far. */
-export type PageAddress = string | ((world: TicketsWorld) => string);
-
 /** The organiser opens one page of their own, named once. Every "the owner
  * looks at X" step is this with a different address, so the address is the
  * only thing each caller says. The window comes back for a caller that reads
@@ -241,7 +244,7 @@ export type PageAddress = string | ((world: TicketsWorld) => string);
 export const opensAdminPageAt =
   (where: PageAddress): OpensOneFixedPage =>
   (world) =>
-    openAdminPage(world, typeof where === "string" ? where : where(world));
+    openAdminPage(world, addressOf(where, world));
 
 /** What one of the owner's own pages says right now. Opening and reading are
  * one step, so no caller can assert against a window it opened earlier. */

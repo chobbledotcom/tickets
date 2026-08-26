@@ -27,7 +27,7 @@ const savePathFor = (which: EmailTemplateType): string =>
   `/admin/settings/email-templates/${which}`;
 
 /** The owner opens their advanced settings and keeps what the page said. */
-export const ownerOpensAdvancedSettings = organiserReads(() => ADVANCED_PATH);
+export const ownerOpensAdvancedSettings = organiserReads(ADVANCED_PATH);
 
 /** The owner writes one email's wording and saves it, through the form the
  * page really serves. */
