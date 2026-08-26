@@ -22,20 +22,16 @@ export type BookingDateSource = Pick<
 >;
 
 /**
- * Shared booking-date fields (date + durationDays).
- *
  * Span rules, one declaration:
  *  - A `customisable_days` listing spans the chosen `dayCount`.
  *  - A non-customisable `daily` listing spans its fixed `duration_days`.
- *  - A `standard` listing spans one dateless day (no range column).
+ *  - A `standard` listing spans one dateless day, with no range column.
  *
- * `dayCount` defaults to `1`, and {@link clampDurationDays} clamps
- * non-finite input back to `1`, so a genuinely optional `dayCount` (a legacy
- * signed session without `day_count`, modelled as `undefined` on
- * `BookingIntent`) flows through that default unchanged — missing day count
- * still means one day. `capacityDateFor` drops the date for date-less
- * (standard) listings whose own cap is a running total, never a per-date
- * count.
+ * A missing `dayCount` still means one day. A legacy signed session without
+ * `day_count` flows through the default unchanged.
+ *
+ * `capacityDateFor` drops the date for a standard listing, whose own cap is a
+ * running total and never a per-date count.
  */
 export const bookingDateFields = (
   listing: BookingDateSource,

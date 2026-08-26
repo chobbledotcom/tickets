@@ -1,15 +1,10 @@
 /**
- * Finish a stored placeholder's refund and money records — on the first
- * delivery and on any later one.
+ * Finish a stored placeholder's refund and money records, on the first delivery
+ * and on any later one.
  *
- * The atomic store writes the ghost, its held claim, the refund authority,
- * and a conservative "refund being arranged" outcome together. Everything
- * after that — sending the refund, posting the ledger legs, recording the
- * authority, the note, releasing the row, advancing the stored outcome — is
- * a tail of idempotent steps. This module owns that tail once: the fresh
- * flow runs it right after the store, and a redelivery whose stored outcome
- * carries the completion marker rebuilds the same work from durable rows and
- * runs it again from wherever a crash stopped it.
+ * Everything after the atomic store is a tail of idempotent steps. This module
+ * owns that tail once. A redelivery rebuilds the same work from durable rows
+ * and runs it again from wherever a crash stopped it.
  */
 
 import { createSystemNote } from "#db/notes/queries.ts";

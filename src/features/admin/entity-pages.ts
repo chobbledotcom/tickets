@@ -1,18 +1,13 @@
 /**
- * Entity pages — the impure shell of the tabbed admin "edit X" framework.
- * `defineEntityPage` turns one page definition (tabs of typed sections) into
- * the handlers a feature file binds with `entityTabRoutes`.
+ * The impure shell of the tabbed admin "edit X" framework. Tab resolution and
+ * strip building are pure, in `#shared/entity-pages/core.ts`.
  *
- * A GET runs: auth guard → load the entity (null → 404) → resolve the tab
- * against the viewer's visible set (unknown or hidden → 404) → run only that
- * tab's section loaders, which is where the cold-start win comes from →
- * render. Tab resolution and strip building are pure, in
- * `#shared/entity-pages/core.ts`; the section loader below is this
- * framework's one exhaustive kind-dispatch.
+ * A GET runs only the active tab's section loaders. That is where the
+ * cold-start win comes from.
  *
- * A failed POST re-renders the same page at 400 carrying the submitted values
- * and their errors, rather than redirecting and depending on the best-effort
- * form stash surviving to the follow-up GET. Successes redirect as usual.
+ * A failed POST re-renders at 400 carrying the submitted values, rather than
+ * redirects and depends on the best-effort form stash surviving to the next
+ * GET.
  */
 
 import type { ActivityLogEntry } from "#db/activity-log.ts";

@@ -7,19 +7,13 @@
 export type RequestTransform = (request: Request) => Promise<Request>;
 
 /**
- * Read a body-bearing request's body into memory up front and return a fresh
- * Request backed by those bytes, so any later `request.text()` or
- * `request.formData()` reads the buffer rather than the live edge body
- * resource. GET and HEAD carry no body and are returned unchanged.
+ * The Bunny Edge runtime can garbage-collect a request's body resource during
+ * the awaits between the request arriving and its body being read. The read
+ * then throws "BadResource: Cannot read body as underlying resource
+ * unavailable", logged as a generic `E_CDN_REQUEST`.
  *
- * The Bunny Edge runtime can garbage-collect the body resource during the
- * awaits between a request's arrival and its body read, after which the read
- * throws "BadResource: Cannot read body as underlying resource unavailable"
- * (logged as a generic `E_CDN_REQUEST`). The booking and quote flow is the most
- * exposed: `/calculate/:slug` and `/ticket/:slug` read their body only after
- * that work, and the running total posts to `/calculate` on every form change.
- * A buffer first closes the window, as `api/webhooks.ts` does for the same
- * reason.
+ * Buffering the bytes up front closes that window. The booking and quote flow
+ * is the most exposed, because it reads its body only after that work.
  */
 export const bufferRequestBody: RequestTransform = async (request) => {
   if (request.method === "GET" || request.method === "HEAD") return request;

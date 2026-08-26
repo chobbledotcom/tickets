@@ -1,18 +1,10 @@
 /**
- * The versioned, id-free JSON wire format for exporting/importing a single
- * listing or group ("catalog transfer").
+ * The versioned, id-free JSON wire format for one listing or group.
  *
- * A blob is a discriminated union on `kind` (`"listing"` | `"group"`). It never
- * carries database ids: every cross-reference is by **name**, because names are
- * stable across installs while ids are not. Images, ledger data, and attendees
- * are excluded, because a transfer describes the catalog structure and pricing,
- * not the files or the money bound to one install.
- *
- * This schema is the single source of truth for the format. It validates an
- * incoming blob at the import boundary (per-field messages come from
- * {@link formatTransferIssues}) and types the objects the exporter builds.
- * Semantic validation beyond shape happens in `import.ts` on top of a
- * successful parse.
+ * Cross-references are by **name**, never by database id, because names are
+ * stable across installs and ids are not. Images, ledger data and attendees are
+ * excluded: a transfer carries catalog structure and pricing, not the money or
+ * files bound to one install. Validation beyond shape happens in `import.ts`.
  */
 
 import * as v from "valibot";
@@ -160,17 +152,13 @@ const TRANSFER_FIELD_SCHEMAS = {
 } as const;
 
 /**
- * The transferable columns of a listing, keyed in camelCase to match
- * `ListingInput`. Excludes the id/slug/timestamp columns (regenerated on
- * import) and the image/attachment columns (out of scope). Optional fields are
- * omitted rather than defaulted so the importing table applies its own column
- * defaults; `name` and `maxAttendees` are the only structural requirements.
+ * Optional fields are omitted rather than defaulted, so the importing table
+ * applies its own column defaults.
  *
- * `strictObject` (here and in every transfer schema below): the format is
- * versioned and exact-version gated, so an unknown key is a mistake — a
- * misspelled field (`hidde`) or relationship key (`parent` for `parents`) is
- * rejected with a field error rather than silently dropped, which would
- * otherwise import a listing missing that column or its whole parent/group set.
+ * `strictObject`, here and below, because the format is exact-version gated. A
+ * misspelled key (`hidde`, or `parent` for `parents`) must fail rather than be
+ * dropped, which would import a listing missing that column or its whole
+ * parent/group set.
  */
 const ListingFieldsSchema = v.strictObject(
   projectCatalogFields(listingCatalogFields, "schema", TRANSFER_FIELD_SCHEMAS),

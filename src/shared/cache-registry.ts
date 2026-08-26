@@ -33,20 +33,16 @@ export const getAllCacheStats = (): CacheStat[] =>
   [...providers].map((p) => p());
 
 /**
- * Table → cache invalidation registry.
+ * A cache declares its own table plus any table a DB trigger writes through to.
+ * The listings cache depends on `listing_attendees` for that reason.
  *
- * A cache declares the physical tables whose mutation must clear it: its own
- * table, plus any table a DB trigger writes through to. The listings cache
- * depends on `listing_attendees` for that reason, because triggers there
- * maintain the listings aggregate columns. The db client inspects every write
- * statement's target table and fires the registered invalidators, so no write
- * path has to remember to invalidate by hand. Caches push their invalidator in
- * at load time, which keeps the low-level client free of static imports of them.
+ * The db client sniffs every write's target table and fires the registered
+ * invalidators, so no write path has to remember to invalidate by hand. Caches
+ * push their invalidator in at load time, which keeps the client free of static
+ * imports of them.
  *
- * Column-gated registrations narrow the UPDATE case: a dependency with
- * `whenColumns` only fires when the UPDATE assigns at least one listed column.
- * INSERT, DELETE, and REPLACE always fire regardless of the gate, because a
- * row that enters or leaves always shifts the aggregates.
+ * INSERT, DELETE and REPLACE ignore a `whenColumns` gate, because a row that
+ * enters or leaves always shifts the aggregates.
  */
 
 /** What a write narrows to, for column-gated invalidation. */

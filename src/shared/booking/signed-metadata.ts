@@ -11,20 +11,15 @@ import { mapNotNullish } from "#fp";
 import type { BookingItem } from "#shared/booking-intent.ts";
 
 /**
- * Signed-metadata edge provenance.
+ * The tag lets the webhook reconstruct a line's canonical `nodeKey` and re-check
+ * it against current config, which catches an operator who removed or swapped
+ * an edge while the buyer's checkout was open.
  *
- * A signed line tags each top-level line with a compact edge so the webhook can
- * reconstruct the line's canonical {@link BookingTree} `nodeKey` and re-check it
- * still resolves against current config. That catches an operator who removed or
- * swapped an edge (a package member, a required child) while the buyer's
- * checkout was open. The tag is deliberately tiny (`k` one char, `r` a group id)
- * so nested-package metadata still fits the provider entry/value caps.
+ * It is deliberately tiny (`k` one char, `r` a group id), so nested-package
+ * metadata still fits the provider entry and value caps.
  *
- * Only a *package member* top-level line needs a tag. A standalone or regular
- * group line reconstructs to `listing:<id>`, and a folded child is carried in
- * the `allocations` map instead, because a child reached under two parents
- * collapses to one line. The `"g"` code is decoded for completeness but never
- * emitted, as a regular group books its members as standalone listing lines.
+ * Only a *package member* line needs one. A folded child rides in `allocations`
+ * instead, because a child reached under two parents collapses to one line.
  */
 
 /** The compact edge fields spread onto a {@link BookingItem}: a package member
@@ -98,17 +93,14 @@ const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
 };
 
 /**
- * Whether any signed line's edge no longer resolves against the current tree — a
- * package member that is no longer a member, or a folded child whose parent edge
- * was removed/swapped mid-checkout. Each top-level (non-folded) line must map to
- * a current `nodeKey`; a line whose current node carries required-child edges
- * must have SOME of those children in the order — an allocation for the parent
- * or a child's own line — else an edge ADDED mid-checkout would book the parent
- * without the add-on the current page requires; each allocation's child must
- * resolve under its parent line's reconstructed `nodeKey` (and that parent line
- * must itself be present). The caller fails such an order closed so it takes
- * the `price_changed` refund rather than booking a stale bundle. Per-line price
- * drift is checked separately.
+ * Whether any signed line's edge no longer resolves against the current tree.
+ *
+ * A line whose current node carries required-child edges must have SOME of
+ * those children in the order. Otherwise an edge ADDED mid-checkout would book
+ * the parent without the add-on the current page requires.
+ *
+ * The caller fails such an order closed, so it takes the `price_changed` refund
+ * rather than books a stale bundle. Per-line price drift is checked separately.
  */
 /** Total folded (allocated) quantity per child id across every allocation. */
 const allocatedQtyByChild = (

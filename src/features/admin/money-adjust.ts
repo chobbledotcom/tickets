@@ -1,18 +1,12 @@
 /**
- * Shared owner-only handler for a manual money correction (decision 14).
+ * Shared owner-only handler for a manual money correction (decision 14). The
+ * difference from the *current* projection posts as a `writeoff` adjustment
+ * leg, never as external cash.
  *
- * The listing-income and modifier-revenue adjustment forms are the same shape:
- * an owner submits a corrected figure, and the difference from the *current*
- * projection posts as a `writeoff` adjustment leg, never external cash. This
- * curries the one differing bit — entity, field, poster, and messages — out of
- * the common parse → load → post → log → redirect flow, so both call sites
- * share it. Owner-only and CSRF/form-authed, like the other admin mutations.
- *
- * The entity is loaded only to confirm it exists and to label the log. The
- * SUBMITTED target goes straight to `adjust`, which recomputes the delta from
- * the current projection read INSIDE its own write transaction. A double-submit
- * is therefore idempotent for a given target: the second recompute already sees
- * the first's adjustment and posts a zero-delta no-op.
+ * The SUBMITTED target goes straight to `adjust`, which recomputes the delta
+ * INSIDE its own write transaction. A double-submit is therefore idempotent for
+ * a given target: the second recompute already sees the first's adjustment and
+ * posts a zero-delta no-op.
  */
 
 import { logActivity } from "#db/activity-log.ts";

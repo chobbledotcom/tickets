@@ -401,19 +401,15 @@ export const resolvedByNodeKey = (
 };
 
 /**
- * Fold every in-cart parent's selected children into the order by walking the
- * booking tree (server-side validation). Each
- * top-level node with a positive quantity and child edges folds its bookable
- * children — a package member, a group member and a standalone parent all take
- * the same path — expanding the listing set + quantity/custom-price maps +
- * selected ids so every downstream per-listing path sees a child as an ordinary
- * line. A parent with no bookable child is rejected (sold out). Child fields under
- * a zero-quantity parent are ignored, not read. No-op when no parent applies.
+ * A package member, a group member and a standalone parent all take the same
+ * path, so every downstream per-listing path sees a folded child as an ordinary
+ * line.
  *
- * Pure: `resolved` maps each node's key to the availability-resolved
- * {@link TicketListing} (isClosed/isSoldOut/group-clamped maxPurchasable) the fold
- * needs, and `holidays` is fetched by the caller — so the same tree always folds
- * the same way.
+ * A parent with no bookable child is rejected as sold out. Child fields under a
+ * zero-quantity parent are ignored, not read.
+ *
+ * Pure: the caller resolves availability and fetches `holidays`, so the same
+ * tree always folds the same way.
  */
 export const foldBookingTree = (
   tree: BookingTree,

@@ -31,17 +31,11 @@ export type PaymentCspConfig = {
 };
 
 /**
- * Build CSP header value
- * Non-embeddable pages get frame-ancestors 'none' to prevent clickjacking.
- * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
- * if embed host restrictions are configured.
- * Every provider uses a server-side redirect flow rather than an embedded SDK,
- * so form-action is the only directive that names provider hosts. It takes
- * them from the provider registry.
- * When Botpoison is enabled, connect-src allows the contact form's browser
- * widget to reach the Botpoison challenge API.
- * img-src additionally allows OpenStreetMap tiles — the attendee Logistics
- * tab's map loads its tile images straight from tile.openstreetmap.org.
+ * An embeddable page omits frame-ancestors here. `applySecurityHeaders` adds it
+ * when embed host restrictions are configured.
+ *
+ * Every provider redirects server-side rather than embeds an SDK, so
+ * form-action is the only directive naming provider hosts.
  */
 export const buildCspHeader = (
   embeddable: boolean,

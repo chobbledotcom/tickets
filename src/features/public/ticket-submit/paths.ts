@@ -90,17 +90,13 @@ export const publicReservationAmount = async (): Promise<
 };
 
 /**
- * Complete a reservation without a payment provider: create the attendee
- * atomically, consume any resolved modifier stock (rolling the order back on
- * a sold-out race), record answers, then notify and redirect.
+ * Complete a reservation without a payment provider. A sold-out race rolls the
+ * whole order back.
  *
- * Used for every cart whose final priced total is zero — a free listing, a
- * paid listing discounted to zero, or a zero-price listing whose modifiers net
- * to zero after pricing — and for every cart when payments are disabled (the
- * existing disabled-is-free behaviour). Either way the modifiers the pricing
- * engine resolved are persisted here, so a zero-total or disabled-payments
- * order still records modifier usage and consumes stock — keeping a
- * stock-limited answer tier capped across free bookings, not just paid ones.
+ * Reached for every zero-total cart, and for every cart when payments are
+ * disabled. Either way the resolved modifiers are persisted and their stock
+ * consumed, so a stock-limited answer tier stays capped across free bookings,
+ * not only paid ones.
  */
 export const handleFreePath = async (
   params: PathParams & {

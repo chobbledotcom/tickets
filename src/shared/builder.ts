@@ -1,18 +1,9 @@
 /**
- * Site builder — creates new Tickets instances via Bunny or Deno Deploy APIs.
+ * Site builder — creates new Tickets instances via Bunny or Deno Deploy.
  *
- * Both flows start the same way. Each fetches the latest release code from
- * GitHub. Each auto-provisions a database (Bunny or Turso) when dbUrl and
- * dbToken are absent.
- *
- * Bunny then:
- * 1. Creates an edge script with the code.
- * 2. Enables cookies on the linked pull zone (DisableCookies: false).
- * 3. Sets the DB credentials, a generated DB_ENCRYPTION_KEY, BUNNY_SCRIPT_ID,
- *    and host secrets copied from the host environment.
- * 4. Publishes the script.
- *
- * Deno Deploy instead creates an app, sets the env vars, and deploys the code.
+ * Both flows auto-provision a database when dbUrl and dbToken are absent.
+ * Bunny additionally needs cookies enabled on the linked pull zone
+ * (DisableCookies: false), or sessions do not survive the CDN.
  */
 
 import { toBase64 } from "#crypto/utils.ts";

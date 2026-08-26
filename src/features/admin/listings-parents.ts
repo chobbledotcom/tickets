@@ -113,18 +113,12 @@ type ChildOnlyAddOnResolver = (
 ) => Promise<string | null>;
 
 /**
- * Reject a parent→children edge set that the inherited-date booking model or the
- * v1 add-on scoping can't honour, returning a user-facing error (or null when
- * every edge is allowed). Combines the structural nesting blocks (single-level
- * only — a parent can't be a child, a child can't be a parent), the shared
- * per-edge field rules ({@link edgeFieldError}: no renewal tiers, daily child
- * needs a daily parent, matching durations), and the unsupported child-scoped
- * add-on hard block (a child carrying an opt-in add-on reachable *only* through
- * the suppressed child — {@link childOnlyAddOnName}).
+ * Reject a parent→children edge set the inherited-date booking model or the v1
+ * add-on scoping cannot honour. Nesting is single-level only.
  *
- * An **empty** child set is always allowed: it clears (or no-ops) the listing's
- * edges, so a listing that is itself a child can still save its blank children
- * form, and a stuck nested state can be cleared.
+ * An **empty** child set is always allowed. It clears the listing's edges, so a
+ * listing that is itself a child can still save its blank children form, and a
+ * stuck nested state can be cleared.
  */
 const childEdgeError = async (
   parent: EdgeListing,
@@ -203,17 +197,13 @@ const childOnlyAddOnResolver = async (
 };
 
 /**
- * Shared child-edge diff + validation for the HTML form and the admin JSON API,
- * so both enforce one rule set. Drops self-edges and unknown ids, loads the
- * nesting state, and runs every block in {@link childEdgeError} before reporting
- * the cleaned ids the caller should write with `setChildIds`.
+ * Shared child-edge validation for the HTML form and the admin JSON API, so
+ * both enforce one rule set.
  *
- * `parent` is an {@link EdgeListing} (not the full row) so the admin API can
- * validate **would-be** edge fields BEFORE the row is written (atomicity): a
- * create has no persisted row yet, and an update's
- * rename/type change must not persist when an edge is rejected. A create passes
- * a placeholder id (no real listing can reference it, so the self-edge / nesting
- * / add-on-reachability checks behave as for a not-yet-existing parent).
+ * `parent` is an {@link EdgeListing}, not the full row, so the API can validate
+ * **would-be** edge fields BEFORE the row is written. A create has no persisted
+ * row yet, and an update's rename must not persist when an edge is rejected. A
+ * create passes a placeholder id no real listing can reference.
  */
 export const validateChildEdges = async (
   parent: EdgeListing,
@@ -253,20 +243,14 @@ export const validateChildEdges = async (
 };
 
 /**
- * Copy a duplicated parent's required-child edges onto its new copy, validated
- * through the same {@link validateChildEdges} path the editor uses. `childIds`
- * is the child set the copy must require: for a single-listing duplicate the
- * source's children verbatim, for a group duplicate the ones remapped to the
- * clones (intra-group) or kept (external).
- *
  * On validation failure the edge set is **not** written, and the error is
- * **returned** so the caller can warn the operator. A duplicate that silently
- * drops its required-child gate turns a gated listing into a standalone
- * bookable copy. Returns null on success.
+ * **returned** rather than thrown, so the caller can warn the operator. A
+ * duplicate that silently drops its gate turns a gated listing into a
+ * standalone bookable copy.
  *
- * Validation legitimately fails for a copy when an edge is reachable only
- * through the *source*, for example a child whose opt-in add-on is scoped to
- * `{originalParent, child}` and so becomes a dead end from the new parent.
+ * Validation legitimately fails when an edge is reachable only through the
+ * *source*, for example a child whose opt-in add-on is scoped to
+ * `{originalParent, child}` and so dead-ends from the new parent.
  */
 export const copyDuplicatedChildEdges = async (
   newParent: ListingWithCount,
@@ -345,20 +329,13 @@ const copyGroupEdgePlans = async (
 };
 
 /**
- * Recreate the parent/child edges of a duplicated group on its clones. `idMap`
- * maps each source member's id to its clone. Two directions are walked so a
- * cloned child is never left standalone-bookable:
+ * Both edge directions are walked, so a cloned child is never left
+ * standalone-bookable:
  *
- * 1. Outgoing — each cloned parent requires the remapped child set: an
- *    intra-group child points at its clone, while a child outside the group
- *    keeps referencing the original, so the clone still has a working gate.
- * 2. Incoming — for a cloned child whose parent sits outside the group,
- *    recreate `outsideParent → clonedChild` so the clone stays a child rather
- *    than standalone. A parent inside the group is already covered above.
- *
- * Each set goes through {@link copyDuplicatedChildEdges}, which returns rather
- * than throws, so a clone can be left gateless while the bulk duplicate
- * succeeds. Both walks' distinct errors are returned for the operator warning.
+ * 1. Outgoing — a child inside the group points at its clone, a child outside
+ *    it keeps referencing the original. Either way the clone has a gate.
+ * 2. Incoming — a cloned child whose parent sits outside the group needs
+ *    `outsideParent → clonedChild`, or it becomes standalone.
  */
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,

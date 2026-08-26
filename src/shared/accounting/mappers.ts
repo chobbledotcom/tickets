@@ -244,17 +244,13 @@ export const asOrderLegs = (
 ): Transfer[] => inputs.map((leg) => ({ ...leg, id: 0, recordedAt }));
 
 /**
- * Map a full refund of one booking order to its ledger legs: the inverse of each
- * stored leg (revenue/fee/modifier handed back to the attendee, cash returned to
- * the world as `refund_cash`), all under one new refund event group derived from
- * the booking's. The booking legs are read from the ledger, so the reversal
- * matches exactly what was posted — whatever the booking's modifiers, fee, or
- * deposit were — and `balanceOf(revenue)` returns to zero on a full refund.
+ * The booking legs are read from the ledger, so the reversal matches exactly
+ * what was posted, whatever the modifiers, fee or deposit were.
  *
- * Refunds don't use `reverses_id`: that one-slot link is for admin voids, while
- * a refund posts many rows and repeat/partial refunds are scoped by event group
- * instead (decision 8). Posting is idempotent — the derived refund event group
- * means a re-submit replays as a no-op.
+ * Refunds do not use `reverses_id`. That one-slot link is for admin voids,
+ * while a refund posts many rows, so repeat and partial refunds are scoped by
+ * event group instead (decision 8). The derived group also makes a re-submit
+ * replay as a no-op.
  */
 export const mapRefund = async (
   facts: RefundFacts,

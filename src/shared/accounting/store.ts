@@ -1,18 +1,13 @@
 /**
- * Write path for the transfers ledger. Posting is idempotent per business
- * event: the legs of one event share an `eventGroup`, and {@link postTransfers}
- * writes that whole set once. If the same event is posted again it must present
- * the exact same legs (checked in {@link file://./conflicts.ts}) rather than
- * quietly append to a charge that was already handled.
+ * Posting is idempotent per business event. A re-post must present the exact
+ * same legs rather than quietly append to a charge already handled.
  *
- * The post runs in one write transaction and reads the already-stored legs
- * through that same transaction. So if two requests post the same event at once,
- * the database write lock makes them take turns: one does the real post, the
- * other sees those rows and replays as a no-op. No half-written event is left
- * behind, so the insert needs no conflict clause.
+ * The post reads the already-stored legs through its own write transaction, so
+ * two concurrent posts of the same event take turns on the database write lock:
+ * one does the real post, the other replays as a no-op. No half-written event
+ * is left behind, so the insert needs no conflict clause.
  *
- * The clock lives here (`recorded_at`), and the business time (`occurred_at`)
- * comes from the caller.
+ * The clock lives here (`recorded_at`). The business time comes from the caller.
  */
 
 import type { InValue } from "@libsql/client";
@@ -95,18 +90,12 @@ export const assertPostable = (inputs: TransferInput[]): void => {
 };
 
 /**
- * Post the legs of one business event inside an already-open transaction, so the
- * ledger write commits or rolls back together with the domain rows it
- * accompanies. Same idempotency rules as {@link postTransfers}: if the event is
- * already stored the whole leg set must match, otherwise the legs are inserted.
- * An empty post is a no-op.
+ * The ledger write commits or rolls back together with the domain rows it
+ * accompanies.
  *
- * The conflict checks are {@link planGroup}'s — the single implementation both
- * write paths share — against a snapshot read THROUGH this transaction, so the
- * database write lock makes concurrent posters of the same event take turns.
- * Because that in-transaction read is authoritative, the inserts stay plain (no
- * `OR IGNORE`), which keeps constraint violations loud: a double void that
- * slipped past the checks still fails on the unique `reverses_id` index.
+ * Because the in-transaction snapshot read is authoritative, the inserts stay
+ * plain, with no `OR IGNORE`. That keeps constraint violations loud: a double
+ * void slipping past the checks still fails on the unique `reverses_id` index.
  */
 export const postTransfersTx = async (
   tx: TxScope,
@@ -266,20 +255,14 @@ const planGroup = (
 };
 
 /**
- * Post the legs of MANY business events as ONE atomic batch: the reusable
- * primitive for an operation that produces several independent events at once,
- * such as a bulk refund or an import. Each element of `groups` is one event's
- * legs (sharing one `eventGroup`), validated and inserted with the same rules as
- * {@link postTransfersTx}, but all committed together.
- *
  * A write transaction per event contends the single SQLite writer, and a
  * read-then-write inside one long interactive transaction lets open result sets
  * block the commit at scale. So a read-only prepare validates every group
  * against a bulk-loaded {@link BatchSnapshot}, then a write-only apply commits.
  *
- * Idempotent per event, ordered to match `groups`, and all-or-nothing. Conflict
- * detection is the snapshot's, so a *later* repost of a changed event is caught
- * while a concurrent race on the same references is absorbed by INSERT OR IGNORE.
+ * Conflict detection is the snapshot's, so a *later* repost of a changed event
+ * is caught while a concurrent race on the same references is absorbed by
+ * INSERT OR IGNORE.
  */
 const assertUniqueGroups = (groups: TransferInput[][]): void => {
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);

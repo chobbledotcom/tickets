@@ -230,21 +230,12 @@ export const finishFoldedBooking = async (
   });
 };
 
-/** Charge or create a folded parent+children order. Paid (with a provider): a
- * multi-item checkout session whose webhook creates and pairs the rows. Free,
- * or paid with no provider: all rows created atomically, all-or-nothing, with
- * the full value recorded as owed.
+/** `parentThankYouUrl` exists because a folded child makes the order
+ * multi-listing, so the success handler's single-listing-id derivation drops
+ * the parent's configured redirect. The paid intent carries it instead.
  *
- * `parentThankYouUrl` (on {@link FoldedBookingInput}) is the single parent's
- * configured redirect. A folded child makes the order multi-listing, so the
- * success handler's single-listing-id derivation drops it. The paid intent
- * carries it instead, which mirrors the web folded-parent path in
- * `ticket-submit.ts`.
- *
- * A PACKAGE order's member lines carry their group id, stamped onto each row
- * and edge-tagged in the signed metadata, which drives the webhook's package
- * revalidation. The caller builds the per-path `items` and conceals them for a
- * HIDDEN package, so the hosted checkout never reveals a concealed member. */
+ * The caller conceals a HIDDEN package's per-path `items`, so the hosted
+ * checkout never reveals a concealed member's name. */
 const completeFoldedBooking = async (
   request: Request,
   input: FoldedBookingInput,

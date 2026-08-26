@@ -158,20 +158,13 @@ const resolveErrorTemplateId = (form: FormParams): string | null => {
 };
 
 /**
- * After creating a listing from the duplicate form, copy the source parent's
- * required-child edges onto the new copy so a duplicated parent keeps its
- * required-child gate (the children themselves are not duplicated — the copy
- * references the same existing child listings). Reads the source id from the
- * hidden `duplicated_from` field; a plain create (no source) is a no-op, as is a
- * source with no children or the flag being off ({@link copyDuplicatedChildEdges}).
+ * Copy a duplicated parent's required-child edges onto its new copy, so the
+ * copy keeps its gate. The children are not duplicated: the copy references the
+ * same child listings.
  *
- * Returns a **warning** message when the gate could NOT be copied (the edges
- * failed re-validation on the copy — e.g. the child carries an opt-in add-on
- * reachable only through the source parent, so it would dead-end from the new
- * one). Surfacing this instead of swallowing it prevents a silent
- * "success" that leaves the copy a gateless standalone bookable listing; the copy
- * is kept but the operator is told its required children weren't carried over.
- * Returns null when the edges copied cleanly (or there were none to copy).
+ * Returns a **warning** when the gate could not be copied, because the edges
+ * failed re-validation on the copy. A swallowed failure would leave a gateless
+ * standalone bookable listing behind a silent success.
  */
 const copyEdgesFromDuplicateSource = async (
   form: FormParams,
@@ -226,17 +219,13 @@ const renderCreateListingError = async (
 };
 
 /**
- * Parse a multipart listing submission into form params, apply demo overrides,
- * and lock the editor-forbidden fields. Shared by create and edit.
+ * Editors must not set a listing's webhook URL. The registration webhook posts
+ * full attendee PII to that endpoint, so a crafted URL exfiltrates exactly the
+ * data the keyless editor role cannot otherwise read. They must not toggle
+ * `use_defaults` either, because that changes the same effective webhook.
  *
- * Editors must not set or change a listing's webhook URL: the registration
- * webhook posts full attendee PII (name, email, phone, address, …) to that
- * endpoint, so a crafted URL would exfiltrate exactly the data the keyless
- * editor role can't otherwise read. They also must not toggle `use_defaults`,
- * because inheriting (or dropping) an operator-set webhook default changes the
- * same effective webhook behind their back. Both fields are forced to their
- * existing values — empty / off on create — so any value an editor submits is
- * ignored. (Both are also hidden from the editor form; this is the backstop.)
+ * Both fields are forced to their existing values, so a submitted value is
+ * ignored. The editor form hides them too. This is the backstop.
  */
 const parseListingForm = (
   session: AdminSession,

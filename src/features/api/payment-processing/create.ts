@@ -159,18 +159,14 @@ export type HonourResult =
 
 /**
  * Keep only the text-answer refs that still carry a resolved string id (`s`).
+ * A ref without one is corrupt metadata, and the text is not recoverable from
+ * it. Drop that one answer loudly rather than bind an undefined id: the payment
+ * is already captured, so the booking must still finalize instead of
+ * crash-loop the webhook.
  *
- * A ref without one is corrupt metadata: a checkout signed before string-id
- * resolution was fixed to read its ids back from the primary could drop the `s`
- * (a replica answered the read before the insert replicated, so the id resolved
- * to undefined and JSON.stringify omitted the key). The referenced text is not
- * recoverable from the metadata, so we drop that single answer and surface it
- * loudly, rather than bind an undefined id — the payment is already captured, so
- * the booking must still finalize instead of crash-looping the webhook.
- *
- * The check is the schema rather than a plain "is it there", because the refs
- * come from metadata that was parsed but never validated: an id that is null, a
- * word, or half a number would otherwise be written as a real answer.
+ * The check is the schema, not a presence test, because these refs were parsed
+ * but never validated. A null, a word, or half a number would otherwise be
+ * written as a real answer.
  */
 const textRefsWithStringId = (
   refs: TextAnswerRef[],

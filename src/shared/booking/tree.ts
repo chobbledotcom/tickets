@@ -1,19 +1,14 @@
 import type { ListingWithCount } from "#types";
 
 /**
- * The canonical **booking-node tree** — one in-memory model that represents a
- * standalone listing, an ad-hoc multi-slug cart, a regular group, a package, and
- * parent/child folding as configurations of the *same* structure. Phase 1
- * introduces the model and a pure builder
- * ({@link import("./build-tree.ts").buildBookingTree}); later phases move the
- * fold, pricing, capacity, and revalidation walks onto it.
+ * One in-memory model representing a standalone listing, a multi-slug cart, a
+ * regular group, a package, and parent/child folding as configurations of the
+ * *same* structure.
  *
- * This module is the single source of truth for two things every booking surface
- * must agree on:
- *  - **node identity** — the `nodeKey`/edge scheme a node is addressed by; and
- *  - **form field names** — the exact `name="…"` a node's control emits and the
- *    submit/API side parses back. Render and submit importing the *same* helpers
- *    is what keeps "behaviour identical" mechanically true rather than a promise.
+ * The single source of truth for two things every booking surface must agree
+ * on: the `nodeKey` scheme a node is addressed by, and the exact `name="…"` its
+ * control emits. Render and submit importing the *same* helpers is what keeps
+ * "behaviour identical" mechanically true rather than a promise.
  */
 
 /** What page/root a tree was entered through. A standalone listing (or an ad-hoc

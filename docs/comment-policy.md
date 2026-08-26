@@ -333,9 +333,54 @@ The last width step is the single biggest piece of work left in this plan.
 
 Take 100 → 90 in one or two cheap steps first.
 
-One judgement worth recording for whoever takes the next step: bringing a
-docstring under a limit is not a formatting job. Most of what came out was
-narration of the code below, or an account of what the code used to be — the
-[banned classes](#the-three-claims-tested), not the load-bearing "why". When a
-comment resists shortening, that is the signal AGENTS.md describes: the code
-underneath probably wants the clarity instead.
+## How to bring a comment under the cap
+
+Bringing a docstring under a limit is not a formatting job. The first attempt at
+16 lines proved that: compressing prose to save a line produced run-on
+sentences, broken grammar, and one file where a numbered step list became a
+39-word paragraph. Compression is the wrong move. These three are the right
+ones.
+
+### Know who reads it
+
+An AI writes and reads most of this code. That reader parses the whole file, and
+it follows a name into another file. So a comment earns its place only when it
+says something the reader **cannot** get from the code.
+
+It cannot get these:
+
+- a constraint from outside the repository — an edge subrequest budget, a
+  provider quirk, a replica catch-up window, a runtime that drops a body;
+- a rule the code permits but must never do — "never gate a security decision on
+  this cache";
+- an invariant that lives in another file, and the reason it holds;
+- a trap, where the obvious reading of the code is the wrong one.
+
+It gets everything else by reading. A list of what each function does, a
+restatement of a type, an account of the structure below, a worked example of a
+call — all of that is narration, and narration is what fills these comments.
+
+### Delete first
+
+Cut every line the reader can derive. Most module headers lose most of their
+text this way. `keyed-cache.ts` went from 16 lines to 6, and the 6 are one
+replica-lag reason and one security rule.
+
+### Relocate what survives but does not belong
+
+A long passage that is genuinely durable is usually in the wrong place:
+
+| The passage is                                      | It belongs in      |
+| --------------------------------------------------- | ------------------ |
+| a business rule                                     | a `specs/` Feature |
+| a design decision, with its options                 | `docs/`            |
+| a deferred idea                                     | `TODO.md`          |
+| a per-function contract, sitting in a module header | that function      |
+
+Split the comment, move the part that belongs elsewhere, and leave a pointer
+only when the reader needs one.
+
+### Then measure
+
+Do not aim at the cap. Delete what the reader does not need, and the cap stops
+mattering. Set the next number from what the tree lands on.

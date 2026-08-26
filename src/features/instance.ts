@@ -1,18 +1,14 @@
 /**
- * Inter-instance machine endpoint (builder / main instance only).
+ * `POST /instance/site-credentials` exists so the upgrade Action can back each
+ * built site up before it deploys, without GitHub holding per-site tokens.
  *
- * `POST /instance/site-credentials`, bearing `MAIN_INSTANCE_KEY`, returns the
- * database credentials for every built site, so the upgrade Action can back
- * each site up before it deploys, without GitHub holding per-site tokens.
+ * `?tier=alpha|beta|release` returns only sites whose own channel accepts that
+ * tier: release reaches every site, beta reaches beta and alpha, alpha only
+ * alpha.
  *
- * `?tier=alpha|beta|release` (default `release`) returns only the sites whose
- * own channel accepts that tier: release reaches every site, beta reaches beta
- * and alpha, alpha only alpha. An unrecognised tier is a 400.
- *
- * The route 404s unless MAIN_INSTANCE_KEY is set, and the key is compared in
- * constant time. Each token is that site's own FULL-ACCESS credential, so treat
- * the response as write-capable production secrets. DB_ENCRYPTION_KEY is never
- * included, which leaves PII unreadable to whoever holds it.
+ * Each token returned is that site's own FULL-ACCESS credential, so treat the
+ * response as write-capable production secrets. DB_ENCRYPTION_KEY is never
+ * included, which leaves PII unreadable to whoever holds one.
  */
 
 import { constantTimeEqual } from "#crypto/utils.ts";
