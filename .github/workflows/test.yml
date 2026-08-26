@@ -43,6 +43,15 @@ jobs:
       - name: Check user-facing copy
         run: deno task check:copy
 
+      - name: Check comment size
+        run: deno task check:comments
+
+      - name: Check module import names
+        run: deno task check:imports
+
+      - name: Check known-equivalent mutant records
+        run: deno task check:equivalents
+
       - name: Build edge bundle
         run: deno task build:edge
 
