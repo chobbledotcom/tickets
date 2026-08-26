@@ -3,8 +3,8 @@
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: Somebody sets a new site up
-  A site arrives with nothing in it — no owner, nothing for sale, nobody who
-  can sign in. The first person to open it sets it up: they choose a name and a
+  A site arrives with nothing in it — no owner, nothing for sale, nobody who can
+  sign in. The first person to open it sets it up: they choose a username and a
   password, say which country they are in, and accept the terms. That happens
   once, and from then on the site belongs to them.
 
@@ -22,7 +22,7 @@ Feature: Somebody sets a new site up
 
   @rule:access.setting-up-makes-the-first-owner
   Rule: Setting up makes the first owner
-    The name and password chosen during setup are the ones that work
+    The username and password chosen during setup are the ones that work
     afterwards. Setting up and then not being able to sign in would leave the
     site permanently shut, with nobody able to try again.
 
