@@ -46,7 +46,6 @@ import {
 import {
   choiceCalled,
   choiceUnlikeTheirs,
-  combinedPath,
   fillsIn,
   fillsOwnPageIn,
   firstDayOffered,
@@ -59,6 +58,7 @@ import {
   THE_CUSTOMER,
   wordsInBox,
 } from "#test/specs/support/refused-orders.ts";
+import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,

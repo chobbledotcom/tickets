@@ -11,9 +11,10 @@ import { LISTING_FILTERS } from "#shared/listing-filter.ts";
 import {
   browserSeenBy,
   CUSTOMER,
+  type OpensOneFixedPage,
   ORGANISER,
-  openAdminPage,
   openAsNewcomer,
+  opensAdminPageAt,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
@@ -26,11 +27,7 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 const THE_LIST = "/admin/";
 
 /** The organiser opens their list. */
-export const organiserOpensList = async (
-  world: TicketsWorld,
-): Promise<void> => {
-  await openAdminPage(world, THE_LIST);
-};
+export const organiserOpensList: OpensOneFixedPage = opensAdminPageAt(THE_LIST);
 
 /** Whether somebody is looking at the list right now — either as it comes, or
  * already narrowed. Any other admin page is not the list, however much of the

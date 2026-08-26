@@ -7,7 +7,7 @@ import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
 import { mapNotNullish } from "#fp";
-import { PROVIDER_TIMEOUT_MS } from "#shared/payment/provider-timeout.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-fetch.ts";
 import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 

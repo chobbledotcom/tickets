@@ -12,6 +12,7 @@ describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
       "access.changing-the-owners-password",
+      "access.inviting-someone-to-help",
       "access.letting-another-system-in",
       "access.removing-a-persons-access",
       "access.setting-a-site-up",
@@ -25,6 +26,7 @@ describe("Cucumber story catalog", () => {
       "attendees.removing-one-part-of-an-order",
       "attendees.the-record-kept-about-someone",
       "attendees.the-states-a-booking-can-be-in",
+      "attendees.the-ticket-a-customer-holds",
       "attendees.writing-to-the-people-who-booked",
       "bookings.add-ons-sold-on-their-own",
       "bookings.adding-a-booking-by-hand",
@@ -48,6 +50,7 @@ describe("Cucumber story catalog", () => {
       "catalogue.describing-what-is-on-offer",
       "catalogue.narrowing-a-long-list-down",
       "catalogue.taking-a-group-off-sale",
+      "catalogue.the-list-a-visitor-reads",
       "pages.asking-the-host-for-help",
       "pages.hearing-from-a-visitor",
       "pages.telling-people-the-news",
