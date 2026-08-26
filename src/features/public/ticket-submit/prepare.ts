@@ -113,8 +113,8 @@ export const prepareOrder = async (
   await applyQrTokenOverride(form, ctx, customPricesResult);
 
   // Fold each in-cart parent's selected child into the order: expand the listing
-  // set + quantity/custom-price maps + selected ids, so every per-listing path
-  // below sees children as ordinary lines.
+  // set and the quantity/custom-price maps, so every per-listing path below
+  // sees children as ordinary lines.
   const fold = await foldSelectedChildren(
     ctx,
     form,
