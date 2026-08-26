@@ -3,9 +3,9 @@
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: Somebody sets a new site up
-  A site arrives with nothing in it — no owner, nothing for sale, nobody who
-  can sign in. The first person to open it sets it up: they choose a username
-  and a password, say which country they are in, and accept the terms. That happens
+  A site arrives with nothing in it — no owner, nothing for sale, nobody who can
+  sign in. The first person to open it sets it up: they choose a username and a
+  password, say which country they are in, and accept the terms. That happens
   once, and from then on the site belongs to them.
 
   @rule:access.a-site-nobody-set-up-is-not-open

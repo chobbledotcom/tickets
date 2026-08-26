@@ -4,12 +4,12 @@
 @edition:managed @edition:self-hosted
 @surface:admin
 Feature: The owner invites somebody to help
-  The owner adds the people who may sign in from one page: a username, and
-  what that person is allowed to do. The site hands back a one-time link to pass on,
-  and holds nobody twice under one username. That same page lists everybody who may
-  sign in, beside what each may do and whether they have joined yet. What the
-  person invited then does with the link is another story, told where an editor
-  sets their own account up.
+  The owner adds the people who may sign in from one page: a username, and what
+  that person is allowed to do. The site hands back a one-time link to pass on,
+  and holds nobody twice under one username. That same page lists everybody who
+  may sign in, beside what each may do and whether they have joined yet. What
+  the person invited then does with the link is another story, told where an
+  editor sets their own account up.
 
   @rule:access.an-invite-hands-back-a-link-to-pass-on
   Rule: An invite hands back a link to pass on
