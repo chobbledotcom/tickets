@@ -193,6 +193,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/db/backup.ts:BACKUP_FRESHNESS_WINDOW_MS",
   // Attendees page size used in production (same-file) but test pattern doesn't detect same-file usage
   "shared/db/attendees/queries.ts:ATTENDEES_PAGE_SIZE",
+  // Service-cost replay message thrown in production (same file, by
+  // recordServiceCost) but the pattern doesn't detect same-file usage. Exported
+  // so the test asserts the thrown message rather than hardcoding a copy.
+  "shared/db/attendees/servicing.ts:COST_REPLAY_MISMATCH",
   // Payments-retention floor guard used in production (same-file: validates
   // PRUNE_PAYMENTS_RETENTION_DAYS at import) but test pattern doesn't detect same-file usage
   "shared/limits.ts:assertPaymentsRetentionSafe",
