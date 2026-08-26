@@ -8,11 +8,13 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { namedThings } from "#test/specs/support/memory.ts";
+import { getEnv } from "#shared/env.ts";
+import { namedThings, putsThingsBack } from "#test/specs/support/memory.ts";
 import {
   asksIfThereIs,
   keepsAnswerAs,
   keepWhatTheyWereTold,
+  scenarioEnv,
   stillThere,
   type TicketsWorld,
   theBooking,
@@ -47,6 +49,21 @@ describe("the story's shared lookups", () => {
 
   test("fails loudly when no booking was set up", () => {
     expect(() => theBooking(worldWith({}))).toThrow("the booking");
+  });
+
+  describe("changing the environment for one scenario", () => {
+    test("changes it, and puts it back when the scenario ends", async () => {
+      // The real put-things-back, so this proves the undo is registered in a
+      // shape it will actually accept at the end of a scenario.
+      const cleanup = putsThingsBack();
+      const world = worldWith({ cleanup });
+
+      scenarioEnv(world, { TICKETS_WORLD_TEST: "on" });
+      expect(getEnv("TICKETS_WORLD_TEST")).toBe("on");
+
+      await cleanup.runAll();
+      expect(getEnv("TICKETS_WORLD_TEST")).toBeUndefined();
+    });
   });
 
   describe("what the story kept for somebody", () => {

@@ -39,7 +39,14 @@ describe("admin sms page", () => {
   beforeAll(setupAdminPageTest);
 
   test("counts what is waiting and offers nobody to write to", () => {
-    const html = render({ queueCount: 2, target: undefined });
+    // Built without a target rather than with an undefined one: the page's
+    // own type says a target is either there or the key is absent.
+    const html = smsPage(OWNER_SESSION, {
+      configured: true,
+      flash: {},
+      history: [],
+      queueCount: 2,
+    });
 
     expect(html).toContain("Messages awaiting delivery: 2");
     expect(html).not.toContain("Send a text message");
