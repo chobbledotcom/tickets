@@ -13,11 +13,13 @@ import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
 import {
   filter,
+  flatMap,
   map,
   mapNotNullish,
   pipe,
   sort,
   sum,
+  sumOf,
   unique,
   uniqueBy,
 } from "#fp";
@@ -33,6 +35,7 @@ import {
   type BulkEmailPayload,
   type BulkRecipient,
 } from "#shared/email/bulk.ts";
+import { cappedReply } from "#shared/email.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
@@ -248,10 +251,6 @@ export const contactFrequencySummary = (counts: number[]): string => {
 
 // ── Provider reply ──────────────────────────────────────────────────
 
-/** Cap on how much of a provider's reply we echo back, so a verbose body can't
- * blow a flash cookie or flood the activity log. */
-const MAX_PROVIDER_REPLY_LENGTH = 300;
-
 /**
  * One-line, human-readable summary of what the email provider said in reply to
  * a bulk send. Providers acknowledge a batch with queued message IDs or, on
@@ -259,6 +258,22 @@ const MAX_PROVIDER_REPLY_LENGTH = 300;
  * log. Distinct per-batch replies are de-duplicated and the result is
  * length-capped.
  */
+/** What the provider refused, said plainly after the reply itself. Empty
+ * when it took every message, so a clean send reads as it always did. */
+const refusedNote = (responses: readonly BulkBatchResponse[]): string => {
+  const batches = responses as BulkBatchResponse[];
+  const count = sumOf((r: BulkBatchResponse) => r.refusals.count)(batches);
+  if (count === 0) return "";
+  const reasons = pipe(
+    flatMap((r: BulkBatchResponse) => r.refusals.reasons),
+    unique,
+  )(batches);
+  const noun = count === 1 ? "message" : "messages";
+  const why =
+    reasons.length === 0 ? "" : ` ${cappedReply(reasons.join("; "))}.`;
+  return ` It refused ${count} ${noun}.${why}`;
+};
+
 export const summarizeProviderResponse = (
   responses: readonly BulkBatchResponse[],
 ): string => {
@@ -270,12 +285,8 @@ export const summarizeProviderResponse = (
     }),
     unique,
   )(responses as BulkBatchResponse[]);
-  const joined = parts.join("; ");
-  const trimmed =
-    joined.length > MAX_PROVIDER_REPLY_LENGTH
-      ? `${joined.slice(0, MAX_PROVIDER_REPLY_LENGTH)}...`
-      : joined;
-  return `The email provider responded with ${trimmed}.`;
+  const replied = `The email provider responded with ${cappedReply(parts.join("; "))}.`;
+  return `${replied}${refusedNote(responses)}`;
 };
 
 // ── mailto fallback ─────────────────────────────────────────────────

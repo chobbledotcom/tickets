@@ -1,8 +1,10 @@
+import * as v from "valibot";
 import { chunk } from "#fp";
 import {
   bearerAuth,
   type EmailConfig,
   type EmailRequest,
+  failureReason,
   mailgunForm,
   sendEmailRequest,
 } from "#shared/email.ts";
@@ -31,10 +33,69 @@ type BulkBatchBuilder = (
   batch: BulkRecipient[],
 ) => EmailRequest;
 
+/** What an accepted batch reply says about the messages inside it. */
+export interface PerMessageRefusals {
+  /** How many of the batch's recipients the provider refused. */
+  count: number;
+  /** One reason per refused message, redacted for the operator. */
+  reasons: string[];
+}
+
+/** Reads an accepted reply for messages the provider refused anyway. */
+type AcceptedReplyReader = (
+  body: string,
+  batchSize: number,
+) => PerMessageRefusals;
+
 interface BulkProviderSpec {
   build: BulkBatchBuilder;
   maxBatchSize: number;
+  readAcceptedReply: AcceptedReplyReader;
 }
+
+const NOTHING_REFUSED: PerMessageRefusals = { count: 0, reasons: [] };
+
+/** Most providers take or refuse a whole batch, so the status says it all. */
+const acceptedMeansSent: AcceptedReplyReader = () => NOTHING_REFUSED;
+
+/** Postmark answers a batch with one result per message. `ErrorCode` is 0
+ * on the messages it took. */
+const PostmarkResultsSchema = v.array(
+  v.looseObject({ ErrorCode: v.number(), Message: v.string() }),
+);
+
+/** The reply as JSON, or null when it is not JSON. A body we cannot parse
+ * is a body we cannot read, which the caller counts as unconfirmed. */
+const replyJson = (body: string): unknown => {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
+};
+
+/** Postmark can answer 200 and still refuse a message inside the batch, for
+ * example a suppressed recipient. Postmark answers for every message it
+ * took, so a reply we cannot read, or one that skips a message, leaves the
+ * whole batch unconfirmed. That counts as refused, not as sent. */
+const readPostmarkReply: AcceptedReplyReader = (body, batchSize) => {
+  const results = v.safeParse(PostmarkResultsSchema, replyJson(body));
+  if (!results.success || results.output.length !== batchSize) {
+    return {
+      count: batchSize,
+      reasons: [
+        "Postmark accepted the batch but its reply did not answer for every message",
+      ],
+    };
+  }
+  const refused = results.output.filter((result) => result.ErrorCode !== 0);
+  return {
+    count: refused.length,
+    reasons: refused.map((result) =>
+      failureReason(`Postmark error ${result.ErrorCode}: ${result.Message}`),
+    ),
+  };
+};
 
 const mailgunBulk =
   (host: string): BulkBatchBuilder =>
@@ -66,8 +127,13 @@ const BULK_PROVIDERS = {
   "mailgun-eu": {
     build: mailgunBulk("api.eu.mailgun.net"),
     maxBatchSize: 1000,
+    readAcceptedReply: acceptedMeansSent,
   },
-  "mailgun-us": { build: mailgunBulk("api.mailgun.net"), maxBatchSize: 1000 },
+  "mailgun-us": {
+    build: mailgunBulk("api.mailgun.net"),
+    maxBatchSize: 1000,
+    readAcceptedReply: acceptedMeansSent,
+  },
   postmark: {
     build: (config, template, batch) => [
       "https://api.postmarkapp.com/email/batch",
@@ -87,6 +153,7 @@ const BULK_PROVIDERS = {
       })),
     ],
     maxBatchSize: 500,
+    readAcceptedReply: readPostmarkReply,
   },
   resend: {
     build: (config, template, batch) => [
@@ -101,6 +168,7 @@ const BULK_PROVIDERS = {
       })),
     ],
     maxBatchSize: 100,
+    readAcceptedReply: acceptedMeansSent,
   },
   sendgrid: {
     build: (config, template, batch) => [
@@ -128,12 +196,15 @@ const BULK_PROVIDERS = {
       },
     ],
     maxBatchSize: 1000,
+    readAcceptedReply: acceptedMeansSent,
   },
 } as const satisfies Record<EmailConfig["provider"], BulkProviderSpec>;
 
 export interface BulkBatchResponse {
   body: string;
   ok: boolean;
+  /** Messages this batch's own reply refused, even when it was accepted. */
+  refusals: PerMessageRefusals;
   status: number;
 }
 
@@ -147,6 +218,7 @@ export interface BulkSendResult {
 export const sendBulkEmails = async (
   config: EmailConfig,
   payload: BulkEmailPayload,
+  signal: AbortSignal | null = null,
 ): Promise<BulkSendResult> => {
   const spec = BULK_PROVIDERS[config.provider];
   const { recipients, ...template } = payload;
@@ -156,13 +228,19 @@ export const sendBulkEmails = async (
   for (const batch of batches) {
     const { ok, status, text } = await sendEmailRequest(
       spec.build(config, template, batch),
+      signal,
     );
-    responses.push({ body: text, ok, status });
-    if (!ok) {
-      failed += batch.length;
+    // A refused request loses the whole batch; an accepted one can still
+    // refuse messages inside it.
+    const refusals = ok
+      ? spec.readAcceptedReply(text, batch.length)
+      : { count: batch.length, reasons: [] };
+    responses.push({ body: text, ok, refusals, status });
+    failed += refusals.count;
+    if (refusals.count > 0) {
       logError({
         code: ErrorCode.EMAIL_SEND,
-        detail: `bulk status=${status} provider=${config.provider} count=${batch.length}`,
+        detail: `bulk status=${status} provider=${config.provider} count=${refusals.count}`,
       });
     }
   }

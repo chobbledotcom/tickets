@@ -27,8 +27,11 @@ const payload = (n: number): BulkEmailPayload => ({
   text: "Hi",
 });
 
+/** Nothing inside the batch was refused. */
+const tookAll = { count: 0, reasons: [] };
+
 /** The stub fetch returns an empty 200, so each batch records this response. */
-const okBatch = { body: "", ok: true, status: 200 };
+const okBatch = { body: "", ok: true, refusals: tookAll, status: 200 };
 
 /** Two-recipient payload with the bulk unsubscribe placeholder — used by the
  *  SendGrid and Mailgun personalization tests to check per-recipient
@@ -56,6 +59,20 @@ describe("sendBulkEmails", () => {
     const [url] = fetch.getFetchArgs();
     expect(url).toBe(expectedUrl);
   };
+
+  const postmark: EmailConfig = { ...config, provider: "postmark" };
+
+  /** Postmark's batch reply: one result per message, 0 when it was taken. */
+  const postmarkReply = (...codes: number[]) =>
+    JSON.stringify(
+      codes.map((ErrorCode) => ({
+        ErrorCode,
+        Message: ErrorCode === 0 ? "OK" : "Inactive recipient",
+      })),
+    );
+
+  const replyWith = (body: string, status = 200) =>
+    fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
 
   test("Resend posts one batch request with all recipients", async () => {
     const result = await sendBulkEmails(config, payload(3));
@@ -110,12 +127,12 @@ describe("sendBulkEmails", () => {
   });
 
   test("Postmark posts to the batch endpoint with Postmark field names", async () => {
-    const result = await sendBulkEmails(
-      { ...config, provider: "postmark" },
-      payload(2),
-    );
+    replyWith(postmarkReply(0, 0));
+    const result = await sendBulkEmails(postmark, payload(2));
 
-    expectPostedBatch(result, "https://api.postmarkapp.com/email/batch");
+    expect(result.failed).toBe(0);
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe("https://api.postmarkapp.com/email/batch");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe("re_key");
     const body = fetch.getFetchJsonBody();
     expect(body[0]).toEqual({
@@ -214,7 +231,14 @@ describe("sendBulkEmails", () => {
         attempted: 3,
         batches: 1,
         failed: 3,
-        responses: [{ body: "nope", ok: false, status: 500 }],
+        responses: [
+          {
+            body: "nope",
+            ok: false,
+            refusals: { count: 3, reasons: [] },
+            status: 500,
+          },
+        ],
       });
       const logged = errorSpy.calls.some((c) =>
         String(c.args[0]).includes("E_EMAIL_SEND"),
@@ -223,6 +247,101 @@ describe("sendBulkEmails", () => {
     } finally {
       errorSpy.restore();
     }
+  });
+
+  test("counts a message Postmark refused inside an accepted batch", async () => {
+    replyWith(postmarkReply(0, 406, 0));
+    const result = await sendBulkEmails(postmark, payload(3));
+
+    expect(result.failed).toBe(1);
+    expect(result.responses[0]?.refusals).toEqual({
+      count: 1,
+      reasons: ["Postmark error 406: Inactive recipient"],
+    });
+  });
+
+  test("counts no refusal when Postmark took every message", async () => {
+    replyWith(postmarkReply(0, 0));
+    const result = await sendBulkEmails(postmark, payload(2));
+
+    expect(result.failed).toBe(0);
+    expect(result.responses[0]?.refusals).toEqual(tookAll);
+  });
+
+  test("logs the refused count when an accepted batch refuses a message", async () => {
+    replyWith(postmarkReply(406));
+    const errorSpy = spy(console, "error");
+    try {
+      await sendBulkEmails(postmark, payload(1));
+      const logged = errorSpy.calls.map((c) => String(c.args[0])).join("\n");
+      expect(logged).toContain("E_EMAIL_SEND");
+      expect(logged).toContain("count=1");
+    } finally {
+      errorSpy.restore();
+    }
+  });
+
+  test("blanks an address a Postmark refusal quotes", async () => {
+    replyWith(
+      JSON.stringify([
+        { ErrorCode: 406, Message: "Recipient user0@example.com is inactive" },
+      ]),
+    );
+    const result = await sendBulkEmails(postmark, payload(1));
+
+    const [reason] = result.responses[0]?.refusals.reasons ?? [];
+    expect(reason).toBe("Postmark error 406: Recipient [redacted] is inactive");
+  });
+
+  test("counts the whole batch when an accepted Postmark reply cannot be read", async () => {
+    replyWith("not json at all");
+    const result = await sendBulkEmails(postmark, payload(2));
+
+    expect(result.failed).toBe(2);
+    expect(result.responses[0]?.refusals.reasons).toEqual([
+      "Postmark accepted the batch but its reply did not answer for every message",
+    ]);
+  });
+
+  test("counts the whole batch when a Postmark reply is JSON of the wrong shape", async () => {
+    replyWith('{"Message":"queued"}');
+    const result = await sendBulkEmails(postmark, payload(2));
+
+    expect(result.failed).toBe(2);
+  });
+
+  test("counts the whole batch when Postmark skips a message in its reply", async () => {
+    replyWith(postmarkReply(0));
+    const result = await sendBulkEmails(postmark, payload(2));
+
+    expect(result.failed).toBe(2);
+  });
+
+  test("a provider that answers 200 with prose still counts as sent", async () => {
+    replyWith("queued");
+    const result = await sendBulkEmails(config, payload(2));
+
+    expect(result.failed).toBe(0);
+    expect(result.responses[0]?.refusals).toEqual(tookAll);
+  });
+
+  test("aborting the signal stops the batch request in flight", async () => {
+    const controller = new AbortController();
+    fetch.restubFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          // Fail fast rather than hang when no signal reaches the request.
+          if (!init?.signal)
+            return reject(new Error("no signal reached fetch"));
+          init.signal.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+    const sending = sendBulkEmails(config, payload(1), controller.signal);
+    controller.abort();
+
+    await expect(sending).rejects.toThrow("Aborted");
   });
 
   test("sending no recipients makes no requests", async () => {

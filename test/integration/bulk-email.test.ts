@@ -29,6 +29,10 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
+import type {
+  BulkBatchResponse,
+  PerMessageRefusals,
+} from "#shared/email/bulk.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -217,6 +221,13 @@ describe("contactFrequencySummary", () => {
   });
 });
 
+/** One batch reply. A provider that took every message refuses none. */
+const reply = (
+  status: number,
+  body: string,
+  refusals: PerMessageRefusals = { count: 0, reasons: [] },
+): BulkBatchResponse => ({ body, ok: status < 400, refusals, status });
+
 describe("summarizeProviderResponse", () => {
   test("notes when there were no responses at all", () => {
     expect(summarizeProviderResponse([])).toBe(
@@ -225,42 +236,32 @@ describe("summarizeProviderResponse", () => {
   });
 
   test("reports just the status when the body is empty", () => {
-    expect(
-      summarizeProviderResponse([{ body: "", ok: true, status: 200 }]),
-    ).toBe("The email provider responded with HTTP 200.");
+    expect(summarizeProviderResponse([reply(200, "")])).toBe(
+      "The email provider responded with HTTP 200.",
+    );
   });
 
   test("includes the provider's reply body when present", () => {
-    expect(
-      summarizeProviderResponse([
-        { body: '{"id":"abc-123"}', ok: true, status: 200 },
-      ]),
-    ).toBe('The email provider responded with HTTP 200: {"id":"abc-123"}.');
+    expect(summarizeProviderResponse([reply(200, '{"id":"abc-123"}')])).toBe(
+      'The email provider responded with HTTP 200: {"id":"abc-123"}.',
+    );
   });
 
   test("surfaces a failed batch's status and reason", () => {
-    expect(
-      summarizeProviderResponse([
-        { body: "rate limit exceeded", ok: false, status: 429 },
-      ]),
-    ).toBe("The email provider responded with HTTP 429: rate limit exceeded.");
+    expect(summarizeProviderResponse([reply(429, "rate limit exceeded")])).toBe(
+      "The email provider responded with HTTP 429: rate limit exceeded.",
+    );
   });
 
   test("de-duplicates identical replies across batches", () => {
     expect(
-      summarizeProviderResponse([
-        { body: "queued", ok: true, status: 200 },
-        { body: "queued", ok: true, status: 200 },
-      ]),
+      summarizeProviderResponse([reply(200, "queued"), reply(200, "queued")]),
     ).toBe("The email provider responded with HTTP 200: queued.");
   });
 
   test("joins distinct per-batch replies", () => {
     expect(
-      summarizeProviderResponse([
-        { body: "queued", ok: true, status: 200 },
-        { body: "rejected", ok: false, status: 422 },
-      ]),
+      summarizeProviderResponse([reply(200, "queued"), reply(422, "rejected")]),
     ).toBe(
       "The email provider responded with HTTP 200: queued; HTTP 422: rejected.",
     );
@@ -268,13 +269,68 @@ describe("summarizeProviderResponse", () => {
 
   test("truncates an over-long reply", () => {
     const long = "x".repeat(1000);
-    const summary = summarizeProviderResponse([
-      { body: long, ok: true, status: 200 },
-    ]);
+    const summary = summarizeProviderResponse([reply(200, long)]);
     expect(summary).toContain("...");
     // Capped well below the raw body, which is never echoed in full.
     expect(summary.length).toBeLessThan(long.length);
     expect(summary).not.toContain(long);
+  });
+
+  test("names the messages an accepted batch refused anyway", () => {
+    expect(
+      summarizeProviderResponse([
+        reply(200, "[]", {
+          count: 2,
+          reasons: ["Postmark error 406: Inactive recipient"],
+        }),
+      ]),
+    ).toBe(
+      "The email provider responded with HTTP 200: []. It refused 2 messages." +
+        " Postmark error 406: Inactive recipient.",
+    );
+  });
+
+  test("counts one refused message in the singular", () => {
+    expect(
+      summarizeProviderResponse([
+        reply(200, "[]", { count: 1, reasons: ["Inactive recipient"] }),
+      ]),
+    ).toContain("It refused 1 message.");
+  });
+
+  test("still gives the refused count when no reason came back", () => {
+    expect(
+      summarizeProviderResponse([
+        reply(429, "rate limit exceeded", { count: 100, reasons: [] }),
+      ]),
+    ).toBe(
+      "The email provider responded with HTTP 429: rate limit exceeded." +
+        " It refused 100 messages.",
+    );
+  });
+
+  test("adds the refused counts up across batches", () => {
+    const refusal = { count: 1, reasons: ["Inactive recipient"] };
+    expect(
+      summarizeProviderResponse([
+        reply(200, "[]", refusal),
+        reply(200, "[]", refusal),
+      ]),
+    ).toBe(
+      "The email provider responded with HTTP 200: []. It refused 2 messages." +
+        " Inactive recipient.",
+    );
+  });
+
+  test("caps an over-long list of refusal reasons", () => {
+    const reasons = Array.from({ length: 40 }, (_, i) => `reason ${i} is long`);
+    const summary = summarizeProviderResponse([
+      reply(200, "[]", { count: 40, reasons }),
+    ]);
+
+    expect(summary).toContain("It refused 40 messages.");
+    expect(summary).toContain("...");
+    expect(summary).not.toContain(reasons.join("; "));
   });
 });
 

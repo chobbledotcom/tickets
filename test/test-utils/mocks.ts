@@ -8,7 +8,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import {
   appendTestFormValues,
@@ -480,7 +480,7 @@ export const useFetchStub = () => {
     ref.current.restore();
   });
 
-  const restubFetch = (impl: () => Promise<Response>): void => {
+  const restubFetch = (impl: FetchResponder): void => {
     ref.current.restore();
     ref.current = stubFetch(impl);
   };
