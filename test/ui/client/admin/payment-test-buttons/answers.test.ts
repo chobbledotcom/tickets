@@ -59,6 +59,30 @@ describe("reading a payment provider's test answer", () => {
       ]);
     });
 
+    // A key can carry endpoints while we have recorded none of our own, so
+    // nothing on the list is ours to mark.
+    test("marks nothing when we recorded no endpoint of our own", async () => {
+      const { lines } = await page.press("stripe", {
+        data: {
+          apiKey: VALID_KEY,
+          ok: true,
+          webhooks: [
+            {
+              enabledEvents: ["charge.refunded"],
+              endpointId: "we_theirs",
+              status: "enabled",
+              url: "https://theirs.example/webhook",
+            },
+          ],
+        },
+      });
+      expect(lines.slice(1)).toEqual([
+        "Webhooks: 1 endpoint(s)",
+        "  enabled - https://theirs.example/webhook",
+        "  Events: charge.refunded",
+      ]);
+    });
+
     test("says when Stripe has no webhook endpoints at all", async () => {
       const { lines } = await page.press("stripe", {
         data: { apiKey: VALID_KEY, ok: true, webhooks: [] },
