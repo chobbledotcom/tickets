@@ -72,12 +72,10 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const first = await createTestListing({
         maxAttendees: 5,
         maxQuantity: 5,
-        price: 1000,
       });
       const second = await createTestListing({
         maxAttendees: 5,
         maxQuantity: 5,
-        price: 2500,
       });
       const { items } = await preparedOrder([first.id, second.id], {
         [first.id]: 2,
