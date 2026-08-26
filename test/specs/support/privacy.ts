@@ -19,6 +19,7 @@ import { t } from "#i18n";
 // jscpd:ignore-start
 import {
   openAdminPage,
+  opensAdminPageAt,
   organiserSendsAndIsTold,
 } from "#test/specs/support/browser.ts";
 import {
@@ -70,8 +71,7 @@ const WHAT_ADA_TYPED: Record<WayOfKnowingSomebody, string> = {
 };
 
 /** The organiser's own Privacy page, open in their window. */
-const openPrivacyPage = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, "/admin/privacy");
+const openPrivacyPage = opensAdminPageAt("/admin/privacy");
 
 /** What the Privacy page says right now, read fresh — every rule here is about
  * what the organiser sees the next time they look. */

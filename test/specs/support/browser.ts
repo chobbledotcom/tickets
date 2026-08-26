@@ -152,14 +152,18 @@ export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
 /** Somebody opens one page whose address never changes. */
 export type OpensOneFixedPage = (world: TicketsWorld) => Promise<void>;
 
+/** Where a page lives: an address that never changes, or one worked out from
+ * the story so far. */
+export type PageAddress = string | ((world: TicketsWorld) => string);
+
 /** The organiser opens one page of their own, named once. Every "the owner
  * looks at X" step is this with a different address, so the address is the
- * only thing each caller says. */
+ * only thing each caller says. The window comes back for a caller that reads
+ * it, and a step that only needs the page open can ignore it. */
 export const opensAdminPageAt =
-  (path: string): OpensOneFixedPage =>
-  async (world) => {
-    await openAdminPage(world, path);
-  };
+  (where: PageAddress) =>
+  (world: TicketsWorld): Promise<TestBrowser> =>
+    openAdminPage(world, typeof where === "string" ? where : where(world));
 
 /** The organiser opens one of their own pages, and something is done with
  * the window they are looking at — the opening every organiser action on a

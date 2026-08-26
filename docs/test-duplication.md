@@ -5,9 +5,9 @@ setting we can choose, and records the decision taken and what is left to do.
 
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
-Cucumber support helpers under `test/specs/support` stay at **19 tokens**, which
-the measurements below show is their floor. See [Where we are](#where-we-are)
-for the remaining steps.
+Cucumber support helpers under `test/specs/support` stay at **19 tokens** for
+now, and the work that lets them go lower is named below. See
+[Where we are](#where-we-are) for the remaining steps.
 
 All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
 the setting every config in this repository uses. A count is the number of clone
@@ -39,7 +39,7 @@ why the helper trees can be held tighter than the tree that contains them.
 
 ## What a helper tree costs at each setting
 
-### The Cucumber helpers stay at 19
+### The Cucumber helpers hold at 19 until the curries land
 
 `test/specs/support` reports no clones at 19 tokens. Below that the count rises
 steeply:
@@ -47,29 +47,62 @@ steeply:
 | minTokens | Clone pairs |
 | --------- | ----------- |
 | 19        | 0           |
-| 16        | 78          |
+| 16        | 75          |
 | 14        | 238         |
 | 12        | 444         |
 | 10        | 823         |
 
-The 78 pairs at 16 tokens are not merges. They are matches such as this one,
-between three separate helpers:
+**An earlier version of this document called the pairs at 16 tokens noise, and
+called 19 a floor. That was wrong.** The reasoning is recorded here so that it
+is not repeated. It rested on a sample of eight pairs, and on one argument: that
+a wrapper like this one is already a single call to the shared `openAdminPage`,
+so the merge exists.
 
 ```typescript
 const openKeysPage = (world: TicketsWorld): Promise<TestBrowser> =>
   openAdminPage(world, KEYS_PAGE);
-
-const openPrivacyPage = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, "/admin/privacy");
 ```
 
-Each one is already a single call to the shared `openAdminPage`. The merge
-exists. A tighter net here asks us to undo a correct factoring, which is the
-exact failure the policy warns against.
+The shared call is not what repeats. The wrapper shape repeats, and a curry
+takes it. `browser.ts` already holds that curry:
 
-A second, harder limit applies. `.jscpd.specs.json` scans `src/` alongside the
-support helpers, so a helper that reimplements production logic is flagged
-against the source it copied. `src/` is clean at 19 and cannot go below it:
+```typescript
+const openKeysPage = opensAdminPageAt(KEYS_PAGE);
+```
+
+A classification of all 78 pairs, rather than eight, gives this:
+
+| At 16 tokens, the two sides…               | Pairs |
+| ------------------------------------------ | ----- |
+| call a shared helper — a curry takes them  | 46    |
+| share only an assertion helper             | 5     |
+| match on the signature and the types alone | 27    |
+
+The 46 are merges. The 27 are the honest exception: two unrelated bodies behind
+the same `(world: TicketsWorld, name: string)` parameter list. A named type for
+that signature removes the repetition, and `ActOnOneThing` in
+`test/specs/support/world.ts` is that type already.
+
+### The factories exist, and the pairs mark who never adopted them
+
+Every family the 46 fall into has a factory in `test/specs/support/browser.ts`
+written for it. The pairs pile up at the call sites that hand-rolled the factory
+instead:
+
+| Factory                   | Files that use it | Sites that hand-roll it |
+| ------------------------- | ----------------- | ----------------------- |
+| `opensAdminPageAt`        | 2                 | 4, now 0                |
+| `withAdminPage`           | 1                 | about 21                |
+| `submitRenderedAdminForm` | 2                 | 9                       |
+
+This is why the band read as noise. An under-adopted curry looks exactly like
+unavoidable duplication, because the pairs cluster where the curry is absent.
+
+### The remaining limit is the config, not the helpers
+
+`.jscpd.specs.json` scans `src/` alongside the support helpers, so a helper that
+reimplements production logic is flagged against the source it copied. `src/` is
+clean at 19 and cannot go below it:
 
 | minTokens | Clone pairs in `src/` alone |
 | --------- | --------------------------- |
@@ -77,8 +110,10 @@ against the source it copied. `src/` is clean at 19 and cannot go below it:
 | 17        | 497                         |
 | 16        | 961                         |
 
-A lower number in that config drags `src/` down with it. **19 is the floor for
-the Cucumber helpers.**
+So the number in that config cannot come down. The support helpers need a
+second, support-only config to be held tighter, and that config can be added
+only after the curries below 19 are done. **19 is where the config sits, not
+where the helpers have to stay.**
 
 ### The other test helpers moved from 48 to 40
 
@@ -124,14 +159,18 @@ merges:
 | 40        | 0           | where the scan is set                      |
 | 36        | 17          | strong signal, mostly whole shared helpers |
 | 32        | 31          |                                            |
-| 28        | 67          | last band that is mostly real              |
-| 24        | 113         | noise starts                               |
+| 28        | 67          |                                            |
+| 24        | 113         |                                            |
 | 19        | 280         | parity with the Cucumber helpers           |
 
-Two things mark the noise floor near 24 tokens. Valibot schema fields match each
-other across unrelated schemas, which is the same coincidence that exempts
-`src/shared/db/migrations/schema/columns.ts` from `.jscpd.json`. One-line field
-builders match on their signature and nothing else.
+**These are counts, not verdicts.** A sample of the 24-token band showed valibot
+schema fields that match across unrelated schemas, which is the same coincidence
+that exempts `src/shared/db/migrations/schema/columns.ts` from `.jscpd.json`,
+and one-line field builders that match on a signature. That is a sample, and the
+Cucumber section above records what happens when a sample is read as a floor:
+the pairs there turned out to mark an under-adopted curry, not noise. Classify a
+band the way that section does, and try the curry, before calling any of it
+unavoidable.
 
 Each step down is a separate job. Take the number in `.jscpd.helpers.json` down,
 bring the tree to it, and repeat, the way the comment caps in
@@ -164,7 +203,14 @@ of 19,000 lines costs about one second.
 
 - **Done.** `test/test-utils` scanned at 40 tokens against `src/`. The
   production-schema reimplementation removed. 12 helper merges landed.
-- **Done.** `test/specs/support` confirmed at its floor of 19 tokens.
+- **Done.** `opensAdminPageAt` widened to hand back the window, and adopted by
+  the four support files that hand-rolled it. The pairs at 16 tokens went from
+  78 to 75.
+- **Next.** Adopt `withAdminPage` and `submitRenderedAdminForm` at the 30 sites
+  that hand-roll them, then work the smaller families. When `test/specs/support`
+  reports no pairs at 16 tokens, add a support-only config at 16 and keep
+  `.jscpd.specs.json` at 19 for the scan against `src/`.
 - **Next.** Take `.jscpd.helpers.json` to 36 tokens. 17 pairs, mostly whole
   helpers that duplicate a sibling.
-- **Then.** 32, then 28. Below 28 the pairs stop being merges.
+- **Then.** 32, 28, and below. Classify each band before you price it, and reach
+  for a curry before you call any pair unavoidable.

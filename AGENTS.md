@@ -1277,6 +1277,33 @@ merge waiting to happen, and the whole point of this exercise. So:
   just wrote subsumes three more call sites, or that it and an older helper are
   the same thing wearing two names. Keep pulling the thread until the merges are
   genuinely exhausted.
+- **A curry almost always exists — "these two cannot be merged" is nearly always
+  wrong.** Two functions that differ only in a value, a path, a field name, a
+  message, or a callback are one function that has not been given its parameter
+  yet. Lift what differs into a factory's argument and let the returned function
+  take the data. This holds even when the two bodies look nothing alike at a
+  glance, because the shared part is often a _tail_ ("…and then keep what they
+  were told") or an _opening_ ("open this page, and then…"), and a curry takes
+  either. So treat every flagged pair as mergeable until you have actually
+  written the curry and found what the parameter would have to be. "This pair is
+  noise" is a conclusion you earn by trying, never a first reading — and if you
+  reach for that phrase about a whole band of results, you are almost certainly
+  looking at a factory nobody has written yet.
+
+  Before you write one, look for the factory that already exists. An
+  under-adopted curry reads exactly like unavoidable duplication: the pairs pile
+  up at the call sites that never adopted it, so the check looks like it is
+  flagging noise when it is really flagging the gap. The Cucumber page openers
+  are the reference. `opensAdminPageAt(path)` in `test/specs/support/browser.ts`
+  turns any "open this one fixed admin page" wrapper into a single line, and
+  four support files hand-rolled the wrapper anyway.
+- **The one honest exception is a shared _signature_ with nothing behind it.**
+  When two functions match only on their parameter list and return type, and
+  share no call at all, there is nothing to lift and a curry cannot help. Give
+  that signature a named type instead and let both sides declare it —
+  `ActOnOneThing` in `test/specs/support/world.ts` is the house example. Be
+  strict about which case you are in: if the two bodies call even one function
+  in common, you are in the curry case, not this one.
 
 ### The four scans, and how hard each looks
 
@@ -1298,10 +1325,10 @@ separate run could never see that pair. A test body is different: it repeats by
 design, and the shared mechanism is the test framework itself, so the whole of
 `test/` stays at the loose 48.
 
-**The helper number ratchets downward** — lower the one in
-`.jscpd.helpers.json`, bring the tree to it, repeat — the same way
-`check:comments` works. `docs/test-duplication.md` measures what each remaining
-step costs, and shows why 19 is already the floor for the Cucumber helpers.
+**Every helper number ratchets downward** — lower it, bring the tree to it,
+repeat — the same way `check:comments` works. `docs/test-duplication.md`
+measures what each remaining step costs. Read its counts as work to do, not as a
+floor: the counts fall as the curries land.
 
 ## Database Queries
 
