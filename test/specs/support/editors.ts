@@ -22,7 +22,7 @@ import {
   listingIdNamed,
   listingNamed,
   organiserSavesListing,
-  putsOnSale,
+  putsPlainThingOnSale,
   saveListingEdit,
 } from "#test/specs/support/listings.ts";
 import {
@@ -137,11 +137,7 @@ export const somethingForSale = async (
   name: string,
   options: { forwardingTo?: string } = {},
 ): Promise<void> => {
-  await putsOnSale(world, name, {
-    maxAttendees: 10,
-    // The site's own thank-you page, so a story can read what a customer is
-    // shown after booking rather than being sent off to another site.
-    thankYouUrl: "",
+  await putsPlainThingOnSale(world, name, {
     webhookUrl: options.forwardingTo,
   });
 };

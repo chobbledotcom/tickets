@@ -13,7 +13,6 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   connectionReasonOf,
   type ProviderConnectionReason,
@@ -24,6 +23,11 @@ import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { delay } from "#shared/now.ts";
 
 /* jscpd:ignore-end */
+
+/** How long one provider HTTP call may wait before it gives up. A refund
+ * send is armed before its POST, so a stuck call must become a timeout the
+ * failure classifiers can read — never an open hang with no answer. */
+export const PROVIDER_TIMEOUT_MS = 20_000;
 
 /** How one provider is named when its answer, or the lack of one, is refused.
  *  The answer body is passed in because a provider can name the field it
