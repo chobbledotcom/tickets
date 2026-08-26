@@ -8,21 +8,29 @@
 
 import { getContactRecord, hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { countSmsMessages } from "#db/sms-messages.ts";
 import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
 import {
+  ORGANISER,
   organiserReads,
   writesOneMessage,
 } from "#test/specs/support/browser.ts";
 import { copyFrom } from "#test/specs/support/copy.ts";
 import { soleBookingOn } from "#test/specs/support/public-booking.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
+import {
+  type TicketsWorld,
+  whatTheyWereTold,
+} from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 // jscpd:ignore-end
 
 const TEXTS_PATH = "/admin/sms";
+
+/** Where the history begins on the page, so a message found in the compose
+ * box or a flash cannot answer for one in the history. */
+const HISTORY_HEADING = "Message history";
 
 /** What the site says on the texting pages. */
 export const textingCopy = copyFrom("sms");
@@ -104,17 +112,20 @@ export const organiserTexts = (
   message: string,
 ): Promise<void> => throughTheGateway(world, () => writesAText(world, message));
 
-/** Everything one person's message history holds, newest first. */
-export const historyFor = async (world: TicketsWorld): Promise<string[]> =>
-  (await getAttendeeActivityLog(requiredAttendee(world))).map(
-    (entry) => entry.message,
-  );
-
-const requiredAttendee = (world: TicketsWorld): number => {
-  const id = world.attendeeId;
-  if (id === undefined) throw new Error("Nobody has booked in this story yet");
-  return id;
+/** The message history as the organiser reads it, off the page they are
+ * looking at. Reading the log instead would keep the story green after the
+ * page stopped showing history at all, which is the very thing one of these
+ * scenarios exists to prove. */
+export const historyShownTo = (world: TicketsWorld): string => {
+  const page = whatTheyWereTold(world, ORGANISER);
+  const start = page.indexOf(HISTORY_HEADING);
+  if (start < 0) throw new Error("The page shows no message history");
+  return page.slice(start);
 };
+
+/** How many messages are waiting to go, read from the queue itself. The log
+ * saying nothing went is not the same as nothing being queued. */
+export const messagesQueued = (): Promise<number> => countSmsMessages();
 
 /** How many messages the site has counted against the number they booked
  * with. Read through the site's own contact record, which is what the

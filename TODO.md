@@ -41,20 +41,30 @@ story, the remnant, or a deliberate drop.
 
 ---
 
-## Move the admin routes' flash messages into the message catalog
+## Move the routes' flash messages into the message catalog
 
 _Origin: found while migrating `test/integration/admin/sms.test.ts` to
 `@story:attendees.sending-somebody-a-text`. The story had to quote these strings
 from the route, because there is no catalog key to read them from._
 
-Nine files under `src/features/admin/` build a flash message from a string
-literal rather than `t(...)`. `src/features/admin/sms.ts` holds six of them:
-`Invalid SMS target`, `SMS gateway is not configured`,
-`Message cannot be
-empty`, `Attendee has no phone number on file`,
-`Text message queued`, and `Message could not be queued`. Others sit in
-`attributes.ts`, `auth.ts`, `calendar.ts`, `modifiers.ts`, `questions.ts`,
-`sessions.ts`, and `logistics.ts`.
+Eighteen files under `src/features/` build a flash message from a string literal
+rather than `t(...)`, 27 literals in all. Counted with:
+
+```bash
+grep -rcE '(redirect|errorRedirect)\([^,]+, "[A-Z][^"]{6,}"' src/features/
+```
+
+`src/features/admin/sms.ts` holds six of them: `Invalid SMS target`,
+`SMS
+gateway is not configured`, `Message cannot be empty`,
+`Attendee has no phone
+number on file`, `Text message queued`, and
+`Message could not be queued`. `questions.ts` holds three, `public/pages.ts` and
+`questions/answers.ts` two each, and one each in `attendees-merge.ts`,
+`attributes.ts`, `auth.ts`, `builder.ts`, `bulk-actions.ts`, `calendar.ts`,
+`modifiers.ts`, `money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`,
+`support.ts`, `update.ts`, `join.ts`, and `public/unsubscribe.ts`. Two of these
+are public surfaces, not admin ones.
 
 The `i18n-coverage` test only fails a hard-coded string in a **template**
 (`test/scripts/i18n-coverage.test.ts`), so a route escapes it. Two things
@@ -63,10 +73,10 @@ follow. `I18N_REPLACEMENTS` cannot rebrand them, so a site that renames
 the copy rules in AGENTS.md say every user-facing string lives in
 `src/locales/en/*.json`, which these do not.
 
-To do it: add the keys, switch each `redirect(path, "...", ...)` to `t("...")`,
+To do it: add the keys, switch each `redirect(path, "...", ...)` to `t(...)`,
 and widen the i18n-coverage check to `src/features/` so a new one cannot appear.
 Left out of the migration that found it, because it changes production copy
-across nine route files rather than the tests being moved.
+across eighteen files rather than the tests being moved.
 
 ---
 

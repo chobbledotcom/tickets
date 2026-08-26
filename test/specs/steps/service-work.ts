@@ -10,6 +10,7 @@ import {
   holdPlaces,
   organiserOpensDashboard,
   organiserOpensServicing,
+  rowFor,
   servicingCopy,
   waysIntoOn,
   workComingUpOn,
@@ -96,6 +97,20 @@ Then(
     const page = whatTheyWereTold(this, ORGANISER);
     expect(page).toContain(name);
     expect(page).toContain(rooms);
+  },
+);
+
+Then(
+  "the list gives the day the work is due",
+  function (this: TicketsWorld): void {
+    // The day the story set the work for, written out here rather than asked
+    // of the code that renders it, and read from that event's own row.
+    const row = rowFor(
+      this,
+      whatTheyWereTold(this, ORGANISER),
+      "Boiler Service",
+    );
+    expect(row).toContain("1 July 2099");
   },
 );
 

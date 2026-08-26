@@ -117,8 +117,20 @@ export const statusShownFor = async (
   const start = list.indexOf(linkToFeature(await featureNamed(printed)));
   if (start < 0) throw new Error(`The list does not offer "${printed}"`);
   const row = list.slice(start, list.indexOf("</tr>", start));
-  const enabled = t("features.status.enabled");
-  return row.includes(enabled) ? enabled : t("features.status.disabled");
+  const said = [
+    t("features.status.enabled"),
+    t("features.status.disabled"),
+  ].filter((status) => row.includes(status));
+  // Exactly one, or the row is broken rather than disabled. Falling back to
+  // "Disabled" whenever "Enabled" is absent would let an empty status cell
+  // answer for every feature at once.
+  const only = said[0];
+  if (said.length !== 1 || !only) {
+    throw new Error(
+      `The row for "${printed}" says ${said.length} statuses, not one`,
+    );
+  }
+  return only;
 };
 
 /** A saved Modifiers item, which is what puts that feature in use. */

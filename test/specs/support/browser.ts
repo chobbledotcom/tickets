@@ -123,9 +123,11 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
-/** One read of a page: how the site answered, and what it said. */
+/** One read of a page: how the site answered, where the visitor ended up,
+ * and what it said. */
 export interface PageRead {
   answered: number;
+  landedOn: string;
   said: string;
 }
 
@@ -135,7 +137,7 @@ export interface PageRead {
 export const newcomerReading = async (path: string): Promise<PageRead> => {
   const browser = new TestBrowser();
   const answered = await browser.visit(path);
-  return { answered, said: browser.pageText };
+  return { answered, landedOn: browser.currentUrl, said: browser.pageText };
 };
 
 /** Opening the page one named thing is sold from, as somebody never signed in.

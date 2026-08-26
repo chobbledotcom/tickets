@@ -22,6 +22,7 @@ Feature: The organiser sees the service work coming up
       When the organiser opens the Servicing page
       Then the list names "Boiler Service" holding "Room A"
       And the list says 2 places are held
+      And the list gives the day the work is due
       And there is one way into "Boiler Service"
 
   @rule:servicing.one-service-event-is-one-entry

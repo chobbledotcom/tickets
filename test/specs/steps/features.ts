@@ -3,7 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { ORGANISER, openAsNewcomer } from "#test/specs/support/browser.ts";
+import { newcomerReading, ORGANISER } from "#test/specs/support/browser.ts";
 import {
   everyFeatureName,
   featureNamed,
@@ -111,10 +111,16 @@ Then(
 );
 
 Then(
-  "they are told what {string} does",
+  "they are told what {string} does, above the choice",
   async function (this: TicketsWorld, printed: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    expect(page).toContain(t((await featureNamed(printed)).descriptionKey));
+    const says = t((await featureNamed(printed)).descriptionKey);
+    expect(page).toContain(says);
+    // Where each sits, not merely that both are there: a page that offered
+    // the choice first would ask the owner to decide before reading.
+    const choice = page.indexOf(`name="${CHOICE_FIELD}"`);
+    expect(choice).toBeGreaterThan(-1);
+    expect(page.indexOf(says)).toBeLessThan(choice);
   },
 );
 
@@ -188,15 +194,18 @@ Then(
 Then(
   "a visitor opening the front page is sent to sign in",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await openAsNewcomer("/");
-    expect(browser.currentUrl).toBe("/admin/login");
+    expect((await newcomerReading("/")).landedOn).toBe("/admin/login");
   },
 );
 
 Then(
   "a visitor can read the front page",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await openAsNewcomer("/");
-    expect(browser.currentUrl).toBe("/");
+    // Where they ended up is not enough on its own: a visitor left at "/"
+    // is there whether the page came back or broke, so the answer is read
+    // too.
+    const { answered, landedOn } = await newcomerReading("/");
+    expect(answered).toBe(200);
+    expect(landedOn).toBe("/");
   },
 );

@@ -75,6 +75,18 @@ export const workComingUpOn = async (page: string): Promise<string> => {
   return page.slice(start, end);
 };
 
+/** One service event's own row on the Servicing page, so a date or a number
+ * belonging to another event cannot answer for this one. */
+export const rowFor = (
+  world: TicketsWorld,
+  page: string,
+  name: string,
+): string => {
+  const start = page.indexOf(wayInto(world, name));
+  if (start < 0) throw new Error(`The list does not offer "${name}"`);
+  return page.slice(start, page.indexOf("</tr>", start));
+};
+
 /** How many service events the page lists, counted by the mark each row
  * carries rather than by any one name appearing. */
 export const eventsListedOn = (page: string): number =>

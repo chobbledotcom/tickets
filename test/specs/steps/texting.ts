@@ -7,8 +7,9 @@ import {
   gatewayIsSetUp,
   gatewayIsSwitchedOff,
   gatewayWillAnswer,
-  historyFor,
+  historyShownTo,
   messagesCountedAgainstPhone,
+  messagesQueued,
   organiserOpensSomebodysTexts,
   organiserOpensTheTextsPage,
   organiserTexts,
@@ -148,31 +149,25 @@ Then(
 
 Then(
   "{word}'s history holds {string}",
-  async function (
-    this: TicketsWorld,
-    _who: string,
-    message: string,
-  ): Promise<void> {
-    const history = await historyFor(this);
-    expect(history.some((line) => line.includes(message))).toBe(true);
+  function (this: TicketsWorld, _who: string, message: string): void {
+    expect(historyShownTo(this)).toContain(message);
   },
 );
 
 Then(
   "{word}'s history says the text could not be queued",
-  async function (this: TicketsWorld, _who: string): Promise<void> {
-    const history = await historyFor(this);
-    expect(history.some((line) => line.includes("could not be queued"))).toBe(
-      true,
-    );
+  function (this: TicketsWorld, _who: string): void {
+    expect(historyShownTo(this)).toContain("could not be queued");
   },
 );
 
 Then(
   "nothing was queued for {word}",
   async function (this: TicketsWorld, _who: string): Promise<void> {
-    const history = await historyFor(this);
-    expect(history.some((line) => line.includes("queued for"))).toBe(false);
+    // The queue itself, not only the log's wording: a message that reached
+    // the queue without its success line would otherwise read as nothing.
+    expect(await messagesQueued()).toBe(0);
+    expect(historyShownTo(this)).not.toContain("queued for");
   },
 );
 

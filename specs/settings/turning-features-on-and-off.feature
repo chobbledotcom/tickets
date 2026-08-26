@@ -38,7 +38,7 @@ Feature: The owner turns features on and off
 
     Scenario Outline: The owner reads what a feature does
       When the owner opens the "<feature>" feature
-      Then they are told what "<feature>" does
+      Then they are told what "<feature>" does, above the choice
       And they are offered the choice
 
       Examples:
@@ -70,6 +70,7 @@ Feature: The owner turns features on and off
       Given the owner enables "Money"
       When the owner disables "Money"
       Then the owner is told "Money disabled."
+      And the activity log says "Money disabled."
       And the "Money" page comes back offering No
 
   @rule:settings.site-decides-whether-the-public-site-is-published
