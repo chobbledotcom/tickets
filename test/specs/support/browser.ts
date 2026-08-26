@@ -59,6 +59,19 @@ export const organiserSendsAndIsTold = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
+/** The organiser opens one of their own pages and keeps what it said, so the
+ * Then steps read the same page the When opened. Curried on which page,
+ * because that is all that differs between one page of theirs and another. */
+export const organiserReads =
+  (where: (world: TicketsWorld) => string) =>
+  async (world: TicketsWorld): Promise<void> => {
+    keepWhatTheyWereTold(
+      world,
+      ORGANISER,
+      await adminPageHtmlAt(world, where(world)),
+    );
+  };
+
 /** The organiser writes one message on a page and sends it, keeping what the
  * site said back. Curried on the page and the button, because those are all
  * that differ between writing to the host and texting somebody. */

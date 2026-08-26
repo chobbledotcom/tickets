@@ -10,16 +10,12 @@ import { getContactRecord, hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
 import {
-  adminPageHtmlAt,
-  ORGANISER,
+  organiserReads,
   writesOneMessage,
 } from "#test/specs/support/browser.ts";
 import { copyFrom } from "#test/specs/support/copy.ts";
 import { soleBookingOn } from "#test/specs/support/public-booking.ts";
-import {
-  keepWhatTheyWereTold,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -69,24 +65,11 @@ export const somebodyBooks = async (
 export const textsPathFor = (world: TicketsWorld): string =>
   `${TEXTS_PATH}?listing=${world.listingId}&attendee=${world.attendeeId}`;
 
-/** The organiser opens a texting page and keeps what it said, so the Then
- * steps read the same page the When opened. Curried on which page, because
- * the queue page and one person's page differ only in their address. */
-const organiserOpens =
-  (where: (world: TicketsWorld) => string) =>
-  async (world: TicketsWorld): Promise<void> => {
-    keepWhatTheyWereTold(
-      world,
-      ORGANISER,
-      await adminPageHtmlAt(world, where(world)),
-    );
-  };
-
 /** One person's page: the compose form, and what has been said to them. */
-export const organiserOpensSomebodysTexts = organiserOpens(textsPathFor);
+export const organiserOpensSomebodysTexts = organiserReads(textsPathFor);
 
 /** The page with nobody chosen: the queue, and no way to write. */
-export const organiserOpensTheTextsPage = organiserOpens(() => TEXTS_PATH);
+export const organiserOpensTheTextsPage = organiserReads(() => TEXTS_PATH);
 
 /** What the gateway will answer this scenario. Recorded rather than stubbed
  * here: the send is the only moment a reply is needed, and stubbing twice

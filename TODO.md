@@ -13,16 +13,41 @@ slimmed direct remnant with a header naming the story for branch cover (Cucumber
 runs do not count towards coverage), and record where every old claim went — the
 story, the remnant, or a deliberate drop.
 
-- `test/integration/server/settings/features.test.ts` — the feature explanation
-  pages and the Site toggle that publishes the public site. Keep the concurrency
-  and cache-invalidation tests direct.
-- `test/integration/server/settings/email.test.ts` and `email-templates.test.ts`
-  — connecting a provider and editing email templates. Keep encryption-at-rest,
-  Liquid-syntax, and length contracts direct.
-- `test/integration/servicing/admin-homepage.test.ts` — the organiser's
-  service-event list and edit pages beside `@story:servicing.hold-and-cost`.
-- `test/integration/admin/sms.test.ts` — the organiser texting an attendee
-  (gateway gate, queue, log, inbound link).
+- `test/features/admin/settings-email.test.ts` and
+  `test/integration/server/settings/email-templates.test.ts` — connecting a
+  provider and editing email templates. Keep encryption-at-rest, Liquid-syntax,
+  and length contracts direct. This list named
+  `test/integration/server/settings/email.test.ts`, which does not exist; the
+  email settings tests live at the first path above.
+
+---
+
+## Move the admin routes' flash messages into the message catalog
+
+_Origin: found while migrating `test/integration/admin/sms.test.ts` to
+`@story:attendees.sending-somebody-a-text`. The story had to quote these strings
+from the route, because there is no catalog key to read them from._
+
+Nine files under `src/features/admin/` build a flash message from a string
+literal rather than `t(...)`. `src/features/admin/sms.ts` holds six of them:
+`Invalid SMS target`, `SMS gateway is not configured`,
+`Message cannot be
+empty`, `Attendee has no phone number on file`,
+`Text message queued`, and `Message could not be queued`. Others sit in
+`attributes.ts`, `auth.ts`, `calendar.ts`, `modifiers.ts`, `questions.ts`,
+`sessions.ts`, and `logistics.ts`.
+
+The `i18n-coverage` test only fails a hard-coded string in a **template**
+(`test/scripts/i18n-coverage.test.ts`), so a route escapes it. Two things
+follow. `I18N_REPLACEMENTS` cannot rebrand them, so a site that renames
+"attendee" to "guest" still reads "Attendee has no phone number on file". And
+the copy rules in AGENTS.md say every user-facing string lives in
+`src/locales/en/*.json`, which these do not.
+
+To do it: add the keys, switch each `redirect(path, "...", ...)` to `t("...")`,
+and widen the i18n-coverage check to `src/features/` so a new one cannot appear.
+Left out of the migration that found it, because it changes production copy
+across nine route files rather than the tests being moved.
 
 ---
 
