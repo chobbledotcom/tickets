@@ -119,11 +119,11 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
  * re-runs it on a later request whenever a prior run died before its marker was
  * recorded, so the second pass reads a settled snapshot and completes the write.
  *
- * The re-run waits until verify()'s own retries are exhausted rather than fires
- * on the first miss. A migration whose up() is NOT a cheap no-op after success —
- * 2026-06-20_free_text_questions recopies whole tables via recreateTable — must
- * not re-run on a pure verify-lag, which would risk the edge request budget.
- * up() therefore runs at most twice, never once per retry.
+ * The re-run waits for verify()'s own retries to run out. It never fires on the
+ * first miss. Some up() work is NOT a cheap no-op after success, and
+ * 2026-06-20_free_text_questions recopies whole tables via recreateTable. Such
+ * a migration must not re-run on a pure verify-lag, because that risks the edge
+ * request budget. up() therefore runs at most twice, never once per retry.
  */
 export const applyMigrationWithRetry = async (
   migration: Migration,

@@ -10,9 +10,9 @@
  * caution or status. It is not a live alert: no `role="alert"`, so it is
  * neither announced assertively, animated on load, nor a focus target.
  *
- * Only the first `autofocus` element on a page takes focus, so a form field
- * that autofocuses *above* an error must give up its autofocus when an error is
- * present, or it would win that race.
+ * Only the first `autofocus` element on a page takes focus. A form field that
+ * autofocuses *above* an error must therefore give up its autofocus when an
+ * error is present. If it keeps the autofocus, it wins that race.
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";

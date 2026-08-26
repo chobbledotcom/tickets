@@ -8,7 +8,7 @@
  * set and warms the dictionaries. Each entry carries its own expiry: a
  * whole-list load stamps every entry, a single-record load only what it fetched.
  *
- * Writes invalidate immediately within the isolate, and refills use the primary
+ * Writes invalidate immediately within the isolate. Refills use the primary
  * during the replica catch-up window, so a stale replica result cannot replace
  * the cleared data. A generation counter (bumped by `invalidate`) drops a fetch
  * still in flight when an invalidation landed. Security gating is enforced

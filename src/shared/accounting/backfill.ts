@@ -1,18 +1,18 @@
 /**
  * One-shot backfill of the transfers ledger from existing booking rows.
  *
- * No production modifier or reservation has ever existed, so every historical
- * booking is paid in full: rows with `price_paid > 0` reconstruct to one `sale`
- * per listing plus a single `payment` for the lot, and a refunded attendee gets
- * the matching reversal. One event group per attendee mirrors the live flow, so
- * a later refund still finds a single booking order, and the live mappers are
- * reused so references and validation match the dual-write path.
+ * No production modifier or reservation ever existed, so every historical
+ * booking is paid in full. Rows with `price_paid > 0` reconstruct to one `sale`
+ * per listing plus a single `payment` for the lot. A refunded attendee gets the
+ * matching reversal. One event group per attendee mirrors the live flow, so a
+ * later refund still finds a single booking order. The live mappers are reused,
+ * so references and validation match the dual-write path.
  *
- * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}),
- * because this runs inline on an edge isolate whose subrequest budget a
- * round-trip-per-attendee backfill would blow. An attendee's legs and row-stamp
- * always land together, which lets the guard skip an attendee already carrying
- * legs. `INSERT OR IGNORE` on the unique reference makes a re-run a no-op.
+ * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}).
+ * This runs inline on an edge isolate, and a round-trip-per-attendee backfill
+ * can exceed its subrequest budget. An attendee's legs and row-stamp always
+ * land together, which lets the guard skip an attendee already carrying legs.
+ * `INSERT OR IGNORE` on the unique reference makes a re-run a no-op.
  */
 
 /* jscpd:ignore-start */

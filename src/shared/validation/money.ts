@@ -9,11 +9,11 @@ import { parseOrNull } from "./parse.ts";
 /**
  * Currency-aware money validation — the one place a major-unit amount like
  * `"90.00"` becomes safe-integer minor units. The decimal places come from
- * `settings.currency` at parse time: GBP rejects `1.005` rather than rounds it
- * to 101 pence, and JPY rejects `1.23` rather than truncates to 1. Because that
- * depends on the currency, the pattern is rebuilt inside the callbacks on every
- * parse, so the schemas stay constants. Pick the parser matching the field's
- * bound and its treatment of a blank, where a blank is `null`, never a real `0`:
+ * `settings.currency` at parse time. GBP rejects `1.005` and does not round it
+ * to 101 pence. JPY rejects `1.23` and does not truncate it to 1. The pattern
+ * therefore rebuilds inside the callbacks on every parse, so the schemas stay
+ * constants. Pick the parser that matches the field's bound and its treatment
+ * of a blank. A blank is `null`, never a real `0`:
  *
  * | Parser | Bound | Blank |
  * | --- | --- | --- |

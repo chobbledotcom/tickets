@@ -49,10 +49,10 @@ export const bookingFactsFromOrder = (
 
 /**
  * Recast a priced order into the ledger order for a booking where NOTHING was
- * collected and NO booking fee is charged — the customer simply OWES the order.
- * Used by the provider-less public booking (payments disabled charges no
- * booking fee, per the owner's rule) and the admin manual add (no amount-paid
- * field, so nothing is recorded as paid up front).
+ * collected and NO booking fee is charged. The customer simply OWES the order.
+ * Two callers use it. The provider-less public booking charges no booking fee
+ * when payments are disabled, per the owner's rule. The admin manual add has no
+ * amount-paid field, so nothing is recorded as paid up front.
  *
  * It keeps the gross ticket `lines` and the `modifierApplications` (a surcharge
  * add-on is still owed, posted as its own `modifier` leg), but drops every extra

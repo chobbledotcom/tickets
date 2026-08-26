@@ -6,7 +6,7 @@
  * pasted into the wrong field — an access token in the webhook signature key
  * box, say, which surfaces later as an E_SQUARE_SIGNATURE webhook rejection.
  *
- * Square has used several access-token formats and advises against validation
+ * Square used several access-token formats and advises against validation
  * by format, so the regex below is a deliberately permissive allowlist of every
  * known prefix with no length bound. Location ids and webhook signature keys
  * are opaque, so they are checked only against the application id namespace

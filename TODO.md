@@ -2997,3 +2997,38 @@ tests call `reverseOf`, because the `{@link reverseOf}` in the JSDoc of that
 module reads as a production use. `isInverseOf` beside it has a live caller in
 `accounting/conflicts.ts`, so the module stays exempt either way. See
 "Dead-export scanner matches raw text" above.
+
+---
+
+## Bring inherited comment prose in `src/` to Simplified Technical English
+
+_Origin: Codex review of PR #2158 (the comment-length ratchet to 16 lines). That
+PR rewrote 84 comments and fixed every rule break it introduced. The breaks
+below predate it._
+
+`AGENTS.md` holds code comments to ASD-STE100. No checker enforces that section,
+so `src/` carries a large stock of prose that breaks it. A sweep of the 84
+comments PR #2158 rewrote counted 137 descriptive sentences above the 25-word
+limit and 26 uses of a banned modal, almost all of them wording the original
+authors chose. The whole tree holds more, because the sweep only read comments
+that one PR touched.
+
+Two facts decide how to approach this, and both were measured on that branch:
+
+- 82 of those 84 comments already sit at 15 or 16 lines. The comment-length cap
+  is 16. A sentence split adds a line, so most files have no room for one.
+- The cap is meant to fall to 12, then 8, then lower. See
+  `docs/comment-policy.md`. Every step makes the room smaller.
+
+So this is not a formatting pass. A sentence above the limit has to lose words,
+not gain a line, and the words it loses must be narration rather than the
+load-bearing "why". Work it file by file, and treat a comment that resists the
+cut the way `AGENTS.md` says: the code underneath probably wants the clarity
+instead.
+
+A starting point: the sweep script is not committed, but it is 60 lines over
+`readComments` from `scripts/check-comments/rules.ts`. It reads each comment,
+drops bullet, table and code-example lines, splits the rest into sentences, and
+counts words. Rebuild it, or make it a real check beside `check:comments` and
+ratchet it the same way. A checker is the better answer, because the judgement
+half of the rule is the part a person must keep doing.

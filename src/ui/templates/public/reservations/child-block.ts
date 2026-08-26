@@ -150,11 +150,11 @@ const renderChildOption = (
   return `<label class="child-option">${select} ${label}</label>${priceHtml}${input.attributesHtml}`;
 };
 
-/** Render a sole bookable child as informational, keeping the auto-select: it
- * submits no `child_qty_<parentId>_<childId>` field at all, because the server
- * fold auto-fills a sole child to the parent's quantity, so a fixed quantity
- * would over-submit and be rejected as "too many". It shows just the child's
- * name and price, plus a pay-more child's optional price input, which the fold
+/** Render a sole bookable child as informational, and keep the auto-select. It
+ * submits no `child_qty_<parentId>_<childId>` field at all. The server fold
+ * auto-fills a sole child to the parent's quantity, so a fixed quantity
+ * over-submits and gets rejected as "too many". It shows just the child's name
+ * and price, plus a pay-more child's optional price input, which the fold
  * reads. Nothing posts a quantity, so it is safe without JS.
  *
  * The buyer makes no choice here, so there is no "choose an option" prompt —
@@ -163,9 +163,9 @@ const renderChildOption = (
  * scripts still drive off them.
  *
  * The informational marker ALSO carries the same date/span compatibility
- * attributes a selectable child option does ({@link childDateAttrs}), so on a
- * group page the client script can tell the sole child cannot serve the chosen
- * date and flag the parent rather than let the buyer hit `child_sold_out`. */
+ * attributes a selectable child option does ({@link childDateAttrs}). On a
+ * group page the client script can then tell that the sole child cannot serve
+ * the chosen date. It flags the parent instead of a submit-time rejection. */
 const renderSoleChildOption = (input: ChildOptionInput): string => {
   const { dateAttrs, listing, namedLabel, parentId, priceHtml } =
     childOptionParts(input);
