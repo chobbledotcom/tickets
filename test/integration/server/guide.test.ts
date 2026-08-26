@@ -157,9 +157,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Which delivery area?",
         "Question answer",
         "not from their postcode",
+        "added for each ticket booked",
+        "Max tickets per purchase",
         "How do customers fill in their delivery address?",
         "Address lookup",
-        "pinned map location",
+        "The map pin is not set by the customer",
       );
     });
 
