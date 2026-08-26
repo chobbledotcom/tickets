@@ -1,18 +1,12 @@
 import { defineRoutes } from "#routes/router.ts";
 
 /**
- * Bulk email routes — compose, preview, send, and template management.
- * Owner-only.
+ * Bulk email routes. Owner-only.
  *
- * Flow: compose (GET) → preview (POST saves a draft, redirects) → preview
- * (GET renders the saved draft) → send (POST). The draft is persisted in
- * settings so the preview redirect can carry a Markdown body too large for a
- * flash cookie, and so the send step re-reads exactly what was previewed.
- *
- * Templates: saved reusable subject/body pairs encrypted with the owner
- * keypair. The compose page lists them in a <details> block; clicking one
- * reloads the compose page with ?template=N to pre-fill the fields. The save
- * button (formaction="/admin/emails/templates") creates or updates a template.
+ * The draft is persisted in settings, not a flash cookie, because a Markdown
+ * body is too large for one. That also lets the send step re-read exactly what
+ * was previewed. Templates are subject/body pairs encrypted with the owner
+ * keypair.
  */
 
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";

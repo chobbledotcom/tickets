@@ -28,21 +28,15 @@ import type {
 import { fromBase64, getRandomBytes } from "./utils.ts";
 
 /**
- * =============================================================================
- * Key Encryption Key (KEK) Derivation
- * =============================================================================
- * The KEK wraps the DATA_KEY in users.wrapped_data_key. Two schemes coexist:
+ * The KEK wraps the DATA_KEY in users.wrapped_data_key. Two schemes coexist,
+ * and they differ in what a database dump is worth:
  *
- * - v1 ({@link deriveKEK}) derives the KEK from the *stored password hash*. The
- *   hash is itself only encrypted with DB_ENCRYPTION_KEY, so a DB dump plus that
- *   key can re-derive the KEK and unwrap the DATA_KEY — i.e. PII at rest is
- *   protected by the env key alone.
- * - v2 ({@link deriveKEKFromPassword}) derives the KEK from the *raw password*,
- *   which is never stored, so a DB dump plus the env key can no longer unwrap
- *   the DATA_KEY. This is the scheme all new wraps use.
+ * - v1 derives from the STORED password hash, itself only encrypted with
+ *   DB_ENCRYPTION_KEY, so a dump plus that key unwraps the DATA_KEY.
+ * - v2 derives from the RAW password, which is never stored, so a dump plus the
+ *   env key is not enough. All new wraps use v2.
  *
- * Both keep DB_ENCRYPTION_KEY in the salt, so a KEK always needs the env key in
- * addition to its secret.
+ * Both keep DB_ENCRYPTION_KEY in the salt, so a KEK always needs the env key.
  */
 
 /**

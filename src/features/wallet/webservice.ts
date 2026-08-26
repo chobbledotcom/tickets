@@ -1,15 +1,10 @@
 /**
- * Apple Wallet web service endpoints for automatic pass updates.
+ * The minimal subset of Apple's PassKit web service protocol. Several endpoints
+ * are stubs.
  *
- * Implements the minimal subset of Apple's PassKit web service protocol:
- * - POST /v1/devices/:device/registrations/:passType/:token → 201 (stub)
- * - DELETE /v1/devices/:device/registrations/:passType/:token → 200 (stub)
- * - GET /v1/devices/:device/registrations/:passType → always returns all tokens
- * - GET /v1/passes/:passType/:token → serves fresh .pkpass
- * - POST /v1/log → 200 (stub)
- *
- * No device tracking or update timestamps — always says "everything is updated"
- * so devices re-download the pass on every manual refresh.
+ * There is no device tracking and no update timestamp. The service always says
+ * "everything is updated", so a device re-downloads the pass on every manual
+ * refresh.
  */
 
 import { settings } from "#db/settings.ts";

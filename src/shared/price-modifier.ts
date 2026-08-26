@@ -1,15 +1,12 @@
 /**
- * The price-modifier calc engine.
+ * The value is *signed*: a negative fixed or percent value is a discount, and a
+ * multiply factor below 1 reduces the price.
  *
- * A modifier changes an order's price by one of three rules — a generalisation
- * of the reservation-amount mini-language. The value is *signed*: a negative
- * fixed/percent value is a discount, and a multiply factor below 1 reduces the
- * price while above 1 increases it. Rounding matches the booking fee
- * (`Math.round` to the nearest minor unit) so totals stay consistent across
- * the pricing pipeline.
+ * Rounding matches the booking fee, to the nearest minor unit, so totals stay
+ * consistent across the pricing pipeline.
  *
- * The calc itself is pure: it knows how a single rule transforms a base amount,
- * nothing about carts, stock, or persistence.
+ * Pure: it knows how one rule transforms a base amount, and nothing about
+ * carts, stock, or persistence.
  */
 
 import * as v from "valibot";

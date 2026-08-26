@@ -1,15 +1,11 @@
 /**
- * Pure image downscaling — no IO, trivially unit-testable.
- *
- * The pipeline only ever shrinks images (each variant caps the width), so the
- * right filter is an *area average*: every destination pixel is the
- * alpha-weighted mean of the source pixels its footprint covers, with
- * fractional weights at the edges of that footprint. This antialiases cleanly
- * on large reductions where a bilinear sample would drop detail and shimmer.
+ * The pipeline only ever shrinks, so the right filter is an *area average*
+ * rather than a bilinear sample, which would drop detail and shimmer on a large
+ * reduction.
  *
  * Colours are averaged premultiplied by alpha, then un-premultiplied, so a
- * transparent pixel's (arbitrary) colour never bleeds into its neighbours.
- * Fully-opaque images — the common case — reduce to a plain per-channel mean.
+ * transparent pixel's arbitrary colour never bleeds into its neighbours. A
+ * fully-opaque image reduces to a plain per-channel mean.
  */
 
 import { range } from "#fp";

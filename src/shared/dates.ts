@@ -169,18 +169,13 @@ const canStartOn =
     );
 
 /**
- * Compute available booking dates for a daily listing.
- * Filters by bookable days of the week and excludes holidays.
- * For listings with `duration_days > 1`, excludes start dates whose full range
- * would hit a non-bookable day or extend past the booking window.
+ * A `duration_days > 1` listing excludes a start date whose full range hits a
+ * non-bookable day or runs past the booking window.
  *
- * `durationOverride` lets callers compute availability for a span other than
- * the listing's stored `duration_days` — used for "customisable days" listings,
- * where `duration_days` is only the *maximum*, so the date list is built for a
- * single day (every individually-bookable start) and the chosen span is
- * validated separately at submit time via {@link isBookingRangeValid}.
- *
- * Returns sorted array of YYYY-MM-DD strings.
+ * `durationOverride` exists for a customisable-days listing, where
+ * `duration_days` is only the *maximum*. The date list is built for a single
+ * day, and the chosen span is validated at submit by
+ * {@link isBookingRangeValid}.
  */
 export const getAvailableDates = (
   listing: Listing,

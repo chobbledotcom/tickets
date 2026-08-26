@@ -1,15 +1,10 @@
 /**
- * SumUp implementation of the PaymentProvider interface.
+ * SumUp implementation of the PaymentProvider interface, over sumup.ts.
  *
- * Wraps sumup.ts to conform to the provider-agnostic PaymentProvider contract.
- *
- * Key differences from Stripe/Square:
- * - Hosted Checkout; our checkout_reference is the session id throughout
- * - Booking metadata is staged locally, encrypted (db/sumup-checkouts.ts)
- * - Webhooks are unsigned (no signature header in the provider registry):
- *   listings are pre-filtered against our staging rows, then the checkout is
- *   re-fetched from SumUp to establish authenticity and payment status
- * - No webhook endpoint to set up (return_url is set per checkout)
+ * SumUp webhooks are unsigned, so authenticity comes from a pre-filter against
+ * our staging rows and a re-fetch of the checkout. A SumUp checkout holds no
+ * metadata of ours, so booking metadata is staged in db/sumup-checkouts.ts
+ * under the checkout_reference we generate, which is our session id throughout.
  */
 
 import * as v from "valibot";

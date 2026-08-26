@@ -1,17 +1,13 @@
 /**
- * Request-scoped SQL query logging for the admin debug footer, plus an N+1
- * read guard.
+ * Request-scoped SQL logging for the admin debug footer, plus an N+1 read
+ * guard.
  *
- * Footer: call `enableQueryLog()` at the start of a request and `getQueryLog()`
- * after the response body has been built to retrieve every tracked query.
+ * The guard counts reads by their SQL text. Because queries are parameterized,
+ * a per-row lookup loop runs the *same* string N times, which is the N+1
+ * signature, whether the loop is sequential or fanned out with Promise.all.
  *
- * N+1 guard: regardless of footer logging, every single-query read is counted
- * by its SQL within a request. Because queries are parameterized, a per-row
- * lookup loop runs the *same* SQL string N times — the N+1 signature — whether
- * the loop is sequential or fanned out with Promise.all. Crossing
- * `N_PLUS_ONE_THRESHOLD` throws in dev/test (so the request fails loudly) or, in
- * production, reports via the error log (see `setN1GuardNotifyOnly`). Batched
- * reads (`queryBatch`) are a single round-trip and never reach this guard.
+ * Crossing the threshold throws in dev and test, and reports via the error log
+ * in production. A batched read is one round-trip and never reaches the guard.
  */
 
 import { lazyRef, map, pipe, reduce, sort } from "#fp";
@@ -155,18 +151,16 @@ export const sqlWallClockMs = (entries: readonly QueryLogEntry[]): number => {
 export const N_PLUS_ONE_THRESHOLD = 25;
 
 /**
- * Max statements one interactive write transaction may issue before the
- * round-trip guard fires. Every statement inside a `withTransaction` holds the
- * single primary write connection open for another edge→primary round-trip, so a
- * chatty interactive transaction is what the primary aborts as "Transaction
- * timed-out". A plain batch (`executeBatch`) is one round-trip regardless of how
- * many statements it carries and is never counted — the whole point is to push
- * chatty writes onto it. Set above the largest legitimate interactive
- * transaction; anything that grows with input size (a big attendee merge, a
- * per-leg ledger post) must prepare its reads outside the lock and apply its
- * writes as one batch instead. The current high-water mark is recreateTable
- * on attendee_answers: 8 DROP TRIGGER + 5 rebuild + 6 CREATE INDEX +
- * 8 CREATE TRIGGER = 27 statements; the threshold sits above that.
+ * Every statement inside a `withTransaction` holds the single primary write
+ * connection open for another edge→primary round-trip. A chatty interactive
+ * transaction is what the primary aborts as "Transaction timed-out".
+ *
+ * A plain batch is one round-trip however many statements it carries, and is
+ * never counted. Pushing chatty writes onto it is the whole point.
+ *
+ * Anything growing with input size must prepare its reads outside the lock and
+ * apply its writes as one batch. The high-water mark is recreateTable on
+ * attendee_answers at 27 statements, and this sits above that.
  */
 export const TRANSACTION_ROUNDTRIP_THRESHOLD = 30;
 

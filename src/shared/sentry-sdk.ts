@@ -56,20 +56,16 @@ const makeFetchTransport: ConstructorParameters<
   });
 
 /**
- * Constructing `DenoClient` directly adds no integrations at all, so the two
- * that put information into a report are named here. Both are pure event
- * shaping: they read the event and the console, never Deno globals or source
- * files on disk, which is all the edge runtime supports.
+ * Constructing `DenoClient` directly adds NO integrations, so the two that put
+ * information into a report are named here. Both are pure event shaping, which
+ * is all the edge runtime supports. `linkedErrors` walks the `cause` chain,
+ * because without it a report names the wrapper and drops the failure
+ * underneath. `breadcrumbs` keeps the console lines carrying the request id, so
+ * a report leads back to its own log.
  *
- * `linkedErrors` walks an error's `cause` chain. Without it a report names the
- * wrapper — "libsql execute failed" — and drops the failure underneath it.
- *
- * `breadcrumbs` keeps the console lines printed before the error, which carry
- * the request id, so a report leads back to its own log.
- *
- * Deliberately absent: `dedupe` drops an error that repeats, and two requests
- * hitting one bug are two real occurrences, not a duplicate. `fetch`
- * breadcrumbs are off because an outbound URL can carry a session id.
+ * Deliberately absent: `dedupe`, because two requests hitting one bug are two
+ * real occurrences, and `fetch` breadcrumbs, because an outbound URL can carry
+ * a session id.
  */
 const eventShapingIntegrations = [
   breadcrumbsIntegration({ console: true, fetch: false, sentry: false }),

@@ -541,17 +541,11 @@ export const defineTable = <Row, Input = Row>(
 };
 
 /**
- * Bundle a request-scoped cache around a table.
+ * A write to the table, or to a `dependsOn` table whose triggers feed it,
+ * clears the cache at the db-client layer, so no write path calls it.
  *
- * Wires together the pieces every cached table used to repeat by hand:
- *  - a {@link requestCache} over `fetchAll` (the decrypted/mapped rows),
- *  - registration with the cache-stats registry under `name`, and
- *  - registration with the table→cache invalidation registry, so any write to
- *    the table (or to a `dependsOn` table whose triggers feed it) clears the
- *    cache automatically at the db-client layer — no per-write-path call.
- *
- * `fetchAll` may resolve a richer row type than the table's own `Row`
- * (e.g. listings cached with attendee counts), captured by `Cached`.
+ * `Cached` lets `fetchAll` resolve a richer row than the table's own `Row`,
+ * such as listings cached with attendee counts.
  */
 export const cachedTable = <Row, Input, Cached = Row>(config: {
   fetchAll: () => Promise<Cached[]>;

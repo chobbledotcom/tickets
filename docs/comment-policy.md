@@ -4,7 +4,7 @@ This measured what the comments in `src/` cost, tested the three claims that
 prompted the question, priced every cap we could set, and now records the
 decision taken and what is left to do.
 
-**Decided and shipped.** A comment may run at most **20 lines**, and one of its
+**Decided and shipped.** A comment may run at most **12 lines**, and one of its
 lines at most **100 columns**. `deno task check:comments` enforces both in
 `precommit`; the numbers live in `scripts/check-comments/run.ts` and are meant
 to come down. See [Where we are](#where-we-are) for the remaining steps.
@@ -278,7 +278,7 @@ Biome has no rule for any of this, so enforcement is a script. `skipComment` in
 ## Where we are
 
 The checker is in `scripts/check-comments/`, wired into `precommit`, and the
-tree is green at **20 lines and 100 columns**. Both numbers ratchet: lower one
+tree is green at **12 lines and 100 columns**. Both numbers ratchet: lower one
 in `run.ts`, bring the tree to it, repeat. Directives, the `deno doc` barrels,
 and shipped dated migrations are exempt — the last because they are append-only
 history the repo already declines to edit, the same reason `.jscpd.json` ignores
@@ -306,24 +306,86 @@ wants its own measurement first — `test/` is 1,908 files at 5.7% comment
 density, a different shape from `src/`, and its limits must be chosen against
 that rather than inherited.
 
-Remaining steps, from the staged table above, now that ≤ 20 is done:
+These are the remaining steps, now that ≤ 20, ≤ 16 and ≤ 12 are done. The staged
+table above was measured at `470b47e`, and `src/` changed after that. The
+figures below are a fresh count of the tree as it stands today:
 
 | Next | Comments to rewrite | Files touched | Cumulative |
 | ---- | ------------------- | ------------- | ---------- |
-| ≤ 16 | 55                  | 51            | 96         |
-| ≤ 12 | 132                 | 118           | 228        |
-| ≤ 8  | 332                 | 259           | 560        |
-| ≤ 6  | 438                 | 296           | 998        |
-| ≤ 4  | 875                 | 429           | 1,873      |
-| ≤ 3  | 609                 | 334           | 2,482      |
-| ≤ 2  | 914                 | 412           | 3,396      |
+| ≤ 8  | 513                 | 358           | 513        |
+| ≤ 6  | 513                 | 351           | 1,026      |
+| ≤ 4  | 939                 | 466           | 1,965      |
+| ≤ 3  | 647                 | 358           | 2,612      |
+| ≤ 2  | 1,029               | 471           | 3,641      |
 
-On width, 100 → 90 is about 80 comments and 90 → 80 about 1,470 more, so the
-last step there is the single biggest piece of work left in this whole plan.
+Width ratchets on the same tree, counted as comments with at least one
+over-width line:
 
-One judgement worth recording for whoever takes the next step: bringing a
-docstring under a limit is not a formatting job. Most of what came out was
-narration of the code below, or an account of what the code used to be — the
-[banned classes](#the-three-claims-tested), not the load-bearing "why". When a
-comment resists shortening, that is the signal AGENTS.md describes: the code
-underneath probably wants the clarity instead.
+| Next | Comments to rewrite | Files touched | Cumulative |
+| ---- | ------------------- | ------------- | ---------- |
+| ≤ 95 | 12                  | 12            | 12         |
+| ≤ 90 | 30                  | 29            | 42         |
+| ≤ 85 | 95                  | 78            | 137        |
+| ≤ 80 | 986                 | 431           | 1,123      |
+
+The last width step is the single biggest piece of work left in this plan.
+
+Take 100 → 90 in one or two cheap steps first.
+
+## How to bring a comment under the cap
+
+A docstring does not come under a limit by a change of format. The first attempt
+at 16 lines proved that. Compression to save a line produced run-on sentences
+and broken grammar. In one file a numbered step list became a 39-word paragraph.
+Compression is the wrong move. These three are the right ones.
+
+The 16 to 12 step then ran on deletion alone, across 222 comments in 181 files.
+No comment was compressed to fit. The tree landed at 12 lines with 101 comments
+still in the 11 to 12 band, which is where the cap was then set.
+
+### Know who reads it
+
+An AI writes and reads most of this code. That reader parses the whole file, and
+it follows a name into another file. So a comment earns its place only when it
+says something the reader **cannot** get from the code.
+
+It cannot get these:
+
+- A constraint from outside the repository. An edge subrequest budget, a
+  provider quirk, a replica catch-up window, a runtime that drops a body.
+- A rule the code permits but must never do. "Never gate a security decision on
+  this cache."
+- An invariant that lives in another file, and the reason it holds.
+- A trap, where the obvious sense of the code is the wrong one.
+
+The reader gets everything else from the code itself. A list of what each
+function does, a restatement of a type, an account of the structure below, a
+worked example of a call — all of that is narration, and narration is what fills
+these comments.
+
+### Delete first
+
+Cut every line the reader can derive. Most module headers lose most of their
+text this way. `keyed-cache.ts` went from 16 lines to 8, and what is left is one
+replica-lag reason and one security rule. `rest/crud-api.ts` and
+`rest/resource.ts` each lost a worked call example and went to 5 and 4 lines,
+because the reader can call the function it is looking at.
+
+### Relocate what survives but does not belong
+
+A long passage that is genuinely durable is usually in the wrong place:
+
+| The passage is                              | It belongs in      |
+| ------------------------------------------- | ------------------ |
+| a business rule                             | a `specs/` Feature |
+| a design decision, with its options         | `docs/`            |
+| a deferred idea                             | `TODO.md`          |
+| a per-function contract, in a module header | that function      |
+
+Split the comment, move the part that belongs elsewhere, and leave a pointer
+only when the reader needs one.
+
+### Then measure
+
+Do not aim at the cap. Delete what the reader does not need, and the cap no
+longer binds. Set the next number from what the tree lands on.

@@ -1,15 +1,7 @@
 /**
- * Admin guide page — FAQ-style help for administrators.
- *
- * The page is assembled from a single ordered list of guide sections (see
- * `guideSections`). Each topic module contributes a `GuideSection[]`; the shared
- * `renderGuideSections` turns that schema into the FAQ accordion markup, and the
- * Section/Q/Faq primitives live in ./guide/components.tsx. Authoring the guide as
- * data — rather than hand-nested JSX — is deliberate: a section can only ever be
- * a top-level list item, so a sub-section can never be nested mid-list and pull
- * unrelated questions under the wrong heading. Most answers are authored in
- * guide.a.* locale keys (data-driven `faq(...)` entries); the answers that vary
- * by site configuration are `custom(...)` entries with a bespoke body.
+ * Admin guide page — FAQ-style help for administrators, assembled from one
+ * ordered list of {@link GuideSection}s. The schema, and the reason the guide
+ * is data, are in ./guide/components.tsx.
  */
 
 /* jscpd:ignore-start */

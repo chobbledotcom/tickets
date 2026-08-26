@@ -1,22 +1,11 @@
 /**
- * Public order page.
+ * Selection, the count, and the cart are pure CSS (`:checked`, a counter and
+ * `:has()`), so the page works with no JavaScript. A script only keeps
+ * availability live on top of that.
  *
- * `GET /order` renders every bookable listing and package as selectable cards
- * with a floating cart. Selection, the count, and showing the cart are pure CSS
- * (`:checked`, a counter and `:has()`), so it works with no JavaScript.
- *
- * An enhancement script keeps availability live: on every change it asks
- * `GET /order/availability` how each card stands and greys out what no longer
- * fits, naming the earlier choice to remove when the visitor's own selection
- * holds the capacity. The evaluation is the pure `#shared/order` core.
- *
- * The cart is a GET form back to `/order`; a selection redirects to
- * `/ticket/<slugs>?q_<id>=1…&date=…`, where a slug may name a package. Nothing
- * is ever dropped, because the booking page and its submit remain the
- * availability authority — so this page is only advisory. An option's demand
- * covers its direct listings, not the required children the form folds under
- * them, so two selections sharing a child pool look available here and are
- * refused at the form.
+ * The page is advisory. An option's demand covers its direct listings, not the
+ * folded children, so two selections sharing a child pool look fine here and
+ * are refused at the form.
  */
 
 import type { TicketListing } from "#booking/model.ts";
@@ -294,17 +283,12 @@ const stateLabel = (state: OrderOptionState): string => {
 };
 
 /**
- * Build the booking-page URL for the selection, in the order things were
- * added: every chosen item becomes a slug — packages included, so one booking
- * carries every chosen bundle — and each listing that is bookable at all is
- * pre-filled to quantity 1 via `?q_<id>=1` (a package needs no pre-fill: its
- * count selector already defaults to one bundle). Sold-out picks still show on
- * the booking page as slugs without a pre-fill, and NOTHING selected is
- * dropped — the booking page and its submit are the availability authority.
- * The chosen date rides along as `?date=` so daily items land pre-dated.
- * Returns null when no selected key names a catalog item at all (a
- * hand-crafted query of unknown ids) — there is nothing to book, so the
- * caller falls through to the gallery.
+ * NOTHING selected is dropped, not even a sold-out pick. The booking page and
+ * its submit are the availability authority, so a sold-out slug goes through
+ * without a pre-fill and never disappears.
+ *
+ * A package needs no `?q_` pre-fill: its count selector already defaults to one
+ * bundle. Returns null when no selected key names a catalog item at all.
  */
 const bookingUrlFor = (
   catalog: OrderCatalog,

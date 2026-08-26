@@ -1,15 +1,8 @@
 /**
- * Square implementation of the PaymentProvider interface
+ * Square implementation of the PaymentProvider interface, over square.ts.
  *
- * Wraps the square.ts module to conform to the
- * provider-agnostic PaymentProvider contract.
- *
- * Key differences from Stripe:
- * - Uses Payment Links instead of checkout sessions
- * - Order ID is the session equivalent
- * - Webhook event is payment.updated (not checkout.session.completed)
- * - Retrieving session requires fetching Order + checking payment status
- * - Webhook setup is manual (user provides signature key from dashboard)
+ * Square has no checkout session, so a Payment Link's order id stands in as our
+ * session id throughout.
  */
 
 import {

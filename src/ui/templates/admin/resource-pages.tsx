@@ -1,15 +1,9 @@
 /**
- * Resource-level admin page factory.
+ * Resource-level admin page factory: one config object becomes a list page, a
+ * create page, and a type-the-name delete confirmation page.
  *
- * Several owner-only settings resources share one workflow: a list page, a
- * create page, and a type-the-name delete confirmation page. This factory
- * turns one config object into those three pages. The
- * resource declares its paths (derived from `basePath`), titles, table
- * columns (typed via {@link TableColumn}), form fields (a `renderFields`
- * callback so non-`Field[]` forms like the attendee-status checkboxes still
- * fit), and the delete confirmation copy.
- * `AdminPage`, typed tables, and `entityDeletePage` are its rendering
- * primitives.
+ * Fields come from a `renderFields` callback and not a `Field[]`, so a form
+ * that is not a field list — the attendee-status checkboxes — still fits.
  */
 
 /* jscpd:ignore-start */

@@ -1,17 +1,8 @@
 /**
- * The group entity page: one declarative definition of the tabbed
- * /admin/groups/:id page, collapsing what used to be the separate group detail
- * and edit routes.
- *
- *   Overview   — the group detail table, member-listings table, add-listings
- *                form (staff only — it decrypts attendee PII)
- *   Attendees  — the group roster, one row per booking line
- *   Edit       — the group form + per-listing package prices (content roles)
- *   Actions    — export JSON, bulk actions, danger zone: delete
- *
- * Content editors can use Edit, Images, and the safe entries on Actions. The
- * staff-only tabs retain their own visibility checks. Sub-action POST handlers
- * keep their own routes in groups.ts; this file owns only the GET surface.
+ * The tabbed /admin/groups/:id entity page. Overview is staff-only because it
+ * decrypts attendee PII. Content editors reach Edit, Images, and the safe
+ * entries on Actions. Sub-action POST handlers keep their own routes in
+ * groups.ts, so this file owns only the GET surface.
  */
 
 /* jscpd:ignore-start */

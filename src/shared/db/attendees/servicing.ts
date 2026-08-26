@@ -606,23 +606,14 @@ export const COST_REPLAY_MISMATCH =
   "Reload the page and re-enter the cost.";
 
 /**
- * The transfer id of an existing service cost stored under `reference`, but ONLY
- * when its stored leg matches the submitted **operator-entered** payload —
- * amount, servicing event, listing, and (decrypted) memo. Returns null when no
- * leg is stored for the reference (a fresh cost). Throws
- * {@link COST_REPLAY_MISMATCH} when a leg IS stored but differs: the cost form's
- * per-render idempotency key is an opaque token, so a stale/bfcached form the
- * operator edited before resubmitting would otherwise resolve to the old leg and
- * report a false success while recording nothing. The memo is checked too — a
- * payload-derived reference omits it, so "same amount, changed memo only" must
- * not silently keep the old memo.
+ * The cost form's idempotency key is an opaque per-render token, so a stale or
+ * bfcached form the operator edited before resubmit would otherwise resolve to
+ * the old leg and report a false success while it recorded nothing. Hence the
+ * payload comparison, memo included, since a payload-derived reference omits it.
  *
- * `occurredAt` is deliberately NOT compared: it isn't an operator-editable cost
- * form field — it's derived (the event's booking date, or `new Date()` for a
- * dateless event). Comparing it would make a legitimate double-submit of a
- * dateless cost (same key, same amount/listing/memo, a millisecond-different
- * server clock) fail as a mismatch, defeating the idempotency key for the exact
- * retry case it exists to cover.
+ * `occurredAt` is deliberately NOT compared. It is derived, not
+ * operator-editable, and a comparison of it fails a legitimate double-submit of
+ * a dateless cost. That defeats the idempotency key for its own retry case.
  */
 const matchingServiceCostReplayId = async (
   input: RecordServiceCostInput,

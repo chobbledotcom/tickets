@@ -1,15 +1,13 @@
 /**
- * Shared field-name scheme for selecting listings and packages with hidden
- * checkboxes.
+ * One wire format, so the public `/order` gallery and the admin availability
+ * checker speak the same language:
  *
- * Used by the public `/order` gallery and the admin calendar availability
- * checker so both speak the same wire format: a checked box submits
- * `select_<listingId>=1` (or `select_package_<groupId>=1` for a package), an
- * optional `start_date` carries the anchor date the selection was made for,
- * and an optional `order` field carries the order the visitor added things in
- * (option keys, comma-separated) so availability messages can honour earlier
- * choices. The admin attendee and servicing create forms use the shared
- * readers here to pre-fill the chosen listings.
+ *   select_<listingId>=1          a chosen listing
+ *   select_package_<groupId>=1    a chosen package
+ *   start_date                    the anchor date the selection was made for
+ *   order                         option keys, comma-separated, in add order
+ *
+ * `order` exists so availability messages can honour the earlier choice.
  */
 
 import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";

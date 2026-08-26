@@ -1,18 +1,13 @@
 /**
- * Activity log operations
+ * Messages are encrypted with the owner's public key, so a database dump plus
+ * DB_ENCRYPTION_KEY cannot read them. Only an authenticated admin, whose
+ * password unwraps the private key, can.
  *
- * Activity logging for admin visibility. Messages are encrypted with the site
- * owner's public key (hybrid RSA+AES), so a database dump plus DB_ENCRYPTION_KEY
- * cannot read them — only an authenticated admin, whose password unwraps the
- * private key, can. Writing needs only the public key (which a set-up site
- * always has), so the many unauthenticated callers (webhooks, the error logger)
- * still log; reading pulls the private key from the current request's session
- * with no threading.
+ * Writing needs only the public key, which a set-up site always has, so an
+ * unauthenticated caller such as a webhook or the error logger still logs.
  *
- * Rows written before this change carry the legacy DB_ENCRYPTION_KEY format and
- * are still readable — {@link decryptLogMessage} routes by prefix. The
- * activity-log backfill job re-encrypts those legacy rows to the owner key over
- * time.
+ * Legacy rows carry the older env-key format and stay readable.
+ * {@link decryptLogMessage} routes by prefix.
  */
 
 import { decrypt } from "#crypto/encryption.ts";
