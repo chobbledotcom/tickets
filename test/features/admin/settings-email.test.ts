@@ -3,11 +3,12 @@
  * `@story:settings.connecting-an-email-provider`.
  *
  * The story owns the owner's journey: connecting a provider and being told it
- * was kept, a from-address that is not an address, switching provider without
- * retyping the key, disconnecting, and every answer a test send can get back.
+ * was kept, switching provider without retyping the key, disconnecting, and
+ * every answer a test send can get back.
  *
- * These own what a browser cannot reach: sends the page offers no way to make,
- * and the anchor each redirect lands on.
+ * These own what a browser cannot reach — sends the page offers no way to make,
+ * and the anchor each redirect lands on — and the two branches a story cannot
+ * cover, because a Cucumber run does not count towards coverage.
  */
 
 // jscpd:ignore-start

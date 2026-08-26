@@ -7,7 +7,9 @@
  * kept, clearing it again, and being refused wording the site cannot read.
  *
  * These own what a story must not be the only cover of: that the wording is
- * encrypted at rest, the length ceiling, and a send carrying no fields at all.
+ * encrypted at rest, the length ceiling, a send carrying no fields at all, and
+ * the refusal branch, which the story reads the words of but cannot cover,
+ * because a Cucumber run does not count towards coverage.
  */
 
 // jscpd:ignore-start
