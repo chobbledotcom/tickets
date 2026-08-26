@@ -16,6 +16,7 @@ import {
   newcomerReading,
   openAsNewcomer,
   type PageRead,
+  wordsOnPageFrom,
 } from "#test/specs/support/browser.ts";
 import {
   listingNamed,
@@ -33,6 +34,8 @@ import {
 } from "#test/specs/support/sales-pages.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
+  emailFor,
+  type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -61,11 +64,6 @@ export const keepsTicketFor = (
   for (const thing of things) world.things.remember("ticket", thing, code);
   world.ticketToken = code;
 };
-
-/** One made-up address per person, so two people in one story are never taken
- * for one. */
-const emailFor = (who: string): string =>
-  `${who.toLowerCase().replaceAll(" ", ".")}@example.com`;
 
 /** The organiser attaches a file to something they sell. A file is uploaded on
  * its own rather than typed into the listing's form, so the story records what
@@ -167,10 +165,10 @@ export const sellsSomethingFilledIn = async (
 };
 
 /** Something sold a day at a time, bookable from today onwards. */
-export const sellsSomethingByTheDay = (
-  world: TicketsWorld,
-  name: string,
-): Promise<Listing> =>
+export const sellsSomethingByTheDay: ReadAboutOneThing<Listing> = (
+  world,
+  name,
+) =>
   putsOnSaleByTheDay(world, name, {
     maxAttendees: 20,
     maxQuantity: 5,
@@ -223,9 +221,7 @@ export const openTicket = (world: TicketsWorld): Promise<TestBrowser> =>
   openAsNewcomer(`/t/${linkInTheirHand(world)}`);
 
 /** What their ticket says, in the words a reader sees. */
-export const wordsOnTheirTicket = async (
-  world: TicketsWorld,
-): Promise<string> => (await openTicket(world)).pageText;
+export const wordsOnTheirTicket = wordsOnPageFrom(openTicket);
 
 /** A code the site was never given. Long enough that it cannot collide with a
  * real one, and the same every time so the story reads the same each run. */

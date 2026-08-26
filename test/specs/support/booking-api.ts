@@ -10,9 +10,10 @@ import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 
 import { listingNamed } from "#test/specs/support/listings.ts";
-import type {
-  ReadAboutOneThing,
-  TicketsWorld,
+import {
+  emailFor,
+  type ReadAboutOneThing,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
@@ -99,7 +100,7 @@ export const apiBooks = async (
   ask(`/api/listings/${listingNamed(world, name).slug}/book`, {
     body: {
       date: day,
-      email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+      email: emailFor(who),
       name: who,
     },
     method: "POST",

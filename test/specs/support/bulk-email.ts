@@ -13,7 +13,7 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
-  ORGANISER,
+  keepsWhatTheOrganiserSaw,
   openAdminPage,
   scenarioBrowser,
 } from "#test/specs/support/browser.ts";
@@ -29,7 +29,10 @@ import {
 } from "#test/specs/support/outgoing.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
-  keepWhatTheyWereTold,
+  type ActOnOneThing,
+  type ActOnTheStory,
+  type AsksAboutOneThing,
+  type ReadAboutOneThing,
   type ReadsWhatWasKept,
   requiredWorldValue,
   type TicketsWorld,
@@ -158,10 +161,7 @@ export const addressOf = (who: string): string =>
 /** A listing booked by the day, made once per story and remembered by name, so
  * two people can book different days of the same thing. Room for a stay of up
  * to a week covers both a single day and a booking spanning several. */
-const dailyListingNamed = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<void> => {
+const dailyListingNamed: ActOnOneThing = async (world, listingName) => {
   if (world.things.recall("listing", listingName)) return;
   await openStayListing(world, listingName, 7, 50, { customerPicksDays: true });
 };
@@ -262,10 +262,10 @@ export const theOneWhoAsked = (): string => BOOKERS[0]!;
  * page, or nothing when the page offers none. Found by where the link goes
  * rather than by its words: the admin pages carry more than one link reading
  * "Email", and one of the others leads off to the settings page. */
-const wayInToEmailing = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<{ browser: TestBrowser; wayIn: string | undefined }> => {
+const wayInToEmailing: ReadAboutOneThing<{
+  browser: TestBrowser;
+  wayIn: string | undefined;
+}> = async (world, listingName) => {
   const listingId = listingIdNamed(world, listingName);
   const browser = await openAdminPage(
     world,
@@ -282,10 +282,10 @@ const wayInToEmailing = async (
 /** The owner opens the page for writing to one listing's attendees, following
  * the way in on that listing's own page. A listing offering no way in is one
  * nobody could write from, so the story fails with them. */
-export const opensEmailForListing = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<TestBrowser> => {
+export const opensEmailForListing: ReadAboutOneThing<TestBrowser> = async (
+  world,
+  listingName,
+) => {
   const { browser, wayIn } = await wayInToEmailing(world, listingName);
   if (!wayIn) {
     throw new Error(`"${listingName}" offers no way to write to its attendees`);
@@ -296,11 +296,10 @@ export const opensEmailForListing = async (
 
 /** Whether the listing's own page offers the owner any way to write to the
  * people booked onto it. */
-export const listingOffersEmailAction = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<boolean> =>
-  (await wayInToEmailing(world, listingName)).wayIn !== undefined;
+export const listingOffersEmailAction: AsksAboutOneThing = async (
+  world,
+  listingName,
+) => (await wayInToEmailing(world, listingName)).wayIn !== undefined;
 
 /** The owner writes their message on the compose page they are looking at, and
  * asks to see it before it goes. */
@@ -316,7 +315,7 @@ export const writesAndAsksToSee = async (
     message.marketing ? { marketing: ["1"] } : { marketing: [] },
   );
   world.wordsWritten = message.body;
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  keepsWhatTheOrganiserSaw(world, browser);
 };
 
 /** The words the owner wrote, so a later step can look for those rather than
@@ -350,10 +349,8 @@ export const previewOffersADraftToSendThemselves = (
 
 /** The owner presses Send on the preview they are looking at, and is left with
  * whatever the site told them. */
-export const sendsWhatWasPreviewed = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const sendsWhatWasPreviewed: ActOnTheStory = async (world) => {
   const browser = scenarioBrowser(world);
   await browser.submitFormAt(SEND_PATH);
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  keepsWhatTheOrganiserSaw(world, browser);
 };

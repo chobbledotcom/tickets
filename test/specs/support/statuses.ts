@@ -13,7 +13,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
   findsTheWayInFrom,
-  ORGANISER,
+  keepsWhatTheOrganiserSaw,
   opensAdminPageAt,
   opensListAtRow,
   type TakesOneThingDown,
@@ -25,12 +25,11 @@ import {
 } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
-import {
-  type ActOnOneThing,
-  type AsksAboutOneThing,
-  keepWhatTheyWereTold,
-  type ReadAboutOneThing,
-  type TicketsWorld,
+import type {
+  ActOnOneThing,
+  AsksAboutOneThing,
+  ReadAboutOneThing,
+  TicketsWorld,
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
@@ -124,7 +123,7 @@ export const organiserAddsState = async (
     t("statuses.form_create_button"),
     ticked,
   );
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  keepsWhatTheOrganiserSaw(world, browser);
 };
 
 /** Every marker on one state's own row. Read off that state's row alone, so a
@@ -147,20 +146,22 @@ const rowShowsBadge = async (
   badge: string,
 ): Promise<boolean> => (await markersOnRow(world, name)).includes(badge);
 
+/** Whether one state's row carries a badge, worked out from what the story
+ * names. Every badge rule on the list is this with a different wording. */
+const listShowsBadgeFor =
+  (wording: (named: string) => string) =>
+  (world: TicketsWorld, name: string, named: string): Promise<boolean> =>
+    rowShowsBadge(world, name, wording(named));
+
 /** Whether the list marks one state as holding one job. */
-export const listMarksStateAs = (
-  world: TicketsWorld,
-  name: string,
-  job: string,
-): Promise<boolean> => rowShowsBadge(world, name, t(theJob(job).badge));
+export const listMarksStateAs = listShowsBadgeFor((job) =>
+  t(theJob(job).badge),
+);
 
 /** Whether the list says a state asks for a deposit, and how much. */
-export const listShowsDeposit = (
-  world: TicketsWorld,
-  name: string,
-  amount: string,
-): Promise<boolean> =>
-  rowShowsBadge(world, name, t("statuses.badge_reservation", { amount }));
+export const listShowsDeposit = listShowsBadgeFor((amount) =>
+  t("statuses.badge_reservation", { amount }),
+);
 
 /** The link into one state's own page, read off that state's own row. A link,
  * not any mention of the address: a state whose row lost its way in is one the
@@ -182,11 +183,7 @@ export const organiserTakesStateAway = async (
   name: string,
   typed: string,
 ): Promise<void> => {
-  keepWhatTheyWereTold(
-    world,
-    ORGANISER,
-    await takesStateAway(world, name, typed),
-  );
+  keepsWhatTheOrganiserSaw(world, await takesStateAway(world, name, typed));
 };
 
 /** The arrows the organiser's list offers for moving one state. */

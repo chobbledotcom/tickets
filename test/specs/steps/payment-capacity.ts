@@ -8,6 +8,7 @@ import { attendeeNotes } from "#db/notes/target.ts";
 import { handleRequest } from "#routes";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
+  emailFor,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -59,7 +60,7 @@ const paymentEvent = (
     eventId: session.eventId,
     metadata: signedMeta(
       {
-        email: `${session.name.toLowerCase().replaceAll(" ", ".")}@example.com`,
+        email: emailFor(session.name),
         items: singleItem(listingId, 1, 1000),
         name: session.name,
       },

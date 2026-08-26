@@ -38,6 +38,9 @@ export type ActOnOneThing = (
   world: TicketsWorld,
   name: string,
 ) => Promise<void>;
+/** A step that names nothing at all: it acts on the story as it stands. */
+export type ActOnTheStory = (world: TicketsWorld) => Promise<void>;
+
 export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
@@ -184,6 +187,11 @@ export interface TicketsWorld extends World, EvidencePages {
   wordsWritten?: string;
   writeoffBefore?: number;
 }
+
+/** The email address the person a story names books with. One rule, so a
+ * later step can look a person up by the same address the booking used. */
+export const emailFor = (who: string): string =>
+  `${who.toLowerCase().replaceAll(" ", ".")}@example.com`;
 
 /** Run the rest of this scenario with the environment changed, and put it
  * back when the scenario ends. Every story that needs a different environment

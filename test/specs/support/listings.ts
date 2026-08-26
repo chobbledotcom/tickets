@@ -10,8 +10,15 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { requireListingWithCount } from "#db/listings/records.ts";
-import { adminBrowser, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  adminBrowser,
+  type FillsInServedForm,
+  openAdminPage,
+  type SavesNamedThingsForm,
+  savesServedForm,
+} from "#test/specs/support/browser.ts";
 import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -133,13 +140,6 @@ export const tickOnListingTab = async (
 /** What the site tells somebody when a listing's own form saves. */
 export const LISTING_SAVED = "Listing updated";
 
-/** What somebody fills in, worked out from the page they were actually served.
- * Reading the served page is what stops a story sending a value no real
- * browser could have offered. */
-export type FillsInListingForm = (
-  served: string,
-) => Record<string, string | string[]>;
-
 /**
  * Somebody opens a listing's edit form, fills it in from what the page offers,
  * and saves.
@@ -152,10 +152,10 @@ export type FillsInListingForm = (
 export const saveListingEdit = async (
   browser: TestBrowser,
   listingId: number,
-  fillsIn: FillsInListingForm,
+  fillsIn: FillsInServedForm,
 ): Promise<void> => {
   await browser.visit(`/admin/listing/${listingId}/edit`);
-  await browser.submitForm(fillsIn(browser.currentHtml), "Save Changes");
+  await savesServedForm(browser, fillsIn);
   expect(browser.containsText(LISTING_SAVED)).toBe(true);
   // Left on the listing they were editing, rather than bounced somewhere else.
   // Some saves land on the listing and some stay on its form, so both count —
@@ -179,13 +179,27 @@ export const setBoxOnListing = async (
   }));
 };
 
-/** The organiser makes a change to one of their listings — the usual way in,
- * since almost every change is one they make while signed in as themselves. */
-export const organiserSavesListing = async (
+/** The organiser changes named fields on a listing's own form. The form has
+ * to really offer them: a box that is missing, disabled, or fixed at another
+ * value means the organiser could not make the change at all, however happily
+ * the send is accepted. */
+export const organiserSavesFields = <Fields extends Record<string, string>>(
   world: TicketsWorld,
   name: string,
-  fillsIn: FillsInListingForm,
-): Promise<void> => {
+  fields: Fields,
+): Promise<void> =>
+  organiserSavesListing(world, name, (served) => {
+    expectCanReallySend(served, fields);
+    return fields;
+  });
+
+/** The organiser makes a change to one of their listings — the usual way in,
+ * since almost every change is one they make while signed in as themselves. */
+export const organiserSavesListing: SavesNamedThingsForm<void> = async (
+  world,
+  name,
+  fillsIn,
+) => {
   await saveListingEdit(
     await adminBrowser(world),
     listingIdNamed(world, name),

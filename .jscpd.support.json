@@ -1,0 +1,25 @@
+{
+  "threshold": 0,
+  "_comment": "The Cucumber support helpers on their own, at 18 tokens. .jscpd.specs.json already scans them at 19 alongside src/, and that number cannot come down: src/ is clean at 19 and reports hundreds of pairs at 17, so a lower number there would drag src/ with it. This second scan drops src/ and holds the helpers alone tighter. The *.test.ts files beside them are tests of the helpers, not helpers, so they stay on the ordinary test/ scan: a test body repeats by design. 18 is a ratchet position, not a floor — docs/test-duplication.md records what the remaining steps cost and why an earlier reading of this band as noise was wrong.",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-support",
+  "ignore": [
+    "**/node_modules/**",
+    "**/*.test.ts"
+  ],
+  "format": [
+    "typescript",
+    "tsx"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 18,
+  "path": [
+    "test/specs/support"
+  ]
+}
