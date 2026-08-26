@@ -335,6 +335,8 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
         e.message.includes('Sent bulk email "Just you"'),
       );
       expect(entry?.listing_id).toBe(null);
+      // The log names one recipient in the singular, and says so exactly.
+      expect(entry?.message).toContain("to 1 recipient.");
     });
   });
 });
