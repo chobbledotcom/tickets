@@ -357,3 +357,6 @@ src/shared/sumup-observation.ts::toSumupCheckout.status~1l27hu1  The ladder acce
 # sumup-provider.ts: the webhook schema types both fields as optional text.
 src/shared/sumup-provider.ts::sumupWebhookEvent.id~0ma0qwq  ?? → ||   # the schema types id as string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
 src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → ||   # the schema types event_type as string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""
+
+# sumup/money.ts: Array.find gives back a refund read object or nothing.
+src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → ||   # find returns a refund read object or undefined, and every object is truthy

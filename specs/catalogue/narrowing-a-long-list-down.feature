@@ -19,8 +19,8 @@ Feature: The organiser narrows a long list down to what they are looking for
       Given the site sells places at the Pottery
       And the site sells day places at the Boat
       When the organiser narrows the list to "Daily"
-      Then the list offers the Boat
-      And the list does not offer the Pottery
+      Then the organiser's list offers the Boat
+      And the organiser's list does not offer the Pottery
 
     @case:listing-filter.nothing-to-narrow-between
     Scenario: Everything on sale is the same kind
@@ -43,8 +43,8 @@ Feature: The organiser narrows a long list down to what they are looking for
       And the owner marks the Pottery as "Easy"
       And the owner marks the Quiz as "Hard"
       When the organiser narrows the list to "Easy"
-      Then the list offers the Pottery
-      And the list does not offer the Quiz
+      Then the organiser's list offers the Pottery
+      And the organiser's list does not offer the Quiz
 
     @case:listing-filter.both-narrowings-at-once
     Scenario: The organiser narrows by kind and by wording at once
@@ -57,9 +57,9 @@ Feature: The organiser narrows a long list down to what they are looking for
       And the owner marks the Kayak as "Hard"
       When the organiser narrows the list to "Easy"
       And the organiser narrows the list to "Daily"
-      Then the list offers the Boat
-      And the list does not offer the Pottery
-      And the list does not offer the Kayak
+      Then the organiser's list offers the Boat
+      And the organiser's list does not offer the Pottery
+      And the organiser's list does not offer the Kayak
 
   @rule:catalogue.customers-are-never-narrowed
   @surface:public

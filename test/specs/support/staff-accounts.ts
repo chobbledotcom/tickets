@@ -6,13 +6,21 @@
  */
 
 // jscpd:ignore-start
+import { getAllUsers } from "#db/users.ts";
 import { t } from "#i18n";
 import {
   browserSeenBy,
+  type OpensOneFixedPage,
+  ORGANISER,
   openAdminPage,
   openAsNewcomer,
+  opensAdminPageAt,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
+import {
+  type RowOnList,
+  rowsOnList,
+} from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type {
   ActOnOnePerson,
@@ -34,23 +42,69 @@ const managerBrowserName = (who: string): string => `manager ${who}`;
 const managerInviteName = (who: string): string =>
   `the manager invite for ${who}`;
 
-/** The owner fills in the rendered invite form and reads back the link the
- * site gives them. The role must be offered by that form. */
-export const createStaffInvite = async (
+/** Something the owner does about one person in one role, answering with
+ * words: what the site said, or the link it gave them. */
+type InvitesSomebody = (
   world: TicketsWorld,
   who: string,
   role: InvitedStaffRole,
-): Promise<string> => {
+) => Promise<string>;
+
+/** The owner fills in the rendered invite form and is handed back whatever the
+ * site said. Some invites are meant to be refused, so the words matter as much
+ * as the outcome. The role must be one the form itself offers. */
+export const ownerSendsInviteForm: InvitesSomebody = async (
+  world,
+  who,
+  role,
+) => {
   const browser = await openAdminPage(world, "/admin/user/new");
   await fillInAndSend(
     browser,
     { admin_level: role, username: who },
     t("users.invite.submit"),
   );
-  const link = browser.pageText.match(/\/join\/[A-Za-z0-9_-]+/)?.[0];
+  return browser.pageText;
+};
+
+/** The one-time link on a page the owner was shown, or nothing when the site
+ * gave them none. */
+export const inviteLinkIn = (said: string): string | null =>
+  said.match(/\/join\/[A-Za-z0-9_-]+/)?.[0] ?? null;
+
+/** The owner fills in the rendered invite form and reads back the link the
+ * site gives them, for every story that needs a working invite rather than a
+ * refused one. */
+export const createStaffInvite: InvitesSomebody = async (world, who, role) => {
+  const link = inviteLinkIn(await ownerSendsInviteForm(world, who, role));
   if (!link) throw new Error(`The owner was given no link to send ${who}`);
   return link;
 };
+
+/** One person's row on the list of everybody who may sign in, found by the
+ * name that links into their own page. The site files usernames in lower
+ * case, so the row is found the way the site keeps it rather than the way the
+ * story spells it. */
+export const rowForPersonOnList = (
+  world: TicketsWorld,
+  who: string,
+): RowOnList => {
+  const html = browserSeenBy(world, ORGANISER).currentHtml;
+  const found = rowsOnList(html, /\/admin\/users\/(\d+)$/).find(
+    (row) => row.name.toLowerCase() === who.toLowerCase(),
+  );
+  if (!found) throw new Error(`The list holds nobody called "${who}"`);
+  return found;
+};
+
+/** The owner opens the list of everybody who may sign in. */
+export const ownerOpensWhoMaySignIn: OpensOneFixedPage =
+  opensAdminPageAt("/admin/users");
+
+/** How many people may sign in at all — an invite waiting to be used counts,
+ * because that person already has a name reserved on the site. */
+export const howManyMaySignIn = async (): Promise<number> =>
+  (await getAllUsers()).length;
 
 /** The invited person follows the real link and chooses their password in the
  * form it serves. This browser holds only the single-use invitation visit. */

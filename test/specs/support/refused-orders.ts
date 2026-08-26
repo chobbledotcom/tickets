@@ -22,6 +22,7 @@ import {
   type OrderLine,
   visitorFillsInOrder,
 } from "#test/specs/support/public-booking.ts";
+import { ownPageOrder } from "#test/specs/support/sales-pages.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -69,10 +70,6 @@ export const fillsIn = async (
   const { press } = await visitorFillsInOrder(path, lines, choices);
   world.orderFilledIn = { choices, lines, press };
 };
-
-/** The page several listings are booked from together. */
-export const combinedPath = (lines: OrderLine[]): string =>
-  `/ticket/${lines.map(({ listing }) => listing.slug).join("+")}`;
 
 export const orderInHand = (world: TicketsWorld): OrderInHand =>
   requiredWorldValue(world.orderFilledIn, "the filled-in order");
@@ -129,8 +126,7 @@ export const fillsOwnPageIn = async (
   line: Omit<OrderLine, "listing">,
   extras: Partial<BookingChoices>,
 ): Promise<void> => {
-  const listing = listingNamed(world, name);
-  await fillsIn(world, `/ticket/${listing.slug}`, [{ listing, ...line }], {
+  await fillsIn(world, ...ownPageOrder(world, name, line), {
     ...THE_CUSTOMER,
     ...extras,
   });
