@@ -18,9 +18,10 @@ import {
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { sellPlacesAt, soleBookingOn } from "#test/specs/support/money.ts";
+import { sellPlacesAt } from "#test/specs/support/money.ts";
 import {
   type FilledOrder,
+  soleBookingOn,
   visitorFillsInBooking,
   visitorTriesToBook,
 } from "#test/specs/support/public-booking.ts";

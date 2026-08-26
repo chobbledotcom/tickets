@@ -13,18 +13,73 @@ slimmed direct remnant with a header naming the story for branch cover (Cucumber
 runs do not count towards coverage), and record where every old claim went — the
 story, the remnant, or a deliberate drop.
 
-- `test/integration/server/settings/features.test.ts` — the feature explanation
-  pages and the Site toggle that publishes the public site. Keep the concurrency
-  and cache-invalidation tests direct.
-- `test/integration/server/settings/email.test.ts` and `email-templates.test.ts`
-  — connecting a provider and editing email templates. Keep encryption-at-rest,
-  Liquid-syntax, and length contracts direct.
-- `test/integration/servicing/admin-homepage.test.ts` — the organiser's
-  service-event list and edit pages beside `@story:servicing.hold-and-cost`.
-- `test/integration/admin/sms.test.ts` — the organiser texting an attendee
-  (gateway gate, queue, log, inbound link).
+- `test/features/admin/settings-email.test.ts` and
+  `test/integration/server/settings/email-templates.test.ts` — connecting a
+  provider and editing email templates. Keep encryption-at-rest, Liquid-syntax,
+  and length contracts direct. This list named
+  `test/integration/server/settings/email.test.ts`, which does not exist; the
+  email settings tests live at the first path above.
 
 ---
+
+## Move the routes' flash messages into the message catalog
+
+_Origin: found while migrating `test/integration/admin/sms.test.ts` to
+`@story:attendees.sending-somebody-a-text`. The story had to quote these strings
+from the route, because there is no catalog key to read them from._
+
+Twenty files under `src/features/` build a flash message from a string literal
+rather than `t(...)`, 41 literals in all. Count them again before you start,
+because a `redirect(...)` call often runs over several lines and a same-line
+`grep` misses most of them:
+
+```bash
+rg -U --multiline -o '\b(errorRedirect|redirect)\((?:[^()"]|"[^"]*"|\([^()]*\))*\)' src/features/ |
+  grep -E '"[A-Z][^"]{6,}"'
+```
+
+`src/features/admin/sms.ts` holds six: `Invalid SMS target`,
+`SMS gateway is not
+configured`, `Message cannot be empty`,
+`Attendee has no phone number on file`, `Text message queued`, and
+`Message could not be queued`. `attributes.ts` holds five,
+`questions/answers.ts` four, and `attendees-merge.ts`, `questions.ts`,
+`public/pages.ts`, and `public/unsubscribe.ts` three each. `update.ts` holds
+two, and there is one each in `auth.ts`, `builder.ts`, `bulk-actions.ts`,
+`bulk-email.ts`, `calendar.ts`, `listings-parents.ts`, `modifiers.ts`,
+`money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`, `support.ts`, and
+`join.ts`. Two of these files are public surfaces, not admin ones.
+
+The `i18n-coverage` test only fails a hard-coded string in a **template**
+(`test/scripts/i18n-coverage.test.ts`), so a route escapes it. Two things
+follow. `I18N_REPLACEMENTS` cannot rebrand them, so a site that renames
+"attendee" to "guest" still reads "Attendee has no phone number on file". And
+the copy rules in AGENTS.md say every user-facing string lives in
+`src/locales/en/*.json`, which these do not.
+
+To do it: add the keys, switch each `redirect(path, "...", ...)` to `t(...)`,
+and widen the i18n-coverage check to `src/features/` so a new one cannot appear.
+Left out of the migration that found it, because it changes production copy
+across twenty files rather than the tests being moved.
+
+---
+## Thread an abort signal through the email send APIs (from PR #2140)
+
+`runEmailLeg` (`scripts/email-sandbox-e2e/run.ts`) races each leg against a
+two-minute timer. The timer only settles the race: an in-flight provider request
+keeps running, so a stalled request can fire one orphan probe after its leg
+reported failed. The harness exits right after the report, and the orphan cannot
+change the summary or the exit status, so the harm today is one duplicate probe
+to a discard or authorized address. Codex and CodeRabbit both asked for a real
+abort on PR #2140. It was declined there because it threads `AbortSignal`
+through `sendEmail`, `deliverRegistrationEmail`, `sendBulkEmails`, and
+`fetchText` for a parameter no production caller passes. If cancellable sends
+ever earn a production caller, add an optional `signal` to those APIs, abort it
+in `legTimeout`, and pass it to both probes.
+
+Review threads:
+<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856012838>
+<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856612016>
 
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
@@ -47,8 +102,20 @@ Start at `logErrorLocal`, `formatErrorMessage`, and `captureServerError` in
 
 Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2139#discussion_r3855944310>
-
 ---
+
+## Count Postmark per-message batch errors in `sendBulkEmails` (from PR #2140)
+
+`sendBulkEmails` (`src/shared/email/bulk.ts`) counts a batch as failed only when
+the HTTP response is not ok. Postmark's `/email/batch` can answer 200 with a
+nonzero per-message `ErrorCode` (for example a suppressed or inactive
+recipient), so such a message counts as sent in the bulk report. Codex raised
+this on PR #2140. The email sandbox harness now reads the per-message results
+itself (`postmarkReplyProblems` in `scripts/email-sandbox-e2e/run.ts`), and that
+is the shape to lift into the shared boundary: parse each accepted Postmark
+reply, add the nonzero `ErrorCode` entries to `failed`, and surface them in the
+bulk send report. PR #2140 only adds the harness, so a change to production bulk
+accounting was out of its scope.
 
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 
@@ -2820,17 +2887,6 @@ Fix: ask the budget scope directly. Export a "is there a subrequest budget"
 reader from `src/shared/subrequest-budget.ts` beside `getSubrequestRemaining`,
 and let the migration runner ask that one counter. Pin it with a direct test
 that opens the budget scope without the query-log scope.
-
----
-
-## One provider credentials form
-
-_Origin: the consolidation review._
-
-Square's settings form skips the shared block and re-spells two element ids that
-the shared footer already generates, so the three provider forms drift. Fold
-them onto one `ProviderCredentialsForm` driven by the provider registry in
-`src/shared/payment-providers.ts`. About 50 lines.
 
 ---
 

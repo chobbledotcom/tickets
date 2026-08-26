@@ -1,5 +1,17 @@
+/**
+ * Branch cover for the texting page's own markup, beside the story
+ * `@story:attendees.sending-somebody-a-text`.
+ *
+ * The story drives this page through the server and proves what the organiser
+ * reads on it, including the flash messages a real send produces. These render
+ * it directly, so every arm of the page keeps a cover a Cucumber run cannot
+ * supply, and so the links and titles it offers are pinned by something that
+ * reads the markup rather than the words.
+ */
+
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { formatDatetimeShort } from "#shared/dates.ts";
 import { smsPage } from "#templates/admin/sms.tsx";
 import {
   OWNER_SESSION,
@@ -7,95 +19,150 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
-const LISTING = testListingWithCount({ id: 9, name: "Summer show" });
+const PHONE = "+447700900123";
 
-describe("SMS page template", () => {
+/** Where the page sends what the organiser writes. Its absence is what proves
+ * there is no way to write; the heading alone would not, because a form that
+ * lost its fieldset would still take a message. */
+const COMPOSE_FORM = 'action="/admin/sms"';
+
+/** Where the gateway warning sends an owner to put the gateway right. */
+const GATEWAY_SETTINGS = 'href="/admin/settings-advanced#settings-sms-gateway"';
+
+const LISTING = testListingWithCount({ id: 7, name: "Pottery" });
+
+const attendeeWith = (phone: string) =>
+  testAttendee({ id: 3, name: "Nina", phone });
+
+const render = (
+  overrides: Partial<Parameters<typeof smsPage>[1]> = {},
+): string =>
+  smsPage(OWNER_SESSION, {
+    configured: true,
+    flash: {},
+    history: [],
+    queueCount: 0,
+    target: { attendee: attendeeWith(PHONE), listing: LISTING },
+    ...overrides,
+  });
+
+describe("admin sms page", () => {
   beforeAll(setupAdminPageTest);
 
-  test("renders only the queue summary when no attendee is targeted", () => {
+  test("counts what is waiting and offers nobody to write to", () => {
+    // Built without a target rather than with an undefined one: the page's
+    // own type says a target is either there or the key is absent.
     const html = smsPage(OWNER_SESSION, {
-      configured: false,
+      configured: true,
       flash: {},
-      history: [{ created: "2026-01-02T03:04:05Z", message: "Ignored" }],
-      queueCount: 3,
+      history: [{ created: "2026-08-26T10:00:00.000Z", message: "Ignored" }],
+      queueCount: 2,
     });
 
     expect(html).toContain("<title>Text messages</title>");
-    expect(html).toContain("<p>Messages awaiting delivery: 3</p>");
+    expect(html).toContain("Messages awaiting delivery: 2");
     expect(html).toContain('href="/admin/guide#sms"');
-    expect(html).not.toContain("Ignored");
+    expect(html).not.toContain(COMPOSE_FORM);
+    // Nobody is chosen, so there is no history to show. One shown here would
+    // be somebody's messages on a page that never says whose.
     expect(html).not.toContain("Message history");
-    expect(html).not.toContain('action="/admin/sms"');
+    expect(html).not.toContain("Ignored");
   });
 
-  test("shows the setup warning and empty history when SMS is unconfigured", () => {
-    const attendee = testAttendee({ id: 4, name: "Ada", phone: "07123" });
-    const html = smsPage(OWNER_SESSION, {
-      configured: false,
-      flash: { error: "Gateway unavailable" },
-      history: [],
-      queueCount: 1,
-      target: { attendee, listing: LISTING },
-    });
+  test("offers the compose form for somebody with a number", () => {
+    const html = render();
 
-    expect(html).toContain("<title>Contact: Ada</title>");
-    expect(html).toContain("Gateway unavailable");
-    expect(html).toContain('href="/admin/attendees/4"');
-    expect(html).toContain("<strong>Phone:</strong> 07123");
-    expect(html).toContain('class="warning"');
-    expect(html).toContain(
-      'href="/admin/settings-advanced#settings-sms-gateway"',
+    expect(html).toContain("<title>Contact: Nina</title>");
+    expect(html).toContain("Contact Nina");
+    expect(html).toContain(`<strong>Phone:</strong> ${PHONE}`);
+    // The way back to the person this page is about.
+    expect(html).toContain('href="/admin/attendees/3"');
+    expect(html).toContain(COMPOSE_FORM);
+    expect(html).toContain("Send a text message");
+    // The box's own limit: the route trims and refuses an empty message but
+    // sets no maximum, so this attribute is the only length guard a normal
+    // send meets.
+    expect(html).toMatch(
+      /name="message"[^>]*maxlength="1000"|maxlength="1000"[^>]*name="message"/,
     );
-    expect(html).not.toContain('action="/admin/sms"');
-    expect(html).toContain("<h3>Message history</h3>");
-    expect(html).toContain("<p>No text messages yet.</p>");
+    // Each hidden value bound to its own field: two loose values would pass
+    // just as well with the listing and the attendee swapped.
+    expect(html).toMatch(
+      /name="listing"[^>]*value="7"|value="7"[^>]*name="listing"/,
+    );
+    expect(html).toMatch(
+      /name="attendee"[^>]*value="3"|value="3"[^>]*name="attendee"/,
+    );
   });
 
-  test("does not offer a send form when the attendee has no phone", () => {
-    const attendee = testAttendee({ id: 5, name: "No Phone", phone: "" });
-    const html = smsPage(OWNER_SESSION, {
-      configured: true,
-      flash: { success: "Previous text sent." },
-      history: [],
-      queueCount: 0,
-      target: { attendee, listing: LISTING },
-    });
-
-    expect(html).toContain("Previous text sent.");
-    expect(html).toContain("<strong>Phone:</strong> (none on file)");
-    expect(html).not.toContain('class="warning"');
-    expect(html).not.toContain('action="/admin/sms"');
-    expect(html).not.toContain('name="message"');
-  });
-
-  test("renders a configured compose form and escaped conversation history", () => {
-    const attendee = testAttendee({ id: 6, name: "Grace", phone: "+44123" });
-    const html = smsPage(OWNER_SESSION, {
-      configured: true,
-      flash: {},
+  test("shows a message's markup as text, never as markup", () => {
+    // An inbound text is somebody else's words. The webhook puts them in the
+    // activity log and this table renders them, so markup that survived would
+    // be markup a stranger chose.
+    const html = render({
       history: [
-        { created: "2026-01-02T03:04:05Z", message: "First <reply>" },
-        { created: "2026-01-03T04:05:06Z", message: "Second reply" },
+        {
+          created: "2026-08-26T10:00:00.000Z",
+          message: "<script>alert(1)</script>",
+        },
       ],
-      queueCount: 2,
-      target: { attendee, listing: LISTING },
     });
 
-    expect(html).toContain('action="/admin/sms"');
-    expect(html).toContain('<input name="listing" type="hidden" value="9">');
-    expect(html).toContain('<input name="attendee" type="hidden" value="6">');
-    expect(html).toContain(
-      '<textarea id="sms-message" maxlength="1000" name="message" required rows="4"></textarea>',
-    );
-    expect(html).toContain("<legend>Send a text message</legend>");
-    expect(html).toContain("Send text");
-    expect(html).toContain("<th>When</th><th>Message</th>");
-    expect(html).toContain("2026-01-02 03:04");
-    expect(html).toContain("First &lt;reply&gt;");
-    expect(html).not.toContain("First <reply>");
-    expect(html.indexOf("First &lt;reply&gt;")).toBeLessThan(
-      html.indexOf("Second reply"),
-    );
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  test("warns and offers no form when the gateway is not configured", () => {
+    const html = render({ configured: false });
+
+    expect(html).toContain('class="warning"');
+    expect(html).toContain("The SMS gateway is not configured.");
+    // The warning says what to put right, so it has to carry the way to do
+    // it. A warning with no route out leaves the owner told and stuck.
+    expect(html).toContain(GATEWAY_SETTINGS);
+    expect(html).not.toContain(COMPOSE_FORM);
+  });
+
+  test("says the number is not on file and offers no form without one", () => {
+    const html = render({
+      target: { attendee: attendeeWith(""), listing: LISTING },
+    });
+
+    expect(html).toContain("<strong>Phone:</strong> (none on file)");
+    expect(html).not.toContain(COMPOSE_FORM);
+    // A missing number is not a missing gateway. Warning about the gateway
+    // here would send the owner to settings that are already right.
+    expect(html).not.toContain('class="warning"');
+    expect(html).not.toContain(GATEWAY_SETTINGS);
+  });
+
+  test("says so plainly when nothing has been sent yet", () => {
+    const html = render();
+
+    expect(html).toContain("<h3>Message history</h3>");
+    expect(html).toContain("No text messages yet.");
+  });
+
+  test("lists what was sent, newest first, with when it went", () => {
+    const later = "2026-08-26T10:00:00.000Z";
+    const earlier = "2026-08-25T10:00:00.000Z";
+    const html = render({
+      history: [
+        { created: later, message: "SMS queued: Later" },
+        { created: earlier, message: "SMS queued: Earlier" },
+      ],
+    });
+
     expect(html).not.toContain("No text messages yet.");
+    expect(html).toContain("Later");
+    expect(html).toContain("Earlier");
+    expect(html.indexOf("Later")).toBeLessThan(html.indexOf("Earlier"));
+    // When each one went, under its own heading. The message alone leaves the
+    // organiser unable to tell a text sent this morning from one sent a year
+    // ago, and the site's own short format is what the other tables use.
+    expect(html).toContain("<th>When</th><th>Message</th>");
+    expect(html).toContain(formatDatetimeShort(later));
+    expect(html).toContain(formatDatetimeShort(earlier));
+    expect(html).not.toContain(later);
   });
 });

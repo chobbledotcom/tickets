@@ -13,6 +13,7 @@
 
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import {
   CUSTOMER,
@@ -237,3 +238,38 @@ export const daysOfferedOn = (html: string): string[] =>
 /** The days a listing's own page offers as a stay's first day. */
 export const daysOfferedFor = async (listing: Listing): Promise<string[]> =>
   daysOfferedOn((await openBookingPage(listing)).currentHtml);
+
+/** The one number in a list, or a loud failure saying what was counted. A
+ * story that carried on against an arbitrary row would report the site's
+ * behaviour when its own setup is what went wrong. */
+const theOnly = (ids: number[], counting: string): number => {
+  const only = ids[0];
+  if (ids.length !== 1 || !only) {
+    throw new Error(`Expected one ${counting}, found ${ids.length}`);
+  }
+  return only;
+};
+
+const bookingIdsOn = async (listingId: number): Promise<number[]> =>
+  (await getAttendeesRaw(listingId)).map((booking) => booking.id);
+
+/** The one booking made on a listing. Fails loudly when there is not exactly
+ * one, so a story can never carry on against an arbitrary row. */
+export const soleBookingOn = async (listingId: number): Promise<number> =>
+  theOnly(await bookingIdsOn(listingId), `booking on listing ${listingId}`);
+
+/** The booking one person makes while something happens — the row that was
+ * not on the listing before. Told apart by which id is new rather than by
+ * which is newest, because two people booking in the same second tie on when
+ * they booked. */
+export const bookingMadeDuring = async (
+  listingId: number,
+  booking: () => Promise<unknown>,
+): Promise<number> => {
+  const before = new Set(await bookingIdsOn(listingId));
+  await booking();
+  return theOnly(
+    (await bookingIdsOn(listingId)).filter((id) => !before.has(id)),
+    `new booking on listing ${listingId}`,
+  );
+};

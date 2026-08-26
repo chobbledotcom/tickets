@@ -1,14 +1,27 @@
+/**
+ * Branch cover for the SMS routes, beside the story
+ * `@story:attendees.sending-somebody-a-text`.
+ *
+ * The story owns the organiser's journey: the queue count, the warnings that
+ * replace the compose form, sending a text and being told, the history, and
+ * the refusals a real send can reach.
+ *
+ * These own what a browser cannot reach or a story cannot be the only cover
+ * of: a target that does not exist, target ids the page would never build,
+ * the gateway id recorded so an inbound reply can find its way back, and the
+ * contact-history write failing after the text has already gone.
+ */
+
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { getContactRecord, hashPhone } from "#db/contact-preferences.ts";
+import { hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import {
+  countSmsMessages,
   getSmsMessageByProviderId,
-  recordSmsMessage,
 } from "#db/sms-messages.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -47,62 +60,15 @@ const queuedLog = async (attendeeId: number) =>
     e.message.includes("SMS queued"),
   );
 
+/** Nothing left the site for this person: nothing waiting in the queue, and
+ * nothing in their log saying a text went. Either one alone would miss a
+ * half-done send — a queued row with no log line, or a log line with no row. */
+const expectNothingSent = async (attendeeId: number): Promise<void> => {
+  expect(await countSmsMessages()).toBe(0);
+  expect(await queuedLog(attendeeId)).toBe(false);
+};
+
 describeWithEnv("admin sms", { db: true }, () => {
-  /** Stub the SMS gateway, post `message`, and assert the redirect. */
-  const postSmsAndAssertRedirect = async (
-    form: Record<string, string>,
-    message: string,
-  ): Promise<void> => {
-    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
-    const { response } = await adminFormPost("/admin/sms", {
-      ...form,
-      message,
-    });
-    expect(response.status).toBe(302);
-  };
-
-  it("GET without a target shows the queue count", async () => {
-    await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "a" });
-    await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "b" });
-    const response = await adminGet("/admin/sms");
-    const html = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(html).toContain("Messages awaiting delivery: 2");
-    expect(html).not.toContain("Send a text message");
-  });
-
-  it("GET shows the compose form when configured", async () => {
-    await configureGateway();
-    const { smsUrl } = await setup();
-    const response = await adminGet(smsUrl);
-    const html = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(html).toContain("Send a text message");
-    expect(html).toContain("Jane Doe");
-    expect(html).toContain(PHONE);
-  });
-
-  it("GET warns and hides the form when not configured", async () => {
-    const { smsUrl } = await setup();
-    const response = await adminGet(smsUrl);
-    const html = await response.text();
-
-    expect(html).toContain("not configured");
-    expect(html).not.toContain("Send a text message");
-  });
-
-  it("GET shows '(none on file)' and no form when the attendee has no phone", async () => {
-    await configureGateway();
-    const { smsUrl } = await setup("");
-    const response = await adminGet(smsUrl);
-    const html = await response.text();
-
-    expect(html).toContain("(none on file)");
-    expect(html).not.toContain("Send a text message");
-  });
-
   it("GET returns 404 for an unknown attendee", async () => {
     const response = await adminGet("/admin/sms?listing=1&attendee=999");
     expect(response.status).toBe(404);
@@ -119,28 +85,59 @@ describeWithEnv("admin sms", { db: true }, () => {
     expect(html).not.toContain("Send a text message");
   });
 
-  it("POST queues a text: records the id→attendee map and logs it", async () => {
+  it("GET renders one person's page and their history", async () => {
+    // Branch cover for the targeted GET and its history reader. The story
+    // proves what the organiser reads here; this keeps the lines covered,
+    // because a Cucumber run does not count towards coverage.
+    await configureGateway();
+    const { smsUrl, form } = await setup();
+    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
+    await adminFormPost("/admin/sms", { ...form, message: "History line" });
+
+    const html = await (await adminGet(smsUrl)).text();
+    expect(html).toContain("Send a text message");
+    expect(html).toContain("Jane Doe");
+    expect(html).toContain(PHONE);
+    expect(html).toContain("History line");
+  });
+
+  it("POST rejects a message of only spaces", async () => {
+    // Branch cover for the empty-message refusal; the story owns the journey.
     await configureGateway();
     const { attendee, form } = await setup();
-    await postSmsAndAssertRedirect(form, "Hello Jane");
+    const { response } = await adminFormPost("/admin/sms", {
+      ...form,
+      message: "   ",
+    });
+    expect(response.status).toBe(302);
+    await expectNothingSent(attendee.id);
+  });
+
+  it("POST on a gateway error logs the failure and records no row", async () => {
+    // Branch cover for the catch arm; the story owns what the organiser sees.
+    await configureGateway();
+    const { attendee, form } = await setup();
+    using _fetch = stubFetch(new Response("boom", { status: 500 }));
+    await adminFormPost("/admin/sms", { ...form, message: "Hi" });
+
+    const log = await getAttendeeActivityLog(attendee.id);
+    expect(log.some((e) => e.message.includes("could not be queued"))).toBe(
+      true,
+    );
+    await expectNothingSent(attendee.id);
+  });
+
+  it("POST records the gateway id against the attendee", async () => {
+    // The webhook that reports delivery or carries a reply knows only the
+    // gateway's own id, so this row is the only way back to the person.
+    await configureGateway();
+    const { attendee, form } = await setup();
+    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
+    await adminFormPost("/admin/sms", { ...form, message: "Hello Jane" });
 
     const row = await getSmsMessageByProviderId("msg-9");
     expect(row).not.toBeNull();
-    expect(row!.attendee_id).toBe(attendee.id);
-
-    const log = await getAttendeeActivityLog(attendee.id);
-    expect(
-      log.some((e) => e.message.includes("queued for Jane Doe: Hello Jane")),
-    ).toBe(true);
-
-    // The text counts against the phone contact, so the history panel's
-    // "Total phone messages" reflects SMS — not just bulk email.
-    const record = await getContactRecord(
-      await hashPhone(PHONE),
-      await getTestPrivateKey(),
-    );
-    expect(record.contactCount).toBe(1);
-    expect(record.lastSubject).toBe("Hello Jane");
+    expect(row?.attendee_id).toBe(attendee.id);
   });
 
   it("POST still succeeds when the contact-history write throws", async () => {
@@ -154,7 +151,12 @@ describeWithEnv("admin sms", { db: true }, () => {
       sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
             ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
     });
-    await postSmsAndAssertRedirect(form, "Hello Jane");
+    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
+    const { response } = await adminFormPost("/admin/sms", {
+      ...form,
+      message: "Hello Jane",
+    });
+    expect(response.status).toBe(302);
 
     // The gateway accepted the text, so the id→attendee map is recorded and the
     // send is logged as queued; the stats failure must not surface as a "could
@@ -169,37 +171,19 @@ describeWithEnv("admin sms", { db: true }, () => {
     );
   });
 
-  it("POST on a gateway error logs the failure and records no row", async () => {
-    await configureGateway();
-    const { attendee, form } = await setup();
-    using _fetch = stubFetch(new Response("boom", { status: 500 }));
-    await adminFormPost("/admin/sms", { ...form, message: "Hi" });
-
-    const log = await getAttendeeActivityLog(attendee.id);
-    expect(log.some((e) => e.message.includes("could not be queued"))).toBe(
-      true,
-    );
-    expect(await queuedLog(attendee.id)).toBe(false);
-  });
-
-  it("POST rejects an empty message", async () => {
-    await configureGateway();
-    const { attendee, form } = await setup();
-    await adminFormPost("/admin/sms", { ...form, message: "   " });
-    expect(await queuedLog(attendee.id)).toBe(false);
-  });
-
   it("POST refuses to send when the gateway is unconfigured", async () => {
+    // The page offers no compose form without a gateway, so this send is one
+    // no browser could have made. The story owns what that page shows.
     const { attendee, form } = await setup();
     await adminFormPost("/admin/sms", { ...form, message: "Hi" });
-    expect(await queuedLog(attendee.id)).toBe(false);
+    await expectNothingSent(attendee.id);
   });
 
   it("POST refuses when the attendee has no phone number", async () => {
     await configureGateway();
     const { attendee, form } = await setup("");
     await adminFormPost("/admin/sms", { ...form, message: "Hi" });
-    expect(await queuedLog(attendee.id)).toBe(false);
+    await expectNothingSent(attendee.id);
   });
 
   it("POST 404s for an unknown attendee", async () => {
@@ -221,33 +205,5 @@ describeWithEnv("admin sms", { db: true }, () => {
     });
     expect(response.status).toBe(302);
     expect(fetchStub.calls).toHaveLength(0);
-  });
-
-  it("GET renders the conversation history from the activity log", async () => {
-    await configureGateway();
-    const { smsUrl, form } = await setup();
-    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
-    await adminFormPost("/admin/sms", { ...form, message: "History line" });
-
-    const response = await adminGet(smsUrl);
-    const html = await response.text();
-    expect(html).toContain("History line");
-  });
-
-  it("GET still shows history (and the warning) when unconfigured", async () => {
-    await configureGateway();
-    const { smsUrl, form } = await setup();
-    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
-    await adminFormPost("/admin/sms", {
-      ...form,
-      message: "Earlier message",
-    });
-    // Remove the passphrase so the gateway reads as unconfigured
-    await settings.update.smsGatewayPassphrase("");
-
-    const response = await adminGet(smsUrl);
-    const html = await response.text();
-    expect(html).toContain("not configured");
-    expect(html).toContain("Earlier message");
   });
 });

@@ -36,6 +36,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { saveAModifier } from "#test-utils/settings.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -302,9 +303,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await getDb().execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')",
       );
-      await getDb().execute(
-        "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
-      );
+      await saveAModifier();
       await simulateUpgradeFromRelease(
         "Delete image records whose stored filename is an encrypted empty string.",
         "2026-07-15_enabled_features",

@@ -116,10 +116,10 @@ describe("sendEmail", () => {
 
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.postmarkapp.com/email");
-    expect(fetch.getFetchHeaders().Accept).toBe("application/json");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe(
       "re_test_key",
     );
+    expect(fetch.getFetchHeaders().Accept).toBe("application/json");
     const body = fetch.getFetchJsonBody();
     expect(body.From).toBe("tickets@example.com");
     expect(body.To).toBe("user@test.com");
