@@ -111,12 +111,15 @@ describe("every call the app makes to SumUp", () => {
     ).rejects.toBeInstanceOf(ProviderTransportError);
   });
 
-  test("carries the key on every call", async () => {
+  test("carries the key and the answers it accepts on every call", async () => {
     const calls = answerWith("{}");
     await transport.readCheckout("co_1");
     const headers = calls.calls[0]!.args[1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer sk_test_key");
     expect(headers["Content-Type"]).toBe("application/json");
+    // SumUp states a refusal as a problem document, so a call that asked for
+    // JSON alone can be refused in a body it never said it would read.
+    expect(headers.Accept).toBe("application/problem+json, application/json");
   });
 
   test("keeps the status SumUp refused with", async () => {
