@@ -46,7 +46,7 @@ import type { AdminLevel, AdminSession } from "#types";
  *
  * `{ section }` is the only way to highlight a section without also surfacing
  * its sub-nav. A detail page is not the section's landing page, so a named
- * section keeps it from re-triggering the "Add" link the landing route opens.
+ * section does not trigger the "Add" link that the landing route opens.
  */
 export type NavActive = string | { readonly section: string };
 

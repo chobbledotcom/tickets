@@ -4,8 +4,8 @@
  * read. All three get the shared {@link ProviderTransportError} vocabulary, so
  * no adapter classifies a raw `TypeError` for itself.
  *
- * A provider declares its own {@link ProviderRetries}. The ladder spending them
- * is here, so every provider waits, counts, and gives up the same way.
+ * A provider declares its own {@link ProviderRetries}. The ladder that spends
+ * them is here, so every provider waits, counts, and gives up the same way.
  */
 
 /* jscpd:ignore-start -- imports */

@@ -276,11 +276,11 @@ export interface PaymentProvider {
    * fetches session data from its own event structure, so the webhook handler
    * stays provider-agnostic.
    *
-   * @returns the session, `"skip"` for an event to acknowledge without
-   *          processing, `"retry"` when the provider could not be read or
-   *          contradicted our facts and redelivery must try again, a rejection
-   *          when the provider reported a paid charge the boundary could not
-   *          read, or null for an event that is provably not ours.
+   * @returns the session. `"skip"` acknowledges an event without processing it.
+   *          `"retry"` means the provider went unread, or contradicted our
+   *          facts, so redelivery must try again. A rejection means the
+   *          provider reported a paid charge the boundary cannot read. `null`
+   *          means the event is provably not ours.
    */
   resolveWebhookSession(listing: WebhookEvent): Promise<WebhookSessionResult>;
 

@@ -134,7 +134,7 @@ const expandBooking = <T extends ListingBooking>(
 
 /**
  * `pricePaid` is preserved exactly across the split rows (see
- * {@link splitPricePaid}), so splitting never loses or invents money.
+ * {@link splitPricePaid}), so a split never loses or invents money.
  *
  * Unlike {@link annotateOrderParents}, which recomputes `parentListingId` as
  * "first in-order parent" and so is lossy for multi-parent, this records the

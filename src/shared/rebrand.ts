@@ -225,7 +225,7 @@ const rebrandIcuNodes = (
 };
 
 /**
- * Matching is case-insensitive and by substring, and the output copies the
+ * The match is case-insensitive and by substring, and the output copies the
  * source's capitalisation. Only lowercase and title-case occur in real copy, so
  * the first character decides.
  *

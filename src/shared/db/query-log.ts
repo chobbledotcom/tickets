@@ -156,9 +156,9 @@ export const N_PLUS_ONE_THRESHOLD = 25;
  * transaction is what the primary aborts as "Transaction timed-out".
  *
  * A plain batch is one round-trip however many statements it carries, and is
- * never counted. Pushing chatty writes onto it is the whole point.
+ * never counted. Put the chatty writes on it. That is the whole point.
  *
- * Anything growing with input size must prepare its reads outside the lock and
+ * Work that grows with input size must prepare its reads outside the lock and
  * apply its writes as one batch. The high-water mark is recreateTable on
  * attendee_answers at 27 statements, and this sits above that.
  */

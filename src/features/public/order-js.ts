@@ -2,7 +2,7 @@
  * Not a static asset route, because the response depends on mutable settings
  * and the request `Origin`.
  *
- * With the feature off it returns a console-notice stub carrying no listing
+ * With the feature off it returns a console-notice stub that holds no listing
  * data, so an owner who left the tag in place learns why, and no slug leaks.
  */
 

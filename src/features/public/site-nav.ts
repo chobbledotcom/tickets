@@ -1,8 +1,9 @@
 /**
  * Liveness uses the same gates the rest of the public site does, so the nav
  * never renders a link that 404s or dead-ends. A listing is live iff it is
- * active, not a renewal tier, has its OWN standalone booking page, and is not a
- * parent projected sold out. A group is live iff `/ticket/<group>` would serve.
+ * active, not a renewal tier, and not a parent projected sold out. It must also
+ * have its OWN standalone booking page. A group is live iff `/ticket/<group>`
+ * serves.
  *
  * HIDDEN governs the public index, not bookability, so a hidden but bookable
  * item keeps its link. Page targets are always live.

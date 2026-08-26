@@ -3,7 +3,7 @@
  *
  * A test parses each one with the real {@link CatalogTransferSchema}, so a
  * format change breaks the test and forces this example and the guide to be
- * updated. That is what keeps it from becoming a hand-maintained second copy.
+ * updated. That is what stops a second, hand-maintained copy.
  *
  * The two examples are cross-consistent: the listing belongs to the "Weekend
  * Pass" group, and that group lists it as a member.

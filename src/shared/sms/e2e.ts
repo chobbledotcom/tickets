@@ -3,8 +3,8 @@
  * third-party relay, so the relay and Google FCM only ever see ciphertext.
  *
  * Every choice below is fixed by the phone app
- * (https://docs.sms-gate.app/privacy/encryption/), PBKDF2-SHA1 and the salt
- * doubling as the AES-CBC IV included. A stronger one here does not decrypt.
+ * (https://docs.sms-gate.app/privacy/encryption/). That covers PBKDF2-SHA1, and
+ * the salt that also serves as the AES-CBC IV. A stronger one does not decrypt.
  */
 
 import { fromBase64, getRandomBytes, toBase64 } from "#crypto/utils.ts";

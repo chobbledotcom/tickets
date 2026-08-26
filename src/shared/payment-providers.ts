@@ -1,7 +1,7 @@
 /**
  * Provider *behaviour* is loaded on demand, because it carries the SDK. Every
- * provider fact NOT needing that SDK lives here, so a caller can ask what a
- * provider is like without paying to load it.
+ * provider fact that does NOT need that SDK lives here, so a caller can ask
+ * what a provider is like without paying to load it.
  *
  * Nothing outside this file may branch on a provider name. A fact that differs
  * between providers is a column here, and the caller reads the column.

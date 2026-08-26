@@ -95,7 +95,7 @@ export const assertPostable = (inputs: TransferInput[]): void => {
  *
  * Because the in-transaction snapshot read is authoritative, the inserts stay
  * plain, with no `OR IGNORE`. That keeps constraint violations loud: a double
- * void slipping past the checks still fails on the unique `reverses_id` index.
+ * void that slips past the checks still fails on the unique `reverses_id` index.
  */
 export const postTransfersTx = async (
   tx: TxScope,

@@ -254,7 +254,7 @@ const CHECKOUT_RUNGS = (
  * Check one fetched checkout body against the facts we hold independently. A
  * disagreement about id, merchant, or named charge is refused here. Unreadable
  * money is not: the session boundary refuses that, so a captured charge still
- * reaches the refund path instead of being stranded.
+ * reaches the refund path and is never stranded.
  */
 export const classifySumupCheckout = (
   body: unknown,

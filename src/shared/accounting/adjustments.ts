@@ -24,8 +24,8 @@ import { nowIso } from "#shared/now.ts";
 
 /**
  * Each save is its own business event, so both the `delta` and a fresh
- * `nowIso()` are mixed into the `eventGroup` and `reference`. Editing a figure
- * up, down, then back up posts three distinct adjustments.
+ * `nowIso()` are mixed into the `eventGroup` and `reference`. An operator who
+ * edits a figure up, down, then back up posts three distinct adjustments.
  *
  * The `delta` is part of the key because `nowIso()` resolves only to the
  * millisecond. Two opposite corrections in the same millisecond would otherwise
