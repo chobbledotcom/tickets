@@ -8,6 +8,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestBuiltSite,
   provisionTestBuiltSite,
+  updateTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -94,6 +95,18 @@ describeWithEnv(
           false,
         )(response);
         expect((await findSite(site.id)).renewalTierListingId).toBeNull();
+      });
+
+      test("survives an ordinary edit of the site's own fields", async () => {
+        const tier = await createTier("Monthly tier", 1, 500);
+        const site = await createTestBuiltSite({ name: "Edited Site" });
+        await setTier(site.id, String(tier.id));
+
+        await updateTestBuiltSite(site.id, { name: "Renamed Site" });
+
+        const updated = await findSite(site.id);
+        expect(updated.name).toBe("Renamed Site");
+        expect(updated.renewalTierListingId).toBe(tier.id);
       });
 
       test("keeps the site's other renewal state untouched", async () => {

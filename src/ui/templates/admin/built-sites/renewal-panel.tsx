@@ -64,7 +64,8 @@ const OverrideDeadlineForm = deadlineForm(
 
 type TierSectionProps = { site: BuiltSite; tiers: ListingWithCount[] };
 
-/** The one way a tier is named to an operator, in the summary and the picker. */
+/** The one way a tier is named to an operator, on the current-tier line and in
+ * the picker below it. */
 const renewalTierLabel = (tier: ListingWithCount): string =>
   t("built_sites.renewal_tier_option", {
     months: String(tier.months_per_unit),
@@ -72,8 +73,8 @@ const renewalTierLabel = (tier: ListingWithCount): string =>
     price: formatCurrency(tier.unit_price),
   });
 
-/** A retired tier keeps its stored id but no longer picks itself, so the form
- * shows the same "any tier" choice the customer is really getting. */
+/** A retired tier has no option to select, so the picker shows the "any tier"
+ * choice the customer is really getting. */
 const chosenTierValue = (chosen: SiteRenewalTier<ListingWithCount>): string =>
   chosen.kind === "pinned" ? String(chosen.tier.id) : "";
 
