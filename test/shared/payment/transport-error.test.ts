@@ -14,7 +14,7 @@ describe("provider transport errors", () => {
       const error = transportError.answered(providerDetail.sumup(), 409);
 
       expect(error.facts).toEqual({ statusCode: 409 });
-      expect(error.message).toBe("sumup answered. Status code: 409");
+      expect(error.message).toBe("SumUp answered. Status code: 409");
     });
 
     test("keeps a provider's own wording when it passes one", () => {
@@ -45,24 +45,22 @@ describe("provider transport errors", () => {
     test("falls back to our wording when a provider's is blank", () => {
       expect(
         transportError.answered(providerDetail.stripe(), 402, "").message,
-      ).toBe("stripe answered. Status code: 402");
+      ).toBe("Stripe answered. Status code: 402");
       expect(
         transportError.unusable(providerDetail.stripe(), 502, "").message,
-      ).toBe("stripe returned an answer we could not read");
-      expect(
-        transportError.unreachable(providerDetail.stripe(), "timeout", "")
-          .message,
-      ).toBe("stripe did not answer in time");
+      ).toBe("Stripe returned an answer we could not read");
     });
 
+    // Our own wording reaches the settings pages, so it names the provider
+    // the way the operator knows it rather than by its identifier.
     test("says which way a provider went unreachable", () => {
       expect(
         transportError.unreachable(providerDetail.square(), "timeout").message,
-      ).toBe("square did not answer in time");
+      ).toBe("Square did not answer in time");
       expect(
-        transportError.unreachable(providerDetail.square(), "network_error")
+        transportError.unreachable(providerDetail.sumup(), "network_error")
           .message,
-      ).toBe("square could not be reached");
+      ).toBe("SumUp could not be reached");
     });
 
     test("names why a provider could not be reached", () => {

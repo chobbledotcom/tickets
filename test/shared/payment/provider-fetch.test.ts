@@ -2,13 +2,19 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { providerCaller, readProviderJson } from "#payment/provider-fetch.ts";
+import {
+  type ProviderRetries,
+  providerCaller,
+  readProviderJson,
+} from "#payment/provider-fetch.ts";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   ProviderTransportError,
   providerDetail,
   rejectedBuyerFieldOf,
 } from "#payment/transport-error.ts";
+import type { FetchResult } from "#shared/fetch.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 const realFetch = globalThis.fetch;
 
@@ -185,6 +191,105 @@ describe("provider fetch boundary", () => {
     );
     expect(error.facts).toEqual({ malformed: true });
     expect(rejectedBuyerFieldOf(error)).toBe(null);
+  });
+
+  test("hands back a refused answer whole, so a provider can read it", async () => {
+    answerWith(() => Promise.resolve(refusal(402, '{"code":"declined"}')));
+    const answer = await sumup.answer("https://api.example/x", {});
+    expect(answer.status).toBe(402);
+    expect(answer.text).toBe('{"code":"declined"}');
+  });
+
+  test("asks once for a provider that declares no retries", async () => {
+    const calls = answerWith(() => Promise.resolve(refusal(503)));
+    await transportFrom(() => sumup.json("https://api.example/x", {}));
+    expect(calls.calls).toHaveLength(1);
+  });
+
+  describe("asking again", () => {
+    /** One provider that retries while `again` says so, waiting 100ms each
+     *  time, and a record of every wait it was asked to make. */
+    const askedTwice = (
+      again: (answer: FetchResult) => boolean,
+      limit = 1,
+    ): {
+      caller: ReturnType<typeof providerCaller>;
+      waits: { retry: number; status: number | null }[];
+    } => {
+      const waits: { retry: number; status: number | null }[] = [];
+      const retries: ProviderRetries = {
+        again,
+        limit,
+        waitBefore: (retry, answer) => {
+          waits.push({ retry, status: answer === null ? null : answer.status });
+          return 100;
+        },
+      };
+      return {
+        caller: providerCaller(() => providerDetail.sumup(), retries),
+        waits,
+      };
+    };
+
+    test("asks again after the wait the provider declared", async () => {
+      const { caller, waits } = askedTwice((answer) => answer.status === 503);
+      let asked = 0;
+      const calls = answerWith(() =>
+        Promise.resolve(++asked === 1 ? refusal(503) : ok('{"id":"co_1"}')),
+      );
+
+      const read = await withVirtualBackoff(() =>
+        caller.json("https://api.example/x", {}),
+      );
+
+      expect(read).toEqual({ id: "co_1" });
+      expect(calls.calls).toHaveLength(2);
+      expect(waits).toEqual([{ retry: 0, status: 503 }]);
+    });
+
+    test("takes the answer a provider does not want asked again", async () => {
+      const { caller, waits } = askedTwice(() => false);
+      const calls = answerWith(() => Promise.resolve(refusal(400)));
+
+      const error = await transportFrom(() =>
+        caller.json("https://api.example/x", {}),
+      );
+
+      expect(error.facts).toEqual({ statusCode: 400 });
+      expect(calls.calls).toHaveLength(1);
+      expect(waits).toEqual([]);
+    });
+
+    test("gives up once the retry limit is spent", async () => {
+      const { caller, waits } = askedTwice(() => true, 2);
+      const calls = answerWith(() => Promise.resolve(refusal(503)));
+
+      const error = await withVirtualBackoff(() =>
+        transportFrom(() => caller.json("https://api.example/x", {})),
+      );
+
+      expect(error.facts).toEqual({ statusCode: 503 });
+      expect(calls.calls).toHaveLength(3);
+      expect(waits).toHaveLength(2);
+    });
+
+    test("asks again after a failure to reach the provider, without asking about an answer", async () => {
+      let consulted = 0;
+      const { caller, waits } = askedTwice(() => {
+        consulted += 1;
+        return false;
+      });
+      const calls = answerWith(() => Promise.reject(new TypeError("down")));
+
+      const error = await withVirtualBackoff(() =>
+        transportFrom(() => caller.json("https://api.example/x", {})),
+      );
+
+      expect(error.facts).toEqual({ connectionReason: "network_error" });
+      expect(calls.calls).toHaveLength(2);
+      expect(consulted).toBe(0);
+      expect(waits).toEqual([{ retry: 0, status: null }]);
+    });
   });
 
   test("reads a body already in hand as JSON", () => {
