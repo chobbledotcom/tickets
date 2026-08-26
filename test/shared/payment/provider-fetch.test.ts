@@ -3,11 +3,11 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import {
+  PROVIDER_TIMEOUT_MS,
   type ProviderRetries,
   providerCaller,
   readProviderJson,
 } from "#payment/provider-fetch.ts";
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import {
   ProviderTransportError,
   providerDetail,
@@ -99,8 +99,10 @@ describe("provider fetch boundary", () => {
     const read = sumup.json("https://api.example/x", {});
     read.catch(() => undefined);
     const { signal } = calls.calls[0]!.args[1];
+    // Half the wait, then the rest: the provider keeps its whole allowance.
+    await time.tickAsync(PROVIDER_TIMEOUT_MS / 2);
     expect(signal?.aborted).toBe(false);
-    await time.tickAsync(PROVIDER_TIMEOUT_MS);
+    await time.tickAsync(PROVIDER_TIMEOUT_MS / 2);
     expect(signal?.aborted).toBe(true);
     expect((signal?.reason as DOMException).name).toBe("TimeoutError");
   });

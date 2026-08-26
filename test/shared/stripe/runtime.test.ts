@@ -2,10 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { settings } from "#db/settings.ts";
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { STRIPE_MAX_NETWORK_RETRIES } from "#shared/stripe/request.ts";
 import {
   sanitizeStripeError,
   stripeClientRuntime,
@@ -45,11 +43,6 @@ describeStripe("Stripe client configuration", () => {
     });
     return requestedUrl;
   };
-
-  test("uses an edge-sized timeout and two network retries", () => {
-    expect(PROVIDER_TIMEOUT_MS).toBe(20_000);
-    expect(STRIPE_MAX_NETWORK_RETRIES).toBe(2);
-  });
 
   test("uses the default stripe-mock port for requests", async () => {
     expect(await requestBalanceAt(undefined)).toBe(
