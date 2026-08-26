@@ -98,9 +98,9 @@ const askOnce = async (
  *  gets a say. */
 type RetryStep = (answer: FetchResult | null) => number | null;
 
-/** One step per retry the provider allows, in order. The ladder is a fixed
- *  list rather than a counter, so a call can never ask more times than the
- *  provider declared, whatever the code inside the loop does. */
+/** One step per retry the provider allows, in order. A call walks this list
+ *  once, so it can never ask more times than the provider declared, whatever
+ *  the code inside the loop does. */
 const ladderOf = (retries: ProviderRetries): RetryStep[] =>
   Array.from(
     { length: retries.limit },
