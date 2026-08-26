@@ -82,7 +82,7 @@ export const createStaffInvite: InvitesSomebody = async (world, who, role) => {
 };
 
 /** One person's row on the list of everybody who may sign in, found by the
- * name that links into their own page. The site files usernames in lower
+ * username that links into their own page. The site files usernames in lower
  * case, so the row is found the way the site keeps it rather than the way the
  * story spells it. */
 export const rowForPersonOnList = (
@@ -102,7 +102,7 @@ export const ownerOpensWhoMaySignIn: OpensOneFixedPage =
   opensAdminPageAt("/admin/users");
 
 /** How many people may sign in at all — an invite waiting to be used counts,
- * because that person already has a name reserved on the site. */
+ * because that person already has a username reserved on the site. */
 export const howManyMaySignIn = async (): Promise<number> =>
   (await getAllUsers()).length;
 
@@ -216,7 +216,7 @@ export const signsInAndCanOpen = async (
 };
 
 /** Whether an invited staff member can still sign in with the password they
- * chose. The site files usernames in lower case, so the name is typed the
- * way the site keeps it. */
+ * chose. The site files usernames in lower case, so the username is typed
+ * the way the site keeps it. */
 export const staffMemberCanSignIn = (who: string): Promise<boolean> =>
   signsInAndCanOpen(who.toLowerCase(), STAFF_PASSWORD, "/admin/attendees");

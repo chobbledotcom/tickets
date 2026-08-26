@@ -128,8 +128,8 @@ Then(
   "the site can still be set up afterwards",
   async function (this: TicketsWorld): Promise<void> {
     // A refusal that made the owner anyway and then stopped short would leave
-    // the site unable to be set up at all — the name is taken and nobody can
-    // sign in. Setting it up properly now is what proves nothing was left.
+    // the site unable to be set up at all — the username is taken and nobody
+    // can sign in. Setting it up properly now is what proves nothing was left.
     await somebodySetsUp(this, GOOD_PASSWORD, GOOD_PASSWORD);
     expect(whatSetterWasTold(this)).toContain(t("setup.complete.heading"));
     expect(await firstOwnerCanSignIn(GOOD_PASSWORD)).toBe(true);

@@ -1,5 +1,5 @@
 /**
- * The owner removing a person's access: the typed name that proves which
+ * The owner removing a person's access: the typed username that proves which
  * person is meant, and what a removal — or a refusal — leaves behind.
  */
 
@@ -23,7 +23,7 @@ import {
 
 // jscpd:ignore-end
 
-/** The refusal when the typed name is not the person's. The full wording is
+/** The refusal when the typed username is not the person's. The full wording is
  * built where every confirmed removal builds it,
  * src/features/admin/confirmation.ts; the words before the explanation are
  * what this step reads. */

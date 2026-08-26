@@ -26,8 +26,8 @@ const CHOSEN = {
   password: "a-good-long-password",
 };
 
-/** What somebody arriving second would type. A different name, so a site that
- * let them through would be theirs and not the first owner's. */
+/** What somebody arriving second would type. A different username, so a site
+ * that let them through would be theirs and not the first owner's. */
 const LATECOMER = {
   name: "secondcomer",
   password: "another-good-password",
@@ -98,8 +98,8 @@ export const GOOD_PASSWORD = CHOSEN.password;
 export const whatSetterWasTold = (world: TicketsWorld): string =>
   whatTheyWereTold(world, SETTER);
 
-/** Whether somebody can sign in with a name and password. Proving the ceremony
- * finished means using it, not reading a page that says it did. */
+/** Whether somebody can sign in with a username and password. The proof that
+ * the ceremony finished is a real sign-in, not a page that says it did. */
 const canSignIn = async (
   username: string,
   password: string,

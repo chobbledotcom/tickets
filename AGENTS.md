@@ -115,6 +115,25 @@ GitHub.
   still be booked for this ticket." Write for someone without a CS degree; a
   ten-year-old must understand the comment and the method name, even if the
   implementation uses `map`, `filter`, or `reduce`.
+- **Name a thing the way the site names it**: A story, a test, or a comment
+  calls a thing what its label, its message, or its column heading calls it. The
+  site says "Username", so a story says "the owner is told the username is
+  taken", never "the name is taken". A reader must be able to carry a word from
+  the story to the screen. "A name" is ambiguous here, because attendees,
+  listings and groups all have names too. Copy the word a person reads in
+  `src/locales/en/*.json`. Never copy the identifier beside it in `src/`. An
+  HMAC, a token index, and a `package_group_id` all stay out of a story. Two
+  things are not drift. A plain-words description of an outcome is right, so
+  "who has not joined yet" beats the status word "Invited". A general word is
+  right where the rule itself is general, so a bundle holds "things" because
+  that rule covers every kind of listing. Keep one word for one thing inside a
+  single document too. `removing-a-persons-access.feature` is the reference: the
+  word the owner types, the word in its prose, and the word its step asserts are
+  one word. A better word never moves an authored tag. A `@story:`, `@rule:` or
+  `@case:` id is a durable identifier. A saved `--tags` selector or a published
+  evidence manifest can point at one. The id stays as it is while the words
+  above it improve. No checker enforces this, so the judgement is yours on every
+  change.
 - **Comments describe current code**: Do not leave comments that compare current
   code with an old implementation or explain what the code replaced. They do not
   help someone understand the code as it works now. Git history preserves the
