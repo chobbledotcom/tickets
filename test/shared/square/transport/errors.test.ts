@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { settings } from "#db/settings.ts";
-import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
+import { PROVIDER_TIMEOUT_MS } from "#payment/provider-fetch.ts";
 import {
   ProviderTransportError,
   rejectedBuyerFieldOf,

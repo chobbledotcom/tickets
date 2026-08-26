@@ -123,7 +123,7 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "shared/square/payment-outcomes/refund-failures.test.ts",
   "shared/square/payment-outcomes/refund.test.ts",
   "shared/stripe-provider/refund-outcomes.test.ts",
-  "shared/sumup/provider-money.test.ts",
+  "shared/sumup-provider/refund.test.ts",
   "specs/support/refund-safety/provider-script.ts",
   "test-utils/refund-routes.ts",
   "test-utils/rejected-charge.ts",
@@ -202,7 +202,7 @@ export const LOWER_SEND_TEST_PATHS = {
   authorizeDurableRefundSend: [
     "shared/payment/refund-attempt.test.ts",
     "shared/payment/refund-provider-authorization.test.ts",
-    "shared/sumup/provider-money.test.ts",
+    "shared/sumup-provider/refund.test.ts",
     "test-utils/square/fixtures.ts",
     "test-utils/stripe/fixtures.ts",
   ],
