@@ -306,9 +306,9 @@ wants its own measurement first — `test/` is 1,908 files at 5.7% comment
 density, a different shape from `src/`, and its limits must be chosen against
 that rather than inherited.
 
-Remaining steps, now that ≤ 20 and ≤ 16 are done. The staged table above was
-measured at `470b47e`, and `src/` has grown since, so these figures are a fresh
-count of the tree as it stands today rather than the leftovers of that one:
+These are the remaining steps, now that ≤ 20 and ≤ 16 are done. The staged table
+above was measured at `470b47e`. `src/` grew after that measurement. The figures
+below are a fresh count of the tree as it stands today:
 
 | Next | Comments to rewrite | Files touched | Cumulative |
 | ---- | ------------------- | ------------- | ---------- |
@@ -329,8 +329,9 @@ over-width line:
 | ≤ 85 | 104                 | 86            | 157        |
 | ≤ 80 | 1,348               | 477           | 1,505      |
 
-The last width step is the single biggest piece of work left in this whole plan,
-so take 100 → 90 in one or two cheap steps first.
+The last width step is the single biggest piece of work left in this plan.
+
+Take 100 → 90 in one or two cheap steps first.
 
 One judgement worth recording for whoever takes the next step: bringing a
 docstring under a limit is not a formatting job. Most of what came out was
