@@ -43,7 +43,7 @@ const twoRecipientUnsubPayload = (): BulkEmailPayload => ({
     { to: validEmail("b@example.com"), unsubscribeUrl: "https://x/u/b" },
   ],
   subject: "Promo",
-  text: "Hi",
+  text: `Hi ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
 });
 
 describe("sendBulkEmails", () => {
@@ -146,6 +146,7 @@ describe("sendBulkEmails", () => {
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.postmarkapp.com/email/batch");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe("re_key");
+    expect(fetch.getFetchHeaders().Accept).toBe("application/json");
     const body = fetch.getFetchJsonBody();
     expect(body[0]).toEqual({
       From: "tickets@example.com",
@@ -169,6 +170,10 @@ describe("sendBulkEmails", () => {
       type: "text/html",
       value: "<p>Hi</p>-unsub-",
     });
+    expect(body.content).toContainEqual({
+      type: "text/plain",
+      value: "Hi -unsub-",
+    });
     expect(body.personalizations).toEqual([
       {
         substitutions: { "-unsub-": "https://x/u/a" },
@@ -179,6 +184,34 @@ describe("sendBulkEmails", () => {
         to: [{ email: "b@example.com" }],
       },
     ]);
+  });
+
+  /** A batch can mix recipients who carry an unsubscribe link with ones who
+   * do not. The ones who do not get the placeholder blanked, never left in
+   * the message for a reader to see. */
+  const oneRecipientNoUnsubPayload = (): BulkEmailPayload => ({
+    html: `<p>Hi</p>${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+    recipients: [{ to: validEmail("a@example.com") }],
+    subject: "Promo",
+    text: `Hi ${BULK_UNSUBSCRIBE_PLACEHOLDER}`,
+  });
+
+  test("Postmark blanks the placeholder for a recipient with no link", async () => {
+    replyWith(postmarkReply(0));
+
+    await sendBulkEmails(postmark, oneRecipientNoUnsubPayload());
+
+    const body = fetch.getFetchJsonBody();
+    expect(body[0].HtmlBody).toBe("<p>Hi</p>");
+    expect(body[0].TextBody).toBe("Hi ");
+  });
+
+  test("Resend blanks the placeholder for a recipient with no link", async () => {
+    await sendBulkEmails(config, oneRecipientNoUnsubPayload());
+
+    const body = fetch.getFetchJsonBody();
+    expect(body[0].html).toBe("<p>Hi</p>");
+    expect(body[0].text).toBe("Hi ");
   });
 
   test("SendGrid omits substitutions for a transactional send", async () => {
@@ -208,7 +241,9 @@ describe("sendBulkEmails", () => {
     );
     const form = fetch.getFetchFormBody();
     expect(form.getAll("to")).toEqual(["a@example.com", "b@example.com"]);
+    expect(form.get("subject")).toBe("Promo");
     expect(form.get("html")).toBe("<p>Hi</p>%recipient.unsub%");
+    expect(form.get("text")).toBe("Hi %recipient.unsub%");
     expect(JSON.parse(form.get("recipient-variables") as string)).toEqual({
       "a@example.com": { unsub: "https://x/u/a" },
       "b@example.com": { unsub: "https://x/u/b" },

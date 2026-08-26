@@ -147,6 +147,18 @@ describe("summarizeProviderResponse", () => {
     expect(summary).not.toContain("refused");
   });
 
+  test("separates two different refusal reasons", () => {
+    expect(
+      summarizeProviderResponse([
+        reply(200, "[]", {
+          reasons: ["Inactive recipient", "Hard bounce"],
+          refused: 2,
+          unconfirmed: 0,
+        }),
+      ]),
+    ).toContain("It refused 2 messages. Inactive recipient; Hard bounce.");
+  });
+
   test("caps an over-long list of refusal reasons", () => {
     const reasons = Array.from({ length: 40 }, (_, i) => `reason ${i} is long`);
     const summary = summarizeProviderResponse([

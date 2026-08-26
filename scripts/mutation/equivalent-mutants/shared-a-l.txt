@@ -258,3 +258,7 @@ src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated"   # only 
 src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated"   # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
 src/shared/email.ts::mailgunBody~0u9dcxo  ?? → ||   # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input
+src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.HtmlBody~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.TextBody~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.html~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.text~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
