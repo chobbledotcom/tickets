@@ -7,8 +7,8 @@
  * Sits beside the story `@story:access.inviting-someone-to-help`: the story
  * owns the owner's journey through the rendered pages, so these own who may
  * reach each address at all, and the sends only a crafted POST can make — a
- * role the form never offers, and a name the browser's own required rule
- * would never let through.
+ * role the form never offers, and a username the browser's own required
+ * rule would never let through.
  */
 
 // jscpd:ignore-start
@@ -111,18 +111,19 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
     });
 
-    test("refuses a blank name", async () => {
-      // The name box is required, so a browser blocks this before it is sent.
+    test("refuses a blank username", async () => {
+      // The username box is required, so a browser blocks this before it is
+      // sent.
       await expectRefused(
         { admin_level: "manager", username: "" },
         `${t("common.username")} is required`,
       );
     });
 
-    test("refuses a name already in use, whatever role it asks for", async () => {
+    test("refuses a username already in use, whatever role it asks for", async () => {
       // The story covers the owner meeting this refusal on the page; this one
       // pins that the check runs before anything is written, so an invite that
-      // would have reserved the name leaves nothing behind.
+      // would have reserved the username leaves nothing behind.
       await expectRefused(
         { admin_level: "manager", username: TEST_ADMIN_USERNAME },
         t("error.username_taken"),

@@ -128,7 +128,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     expect(html).toContain("typeme");
   });
 
-  test("removes one whose name was typed exactly", async () => {
+  test("removes one whose username was typed exactly", async () => {
     await invite("goner");
     const id = await idOf("goner");
 
