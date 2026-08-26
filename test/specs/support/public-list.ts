@@ -123,11 +123,12 @@ export const expectBelowTheBundles = (
 
 /** Something people buy without ever turning up to be let in — a raffle
  * ticket, a donation. */
-export const sellsSomethingNobodyAttends = (
+export const sellsSomethingNobodyAttends = async (
   world: TicketsWorld,
   name: string,
-): Promise<unknown> =>
-  putsPlainThingOnSale(world, name, { purchaseOnly: true });
+): Promise<void> => {
+  await putsPlainThingOnSale(world, name, { purchaseOnly: true });
+};
 
 /** Something on sale that the organiser keeps off the public list. */
 export const sellsSomethingQuietly = async (

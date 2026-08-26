@@ -13,9 +13,6 @@ slimmed direct remnant with a header naming the story for branch cover (Cucumber
 runs do not count towards coverage), and record where every old claim went — the
 story, the remnant, or a deliberate drop.
 
-- `test/integration/server/users/invite.test.ts` — the owner-side invite journey
-  (form render, duplicate refusal, join link). The invitee side is already
-  `@story:access.what-an-editor-can-do`.
 - `test/integration/server/settings/features.test.ts` — the feature explanation
   pages and the Site toggle that publishes the public site. Keep the concurrency
   and cache-invalidation tests direct.

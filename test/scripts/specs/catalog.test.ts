@@ -12,6 +12,7 @@ describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
       "access.changing-the-owners-password",
+      "access.inviting-someone-to-help",
       "access.letting-another-system-in",
       "access.removing-a-persons-access",
       "access.setting-a-site-up",

@@ -374,7 +374,7 @@ const getInviteUserFields = () =>
       // an unchanged form is rejected ("Role is required") rather than silently
       // granting whatever option happens to sit first (AdminLevelSchema lists
       // owner first). The operator must pick a role deliberately.
-      invalidMessage: "Invalid role",
+      invalidMessage: t("error.invalid_role"),
       label: t("fields.user.role"),
       name: "admin_level",
       options: [
