@@ -40,6 +40,8 @@ export const holdPlaces = async (
   date: string,
   held: readonly { places: number; room: string }[],
 ): Promise<void> => {
+  // One room at a time. Each is made through the admin form, which signs in,
+  // and two sign-ins at once collide on the session token.
   const bookings = [];
   for (const { places, room } of held) {
     const listing = await roomCalled(room);

@@ -79,7 +79,7 @@ the copy rules in AGENTS.md say every user-facing string lives in
 To do it: add the keys, switch each `redirect(path, "...", ...)` to `t(...)`,
 and widen the i18n-coverage check to `src/features/` so a new one cannot appear.
 Left out of the migration that found it, because it changes production copy
-across eighteen files rather than the tests being moved.
+across twenty files rather than the tests being moved.
 
 ---
 
