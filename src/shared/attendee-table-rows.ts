@@ -25,17 +25,12 @@ export const attendeeLineRow = (
 });
 
 /**
- * Group booking lines into one row per attendee, for the browsing tables
- * (the attendees list and the dashboard's newest attendees).
+ * Each row's listings keep `orderedListings` order, so the Listings cell
+ * matches the listings page.
  *
- * `orderedListings` is the listing set in display order (see sortListings);
- * each row's listings keep that order, so the Listings cell matches the
- * listings page. Quantities sum across the attendee's lines — the order's
- * total tickets. Attendee order follows first appearance in `attendees`.
- * A line whose listing is absent from `orderedListings` (the LEFT-JOIN
- * `listing_id = 0` broken-linkage sentinel) is dropped, and an attendee with
- * no surviving listing is omitted entirely — exactly which lines the
- * per-line tables skipped before grouping.
+ * A line whose listing is absent from that set is the LEFT-JOIN
+ * `listing_id = 0` broken-linkage sentinel. It is dropped, and an attendee with
+ * no surviving listing is omitted entirely.
  */
 export const groupAttendeeRows = (
   attendees: DisplayAttendee[],

@@ -1,22 +1,13 @@
 /**
- * One shared shape for the app's simple link tables — the small two-column
- * tables that connect one kind of record to another (user ↔ logistics agent,
- * parent listing ↔ child listing, modifier ↔ listing/group).
+ * A "side" is one direction through a link table: `keyColumn` is the record you
+ * already have, `valueColumn` is the ids you want. Declare one per direction
+ * the module uses.
  *
- * Each of those modules used to hand-write the same three pieces: read the
- * linked ids, replace the whole set (delete everything for the key, insert the
- * new rows), and clear the links for a key. `linkTableSide` builds all of them
- * from one declaration, so the batch shape, the dedupe rule, and the ordering
- * live in one place.
+ * Table and column names are internal constants, never user input.
  *
- * A "side" is one direction through the table: `keyColumn` is the record you
- * already have, `valueColumn` is the ids you want. Declare one side per
- * direction the module actually uses. Table and column names are internal
- * constants, never user input.
- *
- * When both columns name the same kind of record — a listing's children and
- * its parents — declare the two sides together with {@link selfLinkTableSides},
- * which answers both directions from one read.
+ * When both columns name the same kind of record, declare the two sides
+ * together with {@link selfLinkTableSides}, which answers both directions from
+ * one read.
  */
 
 import {

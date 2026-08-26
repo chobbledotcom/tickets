@@ -1,15 +1,11 @@
 /**
- * A money-amount `<input>` whose browser metadata tracks the active currency.
+ * A money-amount `<input>` whose `step` comes from the site currency, not from
+ * a hard-coded two decimals: `1` for JPY, so cents are never offered, and
+ * `0.001` for KWD, so a valid `1.005` can be typed.
  *
- * The site has exactly one currency (fixed at setup), so a price field should
- * derive its `step` from that currency rather than hard-coding two decimals:
- * `0.01` for a 2-decimal currency, `1` for a zero-decimal one (JPY, so cents
- * aren't offered), `0.001` for a 3-decimal one (KWD, so a valid `1.005` can
- * actually be typed). This is the browser-side twin of the shared server
- * validator in `validation/money.ts` — the two must accept the same amounts, so
- * they read the decimal places from the same `settings.currency`. Use this
- * component for every price/amount field instead of a bare
- * `<input step="0.01" type="number">`.
+ * This is the browser-side twin of `validation/money.ts`. Both read the decimal
+ * places from `settings.currency`, so both accept the same amounts. Use this
+ * for every price field instead of a bare `<input step="0.01" type="number">`.
  */
 
 import { settings } from "#db/settings.ts";

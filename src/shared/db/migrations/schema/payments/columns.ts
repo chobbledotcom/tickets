@@ -1,19 +1,14 @@
 import type { Table } from "#db/migrations/schema/types.ts";
 
 /**
- * The kinds of column a payment record is built from.
- *
- * These say only what a column *is* — its type, whether it may be missing,
- * what it starts as. What a payment may say, and how it may behave, is the
- * record layer's to enforce in TypeScript, where a broken rule names itself,
- * can be unit tested without a database, and can be changed without rebuilding
- * a table already full of real money.
+ * These say only what a column *is*. What a payment may say, and how it may
+ * behave, belongs to the record layer in TypeScript, where a broken rule names
+ * itself, unit tests without a database, and changes without rebuilding a table
+ * already full of real money.
  *
  * The one exception is anything holding the buyer's details. That rule checks
- * what actually landed in the column rather than what the code meant to put
- * there, which is the one thing TypeScript cannot see: a type says `string`
- * while the value is bytes. It stays here, at the last point before the data
- * comes to rest.
+ * what actually landed in the column, which is the one thing TypeScript cannot
+ * see: a type says `string` while the value is bytes.
  */
 
 /** Joins rules of which one must hold. */
@@ -34,17 +29,15 @@ export const wordsOrNull = (): string => "TEXT";
 export const keyWords = (): string => "TEXT PRIMARY KEY NOT NULL";
 
 /**
- * Text hidden behind a whole envelope, not just its front. A value counts as
- * hidden only if it is really text, says how it was hidden, and then carries
- * every part needed to read it back — so a bare prefix with the buyer's
- * details after it is refused, as it would have to be, since nothing could
- * read it back either.
+ * A value counts as hidden only if it is really text, says how it was hidden,
+ * and carries every part needed to read it back. A bare prefix with the buyer's
+ * details after it is refused, because nothing could read that back either.
  *
- * Really text matters as much as the shape: SQLite leaves bytes alone in a
- * TEXT column while GLOB turns them into text just long enough to look at
- * them, so bytes spelling an envelope would otherwise pass and be stored as
- * bytes. GLOB's ?* also swallows more separators, so the second half refuses
- * one separator more than the envelope has.
+ * "Really text" matters as much as the shape. SQLite leaves bytes alone in a
+ * TEXT column while GLOB turns them into text just long enough to look at, so
+ * bytes spelling an envelope pass and are then stored as bytes. GLOB's ?* also
+ * swallows separators, so the second half refuses one more than the envelope
+ * has.
  */
 const sealed = (name: string, prefix: string, parts: number): string =>
   `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${":?*".repeat(

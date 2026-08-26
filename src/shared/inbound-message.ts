@@ -1,16 +1,10 @@
 /**
- * Shared building blocks for the "send us a message" email forms.
+ * Shared building blocks for the "send us a message" email forms. The delivery
+ * policy — recipient, Reply-To, anti-spoofing — differs per form and lives in
+ * each form's own module.
  *
- * The public contact form and the admin support form both turn a short message
- * into an email sent via the configured provider, but their delivery policy
- * differs (who the recipient is, what Reply-To to use, whether anti-spoofing
- * applies). That policy lives in each form's module; this file only provides
- * the pieces they share: message-field validation, the notification body
- * builders, provider resolution, and the low-level send.
- *
- * Addresses are passed in already validated (as `ValidEmail`): callers resolve
- * them from trusted sources (env, settings) or the form's own validation, so
- * the send path never re-validates an address.
+ * An address arrives already validated as `ValidEmail`, from a trusted source
+ * or the form's own validation, so the send path never re-validates one.
  */
 
 import { escapeHtml } from "#jsx/escape-html.ts";

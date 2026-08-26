@@ -1,15 +1,10 @@
 /**
- * Routes for creating and saving attendees. Viewing an existing attendee
- * renders through the entity page in `attendee-page.ts` instead.
+ * Creating and saving attendees. Viewing one renders through `attendee-page.ts`.
+ * The calendar deep-links a create with `?select_<id>=1&start_date=…`.
  *
- * The editor is a fixed table — one quantity box per bookable listing, plus any
- * inactive listing already booked — over one shared date range, so a
- * submission saves in one go with no add-or-remove round trips. The calendar
- * can deep-link a create with `?select_<id>=1&start_date=…` to pre-fill it.
- *
- * A successful save redirects to the Edit tab. A validation or recoverable
- * failure re-renders the submitted form in place, so entered data and per-line
- * errors survive without depending on a stash living until the next GET.
+ * A failure re-renders the submitted form in place and never redirects. Entered
+ * data and per-line errors then survive without a stash that must live until
+ * the next GET.
  */
 
 import { logActivity } from "#db/activity-log.ts";

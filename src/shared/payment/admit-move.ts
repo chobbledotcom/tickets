@@ -67,15 +67,14 @@ type LiveWork = RecoveryDeclaration & {
 /**
  * What a payment row can be in the middle of, and who each thing stops.
  *
- * A claim stops both writers fresh or stale: a stale one means a run died
- * holding this money and its record is the only sign the money may be going
- * back. The other two part company — a merge RELOCATES, so the marker rides
- * the moved row and the work is still there to do afterwards, while a delete
- * DESTROYS the row the correction needs.
+ * A claim stops both writers, fresh or stale. A stale one means a run died
+ * holding this money, and its record is the only sign the money may be going
+ * back. The other two part company: a merge RELOCATES, so the marker rides the
+ * moved row and the work survives, while a delete DESTROYS the row the
+ * correction needs.
  *
- * `saidFirst` puts the most urgent one first when a row carries more than one:
- * money that may be moving right now, then a decision only the owner can make,
- * then money whose local record can be repaired mechanically.
+ * `saidFirst` orders by urgency: money moving now, then a decision only the
+ * owner can make, then a record repairable mechanically.
  */
 export const PAYMENT_ROW_LIFECYCLE = {
   claim: {

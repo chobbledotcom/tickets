@@ -1,17 +1,12 @@
 /**
  * Admin footer.
  *
- * Rendered at the bottom of every admin page: a top row with the Chobble
- * Tickets link (wrapped in a span that grows to fill the space, so the link
- * itself stays only as wide as its text) on the left and inline utility links
- * on the right, all always on one line; and, when query
- * logging is active, a debug menu (render time, SQL queries, cache stats) on a
- * row below them.
+ * `markAdminFooter()` runs while the page's nav renders, and the Layout's one
+ * `renderAdminFooter()` call consumes and resets that flag. Without the reset
+ * the footer leaks onto a later public-page render in the same isolate.
  *
- * The footer only renders on admin pages — `markAdminFooter()` is called while
- * the page's nav/header renders, and `renderAdminFooter()` (called once from
- * the Layout) consumes and resets that flag so it never leaks onto a later
- * public-page render in the same isolate.
+ * The Chobble Tickets link sits in a span that grows to fill the row, so the
+ * link itself stays only as wide as its text.
  */
 
 import {

@@ -9,19 +9,12 @@ export type RetryContext = {
 };
 
 /**
- * Run `fn`, retrying after each failure with the matching delay from
- * `backoffMs`. The array's length is the number of retries, so there are
- * `backoffMs.length + 1` attempts in total.
+ * `backoffMs.length` is the number of RETRIES, so there are one more attempts
+ * than delays.
  *
- * After every failed attempt, `onError(error, { attempt, willRetry })` runs. It
- * may throw to abort immediately — to propagate a non-retryable error, or to
- * swap in a friendlier one once the retries are exhausted (`willRetry` false) —
- * otherwise the loop waits `backoffMs[attempt]` and tries again. When the
- * retries are exhausted and `onError` did not throw, the last error is rethrown
- * unchanged.
- *
- * Shared by the database transient-failure retry ({@link retryOnTransientDatabaseError})
- * and the migration verify retry ({@link verifyMigrationWithRetry}).
+ * `onError` may throw to abort: to propagate a non-retryable error, or to swap
+ * in a friendlier one once `willRetry` is false. If it does not throw and the
+ * retries run out, the last error is rethrown unchanged.
  */
 export const retryWithBackoff = <T>(
   fn: () => Promise<T>,

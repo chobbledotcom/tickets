@@ -2,19 +2,14 @@
 /// <reference lib="dom.iterable" />
 /**
  * Rich markdown editor: progressively enhances every markdown-authored
- * textarea (marked `data-markdown-preview`, like the preview dialog) with a
- * ProseMirror editor.
+ * textarea. The textarea stays the real form control, and every rich edit is
+ * serialized back into it and re-announced as an `input` event, so submission,
+ * validation, the character counter, and the preview dialog keep working.
  *
- * The textarea remains the real form control — every rich edit is serialized
- * back to markdown into it and re-announced as an `input` event — so form
- * submission, server-side validation, the character counter and the preview
- * dialog all keep working unchanged. A formatting toolbar sits above the
- * editing surface for discoverability. A footer button toggles to the raw
- * textarea for anything the visual editor doesn't model (e.g. tables) — and
- * a field whose stored markdown wouldn't survive the round trip opens in raw
- * mode so rich editing never silently rewrites it. A blocked required-field
- * submit reveals the textarea so the browser's validation UI has a focusable
- * control to point at.
+ * A field whose stored markdown does not survive the round trip opens in raw
+ * mode, so rich editing never silently rewrites it. A blocked required-field
+ * submit reveals the textarea, because the browser's validation UI needs a
+ * focusable control to point at.
  */
 
 import { EditorView } from "prosemirror-view";

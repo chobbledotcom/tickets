@@ -273,22 +273,17 @@ const manyFitsOnPrimary = async (demands: CartDemand[]): Promise<boolean[]> => {
   return demands.map((_, index) => row[`fit${index}`] === 1);
 };
 
-/** The listings a refused order's diagnosis names, the way the write batch
- * met them: each prefix of the order is asked as one cumulative demand, so
- * the first line that does not fit on top of its predecessors — a shared
- * group limit included — is the one named. A checkout books every dated line
- * on the one day the customer picked; the rare multi-date creation (an
- * operator's hand-built one) falls back to asking each line alone.
+/** Each prefix of the order is asked as one cumulative demand, so the first
+ * line that does not fit on top of its predecessors is the one named. A shared
+ * group limit counts.
  *
- * The cost is bounded whatever the order's size: one batch reads existence,
- * type and group membership, and prefix fits only shrink as lines are added,
- * so a probe of the whole order plus a binary search finds the first unfit
- * prefix. No probe's SQL is bigger than the whole-order preflight's, and the
- * probe count grows with the logarithm of the order. The reads run on the
- * primary because the refused write did — a replica can lag behind the
- * booking that took the last place, and the isolate's caches can hold a
- * listing another isolate deleted. A line whose listing is gone keeps the
- * refusal and names no listing. */
+ * Prefix fits only shrink as lines are added, so a binary search finds the
+ * first unfit prefix. The probe count grows with the logarithm of the order,
+ * and no probe's SQL is bigger than the whole-order preflight's.
+ *
+ * The reads run on the primary because the refused write did. A replica can lag
+ * behind the booking that took the last place, and the isolate's caches can
+ * hold a listing another isolate deleted. */
 export const refusedOrderUnfitListingIds = async (
   lines: LineBooking[],
 ): Promise<number[]> => {

@@ -1,15 +1,10 @@
 /**
- * Address lookup search panel — the postcode search UI that sits directly
- * above an address textarea.
+ * Postcode search panel, directly above an address textarea.
  *
- * Rendered `hidden` and only revealed by the address-lookup client script, so
- * a browser without JavaScript sees the plain textarea unchanged. All copy is
- * rendered here (translated server-side); the script reads its status
- * messages from the panel's data attributes and never carries strings of its
- * own.
- *
- * The address textarea always stays editable — searching a postcode fills it
- * in, but the customer can type or correct it at any point.
+ * It renders `hidden`, and only the address-lookup client script reveals it, so
+ * a browser without JavaScript sees the plain textarea. Every string is
+ * translated here and passed in a data attribute, so the script carries no copy
+ * of its own. The textarea stays editable throughout.
  */
 
 import { t } from "#i18n";

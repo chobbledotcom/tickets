@@ -1,15 +1,9 @@
 /**
- * Group-membership read/write helpers used only by catalog import/export.
+ * Group-membership helpers used only by catalog import/export, kept out of
+ * `#db/groups.ts` so the transfer feature owns its own plumbing.
  *
- * Kept out of `#shared/db/groups.ts` so the transfer feature owns its own
- * membership plumbing: exporting a listing's memberships, and (re)creating a
- * group's/listing's memberships — with package overrides, quantities, and
- * per-day overrides — as a **bounded** set of statements. A large group can have
- * many members, so the writes are batched into at most two multi-row INSERTs
- * (one for `group_listings`, one for the `group_day` price rows) rather than a
- * statement per member — an interactive transaction caps at
- * {@link TRANSACTION_ROUNDTRIP_THRESHOLD} statements, which a per-member write
- * would blow past for a ~30-member export.
+ * The writes batch into at most two multi-row INSERTs. A statement per member
+ * passes {@link TRANSACTION_ROUNDTRIP_THRESHOLD} on a ~30-member export.
  */
 
 import type { InValue } from "@libsql/client";

@@ -23,18 +23,13 @@ import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 
 /**
- * Build the single `adjustment` leg that moves `account`'s ledger balance by
- * `delta` (in "credit-the-account" terms), or `null` for a zero delta (which
- * posts nothing). Shared by the own-transaction and in-transaction posters so
- * the leg's direction, amount, and reference derivation live in exactly one
- * place. Each save is its own business event — both the `delta` and a fresh
- * `nowIso()` are mixed into the `eventGroup`/`reference` — so editing a figure
- * up, down, then back up posts three distinct adjustments rather than colliding
- * on an earlier event's references. The `delta` is part of the key because
- * `nowIso()` is only millisecond-resolution: two opposite corrections of the
- * same figure (a raise then a lower) posted within the same millisecond would
- * otherwise share `[...keyParts, occurredAt]` and the second would be dropped by
- * the `INSERT OR IGNORE`; including the (signed) delta keeps them distinct.
+ * Each save is its own business event, so both the `delta` and a fresh
+ * `nowIso()` are mixed into the `eventGroup` and `reference`. Editing a figure
+ * up, down, then back up posts three distinct adjustments.
+ *
+ * The `delta` is part of the key because `nowIso()` resolves only to the
+ * millisecond. Two opposite corrections in the same millisecond would otherwise
+ * share a reference, and `INSERT OR IGNORE` would drop the second.
  */
 const writeoffAdjustmentLeg = async (
   account: AccountRef,
@@ -58,19 +53,14 @@ const writeoffAdjustmentLeg = async (
 };
 
 /**
- * Post a manual `adjustment` leg that moves `account`'s ledger balance by `delta`
- * (in "credit-the-account" terms) inside an already-open write transaction, so
- * the correction commits or rolls back together with whatever else the
- * transaction does — the status column write in {@link updateAttendeeStatus}, and
- * the in-transaction read of the current projection a correction recomputes its
- * delta against (which makes a re-submitted correction idempotent):
+ * `delta` is in "credit-the-account" terms: positive credits the account
+ * (`WRITEOFF → account`), negative debits it. Zero posts nothing.
  *
- * - `delta === 0` → no-op (nothing is posted).
- * - `delta > 0` → credit the account: `WRITEOFF → account`, so `balanceOf(account)`
- *   rises (income up, modifier revenue up, an attendee credited).
- * - `delta < 0` → debit the account: `account → WRITEOFF`, so it falls.
+ * It runs inside an already-open write transaction, so the correction commits
+ * or rolls back with the status write beside it, and the in-transaction read
+ * makes a re-submitted correction idempotent.
  *
- * The amount is `Math.abs(delta)`. Corrections are appended, never destructive.
+ * Corrections are appended, never destructive.
  */
 export const postWriteoffAdjustmentTx = async (
   tx: TxScope,

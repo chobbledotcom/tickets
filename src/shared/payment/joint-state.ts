@@ -1,20 +1,14 @@
 /**
- * The legal combinations of one payment row's machines. A row's stored state
- * (the row machine), its charges' refund authority (the refund machine), and
- * its delivery phase are three tables checked one at a time — this module is
- * the seam between them: which combinations may exist in one database at one
- * moment.
+ * The seam between one payment row's three machines: its stored state, its
+ * charges' refund authority, and its delivery phase. Pure.
  *
  * The declaration is an ILLEGAL list, each entry naming the invariant it
- * breaks. A combination is only listed when no flow can produce it — every
- * crash window's intermediate state is a legal combination by design, because
- * a redelivery must be able to finish from it. Anything not listed is legal,
- * so a new flow never trips this seam by surprise; the witness checks in the
- * crash tests are what tighten the list over time.
+ * breaks. A combination is listed only when no flow can produce it, because a
+ * crash window's intermediate state must stay legal for a redelivery to finish
+ * from it. Anything unlisted is legal, and the crash tests tighten the list.
  *
- * This module is pure. The phase collapses into the row fact: any stored row
- * state means `failure_data` is set, so only a free row splits by phase
- * (reserved in flight, finalized booked).
+ * The phase collapses into the row fact: any stored row state means
+ * `failure_data` is set, so only a free row splits by phase.
  */
 
 import type { RefundAuthorityStateName } from "#payment/refund-authority-state.ts";

@@ -89,17 +89,14 @@ export const paidByItem = (order: PricedOrder): Map<CheckoutItem, number> => {
 };
 
 /**
- * The pricing refund reason for a trusted session, or null when its prices still
- * match — computed WITHOUT refunding, so the booking is stored first and the
- * refund happens together with the ledger reversal and note.
+ * Computed WITHOUT refunding, so the booking is stored first and the refund
+ * happens together with the ledger reversal and note.
  *
- * `agreed` is the signed total. The proof already pins every pricing input
- * (items, modifier refs, answer ids, reservation snapshot) and the charge equals
- * `agreed`, so the only thing that can still differ is the *current* database
- * price — a listing/modifier/answer price edited between checkout and now. Both
- * checks catch that legitimate mid-checkout price change. Pricing-code divergence
- * on identical inputs is caught at dev time by the property-based consistency
- * test, so this path refunds without paging.
+ * The proof already pins every pricing input and the charge equals `agreed`, so
+ * the only thing that can still differ is the *current* database price, edited
+ * between checkout and now. Pricing-code divergence on identical inputs is
+ * caught at dev time by the property-based consistency test, so this path
+ * refunds without paging.
  */
 export const paidPricingRefund = (
   validatedItems: ValidatedItem[],
