@@ -73,6 +73,16 @@ export const listingsSections = (): GuideSection[] => [
   },
   {
     entries: [
+      faq("sell_time_slots"),
+      faq("one_item_for_many_slots"),
+      faq("sell_now_for_a_later_season"),
+      faq("adult_and_child_prices"),
+    ],
+    id: "time-slots",
+    titleKey: "time_slots",
+  },
+  {
+    entries: [
       faq("group_vs_package"),
       faq("sell_group_as_package"),
       faq("package_member_pricing"),
