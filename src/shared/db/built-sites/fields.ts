@@ -53,6 +53,13 @@ export const builtSitePlainColumns = [
     toInput: passthrough<string>,
   },
   {
+    dbKey: "renewal_tier_listing_id",
+    fromRow: nullable<number>,
+    schema: nullCol,
+    siteKey: "renewalTierListingId",
+    toInput: nullable<number>,
+  },
+  {
     dbKey: "renewal_token_index",
     fromRow: nullable<string>,
     schema: nullStrCol,

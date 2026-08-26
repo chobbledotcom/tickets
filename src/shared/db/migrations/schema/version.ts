@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Ask SumUp what became of every checkout, so a payment whose message went missing still becomes a ticket.";
+  "Record which renewal tier a built site renews on, so the operator can see it and change it.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

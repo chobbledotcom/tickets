@@ -31,6 +31,7 @@ export interface BuiltSiteRow {
   created: string;
   id: number;
   read_only_from: string;
+  renewal_tier_listing_id: number | null;
   renewal_token_index: string | null;
   site_data: string;
   site_data_revision: number;
@@ -42,6 +43,7 @@ export type BuiltSitePlainInput = {
   assignedAttendeeId?: number | null;
   assignedListingId?: number | null;
   readOnlyFrom?: string;
+  renewalTierListingId?: number | null;
   renewalTokenIndex?: string | null;
   updates?: UpdateTier;
 };
@@ -61,6 +63,9 @@ export interface BuiltSite {
   id: number;
   name: string;
   readOnlyFrom: string;
+  /** The one renewal tier listing this site renews on, or null when the
+   * customer picks from every qualifying tier. */
+  renewalTierListingId: number | null;
   renewalToken: string | null;
   renewalTokenIndex: string | null;
   scheduledTaskKey: string | null;
@@ -84,6 +89,7 @@ export type BuiltSitePlainFields = Pick<
   | "assignedAttendeeId"
   | "assignedListingId"
   | "readOnlyFrom"
+  | "renewalTierListingId"
   | "renewalTokenIndex"
   | "siteDataRevision"
   | "updates"

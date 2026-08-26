@@ -162,6 +162,10 @@ export const questionTables: [name: string, table: Table][] = [
         createdColumn,
         ["renewal_token_index", "TEXT DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
+        // The one renewal tier listing this site renews on. NULL means the
+        // customer picks from every qualifying tier, which is what every site
+        // did before an operator could pin one.
+        ["renewal_tier_listing_id", "INTEGER DEFAULT NULL"],
         ["site_data_revision", "INTEGER NOT NULL DEFAULT 0"],
         // Release channel this site opts into: 'alpha' takes every deploy,
         // 'beta' takes beta + release, 'release' only stable releases. The

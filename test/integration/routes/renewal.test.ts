@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import {
+  builtSites,
+  insertBuiltSite,
+  updateBuiltSiteRenewalState,
+} from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
@@ -95,6 +99,82 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).toContain("csrf_token");
     });
 
+    test("offers only the tier the site renews on", async () => {
+      const monthly = await createTestListing({
+        hidden: true,
+        maxAttendees: 100,
+        maxQuantity: 12,
+        monthsPerUnit: 1,
+        name: "Monthly tier",
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const annual = await createTestListing({
+        hidden: true,
+        maxAttendees: 100,
+        maxQuantity: 12,
+        monthsPerUnit: 12,
+        name: "Annual tier",
+        purchaseOnly: true,
+        unitPrice: 5000,
+      });
+      const { site, token } = await setupRenewalSite();
+      await updateBuiltSiteRenewalState(site.id, {
+        renewalTierListingId: annual.id,
+      });
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "You are renewing Annual tier.",
+      );
+      expect(html).toContain(`quantity_${annual.id}`);
+      expect(html).not.toContain(`quantity_${monthly.id}`);
+      expect(html).not.toContain("Pick a tier and quantity below");
+    });
+
+    test("offers every tier again once the chosen one stops qualifying", async () => {
+      const monthly = await createTestListing({
+        hidden: true,
+        maxAttendees: 100,
+        maxQuantity: 12,
+        monthsPerUnit: 1,
+        name: "Monthly tier",
+        purchaseOnly: true,
+        unitPrice: 500,
+      });
+      const annual = await createTestListing({
+        hidden: true,
+        maxAttendees: 100,
+        maxQuantity: 12,
+        monthsPerUnit: 12,
+        name: "Annual tier",
+        purchaseOnly: true,
+        unitPrice: 5000,
+      });
+      const { site, token } = await setupRenewalSite();
+      await updateBuiltSiteRenewalState(site.id, {
+        renewalTierListingId: annual.id,
+      });
+      await deactivateTestListing(annual.id);
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "You are renewing Monthly tier.",
+      );
+      expect(html).toContain(`quantity_${monthly.id}`);
+      expect(html).not.toContain(`quantity_${annual.id}`);
+    });
+
     test("does not show terms and conditions or agreement checkbox", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
@@ -132,7 +212,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      expect(html).toContain("Pick a tier and quantity below");
+      expect(html).toContain("Choose how many below");
       expect(html).not.toContain("Current deadline:");
     });
 

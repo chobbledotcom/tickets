@@ -16,7 +16,11 @@ import {
   isUpdateTier,
   providerOrBunny,
 } from "#db/built-sites/types.ts";
-import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import {
+  builtSites,
+  builtSitesCrudTable,
+  updateBuiltSiteRenewalState,
+} from "#db/built-sites.ts";
 /* jscpd:ignore-start */
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import { ownerPage } from "#routes/auth.ts";
@@ -303,6 +307,41 @@ const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
   return renewalPushResult("Deadline re-synced")(id, result);
 });
 
+/** POST /admin/built-sites/:id/set-renewal-tier
+ *
+ * Chooses the one tier this site renews on. An empty choice clears it, which
+ * puts every qualifying tier back in front of the customer. A choice that is
+ * not a qualifying tier today is refused rather than stored, so the picker can
+ * never be pinned to a listing it will not show. */
+const handleSetRenewalTier = builtSiteAction(async (site, form, id) => {
+  const chosenId = form.getString("tier_id");
+  if (chosenId === "") {
+    await updateBuiltSiteRenewalState(site.id, { renewalTierListingId: null });
+    await logActivity(`Admin cleared the renewal tier for '${site.name}'`);
+    return builtSiteTabSuccess(
+      id,
+      "renewal",
+      t("built_sites.renewal_tier_cleared"),
+    );
+  }
+  const tiers = await getQualifyingTierListings();
+  const tier = tiers.find((candidate) => String(candidate.id) === chosenId);
+  if (!tier) {
+    return builtSiteTabError(
+      id,
+      "renewal",
+      t("built_sites.renewal_tier_unknown"),
+    );
+  }
+  await updateBuiltSiteRenewalState(site.id, { renewalTierListingId: tier.id });
+  await logActivity(`Admin set '${site.name}' to renew on '${tier.name}'`);
+  return builtSiteTabSuccess(
+    id,
+    "renewal",
+    t("built_sites.renewal_tier_set", { name: tier.name }),
+  );
+});
+
 /** POST /admin/built-sites/:id/provision-renewal
  *
  * Gates on the existence of at least one qualifying renewal tier listing so an
@@ -383,6 +422,7 @@ export const adminHandlers = gateOnBuilder(
       handleProvisionSiteScheduler,
     "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
     "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+    "POST /admin/built-sites/:id/set-renewal-tier": handleSetRenewalTier,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
   }),
 );

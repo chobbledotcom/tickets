@@ -20,3 +20,39 @@ export const formatDeadlineLabel = (iso: string, now = nowMs()): string => {
   if (diffMs < 0) return `expired ${diffDays} day(s) ago`;
   return `in ${diffDays} day(s)`;
 };
+
+/** The little a tier needs for a site to renew on it. */
+type RenewableTier = { id: number };
+
+type PinnedSite = Pick<BuiltSite, "renewalTierListingId">;
+
+/** Which renewal tier a site is on, read against the tiers that still qualify.
+ * `retired` is a tier an operator chose that no longer qualifies — its listing
+ * was deleted, deactivated, unhidden, or lost its months per unit. */
+export type SiteRenewalTier<Tier extends RenewableTier> =
+  | { kind: "any" }
+  | { kind: "pinned"; tier: Tier }
+  | { kind: "retired"; listingId: number };
+
+export const siteRenewalTier = <Tier extends RenewableTier>(
+  site: PinnedSite,
+  qualifying: readonly Tier[],
+): SiteRenewalTier<Tier> => {
+  const chosenId = site.renewalTierListingId;
+  if (chosenId === null) return { kind: "any" };
+  const tier = qualifying.find((candidate) => candidate.id === chosenId);
+  return tier
+    ? { kind: "pinned", tier }
+    : { kind: "retired", listingId: chosenId };
+};
+
+/** The tiers a site's renewal page offers. A site on one tier offers only that
+ * tier. Every other site offers all of them, so a retired tier never leaves a
+ * customer with nothing to buy. */
+export const tiersToRenewOn = <Tier extends RenewableTier>(
+  site: PinnedSite,
+  qualifying: readonly Tier[],
+): Tier[] => {
+  const chosen = siteRenewalTier(site, qualifying);
+  return chosen.kind === "pinned" ? [chosen.tier] : [...qualifying];
+};
