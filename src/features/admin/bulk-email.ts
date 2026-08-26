@@ -76,7 +76,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { ok } from "#shared/response.ts";
+import { fail, ok } from "#shared/response.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
@@ -87,6 +87,39 @@ import {
 } from "#templates/admin/bulk-email.tsx";
 
 const COMPOSE_PATH = "/admin/emails";
+
+/** How many the provider took, named against how many were tried. */
+const recipientLabel = (sent: number, attempted: number): string => {
+  const noun = `recipient${attempted === 1 ? "" : "s"}`;
+  return sent === attempted
+    ? `${attempted} ${noun}`
+    : `${sent} of ${attempted} ${noun}`;
+};
+
+/** A send that lost some messages must not flash as a clean success, and one
+ * that lost every message is not a success at all. */
+const sendOutcome = (
+  sent: number,
+  attempted: number,
+  config: EmailConfig,
+  summary: string,
+): Response => {
+  const values = {
+    count: attempted,
+    provider: EMAIL_PROVIDER_LABELS[config.provider],
+    summary,
+  };
+  if (sent === 0) {
+    return fail(COMPOSE_PATH, t("bulk_email.sent_none_flash", values));
+  }
+  if (sent < attempted) {
+    return ok(
+      COMPOSE_PATH,
+      t("bulk_email.sent_partial_flash", { ...values, sent }),
+    );
+  }
+  return ok(COMPOSE_PATH, t("bulk_email.sent_flash", values));
+};
 const PREVIEW_PATH = "/admin/emails/preview";
 
 /** Whether the owner's *own* provider can send bulk, plus a reason if not. */
@@ -358,21 +391,12 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
   );
   await settings.update.bulkEmailDraft("");
   const providerSummary = summarizeProviderResponse(result.responses);
-  const recipientLabel = `${result.attempted} recipient${
-    result.attempted === 1 ? "" : "s"
-  }`;
+  const sent = result.attempted - result.failed;
   await logActivity(
-    `Sent bulk email "${draft.subject}" to ${recipientLabel}. ${providerSummary}`,
+    `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
     targetLogListingId(draft.target),
   );
-  return ok(
-    COMPOSE_PATH,
-    t("bulk_email.sent_flash", {
-      count: result.attempted,
-      provider: EMAIL_PROVIDER_LABELS[config.provider],
-      summary: providerSummary,
-    }),
-  );
+  return sendOutcome(sent, result.attempted, config, providerSummary);
 });
 
 /** Flash back to the compose page with the saved template selected. */
