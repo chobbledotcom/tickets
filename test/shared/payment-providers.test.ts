@@ -112,6 +112,24 @@ describe("payment provider registry", () => {
       }
     });
 
+    // Pinned literally for the same reason as the origins below: the
+    // credentials form masks this field and the save route reads the mask
+    // back out of it, so an empty name would quietly break both.
+    test("names the form field each provider's secret arrives in", () => {
+      expect(
+        Object.fromEntries(
+          PAYMENT_PROVIDER_IDS.map((id) => [
+            id,
+            PAYMENT_PROVIDERS[id].secretField,
+          ]),
+        ),
+      ).toEqual({
+        square: "square_access_token",
+        stripe: "stripe_secret_key",
+        sumup: "sumup_api_key",
+      });
+    });
+
     // Pinned literally, not read back from the registry: these origins are
     // what lets a buyer's form reach the hosted checkout, so a test that
     // compares the registry with itself would pass on an empty one.

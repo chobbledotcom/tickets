@@ -20,13 +20,11 @@ export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
   extraFields: (form) => ({
     merchantCode: form.getString("sumup_merchant_code"),
   }),
-  formId: "settings-sumup",
   logMessage: "SumUp credentials updated",
   provider: "sumup",
   saveFields: ({ merchantCode }) =>
     settings.update.sumup.merchantCode(merchantCode),
   saveSecret: (value) => settings.update.sumup.apiKey(value),
-  secretField: "sumup_api_key",
   secretRequiredError: "SumUp API Key is required",
   successMessage: "SumUp credentials updated",
   // A lambda, not the member itself: the config is built once at module

@@ -93,3 +93,6 @@ src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nfll
 # whose empty initial value makes assign and append identical.
 src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → +=   # a just-created SVG <text> has empty textContent, so append equals assign
 src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → +=   # same: the <title> is fresh, so append equals assign
+
+# The payment test button reads the CSRF token out of its own form.
+src/ui/client/admin/payment-test-buttons.ts::setupTestButton.data~1dlz3y3  ?? → ||   # the input's value is string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""

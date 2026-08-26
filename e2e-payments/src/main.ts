@@ -19,12 +19,17 @@
  * Exit codes: 0 = executed and passed, 1 = failed.
  */
 
-import { appendFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Envelope } from "@cucumber/messages";
+import {
+  appendStepSummary,
+  publishExecutedResult,
+} from "#scripts/github-actions.ts";
 import { runSpecs } from "#scripts/specs/run.ts";
 import { providerSecrets } from "./config.ts";
-import { fail, log, step } from "./log.ts";
+import { failRun, runHarness } from "./entry.ts";
+import { log, step } from "./log.ts";
 import { notifyFailure } from "./notify.ts";
 import { artifactsRoot, buildStaticAssets } from "./server.ts";
 import {
@@ -50,8 +55,7 @@ interface JournalSummary {
 
 /** The concise, truthful per-case outcome table for the job summary. */
 const writeStepSummary = (target: LiveTarget): void => {
-  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-  if (!summaryPath) return;
+  if (!process.env.GITHUB_STEP_SUMMARY) return;
   const journals = readdirSync(artifactsRoot)
     .filter((name) => name.endsWith("-journal.json"))
     .sort();
@@ -74,16 +78,12 @@ const writeStepSummary = (target: LiveTarget): void => {
     "--- | --- | --- | ---",
     ...rows,
   ].join("\n");
-  appendFileSync(
-    summaryPath,
-    `\n## Live payment cases (${target})\n\n${table}\n`,
-  );
+  appendStepSummary(`\n## Live payment cases (${target})\n\n${table}\n`);
 };
 
 const publishResult = (): void => {
   log("RESULT: executed");
-  const output = process.env.GITHUB_OUTPUT;
-  if (output) appendFileSync(output, "result=executed\n");
+  publishExecutedResult();
 };
 
 const run = async (): Promise<void> => {
@@ -122,19 +122,13 @@ const run = async (): Promise<void> => {
 
   writeStepSummary(target);
   if (!summary.success) {
-    fail(`FAIL — ${target}: the Cucumber run reported failures`);
-    await notifyFailure(target).catch(() => {});
-    process.exitCode = 1;
+    await failRun(`FAIL — ${target}: the Cucumber run reported failures`, () =>
+      notifyFailure(target),
+    );
     return;
   }
   publishResult();
   step(`PASS — ${target}: ${cases.length} case(s) executed`);
 };
 
-run().catch(async (err) => {
-  fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
-  // A failure before the summary — missing credentials, a broken build, a
-  // runner crash — must ping like a failed run, not vanish from ntfy.
-  await notifyFailure(requestedTarget()).catch(() => {});
-  process.exitCode = 1;
-});
+runHarness(run, () => notifyFailure(requestedTarget()));

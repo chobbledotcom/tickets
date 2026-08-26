@@ -3,6 +3,7 @@ import { fn } from "@std/expect/fn";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -13,6 +14,10 @@ import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 type Fields = { merchant: string };
+
+/** The route reads the secret out of the field the registry names for the
+ * provider it is built for, so the fake posts under that name too. */
+const SECRET_FIELD = PAYMENT_PROVIDERS.stripe.secretField;
 type Config = Parameters<typeof defineProviderCredentialsRoute<Fields>>[0];
 
 /** The route reads "a secret is already stored" from the provider's own
@@ -29,12 +34,10 @@ const makeProviderRoute = (overrides: Partial<Config> = {}) => {
   ) as unknown as NonNullable<Config["saveFields"]> & ReturnType<typeof fn>;
   const routes = defineProviderCredentialsRoute<Fields>({
     extraFields: (form) => ({ merchant: form.getString("merchant") }),
-    formId: "settings-test-provider",
     logMessage: "Test provider credentials updated",
     provider: "stripe",
     saveFields,
     saveSecret,
-    secretField: "secret",
     secretRequiredError: "Secret is required",
     successMessage: "Test provider credentials saved",
     testFn: () => Promise.resolve({ ok: true }),
@@ -75,7 +78,7 @@ const saveCredentialsWhile = async (
   });
   const saving = post(routes.save, {
     merchant: "merchant-1",
-    secret: "new-secret",
+    [SECRET_FIELD]: "new-secret",
   });
   await saveStarted.promise;
   await changeSetting();
@@ -88,11 +91,11 @@ describeWithEnv("provider credential route", { db: true }, () => {
     const { routes, saveFields, saveSecret } = makeProviderRoute();
     const response = await post(routes.save, {
       merchant: "merchant-1",
-      secret: "new-secret",
+      [SECRET_FIELD]: "new-secret",
     });
 
     expectRedirectWithFlash(
-      "/admin/settings?form=settings-test-provider#settings-test-provider",
+      "/admin/settings?form=settings-stripe#settings-stripe",
       "Test provider credentials saved",
     )(response);
     expect(saveSecret).toHaveBeenCalledWith("new-secret", true);
@@ -106,7 +109,10 @@ describeWithEnv("provider credential route", { db: true }, () => {
   test("keeps sales off while updating credentials", async () => {
     await settings.update.setPaymentProviderNone();
     const { routes, saveSecret } = makeProviderRoute();
-    await post(routes.save, { merchant: "merchant-1", secret: "new-secret" });
+    await post(routes.save, {
+      merchant: "merchant-1",
+      [SECRET_FIELD]: "new-secret",
+    });
 
     expect(saveSecret).toHaveBeenCalledWith("new-secret", true);
     expect(settings.paymentProvider).toBeNull();
@@ -135,7 +141,7 @@ describeWithEnv("provider credential route", { db: true }, () => {
       const { routes, saveFields, saveSecret } = makeProviderRoute();
       const response = await post(routes.save, {
         merchant: "merchant-1",
-        secret: "new-secret",
+        [SECRET_FIELD]: "new-secret",
       });
 
       expectFlash(response, "Another task is already in progress", false);
@@ -150,7 +156,7 @@ describeWithEnv("provider credential route", { db: true }, () => {
     await settings.update.clearPaymentProvider();
     await storeProviderSecret();
     const { routes } = makeProviderRoute();
-    await post(routes.save, { merchant: "merchant-1", secret: "" });
+    await post(routes.save, { merchant: "merchant-1", [SECRET_FIELD]: "" });
 
     expect(settings.paymentProvider).toBeNull();
     expect(settings.paymentProviderSetting).toBe("none");
@@ -161,7 +167,7 @@ describeWithEnv("provider credential route", { db: true }, () => {
     const { routes, saveFields, saveSecret } = makeProviderRoute();
     const response = await post(routes.save, {
       merchant: "updated-merchant",
-      secret: "",
+      [SECRET_FIELD]: "",
     });
 
     expectFlash(response, "Test provider credentials saved");
@@ -173,7 +179,7 @@ describeWithEnv("provider credential route", { db: true }, () => {
     const { routes, saveFields } = makeProviderRoute();
     const response = await post(routes.save, {
       merchant: "merchant-1",
-      secret: "",
+      [SECRET_FIELD]: "",
     });
 
     expectFlash(response, "Secret is required", false);

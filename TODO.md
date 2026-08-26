@@ -82,6 +82,23 @@ Left out of the migration that found it, because it changes production copy
 across twenty files rather than the tests being moved.
 
 ---
+## Thread an abort signal through the email send APIs (from PR #2140)
+
+`runEmailLeg` (`scripts/email-sandbox-e2e/run.ts`) races each leg against a
+two-minute timer. The timer only settles the race: an in-flight provider request
+keeps running, so a stalled request can fire one orphan probe after its leg
+reported failed. The harness exits right after the report, and the orphan cannot
+change the summary or the exit status, so the harm today is one duplicate probe
+to a discard or authorized address. Codex and CodeRabbit both asked for a real
+abort on PR #2140. It was declined there because it threads `AbortSignal`
+through `sendEmail`, `deliverRegistrationEmail`, `sendBulkEmails`, and
+`fetchText` for a parameter no production caller passes. If cancellable sends
+ever earn a production caller, add an optional `signal` to those APIs, abort it
+in `legTimeout`, and pass it to both probes.
+
+Review threads:
+<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856012838>
+<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856612016>
 
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
@@ -104,8 +121,20 @@ Start at `logErrorLocal`, `formatErrorMessage`, and `captureServerError` in
 
 Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2139#discussion_r3855944310>
-
 ---
+
+## Count Postmark per-message batch errors in `sendBulkEmails` (from PR #2140)
+
+`sendBulkEmails` (`src/shared/email/bulk.ts`) counts a batch as failed only when
+the HTTP response is not ok. Postmark's `/email/batch` can answer 200 with a
+nonzero per-message `ErrorCode` (for example a suppressed or inactive
+recipient), so such a message counts as sent in the bulk report. Codex raised
+this on PR #2140. The email sandbox harness now reads the per-message results
+itself (`postmarkReplyProblems` in `scripts/email-sandbox-e2e/run.ts`), and that
+is the shape to lift into the shared boundary: parse each accepted Postmark
+reply, add the nonzero `ErrorCode` entries to `failed`, and surface them in the
+bulk send report. PR #2140 only adds the harness, so a change to production bulk
+accounting was out of its scope.
 
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 
@@ -2877,17 +2906,6 @@ Fix: ask the budget scope directly. Export a "is there a subrequest budget"
 reader from `src/shared/subrequest-budget.ts` beside `getSubrequestRemaining`,
 and let the migration runner ask that one counter. Pin it with a direct test
 that opens the budget scope without the query-log scope.
-
----
-
-## One provider credentials form
-
-_Origin: the consolidation review._
-
-Square's settings form skips the shared block and re-spells two element ids that
-the shared footer already generates, so the three provider forms drift. Fold
-them onto one `ProviderCredentialsForm` driven by the provider registry in
-`src/shared/payment-providers.ts`. About 50 lines.
 
 ---
 

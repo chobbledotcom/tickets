@@ -20,14 +20,38 @@ import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import {
+  paymentProviderHasCredentials,
+  paymentProviderMode,
+} from "#shared/payment-provider-status.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
-import { adminSettingsPage } from "#templates/admin/settings.tsx";
+import {
+  adminSettingsPage,
+  type ShownPaymentProvider,
+} from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
+import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */
+
+/** The provider whose credentials form the settings page shows, and what the
+ *  stored credentials for it say. Sales being off does not hide the form: the
+ *  provider that owns the payments already taken still needs its keys. */
+const shownPaymentProvider = (
+  existing: PaymentProviderType | null,
+): ShownPaymentProvider | null => {
+  const provider = settings.paymentProvider ?? existing;
+  return provider === null
+    ? null
+    : {
+        configured: paymentProviderHasCredentials(provider),
+        mode: paymentProviderMode(provider),
+        provider,
+      };
+};
 
 /**
  * Gather all state needed to render the settings page.
@@ -48,18 +72,14 @@ const getSettingsPageState = async () => {
     currency: settings.currency,
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
-    existingPaymentProvider: existingPaymentProvider.provider,
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider,
     paymentProviderRecoveryChoices: existingPaymentProvider.recoveryChoices,
-    squareSandbox: settings.square.sandbox,
-    squareTokenConfigured: settings.square.hasToken,
+    shownPaymentProvider: shownPaymentProvider(
+      existingPaymentProvider.provider,
+    ),
     squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
     storageEnabled: isStorageEnabled(),
-    stripeKeyConfigured: settings.stripe.hasKey,
-    stripeKeyMode: settings.stripe.keyMode,
-    sumupKeyConfigured: settings.sumup.hasKey,
-    sumupKeyMode: settings.sumup.keyMode,
     superuser,
     termsAndConditions: settings.terms,
     theme: settings.theme,

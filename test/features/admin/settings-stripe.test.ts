@@ -142,8 +142,8 @@ describeAdminSettings(() => {
       await settings.update.paymentProvider("stripe");
       await expectHtml(await adminGet("/admin/settings"), {
         contains: [
-          "No Stripe key is configured",
-          "Enter your Stripe secret key to enable Stripe payments",
+          "No Stripe credentials are saved",
+          "Enter them below to take payments with Stripe",
           "/admin/guide#payment-setup",
         ],
         notContains: ["stripe-test-btn"],
@@ -155,9 +155,9 @@ describeAdminSettings(() => {
       await stubWebhookAndPostStripe("sk_test_configured", async () => {
         await expectHtml(await adminGet("/admin/settings"), {
           contains: [
-            "A Stripe secret key is currently configured",
+            "Your Stripe credentials are saved",
             "stripe-test-btn",
-            "Test Connection",
+            "Test connection",
           ],
         });
       });

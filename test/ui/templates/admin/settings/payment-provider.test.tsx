@@ -19,7 +19,6 @@ describe("settings payment provider forms", () => {
   describe("ExistingPaymentProviderForm", () => {
     test("requires an explicit configured provider while sales stay off", () => {
       const html = render(ExistingPaymentProviderForm, {
-        existingPaymentProvider: null,
         paymentProvider: null,
         paymentProviderRecoveryChoices: ["stripe", "square"],
       });
