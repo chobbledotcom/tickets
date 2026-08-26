@@ -141,8 +141,8 @@ const ModeNotice = ({
 };
 
 /** The credentials form of whichever provider the page shows. Route, form id
- *  and test-button ids all come from the provider's own name, so a fourth
- *  provider adds a row to CREDENTIALS_VIEW and nothing else. */
+ *  and test-button ids all come from the provider's own name, so
+ *  CREDENTIALS_VIEW above is the only place this form names a provider. */
 export const ProviderCredentialsForm = (
   s: SettingsPageState,
 ): JSX.Element | null => {

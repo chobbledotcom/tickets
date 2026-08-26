@@ -2823,17 +2823,6 @@ that opens the budget scope without the query-log scope.
 
 ---
 
-## One provider credentials form
-
-_Origin: the consolidation review._
-
-Square's settings form skips the shared block and re-spells two element ids that
-the shared footer already generates, so the three provider forms drift. Fold
-them onto one `ProviderCredentialsForm` driven by the provider registry in
-`src/shared/payment-providers.ts`. About 50 lines.
-
----
-
 ## Fold B, one source of route facts
 
 _Origin: the consolidation review._
