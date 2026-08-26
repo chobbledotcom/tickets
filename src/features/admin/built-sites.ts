@@ -310,9 +310,10 @@ const handleReSyncDeadline = builtSiteAction(async (site, _form, id) => {
 /** POST /admin/built-sites/:id/set-renewal-tier
  *
  * Chooses the one tier this site renews on. An empty choice clears it, which
- * puts every qualifying tier back in front of the customer. A choice that is
- * not a qualifying tier today is refused rather than stored, so the picker can
- * never be pinned to a listing it will not show. */
+ * puts every qualifying tier back in front of the customer. A choice that does
+ * not qualify at the moment it is saved is refused rather than stored. A saved
+ * tier can stop qualifying later, and `siteRenewalTier` calls that one
+ * `retired`: the customer sees every tier again until an operator picks. */
 const handleSetRenewalTier = builtSiteAction(async (site, form, id) => {
   const chosenId = form.getString("tier_id");
   if (chosenId === "") {

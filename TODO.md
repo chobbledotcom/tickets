@@ -2993,3 +2993,33 @@ mirror path, so `deno task precommit:mutation` refuses to run for a branch that
 changes it — see the mirror-path entry above.
 `src/features/admin/refunds/budget.ts` reads the table per provider to price the
 refund subrequest budget, so keep the record shape and the per-provider read.
+
+---
+
+## No built-site form carries the site's revision (from PR #2144)
+
+_Origin: a Codex review of the renewal-tier action, which is one more write with
+this same property rather than the cause of it._
+
+`built_sites.site_data_revision` fences the read-modify-write inside
+`updateBuiltSite` (`src/shared/db/built-sites.ts`), so two writes in flight
+cannot lose each other's blob. It is not form-level concurrency control, and no
+built-site form sends it: the edit form, `bump-deadline`, `override-deadline`,
+`rotate-renewal-token`, `provision-renewal`, and `set-renewal-tier` all write
+whatever the operator submitted. Two owner tabs on one site are therefore
+last-write-wins, and the second tab overwrites the first from a view it took
+before the first saved.
+
+To fix: render `siteDataRevision` as a hidden field in every built-site form,
+have `updateBuiltSite` take the revision the operator saw and refuse when the
+stored one moved on, and give the routes a conflict response that re-renders the
+tab with the current values. Start at `updateBuiltSite`, the forms in
+`src/ui/templates/admin/built-sites/`, and `builtSiteAction` in
+`src/features/admin/built-site-action.ts`.
+
+Do the whole surface at once. One action that checks the revision beside five
+that do not is worse than none of them checking, because it reads as a guarantee
+the page does not make.
+
+Review thread:
+<https://github.com/chobbledotcom/tickets/pull/2144#discussion_r3862734850>
