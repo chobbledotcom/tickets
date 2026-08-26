@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { formatCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -192,6 +193,85 @@ describe("ticketViewPage listing date and location", () => {
     const html = ticketViewPage(cards);
     expect(html).toContain("2 Tickets");
     expect(html).not.toContain("Your Purchase");
+  });
+
+  /** The page for one ordinary ticket, built from whatever this test puts on
+   * the booking, on the thing booked, and on the card itself. */
+  const oneCardPage = (
+    entry: Parameters<typeof testTokenEntry>[0],
+    onTheCard: { attachmentUrl?: string } = {},
+  ): string =>
+    ticketViewPage([{ entry: testTokenEntry(entry), token, ...onTheCard }]);
+
+  test("shows the organiser's description of the thing booked", () => {
+    const html = oneCardPage({ listing: { description: "A night of song" } });
+    expect(html).toContain("ticket-card-description");
+    expect(html).toContain("A night of song");
+  });
+
+  test("leaves the description out when the organiser wrote none", () => {
+    expect(oneCardPage({ listing: { description: "" } })).not.toContain(
+      "ticket-card-description",
+    );
+  });
+
+  test("shows what was paid for a booking that cost money", () => {
+    const html = oneCardPage({ attendee: { price_paid: "1500" } });
+    expect(html).toContain("ticket-card-price");
+    expect(html).toContain(`Price: ${formatCurrency(1500)}`);
+  });
+
+  test("says nothing about price for a free booking", () => {
+    expect(oneCardPage({ attendee: { price_paid: "0" } })).not.toContain(
+      "ticket-card-price",
+    );
+  });
+
+  test("warns that a non-transferable ticket needs ID at the door", () => {
+    const html = oneCardPage({
+      listing: { non_transferable: true, purchase_only: false },
+    });
+    expect(html).toContain("ticket-card-notice");
+    expect(html).toContain("Non-transferable — ID required at entry");
+  });
+
+  test("offers the file the organiser attached, behind its signed link", () => {
+    const html = oneCardPage(
+      { listing: { attachment_name: "Guide.pdf" } },
+      { attachmentUrl: "/attachment/42?a=7&exp=1&sig=x" },
+    );
+    expect(html).toContain('href="/attachment/42?a=7&amp;exp=1&amp;sig=x"');
+    expect(html).toContain("Download: Guide.pdf");
+  });
+
+  test("leaves out the download when the thing hands out no file", () => {
+    expect(oneCardPage({ listing: { attachment_name: "" } })).not.toContain(
+      "attachment-link",
+    );
+  });
+
+  test("a package card that names its members keeps each member's file", () => {
+    // The package card replaces the per-member cards, so a bundle buyer would
+    // otherwise lose the per-listing file a standalone card would have shown.
+    const html = ticketViewPage(
+      [
+        {
+          attachmentUrl: "/attachment/9?a=3&exp=1&sig=y",
+          entry: testTokenEntry({
+            attendee: { package_group_id: 7 },
+            listing: { attachment_name: "Handbook.pdf", name: "Handbook" },
+          }),
+          token,
+        },
+      ],
+      false,
+      false,
+      new Map([[7, { hideListings: false, name: "Welcome Pack" }]]),
+    );
+    expect(html).toContain("Welcome Pack");
+    expect(html).toContain("Handbook");
+    expect(html).toContain('href="/attachment/9?a=3&amp;exp=1&amp;sig=y"');
+    expect(html).toContain("Download: Handbook.pdf");
   });
 
   test("renders multi-day booking range when daily listing has duration > 1", () => {

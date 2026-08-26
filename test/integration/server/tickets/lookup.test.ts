@@ -11,6 +11,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingsTable } from "#db/listings/records.ts";
+import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
@@ -73,6 +75,37 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     expect(attendees[0]!.ticket_token_index).not.toBe(
       attendees[1]!.ticket_token_index,
     );
+  });
+
+  test("signs the attachment link for the one booking that opened the page", async () => {
+    // The link is signed per (listing, attendee) and expires, so a buyer
+    // cannot pass it on to reach a file they did not book.
+    const { listing, token } = await createTestAttendeeWithToken(
+      "Ada",
+      "ada@test.com",
+    );
+    await listingsTable.update(listing.id, {
+      attachmentName: "Guide.pdf",
+      attachmentUrl: "guide.pdf",
+    });
+    const attendee = (await getAttendeesRaw(listing.id))[0]!;
+
+    const body = await (await awaitTestRequest(`/t/${token}`)).text();
+    const signed = body.match(
+      /\/attachment\/(\d+)\?a=(\d+)&amp;exp=(\d+)&amp;sig=([^"]+)/,
+    );
+    if (!signed)
+      throw new Error("The ticket carried no signed attachment link");
+    expect(Number(signed[1])).toBe(listing.id);
+    expect(Number(signed[2])).toBe(attendee.id);
+    expect(
+      await verifyAttachmentUrl(
+        listing.id,
+        attendee.id,
+        signed[3]!,
+        signed[4]!,
+      ),
+    ).toBe(true);
   });
 
   describe("the QR image at /t/:token/svg", () => {
