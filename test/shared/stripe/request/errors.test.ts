@@ -139,8 +139,7 @@ describe("Stripe transport errors", () => {
   });
 
   // Every provider aborts through `AbortSignal.timeout`, so an abort is a
-  // timeout whatever name the runtime gives it. Stripe used to call a bare
-  // abort a network failure while Square and SumUp called it a timeout.
+  // timeout whatever name the runtime gives it.
   test("reports a transport abort as a timeout", async () => {
     for (const name of ["TimeoutError", "AbortError"]) {
       const { error, sent } = await failingBalance(
