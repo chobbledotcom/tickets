@@ -131,8 +131,10 @@ const stockedQuantity = (
 /** How many times a modifier is requested for a cart: automatic modifiers
  * apply once, a "code" modifier applies once when the entered code matches, an
  * opt-in add-on applies as many times as the buyer chose, and an "answer"
- * modifier applies once per selected answer linked to it (0 = none chosen).
- * A result below 1 means the modifier doesn't trigger at all. */
+ * modifier applies once per selected answer linked to it (0 = none chosen) —
+ * capped at `max_per_order` when set, so a once-per-order answer surcharge
+ * such as a delivery fee applies however many tickets picked the answer. A
+ * result below 1 means the modifier doesn't trigger at all. */
 const triggerQuantity = (
   modifier: Modifier,
   codeIndex: string | null,
@@ -144,7 +146,10 @@ const triggerQuantity = (
   }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
   if (modifier.trigger === "answer") {
-    return answerQuantities.get(modifier.id) ?? 0;
+    const requested = answerQuantities.get(modifier.id) ?? 0;
+    return modifier.max_per_order === null
+      ? requested
+      : Math.min(requested, modifier.max_per_order);
   }
   return 1;
 };

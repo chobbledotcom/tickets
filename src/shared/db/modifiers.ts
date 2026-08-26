@@ -67,6 +67,7 @@ export type ModifierInput = {
   trigger?: ModifierTrigger;
   code?: string;
   codeIndex?: string | null;
+  maxPerOrder?: number | null;
   minVisits?: number;
   scope?: ModifierScope;
   minSubtotal?: number;
@@ -87,6 +88,7 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
     code: col.encryptedText(encrypt, decrypt),
     code_index: col.withDefault<string | null>(() => null),
     direction: col.simple<ModifierDirection>(),
+    max_per_order: col.withDefault<number | null>(() => null),
     min_subtotal: col.withDefault(() => 0),
     min_visits: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),

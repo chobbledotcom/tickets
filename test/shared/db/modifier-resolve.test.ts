@@ -13,9 +13,14 @@ import {
   oversubscribedAnswerTiers,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
-import { getModifierAnswerIds, setModifierAnswers } from "#db/modifiers.ts";
+import {
+  getModifierAnswerIds,
+  type ModifierInput,
+  setModifierAnswers,
+} from "#db/modifiers.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { toMinorUnits } from "#shared/currency.ts";
+import type { ModifierSpec } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
@@ -243,41 +248,108 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(specs.find((s) => s.name === "Limited tee")?.quantity).toBe(2);
     });
 
-    test("applies an answer-triggered modifier when a linked answer is selected", async () => {
-      const [answerId] = await createAnswers(1);
-      const m = await insertModifier({ name: "Large size" });
+    /** Create an answer-triggered modifier linked to `count` fresh answers. */
+    const setUpAnswerModifier = async (
+      count: number,
+      input: Partial<ModifierInput> = {},
+    ): Promise<{ answerIds: number[]; modifierId: number }> => {
+      const answerIds = await createAnswers(count);
+      const m = await insertModifier(input);
       await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [answerId!]);
+      await setModifierAnswers(m.id, answerIds);
+      return { answerIds, modifierId: m.id };
+    };
+
+    /** Resolve a one-item cart where each listed listing picked answers. */
+    const resolveAnswerPicks = async (
+      picks: Record<string, number[]>,
+      quantities: Map<number, number>,
+    ): Promise<ModifierSpec[]> =>
+      resolveModifiers([checkoutItem()], {
+        answerQuantities: await answerModifierQuantities(picks, quantities),
+      });
+
+    test("applies an answer-triggered modifier when a linked answer is selected", async () => {
+      const { answerIds } = await setUpAnswerModifier(1, {
+        name: "Large size",
+      });
 
       // Not selected: the modifier doesn't trigger.
       const unselected = await resolveModifiers([checkoutItem()]);
       expect(unselected.map((s) => s.name)).not.toContain("Large size");
 
       // The linked answer selected on listing 1, which has 2 tickets: applies x2.
-      const selected = await resolveModifiers([checkoutItem()], {
-        answerQuantities: await answerModifierQuantities(
-          { "1": [answerId!] },
-          new Map([[1, 2]]),
-        ),
-      });
+      const selected = await resolveAnswerPicks(
+        { "1": [answerIds[0]!] },
+        new Map([[1, 2]]),
+      );
       const spec = selected.find((s) => s.name === "Large size");
       expect(spec?.trigger).toBe("answer");
       expect(spec?.quantity).toBe(2);
     });
 
-    test("caps an answer-triggered modifier quantity at remaining stock", async () => {
-      const [answerId] = await createAnswers(1);
-      const m = await insertModifier({ name: "Limited tier", stock: 2 });
-      await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [answerId!]);
-
-      const specs = await resolveModifiers([checkoutItem()], {
-        answerQuantities: await answerModifierQuantities(
-          { "1": [answerId!] },
+    test("caps an answer modifier at stock, or once per order when capped", async () => {
+      const quantityFor = async (
+        input: Partial<ModifierInput>,
+      ): Promise<number | undefined> => {
+        const { answerIds } = await setUpAnswerModifier(1, input);
+        const specs = await resolveAnswerPicks(
+          { "1": [answerIds[0]!] },
           new Map([[1, 5]]),
-        ),
+        );
+        return specs.find((s) => s.name === input.name)?.quantity;
+      };
+
+      // Five tickets picked the answer: the stock cap allows 2, and the
+      // once-per-order cap allows 1 however many tickets picked it.
+      expect(await quantityFor({ name: "Limited tier", stock: 2 })).toBe(2);
+      expect(
+        await quantityFor({ maxPerOrder: 1, name: "Zone 2 delivery" }),
+      ).toBe(1);
+    });
+
+    test("applies a once-per-order answer modifier once across several linked answers", async () => {
+      const { answerIds } = await setUpAnswerModifier(2, {
+        maxPerOrder: 1,
+        name: "Delivery",
       });
-      expect(specs.find((s) => s.name === "Limited tier")?.quantity).toBe(2);
+
+      // Both answers picked (one per listing), each listing holding 2 tickets:
+      // the requested quantity is 4, the once-per-order cap still applies x1.
+      const specs = await resolveAnswerPicks(
+        { "1": [answerIds[0]!], "2": [answerIds[1]!] },
+        new Map([
+          [1, 2],
+          [2, 2],
+        ]),
+      );
+      expect(specs.find((s) => s.name === "Delivery")?.quantity).toBe(1);
+    });
+
+    test("counts stock per order for a once-per-order answer modifier", async () => {
+      const { answerIds, modifierId } = await setUpAnswerModifier(1, {
+        maxPerOrder: 1,
+        name: "Van slot",
+        stock: 2,
+      });
+      // One order already used a slot, so one of the two remains. Three
+      // tickets picked the answer, but a once-per-order modifier needs only
+      // one slot for this order — per-ticket counting would report it sold out.
+      await insertModifierUsage(modifierId, 1, 1, 0);
+
+      const picks = { "1": [answerIds[0]!] };
+      const quantities = await answerModifierQuantities(
+        picks,
+        new Map([[1, 3]]),
+      );
+      expect(
+        await oversubscribedAnswerTiers([checkoutItem()], {
+          answerQuantities: quantities,
+        }),
+      ).toEqual([]);
+
+      const specs = await resolveAnswerPicks(picks, new Map([[1, 3]]));
+      expect(specs.find((s) => s.name === "Van slot")?.quantity).toBe(1);
     });
 
     test("applies a group-scoped modifier to the linked group's listings", async () => {

@@ -191,6 +191,29 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect((await lastModifier()).stock).toBeNull();
     });
 
+    test("stores the once-per-order flag on a question-answer modifier", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({
+          calc_kind: "fixed",
+          calc_value: "10",
+          direction: "charge",
+          max_per_order: "1",
+          name: "Zone 2 delivery",
+          trigger: "answer",
+        }),
+      );
+      expect((await lastModifier()).max_per_order).toBe(1);
+    });
+
+    test("drops the once-per-order flag for other triggers", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ max_per_order: "1" }),
+      );
+      expect((await lastModifier()).max_per_order).toBeNull();
+    });
+
     test("rejects a non-numeric value", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",

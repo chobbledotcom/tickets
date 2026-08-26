@@ -60,6 +60,18 @@ describe("modifierToFieldValues", () => {
     expect(values.stock).toBe(8);
   });
 
+  test("pre-ticks the once-per-order checkbox only when the cap is 1", () => {
+    const capped = modifierToFieldValues(
+      testModifier({ max_per_order: 1, trigger: "answer" }),
+    );
+    expect(capped.max_per_order).toBe("1");
+
+    const uncapped = modifierToFieldValues(
+      testModifier({ max_per_order: null, trigger: "answer" }),
+    );
+    expect(uncapped.max_per_order).toBe("");
+  });
+
   test("renders a zero min_subtotal and absent stock as blank", () => {
     const values = modifierToFieldValues(
       testModifier({ min_subtotal: 0, min_visits: 0, stock: null }),

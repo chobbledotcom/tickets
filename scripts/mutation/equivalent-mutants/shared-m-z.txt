@@ -290,7 +290,7 @@ src/shared/superuser.ts::%3cfile%3e~0ljtci5  0 → 1   # the generation is only 
 # and each option is an object or absent.
 src/shared/db/modifier-resolve.ts::stockedQuantity.remaining~06sda3h  ?? → ||   # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
 src/shared/db/modifier-resolve.ts::triggerQuantity~04te607  ?? → ||   # the add-on map holds requested whole quantities, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::triggerQuantity~18fvmyz  ?? → ||   # the answer-quantity map holds whole counts, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::triggerQuantity.requested~18fvmyz  ?? → ||   # the answer-quantity map holds whole counts, so its only falsy value is the 0 the fallback supplies
 src/shared/db/modifier-resolve.ts::answerModifierQuantities.entries~15ao8g3  ?? → ||   # the argument is a record of answer ids or absent, and every record is truthy, the empty one included
 src/shared/db/modifier-resolve.ts::answerModifierQuantities.modifierIds~1y1b3am  ?? → ||   # the map holds arrays of modifier ids, and every array is truthy, the empty one included
 src/shared/db/modifier-resolve.ts::answerModifierQuantities~1ju3gsl  ?? → ||   # the running total is a whole count, so its only falsy value is the 0 the fallback supplies

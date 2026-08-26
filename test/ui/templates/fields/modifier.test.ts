@@ -123,6 +123,13 @@ describe("modifier fields", () => {
           type: "number",
         },
         {
+          hint: "Question-answer modifiers only: tick to charge this once for the whole booking instead of for every ticket that picked the answer. Ignored for other triggers.",
+          label: "Charge",
+          name: "max_per_order",
+          options: [{ label: "Charge once per order", value: "1" }],
+          type: "checkbox-group",
+        },
+        {
           label: "Status",
           name: "active",
           options: [{ label: "Active (apply at checkout)", value: "1" }],
