@@ -12,7 +12,7 @@ import {
   type FormEntry,
   findFormByButton,
   findForms,
-  pressableOn,
+  theWayToPost,
   throwNoForm,
   wayToPost,
 } from "#test-utils/test-browser/forms.ts";
@@ -262,53 +262,35 @@ export class TestBrowser {
    * The body of the form that posts to `action`, for a caller that picks a
    * form by where it goes rather than by the words on its button. The sibling
    * of {@link formBodyFor}, so such a caller can check what it is about to
-   * fill in against that form alone. Throws when nothing posts there.
+   * fill in against that form alone. A page that offers no way there is
+   * refused here with the same words pressing it would give.
    */
   formBodyAt(action: string): string {
-    const wayThere = wayToPost(this.currentHtml, action);
-    if (!wayThere) throw new Error(`No form on this page posts to ${action}`);
-    return wayThere.form.body;
+    return theWayToPost(this.currentHtml, action).form.body;
   }
 
   /**
    * Submit the one form on this page that posts to `action`, the way pressing
    * its own button would: its hidden fields and CSRF token go with it. For a
    * page that renders many identical forms — one arrow per row — where the
-   * button's words cannot tell them apart. A page with no such form, or one
-   * whose every button is switched off, throws: neither is something a person
-   * could have done.
+   * button's words cannot tell them apart.
    */
   async submitFormAt(
     action: string,
     data: Record<string, string | string[]> = {},
   ): Promise<void> {
-    const wayThere = wayToPost(this.currentHtml, action);
-    if (wayThere) {
-      const { form, pressed } = wayThere;
-      return await this.sendForm(
-        {
-          action,
-          body: form.body,
-          buttonName: pressed.name,
-          buttonValue: pressed.value,
-          entries: extractFormEntries(form.body),
-          method: pressed.sentBy,
-        },
-        data,
-      );
-    }
-    // Nothing posts there. Which of the three ways it failed decides what to
-    // say, so a story is told what is actually wrong with the page.
-    const declared = findForms(this.currentHtml).find(
-      (f) => f.action === action,
+    const { form, pressed } = theWayToPost(this.currentHtml, action);
+    return await this.sendForm(
+      {
+        action,
+        body: form.body,
+        buttonName: pressed.name,
+        buttonValue: pressed.value,
+        entries: extractFormEntries(form.body),
+        method: pressed.sentBy,
+      },
+      data,
     );
-    if (!declared) {
-      throw new Error(`No form on this page posts to "${action}"`);
-    }
-    if (pressableOn(declared).length === 0) {
-      throw new Error(`The form posting to "${action}" cannot be submitted`);
-    }
-    throw new Error(`No button on the form at "${action}" posts there`);
   }
 
   /**

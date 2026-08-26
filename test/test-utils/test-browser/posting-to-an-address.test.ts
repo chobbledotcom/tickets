@@ -134,6 +134,31 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
     expect(body).not.toContain('name="only_here"');
   });
 
+  it("gives back only the body of the form that posts to an address", () => {
+    const browser = new TestBrowser();
+    browser.currentHtml = arrows(pressable);
+
+    const body = browser.formBodyAt(SECOND_ROW);
+
+    // The second row's own hidden field, and not the first row's, so a caller
+    // checking what it may fill in is held to that one form.
+    expect(body).toContain('value="tok2"');
+    expect(body).not.toContain('value="tok"><');
+  });
+
+  it("refuses to read a form nobody could send, in the same words", async () => {
+    const browser = new TestBrowser();
+    browser.currentHtml = arrows('<button disabled type="submit">▲</button>');
+
+    // Reading the form and sending it refuse alike, so a caller that reads
+    // first is told what is wrong with the page rather than that a form is
+    // missing when it is really switched off.
+    expect(() => browser.formBodyAt(SECOND_ROW)).toThrow(NOTHING_TO_PRESS);
+    await expect(browser.submitFormAt(SECOND_ROW)).rejects.toThrow(
+      NOTHING_TO_PRESS,
+    );
+  });
+
   it("refuses an address no form on the page posts to", async () => {
     const browser = new TestBrowser();
     browser.currentHtml = arrows(pressable);
