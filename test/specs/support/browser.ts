@@ -161,6 +161,13 @@ export const opensAdminPageAt =
     await openAdminPage(world, path);
   };
 
+/** What one of the owner's own pages says right now. Opening and reading are
+ * one step, so no caller can assert against a window it opened earlier. */
+export const adminPageHtmlAt = async (
+  world: TicketsWorld,
+  path: string,
+): Promise<string> => (await openAdminPage(world, path)).currentHtml;
+
 /** The organiser opens one of their own pages, and something is done with
  * the window they are looking at — the opening every organiser action on a
  * page shares. */

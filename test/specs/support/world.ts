@@ -22,6 +22,7 @@ import type {
   CodeOnScreen,
   WhereTheCodeLed,
 } from "#test/specs/support/shown-code.ts";
+import { withEnv } from "#test-utils/env.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 import type {
   JourneyCatalogSpec,
@@ -179,6 +180,16 @@ export interface TicketsWorld extends World, EvidencePages {
   wordsWritten?: string;
   writeoffBefore?: number;
 }
+
+/** Run the rest of this scenario with the environment changed, and put it
+ * back when the scenario ends. Every story that needs a different environment
+ * goes through here, so none of them can leave one behind for the next. */
+export const scenarioEnv = (
+  world: Pick<TicketsWorld, "cleanup">,
+  changes: Record<string, string | undefined>,
+): void => {
+  world.cleanup.add(withEnv(changes));
+};
 
 export const addDatabaseCleanup = (
   world: Pick<TicketsWorld, "cleanup">,
