@@ -11,7 +11,9 @@ const showTestResult = (
   cssClass: string,
 ) => {
   resultDiv.textContent = text;
-  resultDiv.classList.remove("hidden", "success", "error");
+  // The click cleared the last answer's colour before asking, so the box only
+  // needs showing again.
+  resultDiv.classList.remove("hidden");
   resultDiv.classList.add(passed ? "success" : "error", cssClass);
 };
 
@@ -63,16 +65,16 @@ const setupTestButton = (
 
 /** Format a webhook status line from a test result's webhook field */
 // deno-lint-ignore no-explicit-any
-const formatWebhookLine = (webhook: any, detail?: string): string =>
+const formatWebhookLine = (webhook: any, detail: string): string =>
   webhook.configured
-    ? `Webhook: ${detail ?? "configured"}`
+    ? `Webhook: ${detail}`
     : `Webhook: Not configured${webhook.error ? ` - ${webhook.error}` : ""}`;
 
 /** Format a Square location line */
 // deno-lint-ignore no-explicit-any
 const formatLocationLine = (loc: any): string =>
   loc.configured
-    ? `Location: ${loc.name ?? loc.locationId}${loc.status ? ` (${loc.status})` : ""}`
+    ? `Location: ${loc.name || loc.locationId}${loc.status ? ` (${loc.status})` : ""}`
     : `Location: Not configured${loc.error ? ` - ${loc.error}` : ""}`;
 
 /** Format a credential validity line (e.g. "API Key: Valid (test mode)") */
