@@ -1278,6 +1278,31 @@ merge waiting to happen, and the whole point of this exercise. So:
   the same thing wearing two names. Keep pulling the thread until the merges are
   genuinely exhausted.
 
+### The four scans, and how hard each looks
+
+The 0% threshold is not the number that decides how hard jscpd looks.
+`minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
+lower number is a tighter net. Four configs divide the tree, because helper code
+and test bodies deserve different nets.
+
+| Config                | Scans                            | minTokens |
+| --------------------- | -------------------------------- | --------- |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
+| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
+| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
+| `.jscpd.test.json`    | `test`                           | 48        |
+
+Both helper trees are scanned **alongside `src/`**, so a helper that
+reimplements production logic is flagged against the source it copied. A
+separate run could never see that pair. A test body is different: it repeats by
+design, and the shared mechanism is the test framework itself, so the whole of
+`test/` stays at the loose 48.
+
+**The helper number ratchets downward** — lower the one in
+`.jscpd.helpers.json`, bring the tree to it, repeat — the same way
+`check:comments` works. `docs/test-duplication.md` measures what each remaining
+step costs, and shows why 19 is already the floor for the Cucumber helpers.
+
 ## Database Queries
 
 Avoid `SELECT *`, and avoid loading more rows or columns than the caller needs.
