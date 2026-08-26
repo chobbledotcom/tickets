@@ -123,6 +123,25 @@ describeWithEnv("admin email templates", { db: true }, () => {
     expect((await storedTemplate()).html).toBe(atTheLimit);
   });
 
+  test("refuses wording the site cannot read, and keeps nothing", async () => {
+    // The syntax check runs per field and names which one, so this reaches
+    // the branch the story cannot: a Cucumber run does not count towards
+    // coverage, and this is the only arm that rejects a parse failure.
+    const response = await postTemplateForm({
+      html: "",
+      subject: "{% for x in items %}unclosed",
+      text: "",
+    });
+
+    expect(response.status).toBe(302);
+    expectFlash(
+      response,
+      expect.stringContaining("Invalid template syntax"),
+      false,
+    );
+    expect(await storedTemplate()).toEqual(NOTHING_KEPT);
+  });
+
   test("treats a send carrying no fields at all as clearing the wording", async () => {
     // The form always carries all three boxes, so this send is one no browser
     // could have made. The story owns clearing them on the page.

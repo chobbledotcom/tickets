@@ -142,6 +142,36 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
       )(response);
     });
 
+    test("reports a provider that never answers", async () => {
+      // The no-response arm: no status came back at all, so there is nothing
+      // to quote. A story reads the words; only this reaches the branch.
+      await readyToSendATest();
+      using _fetch = stubFetch(new Error("Network error"));
+
+      const { response } = await adminFormPost("/admin/settings/email/test");
+
+      expectRedirectWithFlash(
+        TEST_FORM_URL,
+        expect.stringContaining("Test email failed (no response)"),
+        false,
+      )(response);
+    });
+
+    test("reports a refusal that carries no reason", async () => {
+      // The other side of the reason branch: a status but an empty body, so
+      // the owner gets the status alone rather than a dangling "said:".
+      await readyToSendATest();
+      using _fetch = stubFetch(new Response(null, { status: 403 }));
+
+      const { response } = await adminFormPost("/admin/settings/email/test");
+
+      expectRedirectWithFlash(
+        TEST_FORM_URL,
+        "Test email failed (status 403)",
+        false,
+      )(response);
+    });
+
     test("sends a missing business email there too", async () => {
       const { settings } = await import("#db/settings.ts");
       await settings.update.email.provider("resend");
