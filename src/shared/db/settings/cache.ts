@@ -1,22 +1,17 @@
 /**
- * Raw-row cache + cross-isolate version stamp.
- *
- * `values` holds the raw DB rows loaded so far (still sealed when encrypted —
- * decryption happens only when a value is resolved into the snapshot). `loaded`
- * records which keys have been resolved — present *or* absent in the DB — so a
- * partial `loadKeys` never re-queries a key it has already fetched. `version`
- * is the `settings_version` counter the rows were loaded at; `-1` means never
- * loaded.
+ * Raw-row cache + cross-isolate version stamp. `values` holds the raw DB rows
+ * loaded so far, still sealed when encrypted, because decryption happens only
+ * when a value is resolved into the snapshot. `loaded` records which keys have
+ * been resolved, present *or* absent in the DB, so a partial `loadKeys` never
+ * re-queries a key it already fetched. `version` is the `settings_version`
+ * counter the rows were loaded at, and `-1` means never loaded.
  *
  * Freshness is decided by the version stamp, not a wall-clock TTL. Every
- * settings write bumps the shared `settings_version` counter in the DB
- * (`bumpSettingsVersion`), and each request probes that counter once
- * (the version probe). When the probed counter differs from the cache's
- * stamp, some isolate changed a setting and the cache reloads; otherwise it is
- * served as-is. This makes a change saved on one (warm) edge isolate visible
- * to every other isolate on its very next request — rather than lingering
- * until a TTL lapsed or the isolate restarted — while still skipping the
- * reload (and the decryption) entirely on the common no-change path.
+ * settings write bumps the shared `settings_version` counter in the DB, and
+ * each request probes that counter once. When the probed counter differs from
+ * the cache's stamp, some isolate changed a setting and the cache reloads. This
+ * makes a change saved on one warm edge isolate visible to every other isolate
+ * on its next request, while it skips the reload on the common no-change path.
  */
 
 import {

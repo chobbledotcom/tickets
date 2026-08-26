@@ -1,16 +1,13 @@
 /**
- * SumUp checkout metadata store — encrypted staging for booking intent.
- *
- * A SumUp checkout carries only a `checkout_reference` string, not the booking
+ * SumUp checkout metadata store — encrypted staging for booking intent. A
+ * SumUp checkout carries only a `checkout_reference` string, not the booking
  * metadata Stripe sessions and Square orders round-trip for us, so we persist
  * it locally at checkout creation and read it back when the payment completes.
  *
  * That metadata holds PII, so nothing in the stored row can decrypt it alone:
- * the row is keyed by `hmacHash(reference)`, the blob is encrypted with a fresh
- * per-row data key, and that key is stored wrapped with a key derived from the
- * reference. The plaintext reference never rests here — it arrives from the
- * success redirect or from SumUp's API — so a database dump cannot decrypt
- * these rows even combined with the env encryption key.
+ * the row is keyed by `hmacHash(reference)`, the blob uses a fresh per-row data
+ * key, and that key is stored wrapped with a key derived from the reference. The
+ * plaintext reference never rests here, so a database dump cannot decrypt a row.
  *
  * The row also records the SumUp-side checkout id, which is not sensitive and
  * lets the webhook reject checkouts we never created without an API call. Rows

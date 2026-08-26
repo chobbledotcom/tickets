@@ -331,20 +331,19 @@ const sharedCappedGroupIds = (
 
 /**
  * The remaining spots of the **capped group a parent and one of its children
- * share**, or `undefined` when they don't share a capped group. A parent and its
- * required child in the same capped group consume two group spots per order,
- * so callers must reason about combined demand, not each row in
- * isolation.
+ * share**, or `undefined` when they do not share a capped group. A parent and
+ * its required child in the same capped group consume two group spots per
+ * order, so callers must reason about combined demand, not each row alone.
  *
- * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots; uncapped
- * groups omitted), so the result is the tightest SHARED group's remaining — the
- * group the parent and child actually contend over — NOT the child's tightest
- * group overall. A child also in a tighter NON-shared group must not drag the
- * shared-pool calc down to that unrelated cap.
+ * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots,
+ * uncapped groups omitted), so the result is the tightest SHARED group's
+ * remaining — the group the parent and child actually contend over — NOT the
+ * child's tightest group overall. A child also in a tighter NON-shared group
+ * must not drag the shared-pool calculation down to that unrelated cap.
  *
- * The single source of truth for both discovery (does the minimum order fit?) and
- * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
- * can never disagree about a shared-group parent's availability.
+ * The single source of truth for both discovery (does the minimum order fit?)
+ * and the booking-page quantity ceiling (how many orders fit?), so the two
+ * surfaces can never disagree about a shared-group parent's availability.
  */
 export const sharedGroupRemaining = (
   parentGroupIds: readonly number[],

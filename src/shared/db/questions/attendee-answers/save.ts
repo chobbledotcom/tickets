@@ -168,23 +168,19 @@ const existingQuestionIdsTx = (
 
 /**
  * Replace every listed attendee's answers in one atomic transaction: the
- * existing answers are deleted, then the new set inserted, committing or
- * rolling back as one. Every save reduces to one map of attendee to their
- * answers — chosen ids alone, or an {@link AttendeeAnswerSet} carrying
- * typed-in text too. Repeated answers to a question collapse to the last.
+ * existing answers are deleted, then the new set inserted, and both commit or
+ * roll back as one. Every save reduces to one map of attendee to their answers,
+ * either chosen ids alone or an {@link AttendeeAnswerSet} that carries typed-in
+ * text too. Repeated answers to a question collapse to the last.
  *
  * The encrypted and HMAC-indexed string rows are computed before the
- * transaction opens, since that work is CPU-bound and would otherwise hold the
- * SQLite writer open for nothing. Then, all on the transaction: delete every
- * attendee's rows in one `IN (…)`; read which questions and answers still
- * exist, so one deleted between checkout and finalize is skipped rather than
- * orphaned; intern the free-text rows in a fixed three round trips; and insert
- * at most two multi-row batches, so the statement count stays flat however
- * many attendees a save covers.
- *
- * The delete runs first so `used_count` is seen consistently: a string this
- * save drops to zero is re-created by the interning path. A failure anywhere
- * rolls the save back, so prior answers survive rather than being emptied.
+ * transaction opens, because that work is CPU-bound and would otherwise hold
+ * the SQLite writer open for nothing. The transaction then deletes every
+ * attendee's rows in one `IN (…)`, reads which questions and answers still
+ * exist so one deleted between checkout and finalize is skipped, interns the
+ * free-text rows in a fixed three round trips, and inserts at most two
+ * multi-row batches. The delete runs first so `used_count` is seen
+ * consistently: a string this save drops to zero is re-created by interning.
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,

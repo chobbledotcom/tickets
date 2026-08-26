@@ -42,21 +42,17 @@ import type { AdminLevel, AdminSession } from "#types";
  * What the admin nav should mark active for the current page.
  *
  * - A plain route string — the page *is* this route: a section's landing page
- *   (`/admin/attendees`), an "Add X" create page (`/admin/attendees/new`), or a
- *   settings/site sub-page (`/admin/privacy`). The nav highlights the matching
- *   link and, when the route is a section's landing route or one of its sub-nav
- *   items, opens that section's sub-nav (current sub-page highlighted).
+ *   (`/admin/attendees`), an "Add X" create page, or a settings sub-page. The
+ *   nav highlights the matching link and, when the route is a section's landing
+ *   route or one of its sub-nav items, opens that section's sub-nav.
  * - `{ section }` — the page merely lives *within* a section: a detail or child
- *   view of one item (one attendee, one listing, the add-note form). The nav
- *   highlights the section's top-level link but never opens its sub-nav.
+ *   view of one item. The nav highlights the section's top-level link but never
+ *   opens its sub-nav.
  *
  * The `{ section }` form is the only way to highlight a section without also
  * surfacing its sub-nav. A single-item page is not the section's landing page,
- * so the section's "Add" link has no business appearing beside it — yet the
- * sub-nav resolves purely from the active route, so a detail page reusing the
- * landing route as a bare string would silently re-trigger that link. Naming
- * the section makes the mistake impossible: the section a page is in can never
- * be read as the landing route it is on.
+ * so naming the section keeps a detail page from re-triggering the "Add" link
+ * the landing route would open.
  */
 export type NavActive = string | { readonly section: string };
 

@@ -282,23 +282,19 @@ const orphanedAddOnAfterChange = async (
 
 /**
  * Block a DEACTIVATION (of one listing, or a whole group at once) that would
- * leave a child-scoped opt-in add-on a dead end — reachable only through a
- * suppressed child once the would-be-inactive listings stop serving a public
- * page (generalised to a SET for the group-bulk path).
+ * leave a child-scoped opt-in add-on a dead end, reachable only through a
+ * suppressed child once the target listings stop serving a public page.
  *
- * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks edges
- * that touch a listing, so it MISSES the case here: a deactivated listing may
- * have no parent/child edge of its own — it is just an ordinary page whose scope
- * happens to include a child-scoped add-on, keeping that add-on reachable. So
- * re-run the reachability for EVERY active opt-in add-on against an in-memory
- * listing set with ALL the target listings marked inactive AT ONCE (so an add-on
- * rescued only by several group members going inactive together is still caught);
- * if any add-on is then reachable only through a suppressed child, block the
- * deactivation. Contained: only opt-in add-ons are scanned (the shared
- * {@link firstChildUnreachableAddOnForListings} core), never unrelated modifiers.
- *
- * Callers only invoke this for DEACTIVATION — activating or leaving a listing
- * active can only ADD reachable pages, never orphan an add-on.
+ * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks
+ * edges that touch a listing, so it MISSES the case here: a deactivated listing
+ * may have no parent/child edge of its own. It is just an ordinary page whose
+ * scope happens to include a child-scoped add-on, which keeps that add-on
+ * reachable. So the reachability re-runs for EVERY active opt-in add-on against
+ * an in-memory listing set with ALL the target listings marked inactive AT
+ * ONCE, so an add-on rescued only by several group members together is still
+ * caught. Only opt-in add-ons are scanned, through the shared
+ * {@link firstChildUnreachableAddOnForListings} core. Callers only invoke this
+ * for DEACTIVATION, because activating a listing can only ADD reachable pages.
  */
 /**
  * Run the shared child-scoped-add-on reachability over a would-be listing set:

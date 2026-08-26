@@ -3,18 +3,16 @@
  * listing or group ("catalog transfer").
  *
  * A blob is a discriminated union on `kind` (`"listing"` | `"group"`). It never
- * carries database ids — every cross-reference (a listing's parents and group
- * memberships, a group's member listings) is by **name**, since names are stable
- * across installs while ids are not. Images/attachments, ledger data, and
- * attendees are deliberately excluded: a transfer describes the catalog
- * structure and pricing, not the files or the money/booking history bound to one
- * install.
+ * carries database ids: every cross-reference is by **name**, because names are
+ * stable across installs while ids are not. Images, ledger data, and attendees
+ * are excluded, because a transfer describes the catalog structure and pricing,
+ * not the files or the money bound to one install.
  *
- * This schema is the single source of truth for the format: it validates an
- * incoming blob at the import boundary (producing per-field messages via
+ * This schema is the single source of truth for the format. It validates an
+ * incoming blob at the import boundary (per-field messages come from
  * {@link formatTransferIssues}) and types the objects the exporter builds.
- * Semantic validation beyond shape (name uniqueness, reference resolution, group
- * compatibility) happens in `import.ts` on top of a successful parse.
+ * Semantic validation beyond shape happens in `import.ts` on top of a
+ * successful parse.
  */
 
 import * as v from "valibot";

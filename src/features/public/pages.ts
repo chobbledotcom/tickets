@@ -148,23 +148,20 @@ const memberUnavailableOn = (
     dailyUnavailableIds.has(info.listing.id));
 
 /** Package groups where ANY member is unavailable on the searched date: a
- * package is bought as one whole bundle (every member together — see
- * the shared group liveness loader, the date-less version of this rule), so
- * one member that can't be booked on the chosen date makes the whole bundle
- * unbookable, and the package must read as sold out rather than advertise a
- * Book link that can only fail. Members come from the group liveness load, not
- * the page's own listing set, because a hidden package's members never join
- * that set yet still decide whether their package is sold out. A `null`
- * requested date means no search is in play, so nothing is projected sold out
- * here.
+ * package is bought as one whole bundle, so one member that cannot be booked on
+ * the chosen date makes the whole bundle unbookable. The package then reads as
+ * sold out rather than advertise a Book link that can only fail. Members come
+ * from the group liveness load, not the page's own listing set, because a hidden
+ * package's members never join that set yet still decide whether their package
+ * is sold out. A `null` requested date means no search is in play, so nothing is
+ * projected sold out here.
  *
- * This is a projection of the booking page's date rules, not a re-run of
- * them: each direct member is judged on having any spot left for the date.
- * Two knowingly-unchecked edges — a member needing quantity > 1 when exactly
- * one spot is left, and a daily parent whose required child can't serve the
- * date — can keep a Book link up for a date the booking page will refuse.
- * The booking page stays the real gate either way; re-running its full
- * bundle-and-children date logic per package here isn't worth the cost yet. */
+ * This is a projection of the booking page's date rules, not a re-run of them:
+ * each direct member is judged on having any spot left for the date. Two
+ * knowingly-unchecked edges — a member that needs quantity > 1 when exactly one
+ * spot is left, and a daily parent whose required child cannot serve the date —
+ * can keep a Book link up for a date the booking page will refuse. The booking
+ * page stays the real gate either way. */
 const soldOutPackageIds = async (
   groups: readonly GroupWithMembers[],
   requestedDate: string | null,

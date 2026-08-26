@@ -1,22 +1,18 @@
 /**
- * Public order page.
- *
- * `GET /order` renders every bookable listing and package as selectable cards
- * with a floating cart. Selection, the count, and showing the cart are pure CSS
- * (`:checked`, a counter and `:has()`), so it works with no JavaScript.
+ * Public order page. `GET /order` renders every bookable listing and package as
+ * selectable cards with a floating cart. Selection, the count, and the cart
+ * itself are pure CSS (`:checked`, a counter and `:has()`), so the page works
+ * with no JavaScript.
  *
  * An enhancement script keeps availability live: on every change it asks
- * `GET /order/availability` how each card stands and greys out what no longer
- * fits, naming the earlier choice to remove when the visitor's own selection
- * holds the capacity. The evaluation is the pure `#shared/order` core.
+ * `GET /order/availability` how each card stands, greys out what no longer
+ * fits, and names the earlier choice to remove. It evaluates with the pure
+ * `#shared/order` core.
  *
- * The cart is a GET form back to `/order`; a selection redirects to
- * `/ticket/<slugs>?q_<id>=1…&date=…`, where a slug may name a package. Nothing
- * is ever dropped, because the booking page and its submit remain the
- * availability authority — so this page is only advisory. An option's demand
- * covers its direct listings, not the required children the form folds under
- * them, so two selections sharing a child pool look available here and are
- * refused at the form.
+ * The cart is a GET form back to `/order`, and a selection redirects to
+ * `/ticket/<slugs>?q_<id>=1…&date=…`. The page is only advisory: an option's
+ * demand covers its direct listings, not the folded children, so two selections
+ * sharing a child pool are refused at the form instead.
  */
 
 import type { TicketListing } from "#booking/model.ts";

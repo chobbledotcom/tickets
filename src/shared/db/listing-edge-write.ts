@@ -2,18 +2,16 @@
  * The shared transaction-local guard behind both parent/child edge writers.
  *
  * `setListingChildrenWithPackageCheckTx` and `addParentEdgesWithPackageCheckTx`
- * used to hand-roll the same partial check — a SELECT of existence / nesting /
- * package EXISTS flags — independently, so the two could drift. This module
- * folds those checks into ONE declaration: the caller states which ids fill the
- * PARENT role and which the CHILD role (the writers differ only in which side
- * is the single fixed listing and which the submitted set), and the guard
- * throws `TransactionValidationError` if any current-tx state violates a rule,
- * returning the package conflict for the caller to convert as its contract.
+ * need the same partial check: a SELECT of the existence, nesting, and package
+ * EXISTS flags. This module folds those into ONE declaration. The caller states
+ * which ids fill the PARENT role and which the CHILD role — the writers differ
+ * only in which side is the single fixed listing and which the submitted set —
+ * and the guard throws `TransactionValidationError` when any current-tx state
+ * breaks a rule. It returns the package conflict for the caller to convert as
+ * its own contract requires.
  *
- * This is deliberately the schema-tized version of the "revalidate in-tx"
- * concern: a single declared check list, not a per-writer hand-rolled SELECT.
- * The edge-field and child-only-add-on rules are the natural next entries in
- * the check list, layered on a transaction-local read of the endpoints.
+ * One declared check list, rather than a per-writer SELECT, is what keeps the
+ * two writers from drifting apart.
  */
 
 import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";

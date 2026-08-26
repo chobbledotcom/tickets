@@ -1,21 +1,17 @@
 /**
  * Tamper-evident signature over a checkout's agreed price and the metadata it
- * was agreed under.
+ * was agreed under. The public checkout signs the total the buyer agreed, bound
+ * to the booking fields in provider metadata, with an HMAC keyed on the
+ * server's encryption key. The provider only sees the digest, which it cannot
+ * forge, so the webhook trusts the total rather than re-derives it. It binds the
+ * whole logical metadata, not just the price-determining subset, so a field that
+ * feeds pricing indirectly — email or phone, via visit-gated modifiers — or
+ * feeds fulfilment cannot change while the proof stays valid.
  *
- * The public checkout signs the total the buyer agreed, bound to the booking
- * fields in provider metadata, with an HMAC keyed on the server's encryption
- * key. The provider only sees the digest, which it cannot forge, so the webhook
- * trusts the total and its surrounding fields rather than re-deriving them.
- *
- * It binds the whole logical metadata, not just the price-determining subset,
- * so a field feeding pricing indirectly — email or phone, via visit-gated
- * modifiers — or feeding fulfilment cannot change while the proof stays valid.
- *
- * Three keys are excluded: `price_proof`, which cannot sign itself; `b`, the
- * wire-only packed entry, since both sides work on the unpacked shape; and
- * `_origin`, left unsigned so the webhook's foreign-session detection can read
- * it — binding it would push a tampered-origin session down the no-refund
- * foreign path and strand a paying customer. `canonicalPricePayload` is the one
+ * Three keys are excluded: `price_proof`, which cannot sign itself, `b`, the
+ * wire-only packed entry, and `_origin`, left unsigned so the webhook's
+ * foreign-session detection can read it. A bound origin would push a tampered
+ * session down the no-refund foreign path. `canonicalPricePayload` is the one
  * place both sides derive the signed bytes, so they cannot drift apart.
  */
 

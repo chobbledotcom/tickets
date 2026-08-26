@@ -28,14 +28,12 @@ import type {
 import { fromBase64, getRandomBytes } from "./utils.ts";
 
 /**
- * =============================================================================
- * Key Encryption Key (KEK) Derivation
- * =============================================================================
- * The KEK wraps the DATA_KEY in users.wrapped_data_key. Two schemes coexist:
+ * Key Encryption Key (KEK) derivation. The KEK wraps the DATA_KEY in
+ * users.wrapped_data_key. Two schemes coexist:
  *
  * - v1 ({@link deriveKEK}) derives the KEK from the *stored password hash*. The
  *   hash is itself only encrypted with DB_ENCRYPTION_KEY, so a DB dump plus that
- *   key can re-derive the KEK and unwrap the DATA_KEY — i.e. PII at rest is
+ *   key can re-derive the KEK and unwrap the DATA_KEY. PII at rest is therefore
  *   protected by the env key alone.
  * - v2 ({@link deriveKEKFromPassword}) derives the KEK from the *raw password*,
  *   which is never stored, so a DB dump plus the env key can no longer unwrap

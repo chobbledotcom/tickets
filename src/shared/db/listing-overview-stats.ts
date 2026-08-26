@@ -1,6 +1,6 @@
 /**
  * Collated Overview-tab statistics for a single listing, computed entirely in
- * SQL from the trigger-maintained columns and the transfers ledger — so the
+ * SQL from the trigger-maintained columns and the transfers ledger, so the
  * Overview never loads (nor decrypts) a listing's individual attendee rows.
  *
  * The subtle figure is the "incomplete payment" split — a booking that
@@ -12,9 +12,7 @@
  * The last two clauses keep settled and refunded bookings out: a refunded
  * balance-paid booking can have its processed reference pruned once a
  * `refund_cash` leg exists, which would otherwise read as a bare sale.
- *
- * Everything else the Overview shows comes from that split plus the plain
- * quantity and check-in columns.
+ * Everything else comes from that split plus the quantity and check-in columns.
  */
 
 /* jscpd:ignore-start */

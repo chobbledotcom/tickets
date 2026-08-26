@@ -1,10 +1,8 @@
 /**
- * SumUp integration module for ticket payments.
- * Every call goes through the shared provider boundary in
- * `#payment/provider-fetch.ts`, so each one carries the provider timeout and
- * counts against the edge subrequest budget.
- *
- * SumUp flow differs from Stripe/Square:
+ * SumUp integration module for ticket payments. Every call goes through the
+ * shared provider boundary in `#payment/provider-fetch.ts`, so each one carries
+ * the provider timeout and counts against the edge subrequest budget. SumUp
+ * differs from Stripe and Square:
  * - Checkout uses SumUp Hosted Checkout (hosted_checkout.enabled = true)
  * - Checkouts carry no arbitrary metadata, so booking metadata is stored
  *   locally (db/sumup-checkouts.ts) keyed by our generated checkout_reference
@@ -12,9 +10,9 @@
  *   then authenticity comes from re-fetching the checkout
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
- * A fetched checkout is checked against our independent facts and normalized
- * by the pure sumup-observation module; this module only owns the client and
- * tells an authoritative not-found apart from SumUp being unreachable.
+ * A fetched checkout is checked against our independent facts and normalized by
+ * the pure sumup-observation module. This module only owns the client and tells
+ * an authoritative not-found apart from SumUp being unreachable.
  */
 
 import { settings } from "#db/settings.ts";

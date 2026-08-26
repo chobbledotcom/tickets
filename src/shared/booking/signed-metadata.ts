@@ -15,17 +15,16 @@ import type { BookingItem } from "#shared/booking-intent.ts";
  *
  * A signed line tags each top-level line with a compact edge so the webhook can
  * reconstruct the line's canonical {@link BookingTree} `nodeKey` and re-check it
- * still resolves against current config — catching an operator who removed or
- * swapped an edge (a package member, a required child) while the buyer's checkout
- * was open. The tag is deliberately tiny (`k` one char, `r` a group id) so
- * nested-package metadata still fits the provider entry/value caps.
+ * still resolves against current config. That catches an operator who removed or
+ * swapped an edge (a package member, a required child) while the buyer's
+ * checkout was open. The tag is deliberately tiny (`k` one char, `r` a group id)
+ * so nested-package metadata still fits the provider entry/value caps.
  *
- * Only a *package member* top-level line needs a tag: a standalone (or regular
- * group) line reconstructs to `listing:<id>` and a folded child is carried in the
- * `allocations` map, not tagged here (a child reached under two parents collapses
- * to one line, so its per-edge identity lives in the allocations). The `"g"`
- * (regular group member) code is decoded for completeness but not emitted — a
- * regular group books its members as standalone listing lines.
+ * Only a *package member* top-level line needs a tag. A standalone or regular
+ * group line reconstructs to `listing:<id>`, and a folded child is carried in
+ * the `allocations` map instead, because a child reached under two parents
+ * collapses to one line. The `"g"` code is decoded for completeness but never
+ * emitted, as a regular group books its members as standalone listing lines.
  */
 
 /** The compact edge fields spread onto a {@link BookingItem}: a package member

@@ -1,8 +1,7 @@
 /**
- * REST resource abstraction - ties together table definitions, form fields,
- * and HTTP handlers for unified CRUD operations.
+ * REST resource abstraction — ties together table definitions, form fields,
+ * and HTTP handlers for unified CRUD operations. Usage:
  *
- * Usage:
  *   const listingsResource = defineResource({
  *     table: listingsTable,
  *     form: listingForm,

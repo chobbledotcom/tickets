@@ -1,21 +1,18 @@
 /**
  * Shared owner-only handler for a manual money correction (decision 14).
  *
- * The listing-income and modifier-revenue adjustment forms are the same shape: an
- * owner submits a corrected figure, and the difference from the *current*
- * projection is posted as a `writeoff` adjustment leg (never external cash).
- * This curries the one differing bit — which entity, field, poster, and messages
- * — out of the common parse → load → post → log → redirect flow, so both call
- * sites share it (no per-form boilerplate, no jscpd duplication). Owner-only and
- * CSRF/form-authed, like the other admin mutations.
+ * The listing-income and modifier-revenue adjustment forms are the same shape:
+ * an owner submits a corrected figure, and the difference from the *current*
+ * projection posts as a `writeoff` adjustment leg, never external cash. This
+ * curries the one differing bit — entity, field, poster, and messages — out of
+ * the common parse → load → post → log → redirect flow, so both call sites
+ * share it. Owner-only and CSRF/form-authed, like the other admin mutations.
  *
- * The entity is loaded only to confirm it exists and to label the log; the
- * SUBMITTED target is handed straight to `adjust`, which recomputes the delta
- * from the current projection read INSIDE its own write transaction. So a
- * double-submit (or two concurrent owner submits) is idempotent for a given
- * target — the second recompute already sees the first's adjustment and posts a
- * zero-delta no-op — rather than both subtracting a now-stale pre-load and
- * overshooting the target.
+ * The entity is loaded only to confirm it exists and to label the log. The
+ * SUBMITTED target goes straight to `adjust`, which recomputes the delta from
+ * the current projection read INSIDE its own write transaction. A double-submit
+ * is therefore idempotent for a given target: the second recompute already sees
+ * the first's adjustment and posts a zero-delta no-op.
  */
 
 import { logActivity } from "#db/activity-log.ts";

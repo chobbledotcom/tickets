@@ -4,18 +4,15 @@
  *
  * A sealed string looks like an ordinary string (it is one, so rendering and
  * storing it needs no changes), but its type names WHICH helper made it. A
- * function that stores owner-key ciphertext can demand `OwnerKeyEncrypted`,
- * and handing it plaintext — or a value sealed under the wrong scheme — is a
+ * function that stores owner-key ciphertext can demand `OwnerKeyEncrypted`, and
+ * handing it plaintext — or a value sealed under the wrong scheme — is a
  * compile error instead of unreadable data at rest.
  *
- * The rules:
- *  - Only the crypto helpers produce sealed values (their return types carry
- *    the brand). Never build one with a cast in application code.
- *  - Rows read back from the database declare their sealed columns with these
- *    types — the row type IS the read-boundary assertion, exactly like every
- *    other column a query result claims to hold.
- *  - The one sanctioned cast lives in `col.encrypted`'s read transform in
- *    table.ts, where raw DB values re-enter the typed world.
+ * Only the crypto helpers produce sealed values, so never build one with a cast
+ * in application code. A row read back from the database declares its sealed
+ * columns with these types, exactly like every other column a query result
+ * claims to hold. The one sanctioned cast lives in `col.encrypted`'s read
+ * transform in table.ts, where raw DB values re-enter the typed world.
  */
 
 declare const sealedKind: unique symbol;

@@ -71,21 +71,18 @@ export const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
 
 /**
  * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
- * the number of retries, so four verify attempts in total.
- *
- * up() applies DDL and verify() reads the live schema back to confirm it
- * landed. The snapshot is pinned to the primary to dodge replica lag, but a
- * freshly-opened primary connection can still briefly observe the pre-DDL
- * schema, so a column the ALTER just added reads as missing and verify() throws
- * spuriously. It re-snapshots on every call, so a short backoff lets the schema
- * settle within the same request rather than 503-ing it. A genuine defect stays
- * missing across every attempt and still throws.
+ * the number of retries, so four verify attempts in total. up() applies DDL and
+ * verify() reads the live schema back to confirm it landed. The snapshot is
+ * pinned to the primary to dodge replica lag, but a fresh primary connection can
+ * still briefly observe the pre-DDL schema, so a column the ALTER just added
+ * reads as missing and verify() throws spuriously. A short backoff lets the
+ * schema settle within the same request rather than 503 it, and a genuine defect
+ * stays missing across every attempt.
  *
  * Retrying verify() alone is not always enough: up() can skip a write when its
  * own snapshot lagged. syncIndexes() skips an index whose table the snapshot
- * does not show — right for a table a later migration creates, wrong when this
- * migration just created it. The index is then never created and verify() fails
- * on every attempt, so once its retries are exhausted
+ * does not show, which is right for a table a later migration creates and wrong
+ * when this migration just created it. Once verify()'s retries are exhausted,
  * {@link applyMigrationWithRetry} re-runs up() once and verifies again.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
@@ -116,19 +113,17 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
  * Apply a migration: run up(), then verify() with retries. If verify() never
  * passes across a full round of retries, re-run up() once and verify again.
  *
- * Re-running up() repairs the case where up() itself skipped a write because its
- * own schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS) — the missing-index
- * failure. up() is idempotent by construction (the runner already re-runs it on
- * a later request whenever a prior run died before recording its marker), so the
- * second pass — now reading a settled snapshot — completes the skipped write.
+ * The re-run repairs the case where up() itself skipped a write because its own
+ * schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS), the missing-index
+ * failure. up() is idempotent by construction, because the runner already
+ * re-runs it on a later request whenever a prior run died before its marker was
+ * recorded, so the second pass reads a settled snapshot and completes the write.
  *
- * The re-run is deferred until verify()'s own retries are exhausted, not fired
- * on the first verify miss, so a migration whose up() is NOT a cheap no-op after
- * success — e.g. 2026-06-20_free_text_questions, which recopies attendee_answers
- * / listing_questions / questions via recreateTable — is not re-run on a pure
- * verify-lag (up() did its work; only verify()'s snapshot lagged), which would
- * recopy large tables and risk the edge request budget. up() therefore runs at
- * most twice, never once per retry.
+ * The re-run waits until verify()'s own retries are exhausted rather than fires
+ * on the first miss. A migration whose up() is NOT a cheap no-op after success —
+ * 2026-06-20_free_text_questions recopies whole tables via recreateTable — must
+ * not re-run on a pure verify-lag, which would risk the edge request budget.
+ * up() therefore runs at most twice, never once per retry.
  */
 export const applyMigrationWithRetry = async (
   migration: Migration,

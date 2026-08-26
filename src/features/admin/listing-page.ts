@@ -1,7 +1,6 @@
 /**
  * The listing entity page (edit-pages.md, slice 2): one declarative definition
- * of the tabbed /admin/listing/:id page, collapsing what used to be the
- * separate detail and edit routes.
+ * of the tabbed /admin/listing/:id page.
  *
  *   Overview   — read-only details table, income breakdown, notes, a short
  *                activity preview
@@ -9,12 +8,11 @@
  *                add-attendee
  *   Scanner    — the check-in scanner (hidden for a "No Check-In" listing)
  *   Activity   — the full activity log
- *   Actions    — duplicate / export (open to editors too), owner-only email /
- *                refund-all, danger zone: deactivate|reactivate|delete
- *                (staff only)
+ *   Actions    — duplicate / export (editors too), owner-only email /
+ *                refund-all, danger zone: deactivate|reactivate|delete (staff)
  *
- * The banner (the deactivated warning) shows on every tab. Sub-action POST
- * handlers keep their own routes; this file only owns the GET surface.
+ * The deactivated banner shows on every tab. Sub-action POST handlers keep
+ * their own routes, so this file only owns the GET surface.
  */
 
 import { settings } from "#db/settings.ts";

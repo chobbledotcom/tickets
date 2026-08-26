@@ -5,17 +5,14 @@
  * A listing or group name must be unique across **both** tables: a listing may
  * not share a name with another listing *or* with a group, and vice versa. This
  * is what lets the catalog import/export feature reference listings and groups
- * by name alone (names are stable across installs; ids are not).
+ * by name alone, because names are stable across installs and ids are not.
  *
- * Names are field-level encrypted with no blind index, so — unlike the slug
- * registry, which matches on the plaintext `slug_index` HMAC — this reads the
- * cached, already-decrypted listing/group sets (`getAllListings`/`groups.cache.getAll`,
- * the very loads the admin collection pages already make) and matches in memory.
- * The catalog is a bounded, admin-scale set, so the scan is cheap and needs no
- * extra query or schema column.
- *
- * The module is a thin shell over those two cached reads; comparison and lookup
- * are pure functions over the loaded rows.
+ * Names are field-level encrypted with no blind index, so this reads the
+ * cached, already-decrypted listing and group sets — the very loads the admin
+ * collection pages already make — and matches in memory. The catalog is a
+ * bounded, admin-scale set, so the scan is cheap and needs no extra query or
+ * schema column. The module is a thin shell over those two cached reads, and
+ * comparison and lookup are pure functions over the loaded rows.
  */
 
 import { groups } from "#db/groups.ts";

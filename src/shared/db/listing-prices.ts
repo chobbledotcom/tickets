@@ -1,7 +1,8 @@
 /**
  * The `listing_prices` table: generalised per-listing pricing, one row per
  * (listing, pricing *dimension*, key within it). A `price_type` names the
- * dimension and `price_id` the key:
+ * dimension and `price_id` the key. Every row but `base` is the source of truth
+ * for its price, and this module owns writing all of them.
  *  - `("base", "")` — the listing's fixed price. Mirrors the hot-path
  *    `listings.unit_price` column, which {@link syncListingPrices} keeps in step.
  *  - `("day_count", "<n>")` — the price for an n-day booking.
@@ -9,11 +10,8 @@
  *    package, whatever the span. A member with no override has no row.
  *  - `("group_day", "<groupId>/<n>")` — the same, for an n-day booking of that
  *    package. {@link getGroupDayPrices} reads them.
- *  - `("start_day", "friday")` is reserved for weekday pricing: the shape admits
- *    it with no schema change, and nothing writes it yet.
- *
- * Every row but `base` is the source of truth for its price. This module owns
- * writing all of them.
+ *  - `("start_day", "friday")` is reserved for weekday pricing: the shape
+ *    admits it with no schema change, and nothing writes it yet.
  */
 
 import {

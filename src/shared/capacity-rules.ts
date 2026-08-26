@@ -1,16 +1,15 @@
 /**
- * Capacity rules — the single declarative table of which capacity checks
- * apply to which kind of listing.
+ * Capacity rules — the single declarative table of which capacity checks apply
+ * to which kind of listing.
  *
  * Capacity is enforced in several places: the JS preflight
- * (`#shared/db/attendees/capacity/checks.ts`), the inline SQL guard embedded in the
- * booking INSERT/UPDATE (`#shared/db/capacity.ts`), and the booking-page
- * limits (`#shared/booking/model.ts`, `#shared/booking/package-cap.ts`).
- * Each of those used to branch on `listing_type === "daily"` by hand. This
- * table is the one reference they all consult instead: every rule declares
- * which listings it applies to, and both the JS branches and the SQL
- * fragments derive from the same declaration — so the preflight and the
- * write-time guard can never disagree about which check applies.
+ * (`#shared/db/attendees/capacity/checks.ts`), the inline SQL guard in the
+ * booking INSERT/UPDATE (`#shared/db/capacity.ts`), and the booking-page limits
+ * (`#shared/booking/model.ts`, `#shared/booking/package-cap.ts`). This table is
+ * the one reference they all consult: every rule declares which listings it
+ * applies to, and both the JS branches and the SQL fragments derive from the
+ * same declaration, so the preflight and the write-time guard can never
+ * disagree about which check applies.
  *
  * This module is pure: it declares rules and derives answers from them, and
  * never touches the database.

@@ -1,22 +1,18 @@
 /**
- * Sentry error reporting (server-side only)
+ * Sentry error reporting (server-side only). Forwards the same classified
+ * server errors that log to the console and ping ntfy to a Sentry-compatible
+ * endpoint (the DSN in `SENTRY_URL`, for example a self-hosted Bugsink). When
+ * an error carries its original exception, Sentry receives the real stack
+ * trace, otherwise it gets the formatted message.
  *
- * Forwards the same classified server errors that log to the console and ping
- * ntfy to a Sentry-compatible endpoint (the DSN in `SENTRY_URL`, e.g. a
- * self-hosted Bugsink). When an error carries its original exception, Sentry
- * receives the real stack trace; otherwise it gets the formatted message.
+ * The SDK is a large module, so a narrow named-import adapter is dynamically
+ * imported on the first `initSentry` call with a DSN configured, never at
+ * module load. That lets the production build remove unused SDK exports, and a
+ * deployment without `SENTRY_URL` skips the retained code entirely. It also
+ * names the integrations a report needs, which a bare client does not add.
  *
- * The SDK is a large module, so — like the Stripe SDK in `stripe.ts` — a narrow
- * named-import adapter is dynamically imported on the first `initSentry` call
- * with a DSN configured, never at module load. The adapter lets the production
- * build remove unused SDK exports while a deployment without `SENTRY_URL`
- * skips evaluating the retained code entirely. It also names the handful of
- * integrations a report needs, because constructing the client directly adds
- * none of them.
- *
- * Every report names the site it came from, the route it happened on, and the
- * request id the console lines carry, so one Sentry endpoint can serve many
- * sites and a report still leads back to the request that made it.
+ * Every report names the site, the route, and the request id the console lines
+ * carry, so one endpoint can serve many sites and still lead back to a request.
  */
 
 import { lazyRef } from "#fp";

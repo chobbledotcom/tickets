@@ -1,22 +1,18 @@
 /**
- * Attendee-side parent/child persistence (booking metadata).
- *
- * A checkout booking a parent listing plus its chosen child add-ons creates
- * several `listing_attendees` rows under one attendee. This module annotates
- * them, purely additively, with an `orderToken` shared by every row of the
- * checkout, so admin can group an order back together, and a
- * `parentListingId` naming which parent a folded child was chosen under.
+ * Attendee-side parent/child persistence (booking metadata). A checkout that
+ * books a parent listing plus its chosen child add-ons creates several
+ * `listing_attendees` rows under one attendee. This module annotates them,
+ * purely additively, with an `orderToken` shared by the whole checkout, so
+ * admin can group an order back together, and a `parentListingId` naming which
+ * parent a folded child was chosen under.
  *
  * The pairing is recomputed from the persisted `listing_parents` edges and the
- * order's own booking set rather than threaded through the signed paid
- * round-trip: a child row's parent is the parent edge also booked in the same
- * order. The free and paid paths both reach `createAttendeeAtomic` with the
- * full folded booking set, so neither needs parent-awareness.
- *
- * The unique index keeps the same child chosen under two parents as two rows,
- * so {@link expandChildAllocations} emits one per `(child, parent)`. A child
- * whose booked quantity exceeds its allocations also gets a parent-less
- * remainder row, so no unit — or its price — is ever dropped.
+ * order's own booking set: a child row's parent is the parent edge also booked
+ * in the same order. Both the free and paid paths reach `createAttendeeAtomic`
+ * with the full folded booking set, so neither needs parent-awareness. The
+ * unique index keeps the same child chosen under two parents as two rows, so
+ * {@link expandChildAllocations} emits one per `(child, parent)`, plus a
+ * parent-less remainder row for any unit bought without a parent.
  */
 
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
@@ -144,20 +140,18 @@ const expandBooking = <T extends ListingBooking>(
 /**
  * Expand summed child bookings into per-parent rows using the true per-
  * `(child, parent)` allocations from the fold. Each allocation becomes one
- * `listing_attendees` row carrying its real `parentListingId`; any un-allocated
- * units of a child (bought without a parent in this order) become one parent-less
- * remainder row; parent rows and standalone listings get only the shared
- * `orderToken`. A shared UUID is stamped on every row so the order can be grouped
- * in admin views. `pricePaid` is preserved exactly across the split rows (see
+ * `listing_attendees` row with its real `parentListingId`. Un-allocated units of
+ * a child (bought without a parent in this order) become one parent-less
+ * remainder row, while parent rows and standalone listings get only the shared
+ * `orderToken`. A shared UUID is stamped on every row so admin views can group
+ * the order. `pricePaid` is preserved exactly across the split rows (see
  * {@link splitPricePaid}).
  *
- * This is the multi-parent-aware replacement for `annotateOrderParents`: where
- * the latter recomputes parentListingId as "first in-order parent" (lossy for
- * multi-parent), this function uses the allocation list to record the exact
- * parent for each unit. Used by both the free path and the paid webhook path,
- * which thread the allocation through the round-trip. Generic over
- * `T extends ListingBooking` so any required row fields a caller carries on
- * each booking survive the expansion.
+ * Unlike {@link annotateOrderParents}, which recomputes `parentListingId` as
+ * "first in-order parent" and so is lossy for multi-parent, this uses the
+ * allocation list to record the exact parent for each unit. Both the free path
+ * and the paid webhook path thread the allocation through. Generic over
+ * `T extends ListingBooking` so a caller's extra row fields survive.
  */
 export const expandChildAllocations = <T extends ListingBooking>(
   bookings: T[],

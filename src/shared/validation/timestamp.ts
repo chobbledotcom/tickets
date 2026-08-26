@@ -2,17 +2,14 @@ import { Temporal } from "temporal-polyfill";
 
 /**
  * Instant validation and the ISO-string ⇄ epoch-millis conversions the ledger
- * persists by.
- *
- * `Temporal.Instant.from` is the single source of truth for "is this a real
- * instant": it accepts any ISO-8601 instant — a `Z` or a numeric offset, at any
- * sub-second precision — and *rejects* impossible ones (Feb 30, month 13, hour
- * 24, malformed text) with a `RangeError`, where `Date.parse` would silently
- * normalise them (`2026-02-30` → Mar 2). valibot's `isoTimestamp` only checks
- * the format and so accepts those overflow days, which is why the instant rules
- * live on Temporal here rather than on a valibot schema. Temporal is imported
- * from `temporal-polyfill` (as `shared/timezone.ts` does) since the edge runtime
- * exposes no stable global.
+ * persists by. `Temporal.Instant.from` is the single source of truth for "is
+ * this a real instant": it accepts any ISO-8601 instant — a `Z` or a numeric
+ * offset, at any sub-second precision — and *rejects* impossible ones (Feb 30,
+ * month 13, hour 24, malformed text) with a `RangeError`, where `Date.parse`
+ * would silently normalise them (`2026-02-30` → Mar 2). valibot's
+ * `isoTimestamp` only checks the format and so accepts those overflow days,
+ * which is why the instant rules live on Temporal here. Temporal comes from
+ * `temporal-polyfill` because the edge runtime exposes no stable global.
  *
  * Transfers store time as integer epoch-millis, so the indexed `occurred_at`
  * column sorts and ranges by integer comparison rather than a fixed-width

@@ -7,20 +7,18 @@ import type {
 /**
  * The pure order evaluator: subtract each of the visitor's selections from the
  * shared capacity pools in the order they were added, then judge every other
- * option against what remains.
+ * option against what remains. IO-free and context-agnostic — the caller
+ * resolves the options, pools, and date.
  *
- * Selections are honoured in the order they were added — the earlier choice
- * always keeps its capacity, so adding something can grey out a later option
+ * Selections are honoured in the order they were added, so the earlier choice
+ * always keeps its capacity, and a new selection can grey out a later option
  * but never un-select an earlier one. Overlap is NOT a conflict: two packages
- * sharing a listing (or a package plus that listing's own card) simply sum
- * their demand, and both stay selectable while stock covers them — the aim is
- * to never restrict what can be booked beyond stock. When an option no longer
- * fits, the message names the earliest selected option contending for the
- * exhausted pool ("Remove <name> to add"); an option that would not fit even
- * on an empty cart is plainly unavailable.
- *
- * IO-free and context-agnostic: the caller resolves the options, pools, and
- * date; nothing here knows what surface it serves.
+ * that share a listing (or a package plus that listing's own card) simply sum
+ * their demand, and both stay selectable while stock covers them. The aim is to
+ * never restrict what can be booked beyond stock. When an option no longer
+ * fits, the message names the earliest selected option that contends for the
+ * exhausted pool ("Remove <name> to add"). An option that would not fit on an
+ * empty cart is plainly unavailable.
  */
 
 /** Pool keys: each listing's own pool and each capped group's pool. */

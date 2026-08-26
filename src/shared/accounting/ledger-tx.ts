@@ -1,21 +1,18 @@
 /**
  * `ledgerTx` — the one discoverable menu of in-transaction ledger operations.
  *
- * Rather than scatter `…Tx` functions across modules, every way to read, write,
- * or correct the `transfers` ledger inside an already-open write transaction (a
- * `TxScope`) is named here, so autocompleting `ledgerTx.` lists the whole surface
- * in one place. Wrap a call in `withTransaction` — or use {@link inOwnTx} — for a
- * standalone operation. (The pure leg builders `mapBooking`/`mapRefund`, and the
- * own-transaction `postTransfers`, live in their own modules — this is the
- * in-transaction facade. The leaf `…Tx` functions stay where they are implemented
- * and are reached through this facade; the lower-level primitives compose each
- * other directly to avoid an import cycle.)
+ * Every way to read, write, or correct the `transfers` ledger inside an
+ * already-open write transaction (a `TxScope`) is named here, so autocompleting
+ * `ledgerTx.` lists the whole surface in one place. Wrap a call in
+ * `withTransaction` — or use {@link inOwnTx} — for a standalone operation. The
+ * pure leg builders and the own-transaction `postTransfers` live in their own
+ * modules, and the leaf `…Tx` functions stay where they are implemented, so the
+ * lower-level primitives can compose each other without an import cycle.
  *
  * The reads are the in-transaction projections the read-then-write corrections
  * use: a correction reads the current figure under the write lock, computes its
- * delta against the submitted target, and posts — so re-submitting the same
- * target is a no-op. `correct.X` pairs with `read.X`: the read is the figure the
- * correction steers.
+ * delta against the submitted target, and posts, so re-submitting the same
+ * target is a no-op. `correct.X` pairs with `read.X`.
  */
 
 import {

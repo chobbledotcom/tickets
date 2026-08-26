@@ -75,20 +75,16 @@ export type ListingDefaultField = {
  * settings form, the form-field hiding, the storage round-trip, and the overlay.
  * Two carry an `appliesTo` gate so the overlay never produces a listing the save
  * path would reject:
- * - `uses_logistics` is inert while logistics is off, matching the per-listing
- *   save gate — so a listing created during a logistics-off window can't
- *   silently become a logistics listing if the feature is re-enabled.
+ * - `uses_logistics` is inert while logistics is off, which matches the
+ *   per-listing save gate, so a listing created during a logistics-off window
+ *   cannot silently become a logistics listing if the feature returns.
  * - `hidden` never applies to a renewal tier (`months_per_unit > 0`), which must
- *   stay hidden + purchase-only or renewal extension breaks. {@link catalogVisibleSql}
- *   mirrors this gate in SQL.
+ *   stay hidden and purchase-only or renewal extension breaks.
+ *   {@link catalogVisibleSql} mirrors this gate in SQL.
  *
- * Deliberately excludes `duration_days` and `customisable_days`: both are tied
- * to per-listing booking data and save-time invariants that read-time
- * inheritance can't honour (customisable days needs a priced day count, forbids
- * pay-more, and must stay uniform across a group; duration feeds parent/child
- * edge compatibility and existing bookings' ranges). Inheriting either globally
- * would silently produce listings the normal save path would reject, so they
- * stay per-listing. The fields below are display/availability/side-effect only.
+ * `duration_days` and `customisable_days` are deliberately excluded: both are
+ * tied to per-listing booking data and save-time invariants that read-time
+ * inheritance cannot honour, so a global default would be rejected on save.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   {

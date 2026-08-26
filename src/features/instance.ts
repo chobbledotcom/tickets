@@ -3,20 +3,16 @@
  *
  * `POST /instance/site-credentials`, bearing `MAIN_INSTANCE_KEY`, returns the
  * database credentials for every built site, so the upgrade Action can back
- * each site up before deploying to it without GitHub holding per-site script
- * ids or tokens.
+ * each site up before it deploys, without GitHub holding per-site tokens.
  *
  * `?tier=alpha|beta|release` (default `release`) returns only the sites whose
  * own channel accepts that tier: release reaches every site, beta reaches beta
- * and alpha, alpha only alpha. An unrecognised tier is a 400, and omitting
- * `tier` returns the whole fleet.
+ * and alpha, alpha only alpha. An unrecognised tier is a 400.
  *
- * The route is disabled unless MAIN_INSTANCE_KEY is set, so a plain instance
- * 404s rather than advertising it, and the key is compared in constant time.
- * Each token returned is that site's own FULL-ACCESS credential, so treat the
- * response as write-capable production secrets even though callers only read.
- * DB_ENCRYPTION_KEY is never included, leaving PII unreadable to whoever holds
- * it. A POST keeps the key and response out of access-log query strings.
+ * The route 404s unless MAIN_INSTANCE_KEY is set, and the key is compared in
+ * constant time. Each token is that site's own FULL-ACCESS credential, so treat
+ * the response as write-capable production secrets. DB_ENCRYPTION_KEY is never
+ * included, which leaves PII unreadable to whoever holds it.
  */
 
 import { constantTimeEqual } from "#crypto/utils.ts";

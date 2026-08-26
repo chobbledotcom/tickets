@@ -27,22 +27,18 @@ const LISTING_AGGREGATE_USES = {
 /**
  * Triggers that keep the listing count aggregates (booked_quantity,
  * tickets_count) in lockstep with listing_attendees, so the hot listing reads
- * and the active-listing stats cost one row read instead of scanning every
- * attendee row. tickets_count counts only quantity > 0 rows (see
- * TICKET_COUNTS_PREDICATE); income is no longer an aggregate column — it is
- * projected from the transfers ledger (gross credits to revenue:<listingId>) at
- * read time.
+ * and the active-listing stats cost one row read instead of a scan. Income is
+ * not an aggregate column: it projects from the transfers ledger at read time.
  *
  * The UPDATE trigger is scoped to `OF quantity, listing_id` so the frequent
- * check-in / refund / attachment-download / price writes (which touch other
- * columns) don't fire it. It subtracts the OLD row's contribution from its old
- * listing and adds the NEW row's to its new listing, so a row moving between
- * listings stays correct and a same-listing edit nets out to the delta.
+ * check-in, refund, attachment-download and price writes do not fire it. It
+ * subtracts the OLD row's contribution from its old listing and adds the NEW
+ * row's to its new listing, so a moved row stays correct and an edit nets out.
  *
- * booked_quantity mirrors the previous SUM(quantity) exactly (every row counts
- * toward capacity, including the quantity = 0 no-quantity sentinel, which adds
- * nothing); tickets_count counts only quantity > 0 rows, so the sentinel keeps
- * its attendee↔listing link without inflating the ticket total.
+ * booked_quantity counts every row toward capacity, the quantity = 0 sentinel
+ * included, which adds nothing. tickets_count counts only quantity > 0 rows
+ * (see TICKET_COUNTS_PREDICATE), so the sentinel keeps its attendee↔listing
+ * link and does not inflate the ticket total.
  */
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {

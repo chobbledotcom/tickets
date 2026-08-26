@@ -253,23 +253,20 @@ export const validateChildEdges = async (
 };
 
 /**
- * Copy a duplicated parent's required-child edges onto its new copy, **validated**
- * through the same {@link validateChildEdges} path the editor uses (the source was
- * valid, but stay consistent and never persist a rule-breaking edge). `childIds`
- * is the child set the copy should require — for a single-listing duplicate the
- * source's children verbatim; for a group duplicate they are remapped to the
+ * Copy a duplicated parent's required-child edges onto its new copy, validated
+ * through the same {@link validateChildEdges} path the editor uses. `childIds`
+ * is the child set the copy must require: for a single-listing duplicate the
+ * source's children verbatim, for a group duplicate the ones remapped to the
  * clones (intra-group) or kept (external).
  *
- * On validation failure the edge set is **not** written (so a copy is never left
- * with an invalid gate) and the error is **returned** so the caller can warn the
- * operator — a duplicate that silently drops its required-child gate
- * would turn a gated listing into a standalone bookable copy. Returns null on
- * success.
+ * On validation failure the edge set is **not** written, and the error is
+ * **returned** so the caller can warn the operator. A duplicate that silently
+ * drops its required-child gate turns a gated listing into a standalone
+ * bookable copy. Returns null on success.
  *
- * Validation legitimately fails for a copy when an edge is reachable only through
- * the *source* (e.g. a child carrying an opt-in add-on scoped to
- * `{originalParent, child}` becomes a dead end from the new parent), so the
- * silent no-op this replaces hid a real gate loss.
+ * Validation legitimately fails for a copy when an edge is reachable only
+ * through the *source*, for example a child whose opt-in add-on is scoped to
+ * `{originalParent, child}` and so becomes a dead end from the new parent.
  */
 export const copyDuplicatedChildEdges = async (
   newParent: ListingWithCount,
@@ -350,8 +347,7 @@ const copyGroupEdgePlans = async (
 /**
  * Recreate the parent/child edges of a duplicated group on its clones. `idMap`
  * maps each source member's id to its clone. Two directions are walked so a
- * cloned child is never left standalone-bookable (the silent gate-drop this
- * guards against):
+ * cloned child is never left standalone-bookable:
  *
  * 1. Outgoing — each cloned parent requires the remapped child set: an
  *    intra-group child points at its clone, while a child outside the group
@@ -360,12 +356,9 @@ const copyGroupEdgePlans = async (
  *    recreate `outsideParent → clonedChild` so the clone stays a child rather
  *    than standalone. A parent inside the group is already covered above.
  *
- * Each set is written through the validated {@link copyDuplicatedChildEdges},
- * which returns rather than throws when validation fails, so a clone can be
- * left gateless while the bulk duplicate otherwise succeeds. The distinct
- * errors from both walks are returned so the caller can warn the operator
- * instead of silently producing a gateless standalone clone; an empty array
- * means every edge copied cleanly.
+ * Each set goes through {@link copyDuplicatedChildEdges}, which returns rather
+ * than throws, so a clone can be left gateless while the bulk duplicate
+ * succeeds. Both walks' distinct errors are returned for the operator warning.
  */
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,

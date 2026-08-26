@@ -1,20 +1,18 @@
 /**
  * Pure rules for whether a listing can be a member of a package, shared by the
  * group-side save (`features/admin/groups.ts`), the listing-side save
- * (`shared/listings-actions.ts`), and the catalog importer — so the rule and
- * its user-facing message live in one place instead of three near-copies.
+ * (`shared/listings-actions.ts`), and the catalog importer, so the rule and its
+ * user-facing message live in one place.
  *
  * A package sets a fixed price for each member and sells the whole bundle, so:
- *  - a pay-what-you-want listing can't be a member (there is no fixed member
- *    price for the bundle to charge);
- *  - a listing that is itself another listing's add-on (child) can't be a
- *    member (it is only ever sold alongside that listing, never on its own in a
- *    bundle);
- *  - on a HIDDEN package — where members collapse to the package name on every
- *    buyer surface — a member that gates its own children can't be a member,
+ *  - a pay-what-you-want listing cannot be a member, because there is no fixed
+ *    member price for the bundle to charge.
+ *  - a listing that is itself another listing's add-on (child) cannot be a
+ *    member, because it is only ever sold alongside that listing.
+ *  - on a HIDDEN package, where members collapse to the package name on every
+ *    buyer surface, a member that gates its own children cannot be a member,
  *    because its child selector would name the very listings the package hides.
- *    A VISIBLE package renders that selector fine, so this rule only bites when
- *    the package hides its listings.
+ *    A VISIBLE package renders that selector fine.
  */
 /* jscpd:ignore-start */
 import { t } from "#i18n";

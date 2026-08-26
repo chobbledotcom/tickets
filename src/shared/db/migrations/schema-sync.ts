@@ -261,22 +261,18 @@ const canCreateTrigger = (
 
 /**
  * Recreate a table from its SCHEMA definition, preserving data for matching
- * columns.
- *
- * The copy, its indexes and its triggers all run inside one interactive
- * transaction, so the table is never committed without the indexes and triggers
- * enforcing its invariants. Any failure rolls the whole rebuild back rather
- * than leaving a live table missing a UNIQUE index until the migration retries,
- * a window in which duplicates could land and permanently break the index. The
- * statements run as one structured batch inside that transaction, so each
- * trigger body stays a single statement whose semicolons are not read as
- * separators, in one network call.
+ * columns. The copy, its indexes and its triggers all run inside one
+ * interactive transaction, so the table is never committed without the indexes
+ * and triggers that enforce its invariants. Any failure rolls the whole rebuild
+ * back, rather than leave a live table missing a UNIQUE index in a window where
+ * duplicates can land and permanently break it. The statements run as one
+ * structured batch inside that transaction, so each trigger body stays a single
+ * statement whose semicolons are not read as separators.
  *
  * The new table is created without foreign keys, so any the original had are
- * removed. If other tables hold FKs referencing this one and contain data,
- * recreate those first, or DROP TABLE fails on the constraint. Note that
- * `PRAGMA foreign_keys=OFF` is no help: it does not persist across HTTP
- * requests in remote libsql.
+ * removed. If other tables hold FKs that reference this one and contain data,
+ * recreate those first, or DROP TABLE fails. `PRAGMA foreign_keys=OFF` is no
+ * help, because it does not persist across HTTP requests in remote libsql.
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);

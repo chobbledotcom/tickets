@@ -4,7 +4,7 @@ This measured what the comments in `src/` cost, tested the three claims that
 prompted the question, priced every cap we could set, and now records the
 decision taken and what is left to do.
 
-**Decided and shipped.** A comment may run at most **20 lines**, and one of its
+**Decided and shipped.** A comment may run at most **16 lines**, and one of its
 lines at most **100 columns**. `deno task check:comments` enforces both in
 `precommit`; the numbers live in `scripts/check-comments/run.ts` and are meant
 to come down. See [Where we are](#where-we-are) for the remaining steps.
@@ -278,7 +278,7 @@ Biome has no rule for any of this, so enforcement is a script. `skipComment` in
 ## Where we are
 
 The checker is in `scripts/check-comments/`, wired into `precommit`, and the
-tree is green at **20 lines and 100 columns**. Both numbers ratchet: lower one
+tree is green at **16 lines and 100 columns**. Both numbers ratchet: lower one
 in `run.ts`, bring the tree to it, repeat. Directives, the `deno doc` barrels,
 and shipped dated migrations are exempt — the last because they are append-only
 history the repo already declines to edit, the same reason `.jscpd.json` ignores
@@ -306,20 +306,31 @@ wants its own measurement first — `test/` is 1,908 files at 5.7% comment
 density, a different shape from `src/`, and its limits must be chosen against
 that rather than inherited.
 
-Remaining steps, from the staged table above, now that ≤ 20 is done:
+Remaining steps, now that ≤ 20 and ≤ 16 are done. The staged table above was
+measured at `470b47e`, and `src/` has grown since, so these figures are a fresh
+count of the tree as it stands today rather than the leftovers of that one:
 
 | Next | Comments to rewrite | Files touched | Cumulative |
 | ---- | ------------------- | ------------- | ---------- |
-| ≤ 16 | 55                  | 51            | 96         |
-| ≤ 12 | 132                 | 118           | 228        |
-| ≤ 8  | 332                 | 259           | 560        |
-| ≤ 6  | 438                 | 296           | 998        |
-| ≤ 4  | 875                 | 429           | 1,873      |
-| ≤ 3  | 609                 | 334           | 2,482      |
-| ≤ 2  | 914                 | 412           | 3,396      |
+| ≤ 12 | 222                 | 181           | 222        |
+| ≤ 8  | 349                 | 275           | 571        |
+| ≤ 6  | 468                 | 323           | 1,039      |
+| ≤ 4  | 926                 | 459           | 1,965      |
+| ≤ 3  | 646                 | 358           | 2,611      |
+| ≤ 2  | 1,029               | 471           | 3,640      |
 
-On width, 100 → 90 is about 80 comments and 90 → 80 about 1,470 more, so the
-last step there is the single biggest piece of work left in this whole plan.
+Width ratchets on the same tree, counted as comments with at least one
+over-width line:
+
+| Next | Comments to rewrite | Files touched | Cumulative |
+| ---- | ------------------- | ------------- | ---------- |
+| ≤ 95 | 13                  | 13            | 13         |
+| ≤ 90 | 40                  | 33            | 53         |
+| ≤ 85 | 104                 | 86            | 157        |
+| ≤ 80 | 1,348               | 477           | 1,505      |
+
+The last width step is the single biggest piece of work left in this whole plan,
+so take 100 → 90 in one or two cheap steps first.
 
 One judgement worth recording for whoever takes the next step: bringing a
 docstring under a limit is not a formatting job. Most of what came out was

@@ -1,20 +1,18 @@
 /**
- * Turns one fetched SumUp checkout into a typed provider read.
+ * Turns one fetched SumUp checkout into a typed provider read. This module is
+ * pure: the caller fetches and passes the raw body plus the independent facts
+ * it holds (the id it asked for, the merchant this site is bound to, the site
+ * currency for reading amounts). Everything here follows the sandbox evidence
+ * recorded in PR3_PLAN.md: pending checkouts carry an empty transactions array,
+ * paid checkouts name their transaction and carry exactly one matching
+ * successful entry, failed checkouts carry only failed entries.
  *
- * This module is pure: the caller fetches and passes the raw body plus the
- * independent facts it holds (the id it asked for, the merchant this site is
- * bound to, the site currency for reading amounts). Everything here follows
- * the sandbox evidence recorded in PR3_PLAN.md: pending checkouts carry an
- * empty transactions array, paid checkouts name their transaction and carry
- * exactly one matching successful entry, failed checkouts carry only failed
- * entries.
- *
- * Ownership and money are deliberately separate refusals. A checkout whose
- * id, merchant, or named charge disagrees with our facts is refused as an
- * invalid read — nothing downstream may touch it. A checkout that proves
- * ownership but carries unreadable money is still a found read: the session
- * boundary refuses the money itself, and that refusal is what carries a
- * captured charge to the refund path instead of stranding it.
+ * Ownership and money are deliberately separate refusals. A checkout whose id,
+ * merchant, or named charge disagrees with our facts is refused as an invalid
+ * read, and nothing downstream may touch it. A checkout that proves ownership
+ * but carries unreadable money is still a found read: the session boundary
+ * refuses the money itself, and that refusal carries a captured charge to the
+ * refund path instead of it being stranded.
  */
 
 /* jscpd:ignore-start -- imports */

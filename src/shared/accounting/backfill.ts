@@ -5,18 +5,14 @@
  * booking is paid in full: rows with `price_paid > 0` reconstruct to one `sale`
  * per listing plus a single `payment` for the lot, and a refunded attendee gets
  * the matching reversal. One event group per attendee mirrors the live flow, so
- * a later refund still finds a single booking order. It reuses the live
- * mappers, so references and validation match the dual-write path exactly.
+ * a later refund still finds a single booking order, and the live mappers are
+ * reused so references and validation match the dual-write path.
  *
- * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}): this
- * runs inline on an edge isolate whose subrequest budget a
- * round-trip-per-attendee backfill would blow on real booking history, evicting
- * the isolate mid-run and leaving the migration lock held. An attendee's legs
- * and row-stamp always land together, so each posts all-or-nothing — which is
- * what lets the guard skip an attendee already carrying legs, so a booking the
- * live path recorded is never double-posted. Legs use `INSERT OR IGNORE` on the
- * unique reference, so a re-run is a no-op, and currency needs no guard at all:
- * a site has one, fixed at setup.
+ * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}),
+ * because this runs inline on an edge isolate whose subrequest budget a
+ * round-trip-per-attendee backfill would blow. An attendee's legs and row-stamp
+ * always land together, which lets the guard skip an attendee already carrying
+ * legs. `INSERT OR IGNORE` on the unique reference makes a re-run a no-op.
  */
 
 /* jscpd:ignore-start */

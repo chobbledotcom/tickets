@@ -189,17 +189,16 @@ const scopeReachesPage = (
  * (the parent's edge save and a modifier's own scope/trigger save), so they can
  * never diverge. An opt-in add-on is a dead end exactly when its resolved scope
  * is a **listing set** (a whole-order scope, `null`, is reachable everywhere)
- * that **names at least one suppressed child** yet **does not reach any of the
- * pages that would actually load it** — so no direct `/ticket/<listing>` page
- * (which loads add-ons from only that listing's own id) and no group page can
- * ever offer it.
+ * that **names at least one suppressed child** yet **reaches none of the pages
+ * that would load it**, so no direct `/ticket/<listing>` page (which loads
+ * add-ons from only that listing's own id) and no group page can ever offer it.
  *
- * Callers supply the two id sets that define "reachable" from their own side:
- * - the **edge save** treats the new child as the only `suppressed` id and the
- *   parent's own page id as the only `reachable` one;
- * - the **modifier save** treats every existing child as `suppressed` and every
- *   active non-child listing as `reachable` (each has its own bookable page; an
- *   inactive listing serves no public page, so it can't rescue the add-on).
+ * Callers supply the two id sets that define "reachable" from their own side.
+ * The **edge save** treats the new child as the only `suppressed` id and the
+ * parent's own page id as the only `reachable` one. The **modifier save**
+ * treats every existing child as `suppressed` and every active non-child
+ * listing as `reachable`, because each has its own bookable page and an
+ * inactive listing serves no public page.
  */
 export const scopeIsChildDeadEnd = (
   scope: number[] | null,
@@ -483,22 +482,18 @@ export const getOptionalAddOns = async (
 /**
  * The name of an active opt-in add-on that would become **unreachable** if
  * `childId` were made a child of a parent whose own booking page loads add-ons
- * from `parentPageListingIds`, or null when none would.
- *
- * A direct `/ticket/<parent>` page loads add-ons from **only the parent's own
- * listing id** (`getTicketContext` → `getOptionalAddOns([parent.id])`), never
- * its group siblings — a sibling-scoped modifier loads only on that sibling's
- * own page/group page. So `parentPageListingIds` is the parent's *actual* page
- * id set (`[parent.id]`), not the wider group: an add-on scoped to
+ * from `parentPageListingIds`, or null when none would. A direct
+ * `/ticket/<parent>` page loads add-ons from **only the parent's own listing
+ * id** (`getTicketContext` → `getOptionalAddOns([parent.id])`), never its group
+ * siblings. So `parentPageListingIds` is the parent's *actual* page id set
+ * (`[parent.id]`), not the wider group: an add-on scoped to
  * {child, parent-sibling} but not the parent is a dead end the direct parent
- * page can't reach, and must block.
+ * page cannot reach, and must block.
  *
- * v1 doesn't support child-scoped add-ons: a child is never one of a parent
- * page's listing ids, so `getOptionalAddOns(pageListingIds)` never loads an
- * add-on whose entire reachable scope is suppressed children. The test is
- * **reachability**, not "the child appears in the scope": an add-on scoped to
- * the child *and also* to the parent (or to a group containing the parent) still
- * loads via the parent's page ids and must NOT block the edge.
+ * v1 has no child-scoped add-ons: a child is never one of a parent page's
+ * listing ids. The test is **reachability**, not "the child appears in the
+ * scope" — an add-on scoped to the child *and also* to the parent still loads
+ * through the parent's page ids and must NOT block the edge.
  */
 export const childOnlyAddOnName = async (
   childId: number,

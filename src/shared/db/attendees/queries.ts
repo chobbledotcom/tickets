@@ -170,22 +170,18 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
 
 /**
  * Get one page of attendees — with every one of their booking rows — for the
- * admin attendees browser.
+ * admin attendees browser. Pagination counts ATTENDEES, not booking lines: the
+ * inner subquery selects one page of attendee ids, ordered by id (AUTOINCREMENT,
+ * so co-monotonic with the registration date but unique, which makes paging
+ * deterministic and index-backed), and the outer query returns every
+ * listing_attendees line for those attendees. A grouped attendee row therefore
+ * always carries their complete listings list and never splits across a page
+ * boundary. When `listingIds` is given it decides WHICH attendees match, and the
+ * returned rows still cover all of a matched attendee's listings.
  *
- * Pagination counts ATTENDEES, not booking lines: the inner subquery selects
- * one page of attendee ids, ordered by id — AUTOINCREMENT, so co-monotonic
- * with the registration date but unique, making paging deterministic and
- * index-backed — and the outer query returns every listing_attendees line for
- * those attendees. A grouped attendee row therefore always carries their
- * complete listings list and never splits across a page boundary. When
- * `listingIds` is given it decides WHICH attendees match (any booking on
- * those listings); the returned rows still cover all of a matched attendee's
- * listings.
- *
- * The page size is fixed; callers pass a zero-based `page`. One extra
+ * The page size is fixed and callers pass a zero-based `page`. One extra
  * attendee is read to report `hasNext` without a separate count query, then
- * trimmed off. PII stays encrypted — decrypt with decryptAttendees before
- * display.
+ * trimmed off. PII stays encrypted, so decrypt with decryptAttendees first.
  */
 export const getAttendeesPage = async ({
   listingIds,

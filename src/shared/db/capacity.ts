@@ -2,16 +2,14 @@
  * SQL builders for listing capacity checks.
  *
  * The WHERE clause produced by `buildCapacityCondition` is embedded inside
- * atomic INSERT/UPDATE statements on `listing_attendees` so that capacity is
+ * atomic INSERT/UPDATE statements on `listing_attendees`, so capacity is
  * enforced in the same statement that mutates the row (no read-modify-write
- * race).
- *
- * Multi-day daily bookings emit one clause per day, AND'd together, so the
- * SQL safety-net matches the per-day accuracy of the JS preflight. Range
+ * race). Multi-day daily bookings emit one clause per day, AND'd together, so
+ * the SQL safety-net matches the per-day accuracy of the JS preflight. Range
  * length is bounded (≤90 via form validation) so the SQL stays cheap.
  *
  * Which counting a listing type gets (per-date rows vs the running total) is
- * declared once in `#shared/capacity-rules.ts`; the type predicates below are
+ * declared once in `#shared/capacity-rules.ts`. The type predicates below are
  * interpolated from that table, never hardcoded, so this guard and the JS
  * preflight always read the same declaration.
  */
