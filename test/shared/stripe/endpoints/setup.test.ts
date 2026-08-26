@@ -306,7 +306,7 @@ describeStripe("Stripe webhook setup", () => {
       await expectFetchFailure(
         new TypeError("Network unavailable"),
         "https://example.com/webhook/error-test",
-        "An error occurred with our connection to Stripe. Request was retried 2 times.",
+        "Stripe could not be reached",
       );
     });
 

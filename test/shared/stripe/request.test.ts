@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-timeout.ts";
 import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
-import {
-  createStripeClient,
-  type StripeCheckoutSessionCreateParams,
-} from "#shared/stripe/client.ts";
+import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
 import {
   STRIPE_API_VERSION,
   STRIPE_MAX_NETWORK_RETRIES,
@@ -15,9 +12,14 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
-import { refundHeaderProbe } from "#test/shared/stripe/refund-header-probe.ts";
-import { unreadableResponse } from "#test/shared/stripe/request/fixtures.ts";
+import type { FetchReply } from "#test-utils/fetch-stub.ts";
 import { stripeCheckoutSession } from "#test-utils/stripe/fixtures.ts";
+import {
+  refundKeySentWith,
+  unreadableResponse,
+  WIRE_SECRET_KEY,
+  withStripeWire,
+} from "./request/fixtures.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",
@@ -37,46 +39,35 @@ const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   success_url: "https://example.com/success",
 });
 
-const recordingCheckout = (
-  responses: (Error | Response)[],
-  maxNetworkRetries: number,
-) => {
-  const requests: RequestInit[] = [];
-  const waits: number[] = [];
-  const client = createStripeClient("sk_test_secret", {
-    fetch: (_input, init = {}) => {
-      requests.push(init);
-      const response = responses.shift();
-      if (!response) throw new Error("No Stripe response left");
-      if (response instanceof Error) return Promise.reject(response);
-      return Promise.resolve(response);
-    },
-    maxNetworkRetries,
-    random: () => 0,
-    sleep: (milliseconds) => {
-      waits.push(milliseconds);
-      return Promise.resolve();
-    },
-  });
-  return { client, requests, waits };
-};
-
-const expectTwoCountedCheckoutAttempts = async (
-  firstAttempt: Error | Response,
-): Promise<void> => {
-  const { client } = recordingCheckout(
+/** One retried checkout: the bodies, keys, and waits it put on the wire. */
+const retriedCheckout = (firstAttempt: FetchReply) =>
+  withStripeWire(
     [firstAttempt, Response.json(stripeCheckoutSession())],
-    1,
+    async (client, wire) => {
+      await client.checkout.sessions.create(checkoutParams());
+      return {
+        bodies: wire.sent.map(({ init }) => init.body),
+        keys: wire.keys(),
+        waits: wire.waits(),
+      };
+    },
+    { maxNetworkRetries: 1 },
   );
 
-  await runWithSubrequestBudget(async () => {
-    await client.checkout.sessions.create(checkoutParams());
-    expect(getSubrequestUsage()).toEqual({
-      database: 0,
-      external: 2,
-      total: 2,
-    });
-  });
+const expectTwoCountedCheckoutAttempts = async (
+  firstAttempt: FetchReply,
+): Promise<void> => {
+  const usage = await withStripeWire(
+    [firstAttempt, Response.json(stripeCheckoutSession())],
+    (client) =>
+      runWithSubrequestBudget(async () => {
+        await client.checkout.sessions.create(checkoutParams());
+        return getSubrequestUsage();
+      }),
+    { maxNetworkRetries: 1 },
+  );
+
+  expect(usage).toEqual({ database: 0, external: 2, total: 2 });
 };
 
 describe("Stripe request transport", () => {
@@ -88,53 +79,50 @@ describe("Stripe request transport", () => {
   });
 
   test("refund reads and sends can disable the client's automatic retries", async () => {
-    const { client, requests, waits } = recordingCheckout(
-      [
-        Response.json({ error: { message: "try again" } }, { status: 500 }),
-        Response.json(
-          { error: { message: "still unavailable" } },
-          { status: 500 },
-        ),
-      ],
-      STRIPE_MAX_NETWORK_RETRIES,
+    const busy = () =>
+      Response.json({ error: { message: "try again" } }, { status: 500 });
+
+    // Two calls the configured client would have asked three times each.
+    const attempts = await withStripeWire(
+      [busy],
+      async (client, wire) => {
+        await expect(
+          client.paymentIntents.retrieveWithLatestCharge("pi_retry", {
+            maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
+          }),
+        ).rejects.toThrow();
+        await expect(
+          client.refunds.create(
+            { amount: 1000, payment_intent: "pi_retry" },
+            "stable-key",
+            { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
+          ),
+        ).rejects.toThrow();
+        return wire.sent.length;
+      },
+      { maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES },
     );
 
-    await expect(
-      client.paymentIntents.retrieveWithLatestCharge("pi_retry", {
-        maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
-      }),
-    ).rejects.toThrow();
-    await expect(
-      client.refunds.create(
-        { amount: 1000, payment_intent: "pi_retry" },
-        "stable-key",
-        { maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe },
-      ),
-    ).rejects.toThrow();
-
-    expect(requests).toHaveLength(2);
-    expect(waits).toEqual([]);
+    expect(attempts).toBe(2);
   });
 
   test("sends versioned nested form requests with bearer authentication", async () => {
-    let captured: { url: string; init: RequestInit } | undefined;
-    const client = createStripeClient("sk_test_secret", {
-      fetch: (input, init = {}) => {
-        captured = { init, url: String(input) };
-        return Promise.resolve(Response.json(stripeCheckoutSession()));
+    const sent = await withStripeWire(
+      [() => Response.json(stripeCheckoutSession())],
+      async (client, wire) => {
+        await client.checkout.sessions.create(checkoutParams());
+        return wire.sent[0]!;
       },
-      maxNetworkRetries: 0,
-    });
+      { maxNetworkRetries: 0 },
+    );
 
-    await client.checkout.sessions.create(checkoutParams());
-
-    expect(captured?.url).toBe("https://api.stripe.com/v1/checkout/sessions");
-    expect(captured?.init.method).toBe("POST");
-    expect(captured?.init.body).toBe(
+    expect(sent.url).toBe("https://api.stripe.com/v1/checkout/sessions");
+    expect(sent.init.method).toBe("POST");
+    expect(sent.init.body).toBe(
       "cancel_url=https%3A%2F%2Fexample.com%2Fcancel&line_items[0][price_data][currency]=gbp&line_items[0][price_data][product_data][name]=Tea%20%26%20cake&line_items[0][price_data][unit_amount]=1000&line_items[0][quantity]=2&metadata[order]=signed&mode=payment&payment_method_types[0]=card&success_url=https%3A%2F%2Fexample.com%2Fsuccess",
     );
-    const headers = new Headers(captured?.init.headers);
-    expect(headers.get("authorization")).toBe("Bearer sk_test_secret");
+    const headers = new Headers(sent.init.headers);
+    expect(headers.get("authorization")).toBe(`Bearer ${WIRE_SECRET_KEY}`);
     expect(headers.get("accept")).toBe("application/json");
     expect(headers.get("content-type")).toBe(
       "application/x-www-form-urlencoded",
@@ -144,22 +132,12 @@ describe("Stripe request transport", () => {
   });
 
   test("reuses one idempotency key and body across an instant retry", async () => {
-    const { client, requests, waits } = recordingCheckout(
-      [
-        new Response("busy", { status: 500 }),
-        Response.json(stripeCheckoutSession()),
-      ],
-      2,
-    );
+    const wire = await retriedCheckout(new Response("busy", { status: 500 }));
 
-    await client.checkout.sessions.create(checkoutParams());
-
-    expect(requests).toHaveLength(2);
-    expect(requests[0]!.body).toBe(requests[1]!.body);
-    expect(new Headers(requests[0]!.headers).get("idempotency-key")).toBe(
-      new Headers(requests[1]!.headers).get("idempotency-key"),
-    );
-    expect(waits).toEqual([500]);
+    expect(wire.bodies).toHaveLength(2);
+    expect(wire.bodies[0]).toBe(wire.bodies[1]);
+    expect(wire.keys[0]).toBe(wire.keys[1]);
+    expect(wire.waits).toEqual([500]);
   });
 
   test("counts every Stripe retry against the shared request budget", async () => {
@@ -175,59 +153,50 @@ describe("Stripe request transport", () => {
   });
 
   test("blocks Stripe before transport when no external allowance remains", async () => {
-    let fetches = 0;
-    const client = createStripeClient("sk_test_secret", {
-      fetch: () => {
-        fetches += 1;
-        return Promise.resolve(Response.json({ livemode: false }));
+    const sent = await withStripeWire(
+      [() => Response.json({ livemode: false })],
+      async (client, wire) => {
+        await expect(
+          runWithSubrequestBudget(() =>
+            withSubrequestAllowance(
+              { database: 0, external: 0, total: 0 },
+              () => client.balance.retrieve(),
+            ),
+          ),
+        ).rejects.toThrow(
+          "Blocked external operation: fetch https://api.stripe.com",
+        );
+        return wire.sent.length;
       },
-    });
+    );
 
-    await expect(
-      runWithSubrequestBudget(() =>
-        withSubrequestAllowance({ database: 0, external: 0, total: 0 }, () =>
-          client.balance.retrieve(),
-        ),
-      ),
-    ).rejects.toThrow("Blocked external operation: Stripe API request");
-    expect(fetches).toBe(0);
+    expect(sent).toBe(0);
   });
 
   test("reuses the POST body and idempotency key after a response body read failure", async () => {
-    const { client, requests, waits } = recordingCheckout(
-      [
-        unreadableResponse(new TypeError("body disconnected")),
-        Response.json(stripeCheckoutSession()),
-      ],
-      1,
+    const wire = await retriedCheckout(
+      unreadableResponse(new TypeError("body disconnected")),
     );
 
-    await client.checkout.sessions.create(checkoutParams());
-
-    const firstKey = new Headers(requests[0]!.headers).get("idempotency-key");
-    expect(requests).toHaveLength(2);
-    expect(requests[0]!.body).toBe(requests[1]!.body);
-    expect(firstKey).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
-    expect(new Headers(requests[1]!.headers).get("idempotency-key")).toBe(
-      firstKey,
-    );
-    expect(waits).toEqual([500]);
+    expect(wire.bodies).toHaveLength(2);
+    expect(wire.bodies[0]).toBe(wire.bodies[1]);
+    expect(wire.keys[0]).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
+    expect(wire.keys[1]).toBe(wire.keys[0]);
+    expect(wire.waits).toEqual([500]);
   });
 
   test("uses a different idempotency key for each POST operation", async () => {
-    const keys: (string | null)[] = [];
-    const client = createStripeClient("sk_test_secret", {
-      fetch: (_input, init) => {
-        keys.push(new Headers(init?.headers).get("idempotency-key"));
-        return Promise.resolve(Response.json(stripeCheckoutSession()));
+    const keys = await withStripeWire(
+      [() => Response.json(stripeCheckoutSession())],
+      async (client, wire) => {
+        await Promise.all([
+          client.checkout.sessions.create(checkoutParams()),
+          client.checkout.sessions.create(checkoutParams()),
+        ]);
+        return wire.keys();
       },
-      maxNetworkRetries: 1,
-    });
-
-    await Promise.all([
-      client.checkout.sessions.create(checkoutParams()),
-      client.checkout.sessions.create(checkoutParams()),
-    ]);
+      { maxNetworkRetries: 1 },
+    );
 
     expect(keys).toHaveLength(2);
     expect(keys[0]).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
@@ -236,21 +205,19 @@ describe("Stripe request transport", () => {
   });
 
   test("adds an idempotency key when exactly one retry is allowed", async () => {
-    let key: string | null = null;
-    const client = createStripeClient("sk_test_secret", {
-      fetch: (_input, init) => {
-        key = new Headers(init?.headers).get("idempotency-key");
-        return Promise.resolve(Response.json(stripeCheckoutSession()));
+    const keys = await withStripeWire(
+      [() => Response.json(stripeCheckoutSession())],
+      async (client, wire) => {
+        await client.checkout.sessions.create(checkoutParams());
+        return wire.keys();
       },
-      maxNetworkRetries: 1,
-    });
-    await client.checkout.sessions.create(checkoutParams());
-    expect(key).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
+      { maxNetworkRetries: 1 },
+    );
+
+    expect(keys[0]).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
   });
 
   test("treats an empty-string override as no key", async () => {
-    const { client, capturedKey } = refundHeaderProbe();
-    await client.refunds.create({ amount: 1000, payment_intent: "pi_1" }, "");
-    expect(capturedKey()).toBeNull();
+    expect(await refundKeySentWith("")).toBeNull();
   });
 });

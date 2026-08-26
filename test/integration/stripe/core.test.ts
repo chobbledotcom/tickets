@@ -330,16 +330,14 @@ describeStripe("stripe", () => {
     });
 
     test("closes Stripe connection failures", async () => {
-      const privateMessage = "socket failed beside pi_private_123";
       const providerError = transportError.unreachable(
         providerDetail.stripe(),
         "network_error",
-        privateMessage,
       );
       await expectClosedCheckoutFailure(
         checkoutFailure(providerError),
         { provider: "stripe", reason: "network_error" },
-        [privateMessage],
+        [providerError.message],
         providerError,
       );
     });

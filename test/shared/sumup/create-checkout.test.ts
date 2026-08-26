@@ -116,31 +116,27 @@ describe("sumup createCheckout", () => {
   });
 
   test("closes SumUp network failures", async () => {
-    const privateMessage = "network failed beside checkout co_private";
     const providerError = transportError.unreachable(
       providerDetail.sumup(),
       "network_error",
-      privateMessage,
     );
     await expectClosedCheckoutFailure(
       checkoutFailure(providerError),
       { provider: "sumup", reason: "network_error" },
-      [privateMessage],
+      [providerError.message],
       providerError,
     );
   });
 
   test("closes SumUp checkout timeouts", async () => {
-    const privateMessage = "timed out beside checkout co_private";
     const providerError = transportError.unreachable(
       providerDetail.sumup(),
       "timeout",
-      privateMessage,
     );
     await expectClosedCheckoutFailure(
       checkoutFailure(providerError),
       { provider: "sumup", reason: "timeout" },
-      [privateMessage],
+      [providerError.message],
       providerError,
     );
   });

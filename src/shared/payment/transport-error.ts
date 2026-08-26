@@ -13,6 +13,7 @@
 
 import type { ProviderFailureFacts } from "#payment/provider-failures.ts";
 import { isAbortOrTimeoutError, namedError } from "#shared/named-error.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
 /** A buyer field a provider can reject with a message safe to show them. */
@@ -78,6 +79,11 @@ export const providerDetail = {
   sumup: (): ProviderErrorDetail => ({ provider: "sumup" }),
 } as const;
 
+/** The provider as the operator knows it. Our own wording reaches the
+ * settings pages through `errorMessage`, so it says "SumUp", not "sumup". */
+const named = (detail: ProviderErrorDetail): string =>
+  PAYMENT_PROVIDERS[detail.provider].label;
+
 /** The three ways a provider transport can fail, each naming its own facts.
  * Every provider raises its failures through these, so no reader has to know
  * which provider it is looking at. */
@@ -97,24 +103,21 @@ export const transportError = {
       detail,
       { statusCode },
       // A provider that hands back nothing useful gets our wording.
-      message || `${detail.provider} answered. Status code: ${statusCode}`,
+      message || `${named(detail)} answered. Status code: ${statusCode}`,
     ),
 
-  /** We never got an answer. A provider may pass its own wording when that
-   * says something an operator needs, such as the timeout it waited or the
-   * retries it spent. */
+  /** We never got an answer. Only the shared boundary reaches this, and it
+   * knows nothing the provider said, so the wording is always ours. */
   unreachable: (
     detail: ProviderErrorDetail,
     connectionReason: ProviderConnectionReason,
-    message?: string,
   ): ProviderTransportError =>
     new ProviderTransportError(
       detail,
       { connectionReason },
-      message ||
-        (connectionReason === "timeout"
-          ? `${detail.provider} did not answer in time`
-          : `${detail.provider} could not be reached`),
+      connectionReason === "timeout"
+        ? `${named(detail)} did not answer in time`
+        : `${named(detail)} could not be reached`,
     ),
 
   /** The provider answered, but its body was not the shape it documents.
@@ -129,7 +132,7 @@ export const transportError = {
     new ProviderTransportError(
       detail,
       { malformed: true, ...(statusCode === undefined ? {} : { statusCode }) },
-      message || `${detail.provider} returned an answer we could not read`,
+      message || `${named(detail)} returned an answer we could not read`,
     ),
 } as const;
 
