@@ -109,7 +109,9 @@ describeWithEnv(
         // One distinctive runtime string per module wired up in admin.ts, in
         // its wiring order. A missing marker means the bundle dropped that
         // module — i.e. its init call fell out of the admin entry point (the
-        // bundler tree-shakes the whole module away with it).
+        // bundler tree-shakes the whole module away with it). A marker must be
+        // a literal the module keeps: a value it builds per call survives only
+        // as the fixed part of its template.
         const moduleMarkers = [
           "[data-select-on-click]",
           "data-nav-select",
@@ -121,7 +123,7 @@ describeWithEnv(
           "[data-scroll-into-view]",
           "[data-checkout-popup]",
           "[data-payment-result]",
-          "/admin/settings/stripe/test",
+          "-test-btn",
           "[data-qr-refresh]",
           "[data-running-total-output]",
           "char-counter-warn",
