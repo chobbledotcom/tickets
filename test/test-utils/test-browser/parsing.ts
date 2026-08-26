@@ -4,23 +4,40 @@
  * markup goes in, answers come out.
  */
 
+import { requiredMapValue } from "#fp";
+
 export const stripTags = (html: string): string =>
   html
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-/** Decode common HTML entities */
+/** The entities our templates emit, and the character a reader sees for each. */
+const ENTITIES = new Map<string, string>([
+  ["&amp;", "&"],
+  ["&lt;", "<"],
+  ["&gt;", ">"],
+  ["&quot;", '"'],
+  ["&#39;", "'"],
+  ["&larr;", "\u2190"],
+  ["&mdash;", "\u2014"],
+  ["&nbsp;", " "],
+  ["&times;", "\u00d7"],
+]);
+
+/** One pattern built from the table above, so the two cannot drift apart. */
+const ANY_ENTITY = new RegExp([...ENTITIES.keys()].join("|"), "g");
+
+/**
+ * What a reader sees: one decoding pass, the way a browser does it, so nothing
+ * the pass produces is decoded again. That keeps `&amp;times;` reading as the
+ * literal "&times;" a browser shows, rather than as the "×" a single
+ * `&times;` means — a page escaped twice must not read as if it were right.
+ */
 export const decodeEntities = (text: string): string =>
-  text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&larr;/g, "\u2190")
-    .replace(/&mdash;/g, "\u2014")
-    .replace(/&nbsp;/g, " ");
+  text.replace(ANY_ENTITY, (entity) =>
+    requiredMapValue(ENTITIES, entity, `No character for ${entity}`),
+  );
 
 /** Collect all capture-group matches for a regex against a string */
 export const regexCollect = <T>(

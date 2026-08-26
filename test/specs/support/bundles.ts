@@ -30,11 +30,15 @@ import {
   rememberListing,
 } from "#test/specs/support/listings.ts";
 import {
+  attachFileTo,
+  codeOnTheLinkTheyWereGiven,
+  keepsTicketFor,
+} from "#test/specs/support/tickets.ts";
+import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   asksIfThereIs,
   type ReadAboutOneThing,
-  requiredWorldValue,
   stillThere,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -57,6 +61,9 @@ export interface PartOfBundle {
  * That price is what a blank bundle price falls back to, so a story cannot
  * leave it unsaid. */
 export interface ThingForSale extends PartOfBundle {
+  /** A file the organiser hands out with this part, named as the buyer sees
+   * it. Left out, the part hands out nothing. */
+  handsOut?: string;
   ownPrice: number;
 }
 
@@ -75,7 +82,7 @@ export const thingsGroupedTogether = async (
   const group = await createTestGroup({ name });
   world.things.remember("bundle", name, group);
   for (const part of parts) {
-    rememberListing(
+    const listing = rememberListing(
       world,
       part.name,
       await createTestListing({
@@ -83,9 +90,15 @@ export const thingsGroupedTogether = async (
         maxAttendees: 10,
         maxQuantity: 10,
         name: part.name,
+        // The site's own thank-you page: a bundle of one part otherwise falls
+        // through to that part's own page and the buyer never reaches a ticket.
+        thankYouUrl: "",
         unitPrice: toMinorUnits(part.ownPrice),
       }),
     );
+    if (part.handsOut !== undefined) {
+      await attachFileTo(listing.id, part.handsOut);
+    }
   }
 };
 
@@ -254,34 +267,30 @@ export const customerOpensBundlePage = async (
   return browser;
 };
 
-/** A customer buys the bundle from its own page, and keeps the ticket they end
- * up holding so the story can look at it again later. */
-export const customerBuysBundle: ActOnOneThing = async (world, name) => {
+/** A customer buys some of the bundle from its own page, and keeps the code
+ * the site gives them under the bundle's name, so the story can read the
+ * ticket they end up holding. */
+export const customerBuysBundles = async (
+  world: TicketsWorld,
+  name: string,
+  howMany: number,
+): Promise<void> => {
   const group = bundleNamed(world, name);
   const browser = await customerOpensBundlePage(world, name);
-  const wanting = `package_quantity_${group.id}`;
   const filledIn = {
     email: "buyer@example.com",
     name: "Buyer",
-    [wanting]: "1",
+    [`package_quantity_${group.id}`]: String(howMany),
   };
   expectCanReallySend(browser.currentHtml, filledIn);
   await browser.submitForm(filledIn, "Continue");
-  // Buying leaves them on a page carrying the link to their ticket, which is
-  // the only way they can ever reach it again.
-  const toTicket = browser.links.find(({ href }) => href.startsWith("/t/"));
-  if (!toTicket) throw new Error("They were given no link to their ticket");
-  world.bundleTicketPath = toTicket.href;
+  keepsTicketFor(world, [name], codeOnTheLinkTheyWereGiven(browser));
 };
 
-/** What the buyer's own ticket says now, read from the address they were given
- * when they bought it. */
-export const buyersTicket = async (world: TicketsWorld): Promise<string> => {
-  const browser = await openAsNewcomer(
-    requiredWorldValue(world.bundleTicketPath, "the buyer's ticket"),
-  );
-  return browser.pageText;
-};
+/** A customer buys one of the bundle — what every story but the one about
+ * buying several wants. */
+export const customerBuysBundle: ActOnOneThing = (world, name) =>
+  customerBuysBundles(world, name, 1);
 
 /** The organiser deletes the bundle, confirming by typing its name. Keeps what
  * they were told, because a refusal is the point of one of these rules. */

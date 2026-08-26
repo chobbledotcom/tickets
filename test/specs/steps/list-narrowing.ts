@@ -30,14 +30,14 @@ When(
 );
 
 Then(
-  "the list offers the {word}",
+  "the organiser's list offers the {word}",
   function (this: TicketsWorld, name: string): void {
     expect(listOffers(this, name)).toBe(true);
   },
 );
 
 Then(
-  "the list does not offer the {word}",
+  "the organiser's list does not offer the {word}",
   function (this: TicketsWorld, name: string): void {
     expect(listOffers(this, name)).toBe(false);
   },

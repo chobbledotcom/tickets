@@ -84,13 +84,6 @@ When(
   },
 );
 
-Given(
-  "the site sells a {word}",
-  function (this: TicketsWorld, name: string): Promise<void> {
-    return somethingForSale(this, name);
-  },
-);
-
 When(
   "{word} renames the {word} to {word}",
   function (

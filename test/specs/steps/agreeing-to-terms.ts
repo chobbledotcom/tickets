@@ -23,11 +23,8 @@ import {
   visitorTriesToBook,
   visitorTriesToOrder,
 } from "#test/specs/support/public-booking.ts";
-import {
-  combinedPath,
-  sentOrder,
-  THE_CUSTOMER,
-} from "#test/specs/support/refused-orders.ts";
+import { sentOrder, THE_CUSTOMER } from "#test/specs/support/refused-orders.ts";
+import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end

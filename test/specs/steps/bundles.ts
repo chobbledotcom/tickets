@@ -7,7 +7,6 @@ import { toMinorUnits } from "#shared/currency.ts";
 import {
   bundleChargeForOrNull,
   bundleStillExists,
-  buyersTicket,
   customerBuysBundle,
   customerOpensBundlePage,
   expectPartOnSaleAlone,
@@ -22,6 +21,7 @@ import {
   type ThingForSale,
   thingsGroupedTogether,
 } from "#test/specs/support/bundles.ts";
+import { wordsOnTheirTicket } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -185,7 +185,7 @@ const onlyBundle = (world: TicketsWorld): string => {
 /** What the buyer's ticket does or does not say, from one reading of it. */
 const expectTicketNaming = (shown: boolean) =>
   async function (this: TicketsWorld, thing: string): Promise<void> {
-    const ticket = await buyersTicket(this);
+    const ticket = await wordsOnTheirTicket(this);
     if (shown) expect(ticket).toContain(thing);
     else expect(ticket).not.toContain(thing);
   };

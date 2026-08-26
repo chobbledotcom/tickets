@@ -118,7 +118,6 @@ export interface TicketsWorld extends World, EvidencePages {
   bundleBookingPage?: string;
   bundleOutcome?: string;
   bundleParts?: ThingForSale[];
-  bundleTicketPath?: string;
   buyerQuestion?: { id: number; text: string };
   cashBefore?: number;
   cleanup: PutsThingsBack;
