@@ -11,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import {
   SEEDED_FEATURE_RECORDS,
+  saveAModifier,
   seedFeatureRecords,
   settingValue,
 } from "#test-utils/settings.ts";
@@ -64,9 +65,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     await execute(
       "INSERT INTO questions (text, display_type) VALUES ('Before?', 'radio')",
     );
-    await execute(
-      "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Before', 'fixed', 1, 'increase')",
-    );
+    await saveAModifier("Before");
     await execute("INSERT INTO logistics_agents (name) VALUES ('Before')");
     await execute(
       "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')",
@@ -232,9 +231,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
   test("does not disable a feature that has saved records", async () => {
     await setAdminFeatureEnabled("modifiers", true);
-    await execute(
-      "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
-    );
+    await saveAModifier();
 
     expect(await setAdminFeatureEnabled("modifiers", false)).toBe(false);
     expect((await storedFeatures()).modifiers).toBe(true);
@@ -243,9 +240,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("re-enables a feature when its first record arrives after disable", async () => {
     await setAdminFeatureEnabled("modifiers", true);
     expect(await setAdminFeatureEnabled("modifiers", false)).toBe(true);
-    await execute(
-      "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
-    );
+    await saveAModifier();
 
     expect(
       parseEnabledFeatures(await settingValue(CONFIG_KEYS.ENABLED_FEATURES))

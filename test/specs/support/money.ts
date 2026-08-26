@@ -6,7 +6,6 @@
 
 import { expect } from "@std/expect";
 import { WORLD } from "#accounting/accounts.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -18,7 +17,10 @@ import {
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
 import { attendeeLegsOfKind } from "#test/specs/support/money-reads.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import {
+  soleBookingOn,
+  visitorBooks,
+} from "#test/specs/support/public-booking.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -80,18 +82,6 @@ export const buyOnePlace = async (
     `/admin/attendees/${attendeeId}/ledger`,
   );
   return attendeeId;
-};
-
-/** The one booking a checkout made on a listing. Fails loudly when there is
- * not exactly one, so a story can never carry on against an arbitrary row. */
-export const soleBookingOn = async (listingId: number): Promise<number> => {
-  const bookings = await getAttendeesRaw(listingId);
-  if (bookings.length !== 1) {
-    throw new Error(
-      `Expected one booking on listing ${listingId}, found ${bookings.length}`,
-    );
-  }
-  return bookings[0]!.id;
 };
 
 /** Sell one place with an extra charge on top and pay the whole amount, the way

@@ -32,16 +32,54 @@ slimmed direct remnant with a header naming the story for branch cover (Cucumber
 runs do not count towards coverage), and record where every old claim went — the
 story, the remnant, or a deliberate drop.
 
-- `test/integration/server/settings/features.test.ts` — the feature explanation
-  pages and the Site toggle that publishes the public site. Keep the concurrency
-  and cache-invalidation tests direct.
-- `test/integration/server/settings/email.test.ts` and `email-templates.test.ts`
-  — connecting a provider and editing email templates. Keep encryption-at-rest,
-  Liquid-syntax, and length contracts direct.
-- `test/integration/servicing/admin-homepage.test.ts` — the organiser's
-  service-event list and edit pages beside `@story:servicing.hold-and-cost`.
-- `test/integration/admin/sms.test.ts` — the organiser texting an attendee
-  (gateway gate, queue, log, inbound link).
+- `test/features/admin/settings-email.test.ts` and
+  `test/integration/server/settings/email-templates.test.ts` — connecting a
+  provider and editing email templates. Keep encryption-at-rest, Liquid-syntax,
+  and length contracts direct. This list named
+  `test/integration/server/settings/email.test.ts`, which does not exist; the
+  email settings tests live at the first path above.
+
+---
+
+## Move the routes' flash messages into the message catalog
+
+_Origin: found while migrating `test/integration/admin/sms.test.ts` to
+`@story:attendees.sending-somebody-a-text`. The story had to quote these strings
+from the route, because there is no catalog key to read them from._
+
+Twenty files under `src/features/` build a flash message from a string literal
+rather than `t(...)`, 41 literals in all. Count them again before you start,
+because a `redirect(...)` call often runs over several lines and a same-line
+`grep` misses most of them:
+
+```bash
+rg -U --multiline -o '\b(errorRedirect|redirect)\((?:[^()"]|"[^"]*"|\([^()]*\))*\)' src/features/ |
+  grep -E '"[A-Z][^"]{6,}"'
+```
+
+`src/features/admin/sms.ts` holds six: `Invalid SMS target`,
+`SMS gateway is not
+configured`, `Message cannot be empty`,
+`Attendee has no phone number on file`, `Text message queued`, and
+`Message could not be queued`. `attributes.ts` holds five,
+`questions/answers.ts` four, and `attendees-merge.ts`, `questions.ts`,
+`public/pages.ts`, and `public/unsubscribe.ts` three each. `update.ts` holds
+two, and there is one each in `auth.ts`, `builder.ts`, `bulk-actions.ts`,
+`bulk-email.ts`, `calendar.ts`, `listings-parents.ts`, `modifiers.ts`,
+`money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`, `support.ts`, and
+`join.ts`. Two of these files are public surfaces, not admin ones.
+
+The `i18n-coverage` test only fails a hard-coded string in a **template**
+(`test/scripts/i18n-coverage.test.ts`), so a route escapes it. Two things
+follow. `I18N_REPLACEMENTS` cannot rebrand them, so a site that renames
+"attendee" to "guest" still reads "Attendee has no phone number on file". And
+the copy rules in AGENTS.md say every user-facing string lives in
+`src/locales/en/*.json`, which these do not.
+
+To do it: add the keys, switch each `redirect(path, "...", ...)` to `t(...)`,
+and widen the i18n-coverage check to `src/features/` so a new one cannot appear.
+Left out of the migration that found it, because it changes production copy
+across twenty files rather than the tests being moved.
 
 ---
 ## Thread an abort signal through the email send APIs (from PR #2140)

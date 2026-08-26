@@ -12,9 +12,11 @@ import {
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import {
+  keepsAnswerAs,
   keepWhatTheyWereTold,
   type ReadAboutOneThing,
   type ReadsWhatWasKept,
+  type StoryJourney,
   type TicketsWorld,
   whatWasKeptFor,
 } from "./world.ts";
@@ -59,6 +61,38 @@ export const organiserSendsAndIsTold = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
+/** Where one page lives, worked out from the world and from whatever the
+ * story's own words named — a person, a thing for sale, or nothing at all. */
+export type PageAddress<Args extends unknown[]> = (
+  world: TicketsWorld,
+  ...args: Args
+) => string;
+
+/** The organiser opens one of their own pages and keeps what it said, so the
+ * Then steps read the same page the When opened. Curried on which page,
+ * because that is all that differs between one page of theirs and another.
+ * A page whose address depends on who the story is talking about takes that
+ * name too, so the step's own words decide which page is opened. */
+export const organiserReads = <Args extends unknown[]>(
+  where: PageAddress<Args>,
+): StoryJourney<Args, void> =>
+  keepsAnswerAs(ORGANISER, (world, ...args) =>
+    adminPageHtmlAt(world, where(world, ...args)),
+  );
+
+/** The organiser writes one message on a page and sends it, keeping what the
+ * site said back. Curried on the page and the button, because those are all
+ * that differ between writing to the host and texting somebody. */
+export const writesOneMessage =
+  <Args extends unknown[]>(
+    where: PageAddress<Args>,
+    button: () => string | Promise<string>,
+  ): StoryJourney<[string, ...Args], void> =>
+  async (world, message, ...args) => {
+    const page = await openAdminPage(world, where(world, ...args));
+    await organiserSendsAndIsTold(world, page, { message }, await button());
+  };
+
 /** Take a thing down from its own page: follow its delete link, type a name
  * to confirm, and keep what the site said for the story to read. Curried on
  * the page and the link, so each kind of thing declares itself in one line. */
@@ -97,9 +131,11 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
-/** One read of a page: how the site answered, and what it said. */
+/** One read of a page: how the site answered, where the visitor ended up,
+ * and what it said. */
 export interface PageRead {
   answered: number;
+  landedOn: string;
   said: string;
 }
 
@@ -109,7 +145,7 @@ export interface PageRead {
 export const newcomerReading = async (path: string): Promise<PageRead> => {
   const browser = new TestBrowser();
   const answered = await browser.visit(path);
-  return { answered, said: browser.pageText };
+  return { answered, landedOn: browser.currentUrl, said: browser.pageText };
 };
 
 /** Opening the page one named thing is sold from, as somebody never signed in.
@@ -160,6 +196,13 @@ export const opensAdminPageAt =
   async (world) => {
     await openAdminPage(world, path);
   };
+
+/** What one of the owner's own pages says right now. Opening and reading are
+ * one step, so no caller can assert against a window it opened earlier. */
+export const adminPageHtmlAt = async (
+  world: TicketsWorld,
+  path: string,
+): Promise<string> => (await openAdminPage(world, path)).currentHtml;
 
 /** The organiser opens one of their own pages, and something is done with
  * the window they are looking at — the opening every organiser action on a
