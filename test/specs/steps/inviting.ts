@@ -97,7 +97,7 @@ Then(
   "only the owner and {word} may sign in",
   async function (this: TicketsWorld, _who: string): Promise<void> {
     // A refused invite must leave nothing behind: an invite waiting to be used
-    // already reserves a name, so counting the people is what proves it.
+    // already reserves a username, so counting the people is what proves it.
     expect(await howManyMaySignIn()).toBe(2);
   },
 );

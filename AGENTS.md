@@ -129,7 +129,11 @@ GitHub.
   that rule covers every kind of listing. Keep one word for one thing inside a
   single document too. `removing-a-persons-access.feature` is the reference: the
   word the owner types, the word in its prose, and the word its step asserts are
-  one word. No checker enforces this, so the judgement is yours on every change.
+  one word. A better word never moves an authored tag. A `@story:`, `@rule:` or
+  `@case:` id is a durable identifier, and a saved `--tags` selector or a
+  published evidence manifest can point at it, so it stays as it is while the
+  words above it improve. No checker enforces this, so the judgement is yours on
+  every change.
 - **Comments describe current code**: Do not leave comments that compare current
   code with an old implementation or explain what the code replaced. They do not
   help someone understand the code as it works now. Git history preserves the

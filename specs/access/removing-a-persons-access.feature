@@ -9,14 +9,14 @@ Feature: The owner removes a person's access to the site
   first. A wrong username removes nobody, and a removed person cannot sign in
   again.
 
-  @rule:access.removing-needs-the-persons-username
+  @rule:access.removing-needs-the-persons-name
   Rule: Removing a person needs their username
     Typing the username confirms which person is meant, because the removal
     cannot be undone. The username is matched without regard to capitals, so
     however the owner types it, it is still the person's username. Anything
     else removes nobody and the person keeps their access.
 
-    @case:access.wrong-username-removes-nobody
+    @case:access.wrong-name-removes-nobody
     Scenario: The owner types the wrong username
       Given the owner invited Sam as a manager
       And Sam accepted the invitation, chose a password and signed in
@@ -31,7 +31,7 @@ Feature: The owner removes a person's access to the site
     disappears from the Users list and their password no longer signs them
     in anywhere.
 
-    @case:access.username-in-capitals-removes-them
+    @case:access.name-in-capitals-removes-them
     Scenario: The owner types Sam's username in capitals
       Given the owner invited Sam as a manager
       And Sam accepted the invitation, chose a password and signed in

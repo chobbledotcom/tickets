@@ -39,13 +39,13 @@ Feature: The owner invites somebody to help
       And the list says Ada is an editor who has not joined yet
       And the list holds the owner as well
 
-  @rule:access.a-username-already-in-use-is-refused
+  @rule:access.a-name-already-in-use-is-refused
   Rule: A username already in use is refused
     Two people cannot share a username, because it is how each of them signs
     in. The owner is told the username is taken, and nobody is added — not even
     an invite waiting to be used.
 
-    @case:invites.a-username-already-in-use
+    @case:invites.a-name-already-in-use
     Scenario: The owner invites somebody under a username already taken
       Given the owner invites Sam as a manager
       When the owner invites Sam as an editor
