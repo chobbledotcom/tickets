@@ -151,6 +151,20 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("contains logistics guidance with the delivery area recipe", async () => {
+      await guide(
+        "How do I charge delivery by area?",
+        "Which delivery area?",
+        "Question answer",
+        "not from their postcode",
+        "added for each ticket booked",
+        "Max tickets per purchase",
+        "How do customers fill in their delivery address?",
+        "Address lookup",
+        "The map pin is not set by the customer",
+      );
+    });
+
     test("contains calendar and activity log sections", async () => {
       await guide("Calendar", "Activity Log");
     });
