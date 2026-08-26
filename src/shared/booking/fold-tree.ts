@@ -78,14 +78,13 @@ const childIsBookable = (
   childSelectableForSpan(child, duration) &&
   childDateOk(date, holidays, duration)(child);
 
-/** The order's listing set, quantity/custom-price maps and selected ids, expanded
- * with the chosen children. Shared by the fold accumulator and the success result
- * so the two never drift apart. */
+/** The order's listing set and quantity/custom-price maps, expanded with the
+ * chosen children. Shared by the fold accumulator and the success result so the
+ * two never drift apart. */
 type FoldedOrder = {
   listings: TicketListing[];
   quantities: Map<number, number>;
   customPrices: Map<number, number>;
-  selectedListingIds: Set<number>;
 };
 
 /** Accumulator threaded through the recursive fold: the {@link FoldedOrder} plus
@@ -320,7 +319,6 @@ export const foldChild = (
     state.customPrices.set(childId, price);
   }
   state.quantities.set(childId, summed);
-  state.selectedListingIds.add(childId);
   if (!state.listings.some((e) => e.listing.id === childId)) {
     state.listings.push(child);
   }
@@ -432,7 +430,6 @@ export const foldBookingTree = (
       tree.nodes.map((node) => resolved.get(node.nodeKey)!),
     ),
     quantities: new Map(base.quantities),
-    selectedListingIds: new Set(base.quantities.keys()),
   };
 
   for (const { node, parentQty } of selectFoldableParents(
@@ -463,6 +460,5 @@ export const foldBookingTree = (
     ok: true,
     priceRuleByListingId: priceRuleByListingId(tree),
     quantities: state.quantities,
-    selectedListingIds: state.selectedListingIds,
   };
 };

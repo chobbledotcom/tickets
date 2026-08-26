@@ -4,9 +4,9 @@
  * authenticated session: its token unwraps the DATA_KEY, which decrypts the
  * stored private key.
  *
- * {@link getRequestPrivateKey} removes the threading a caller would otherwise
- * do: it reads the AsyncLocalStorage-scoped session for the *current request*
- * (see session-context.ts) and derives the key on demand. Because the session
+ * {@link getRequestPrivateKey} removes that threading. It reads the
+ * AsyncLocalStorage-scoped session for the *current request* and derives the
+ * key on demand. Because the session
  * store is bound to the current request's async context, the accessor can only
  * ever return *this* request's own session, and the derivation is keyed by that
  * session's unique token, so no path lets one request obtain another's key.

@@ -1964,76 +1964,6 @@ of the test.
 
 ---
 
-## Two people setting a site up at the same moment can both succeed
-
-Raised on #1988 by both automated reviewers, and confirmed against the code. It
-is a production bug, not a test gap, and it is deliberately left out of that
-pull request because that branch changes no production code and this sits in the
-most security-critical path we have.
-
-**What happens.** `handleSetupPost` (`src/features/setup.ts`) asks
-`isSetupComplete()` and then calls `settings.setup.complete`. Nothing holds
-between the asking and the doing, so two requests that arrive together can both
-be told the site is empty. `completeSetup` (`src/shared/db/settings/setup.ts`)
-then runs its batch twice.
-
-The unique index on `username_index` saves us only when both people pick the
-_same_ name. Two different names both insert, and the second batch's
-`settingUpsert` calls overwrite `PUBLIC_KEY` and `WRAPPED_PRIVATE_KEY` with a
-second keypair. The first owner is left holding a wrapped data key for a data
-key the site no longer uses — they can sign in and read nothing.
-
-**Why it is not simply "add a guard".** The batch cannot decide anything
-mid-flight, so making the owner insert conditional still leaves the four setting
-upserts landing unconditionally. Whatever fixes it has to make the whole
-ceremony refuse to run twice — an interactive transaction that re-reads
-`setup_complete` inside the write lock, or a single conditional write that every
-other statement hangs off. That is a design decision in the code that holds
-everybody's encryption keys, so it wants its own change and its own review, not
-a corner of a test PR.
-
-**Where to start.** `completeSetup` in `src/shared/db/settings/setup.ts` —
-`withTransaction` from `src/shared/db/client.ts` is the tool, and the header
-comment on the current batch explains why it is a plain batch today (all values
-are computed up front). The guard in `handleSetupPost` at
-`src/features/setup.ts:114` stays useful as the cheap first check.
-
-**Proving it.** A story cannot show this today: Cucumber awaits each step, so
-the two posts never overlap. #1988 covers the neighbouring case it _can_ reach
-honestly — a person who had the setup page open before somebody else finished,
-sending their stale form afterwards. A real test for this one needs both posts
-started together behind a barrier, and it should be written with the fix.
-
----
-
-## An answer filed under a listing nobody booked
-
-_Origin: review of PR #1990 (the booking-check slice), 2026-07-29._
-
-Free-text answers travel through checkout filed under the listing they belong
-to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
-`src/shared/booking-intent.ts` checks that the key is written the way a listing
-id is written, so a key of any other shape stops the booking rather than losing
-the answers under it after the buyer has paid.
-
-What it cannot check is whether that listing was one of the ones actually
-bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
-and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
-looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
-answers. The buyer answered a question and the answer quietly goes nowhere.
-
-The schema is the wrong place for the check: it validates one booking's metadata
-on its own, and the listings that were bought are decided later, once the items
-have been priced and loaded. The natural home is next to `saveSessionAnswers`,
-which already has both the answer map and the booked listings — compare the two
-sets and raise any key that matches no booked listing, the same way an
-unreadable booking is raised.
-
-Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
-where the shape rule is covered and the "names a booked listing" rule is not.
-
----
-
 ## A create whose row can't be read back should not look retryable
 
 _Origin: Codex review on PR #2002, which added the loud failure for a create
@@ -3007,11 +2937,12 @@ PR rewrote 84 comments and fixed every rule break it introduced. The breaks
 below predate it._
 
 `AGENTS.md` holds code comments to ASD-STE100. No checker enforces that section,
-so `src/` carries a large stock of prose that breaks it. A sweep of the 84
-comments PR #2158 rewrote counted 137 descriptive sentences above the 25-word
-limit and 26 uses of a banned modal, almost all of them wording the original
-authors chose. The whole tree holds more, because the sweep only read comments
-that one PR touched.
+so `src/` carries a large stock of prose that breaks it.
+
+A sweep of the 84 comments PR #2158 first rewrote counted 137 descriptive
+sentences above the 25-word limit and 26 uses of a banned modal. The original
+authors chose almost all of that text. The whole tree holds more, because the
+sweep only read comments that one PR touched.
 
 Two facts decide how to approach this, and both were measured on that branch:
 

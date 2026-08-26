@@ -328,8 +328,8 @@ export const ctxToBuildTreeInput = (ctx: TicketCtx): BuildTreeInput => ({
  * resolved context and handing it to the pure {@link foldBookingTree} walk — so a
  * package member, a group member and a standalone parent all fold through one
  * recursive tree walk. Returns the expanded listing set + quantity/custom-price
- * maps + selected ids + per-(child, parent) allocations (same shape the callers
- * already consume). Holidays are fetched once, and only when a parent with
+ * maps + per-(child, parent) allocations (same shape the callers already
+ * consume). Holidays are fetched once, and only when a parent with
  * children is actually in the cart (a daily child validates the resolved date
  * against its own calendar).
  */

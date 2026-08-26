@@ -94,8 +94,8 @@ export type ListingAnswerRefs = {
  * Answers are filed under the listing they belong to, written the way a
  * listing id is written. A key in any other shape can never match a listing,
  * so the answers under it would be dropped without a word after the buyer had
- * paid. Whether the key names a listing that was actually booked is a question
- * only the booking code can answer, and is noted in TODO.md.
+ * paid. A key always names a listing the order has a line for, because
+ * checkout builds these maps from the order's own lines.
  */
 const ListingKeySchema = v.pipe(
   v.string(),

@@ -167,11 +167,8 @@ const existingQuestionIdsTx = (
   );
 
 /**
- * Replace every listed attendee's answers in one atomic transaction: the
- * existing answers are deleted, then the new set inserted, and both commit or
- * roll back as one. Every save reduces to one map of attendee to their answers,
- * either chosen ids alone or an {@link AttendeeAnswerSet} that carries typed-in
- * text too. Repeated answers to a question collapse to the last.
+ * The existing answers are deleted, then the new set inserted. Both commit or
+ * roll back as one. Repeated answers to a question collapse to the last.
  *
  * The encrypted and HMAC-indexed string rows are computed before the
  * transaction opens, because that work is CPU-bound and would otherwise hold

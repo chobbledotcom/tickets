@@ -5,7 +5,7 @@
  * the CHILD role.
  *
  * One declared check list, rather than a per-writer SELECT, is what keeps the
- * two writers from drifting apart.
+ * two writers in step.
  */
 
 import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";

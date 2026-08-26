@@ -6,8 +6,8 @@
  * The pairing is recomputed from the persisted edges and the order's own
  * booking set, so neither the free nor the paid path needs parent-awareness.
  *
- * The unique index keeps the same child chosen under two parents as two rows,
- * plus a parent-less remainder row for any unit bought without a parent.
+ * The unique index keeps the same child chosen under two parents as two rows.
+ * A unit bought without a parent gets a parent-less remainder row.
  */
 
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";

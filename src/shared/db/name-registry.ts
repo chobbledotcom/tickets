@@ -2,10 +2,9 @@
  * Cross-entity display-name uniqueness and name→id resolution for listings and
  * groups.
  *
- * A listing or group name must be unique across **both** tables: a listing may
- * not share a name with another listing *or* with a group, and vice versa. This
- * is what lets the catalog import/export feature reference listings and groups
- * by name alone, because names are stable across installs and ids are not.
+ * A name must be unique across **both** tables. A listing may not share one
+ * with another listing *or* with a group. That is what lets catalog transfer
+ * reference either by name alone. Names are stable across installs, ids are not.
  *
  * Names are field-level encrypted with no blind index, so this reads the
  * cached, already-decrypted listing and group sets — the very loads the admin
