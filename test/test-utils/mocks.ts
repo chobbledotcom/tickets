@@ -38,14 +38,20 @@ export const mockRequestWithHost = (
 export const mockRequest = (path: string, options: RequestInit = {}): Request =>
   mockRequestWithHost(path, "localhost", options);
 
+/** A form-encoded request body, the one place test form values become a
+ *  urlencoded string. */
+const formBody = (data: TestFormValues): string => {
+  const params = new URLSearchParams();
+  appendTestFormValues(params, data);
+  return params.toString();
+};
+
 export const mockFormRequest = (
   path: string,
   data: TestFormValues = {},
   cookie?: string,
 ): Request => {
-  const params = new URLSearchParams();
-  appendTestFormValues(params, data);
-  const body = params.toString();
+  const body = formBody(data);
   const headers: HeadersInit = {
     "content-type": "application/x-www-form-urlencoded",
     host: "localhost",
@@ -358,7 +364,7 @@ export const testRequest = (
   if (data) {
     headers["content-type"] = "application/x-www-form-urlencoded";
     return new Request(`http://localhost${path}`, {
-      body: new URLSearchParams(data).toString(),
+      body: formBody(data),
       headers,
       method: method ?? "POST",
     });
@@ -370,16 +376,26 @@ export const testRequest = (
   });
 };
 
-export const awaitTestRequest = async (
+/** Send `request` to the app. The route graph is a dynamic import, so a helper
+ *  module that only builds requests never pulls it in. */
+export const sendToApp = async (request: Request): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  return handleRequest(request);
+};
+
+export const awaitTestRequest = (
   path: string,
   tokenOrOptions?: string | TestRequestOptions | null,
-): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  if (typeof tokenOrOptions === "object" && tokenOrOptions !== null) {
-    return handleRequest(testRequest(path, null, tokenOrOptions));
-  }
-  return handleRequest(testRequest(path, tokenOrOptions));
-};
+): Promise<Response> =>
+  sendToApp(
+    typeof tokenOrOptions === "object" && tokenOrOptions !== null
+      ? testRequest(path, null, tokenOrOptions)
+      : testRequest(path, tokenOrOptions),
+  );
+
+/** GET `path` from the app and return its rendered HTML. */
+export const testPageHtml = async (path: string): Promise<string> =>
+  (await awaitTestRequest(path)).text();
 
 export const errorResponse =
   (status: number) =>

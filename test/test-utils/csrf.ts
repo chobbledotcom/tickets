@@ -87,10 +87,8 @@ export const getTicketCsrfToken = (html: string | null): string | null =>
 export const getPageWithCsrf = async (
   path: string,
 ): Promise<{ csrfToken: string; html: string }> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
-  const response = await handleRequest(mockRequest(path));
-  const html = await response.text();
+  const { testPageHtml } = await import("#test-utils/mocks.ts");
+  const html = await testPageHtml(path);
   const csrfToken = extractCsrfToken(html);
   if (!csrfToken) throw new Error(`Failed to get CSRF token from ${path}`);
   return { csrfToken, html };
@@ -117,32 +115,31 @@ export const submitJoinForm = async (
   inviteCode: string,
   data: { password: string; password_confirm: string },
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest, mockRequest } = await import("#test-utils/mocks.ts");
-  const requireJoinCsrfTokenImport = await import("#test-utils/csrf.ts");
-  const joinGetResponse = await handleRequest(
-    mockRequest(`/join/${inviteCode}`),
+  const { awaitTestRequest, testPageHtml } = await import(
+    "#test-utils/mocks.ts"
   );
-  const joinHtml = await joinGetResponse.text();
-  const joinCsrf = requireJoinCsrfTokenImport.requireJoinCsrfToken(joinHtml);
-  return handleRequest(
-    mockFormRequest(`/join/${inviteCode}`, { ...data, csrf_token: joinCsrf }),
-  );
+  const joinPath = `/join/${inviteCode}`;
+  const joinCsrf = requireJoinCsrfToken(await testPageHtml(joinPath));
+  return awaitTestRequest(joinPath, {
+    data: { ...data, csrf_token: joinCsrf },
+  });
 };
 
+/** GET the booking page for `slug`, then POST its form back carrying the token
+ *  that page rendered. Single listings, joint pages, and packages all book
+ *  this way; only a single listing's page names a quantity field to line the
+ *  fields up with. */
 export const submitTicketForm = async (
   slug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest, mockTicketFormRequest } = await import(
+  const { mockTicketFormRequest, sendToApp, testPageHtml } = await import(
     "#test-utils/mocks.ts"
   );
-  const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
-  const html = await getResponse.text();
+  const html = await testPageHtml(`/ticket/${slug}`);
   const csrfToken = await csrfTokenOrSignedFallback(html);
   const normalizedData = normalizeSingleListingFields(data, html);
-  return handleRequest(mockTicketFormRequest(slug, normalizedData, csrfToken));
+  return sendToApp(mockTicketFormRequest(slug, normalizedData, csrfToken));
 };
 
 /** POSTs a ticket form carrying no CSRF token at all and asserts the
@@ -152,9 +149,8 @@ export const expectMissingCsrfRejected = async (
   path: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  const response = await handleRequest(mockFormRequest(path, data));
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  const response = await awaitTestRequest(path, { data });
   expect(response.status).toBe(302);
   expectFlash(
     response,
@@ -168,17 +164,13 @@ export const submitMultiTicketForm = async (
   slug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const path = `/ticket/${slug}`;
   const { csrfToken } = await getPageWithCsrf(path);
-  return handleRequest(
-    mockFormRequest(
-      path,
-      { ...data, csrf_token: csrfToken },
-      `csrf_token=${csrfToken}`,
-    ),
-  );
+  return awaitTestRequest(path, {
+    cookie: `csrf_token=${csrfToken}`,
+    data: { ...data, csrf_token: csrfToken },
+  });
 };
 
 /** Submits the joint ticket form as "John Doe", booking `quantity1` of

@@ -22,51 +22,53 @@ import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 
-/** A listing (100 spots by default) plus one attendee booked onto it ("John
- *  Doe" by default). The single most repeated setup across the attendee admin
- *  tests — pulled here so every delete/checkin/edit/resend test shares it. */
-export const setupListingAndAttendee = async (
-  opts: {
-    listing?: Parameters<typeof createTestListing>[0];
-    name?: string;
-    email?: string;
-  } = {},
-): Promise<{ listing: Listing; attendee: Attendee }> => {
-  const listing = await createTestListing({
-    maxAttendees: 100,
-    ...opts.listing,
-  });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    opts.name ?? "John Doe",
-    opts.email ?? "john@example.com",
-  );
-  return { attendee, listing };
+type ListingAndPersonOpts = {
+  listing?: Parameters<typeof createTestListing>[0];
+  name?: string;
+  email?: string;
 };
+
+/** A listing (100 spots by default) plus "John Doe" booked onto it by
+ *  `book`. The single most repeated setup across the attendee admin tests —
+ *  pulled here so every delete/checkin/edit/resend test shares it. */
+const setupListingAndPerson =
+  <Booked>(
+    book: (listing: Listing, name: string, email: string) => Promise<Booked>,
+  ) =>
+  async (
+    opts: ListingAndPersonOpts = {},
+  ): Promise<Booked & { listing: Listing }> => {
+    const listing = await createTestListing({
+      maxAttendees: 100,
+      ...opts.listing,
+    });
+    const booked = await book(
+      listing,
+      opts.name ?? "John Doe",
+      opts.email ?? "john@example.com",
+    );
+    return { ...booked, listing };
+  };
+
+/** A listing plus one attendee booked onto it through the public route. */
+export const setupListingAndAttendee: (
+  opts?: ListingAndPersonOpts,
+) => Promise<{ attendee: Attendee; listing: Listing }> = setupListingAndPerson(
+  async (listing, name, email) => ({
+    attendee: await createTestAttendee(listing.id, listing.slug, name, email),
+  }),
+);
 
 /** Like `setupListingAndAttendee` but creates the attendee directly via
  *  the DB (`createTestAttendeeDirect`), returning its ticket token too. The
  *  merge-panel tests need the token (the public-route `createTestAttendee`
  *  leaves `ticket_token` unset), so they use this direct variant. */
-export const setupListingAndDirectAttendee = async (
-  opts: {
-    listing?: Parameters<typeof createTestListing>[0];
-    name?: string;
-    email?: string;
-  } = {},
-): Promise<{ listing: Listing; attendee: Attendee; token: string }> => {
-  const listing = await createTestListing({
-    maxAttendees: 100,
-    ...opts.listing,
-  });
-  const { attendee, token } = await createTestAttendeeDirect(
-    listing.id,
-    opts.name ?? "John Doe",
-    opts.email ?? "john@example.com",
+export const setupListingAndDirectAttendee: (
+  opts?: ListingAndPersonOpts,
+) => Promise<{ attendee: Attendee; listing: Listing; token: string }> =
+  setupListingAndPerson((listing, name, email) =>
+    createTestAttendeeDirect(listing.id, name, email),
   );
-  return { attendee, listing, token };
-};
 
 /** The first attendee from a `createTestAttendeeAtomic`-style result,
  *  throwing (loudly, like the tests it replaces) when booking failed. */

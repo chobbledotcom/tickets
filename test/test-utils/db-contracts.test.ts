@@ -115,7 +115,7 @@ describe("test-utils — db-backed & settings contracts", () => {
       resetDb();
       await createTestDb();
       await expect(getTestPrivateKey()).rejects.toThrow(
-        "Test setup failed: no wrapped data key",
+        "Test owner has no wrapped data key",
       );
 
       resetDb();
@@ -160,10 +160,10 @@ describe("test-utils — db-backed & settings contracts", () => {
       await createTestDb();
 
       await expect(createTestManagerSession()).rejects.toThrow(
-        "Admin user has no wrapped data key",
+        "Test owner has no wrapped data key",
       );
       await expect(createTestAgentSession()).rejects.toThrow(
-        "Admin user not set up",
+        "Test owner has no wrapped data key",
       );
     });
 

@@ -3,25 +3,17 @@
 import type { Group, ListingWithCount } from "#types";
 
 /**
- * Drive the public checkout submit for a package group: GET the package page
- * (seeding the CSRF token the POST needs), then POST the booking form fields.
- * Callers pass `package_quantity_<groupId>` plus any date/day-count/contact
- * fields.
+ * Drive the public checkout submit for a package group. Callers pass
+ * `package_quantity_<groupId>` plus any date/day-count/contact fields; a
+ * package page names no quantity field, so the shared submitter passes them
+ * through unchanged.
  */
 export const submitPackageBooking = async (
   slug: string,
   fields: Record<string, string>,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest, mockTicketFormRequest } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const { extractCsrfToken } = await import("#test-utils/csrf.ts");
-  const pageHtml = await (
-    await handleRequest(mockRequest(`/ticket/${slug}`))
-  ).text();
-  const csrf = extractCsrfToken(pageHtml)!;
-  return handleRequest(mockTicketFormRequest(slug, fields, csrf));
+  const { submitTicketForm } = await import("#test-utils/csrf.ts");
+  return submitTicketForm(slug, fields);
 };
 
 /** The package-building pieces both factories below load lazily, so importing
