@@ -60,6 +60,14 @@ const queuedLog = async (attendeeId: number) =>
     e.message.includes("SMS queued"),
   );
 
+/** Nothing left the site for this person: nothing waiting in the queue, and
+ * nothing in their log saying a text went. Either one alone would miss a
+ * half-done send — a queued row with no log line, or a log line with no row. */
+const expectNothingSent = async (attendeeId: number): Promise<void> => {
+  expect(await countSmsMessages()).toBe(0);
+  expect(await queuedLog(attendeeId)).toBe(false);
+};
+
 describeWithEnv("admin sms", { db: true }, () => {
   it("GET returns 404 for an unknown attendee", async () => {
     const response = await adminGet("/admin/sms?listing=1&attendee=999");
@@ -102,7 +110,7 @@ describeWithEnv("admin sms", { db: true }, () => {
       message: "   ",
     });
     expect(response.status).toBe(302);
-    expect(await queuedLog(attendee.id)).toBe(false);
+    await expectNothingSent(attendee.id);
   });
 
   it("POST on a gateway error logs the failure and records no row", async () => {
@@ -116,10 +124,7 @@ describeWithEnv("admin sms", { db: true }, () => {
     expect(log.some((e) => e.message.includes("could not be queued"))).toBe(
       true,
     );
-    expect(await queuedLog(attendee.id)).toBe(false);
-    // Nothing in the queue either. A row left behind would be a text the
-    // organiser was told had failed, waiting to go out anyway.
-    expect(await countSmsMessages()).toBe(0);
+    await expectNothingSent(attendee.id);
   });
 
   it("POST records the gateway id against the attendee", async () => {
@@ -171,14 +176,14 @@ describeWithEnv("admin sms", { db: true }, () => {
     // no browser could have made. The story owns what that page shows.
     const { attendee, form } = await setup();
     await adminFormPost("/admin/sms", { ...form, message: "Hi" });
-    expect(await queuedLog(attendee.id)).toBe(false);
+    await expectNothingSent(attendee.id);
   });
 
   it("POST refuses when the attendee has no phone number", async () => {
     await configureGateway();
     const { attendee, form } = await setup("");
     await adminFormPost("/admin/sms", { ...form, message: "Hi" });
-    expect(await queuedLog(attendee.id)).toBe(false);
+    await expectNothingSent(attendee.id);
   });
 
   it("POST 404s for an unknown attendee", async () => {
