@@ -243,6 +243,9 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this chang
 # truthy, so null is the only value for which either operator takes "skip".
 src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
 
+# Square's rejected-field reader yields one of two literal words, or nothing.
+src/shared/square/transport.ts::readInvalidField~1u7zvmn  ?? → ||   # find yields RejectedBuyerField | undefined; "email" and "phone" are both truthy, so both operators pick the same field or null
+
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished

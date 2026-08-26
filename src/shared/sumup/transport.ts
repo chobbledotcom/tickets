@@ -14,9 +14,6 @@ const sumupCaller = providerCaller(() => providerDetail.sumup());
 
 const SUMUP_API_BASE = "https://api.sumup.com";
 
-/** SumUp transport currently makes one physical fetch per logical call. */
-export const SUMUP_MAX_NETWORK_RETRIES = 0;
-
 /** The body SumUp needs to open one hosted checkout. */
 export type SumupCheckoutRequest = {
   amount: number;

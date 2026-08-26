@@ -2935,13 +2935,15 @@ module reads as a production use. `isInverseOf` beside it has a live caller in
 
 ---
 
-## Six payment modules have no test at their mirror path
+## Five payment modules have no test at their mirror path
 
 _Origin: the provider boundary work. The original entry named six modules, and
 four of them (`sumup/transport.ts`, `sumup/wire.ts`,
 `payment/checkout-failure.ts`, and Square's `transport.ts`) reached their mirror
 with the answer-reading work. A sweep of `payment/`, `square/`, `stripe/` and
-`sumup/` during the Stripe transport move found five more._
+`sumup/` during the Stripe transport move found five more.
+`payment/refund-network.ts` was one of those five, and it gained its suite with
+the one-attempt rule, so four remain beside `sumup/money.ts`._
 
 `deno task precommit:mutation` selects a source's direct tests by the mirror
 path alone (`scripts/mutation/test-map.ts`). The gate refuses to run for a
@@ -2956,7 +2958,6 @@ which is why `payment/conflict.ts` and `square/api.ts` stay off this list.
 | `src/shared/payment/provider-read.ts`     |       4 | `test/shared/payment/provider-read.test.ts`     |
 | `src/shared/payment/refund-generation.ts` |       3 | `test/shared/payment/refund-generation.test.ts` |
 | `src/shared/payment/provider-timeout.ts`  |       1 | `test/shared/payment/provider-timeout.test.ts`  |
-| `src/shared/payment/refund-network.ts`    |       1 | `test/shared/payment/refund-network.test.ts`    |
 
 The counts come from the gate's own mutant generator in its default mode. A
 directory at the same path works too, so `test/shared/sumup/money/` is as good
@@ -2967,29 +2968,3 @@ No test imports `#shared/sumup/money.ts` at all today. Its exports
 `src/shared/sumup-provider.ts`, so this is a missing direct suite rather than a
 file to move. Write each missing suite, then run `deno task mutation` on the
 module and close its survivors.
-
----
-
-## A refund send makes one attempt, said three ways
-
-_Origin: the Stripe transport move, which put every provider on one HTTP
-boundary and left this table behind._
-
-`REFUND_NETWORK_RETRIES` in `src/shared/payment/refund-network.ts` says how many
-transport retries one refund command allows per provider. Its own comment states
-the rule: durable claims, stable keys, and a fresh provider read own recovery,
-so every provider makes one attempt. The table does not state it. Square and
-SumUp read `SQUARE_MAX_NETWORK_RETRIES` and `SUMUP_MAX_NETWORK_RETRIES`, two
-constants whose only caller is this table, and Stripe writes a literal `0`
-because its transport allows two retries that a refund waives.
-
-The two imported constants make those rows look derived. They are not: a
-transport that gained a retry would let a refund spend it, against the rule
-above. State the rule once for all three providers, and delete the two
-constants, which then have no caller at all.
-
-Two things to know first. `refund-network.ts` has one mutant and no test at its
-mirror path, so `deno task precommit:mutation` refuses to run for a branch that
-changes it — see the mirror-path entry above.
-`src/features/admin/refunds/budget.ts` reads the table per provider to price the
-refund subrequest budget, so keep the record shape and the per-provider read.
