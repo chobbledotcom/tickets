@@ -346,9 +346,9 @@ const leavesAGroup = async (
 
 /**
  * Three transitions take away a page that can rescue a child-scoped add-on: a
- * deactivation, clearing "can be booked by itself" on a child, and leaving a
- * group. The last is the subtle one, because an edge-less page has no touching
- * edge, so the edge walk never sees the move.
+ * deactivation, an unset of "can be booked by itself" on a child, and a group
+ * removal. The last is the subtle one, because an edge-less page has no
+ * touching edge, so the edge walk never sees the move.
  *
  * Each re-runs the guard over the save's PENDING state. The stored row still
  * reads `bookable_alone = 1` until the save commits, so a flagged child with
