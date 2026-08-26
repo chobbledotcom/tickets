@@ -1,14 +1,29 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { renderGuideSections } from "#templates/admin/guide/components.tsx";
+import {
+  type GuideHostConfig,
+  renderGuideSections,
+} from "#templates/admin/guide/components.tsx";
 import { domainsSections } from "#templates/admin/guide/domains.tsx";
 
-const sectionIds = (hostConfig?: Parameters<typeof domainsSections>[0]) =>
+/** A host that has nothing switched on, so each test names only the one
+ * setting it is about. */
+const host = (overrides: Partial<GuideHostConfig> = {}): GuideHostConfig => ({
+  builderEnabled: false,
+  bunnyDnsSubdomainSuffix: null,
+  hostAppleWalletPassTypeId: null,
+  hostEmailFromAddress: null,
+  hostEmailProvider: null,
+  hostGoogleWalletIssuerId: null,
+  ...overrides,
+});
+
+const sectionIds = (hostConfig?: GuideHostConfig) =>
   domainsSections(hostConfig).map(({ id }) => id);
 
 const entryIds = (
   sectionId: string,
-  hostConfig?: Parameters<typeof domainsSections>[0],
+  hostConfig?: GuideHostConfig,
 ): string[] => {
   const section = domainsSections(hostConfig).find(
     ({ id }) => id === sectionId,
@@ -21,7 +36,7 @@ const entryIds = (
 
 describe("domains guide schema", () => {
   test("keeps every domains section in its intended order", () => {
-    expect(sectionIds({ builderEnabled: true })).toEqual([
+    expect(sectionIds(host({ builderEnabled: true }))).toEqual([
       "host-subdomain",
       "custom-domain",
       "settings",
@@ -31,11 +46,13 @@ describe("domains guide schema", () => {
 
   test("drops the built-sites section on a host that cannot build", () => {
     expect(sectionIds()).not.toContain("built-sites");
-    expect(sectionIds({ builderEnabled: false })).not.toContain("built-sites");
+    expect(sectionIds(host({ builderEnabled: false }))).not.toContain(
+      "built-sites",
+    );
   });
 
   test("answers the built-site questions in order, renewal tier last", () => {
-    expect(entryIds("built-sites", { builderEnabled: true })).toEqual([
+    expect(entryIds("built-sites", host({ builderEnabled: true }))).toEqual([
       "what_are_built_sites",
       "how_do_i_create_a_new_tickets",
       "what_do_i_need_before_building_a",
@@ -46,7 +63,7 @@ describe("domains guide schema", () => {
 
   test("shows the host's own subdomain suffix, or a placeholder without one", () => {
     const withSuffix = renderGuideSections(
-      domainsSections({ bunnyDnsSubdomainSuffix: ".tickets.example" }),
+      domainsSections(host({ bunnyDnsSubdomainSuffix: ".tickets.example" })),
     );
     expect(String(withSuffix)).toContain("my-business.tickets.example");
     expect(String(withSuffix)).not.toContain(".example.com");
