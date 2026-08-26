@@ -8,16 +8,12 @@ export const createTestInvite = async (
   adminLevel = "manager",
 ): Promise<{ inviteCode: string; cookie: string; csrfToken: string }> => {
   const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const { cookie, csrfToken } = await getTestSession();
-  const inviteResponse = await handleRequest(
-    mockFormRequest(
-      "/admin/users",
-      { admin_level: adminLevel, csrf_token: csrfToken, username },
-      cookie,
-    ),
-  );
+  const inviteResponse = await awaitTestRequest("/admin/users", {
+    cookie,
+    data: { admin_level: adminLevel, csrf_token: csrfToken, username },
+  });
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";
@@ -31,13 +27,12 @@ export const createTestInvite = async (
 };
 
 export const getEmbeddableTicketResponse = async (): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const listing = await createTestListing({
     maxAttendees: 50,
     thankYouUrl: "https://example.com",
   });
-  return handleRequest(mockRequest(`/ticket/${listing.slug}`));
+  return awaitTestRequest(`/ticket/${listing.slug}`);
 };
 
 /** Assert that the admin password can be verified against the stored hash,

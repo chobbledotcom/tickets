@@ -28,9 +28,9 @@ import {
   ensureDefaultAttendeeStatus,
 } from "#db/attendee-statuses.ts";
 import { getDb, insert, setDb } from "#db/client.ts";
-import { SCHEMA } from "#db/migrations/schema/index.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
+import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
 import { LATEST_UPDATE, SCHEMA_HASH } from "#db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { lazyRef, once } from "#fp";
@@ -112,22 +112,6 @@ export const invalidateTestDbCache = (): void => {
   setSnapshotDisabled(true);
 };
 
-type SchemaEntry = (typeof SCHEMA)[number];
-type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
-
-const createTableSql = ([name, table]: SchemaEntry): string =>
-  `CREATE TABLE IF NOT EXISTS ${name} (${table.columns
-    .map(([col, type]) => `${col} ${type}`)
-    .join(", ")})`;
-
-const createIndexSql = (tableName: string, idx: SchemaIndex): string => {
-  const unique = idx.unique ? "UNIQUE " : "";
-  const where = idx.where === undefined ? "" : ` WHERE ${idx.where}`;
-  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-    ", ",
-  )})${where}`;
-};
-
 const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
 // Lazy (and cached): the migration modules are only needed to stamp a fresh
@@ -135,10 +119,7 @@ const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 const buildTestSchemaSql = once(async (): Promise<string> => {
   const migrations = await loadMigrations();
   return `${[
-    ...SCHEMA.map(createTableSql),
-    ...SCHEMA.flatMap(([name, table]) =>
-      (table.indexes ?? []).map((idx) => createIndexSql(name, idx)),
-    ),
+    ...fullSchemaCreateStatements(),
     ...TRIGGERS.map((trigger) => trigger.sql),
     `INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlString(
       LATEST_UPDATE,

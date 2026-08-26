@@ -10,9 +10,9 @@ async function doAuthenticatedRequest<T>(
   errorContext: string,
 ): Promise<T> {
   const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
+  const { sendToApp } = await import("#test-utils/mocks.ts");
   const session = await getTestSession();
-  const response = await handleRequest(
+  const response = await sendToApp(
     buildRequest(
       path,
       { ...formData, csrf_token: session.csrfToken },
