@@ -17,7 +17,7 @@ export const nodeAt = (
 ): ts.Node | undefined => {
   const descend = (node: ts.Node): ts.Node | undefined => {
     if (node.getStart() > position || position >= node.getEnd()) {
-      return undefined;
+      return;
     }
     return ts.forEachChild(node, descend) ?? node;
   };

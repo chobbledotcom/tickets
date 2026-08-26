@@ -7,12 +7,12 @@ export type Verdict = "read" | "never read" | "read only by tests";
 
 /** One exported field the scan looked at. */
 export interface Finding {
-  /** The interface the field belongs to. */
-  owner: string;
   /** The field itself. */
   field: string;
   /** The file that declares it, relative to the repository. */
   file: string;
+  /** The interface the field belongs to. */
+  owner: string;
   verdict: Verdict;
 }
 
@@ -35,7 +35,7 @@ export const worthReporting = (findings: Finding[]): Finding[] =>
     .sort((a, b) =>
       a.file === b.file
         ? `${a.owner}.${a.field}`.localeCompare(`${b.owner}.${b.field}`)
-        : a.file.localeCompare(b.file)
+        : a.file.localeCompare(b.file),
     );
 
 const countOf = (findings: Finding[], verdict: Verdict): number =>
@@ -50,8 +50,8 @@ export const reportLines = (findings: Finding[]): string[] => {
   }
   const lines = [
     `${worth.length} of ${findings.length} exported fields are never read` +
-    ` in production: ${countOf(worth, "never read")} read by nothing,` +
-    ` ${countOf(worth, "read only by tests")} read only by tests.`,
+      ` in production: ${countOf(worth, "never read")} read by nothing,` +
+      ` ${countOf(worth, "read only by tests")} read only by tests.`,
     "",
   ];
   for (const finding of worth) {

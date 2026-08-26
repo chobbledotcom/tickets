@@ -10,8 +10,7 @@
 import ts from "typescript";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
-import type { Finding } from "./findings.ts";
-import { verdictFor } from "./findings.ts";
+import { type Finding, verdictFor } from "./findings.ts";
 import { isWrite, nodeAt } from "./writes.ts";
 
 /** Folders whose code ships. `test/` is scanned too, so the scan can tell a
@@ -52,7 +51,7 @@ const serviceHost = (
         texts.set(file, Deno.readTextFileSync(file));
       } catch {
         // A path the compiler probes but the repository does not have.
-        return undefined;
+        return;
       }
     }
     return texts.get(file);
@@ -92,8 +91,8 @@ const exportedFields = (
   const visit = (node: ts.Node): void => {
     const exported = ts.canHaveModifiers(node)
       ? ts
-        .getModifiers(node)
-        ?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+          .getModifiers(node)
+          ?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
       : false;
     if (ts.isInterfaceDeclaration(node) && exported) {
       for (const member of node.members) {
