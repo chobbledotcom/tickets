@@ -1,20 +1,10 @@
 /**
- * SMS Gate end-to-end encryption (client side).
+ * Encrypts the message text and the phone number before they reach the
+ * third-party relay, so the relay and Google FCM only ever see ciphertext.
  *
- * Reproduces the SMS Gateway for Android™ E2E scheme so message text and
- * recipient phone numbers can be encrypted *before* they are handed to the
- * third-party cloud relay (api.sms-gate.app). The relay — and Google FCM —
- * only ever see ciphertext; only the phone, which holds the shared passphrase,
- * can decrypt and send.
- *
- * Scheme (per https://docs.sms-gate.app/privacy/encryption/):
- *   - cipher: AES-256-CBC with PKCS#7 padding (applied by WebCrypto)
- *   - key:    PBKDF2-HMAC-SHA1, 256-bit, configurable iterations (default 75k)
- *   - salt:   16 random bytes per message, which ALSO serve as the AES-CBC IV
- *   - format: $aes-256-cbc/pbkdf2-sha1$i=<iterations>$<base64 salt>$<base64 ct>
- *
- * The encoded string embeds everything needed to decrypt except the passphrase,
- * so it is safe to persist (it is opaque without the passphrase).
+ * Every choice below is fixed by the phone app
+ * (https://docs.sms-gate.app/privacy/encryption/), PBKDF2-SHA1 and the salt
+ * doubling as the AES-CBC IV included. A stronger one here does not decrypt.
  */
 
 import { fromBase64, getRandomBytes, toBase64 } from "#crypto/utils.ts";

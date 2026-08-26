@@ -307,16 +307,12 @@ const READ_SQL_RE = /^\s*select\b/i;
 const isReadSql = (sql: string): boolean => READ_SQL_RE.test(writeSqlOf(sql));
 
 /**
- * Retry `run` through a transient failure, backing off between attempts. This is
- * the one place these two rules are spelled out:
- *   - a contended write lock (SQLITE_BUSY) always retries, the lock never having
- *     been taken, so nothing ran. One that outlasts the retries becomes
- *     {@link DatabaseBusyError}, the request layer's friendly busy page.
- *   - a fleeting upstream 421/502/503/504 retries on reads only. On a write the
- *     same response may arrive after the write landed, so a replay would
- *     double-apply — writes, and the transactions holding them, never retry
- *     upstream. One that outlasts the retries rethrows itself, so a real outage
- *     reaches the log as what it is.
+ * The one place two retry rules are spelled out:
+ *
+ * - SQLITE_BUSY always retries. The lock was never taken, so nothing ran.
+ * - A fleeting upstream 421/502/503/504 retries on READS ONLY. On a write the
+ *   same response can arrive after the write landed, so a replay would
+ *   double-apply.
  *
  * Every other error propagates at once.
  */
@@ -704,18 +700,14 @@ const TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE = {
 };
 
 /**
- * Run `work` inside one interactive write transaction, committing on success
- * and rolling back (then rethrowing) on any error. Use this rather than a plain
- * batch when a multi-step write needs logic between steps — create → check
- * capacity → finalize, where a zero-row guard must abort and undo everything.
+ * Use this rather than a plain batch only when a multi-step write needs logic
+ * between steps, such as create → check capacity → finalize, where a zero-row
+ * guard must abort and undo everything.
  *
- * Concurrent calls serialise: each waits for the previous transaction to settle,
- * so two never overlap on the shared connection. A contended lock is retried with
- * backoff, each retry re-running `work` on a fresh transaction.
+ * Concurrent calls serialise on the shared connection. A retry re-runs `work`
+ * on a fresh transaction, so `work` must be safe to run twice.
  *
- * Statements run through the provided `execute` are tracked, and their
- * table-scoped cache invalidations fire once the commit succeeds, so callers get
- * the same automatic invalidation as a single-statement `execute`.
+ * Cache invalidations fire once the commit succeeds.
  */
 export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   // The async body runs synchronously up to its first await — reading the prior
@@ -828,17 +820,13 @@ export const orIgnore = (statement: SqlStatement): SqlStatement => ({
 });
 
 /**
- * Build an INSERT statement from a table name and column→value record. A
- * {@link rawSql} value goes into the SQL as written rather than becoming a bound
- * placeholder, which is how a column takes an expression:
+ * Build an INSERT statement from a table name and column-to-value record. A
+ * {@link rawSql} value goes into the SQL as written rather than as a bound
+ * placeholder, which is how a column takes an expression such as
+ * `last_insert_rowid()`.
  *
- * ```ts
- * insert("listing_attendees", { attendee_id: rawSql("last_insert_rowid()") })
- * // → VALUES (last_insert_rowid())   with no arg bound
- * ```
- *
- * Pass `returningColumns` when the caller needs something back from the written
- * row — a generated key, say, read with {@link insertedRowId}.
+ * Pass `returningColumns` when the caller needs a value back from the written
+ * row, such as a generated key read with {@link insertedRowId}.
  */
 export const insert = (
   table: string,

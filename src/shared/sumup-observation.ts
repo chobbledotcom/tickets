@@ -1,20 +1,11 @@
 /**
- * Turns one fetched SumUp checkout into a typed provider read.
+ * Turns one fetched SumUp checkout into a typed provider read. Pure: the caller
+ * fetches, and passes the facts to check the body against.
  *
- * This module is pure: the caller fetches and passes the raw body plus the
- * independent facts it holds (the id it asked for, the merchant this site is
- * bound to, the site currency for reading amounts). Everything here follows
- * the sandbox evidence recorded in PR3_PLAN.md: pending checkouts carry an
- * empty transactions array, paid checkouts name their transaction and carry
- * exactly one matching successful entry, failed checkouts carry only failed
- * entries.
- *
- * Ownership and money are deliberately separate refusals. A checkout whose
- * id, merchant, or named charge disagrees with our facts is refused as an
- * invalid read — nothing downstream may touch it. A checkout that proves
- * ownership but carries unreadable money is still a found read: the session
- * boundary refuses the money itself, and that refusal is what carries a
- * captured charge to the refund path instead of stranding it.
+ * The shapes follow sandbox evidence in PR3_PLAN.md. A pending checkout carries
+ * an empty transactions array. A paid one names its transaction and carries
+ * exactly one matching successful entry. A failed one carries failed entries
+ * only.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -259,7 +250,12 @@ const CHECKOUT_RUNGS = (
   (read) => read.children.failure,
 ];
 
-/** Check one fetched checkout body against the facts we hold independently. */
+/**
+ * Check one fetched checkout body against the facts we hold independently. A
+ * disagreement about id, merchant, or named charge is refused here. Unreadable
+ * money is not: the session boundary refuses that, so a captured charge still
+ * reaches the refund path instead of being stranded.
+ */
 export const classifySumupCheckout = (
   body: unknown,
   facts: SumupReadFacts,

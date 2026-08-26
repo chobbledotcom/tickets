@@ -1,11 +1,8 @@
 /**
- * Dev/test-only safety net for the keyed settings pre-load (settings-plan.md §2c).
- *
- * A route that reads a setting it never declared in its prefix bundle gets a
- * default/stale value silently — the failure mode the on-demand system trades
- * for. This module proves bundles are honest: every settings read during a
- * request is recorded, every key passed to `loadKeys` (or written) is recorded
- * as "loaded", and at the end of the request we assert reads ⊆ loaded.
+ * Dev and test only. A route reading a setting it never declared in its prefix
+ * bundle gets a default or stale value SILENTLY, which is the failure mode the
+ * on-demand system trades for. This proves the bundles are honest by asserting
+ * reads ⊆ loaded at the end of each request.
  *
  * It is a strict no-op in production: `runWithSettingsAudit` only enters the
  * AsyncLocalStorage scope when explicitly enabled (the test harness turns it

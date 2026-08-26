@@ -1,17 +1,11 @@
 /**
- * Column-width schema (TS side).
+ * Column-width schema, TS side. The widths and alignment live once in the
+ * `$column-kinds` map in `src/ui/static/style.scss`, which generates a
+ * `.col-<kind>` class per kind. {@link ColumnKind} mirrors those names, so it
+ * must be kept in step with the SCSS map.
  *
- * The widths and alignment for recurring kinds of table column are codified
- * once in `src/ui/static/style.scss` (the `$column-kinds` map, which generates
- * a `.col-<kind>` class per kind). This module mirrors the kind names so
- * templates reference them type-safely instead of hand-writing class strings —
- * keep {@link ColumnKind} in step with the SCSS map.
- *
- * Every kind is a narrow, shrink-to-content column (`width: 1%` + nowrap), so
- * these columns can never be stretched wide; the kind only varies the
- * alignment. Reach for one of these on a <th>/<td> whenever a table has an
- * up/down reorder-arrows column, a money figure, an integer quantity, or a
- * trailing edit/delete action link.
+ * Every kind is a narrow shrink-to-content column, so a kind only varies the
+ * alignment and can never stretch a column wide.
  */
 
 /** A recurring kind of table column with a codified width + alignment. */

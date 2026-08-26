@@ -1,21 +1,14 @@
 /**
- * Atomic attendee update — apply a desired set of listing-registration lines
- * to an existing attendee, all-or-nothing.
+ * Capacity is enforced twice. The read-only preflight keeps the common failure
+ * cheap. `CAPACITY_GUARD` on every capacity-checked statement then catches a
+ * concurrent booking that took the capacity in between.
  *
- * It diffs the attendee's current `listing_attendees` rows against the desired
- * state, then writes the PII update, the removed lines, the changed lines and
- * the new lines as one ACID batch.
+ * The guard is needed because a zero-row capacity statement is not itself an
+ * error. A plain batch is needed because the edge runtime has no reliable
+ * interactive transactions.
  *
- * Capacity is enforced twice. A read-only preflight rejects an over-capacity
- * edit before any write, keeping the common failure cheap. Every
- * capacity-checked statement in the batch then carries `CAPACITY_GUARD`, so a
- * concurrent booking that takes the capacity in between trips a constraint
- * violation and rolls the whole batch back — the unconditional PII update and
- * the deletes can never commit while a line silently fails. A zero-row capacity
- * statement is not itself an error, which is exactly why the guard is needed,
- * and a plain batch is required because the edge runtime does not support
- * interactive transactions reliably. A guard clause rejects "remove every line"
- * up front, so the deletes can never leave the attendee an orphan row.
+ * "Remove every line" is rejected up front, so the deletes can never leave the
+ * attendee an orphan row.
  */
 
 import type { InValue } from "@libsql/client";

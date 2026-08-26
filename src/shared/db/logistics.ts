@@ -1,15 +1,9 @@
 /**
- * Logistics assignment reads/writes.
+ * Agents are stored per booking line, and the per-attendee
+ * `split_logistics_agents` flag records whether the operator entered one pair
+ * for the whole order or a distinct pair per delivered listing.
  *
- * Drop-off and collection agents are stored per booking line on
- * `listing_attendees`; the per-attendee `split_logistics_agents` flag records
- * whether the operator entered one pair for the whole order (the common case)
- * or a distinct pair per delivered listing. These helpers keep the SQL for
- * that in one place, separate from the core attendee create/edit machinery.
- *
- * Run-sheet reads (which legs an agent owns on a given day, marking a leg
- * done, the row-identity filter the agent check-in uses) live next door in
- * `logistics-run-sheet.ts`.
+ * Run-sheet reads live next door in `logistics-run-sheet.ts`.
  */
 
 import { executeBatch, inPlaceholders, queryAll, update } from "#db/client.ts";

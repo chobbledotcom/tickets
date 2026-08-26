@@ -1,21 +1,12 @@
 /**
- * `ledgerTx` — the one discoverable menu of in-transaction ledger operations.
+ * The one discoverable menu of in-transaction ledger operations, so
+ * autocompleting `ledgerTx.` lists the whole surface. Wrap a call in
+ * `withTransaction`, or use {@link inOwnTx}, for a standalone operation.
  *
- * Rather than scatter `…Tx` functions across modules, every way to read, write,
- * or correct the `transfers` ledger inside an already-open write transaction (a
- * `TxScope`) is named here, so autocompleting `ledgerTx.` lists the whole surface
- * in one place. Wrap a call in `withTransaction` — or use {@link inOwnTx} — for a
- * standalone operation. (The pure leg builders `mapBooking`/`mapRefund`, and the
- * own-transaction `postTransfers`, live in their own modules — this is the
- * in-transaction facade. The leaf `…Tx` functions stay where they are implemented
- * and are reached through this facade; the lower-level primitives compose each
- * other directly to avoid an import cycle.)
+ * The leaf `…Tx` functions stay where they are implemented, so the lower-level
+ * primitives can compose each other without an import cycle.
  *
- * The reads are the in-transaction projections the read-then-write corrections
- * use: a correction reads the current figure under the write lock, computes its
- * delta against the submitted target, and posts — so re-submitting the same
- * target is a no-op. `correct.X` pairs with `read.X`: the read is the figure the
- * correction steers.
+ * `correct.X` pairs with `read.X`: the read is the figure the correction steers.
  */
 
 import {
@@ -34,19 +25,16 @@ import { type TxScope, withTransaction } from "#db/client.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 
 /**
- * Build an in-transaction correction for one operator-set figure: read the
- * current projection under the write lock, then post the single `writeoff`
- * adjustment (decision 14) that moves it onto `target`. Reading and posting
- * through the same `tx` makes re-submitting the same target a no-op — the second
- * read sees the first's leg and computes a zero delta — and serialises concurrent
- * submits on the write lock instead of both appending the delta and overshooting.
+ * Reading and posting through the same `tx` makes re-submitting the same target
+ * a no-op, and serialises concurrent submits on the write lock instead of both
+ * appending the delta and overshooting.
  *
- * `toCredit` turns (current, target) into the credit the account needs: a figure
- * that IS the account balance (a listing's income, a modifier's revenue) moves
- * with `target − current`; what an attendee owes is the balance's NEGATION, so it
- * moves with `current − target` (crediting the attendee lowers what's owed). The
- * adjustment sources/sinks at `writeoff`, never external cash, so cash reports
- * (`world→*`) stay honest.
+ * `toCredit` exists because the two figure kinds move in opposite directions. A
+ * figure that IS the account balance moves with `target − current`. What an
+ * attendee owes is that balance NEGATED, so it moves with `current − target`.
+ *
+ * The adjustment sources and sinks at `writeoff`, never external cash, so cash
+ * reports stay honest.
  */
 const corrector =
   (

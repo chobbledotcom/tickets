@@ -8,16 +8,11 @@ import type { Attendee, ListingWithCount } from "#types";
 
 /**
  * A paid session that carries a cryptographically valid price proof, so it is
- * provably ours. The two outcomes a valid proof can have:
- *  - `trusted`: the provider charged exactly the signed total — process it,
- *    using `agreed` as the price oracle.
- *  - `mismatch`: the provider charged a different amount than we signed —
- *    refund it. (Defensive: we create the checkout with the exact total, so this
- *    only fires if the provider charged wrong.)
+ * provably ours. A session with no valid proof never reaches this type: it
+ * classifies as `ignore` and is acknowledged without processing or refunding.
  *
- * A session with no valid proof never reaches this type — it classifies as
- * `ignore` and is acknowledged without processing or refunding (see
- * classifySession). So every ValidatedSession is one we have proven is ours.
+ * `mismatch` is defensive. We create the checkout with the exact total, so it
+ * only fires if the provider charged wrong.
  */
 export type SignedVerdict =
   | { verdict: "trusted"; agreed: number }

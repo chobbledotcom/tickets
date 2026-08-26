@@ -1,23 +1,15 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-/** Disable a child whose date/day-count the current selection can't serve
- * (progressive enhancement).
+/** Progressive enhancement. A parent's date and day-count selectors are the
+ * union across its children, so a buyer can pick a date only some children
+ * support. Without JS the server fold rejects that at submit, and this tightens
+ * it earlier.
  *
- * A parent's date and day-count selectors are the union across its children, so
- * a buyer can pick a date or span only some children support. Without JS the
- * server fold rejects that at submit. With JS we tighten it: each bookable
- * child's quantity control carries the server's holiday-aware
- * `data-child-dates` and `data-child-spans`, and on a `date` or `day_count`
- * change we disable and zero any child the selection cannot serve, re-enabling
- * it when a compatible one returns.
+ * A sole auto-selected child has no quantity control to disable, so it disables
+ * its parent instead.
  *
- * A sole auto-selected child has no quantity control to disable, yet
- * "Includes …" would still show and the submit would hit `child_sold_out`. So
- * it disables its parent instead: the parent's quantity selector is zeroed and
- * the block marked `data-sole-incompatible`.
- *
- * Only JS-driven disabling is toggled: a SERVER-disabled (sold out) child carries
- * no `data-child-qty` marker, so it is never touched and stays disabled throughout. */
+ * Only JS-driven disabling is toggled. A SERVER-disabled child carries no
+ * `data-child-qty` marker, so it is never touched. */
 import {
   childQtyControls,
   fireChange,

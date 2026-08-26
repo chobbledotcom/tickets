@@ -19,17 +19,12 @@ export const clampInteger = (
 };
 
 /**
- * Plain decimal integer strings. The schemas accept digits only, so no signs,
- * fractions, exponent notation, or trailing junk. Public helpers trim before
- * validating, so callers can pass raw form/query values without repeating that
- * at every boundary.
+ * Plain decimal integer strings: digits only, so no sign, fraction, exponent,
+ * or trailing junk. The public helpers trim first.
  *
  * The app reads listing ids out of dynamic form keys like `select_<id>` and
- * `qty_<id>`, where a lenient `Number.parseInt` would otherwise accept junk
- * such as `"5abc"` as `5`. Validating the digits before coercing closes that.
- *
- * Mirrors the schema + parse-helper shape of validation/email.ts and
- * validation/date.ts as the rest of the app's validation migrates to valibot.
+ * `qty_<id>`, where a lenient `Number.parseInt` accepts `"5abc"` as `5`.
+ * Validation of the digits before the coercion closes that.
  */
 const NonNegativeIntSchema = v.pipe(
   NonEmptyTextSchema,

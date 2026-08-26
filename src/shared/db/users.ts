@@ -368,17 +368,13 @@ export const acceptInvite = async (
 };
 
 /**
- * Complete a **keyless** invite (the editor role): set the password and clear
- * the invite, leaving `wrapped_data_key` NULL. An editor holds no DATA_KEY, so
- * unlike {@link acceptInvite} there is no handoff to unwrap or re-wrap — the
- * password only authenticates; it protects no key. The user's role is fixed at
- * invite time and is not changed here.
+ * A **keyless** invite leaves `wrapped_data_key` NULL. An editor holds no
+ * DATA_KEY, so unlike {@link acceptInvite} there is no handoff to unwrap or
+ * re-wrap. The password only authenticates, and protects no key.
  *
- * Single-use: the UPDATE is guarded on `password_hash = ''` (the unactivated
- * marker — buildUserInsert stores a literal empty string until a password is
- * set, and database pruning uses the same marker). So a replay or a race only
- * affects the row on the first submit; later submits no-op and return false
- * rather than overwriting the password the first submit set.
+ * Single-use: the UPDATE is guarded on the `password_hash = ''` unactivated
+ * marker, which database pruning also uses. A replay or a race therefore no-ops
+ * and never overwrites the password the first submit set.
  */
 export const activateKeylessUser = async (
   userId: number,

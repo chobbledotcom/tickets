@@ -22,7 +22,7 @@ import {
  * it, repeat. The number in this file is the whole mechanism, so no file ever
  * needs grandfathering. `docs/comment-policy.md` holds the schedule.
  */
-export const LIMITS: CommentLimits = { maxColumns: 100, maxLines: 20 };
+export const LIMITS: CommentLimits = { maxColumns: 100, maxLines: 12 };
 
 export const SOURCE_DIR = "src";
 

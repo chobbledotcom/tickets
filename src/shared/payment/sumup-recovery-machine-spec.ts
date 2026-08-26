@@ -1,17 +1,11 @@
-/** The SumUp checkout-recovery machine as one executable table.
- *
- * SumUp does not sign its callbacks and has no subscription to redeliver
+/** SumUp does not sign its callbacks and has no subscription to redeliver
  * against, so a single lost callback is the whole of the notice we get. This
- * machine is what replaces that notice: every staged checkout is asked about
- * until SumUp gives a definitive answer, and a row that may be holding money
- * nobody has accounted for is never deleted and never left with nothing to
- * act on it.
+ * machine replaces that notice: every staged checkout is asked about until
+ * SumUp answers definitively, and a row that may hold unaccounted money is
+ * never deleted and never left with nothing to act on it.
  *
- * The table below IS the production lookup, not a description of one.
- * {@link recoveryMoveTo} reads it, the queue's write takes its landing state
- * from it, pruning reads each node's `prunable`, and the /admin/schema map
- * derives from the same nodes. A cell the table leaves out is a declared
- * refusal, and the mirror sweep proves it throws. */
+ * The table below IS the production lookup, not a description of one. A cell it
+ * leaves out is a declared refusal, and the mirror sweep proves it throws. */
 
 import * as v from "valibot";
 import {

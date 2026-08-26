@@ -7,24 +7,13 @@ import { parseOrNull } from "./parse.ts";
 /* jscpd:ignore-end */
 
 /**
- * Currency-aware money validation — the one place a major-unit amount like
- * `"90.00"` becomes safe-integer minor units.
+ * Currency-aware money validation: a major-unit `"90.00"` becomes safe-integer
+ * minor units, with the decimal places read from `settings.currency` at parse
+ * time. The pattern rebuilds inside each callback for that reason, so the
+ * schemas stay constants.
  *
- * The decimal places come from `settings.currency` at parse time: GBP rejects
- * `1.005` rather than rounding it to 101 pence, and JPY rejects `1.23` rather
- * than truncating to 1. Since that depends on the currency, the pattern is
- * rebuilt inside the callbacks on every parse, so the schemas stay constants.
- *
- * Pick the parser matching the field's bound and its treatment of a blank —
- * where a blank is `null`, never a real `0`, so the QR override and day-price
- * fields can tell "no value" from a genuine £0:
- *
- * | Parser | Bound | Blank |
- * | --- | --- | --- |
- * | `parsePositiveMinorUnits`    | `> 0`  | invalid (`null`)  |
- * | `parseNonNegativeMinorUnits` | `>= 0` | `0`               |
- * | `parseOptionalMinorUnits`    | `>= 0` | unset (`null`)    |
- * | `parseSignedMinorUnits`      | any    | invalid (`null`)  |
+ * GBP REJECTS `1.005` and never rounds it to 101 pence. JPY REJECTS `1.23` and
+ * never truncates it to 1. A blank is `null`, never a real `0`.
  */
 
 /** Decimal-string pattern for the active currency: `\d+` with up to

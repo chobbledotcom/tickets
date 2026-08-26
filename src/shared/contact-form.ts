@@ -1,18 +1,11 @@
 /**
- * Public contact form: availability rules and message delivery.
+ * The form needs the owner to enable it AND a business email to deliver to.
  *
- * The form itself only needs two things:
- *  - the owner enables it on the admin contact page
- *  - the site has a business email address to deliver messages to
+ * Botpoison is a progressive enhancement. Without both env keys the form still
+ * works, so spam protection is never a hard dependency.
  *
- * Spam protection is a progressive enhancement layered on top: when Botpoison
- * is configured (both env keys) the form gains a proof-of-work widget and
- * submissions are verified server-side. Without it the form still works, ready
- * for a different spam-protection provider to be added in future.
- *
- * Delivery shares the building blocks in #shared/inbound-message.ts; the
- * contact-specific policy (deliver to the business email, reply to the
- * submitter, with anti-spoof handling) lives here.
+ * Delivery shares `#shared/inbound-message.ts`. The contact-specific policy —
+ * deliver to the business email, reply to the submitter, anti-spoof — is here.
  */
 
 import { settings } from "#db/settings.ts";

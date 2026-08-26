@@ -382,17 +382,11 @@ const encryptAndUpload = async (
 ): Promise<string> => uploadRaw(await encryptBytes(data), filename);
 
 /**
- * Transcode an uploaded image to WebP and store one file per target.
+ * Transcode an uploaded image to WebP, one stored file per target, returned in
+ * the order of `targets`.
  *
- * The source bytes (of the validated `mime`) are decoded once, then each target
- * is downscaled to its max width and encoded to WebP at its quality; each
- * variant is encrypted and uploaded under a fresh `.webp` filename. Returns the
- * stored filenames in the same order as `targets` — so a caller wanting a
- * full-size image plus a thumbnail passes both targets and destructures the two
- * filenames back out.
- *
- * The image pipeline (~1MB of codec wasm) is dynamically imported here so it is
- * loaded only on the first upload, never at cold boot.
+ * The image pipeline is about 1MB of codec wasm, so it is imported here on the
+ * first upload and never at cold boot.
  */
 export const uploadImageTargets: ImageTargetTranscoder<string[]> = async (
   data,

@@ -1,15 +1,10 @@
 /**
- * `loadKeys` — the on-demand, version-stamped snapshot loader.
+ * Fetches only the keys not already resolved at the current settings version,
+ * and decrypts only those. A moved version discards the whole cache.
  *
- * Loads only the requested config keys, fetching just the ones not already
- * resolved at the current settings version (one `WHERE key IN (...)` query) and
- * decrypting only those. When the shared version has moved since the cache was
- * stamped, the whole cache is discarded and the requested keys are reloaded.
- *
- * `invalidateCache` is the full reset — drops the raw cache AND resets the
- * snapshot to defaults. It is registered as the settings-table invalidation
- * hook so any write through the db client (rare in production, common in
- * tests) puts the next reader back on a clean footing.
+ * `invalidateCache` is the full reset. It is registered as the settings-table
+ * invalidation hook, so any write through the db client puts the next reader
+ * back on a clean footing.
  */
 
 import { inPlaceholders, queryAll } from "#db/client.ts";

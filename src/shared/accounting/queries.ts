@@ -242,17 +242,13 @@ type LedgerTotalsRow = {
 };
 
 /**
- * The four headline ledger figures over `range`, in one grouped scan:
+ * The four headline ledger figures over `range`, in one grouped scan. Each is
+ * defined by its leg direction rather than by a status column:
  *
- * - `income` — recognised revenue: `sale` and owner-entered external-income
- *   credits to any `revenue` account, plus write-up `adjustment`s from
- *   `writeoff`, minus write-down `adjustment`s to `writeoff` (matching the
- *   per-listing `listingMoneyTotals`).
- * - `due` — net receivable: a leg *out of* an attendee (a sale/fee they owe) adds,
- *   a leg *into* an attendee (a payment) subtracts. Over "forever" this is exactly
- *   the current total outstanding.
- * - `refunded` — Σ `refund_cash` amounts (cash returned to the world).
- * - `fees` — net booking-fee income: credits to `fee_income` less its refunds.
+ * - `income` counts write-up `adjustment`s from `writeoff` and subtracts
+ *   write-downs to it, which is what makes it match `listingMoneyTotals`.
+ * - `due` adds a leg *out of* an attendee and subtracts a leg *into* one. Over
+ *   "forever" that is exactly the current total outstanding.
  */
 export const ledgerTotals = async (
   range: LedgerRange,

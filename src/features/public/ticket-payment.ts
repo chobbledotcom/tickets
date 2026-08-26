@@ -638,19 +638,14 @@ const keepPackageDatesChildrenCanServe = (
   );
 
 /**
- * The parent→children relationship for the page's listings, each child hydrated to
- * a {@link TicketListing} so its availability resolves for the gate/render.
- * Children are loaded by relationship only — bookability is evaluated at
- * render/submit against the resolved date.
+ * Children are loaded by relationship only. Bookability is evaluated at render
+ * and submit against the resolved date.
  *
  * Keeping the date-less group cap off a daily parent's children needs no code
- * here. That aggregate already excludes every daily listing, its cap being
- * per-date, and a daily parent's group is type-homogeneous, so any child
- * co-grouped with it is daily too: it carries no group-remaining entry, and
- * {@link foldChild} skips a daily child's date-less `maxPurchasable`, leaving
- * per-date capacity to the date-aware {@link checkAvailability}, which rejects
- * rather than clamps. Homogeneity blocks a standard child from a daily parent's
- * group at save, so there is no clamp to suppress.
+ * here. That aggregate already excludes every daily listing, and a daily
+ * parent's group is type-homogeneous, so any child co-grouped with it is daily
+ * too. Per-date capacity is left to the date-aware {@link checkAvailability},
+ * which rejects and never clamps.
  */
 export const loadChildrenByParentId = async (
   listings: TicketListing[],

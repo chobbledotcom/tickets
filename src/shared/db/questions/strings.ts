@@ -37,17 +37,13 @@ export type PreparedStringRow = {
 export type StringIdByText = Map<string, number>;
 
 /**
- * Pair each just-written string (`text` + its `textIndex`) with the id the
- * post-insert SELECT returned, keyed by text.
+ * Throws when a `textIndex` is missing. The read runs in the same transaction
+ * as the insert, so every index written must come back, and a miss means that
+ * read-your-writes invariant broke.
  *
- * Throws if any `textIndex` is missing from `found`. In `getOrCreateStringIds`
- * the read runs in the same transaction as the insert (one write-mode batch when
- * standalone, or the caller's open `tx` when threaded through), so every index
- * we wrote must come back; a miss means that read-your-writes invariant broke.
- * Returning an `undefined` id instead would corrupt every caller silently — a
- * checkout would drop the `s` from its signed metadata and the webhook would
- * later bind `undefined` into SQL ("Unsupported type of value"). Failing loudly
- * here keeps the corruption from escaping.
+ * An `undefined` id would corrupt every caller silently. A checkout would drop
+ * the `s` from its signed metadata, and the webhook would later bind
+ * `undefined` into SQL. Failing here keeps that from escaping.
  */
 export const pairStringIds = (
   rows: readonly { text: string; textIndex: string }[],
@@ -100,20 +96,14 @@ const runInternStatements = async (
 };
 
 /**
- * Run the intern DB statements (insert-or-ignore, refresh `created`, read-back)
- * for `rows` and return the `text → id` map. The trailing SELECT reads its own
- * just-written rows: a brand-new string's id read from a replica that hasn't
- * replicated the insert comes back missing, so the id resolves to undefined and
- * the value is silently lost. When `tx` is given each statement runs on the
- * caller's open transaction, so the SELECT sees the INSERT's rows within that
- * transaction; otherwise one `executeBatchWithResults` write
- * batch is a single primary-pinned transaction that holds the same invariant.
+ * The trailing SELECT reads its own just-written rows. From a replica that has
+ * not replicated the insert, a brand-new id comes back missing and the value is
+ * silently lost, so every path here keeps the read in the INSERT's own
+ * transaction.
  *
- * The per-text `INSERT OR IGNORE` values are batched into one multi-row
- * statement so the interning phase is a fixed 3 round trips regardless of how
- * many unique free-text strings are being saved — keeping the transaction
- * round-trip guard clear (the old per-text shape could blow past it for a save
- * with many unique texts).
+ * The `INSERT OR IGNORE` values batch into one multi-row statement, so interning
+ * is a fixed 3 round trips however many unique strings a save carries. That is
+ * what keeps it clear of the transaction round-trip guard.
  */
 export const internStringRows = async (
   rows: PreparedStringRow[],
@@ -151,18 +141,12 @@ export const internStringRows = async (
 };
 
 /**
- * Intern a list of free-text answers, returning the `text → id` map. Encrypts
- * and HMAC-indexes each unique text, then inserts-or-ignores, refreshes
- * `created`, and reads the ids back in one atomic batch. When `tx` is given,
- * every statement runs together on the caller's open transaction (so
- * the read-your-writes SELECT shares the INSERT's transaction); otherwise as
- * one `executeBatchWithResults` write batch.
+ * Does the crypto and the DB work in one call, for the standalone path.
  *
- * Callers wrapping their save in `withTransaction` should call
- * {@link prepareStringRows} *before* opening the transaction (to keep the
- * CPU-bound crypto out of the write-lock window) and then
- * {@link internStringRows} on the tx. This entry point does both in one call
- * for the standalone path and callers that don't need that separation.
+ * A caller wrapping its save in `withTransaction` must instead call
+ * {@link prepareStringRows} *before* opening the transaction, then
+ * {@link internStringRows} on the tx. That keeps the CPU-bound crypto out of
+ * the write-lock window.
  */
 export const getOrCreateStringIds = async (
   texts: string[],

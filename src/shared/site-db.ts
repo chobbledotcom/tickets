@@ -1,15 +1,10 @@
 /**
- * Generic read access to a built site's own database.
+ * We keep each built site's libsql URL and a **read-only** token, never its
+ * DB_ENCRYPTION_KEY. That reads the site's unencrypted rows without ever being
+ * able to decrypt its private data.
  *
- * For every site we build we keep its libsql URL and a **read-only** auth token
- * (never its DB_ENCRYPTION_KEY). That is enough to read the site's unencrypted
- * rows — e.g. plaintext `settings` markers — without ever being able to decrypt
- * its private data. This module is the single, reusable place that opens such a
- * connection; callers pass a small read function and get a tagged result back.
- *
- * Only plaintext columns are meaningful here: anything stored encrypted on the
- * site (see ENCRYPTED_KEYS in settings.ts) is unreadable without the per-site
- * key we deliberately never hold.
+ * Only plaintext columns are meaningful here. Anything stored encrypted is
+ * unreadable without the per-site key we deliberately never hold.
  */
 
 import { type Client, createClient } from "@libsql/client";

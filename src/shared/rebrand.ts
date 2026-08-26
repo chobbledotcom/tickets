@@ -225,24 +225,16 @@ const rebrandIcuNodes = (
 };
 
 /**
- * Build a replacer from an `I18N_REPLACEMENTS` spec like `"foo|bar,baz|bee"`.
- *
- * It rewrites the translatable copy of a message: matching is case-insensitive
- * and by substring, and the output copies the source's capitalisation. Only
- * lowercase and title-case occur in real copy, so the first character decides.
+ * Matching is case-insensitive and by substring, and the output copies the
+ * source's capitalisation. Only lowercase and title-case occur in real copy, so
+ * the first character decides.
  *
  * Four things are deliberately left alone: HTML tags and attributes, so link
- * hrefs survive; `<code>` examples, which are literal route or CLI text; ICU
- * syntax — argument names, `plural`/`select` keywords and selectors — since the
- * handler supplies values under those exact names; and interpolated values such
- * as a stored listing name, because this runs on the template before ICU
- * formatting. Only a template's literal copy is rebranded, so `listing|event`
- * turns `one {# listing}` into `one {# event}` without touching the
- * `{listings, plural, …}` argument naming it.
+ * hrefs survive, `<code>` examples, ICU syntax, and interpolated values such as
+ * a stored listing name. This runs on the template BEFORE ICU formatting, which
+ * is what makes that separation possible.
  *
- * Parsing and regex compilation happen once here, and `resolveMessage` caches
- * the rebranded template, so rendering stays a plain ICU format — which matters
- * on a cold-booting edge runtime.
+ * Parsing and regex compilation happen once, so rendering stays a plain format.
  */
 export const buildReplacer = (raw: string | undefined): Replacer => {
   if (!raw) return identity;

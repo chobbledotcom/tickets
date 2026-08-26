@@ -1,17 +1,11 @@
 /**
- * ProseMirror configuration for the rich markdown editor — the pure,
- * DOM-free half of the editor (`markdown-editor.ts` is the DOM shell).
+ * ProseMirror configuration for the rich markdown editor — the pure, DOM-free
+ * half (`markdown-editor.ts` is the DOM shell).
  *
- * Uses prosemirror-markdown's CommonMark schema plus its markdown-it parser
- * and serializer, so the document model is exactly the markdown the server
- * renders with `#shared/markdown.ts`. Rendering (and sanitisation) stays
- * server-side; this module only converts between markdown text and the
- * editing document.
- *
- * The keymap and input rules cover the syntax the formatting-help page
- * promises (bold, italic, links, lists) plus the rest of the CommonMark
- * schema (headings, quotes, code): `**`/`Mod-b`, `*`/`Mod-i`, `[text](url)`,
- * `- ` / `1. ` lists, `# ` headings, `> ` quotes and ``` code blocks.
+ * The CommonMark schema and markdown-it parser make the document model exactly
+ * the markdown the server renders with `#shared/markdown.ts`. Rendering and
+ * sanitisation stay server-side. This module only converts between markdown
+ * text and the editing document.
  */
 
 import {

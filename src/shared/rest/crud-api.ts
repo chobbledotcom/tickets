@@ -1,20 +1,7 @@
 /**
- * Generic CRUD API factory — generates JSON API routes for simple resources.
- *
- * Reuses existing table definitions and validation, adding a thin JSON
- * body → camelCase input conversion layer on top.
- *
- * Usage:
- *   const routes = defineCrudApi({
- *     name: "holidays",
- *     table: holidays.table,
- *     getAll: holidays.getAll,
- *     fields: [...],
- *     toInput: (body) => ({ ... }),
- *     toUpdateInput: (body, existing) => ({ ... }),
- *     validate: (input) => ...,
- *     nameField: "name",
- *   });
+ * Generates the five standard admin JSON API routes from one config object,
+ * over the existing table definition and validation. The only thing it adds is
+ * a JSON body → camelCase input conversion.
  */
 
 /* jscpd:ignore-start */

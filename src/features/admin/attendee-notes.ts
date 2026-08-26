@@ -1,18 +1,10 @@
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 
 /**
- * Admin routes for per-attendee operator notes.
- *
- *   GET  /admin/attendee/:attendeeId/note                  — add-note form
- *   POST /admin/attendee/:attendeeId/note                  — create an owner note
- *   GET  /admin/attendee/:attendeeId/note/:noteId/delete   — are-you-sure page
- *   POST /admin/attendee/:attendeeId/note/:noteId/delete   — delete the note
- *
- * Owner notes are encrypted with the owner public key; the read paths derive the
- * request private key (an admin session always has it — the same key that
- * decrypts attendee PII). Every action carries a `return_url` so the operator is
- * bounced back to wherever they were (the attendee page, or a listing/attendee
- * list a `×` was clicked from).
+ * Owner notes are encrypted with the owner public key. The read paths derive
+ * the request private key, which an admin session always has, because the same
+ * key decrypts attendee PII. Every action carries a `return_url`, so the
+ * operator lands back where they were.
  */
 
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";

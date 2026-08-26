@@ -1,20 +1,16 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
- * External order library widget (served as `/order.js`).
- *
- * Turns `data-add-listing` links on an external site into add-to-cart controls
- * for tickets hosted by this app, then hands off to the canonical ticket page.
- * The listing catalog is injected by the server as a `const CATALOG = {…};`
- * statement prepended to this module body (see
+ * External order library widget (served as `/order.js`). The server prepends a
+ * `const CATALOG = {…};` statement to this module body (see
  * `src/features/public/order-js.ts`).
  *
  * The trailing `export {}` keeps this a true ES module: a disallowed site that
- * tries to load `/order.js` as a classic `<script>` (bypassing the CORS gate)
- * hits module-only syntax and the browser refuses to run it.
+ * loads `/order.js` as a classic `<script>`, past the CORS gate, hits
+ * module-only syntax and the browser refuses to run it.
  *
- * All catalog-derived text is rendered with `textContent` / DOM nodes, never
- * `innerHTML`, so an owner's listing name cannot inject markup on a host page.
+ * Catalog text is rendered with `textContent` and DOM nodes, never `innerHTML`,
+ * so an owner's listing name cannot inject markup on a host page.
  */
 
 // Type-only import — erased at bundle time, so it pulls no server code into the
