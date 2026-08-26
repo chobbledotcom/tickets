@@ -6,7 +6,6 @@
 
 // jscpd:ignore-start
 
-import { execute } from "#db/client.ts";
 import { t } from "#i18n";
 import {
   ADMIN_FEATURES,
@@ -20,6 +19,7 @@ import {
 import { copyLoaded } from "#test/specs/support/copy.ts";
 import {
   keepWhatTheyWereTold,
+  type StoryJourney,
   scenarioEnv,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -76,8 +76,8 @@ export const ownerOpensFeature = async (
 /** The owner makes one feature's choice through the form the page really
  * serves, so a page that stopped offering the choice fails here. */
 export const ownerChoosesFeature =
-  (enabled: boolean) =>
-  async (world: TicketsWorld, printed: string): Promise<void> => {
+  (enabled: boolean): StoryJourney<[string], void> =>
+  async (world, printed) => {
     const browser = await submitRenderedAdminForm(
       world,
       await featurePathFor(printed),
@@ -136,12 +136,6 @@ export const statusIn = (row: string, printed: string): string => {
   }
   return only;
 };
-
-/** A saved Modifiers item, which is what puts that feature in use. */
-export const saveAModifiersItem = (): Promise<unknown> =>
-  execute(
-    "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
-  );
 
 /** A site nobody can change anything on, undone when the scenario ends. */
 export const keepSiteForReadingOnly = (world: TicketsWorld): void => {

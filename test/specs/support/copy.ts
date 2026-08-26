@@ -15,11 +15,17 @@ import type { MessageGroup } from "#locales/manifest.ts";
 export const copyLoaded = (group: MessageGroup): Promise<void> =>
   ensureMessageGroups([group]);
 
+/** One thing the site says, asked for by its key. */
+export type ReadsCopy = (
+  key: string,
+  values?: Record<string, unknown>,
+) => Promise<string>;
+
 /** A reader for one group's words, curried on the group so a support module
  * names it once and every step below reads through that one name. */
 export const copyFrom =
-  (group: MessageGroup) =>
-  async (key: string, values?: Record<string, unknown>): Promise<string> => {
+  (group: MessageGroup): ReadsCopy =>
+  async (key, values) => {
     await copyLoaded(group);
     return t(key, values);
   };

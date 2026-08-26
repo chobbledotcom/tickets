@@ -17,7 +17,10 @@ import { it } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
-import { getSmsMessageByProviderId } from "#db/sms-messages.ts";
+import {
+  countSmsMessages,
+  getSmsMessageByProviderId,
+} from "#db/sms-messages.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -114,6 +117,9 @@ describeWithEnv("admin sms", { db: true }, () => {
       true,
     );
     expect(await queuedLog(attendee.id)).toBe(false);
+    // Nothing in the queue either. A row left behind would be a text the
+    // organiser was told had failed, waiting to go out anyway.
+    expect(await countSmsMessages()).toBe(0);
   });
 
   it("POST records the gateway id against the attendee", async () => {

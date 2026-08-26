@@ -14,7 +14,6 @@ import {
   ownerChoosesFeature,
   ownerLooksAtSettings,
   ownerOpensFeature,
-  saveAModifiersItem,
   statusIn,
 } from "#test/specs/support/features.ts";
 import {
@@ -26,6 +25,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { saveAModifier } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -39,7 +39,7 @@ const ownerDisables = ownerChoosesFeature(false);
 Given(
   "the site already holds a saved Modifiers item",
   async (): Promise<void> => {
-    await saveAModifiersItem();
+    await saveAModifier();
   },
 );
 

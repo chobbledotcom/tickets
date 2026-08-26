@@ -12,7 +12,7 @@ import {
   organiserOpensSomebodysTexts,
   organiserOpensTheTextsPage,
   organiserTexts,
-  PHONE_GIVEN,
+  phoneOf,
   recordAgainstPhone,
   somebodyBooks,
   textingCopy,
@@ -64,15 +64,15 @@ When(
 
 When(
   "the organiser opens {word}'s text messages",
-  function (this: TicketsWorld, _who: string): Promise<void> {
-    return organiserOpensSomebodysTexts(this);
+  function (this: TicketsWorld, who: string): Promise<void> {
+    return organiserOpensSomebodysTexts(this, who);
   },
 );
 
 When(
   "the organiser texts {word} {string}",
-  function (this: TicketsWorld, _who: string, message: string): Promise<void> {
-    return organiserTexts(this, message);
+  function (this: TicketsWorld, who: string, message: string): Promise<void> {
+    return organiserTexts(this, who, message);
   },
 );
 
@@ -117,7 +117,7 @@ Then(
   async function (this: TicketsWorld, who: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
     expect(page).toContain(who);
-    expect(page).toContain(PHONE_GIVEN);
+    expect(page).toContain(phoneOf(this, who));
     expect(page).toContain(await textingCopy("sms.contact.compose_heading"));
   },
 );
@@ -149,25 +149,38 @@ Then(
 
 Then(
   "{word}'s history holds {string}",
-  function (this: TicketsWorld, _who: string, message: string): void {
-    expect(historyShownTo(this)).toContain(message);
+  async function (
+    this: TicketsWorld,
+    who: string,
+    message: string,
+  ): Promise<void> {
+    expect(await historyShownTo(this, who)).toContain(message);
+  },
+);
+
+Then(
+  "nothing has been said to {word}",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    expect(await historyShownTo(this, who)).toContain(
+      await textingCopy("sms.contact.no_messages"),
+    );
   },
 );
 
 Then(
   "{word}'s history says the text could not be queued",
-  function (this: TicketsWorld, _who: string): void {
-    expect(historyShownTo(this)).toContain("could not be queued");
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    expect(await historyShownTo(this, who)).toContain("could not be queued");
   },
 );
 
 Then(
   "nothing was queued for {word}",
-  async function (this: TicketsWorld, _who: string): Promise<void> {
+  async function (this: TicketsWorld, who: string): Promise<void> {
     // The queue itself, not only the log's wording: a message that reached
     // the queue without its success line would otherwise read as nothing.
     expect(await messagesQueued()).toBe(0);
-    expect(historyShownTo(this)).not.toContain("queued for");
+    expect(await historyShownTo(this, who)).not.toContain("queued for");
   },
 );
 
@@ -176,9 +189,9 @@ Then(
   async function (
     this: TicketsWorld,
     counted: number,
-    _who: string,
+    who: string,
   ): Promise<void> {
-    expect((await recordAgainstPhone()).counted).toBe(counted);
+    expect((await recordAgainstPhone(this, who)).counted).toBe(counted);
   },
 );
 
@@ -186,11 +199,11 @@ Then(
   "the last thing kept against {word}'s phone is {string}",
   async function (
     this: TicketsWorld,
-    _who: string,
+    who: string,
     said: string,
   ): Promise<void> {
     // The count alone would pass on a text the site filed under the wrong
     // words, and those words are what the organiser reads back later.
-    expect((await recordAgainstPhone()).lastSaid).toBe(said);
+    expect((await recordAgainstPhone(this, who)).lastSaid).toBe(said);
   },
 );

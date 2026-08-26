@@ -78,7 +78,8 @@ Feature: The owner turns features on and off
   Rule: Site decides whether the public site is published
     Site is not only an entry in the admin menu. While it is off there is no
     public site to read, and a visitor who opens the front page is sent to the
-    sign-in page instead. Turning it on puts the site in front of them.
+    sign-in page instead. Turning it on puts the site in front of them, and
+    turning it off again takes it back down.
 
     @case:features.no-public-site-while-site-is-off
     Scenario: A visitor arrives while Site is off
@@ -88,6 +89,13 @@ Feature: The owner turns features on and off
     Scenario: The owner publishes the public site
       When the owner enables "Site"
       Then a visitor can read the front page
+
+    @case:features.disabling-site-takes-the-public-site-down
+    Scenario: The owner takes the public site down again
+      Given the owner enables "Site"
+      And a visitor can read the front page
+      When the owner disables "Site"
+      Then a visitor opening the front page is sent to sign in
 
   @rule:settings.a-feature-in-use-cannot-be-disabled
   @surface:admin

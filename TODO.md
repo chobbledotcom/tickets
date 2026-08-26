@@ -47,24 +47,27 @@ _Origin: found while migrating `test/integration/admin/sms.test.ts` to
 `@story:attendees.sending-somebody-a-text`. The story had to quote these strings
 from the route, because there is no catalog key to read them from._
 
-Eighteen files under `src/features/` build a flash message from a string literal
-rather than `t(...)`, 27 literals in all. Counted with:
+Twenty files under `src/features/` build a flash message from a string literal
+rather than `t(...)`, 41 literals in all. Count them again before you start,
+because a `redirect(...)` call often runs over several lines and a same-line
+`grep` misses most of them:
 
 ```bash
-grep -rcE '(redirect|errorRedirect)\([^,]+, "[A-Z][^"]{6,}"' src/features/
+rg -U --multiline -o '\b(errorRedirect|redirect)\((?:[^()"]|"[^"]*"|\([^()]*\))*\)' src/features/ |
+  grep -E '"[A-Z][^"]{6,}"'
 ```
 
-`src/features/admin/sms.ts` holds six of them: `Invalid SMS target`,
-`SMS
-gateway is not configured`, `Message cannot be empty`,
-`Attendee has no phone
-number on file`, `Text message queued`, and
-`Message could not be queued`. `questions.ts` holds three, `public/pages.ts` and
-`questions/answers.ts` two each, and one each in `attendees-merge.ts`,
-`attributes.ts`, `auth.ts`, `builder.ts`, `bulk-actions.ts`, `calendar.ts`,
-`modifiers.ts`, `money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`,
-`support.ts`, `update.ts`, `join.ts`, and `public/unsubscribe.ts`. Two of these
-are public surfaces, not admin ones.
+`src/features/admin/sms.ts` holds six: `Invalid SMS target`,
+`SMS gateway is not
+configured`, `Message cannot be empty`,
+`Attendee has no phone number on file`, `Text message queued`, and
+`Message could not be queued`. `attributes.ts` holds five,
+`questions/answers.ts` four, and `attendees-merge.ts`, `questions.ts`,
+`public/pages.ts`, and `public/unsubscribe.ts` three each. `update.ts` holds
+two, and there is one each in `auth.ts`, `builder.ts`, `bulk-actions.ts`,
+`bulk-email.ts`, `calendar.ts`, `listings-parents.ts`, `modifiers.ts`,
+`money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`, `support.ts`, and
+`join.ts`. Two of these files are public surfaces, not admin ones.
 
 The `i18n-coverage` test only fails a hard-coded string in a **template**
 (`test/scripts/i18n-coverage.test.ts`), so a route escapes it. Two things

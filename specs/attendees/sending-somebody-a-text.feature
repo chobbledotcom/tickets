@@ -56,8 +56,9 @@ Feature: The organiser sends somebody a text message
   Rule: A text the organiser writes joins the queue and the history
     The page names the person and the number it will go to, so the organiser
     can see who they are about to text. What they send is queued, they are
-    told so, and it joins that person's history. The site counts it against
-    that phone as well, so the record it keeps about them is not only email.
+    told so, and it joins that person's history and nobody else's. The site
+    counts it against that phone as well, so the record it keeps about them is
+    not only email.
 
     @case:sms.the-page-names-who-is-being-texted
     Scenario: The organiser opens somebody's text messages
@@ -75,6 +76,17 @@ Feature: The organiser sends somebody a text message
       And Nina's history holds "Doors open at seven"
       And the site counts 1 message against Nina's phone
       And the last thing kept against Nina's phone is "Doors open at seven"
+
+    @case:sms.a-text-reaches-only-the-person-it-names
+    Scenario: The organiser texts one of two people who booked the same thing
+      Given the gateway is set up
+      And Nina has booked the Pottery, giving a phone number
+      And Owen has booked the Pottery, giving a phone number
+      When the organiser texts Nina "Doors open at seven"
+      Then Nina's history holds "Doors open at seven"
+      And the site counts 1 message against Nina's phone
+      And nothing has been said to Owen
+      And the site counts 0 messages against Owen's phone
 
   @rule:sms.a-text-that-does-not-get-away-is-said-so
   Rule: A text that does not get away is said so

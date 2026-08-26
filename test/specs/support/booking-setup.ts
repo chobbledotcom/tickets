@@ -8,7 +8,10 @@
  */
 
 import { rememberListing } from "#test/specs/support/listings.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import {
+  bookingMadeDuring,
+  visitorBooks,
+} from "#test/specs/support/public-booking.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -24,27 +27,31 @@ export interface SomebodyBooking {
   who: string;
 }
 
-/** Somebody books a place the ordinary way. The site's own thank-you page is
- * kept, so the booking finishes here rather than off at another site. */
+/** Somebody books a place the ordinary way, and the number the site filed
+ * them under comes back. The site's own thank-you page is kept, so the
+ * booking finishes here rather than off at another site. Two people who book
+ * the same name book the same thing, because that is what the words say. */
 export const somebodyBooksThroughTheSite = async (
   world: TicketsWorld,
   { email, listingName, phone, who }: SomebodyBooking,
-): Promise<Listing> => {
+): Promise<{ attendeeId: number; listing: Listing }> => {
   await enablePublicSite();
-  const listing = rememberListing(
-    world,
-    listingName,
-    await createTestListing({
-      fields: phone ? "email,phone" : "email",
-      maxAttendees: 10,
-      name: listingName,
-      thankYouUrl: "",
-    }),
+  // Made once, so whether it asks for a phone number is settled by the first
+  // person to book it.
+  const listing =
+    world.things.recall("listing", listingName) ??
+    rememberListing(
+      world,
+      listingName,
+      await createTestListing({
+        fields: phone ? "email,phone" : "email",
+        maxAttendees: 10,
+        name: listingName,
+        thankYouUrl: "",
+      }),
+    );
+  const attendeeId = await bookingMadeDuring(listing.id, () =>
+    visitorBooks(world, listing, { email, who, ...(phone ? { phone } : {}) }),
   );
-  await visitorBooks(world, listing, {
-    email,
-    who,
-    ...(phone ? { phone } : {}),
-  });
-  return listing;
+  return { attendeeId, listing };
 };

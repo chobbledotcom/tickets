@@ -17,7 +17,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
-import { execute, getDb, queryOne } from "#db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import {
@@ -30,6 +30,7 @@ import { statementSql } from "#test-utils/record-queries.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   describeAdminSettings,
+  saveAModifier,
   storedFeatureEnabled,
   withFeatureWriteFailure,
 } from "#test-utils/settings.ts";
@@ -48,11 +49,6 @@ const expectFeatureSaved = async (
 
 const IN_USE_HELP =
   "This feature is in use. Remove its saved items before you disable it.";
-
-const saveAModifier = (): Promise<unknown> =>
-  execute(
-    "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
-  );
 
 describeAdminSettings(() => {
   testRequiresAuth("/admin/features/modifiers");

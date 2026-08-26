@@ -9,6 +9,7 @@
 
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { formatDatetimeShort } from "#shared/dates.ts";
 import { smsPage } from "#templates/admin/sms.tsx";
 import {
   OWNER_SESSION,
@@ -113,10 +114,12 @@ describe("admin sms page", () => {
   });
 
   test("lists what was sent, newest first, with when it went", () => {
+    const later = "2026-08-26T10:00:00.000Z";
+    const earlier = "2026-08-25T10:00:00.000Z";
     const html = render({
       history: [
-        { created: "2026-08-26T10:00:00.000Z", message: "SMS queued: Later" },
-        { created: "2026-08-25T10:00:00.000Z", message: "SMS queued: Earlier" },
+        { created: later, message: "SMS queued: Later" },
+        { created: earlier, message: "SMS queued: Earlier" },
       ],
     });
 
@@ -124,5 +127,12 @@ describe("admin sms page", () => {
     expect(html).toContain("Later");
     expect(html).toContain("Earlier");
     expect(html.indexOf("Later")).toBeLessThan(html.indexOf("Earlier"));
+    // When each one went, under its own heading. The message alone leaves the
+    // organiser unable to tell a text sent this morning from one sent a year
+    // ago, and the site's own short format is what the other tables use.
+    expect(html).toContain("When");
+    expect(html).toContain(formatDatetimeShort(later));
+    expect(html).toContain(formatDatetimeShort(earlier));
+    expect(html).not.toContain(later);
   });
 });
