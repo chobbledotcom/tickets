@@ -45,21 +45,26 @@ export interface BatchMessageOutcome {
   unconfirmed: number;
 }
 
-/** What a reply says, before it is counted. */
+/** What a reply says, before it is counted. A place that is neither
+ * confirmed nor refused is one the reply did not account for. */
 interface AcceptedBatch {
+  /** Places in the batch whose message the provider said it took. */
+  confirmed: number[];
   /** One reason per refused message, when the reply gave one. */
   reasons: string[];
   /** Places in the batch whose message the provider refused. */
   refused: number[];
-  unconfirmed: number;
 }
+
+const everyPlace = (size: number): number[] =>
+  Array.from({ length: size }, (_, index) => index);
 
 /** A request the provider refused loses every message in the batch. Its
  * status is the whole reason, so it names none per message. */
 const wholeBatchRefused = (size: number): AcceptedBatch => ({
+  confirmed: [],
   reasons: [],
-  refused: Array.from({ length: size }, (_, index) => index),
-  unconfirmed: 0,
+  refused: everyPlace(size),
 });
 
 /** Reads an accepted reply for what it says about each message. */
@@ -71,14 +76,12 @@ interface BulkProviderSpec {
   readAcceptedReply: AcceptedReplyReader;
 }
 
-const TOOK_EVERY_MESSAGE: AcceptedBatch = {
+/** Most providers take or refuse a whole batch, so the status says it all. */
+const acceptedMeansSent: AcceptedReplyReader = (_body, batchSize) => ({
+  confirmed: everyPlace(batchSize),
   reasons: [],
   refused: [],
-  unconfirmed: 0,
-};
-
-/** Most providers take or refuse a whole batch, so the status says it all. */
-const acceptedMeansSent: AcceptedReplyReader = () => TOOK_EVERY_MESSAGE;
+});
 
 /** Postmark answers a batch with one result per message. `ErrorCode` is 0
  * on the messages it took. */
@@ -98,24 +101,28 @@ const replyJson = (body: string): unknown => {
 
 /** Postmark can answer 200 and still refuse a message inside the batch, for
  * example a suppressed recipient, so read every result. Postmark took the
- * batch, so a reply we cannot read leaves those messages unconfirmed rather
- * than refused: they may be queued, and calling them refused would invite a
- * second send to people who already have the mail. */
+ * batch, so a reply we cannot read leaves those messages unconfirmed: they
+ * are neither claimed as sent nor called refused, because either claim is
+ * one we cannot make. */
 const readPostmarkReply: AcceptedReplyReader = (body, batchSize) => {
   const results = v.safeParse(PostmarkResultsSchema, replyJson(body));
   if (!results.success || results.output.length !== batchSize) {
-    return { reasons: [], refused: [], unconfirmed: batchSize };
+    return { confirmed: [], reasons: [], refused: [] };
   }
+  const confirmed: number[] = [];
   const refused: number[] = [];
   const reasons: string[] = [];
   for (const [index, result] of results.output.entries()) {
-    if (result.ErrorCode === 0) continue;
+    if (result.ErrorCode === 0) {
+      confirmed.push(index);
+      continue;
+    }
     refused.push(index);
     reasons.push(
       failureReason(`Postmark error ${result.ErrorCode}: ${result.Message}`),
     );
   }
-  return { reasons, refused, unconfirmed: 0 };
+  return { confirmed, reasons, refused };
 };
 
 const mailgunBulk =
@@ -264,14 +271,18 @@ export const sendBulkEmails = async (
     const accepted = ok
       ? spec.readAcceptedReply(text, batch.length)
       : wholeBatchRefused(batch.length);
-    const refusedPlaces = new Set(accepted.refused);
-    for (const [index, recipient] of batch.entries()) {
-      if (!refusedPlaces.has(index)) taken.push(recipient.to);
+    // Only a message the reply confirmed counts as taken. One it did not
+    // account for is not claimed as sent, because that claim is a delivery
+    // record and an operator message we cannot stand behind.
+    for (const place of accepted.confirmed) {
+      const recipient = batch[place];
+      if (recipient) taken.push(recipient.to);
     }
     const outcome: BatchMessageOutcome = {
       reasons: accepted.reasons,
       refused: accepted.refused.length,
-      unconfirmed: accepted.unconfirmed,
+      unconfirmed:
+        batch.length - accepted.confirmed.length - accepted.refused.length,
     };
     responses.push({ body: text, ok, outcome, status });
     failed += outcome.refused;

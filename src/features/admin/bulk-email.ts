@@ -100,6 +100,7 @@ const recipientLabel = (sent: number, attempted: number): string => {
  * that lost every message is not a success at all. */
 const sendOutcome = (
   sent: number,
+  refused: number,
   attempted: number,
   config: EmailConfig,
   summary: string,
@@ -109,7 +110,10 @@ const sendOutcome = (
     provider: EMAIL_PROVIDER_LABELS[config.provider],
     summary,
   };
-  if (sent === 0) {
+  // Only a provider that refused every message sent none. One that left
+  // them unconfirmed may still have sent them, and telling the operator
+  // otherwise is how the same mailshot goes out twice.
+  if (refused === attempted) {
     return fail(COMPOSE_PATH, t("bulk_email.sent_none_flash", values));
   }
   if (sent < attempted) {
@@ -394,7 +398,13 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
     targetLogListingId(draft.target),
   );
-  return sendOutcome(sent, result.attempted, config, providerSummary);
+  return sendOutcome(
+    sent,
+    result.failed,
+    result.attempted,
+    config,
+    providerSummary,
+  );
 });
 
 /** Flash back to the compose page with the saved template selected. */

@@ -135,7 +135,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       // and go on to send the whole thing a second time.
       await expectFlashRedirect(
         "/admin/emails",
-        "Sent to 2 recipients via Postmark." +
+        "Sent to 0 of 2 recipients via Postmark." +
           " The email provider responded with HTTP 200: not json at all." +
           " It did not confirm 2 messages. They may still have been sent." +
           " Check the provider before you send them again.",

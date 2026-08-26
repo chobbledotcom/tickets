@@ -374,15 +374,24 @@ describe("sendBulkEmails", () => {
     expect(result.failed).toBe(0);
   });
 
-  test("still counts an unconfirmed recipient as contacted", async () => {
+  test("keeps an unconfirmed recipient out of the taken list", async () => {
     replyWith("not json at all");
     const result = await sendBulkEmails(postmark, payload(2));
 
-    // The provider accepted them, so they may hold the mail already.
+    // Taken is what the contact history records and what the operator is
+    // told went. A message the reply never accounted for is neither.
+    expect(result.taken).toEqual([]);
+  });
+
+  test("takes only the messages a mixed Postmark reply confirmed", async () => {
+    replyWith(postmarkReply(0, 406, 0));
+    const result = await sendBulkEmails(postmark, payload(3));
+
     expect(result.taken).toEqual([
       validEmail("user0@example.com"),
-      validEmail("user1@example.com"),
+      validEmail("user2@example.com"),
     ]);
+    expect(result.unconfirmed).toBe(0);
   });
 
   test("does not log an error for a batch it merely could not confirm", async () => {
