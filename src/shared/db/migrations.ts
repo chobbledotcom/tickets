@@ -1,18 +1,11 @@
 /**
- * Database migrations — declarative schema with algorithmic application.
+ * Declarative schema with algorithmic application. To change the schema, add to
+ * the table's `columns`, to SCHEMA after its FK dependencies, or to `indexes`.
+ * Then update LATEST_UPDATE. The schema hash is computed automatically, so
+ * migrations still re-run when you forget.
  *
- * To modify the schema:
- * - Add a column: add it to the table's `columns` array
- * - Add a table: add it to SCHEMA (after its FK dependencies)
- * - Add an index: add it to the table's `indexes` array
- *
- * Then update LATEST_UPDATE to describe the change. The schema hash is computed
- * automatically, so migrations still re-run when you forget it (the hash
- * differs).
- *
- * This file is the boot path only: it works out what state the database is in
- * and routes to the right response. The pieces it routes to live beside it —
- * `migrations/lock.ts`, `markers.ts`, `runner.ts`, and `context.ts`.
+ * This file is the boot path only. It works out what state the database is in
+ * and routes to the right response.
  */
 
 import type { Client } from "@libsql/client";
@@ -190,19 +183,16 @@ const initializeFreshSchema = async (): Promise<void> => {
 };
 
 /**
- * Rebuild the full schema on a database that resetDatabase() just wiped,
- * without reading the database to decide what to create.
+ * Rebuild the full schema after resetDatabase(), WITHOUT reading the database
+ * to decide what to create.
  *
- * The restore path cannot trust any schema or state read taken here: right
- * after the drops, a replica AND even a freshly-routed primary connection can
- * briefly serve the pre-wipe schema (read-your-writes propagation lag, the same
- * effect VERIFY_RETRY_BACKOFF_MS documents). A lagged answer either routed boot
- * into schema verification against the wiped primary ("missing table settings",
- * via initDb's state check) or made the rebuild skip its CREATEs and die at the
- * next write ("no such table: settings"), which left the operator's database
- * empty. So every statement here is unconditional and idempotent
- * (IF NOT EXISTS), and nothing is consulted first. A just-wiped database has no
- * legacy tables, so the additive column reconciliation is not needed here.
+ * Right after the drops, a replica and even a freshly-routed primary connection
+ * can briefly serve the pre-wipe schema. A lagged answer used to either route
+ * boot into schema verification against the wiped primary, or make the rebuild
+ * skip its CREATEs and die at the next write, leaving the database empty.
+ *
+ * So every statement here is unconditional and idempotent, and nothing is
+ * consulted first.
  */
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");

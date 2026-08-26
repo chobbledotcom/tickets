@@ -1,18 +1,10 @@
 /**
- * Isolate-level cache for a small entity table, keyed for O(1) lookup by a
- * numeric id and by a secondary string key (a blind index such as `slug_index`
- * or `username_index`), with a separate ordered view for "all rows" pages.
- * Listings, groups and users share this one implementation.
+ * Refills read the primary during the replica catch-up window, so a stale
+ * replica result cannot replace data a write just cleared. The generation
+ * counter drops a fetch still in flight when an invalidation lands, for the
+ * same reason.
  *
- * Record reads fetch only the rows they need, while `getAll` loads the whole
- * set and warms the dictionaries. Each entry carries its own expiry: a
- * whole-list load stamps every entry, a single-record load only what it fetched.
- *
- * Writes invalidate immediately within the isolate. Refills use the primary
- * during the replica catch-up window, so a stale replica result cannot replace
- * the cleared data. A generation counter (bumped by `invalidate`) drops a fetch
- * still in flight when an invalidation landed. Security gating is enforced
- * against the database, never against this cache.
+ * Never gate a security decision on this cache. Go to the database.
  */
 
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";

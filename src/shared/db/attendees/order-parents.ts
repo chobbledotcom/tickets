@@ -1,18 +1,13 @@
 /**
- * Attendee-side parent/child persistence (booking metadata). A checkout that
- * books a parent listing plus its chosen child add-ons creates several
- * `listing_attendees` rows under one attendee. This module annotates them,
- * purely additively, with an `orderToken` shared by the whole checkout, so
- * admin can group an order back together, and a `parentListingId` naming which
- * parent a folded child was chosen under.
+ * The annotation is purely additive: an `orderToken` shared by the whole
+ * checkout, and a `parentListingId` naming which parent a folded child was
+ * chosen under.
  *
- * The pairing is recomputed from the persisted `listing_parents` edges and the
- * order's own booking set: a child row's parent is the parent edge also booked
- * in the same order. Both the free and paid paths reach `createAttendeeAtomic`
- * with the full folded booking set, so neither needs parent-awareness. The
- * unique index keeps the same child chosen under two parents as two rows, so
- * {@link expandChildAllocations} emits one per `(child, parent)`, plus a
- * parent-less remainder row for any unit bought without a parent.
+ * The pairing is recomputed from the persisted edges and the order's own
+ * booking set, so neither the free nor the paid path needs parent-awareness.
+ *
+ * The unique index keeps the same child chosen under two parents as two rows,
+ * plus a parent-less remainder row for any unit bought without a parent.
  */
 
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
@@ -138,20 +133,12 @@ const expandBooking = <T extends ListingBooking>(
 };
 
 /**
- * Expand summed child bookings into per-parent rows using the true per-
- * `(child, parent)` allocations from the fold. Each allocation becomes one
- * `listing_attendees` row with its real `parentListingId`. Un-allocated units of
- * a child (bought without a parent in this order) become one parent-less
- * remainder row, while parent rows and standalone listings get only the shared
- * `orderToken`. A shared UUID is stamped on every row so admin views can group
- * the order. `pricePaid` is preserved exactly across the split rows (see
- * {@link splitPricePaid}).
+ * `pricePaid` is preserved exactly across the split rows (see
+ * {@link splitPricePaid}), so splitting never loses or invents money.
  *
  * Unlike {@link annotateOrderParents}, which recomputes `parentListingId` as
- * "first in-order parent" and so is lossy for multi-parent, this uses the
- * allocation list to record the exact parent for each unit. Both the free path
- * and the paid webhook path thread the allocation through. Generic over
- * `T extends ListingBooking` so a caller's extra row fields survive.
+ * "first in-order parent" and so is lossy for multi-parent, this records the
+ * exact parent for each unit from the allocation list.
  */
 export const expandChildAllocations = <T extends ListingBooking>(
   bookings: T[],

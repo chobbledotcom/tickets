@@ -173,20 +173,15 @@ export type SettleBalanceResult =
     };
 
 /**
- * Mark an attendee as paid for an exact, verified amount: clear the remaining
- * balance, move reservations to the paid-default status, and log the payment. A
- * booking row's amount paid projects from its ledger sale leg, and the paying
- * checkout posts its own payment leg, so the settle only clears the receivable.
+ * The settle only clears the receivable. A booking row's amount paid projects
+ * from its ledger sale leg, and the checkout posts its own payment leg.
  *
- * `expectedAmount` is the balance the paying checkout was created for. The
- * status move and the balance-payment leg are both guarded on the projected
- * outstanding balance still equalling it, so a balance edited (or settled by a
- * racing or stale checkout) no longer matches and we refuse the wrong amount.
+ * Every write is guarded on the projected balance still equalling
+ * `expectedAmount`, so a balance the owner edited, or one a stale checkout
+ * already settled, is refused rather than cleared for the wrong figure.
  *
- * `extraStatements` commit in the SAME transaction, after the verdict and before
- * the payment leg, so a crash between the two cannot leave a paid-but-
- * unfinalized row (see balanceFinalizeStatement). Each must carry its own
- * balance guard so it no-ops on a mismatch, exactly like the settle writes.
+ * `extraStatements` commit in the SAME transaction, so a crash cannot leave a
+ * paid-but-unfinalized row. Each must carry its own balance guard.
  */
 export const settleAttendeeBalance = async (
   attendeeId: number,

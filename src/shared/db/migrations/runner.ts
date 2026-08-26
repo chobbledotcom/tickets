@@ -25,17 +25,13 @@ import { verifyCurrentAppSchema } from "./schema-sync.ts";
 import type { Migration } from "./types.ts";
 
 /**
- * Round-trips held back from the migration run so recording progress and
- * releasing the lock always fit, even when the migrations themselves fill the
- * request's subrequest budget. Recording a batch and releasing the lock are one
- * batched write each, so a handful of round-trips is ample headroom.
+ * Round-trips held back so recording progress and releasing the lock always
+ * fit, even when the migrations fill the request's subrequest budget.
  *
- * Without this reserve a batch that spends the whole budget leaves nothing for
- * the bookkeeping: the progress markers can't be written and the lock can't be
- * released, so the database makes no forward progress and stays locked until the
- * lock's TTL expires — every reload in that window is turned away, then re-runs
- * the same over-budget batch. Reserving the headroom lets each reload record
- * what it finished and hand the lock back, so the next reload continues.
+ * Without the reserve, a batch that spends the whole budget cannot write its
+ * progress markers or release the lock. The database then makes no forward
+ * progress and stays locked until the TTL expires, and every reload in that
+ * window is turned away and re-runs the same over-budget batch.
  */
 const MIGRATION_BOOKKEEPING_RESERVE = 5;
 

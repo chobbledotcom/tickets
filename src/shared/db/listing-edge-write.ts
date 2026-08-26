@@ -1,14 +1,8 @@
 /**
  * The shared transaction-local guard behind both parent/child edge writers.
- *
- * `setListingChildrenWithPackageCheckTx` and `addParentEdgesWithPackageCheckTx`
- * need the same partial check: a SELECT of the existence, nesting, and package
- * EXISTS flags. This module folds those into ONE declaration. The caller states
- * which ids fill the PARENT role and which the CHILD role — the writers differ
- * only in which side is the single fixed listing and which the submitted set —
- * and the guard throws `TransactionValidationError` when any current-tx state
- * breaks a rule. It returns the package conflict for the caller to convert as
- * its own contract requires.
+ * They differ only in which side is the single fixed listing and which the
+ * submitted set, so the caller states which ids fill the PARENT role and which
+ * the CHILD role.
  *
  * One declared check list, rather than a per-writer SELECT, is what keeps the
  * two writers from drifting apart.

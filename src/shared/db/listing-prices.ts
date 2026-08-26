@@ -1,16 +1,12 @@
 /**
- * The `listing_prices` table: generalised per-listing pricing, one row per
- * (listing, pricing *dimension*, key within it). A `price_type` names the
- * dimension and `price_id` the key. Every row but `base` is the source of truth
- * for its price, and this module owns writing all of them.
- *  - `("base", "")` — the listing's fixed price. Mirrors the hot-path
- *    `listings.unit_price` column, which {@link syncListingPrices} keeps in step.
- *  - `("day_count", "<n>")` — the price for an n-day booking.
- *  - `("group", "<groupId>")` — what this member charges per unit inside that
+ * One row per (listing, pricing *dimension*, key within it). Every row but
+ * `base` is the SOURCE of truth for its price.
+ *
+ *  - `("base", "")` mirrors the hot-path `listings.unit_price` column, which
+ *    {@link syncListingPrices} keeps in step.
+ *  - `("group", "<groupId>")` is what a member charges per unit inside that
  *    package, whatever the span. A member with no override has no row.
- *  - `("group_day", "<groupId>/<n>")` — the same, for an n-day booking of that
- *    package. {@link getGroupDayPrices} reads them.
- *  - `("start_day", "friday")` is reserved for weekday pricing: the shape
+ *  - `("start_day", "friday")` is reserved for weekday pricing. The shape
  *    admits it with no schema change, and nothing writes it yet.
  */
 
@@ -255,20 +251,15 @@ export const basePriceStatements = (
   insertPriceStatement([listingId, PRICE_TYPE_BASE, "", unitPrice]),
 ];
 
-/** The statements that make a listing's `day_count` rows exactly match
- * `dayPrices` — a full replace of the listing's per-day prices. Unlike `base`,
- * these rows are the SOURCE of truth (the `listings.day_prices` column was
- * migrated in and dropped), so the write paths call this with the submitted day
- * prices rather than re-deriving from a column. `undefined` normalises to an
- * empty map (the one place that default lives), so callers pass their optional
- * `dayPrices` straight through. Entries are normalised through
- * {@link parseDayPrices} so the rows carry exactly what a reader would accept.
+/** A full replace of a listing's per-day prices. These rows are the SOURCE of
+ * truth, so the write paths pass the submitted prices rather than re-derive
+ * from a column. `undefined` normalises to an empty map here, the one place
+ * that default lives.
  *
- * The inserts are a SINGLE multi-row statement, so a full replace is at most two
- * statements (one delete + one insert) regardless of how many day counts are
- * offered — the write paths run these inside an interactive transaction, and a
- * per-row insert would cross the round-trip guard for a listing with many day
- * prices. Reserved (`group`/…) rows are left untouched. */
+ * The inserts are a SINGLE multi-row statement, so a full replace is at most
+ * two statements however many day counts are offered. The write paths run
+ * inside an interactive transaction, and a per-row insert would cross the
+ * round-trip guard. Reserved rows are left untouched. */
 export const dayCountPriceStatements = (
   listingId: number,
   dayPrices: DayPrices | undefined,

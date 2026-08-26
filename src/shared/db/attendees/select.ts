@@ -20,20 +20,16 @@ import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 
 /**
- * This booking's refund status as a bare SQL expression (0/1), projected from
- * the transfers ledger rather than a stored column: the single home for "did
- * THIS booking come back", so the projection and the stats that exclude
- * refunded bookings cannot answer it differently.
+ * Projected from the ledger rather than a stored column, so the projection and
+ * the stats that exclude refunded bookings cannot answer differently.
  *
- * Asked per LISTING, not per person. A refund can return one of somebody's
- * charges and leave a sibling with the provider, and the scanner and check-in
- * both turn people away on this flag, so an account-wide answer would refuse a
- * ticket they paid for and did not get back. A refund mirrors every leg of the
- * order it reverses, so a sold booking that came back has a `refund_sale`.
+ * Asked per LISTING, not per person. A refund can return one charge and leave a
+ * sibling with the provider, and the scanner turns people away on this flag, so
+ * an account-wide answer would refuse a ticket they never got back.
  *
- * A payment-only placeholder has no sale to mirror, so it falls back to the
- * account's returned cash. Only a placeholder may: a FREE booking has no sale
- * leg either, and the account's cash would turn a real ticket away.
+ * A payment-only placeholder has no sale leg to mirror, so it falls back to the
+ * account's returned cash. ONLY a placeholder may: a FREE booking has no sale
+ * leg either, and that fallback would turn a real ticket away.
  */
 export const refundedForBooking = (
   attendeeIdExpr: string,
