@@ -39,20 +39,14 @@ import {
 import type { AdminLevel, AdminSession } from "#types";
 
 /**
- * What the admin nav should mark active for the current page.
+ * What the admin nav marks active for the current page. A plain route string
+ * means the page IS that route, and the nav opens the section's sub-nav when
+ * the route is a landing route or a sub-nav item. `{ section }` means the page
+ * only lives WITHIN a section.
  *
- * - A plain route string — the page *is* this route: a section's landing page
- *   (`/admin/attendees`), an "Add X" create page, or a settings sub-page. The
- *   nav highlights the matching link and, when the route is a section's landing
- *   route or one of its sub-nav items, opens that section's sub-nav.
- * - `{ section }` — the page merely lives *within* a section: a detail or child
- *   view of one item. The nav highlights the section's top-level link but never
- *   opens its sub-nav.
- *
- * The `{ section }` form is the only way to highlight a section without also
- * surfacing its sub-nav. A single-item page is not the section's landing page,
- * so naming the section keeps a detail page from re-triggering the "Add" link
- * the landing route would open.
+ * `{ section }` is the only way to highlight a section without also surfacing
+ * its sub-nav. A detail page is not the section's landing page, so a named
+ * section keeps it from re-triggering the "Add" link the landing route opens.
  */
 export type NavActive = string | { readonly section: string };
 

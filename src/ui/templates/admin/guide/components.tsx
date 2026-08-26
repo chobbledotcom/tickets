@@ -56,20 +56,15 @@ export const Faq = ({ id }: { id: string }): JSX.Element => (
 );
 
 /**
- * The guide as data. The page is a flat, ordered list of {@link GuideSection}s,
- * each owning a flat list of {@link GuideEntry}s. The types make the structure
- * explicit so it cannot drift: a section's `entries` are FAQs and custom Q&As
- * only, and an entry can never itself be a section. That removes a whole class
- * of layout bug where a sub-section authored in the middle of another section's
- * entries renders its `<h3>` mid-list and pulls every later entry under the
- * wrong heading. New sections go in the top-level array (see `guideSections` in
- * ../guide.tsx), so there is nowhere to "nest" one incorrectly.
+ * The guide as data: a flat, ordered list of {@link GuideSection}s, each owning
+ * a flat list of {@link GuideEntry}s. An entry can never itself be a section.
+ * That removes a class of layout bug where a sub-section authored mid-list
+ * renders its heading there and pulls every later entry under it.
  *
- * All user-facing copy lives in the locale: a section's heading comes from
- * `guide.sections.<titleKey>` and every entry's question from `guide.q.<id>`.
+ * All copy lives in the locale. A section's heading comes from
+ * `guide.sections.<titleKey>`, and an entry's question from `guide.q.<id>`.
  * `faq(id)` renders its answer from `guide.a.<id>`, and `custom(id, body)`
- * supplies a bespoke answer body for dynamic content. Both constructors are
- * keyed by a locale id, so the schema holds no inline copy.
+ * supplies a bespoke body for dynamic content.
  */
 
 /** A FAQ entry whose question and answer come from guide.q.* / guide.a.* keys. */

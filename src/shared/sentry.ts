@@ -1,18 +1,11 @@
 /**
- * Sentry error reporting (server-side only). Forwards the same classified
- * server errors that log to the console and ping ntfy to a Sentry-compatible
- * endpoint (the DSN in `SENTRY_URL`, for example a self-hosted Bugsink). When
- * an error carries its original exception, Sentry receives the real stack
- * trace, otherwise it gets the formatted message.
- *
  * The SDK is a large module, so a narrow named-import adapter is dynamically
- * imported on the first `initSentry` call with a DSN configured, never at
- * module load. That lets the production build remove unused SDK exports, and a
- * deployment without `SENTRY_URL` skips the retained code entirely. It also
- * names the integrations a report needs, which a bare client does not add.
+ * imported on first use, NEVER at module load. That lets the production build
+ * remove unused SDK exports, and a deployment without `SENTRY_URL` skips the
+ * retained code entirely.
  *
  * Every report names the site, the route, and the request id the console lines
- * carry, so one endpoint can serve many sites and still lead back to a request.
+ * carry, so one endpoint serves many sites and still leads back to a request.
  */
 
 import { lazyRef } from "#fp";

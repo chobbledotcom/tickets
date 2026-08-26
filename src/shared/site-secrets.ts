@@ -1,18 +1,14 @@
 /**
- * Secrets insight + backfill for existing built sites.
+ * Host secrets accumulate over time, so a site built before a given key was
+ * configured is missing it. This diffs a site's live secrets against the set we
+ * would copy today, and backfills what is missing.
  *
- * A freshly built site has the full set of secrets copied onto it (see
- * builder.ts). Host secrets, however, accumulate over time — a site built
- * before, say, the Google Wallet keys were configured will be missing them.
- * This module diffs a site's live secrets (read from the hosting provider API)
- * against the set we would copy today, and can backfill the ones that are
- * missing.
+ * It NEVER overwrites a secret already on the site, because a value may have
+ * been changed deliberately.
  *
- * It never overwrites a secret that already exists on the site: a value may
- * have been changed deliberately. DB_ENCRYPTION_KEY in particular is excluded
- * from the expected set entirely — it is generated per-site at build time and
- * never stored, so it cannot be reproduced, and re-setting it with a fresh key
- * would orphan the site's existing encrypted data.
+ * DB_ENCRYPTION_KEY is excluded from the expected set entirely. It is generated
+ * per-site and never stored, so it cannot be reproduced, and re-setting it with
+ * a fresh key would orphan the site's existing encrypted data.
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
