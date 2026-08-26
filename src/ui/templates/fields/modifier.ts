@@ -130,8 +130,8 @@ const getModifierFields = () =>
       type: "number",
     },
     {
-      hint: "Question-answer modifiers only: the most times this charge can apply within one booking. Set 1 to charge a delivery fee once per booking. Leave blank to charge for every ticket. Ignored for other triggers.",
-      label: "Max times per order (optional)",
+      hint: t("modifiers.max_per_order.hint"),
+      label: t("modifiers.max_per_order.label"),
       min: 1,
       name: "max_per_order",
       type: "number",

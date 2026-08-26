@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { hashEmail } from "#db/contact-preferences.ts";
+import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import {
   buyerVisits,
   getOptionalAddOns,
@@ -42,6 +42,17 @@ describeWithEnv("modifier-resolve counting edges", { db: true }, () => {
       await setContactVisits(await hashEmail("   "), 3);
 
       expect(await buyerVisits("   ")).toBe(0);
+    });
+
+    test("no details at all means no lookup at all", async () => {
+      expect(await buyerVisits("", "")).toBe(0);
+    });
+
+    test("the highest count across both details wins", async () => {
+      await setContactVisits(await hashEmail("seen@example.com"), 1);
+      await setContactVisits(await hashPhone("07700 900123"), 2);
+
+      expect(await buyerVisits("seen@example.com", "07700 900123")).toBe(2);
     });
   });
 
