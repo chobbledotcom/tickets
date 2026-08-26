@@ -149,6 +149,17 @@ describe("renewal panel", () => {
       expect(html).not.toContain("set-renewal-tier");
     });
 
+    test("still lets a retired tier be cleared when no tier is left", () => {
+      const html = render(testBuiltSite({ renewalTierListingId: 99 }), []);
+      expect(html).toContain("No renewal tier listing is configured");
+      expect(html).toContain("Listing #99 is no longer a renewal tier.");
+      // The warning says to pick a new tier, so the picker has to be there to
+      // act on it — with the one choice that clears the retired listing.
+      expect(html).toContain("set-renewal-tier");
+      expect(html).toContain('<option selected value="">Any tier.');
+      expect(html).not.toContain('value="11"');
+    });
+
     test("offers the tier picker on an unprovisioned site too", () => {
       const html = render(
         testBuiltSite({ renewalTierListingId: 11, renewalTokenIndex: null }),

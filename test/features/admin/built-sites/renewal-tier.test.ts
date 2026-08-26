@@ -10,7 +10,10 @@ import {
   provisionTestBuiltSite,
   updateTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const findSite = async (siteId: number): Promise<BuiltSite> =>
@@ -29,6 +32,27 @@ const setTier = (siteId: number, tierId: string) =>
   adminFormPost(`/admin/built-sites/${siteId}/set-renewal-tier`, {
     tier_id: tierId,
   });
+
+/** A site already set to renew on a fresh monthly tier — where every change
+ * below starts. */
+const siteOnTier = async (name: string) => {
+  const tier = await createTier("Monthly tier", 1, 500);
+  const site = await createTestBuiltSite({ name });
+  await setTier(site.id, String(tier.id));
+  return { site, tier };
+};
+
+/** What clearing looks like: the flash the operator reads, and no tier stored. */
+const expectClearedTier = async (
+  siteId: number,
+  response: Response,
+): Promise<void> => {
+  await expectFlashRedirect(
+    `/admin/built-sites/${siteId}/renewal`,
+    "Renewal tier cleared. The customer now picks any tier.",
+  )(response);
+  expect((await findSite(siteId)).renewalTierListingId).toBeNull();
+};
 
 describeWithEnv(
   "admin built-sites renewal tier",
@@ -52,27 +76,19 @@ describeWithEnv(
       });
 
       test("clears the tier so the customer picks any of them", async () => {
-        const tier = await createTier("Monthly tier", 1, 500);
-        const site = await createTestBuiltSite({ name: "Cleared Site" });
-        await setTier(site.id, String(tier.id));
+        const { site } = await siteOnTier("Cleared Site");
 
         const { response } = await setTier(site.id, "");
 
-        await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/renewal`,
-          "Renewal tier cleared. The customer now picks any tier.",
-        )(response);
-        expect((await findSite(site.id)).renewalTierListingId).toBeNull();
+        await expectClearedTier(site.id, response);
         expect(
           (await getAllActivityLog()).map(({ message }) => message),
         ).toContain("Admin cleared the renewal tier for 'Cleared Site'");
       });
 
       test("refuses a listing that is not a renewal tier", async () => {
-        const tier = await createTier("Monthly tier", 1, 500);
+        const { site, tier } = await siteOnTier("Refusing Site");
         const ordinary = await createTestListing({ name: "Ordinary listing" });
-        const site = await createTestBuiltSite({ name: "Refusing Site" });
-        await setTier(site.id, String(tier.id));
 
         const { response } = await setTier(site.id, String(ordinary.id));
 
@@ -82,6 +98,15 @@ describeWithEnv(
           false,
         )(response);
         expect((await findSite(site.id)).renewalTierListingId).toBe(tier.id);
+      });
+
+      test("clears a retired tier after every tier listing has gone", async () => {
+        const { site, tier } = await siteOnTier("Retired Tier Site");
+        await deactivateTestListing(tier.id);
+
+        const { response } = await setTier(site.id, "");
+
+        await expectClearedTier(site.id, response);
       });
 
       test("refuses a listing id that does not exist", async () => {
@@ -98,9 +123,7 @@ describeWithEnv(
       });
 
       test("survives an ordinary edit of the site's own fields", async () => {
-        const tier = await createTier("Monthly tier", 1, 500);
-        const site = await createTestBuiltSite({ name: "Edited Site" });
-        await setTier(site.id, String(tier.id));
+        const { site, tier } = await siteOnTier("Edited Site");
 
         await updateTestBuiltSite(site.id, { name: "Renamed Site" });
 

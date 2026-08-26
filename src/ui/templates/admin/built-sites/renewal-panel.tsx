@@ -78,6 +78,8 @@ const renewalTierLabel = (tier: ListingWithCount): string =>
 const chosenTierValue = (chosen: SiteRenewalTier<ListingWithCount>): string =>
   chosen.kind === "pinned" ? String(chosen.tier.id) : "";
 
+/** Shown when there is a tier to pick, and also when the only thing left to do
+ * is let a retired one go — a warning the operator cannot act on is a dead end. */
 const RenewalTierForm = ({
   chosen,
   site,
@@ -126,11 +128,12 @@ const RenewalTierSection = ({ site, tiers }: TierSectionProps): JSX.Element => {
           {t("built_sites.renewal_tier_retired", { id: chosen.listingId })}
         </ErrorNote>
       )}
-      {tiers.length === 0 ? (
+      {tiers.length === 0 && (
         <ErrorNote>
           <Raw html={t("built_sites.no_renewal_tier")} />
         </ErrorNote>
-      ) : (
+      )}
+      {(tiers.length > 0 || chosen.kind === "retired") && (
         <RenewalTierForm chosen={chosen} site={site} tiers={tiers} />
       )}
     </>
