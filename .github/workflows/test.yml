@@ -13,6 +13,11 @@ on:
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
+# Both jobs only read the checkout. Caching and artifact upload use the Actions
+# runtime token, not this one.
+permissions:
+  contents: read
+
 # Two jobs that run side by side. Together their steps mirror `getSteps()` in
 # scripts/precommit/steps.ts — if you add a step there, add it to whichever job
 # it belongs to here. Nothing in the suite reads what the static checks
