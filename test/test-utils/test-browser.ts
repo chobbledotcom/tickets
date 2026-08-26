@@ -259,6 +259,18 @@ export class TestBrowser {
   }
 
   /**
+   * The body of the form that posts to `action`, for a caller that picks a
+   * form by where it goes rather than by the words on its button. The sibling
+   * of {@link formBodyFor}, so such a caller can check what it is about to
+   * fill in against that form alone. Throws when nothing posts there.
+   */
+  formBodyAt(action: string): string {
+    const wayThere = wayToPost(this.currentHtml, action);
+    if (!wayThere) throw new Error(`No form on this page posts to ${action}`);
+    return wayThere.form.body;
+  }
+
+  /**
    * Submit the one form on this page that posts to `action`, the way pressing
    * its own button would: its hidden fields and CSRF token go with it. For a
    * page that renders many identical forms — one arrow per row — where the

@@ -4,6 +4,7 @@ import {
   type RowOnList,
   rowsOnList,
 } from "#test/specs/support/form-controls/reading.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   fillInAndSend,
   type SendingAForm,
@@ -103,9 +104,14 @@ export const organiserSendsTheFormAt: SendingOnAPage<void> = async (
   action,
   values = {},
 ) => {
-  const browser = await sendsOnAdminPage(world, path, (page) =>
-    page.submitFormAt(action, values),
-  );
+  const browser = await sendsOnAdminPage(world, path, async (page) => {
+    // Picking the form by where it posts says a form goes there; it says
+    // nothing about the boxes. Every value still has to be one that form
+    // really offers, so a page that stopped offering a box fails here rather
+    // than the send carrying a value no person could have typed.
+    expectCanReallySend(page.formBodyAt(action), values);
+    await page.submitFormAt(action, values);
+  });
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 

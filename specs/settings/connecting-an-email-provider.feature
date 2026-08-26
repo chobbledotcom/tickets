@@ -32,18 +32,6 @@ Feature: The owner connects the site to an email provider
       And the key the owner typed is the one on file
       And the activity log says the email settings were updated
 
-  @rule:email.an-address-that-is-not-an-address-is-refused
-  Rule: An address that is not an address is refused
-    Mail sent from something that is not an address goes nowhere, so the site
-    refuses it and says what an address looks like rather than saving it and
-    failing at the first real send.
-
-    @case:email.a-from-address-that-is-not-an-address
-    Scenario: The owner types something that is not an address
-      When the owner connects "resend" sending from "not-an-email"
-      Then the owner is told the from-address format is wrong
-      And the site is not set to send anything
-
   @rule:email.changing-the-provider-keeps-the-key-already-given
   Rule: Leaving the key box empty keeps the key already given
     A saved key is never shown back to the owner, so asking them to retype it

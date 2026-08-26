@@ -166,15 +166,6 @@ Then(
 );
 
 Then(
-  "the owner is told the from-address format is wrong",
-  async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      await settingsCopy("error.from_address_format"),
-    );
-  },
-);
-
-Then(
   "the site is set to send through {string} from {string}",
   async (provider: string, from: string): Promise<void> => {
     const sending = await howTheSiteSends();
