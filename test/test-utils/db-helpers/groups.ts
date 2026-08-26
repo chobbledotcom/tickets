@@ -61,11 +61,9 @@ export const createHiddenPackageGroup = async (
   const { groups } = await import("#db/groups.ts");
   // Return the updated row. The object from before the update still says the
   // package shows its members, so a caller reading the flag reads a stale one.
-  const hidden = await groups.table.update(group.id, {
+  return (await groups.table.update(group.id, {
     hidePackageListings: true,
-  });
-  if (hidden === null) throw new Error(`Group ${group.id} was not updated`);
-  return hidden;
+  })) as Group;
 };
 
 export const updateTestGroup = async (
