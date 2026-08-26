@@ -258,3 +258,6 @@ src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated"   # only 
 src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated"   # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
 src/shared/email.ts::mailgunBody~0u9dcxo  ?? → ||   # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input
+src/shared/email-renderer.ts::buildTemplateData.displays~00l98s9  ?? → ||   # packageDisplays: ReadonlyMap|undefined — a Map is truthy even when empty
+src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date_range_label~0v9023r  ?? → ||   # date_range_label: string, only falsy string "" === fallback ""
+src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date~1xxdsvp  ?? → ||   # date is nullish or a stored YYYY-MM-DD string; only the nullish values reach the null fallback
