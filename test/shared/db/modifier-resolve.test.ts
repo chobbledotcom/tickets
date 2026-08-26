@@ -11,6 +11,7 @@ import {
   getOptionalAddOns,
   hasPromoCodeModifiers,
   oversubscribedAnswerTiers,
+  reachablePageIds,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
 import {
@@ -97,6 +98,27 @@ describe("childUnreachableAddOnError", () => {
         parentPage,
       ),
     ).toBeNull();
+  });
+
+  test("an add-on that also reaches a parent page is not a dead end", () => {
+    // Scoped to the child AND the parent page's listing: the parent page can
+    // still load it, so naming a child must not block.
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, scope: [10, 20] },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+  });
+
+  test("reachable pages are the active listings that are not children", () => {
+    expect(
+      reachablePageIds(
+        [{ active: true, id: 1 }, { id: 2 }, { active: true, id: 3 }],
+        new Set([3]),
+      ),
+    ).toEqual(new Set([1]));
   });
 });
 
@@ -352,6 +374,26 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(specs.find((s) => s.name === "Van slot")?.quantity).toBe(1);
     });
 
+    test("reports a once-per-order answer modifier whose stock ran out", async () => {
+      const { answerIds, modifierId } = await setUpAnswerModifier(1, {
+        maxPerOrder: 1,
+        name: "Last van",
+        stock: 1,
+      });
+      // The only slot is gone, and this order needs it.
+      await insertModifierUsage(modifierId, 1, 1, 0);
+
+      const quantities = await answerModifierQuantities(
+        { "1": [answerIds[0]!] },
+        new Map([[1, 3]]),
+      );
+      expect(
+        await oversubscribedAnswerTiers([checkoutItem()], {
+          answerQuantities: quantities,
+        }),
+      ).toEqual(["Last van"]);
+    });
+
     test("applies a group-scoped modifier to the linked group's listings", async () => {
       const listing = await createTestListing({
         groupId: 42,
@@ -579,6 +621,22 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(await buyerVisits("", "")).toBe(0);
     });
 
+    test("returns the count for one known contact", async () => {
+      await setContactVisits(await hashEmail("solo@example.com"), 5);
+      expect(await buyerVisits("solo@example.com")).toBe(5);
+    });
+
+    test("returns 0 for a contact with no recorded visits", async () => {
+      expect(await buyerVisits("unknown@example.com")).toBe(0);
+    });
+
+    test("ignores a whitespace-only contact identifier", async () => {
+      // A blank-looking email must not count, even if a row exists for the
+      // hash of the empty string it normalises to.
+      await setContactVisits(await hashEmail(" "), 3);
+      expect(await buyerVisits(" ")).toBe(0);
+    });
+
     test("reads the max visit count across email and phone", async () => {
       await setContactVisits(await hashEmail("seen@example.com"), 1);
       await setContactVisits(await hashPhone("07700 900123"), 2);
@@ -618,6 +676,20 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           requiresPayment: true,
         },
       ]);
+    });
+
+    test("offers a one-penny add-on as requiring payment", async () => {
+      const m = await insertModifier({
+        calcKind: "fixed",
+        calcValue: 0.01,
+        direction: "charge",
+        name: "Booking penny",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const [addOn] = await getOptionalAddOns([1]);
+      expect(addOn?.priceLabel).toBe("+£0.01");
+      expect(addOn?.requiresPayment).toBe(true);
     });
 
     test("labels a percentage discount add-on with a minus sign", async () => {
