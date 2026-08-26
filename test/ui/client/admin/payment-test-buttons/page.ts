@@ -62,10 +62,10 @@ export const settle = (): Promise<void> =>
  *  boots the script over a page carrying no test button at all. */
 export const usePaymentButtonPage = (): {
   bare: (html: string) => void;
-  open: (provider: string, replies?: Reply[], withToken?: boolean) => Page;
+  open: (provider: string, script: Script, withToken?: boolean) => Page;
   press: (
     provider: string,
-    reply?: Reply,
+    reply: Reply,
   ) => Promise<Page & { lines: string[] }>;
 } => {
   const stash = createGlobalStash();
