@@ -41,7 +41,7 @@ export interface BatchMessageOutcome {
   refused: number;
   /** How many messages the reply did not account for. The provider took the
    * batch, so these may or may not have been sent. They are neither sent nor
-   * refused, and saying otherwise invites a duplicate send. */
+   * refused, and either claim would be one we cannot stand behind. */
   unconfirmed: number;
 }
 
@@ -242,8 +242,8 @@ export interface BulkSendResult {
   /** Recipients the provider refused. */
   failed: number;
   responses: BulkBatchResponse[];
-  /** Recipients the provider took, for the contact history. A message the
-   * reply left unconfirmed is here, because the provider accepted it. */
+  /** Recipients whose message the reply confirmed, for the contact history
+   * and the sent count. A message left unconfirmed is not here. */
   taken: ValidEmail[];
   /** Messages an accepted reply did not account for. */
   unconfirmed: number;
