@@ -75,19 +75,23 @@ export const readProviderJson = (
   }
 };
 
-const askOnce = (url: string, init: ProviderRequest): Promise<Attempt> =>
-  fetchText(url, {
-    ...init,
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-  }).then(
-    (answer): Attempt => ({ answer, unreachable: null }),
-    (error: unknown): Attempt => {
-      const unreachable = connectionReasonOf(error);
-      // Anything else is a bug of ours rather than a provider gone quiet.
-      if (unreachable === undefined) throw error;
-      return { answer: null, unreachable };
-    },
-  );
+const askOnce = async (
+  url: string,
+  init: ProviderRequest,
+): Promise<Attempt> => {
+  try {
+    const answer = await fetchText(url, {
+      ...init,
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
+    return { answer, unreachable: null };
+  } catch (error) {
+    const unreachable = connectionReasonOf(error);
+    // Anything else is a bug of ours rather than a provider gone quiet.
+    if (unreachable === undefined) throw error;
+    return { answer: null, unreachable };
+  }
+};
 
 /** Bind one provider's name to the shared boundary. Every call it then makes
  * runs under the shared timeout, counts against the edge subrequest budget,

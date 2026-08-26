@@ -81,7 +81,7 @@ export const providerDetail = {
 
 /** The provider as the operator knows it. Our own wording reaches the
  * settings pages through `errorMessage`, so it says "SumUp", not "sumup". */
-const named = (detail: ProviderErrorDetail): string =>
+const providerName = (detail: ProviderErrorDetail): string =>
   PAYMENT_PROVIDERS[detail.provider].label;
 
 /** The three ways a provider transport can fail, each naming its own facts.
@@ -103,7 +103,7 @@ export const transportError = {
       detail,
       { statusCode },
       // A provider that hands back nothing useful gets our wording.
-      message || `${named(detail)} answered. Status code: ${statusCode}`,
+      message || `${providerName(detail)} answered. Status code: ${statusCode}`,
     ),
 
   /** We never got an answer. Only the shared boundary reaches this, and it
@@ -116,8 +116,8 @@ export const transportError = {
       detail,
       { connectionReason },
       connectionReason === "timeout"
-        ? `${named(detail)} did not answer in time`
-        : `${named(detail)} could not be reached`,
+        ? `${providerName(detail)} did not answer in time`
+        : `${providerName(detail)} could not be reached`,
     ),
 
   /** The provider answered, but its body was not the shape it documents.
@@ -132,7 +132,7 @@ export const transportError = {
     new ProviderTransportError(
       detail,
       { malformed: true, ...(statusCode === undefined ? {} : { statusCode }) },
-      message || `${named(detail)} returned an answer we could not read`,
+      message || `${providerName(detail)} returned an answer we could not read`,
     ),
 } as const;
 
