@@ -43,20 +43,26 @@ const saveAndReadAnswers = async (
   ).rows;
 };
 
+/** One radio question with a single answer to choose. */
+const choiceQuestion = async () => {
+  const question = await questionsTable.insert({
+    displayType: "radio",
+    text: "Choose one",
+  });
+  const answer = await answersTable.insert({
+    questionId: question.id,
+    sortOrder: 0,
+    text: "Chosen",
+  });
+  return { answer, question };
+};
+
 describeWithEnv("paid booking answer saves", { db: true }, () => {
   const errors = setupErrorSpy();
 
   test("saves a choice answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: "Choose one",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Chosen",
-    });
+    const { question, answer } = await choiceQuestion();
     const saved = await saveAndReadAnswers(entry, {
       listingAnswerIds: { [entry.listing.id]: [answer.id] },
     });
@@ -87,15 +93,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
 
   test("reports answers filed under a listing the order did not book", async () => {
     const entry = await bookedEntry();
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: "Choose one",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Chosen",
-    });
+    const { question, answer } = await choiceQuestion();
     const unbookedListingId = entry.listing.id + 1000;
     const saved = await saveAndReadAnswers(entry, {
       listingAnswerIds: {

@@ -84,12 +84,18 @@ describe("answers filed under a listing nobody booked", () => {
   });
 
   test("matches a key against the booked listing id written as a string", () => {
-    reportAnswersForUnbookedListings([entryFor(12)], [{ "12": [400] }, undefined]);
+    reportAnswersForUnbookedListings(
+      [entryFor(12)],
+      [{ "12": [400] }, undefined],
+    );
     expect(errors.calls).toHaveLength(0);
   });
 
   test("names the unbooked listing in the logged listing id", () => {
-    reportAnswersForUnbookedListings([entryFor(3)], [{ "12": [400] }, undefined]);
+    reportAnswersForUnbookedListings(
+      [entryFor(3)],
+      [{ "12": [400] }, undefined],
+    );
     expect(errors.lastMessage()).toContain("listing=12");
   });
 });
