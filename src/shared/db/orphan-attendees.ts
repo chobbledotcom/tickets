@@ -1,17 +1,13 @@
 /**
- * Orphaned-attendee cleanup.
+ * An orphan has no surviving `listing_attendees` link, because `deleteListing`
+ * removes the bookings but deliberately leaves the attendee. They still hold
+ * encrypted personal data, which is why the Privacy page can purge them.
  *
- * An orphaned attendee has no surviving `listing_attendees` link, typically
- * because the only listing they booked was deleted: `deleteListing` removes the
- * bookings but deliberately leaves the attendee. They still hold encrypted
- * personal data, so the Privacy page lets the owner purge those past a chosen
- * age. The purge deletes the same dependent rows `deleteAttendee` does,
- * set-based in one batch. No listing aggregates need restoring, since an orphan
- * contributes to no listing's totals.
+ * No listing aggregate needs restoring: an orphan contributes to no totals.
  *
- * The `transfers` ledger is append-only and never touched: a servicing event's
- * legs stay as orphaned history, the way a deleted listing's sale legs do, and
- * the ledger UI labels the missing row "Deleted listing".
+ * The `transfers` ledger is append-only and never touched. A servicing event's
+ * legs stay as orphaned history, and the ledger UI labels the missing row
+ * "Deleted listing".
  */
 
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";

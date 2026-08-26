@@ -1,18 +1,14 @@
 /**
- * SumUp checkout metadata store — encrypted staging for booking intent. A
- * SumUp checkout carries only a `checkout_reference` string, not the booking
- * metadata Stripe sessions and Square orders round-trip for us, so we persist
- * it locally at checkout creation and read it back when the payment completes.
+ * A SumUp checkout carries only a `checkout_reference`, not the booking
+ * metadata Stripe and Square round-trip for us, so we stage it locally.
  *
- * That metadata holds PII, so nothing in the stored row can decrypt it alone:
- * the row is keyed by `hmacHash(reference)`, the blob uses a fresh per-row data
- * key, and that key is stored wrapped with a key derived from the reference. The
- * plaintext reference never rests here, so a database dump cannot decrypt a row.
+ * That metadata holds PII, so NOTHING in the stored row can decrypt it alone.
+ * The row is keyed by `hmacHash(reference)`, the blob uses a fresh per-row data
+ * key, and that key is wrapped with a key derived from the reference. The
+ * plaintext reference never rests here, so a dump cannot decrypt a row.
  *
- * The row also records the SumUp-side checkout id, which is not sensitive and
- * lets the webhook reject checkouts we never created without an API call. Rows
- * are pruned after PRUNE_SUMUP_RETENTION_HOURS, once SumUp's checkout expiry
- * and webhook retry window have both passed.
+ * The stored SumUp-side checkout id is not sensitive, and lets the webhook
+ * reject checkouts we never created without an API call.
  */
 
 import * as v from "valibot";

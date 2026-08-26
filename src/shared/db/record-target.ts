@@ -1,15 +1,13 @@
 /**
- * One record, named by its kind and its id — the shape used by everything that
- * hangs off "any record": notes about a record, images attached to a record,
- * the items a site page points at.
+ * One record, named by its kind and its id. The shape behind everything that
+ * hangs off "any record": notes, attached images, the items a site page points
+ * at.
  *
- * A domain says which kinds it allows and which two columns hold them, and gets
- * back the whole vocabulary: how to name a record, a stable key for one, the
- * clauses that ask for one or many, the deletes, and (when it lists the table
- * each kind lives in) a check that the record is really there.
+ * A domain declares which kinds it allows and which two columns hold them, and
+ * gets the whole vocabulary back. A fourth such feature declares its kinds
+ * rather than invents a fourth vocabulary.
  *
- * This module is pure: it says what a target is and how to ask for one in SQL,
- * and never touches the database itself.
+ * This module is pure and never touches the database itself.
  */
 
 import type { SqlStatement } from "#db/client.ts";

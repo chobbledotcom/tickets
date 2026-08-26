@@ -171,19 +171,12 @@ export const encryptTicketTokens = (
 ): Promise<EnvKeyEncrypted> => encrypt(ticketTokens.join("+"));
 
 /**
- * Heal a still-unresolved reservation by stamping `attendee_id`, leaving
- * `ticket_tokens` untouched. The ledger-replay path uses this: when a late
- * delivery finds the booking already recorded in the ledger, it points its fresh
- * reservation row at the existing attendee so the next delivery takes the fast
- * already-processed path — but ONLY while the row is unresolved, so it never
- * overwrites the `attendee_id` or blanks the `ticket_tokens` a racing delivery
- * may have just finalized and stored. Guarded on {@link UNRESOLVED_RESERVATION}
- * (the first outcome wins), and a no-op if the row was pruned away.
+ * Heals a reservation ONLY while it is unresolved, so it never overwrites the
+ * `attendee_id` or blanks the `ticket_tokens` a racing delivery just finalized.
+ * The guard is {@link UNRESOLVED_RESERVATION}, so the first outcome wins.
  *
- * When the replayed session carries a provider `paymentReference`, it is stored
- * too, so a replay that recreated the idempotency row (after a prune) restores
- * the refundable charge reference rather than leaving it empty — the only
- * refundable id for a provider-less/admin-added attendee's balance charge.
+ * A replayed `paymentReference` is stored too. After a prune, that is the only
+ * refundable id a provider-less or admin-added attendee's balance charge has.
  */
 export const finalizeSessionIfUnresolved = async (
   sessionId: string,

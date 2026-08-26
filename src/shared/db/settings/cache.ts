@@ -1,17 +1,11 @@
 /**
- * Raw-row cache + cross-isolate version stamp. `values` holds the raw DB rows
- * loaded so far, still sealed when encrypted, because decryption happens only
- * when a value is resolved into the snapshot. `loaded` records which keys have
- * been resolved, present *or* absent in the DB, so a partial `loadKeys` never
- * re-queries a key it already fetched. `version` is the `settings_version`
- * counter the rows were loaded at, and `-1` means never loaded.
+ * `loaded` records keys resolved present *or* absent, so a partial `loadKeys`
+ * never re-queries one it already fetched.
  *
- * Freshness is decided by the version stamp, not a wall-clock TTL. Every
- * settings write bumps the shared `settings_version` counter in the DB, and
- * each request probes that counter once. When the probed counter differs from
- * the cache's stamp, some isolate changed a setting and the cache reloads. This
- * makes a change saved on one warm edge isolate visible to every other isolate
- * on its next request, while it skips the reload on the common no-change path.
+ * Freshness is decided by a shared version stamp, not a wall-clock TTL. Every
+ * write bumps the counter, and each request probes it once. That makes a change
+ * saved on one warm edge isolate visible to every other isolate on its next
+ * request, while skipping the reload on the common no-change path.
  */
 
 import {
