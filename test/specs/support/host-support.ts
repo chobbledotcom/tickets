@@ -8,15 +8,14 @@
 // jscpd:ignore-start
 import { settings } from "#db/settings.ts";
 import {
-  openAdminPage,
   openAsNewcomer,
-  organiserSendsAndIsTold,
+  writesOneMessage,
 } from "#test/specs/support/browser.ts";
 import {
   answersTheEmailProviderWith,
   type PutsAWatchInPlace,
 } from "#test/specs/support/outgoing.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { scenarioEnv, type TicketsWorld } from "#test/specs/support/world.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { connectResendProvider } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -61,7 +60,7 @@ export const hostCannotTakeMessages = (world: TicketsWorld): void =>
 
 /** The host has no address configured, so none of this exists. */
 export const hostDoesNotListen = (world: TicketsWorld): void => {
-  world.cleanup.add(withEnv({ ADMIN_EMAIL_ADDRESS: undefined }));
+  scenarioEnv(world, { ADMIN_EMAIL_ADDRESS: undefined });
 };
 
 /** The words the host wrote on the Support page, written as markdown with
@@ -70,7 +69,7 @@ export const hostWritesOnTheSupportPage = (
   world: TicketsWorld,
   markdown: string,
 ): void => {
-  world.cleanup.add(withEnv({ SUPPORT_PAGE_TEXT: markdown }));
+  scenarioEnv(world, { SUPPORT_PAGE_TEXT: markdown });
 };
 
 /** The site able to send its own messages: an address to send from and a
@@ -80,6 +79,11 @@ export const siteCanSendFrom = async (address: string): Promise<void> => {
   await connectResendProvider();
 };
 
+const writesToTheHost = writesOneMessage(
+  () => SUPPORT_PAGE,
+  () => SEND,
+);
+
 /** The owner writes to the host through the form on the page, and is told
  * something back. The words they typed are kept, so the story can prove
  * those words are what left the site. */
@@ -87,9 +91,8 @@ export const ownerWritesToTheHost = async (
   world: TicketsWorld,
   message: string,
 ): Promise<void> => {
-  const browser = await openAdminPage(world, SUPPORT_PAGE);
   world.messageWritten = message;
-  await organiserSendsAndIsTold(world, browser, { message }, SEND);
+  await writesToTheHost(world, message);
 };
 
 /** A stranger looks for the Support page and lands wherever the site puts

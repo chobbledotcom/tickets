@@ -11,7 +11,6 @@ import {
   buyOnePlace,
   correctIncomeTo,
   sellPlacesAt,
-  soleBookingOn,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
@@ -24,6 +23,7 @@ import {
   sumOfAllBalances,
   worldBalance,
 } from "#test/specs/support/money-reads.ts";
+import { soleBookingOn } from "#test/specs/support/public-booking.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";

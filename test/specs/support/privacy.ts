@@ -16,6 +16,7 @@ import {
   getVisits,
 } from "#db/contact-preferences.ts";
 import { t } from "#i18n";
+import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
 // jscpd:ignore-start
 import {
   openAdminPage,
@@ -27,18 +28,12 @@ import {
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
 import { takeDownFromActions } from "#test/specs/support/form-controls.ts";
-import {
-  listingIdNamed,
-  rememberListing,
-} from "#test/specs/support/listings.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type {
   ActOnOneThing,
   AsksAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
@@ -97,19 +92,9 @@ export const adaBooks = async (
   world: TicketsWorld,
   alsoGivingAPhone: boolean,
 ): Promise<void> => {
-  await enablePublicSite();
-  const listing = rememberListing(
-    world,
-    POTTERY,
-    await createTestListing({
-      fields: alsoGivingAPhone ? "email,phone" : "email",
-      maxAttendees: 10,
-      name: POTTERY,
-      thankYouUrl: "",
-    }),
-  );
-  await visitorBooks(world, listing, {
+  await somebodyBooksThroughTheSite(world, {
     email: ADA.email,
+    listingName: POTTERY,
     who: ADA.name,
     ...(alsoGivingAPhone ? { phone: ADA.phone } : {}),
   });
