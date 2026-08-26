@@ -27,11 +27,11 @@ const payload = (n: number): BulkEmailPayload => ({
   text: "Hi",
 });
 
-/** Nothing inside the batch was refused. */
-const tookAll = { count: 0, reasons: [] };
+/** Nothing inside the batch was refused or left unreported. */
+const tookAll = { reasons: [], refused: 0, unconfirmed: 0 };
 
 /** The stub fetch returns an empty 200, so each batch records this response. */
-const okBatch = { body: "", ok: true, refusals: tookAll, status: 200 };
+const okBatch = { body: "", ok: true, outcome: tookAll, status: 200 };
 
 /** Two-recipient payload with the bulk unsubscribe placeholder — used by the
  *  SendGrid and Mailgun personalization tests to check per-recipient
@@ -55,7 +55,10 @@ describe("sendBulkEmails", () => {
       batches: 1,
       failed: 0,
       responses: [okBatch],
+      taken: result.taken,
+      unconfirmed: 0,
     });
+    expect(result.taken).toHaveLength(2);
     const [url] = fetch.getFetchArgs();
     expect(url).toBe(expectedUrl);
   };
@@ -82,6 +85,12 @@ describe("sendBulkEmails", () => {
       batches: 1,
       failed: 0,
       responses: [okBatch],
+      taken: [
+        validEmail("user0@example.com"),
+        validEmail("user1@example.com"),
+        validEmail("user2@example.com"),
+      ],
+      unconfirmed: 0,
     });
     expect(fetch.callCount()).toBe(1);
     const [url] = fetch.getFetchArgs();
@@ -120,7 +129,10 @@ describe("sendBulkEmails", () => {
       batches: 2,
       failed: 0,
       responses: [okBatch, okBatch],
+      taken: result.taken,
+      unconfirmed: 0,
     });
+    expect(result.taken).toHaveLength(101);
     expect(fetch.callCount()).toBe(2);
     expect(fetch.getFetchJsonBody(0)).toHaveLength(100);
     expect(fetch.getFetchJsonBody(1)).toHaveLength(1);
@@ -235,10 +247,12 @@ describe("sendBulkEmails", () => {
           {
             body: "nope",
             ok: false,
-            refusals: { count: 3, reasons: [] },
+            outcome: { reasons: [], refused: 3, unconfirmed: 0 },
             status: 500,
           },
         ],
+        taken: [],
+        unconfirmed: 0,
       });
       const logged = errorSpy.calls.some((c) =>
         String(c.args[0]).includes("E_EMAIL_SEND"),
@@ -254,10 +268,16 @@ describe("sendBulkEmails", () => {
     const result = await sendBulkEmails(postmark, payload(3));
 
     expect(result.failed).toBe(1);
-    expect(result.responses[0]?.refusals).toEqual({
-      count: 1,
+    expect(result.responses[0]?.outcome).toEqual({
       reasons: ["Postmark error 406: Inactive recipient"],
+      refused: 1,
+      unconfirmed: 0,
     });
+    // The refused message's recipient is not recorded as contacted.
+    expect(result.taken).toEqual([
+      validEmail("user0@example.com"),
+      validEmail("user2@example.com"),
+    ]);
   });
 
   test("counts no refusal when Postmark took every message", async () => {
@@ -265,7 +285,7 @@ describe("sendBulkEmails", () => {
     const result = await sendBulkEmails(postmark, payload(2));
 
     expect(result.failed).toBe(0);
-    expect(result.responses[0]?.refusals).toEqual(tookAll);
+    expect(result.responses[0]?.outcome).toEqual(tookAll);
   });
 
   test("logs the refused count when an accepted batch refuses a message", async () => {
@@ -289,32 +309,56 @@ describe("sendBulkEmails", () => {
     );
     const result = await sendBulkEmails(postmark, payload(1));
 
-    const [reason] = result.responses[0]?.refusals.reasons ?? [];
+    const [reason] = result.responses[0]?.outcome.reasons ?? [];
     expect(reason).toBe("Postmark error 406: Recipient [redacted] is inactive");
   });
 
-  test("counts the whole batch when an accepted Postmark reply cannot be read", async () => {
+  test("leaves the batch unconfirmed when Postmark's reply cannot be read", async () => {
     replyWith("not json at all");
     const result = await sendBulkEmails(postmark, payload(2));
 
-    expect(result.failed).toBe(2);
-    expect(result.responses[0]?.refusals.reasons).toEqual([
-      "Postmark accepted the batch but its reply did not answer for every message",
-    ]);
+    // Postmark took the batch, so these are not refusals. Calling them
+    // refused would invite a second send to people who already have it.
+    expect(result.unconfirmed).toBe(2);
+    expect(result.failed).toBe(0);
   });
 
-  test("counts the whole batch when a Postmark reply is JSON of the wrong shape", async () => {
+  test("leaves the batch unconfirmed when a Postmark reply is the wrong shape", async () => {
     replyWith('{"Message":"queued"}');
     const result = await sendBulkEmails(postmark, payload(2));
 
-    expect(result.failed).toBe(2);
+    expect(result.unconfirmed).toBe(2);
+    expect(result.failed).toBe(0);
   });
 
-  test("counts the whole batch when Postmark skips a message in its reply", async () => {
+  test("leaves the batch unconfirmed when Postmark skips a message", async () => {
     replyWith(postmarkReply(0));
     const result = await sendBulkEmails(postmark, payload(2));
 
-    expect(result.failed).toBe(2);
+    expect(result.unconfirmed).toBe(2);
+    expect(result.failed).toBe(0);
+  });
+
+  test("still counts an unconfirmed recipient as contacted", async () => {
+    replyWith("not json at all");
+    const result = await sendBulkEmails(postmark, payload(2));
+
+    // The provider accepted them, so they may hold the mail already.
+    expect(result.taken).toEqual([
+      validEmail("user0@example.com"),
+      validEmail("user1@example.com"),
+    ]);
+  });
+
+  test("does not log an error for a batch it merely could not confirm", async () => {
+    replyWith("not json at all");
+    const errorSpy = spy(console, "error");
+    try {
+      await sendBulkEmails(postmark, payload(2));
+      expect(errorSpy.calls).toHaveLength(0);
+    } finally {
+      errorSpy.restore();
+    }
   });
 
   test("a provider that answers 200 with prose still counts as sent", async () => {
@@ -322,7 +366,7 @@ describe("sendBulkEmails", () => {
     const result = await sendBulkEmails(config, payload(2));
 
     expect(result.failed).toBe(0);
-    expect(result.responses[0]?.refusals).toEqual(tookAll);
+    expect(result.responses[0]?.outcome).toEqual(tookAll);
   });
 
   test("aborting the signal stops the batch request in flight", async () => {
@@ -351,6 +395,8 @@ describe("sendBulkEmails", () => {
       batches: 0,
       failed: 0,
       responses: [],
+      taken: [],
+      unconfirmed: 0,
     });
     expect(fetch.callCount()).toBe(0);
   });

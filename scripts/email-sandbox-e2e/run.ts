@@ -97,7 +97,7 @@ const runReadyLeg = async (
     bulkProbePayload(config.provider, to, runId),
     signal,
   );
-  const sent = single.delivered && bulk.failed === 0;
+  const sent = single.delivered && bulk.failed === 0 && bulk.unconfirmed === 0;
   const refusals = [
     // sendEmail already parses, redacts, and caps the single reply's reason.
     ...(single.delivered ? [] : [oneLine(single.reason)]),
@@ -105,8 +105,14 @@ const runReadyLeg = async (
       .filter((response) => !response.ok)
       .map((response) => oneLine(response.body)),
     // sendBulkEmails reads each accepted reply for messages refused inside
-    // it, and has already redacted what it found.
-    ...bulk.responses.flatMap((response) => response.refusals.reasons),
+    // it. Its reasons are redacted but not table-safe, so they still pass
+    // through oneLine before reaching the report's Markdown table.
+    ...bulk.responses.flatMap((response) =>
+      response.outcome.reasons.map(oneLine),
+    ),
+    ...(bulk.unconfirmed === 0
+      ? []
+      : [`${bulk.unconfirmed} message(s) left unconfirmed`]),
     // A refusal can come with an empty body; the status already says it.
   ].filter((text) => text !== "");
   // A thrown single send has no status; sendEmail reports it as undefined.

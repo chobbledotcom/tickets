@@ -243,8 +243,7 @@ describe("runEmailLeg failure containment", () => {
   });
 });
 
-const UNCONFIRMED =
-  "Postmark accepted the batch but its reply did not answer for every message";
+const UNCONFIRMED = "1 message(s) left unconfirmed";
 
 describe("runEmailLeg on a ready postmark leg", () => {
   const acceptedBatch = '[{"ErrorCode":0,"Message":"OK"}]';
@@ -272,6 +271,8 @@ describe("runEmailLeg on a ready postmark leg", () => {
     });
   });
 
+  /** The provider took the batch but said nothing about the probe, so the
+   * leg cannot claim it sent. */
   const expectUnconfirmed = async () => {
     expect(await runEmailLeg("postmark")).toEqual({
       detail: `single 200, bulk 200 — ${UNCONFIRMED}`,

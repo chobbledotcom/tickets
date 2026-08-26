@@ -30,8 +30,8 @@ import {
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import type {
+  BatchMessageOutcome,
   BulkBatchResponse,
-  PerMessageRefusals,
 } from "#shared/email/bulk.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -221,12 +221,18 @@ describe("contactFrequencySummary", () => {
   });
 });
 
+const TOOK_ALL: BatchMessageOutcome = {
+  reasons: [],
+  refused: 0,
+  unconfirmed: 0,
+};
+
 /** One batch reply. A provider that took every message refuses none. */
 const reply = (
   status: number,
   body: string,
-  refusals: PerMessageRefusals = { count: 0, reasons: [] },
-): BulkBatchResponse => ({ body, ok: status < 400, refusals, status });
+  outcome: BatchMessageOutcome = TOOK_ALL,
+): BulkBatchResponse => ({ body, ok: status < 400, outcome, status });
 
 describe("summarizeProviderResponse", () => {
   test("notes when there were no responses at all", () => {
@@ -280,8 +286,9 @@ describe("summarizeProviderResponse", () => {
     expect(
       summarizeProviderResponse([
         reply(200, "[]", {
-          count: 2,
           reasons: ["Postmark error 406: Inactive recipient"],
+          refused: 2,
+          unconfirmed: 0,
         }),
       ]),
     ).toBe(
@@ -293,7 +300,11 @@ describe("summarizeProviderResponse", () => {
   test("counts one refused message in the singular", () => {
     expect(
       summarizeProviderResponse([
-        reply(200, "[]", { count: 1, reasons: ["Inactive recipient"] }),
+        reply(200, "[]", {
+          reasons: ["Inactive recipient"],
+          refused: 1,
+          unconfirmed: 0,
+        }),
       ]),
     ).toContain("It refused 1 message.");
   });
@@ -301,7 +312,11 @@ describe("summarizeProviderResponse", () => {
   test("still gives the refused count when no reason came back", () => {
     expect(
       summarizeProviderResponse([
-        reply(429, "rate limit exceeded", { count: 100, reasons: [] }),
+        reply(429, "rate limit exceeded", {
+          reasons: [],
+          refused: 100,
+          unconfirmed: 0,
+        }),
       ]),
     ).toBe(
       "The email provider responded with HTTP 429: rate limit exceeded." +
@@ -310,7 +325,11 @@ describe("summarizeProviderResponse", () => {
   });
 
   test("adds the refused counts up across batches", () => {
-    const refusal = { count: 1, reasons: ["Inactive recipient"] };
+    const refusal: BatchMessageOutcome = {
+      reasons: ["Inactive recipient"],
+      refused: 1,
+      unconfirmed: 0,
+    };
     expect(
       summarizeProviderResponse([
         reply(200, "[]", refusal),
@@ -322,10 +341,31 @@ describe("summarizeProviderResponse", () => {
     );
   });
 
+  test("warns about messages the provider did not confirm", () => {
+    expect(
+      summarizeProviderResponse([
+        reply(200, "[]", { reasons: [], refused: 0, unconfirmed: 2 }),
+      ]),
+    ).toBe(
+      "The email provider responded with HTTP 200: []." +
+        " It did not confirm 2 messages. They may still have been sent." +
+        " Check the provider before you send them again.",
+    );
+  });
+
+  test("never calls an unconfirmed message a refusal", () => {
+    const summary = summarizeProviderResponse([
+      reply(200, "[]", { reasons: [], refused: 0, unconfirmed: 1 }),
+    ]);
+
+    expect(summary).toContain("It did not confirm 1 message.");
+    expect(summary).not.toContain("refused");
+  });
+
   test("caps an over-long list of refusal reasons", () => {
     const reasons = Array.from({ length: 40 }, (_, i) => `reason ${i} is long`);
     const summary = summarizeProviderResponse([
-      reply(200, "[]", { count: 40, reasons }),
+      reply(200, "[]", { reasons, refused: 40, unconfirmed: 0 }),
     ]);
 
     expect(summary).toContain("It refused 40 messages.");

@@ -384,14 +384,12 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
   }
   const result = await sendBulkEmails(config, payload);
-  await recordContacts(
-    await hashAll(payload.recipients.map((r) => r.to)),
-    draft.subject,
-    privateKey,
-  );
+  // Only the people the provider took were contacted, so only they belong
+  // in the contact history. A later count cannot recover who really got it.
+  await recordContacts(await hashAll(result.taken), draft.subject, privateKey);
   await settings.update.bulkEmailDraft("");
   const providerSummary = summarizeProviderResponse(result.responses);
-  const sent = result.attempted - result.failed;
+  const sent = result.taken.length;
   await logActivity(
     `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
     targetLogListingId(draft.target),

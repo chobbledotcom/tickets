@@ -121,6 +121,27 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       );
     });
 
+    test("does not tell the operator an unconfirmed send failed", async () => {
+      settings.setForTest({
+        email_api_key: "pm_key",
+        email_from_address: "tickets@example.com",
+        email_provider: "postmark",
+      });
+
+      // Postmark took the batch, then answered with something unreadable.
+      const { response } = await sendDraft("not json at all");
+
+      // The mail may be queued, so the operator must not be told it failed
+      // and go on to send the whole thing a second time.
+      await expectFlashRedirect(
+        "/admin/emails",
+        "Sent to 2 recipients via Postmark." +
+          " The email provider responded with HTTP 200: not json at all." +
+          " It did not confirm 2 messages. They may still have been sent." +
+          " Check the provider before you send them again.",
+      )(response);
+    });
+
     test("does not call a send a success when every message was refused", async () => {
       useResend();
 
