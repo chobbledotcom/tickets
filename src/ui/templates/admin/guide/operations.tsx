@@ -36,6 +36,8 @@ export const operationsSections = (): GuideSection[] => [
       faq("what_is_logistics"),
       faq("logistics_agents"),
       faq("enable_logistics_on_listing"),
+      faq("charge_delivery_by_area"),
+      faq("delivery_address_lookup"),
       faq("delivery_run_sheet"),
     ],
     id: "logistics",
