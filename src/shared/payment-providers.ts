@@ -36,6 +36,11 @@ export type PaymentProviderMeta = {
    * provider lands a repeat on the original refund; a keyless one pays
    * twice. */
   readonly refundCapability: RefundProviderCapability;
+  /** The settings-form field carrying this provider's secret credential. The
+   * field is rendered under this name, the form masks a stored value by it,
+   * and the save route reads the mask back out of it, so a change here moves
+   * all three together. */
+  readonly secretField: string;
   /** How this provider's webhook is wired, or null when it sends none.
    *
    * One nullable column, because the three facts that hang off it must never
@@ -89,6 +94,7 @@ export const PAYMENT_PROVIDERS = {
     // into one `b` entry (see packMetadata in payment-helpers.ts).
     metadata: { maxEntries: 10, maxValueLength: 255, packs: true },
     refundCapability: "keyed",
+    secretField: "square_access_token",
     webhook: {
       domainChangeFixKey: "settings.domain_warning.square",
       signatureHeader: "x-square-hmacsha256-signature",
@@ -100,6 +106,7 @@ export const PAYMENT_PROVIDERS = {
     label: "Stripe",
     metadata: { maxEntries: 50, maxValueLength: 500, packs: false },
     refundCapability: "keyed",
+    secretField: "stripe_secret_key",
     webhook: {
       domainChangeFixKey: "settings.domain_warning.stripe",
       signatureHeader: "stripe-signature",
@@ -135,6 +142,7 @@ export const PAYMENT_PROVIDERS = {
     // locally (db/sumup-checkouts.ts), so nothing is capped or packed.
     metadata: { maxValueLength: Number.POSITIVE_INFINITY, packs: false },
     refundCapability: "keyless",
+    secretField: "sumup_api_key",
     webhook: null,
   },
 } as const satisfies Record<PaymentProviderType, PaymentProviderMeta>;

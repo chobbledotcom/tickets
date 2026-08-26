@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import type { EnabledFeatures } from "#shared/admin-features.ts";
+import type { PaymentProviderMode } from "#shared/payment-provider-status.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
 import { FeaturesTable } from "#templates/admin/features.tsx";
@@ -12,29 +13,32 @@ import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import {
   PaymentProviderForm,
-  SquareForm,
+  ProviderCredentialsForm,
   SquareWebhookForm,
-  StripeForm,
-  SumUpForm,
 } from "#templates/admin/settings/payment.tsx";
 import { ExistingPaymentProviderForm } from "#templates/admin/settings/payment-provider.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
 import type { AdminSession, PaymentProviderType, Theme } from "#types";
 
+/** The provider whose credentials form the page shows — the one taking new
+ *  sales, or the one that owns the payments already taken — and what the
+ *  site's stored credentials for it say. */
+export type ShownPaymentProvider = {
+  /** Whether the credentials this provider needs are stored. */
+  readonly configured: boolean;
+  /** Which of the provider's estates those credentials point at. */
+  readonly mode: PaymentProviderMode;
+  readonly provider: PaymentProviderType;
+};
+
 export type SettingsPageState = {
-  stripeKeyConfigured: boolean;
-  stripeKeyMode: string | null;
   paymentProvider: PaymentProviderType | null;
-  existingPaymentProvider: PaymentProviderType | null;
   paymentProviderRecoveryChoices: PaymentProviderType[];
+  shownPaymentProvider: ShownPaymentProvider | null;
   /** The site's ISO currency code — decides which providers can be picked. */
   currency: string;
-  squareTokenConfigured: boolean;
-  squareSandbox: boolean;
   squareWebhookConfigured: boolean;
-  sumupKeyConfigured: boolean;
-  sumupKeyMode: string | null;
   webhookUrl: string;
   bookingFee: string;
   embedHosts: string;
@@ -78,10 +82,8 @@ export const adminSettingsPage = (
 
       {PaymentProviderForm(s)}
       {ExistingPaymentProviderForm(s)}
-      {StripeForm(s)}
-      {SquareForm(s)}
+      {ProviderCredentialsForm(s)}
       {SquareWebhookForm(s)}
-      {SumUpForm(s)}
       {s.paymentProvider ? settingsForm(SETTINGS_FORMS.bookingFee, s) : null}
 
       {settingsForm(SETTINGS_FORMS.terms, s)}

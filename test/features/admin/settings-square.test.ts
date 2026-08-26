@@ -150,7 +150,7 @@ describeAdminSettings(() => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(response.status).toBe(200);
-      expect(html).toContain("No Square access token is configured");
+      expect(html).toContain("No Square credentials are saved");
       expect(html).not.toContain("square-test-btn");
     });
 
@@ -164,9 +164,9 @@ describeAdminSettings(() => {
       // Check the settings page shows it's configured
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain("A Square access token is currently configured");
+      expect(html).toContain("Your Square credentials are saved");
       expect(html).toContain("square-test-btn");
-      expect(html).toContain("Test Connection");
+      expect(html).toContain("Test connection");
     });
   });
 
