@@ -33,6 +33,19 @@ export const provisionTestBuiltSite = async (
   return { token, tokenIndex: index };
 };
 
+/** A built site already provisioned for renewals, plus the token its customer
+ * follows. The fixture behind every /renew test. */
+export const renewalTestSite = async (
+  name = "Renewal Test Site",
+  opts: { readOnlyFrom?: string } = {},
+): Promise<{ site: BuiltSite; token: string }> => {
+  const { builtSites, insertBuiltSite } = await import("#db/built-sites.ts");
+  await insertBuiltSite(name, "renewal.b-cdn.net", "", "", false, "7101");
+  const site = (await builtSites.getAll()).find((one) => one.name === name)!;
+  const { token } = await provisionTestBuiltSite(site.id, opts);
+  return { site, token };
+};
+
 export const createTestBuiltSite = (
   overrides: Partial<BuiltSiteFormInput> = {},
 ): Promise<BuiltSite> => {
