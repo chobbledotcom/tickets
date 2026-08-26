@@ -69,7 +69,11 @@ Write the smallest scenario that proves the rule:
 
 - Use 3-5 Given/When/Then steps and one action per Scenario where possible.
 - Describe the domain and observable result, not routes, SQL, selectors, form
-  field names, provider payloads, mocks, or implementation details.
+  field names, provider payloads, mocks, or implementation details. A form field
+  name is the identifier the markup sends under, such as `admin_level`. It is
+  not the word printed on that field's label. Where the site prints a word for a
+  thing, the story uses that word — see
+  [Name a thing the way the site names it](AGENTS.md#preferences).
 - Keep exact mutation-resistant assertions in the TypeScript step definition. A
   plain-language `Then the payment is refunded once` can assert the exact
   provider call count, stored note, terminal result, and lack of a duplicate.

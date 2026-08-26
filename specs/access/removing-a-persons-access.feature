@@ -5,18 +5,19 @@
 Feature: The owner removes a person's access to the site
   Somebody who should no longer help run the site is removed by the owner
   from the Users list. Removing a person deletes their account and ends
-  every window they signed in with, so it asks for the person's name first.
-  A wrong name removes nobody, and a removed person cannot sign in again.
+  every window they signed in with, so it asks for the person's username
+  first. A wrong username removes nobody, and a removed person cannot sign in
+  again.
 
-  @rule:access.removing-needs-the-persons-name
-  Rule: Removing a person needs their name
-    Typing the name confirms which person is meant, because the removal
-    cannot be undone. The name is matched without regard to capitals, so
-    however the owner types it, it is still the person's name. Anything
+  @rule:access.removing-needs-the-persons-username
+  Rule: Removing a person needs their username
+    Typing the username confirms which person is meant, because the removal
+    cannot be undone. The username is matched without regard to capitals, so
+    however the owner types it, it is still the person's username. Anything
     else removes nobody and the person keeps their access.
 
-    @case:access.wrong-name-removes-nobody
-    Scenario: The owner types the wrong name
+    @case:access.wrong-username-removes-nobody
+    Scenario: The owner types the wrong username
       Given the owner invited Sam as a manager
       And Sam accepted the invitation, chose a password and signed in
       When the owner tries to remove Sam, typing sammy to confirm
@@ -30,8 +31,8 @@ Feature: The owner removes a person's access to the site
     disappears from the Users list and their password no longer signs them
     in anywhere.
 
-    @case:access.name-in-capitals-removes-them
-    Scenario: The owner types Sam's name in capitals
+    @case:access.username-in-capitals-removes-them
+    Scenario: The owner types Sam's username in capitals
       Given the owner invited Sam as a manager
       And Sam accepted the invitation, chose a password and signed in
       When the owner removes Sam, typing SAM to confirm

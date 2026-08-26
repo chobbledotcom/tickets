@@ -4,9 +4,9 @@
 @edition:managed @edition:self-hosted
 @surface:admin
 Feature: The owner invites somebody to help
-  The owner adds the people who may sign in from one page: a name, and what
-  that person is allowed to do. The site hands back a one-time link to pass on,
-  and holds nobody twice under one name. That same page lists everybody who may
+  The owner adds the people who may sign in from one page: a username, and
+  what that person is allowed to do. The site hands back a one-time link to pass on,
+  and holds nobody twice under one username. That same page lists everybody who may
   sign in, beside what each may do and whether they have joined yet. What the
   person invited then does with the link is another story, told where an editor
   sets their own account up.
@@ -39,15 +39,15 @@ Feature: The owner invites somebody to help
       And the list says Ada is an editor who has not joined yet
       And the list holds the owner as well
 
-  @rule:access.a-name-already-in-use-is-refused
-  Rule: A name already in use is refused
-    Two people cannot share a name, because the name is how each of them signs
-    in. The owner is told the name is taken, and nobody is added — not even an
-    invite waiting to be used.
+  @rule:access.a-username-already-in-use-is-refused
+  Rule: A username already in use is refused
+    Two people cannot share a username, because it is how each of them signs
+    in. The owner is told the username is taken, and nobody is added — not even
+    an invite waiting to be used.
 
-    @case:invites.a-name-already-in-use
-    Scenario: The owner invites somebody under a name already taken
+    @case:invites.a-username-already-in-use
+    Scenario: The owner invites somebody under a username already taken
       Given the owner invites Sam as a manager
       When the owner invites Sam as an editor
-      Then the owner is told that name is taken
+      Then the owner is told that username is taken
       And only the owner and Sam may sign in

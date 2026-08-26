@@ -85,7 +85,7 @@ Then("the list holds the owner as well", function (this: TicketsWorld): void {
 });
 
 Then(
-  "the owner is told that name is taken",
+  "the owner is told that username is taken",
   function (this: TicketsWorld): void {
     expect(whatTheyWereTold(this, ORGANISER)).toContain(
       t("error.username_taken"),
