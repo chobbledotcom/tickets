@@ -157,7 +157,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Which delivery area?",
         "Question answer",
         "not from their postcode",
-        "Charge once per order",
+        "Max times per order",
         "How do customers fill in their delivery address?",
         "Address lookup",
         "The map pin is not set by the customer",

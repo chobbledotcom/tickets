@@ -130,11 +130,11 @@ const getModifierFields = () =>
       type: "number",
     },
     {
-      hint: "Question-answer modifiers only: tick to charge this once for the whole booking instead of for every ticket that picked the answer. Ignored for other triggers.",
-      label: "Charge",
+      hint: "Question-answer modifiers only: the most times this charge can apply within one booking. Set 1 to charge a delivery fee once per booking. Leave blank to charge for every ticket. Ignored for other triggers.",
+      label: "Max times per order (optional)",
+      min: 1,
       name: "max_per_order",
-      options: [{ label: "Charge once per order", value: "1" }],
-      type: "checkbox-group",
+      type: "number",
     },
     {
       label: "Status",

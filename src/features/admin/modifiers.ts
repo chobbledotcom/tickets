@@ -87,8 +87,8 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
  * positive magnitude the owner typed; converting it to the signed engine value
  * happens where modifiers are applied to a checkout. A promo code is kept only
  * for "code" modifiers, with its blind index computed for public lookup; the
- * once-per-order cap is kept only for "answer" modifiers, so switching a
- * modifier away from that trigger clears a stale cap. */
+ * per-order cap is kept only for "answer" modifiers, so switching a modifier
+ * away from that trigger clears a stale cap. */
 const extractModifierInput = async (
   values: ModifierFormValues,
 ): Promise<ModifierInput> => {
@@ -100,8 +100,7 @@ const extractModifierInput = async (
     code,
     codeIndex: code ? await hmacHash(normalizeCode(code)) : null,
     direction: values.direction,
-    maxPerOrder:
-      values.trigger === "answer" && values.max_per_order === "1" ? 1 : null,
+    maxPerOrder: values.trigger === "answer" ? values.max_per_order : null,
     minSubtotal: toMinorUnits(values.min_subtotal),
     minVisits: values.min_visits,
     name: values.name,
@@ -221,6 +220,15 @@ const validateModifier = (
   ) {
     return Promise.resolve(
       "Minimum previous bookings must be a whole number of 0 or more",
+    );
+  }
+  if (
+    input.maxPerOrder !== undefined &&
+    input.maxPerOrder !== null &&
+    (!Number.isInteger(input.maxPerOrder) || input.maxPerOrder < 1)
+  ) {
+    return Promise.resolve(
+      "Max times per order must be a whole number of 1 or more",
     );
   }
   const isOptionalAddOn = input.trigger === "optional";

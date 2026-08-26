@@ -322,9 +322,13 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         return specs.find((s) => s.name === input.name)?.quantity;
       };
 
-      // Five tickets picked the answer: the stock cap allows 2, and the
-      // once-per-order cap allows 1 however many tickets picked it.
+      // Five tickets picked the answer: the stock cap allows 2, a max of 2
+      // per order allows 2, and the once-per-order cap allows 1 however many
+      // tickets picked it.
       expect(await quantityFor({ name: "Limited tier", stock: 2 })).toBe(2);
+      expect(await quantityFor({ maxPerOrder: 2, name: "Two per order" })).toBe(
+        2,
+      );
       expect(
         await quantityFor({ maxPerOrder: 1, name: "Zone 2 delivery" }),
       ).toBe(1);
