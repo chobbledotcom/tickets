@@ -83,6 +83,7 @@ describe("Cucumber story catalog", () => {
       "records.keeping-only-what-is-needed",
       "servicing.hold-and-cost",
       "servicing.the-work-coming-up",
+      "settings.connecting-an-email-provider",
       "settings.turning-features-on-and-off",
     ]);
   });

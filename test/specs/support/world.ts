@@ -163,6 +163,9 @@ export interface TicketsWorld extends World, EvidencePages {
   orderSent?: BookingAttempt;
   placeholderId?: number;
   providerCharges: Map<string, ChargeMoney>;
+  /** What the email provider answers in this story, when it is not the
+   * ordinary "it took the message" — a refusal, or a network failure. */
+  providerReply?: Response | Error;
   questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
   raceListing?: string;
