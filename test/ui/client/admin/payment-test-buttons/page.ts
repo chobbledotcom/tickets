@@ -35,6 +35,10 @@ export type Reply = {
   hold?: PromiseWithResolvers<void>;
 };
 
+/** What the endpoint says to each press, in order. The last one answers
+ *  every press after it, so one answer serves a test that presses once. */
+export type Script = readonly [Reply, ...Reply[]];
+
 export type Page = {
   asked: { body: string; url: string }[];
   button: PageElement;
@@ -72,18 +76,23 @@ export const usePaymentButtonPage = (): {
     await dom.cleanup();
   });
 
-  /** Boot the script over one provider's form, with `fetch` scripted. Each
-   *  reply answers one press; the last one answers every press after it. */
-  const open = (provider: string, replies: Reply[] = [], withToken = true) => {
+  /** Boot the script over one provider's form, with `fetch` scripted. */
+  const open = (
+    provider: string,
+    [first, ...rest]: Script,
+    withToken = true,
+  ) => {
     const window = dom.installDom(formHtml(provider, withToken));
     const asked: { body: string; url: string }[] = [];
-    const queue = [...replies];
+    const queue = [first, ...rest];
+    let reply: Reply = first;
     stash.set("fetch", async (url: unknown, init: { body: string }) => {
       asked.push({ body: init.body, url: String(url) });
-      const reply = (queue.length > 1 ? queue.shift() : queue[0]) ?? {};
+      // Each press takes the next scripted answer, and the last one stays.
+      reply = queue.shift() ?? reply;
       await reply.hold?.promise;
       if (reply.throws) throw reply.throws;
-      return { json: () => Promise.resolve(reply.data ?? { ok: true }) };
+      return { json: () => Promise.resolve(reply.data) };
     });
     initPaymentTestButtons();
     const find = (id: string): PageElement =>
@@ -101,7 +110,7 @@ export const usePaymentButtonPage = (): {
       initPaymentTestButtons();
     },
     open,
-    press: async (provider: string, reply: Reply = {}) => {
+    press: async (provider: string, reply: Reply) => {
       const page = open(provider, [reply]);
       page.button.click();
       await settle();

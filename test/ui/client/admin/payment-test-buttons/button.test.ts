@@ -81,6 +81,25 @@ describe("pressing a payment test-connection button", () => {
     expect(lines).toEqual(["Connection test failed: Unknown error"]);
   });
 
+  // The button stays wired after a test: an operator who fixes something and
+  // presses again gets a fresh answer, not a dead control.
+  test("asks again on a second press", async () => {
+    const open = page.open("stripe", [
+      { data: { apiKey: VALID_KEY, ok: true } },
+    ]);
+
+    open.button.click();
+    await settle();
+    open.button.click();
+    await settle();
+
+    expect(open.asked).toHaveLength(2);
+    expect(open.button.disabled).toBe(false);
+    expect(open.result.textContent.split("\n")[0]).toBe(
+      "API Key: Valid (test mode)",
+    );
+  });
+
   // A second press must read as its own answer, not as the first one with
   // more text under it and the first run's colour still on the box.
   test("replaces the last answer rather than adding to it", async () => {
