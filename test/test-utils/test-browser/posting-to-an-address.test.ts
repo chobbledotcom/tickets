@@ -146,6 +146,44 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
     expect(body).not.toContain('value="tok"><');
   });
 
+  describe("what one box of that form would really send", () => {
+    /** A page whose select renders every choice but marks one, the shape that
+     * makes reading the raw HTML useless: the unchosen names are all there. */
+    const withChosen = (chosen: string) => {
+      const browser = new TestBrowser();
+      const option = (value: string) =>
+        `<option${value === chosen ? " selected" : ""} value="${value}">${value}</option>`;
+      browser.currentHtml = `
+        <form action="${SECOND_ROW}" method="POST">
+          <select name="provider">${["", "resend", "postmark"].map(option).join("")}</select>
+          <input name="csrf" value="tok2">
+          ${pressable}
+        </form>
+      `;
+      return browser;
+    };
+
+    it("gives back the option a browser would submit, not every option", () => {
+      expect(withChosen("postmark").wouldSendAt(SECOND_ROW, "provider")).toBe(
+        "postmark",
+      );
+    });
+
+    it("gives back the first choice when the page marks none", () => {
+      // What a browser really sends for a select with nothing selected, so a
+      // page that forgot to mark the stored choice reads as the empty one.
+      expect(
+        withChosen("none of them").wouldSendAt(SECOND_ROW, "provider"),
+      ).toBe("");
+    });
+
+    it("gives back null for a box that form does not offer", () => {
+      expect(withChosen("resend").wouldSendAt(SECOND_ROW, "elsewhere")).toBe(
+        null,
+      );
+    });
+  });
+
   it("refuses to read a form nobody could send, in the same words", async () => {
     const browser = new TestBrowser();
     browser.currentHtml = arrows('<button disabled type="submit">▲</button>');

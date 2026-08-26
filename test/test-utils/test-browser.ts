@@ -294,6 +294,20 @@ export class TestBrowser {
   }
 
   /**
+   * What the form posting to `action` would really send for one of its boxes,
+   * or null when it would send nothing for that name. Reads a `<select>` the
+   * way a browser does — the chosen option, not every option it offers — so a
+   * caller can prove a page put a stored value back rather than merely
+   * rendering it somewhere among the choices.
+   */
+  wouldSendAt(action: string, field: string): string | null {
+    const sent = extractFormEntries(this.formBodyAt(action)).find(
+      ([name]) => name === field,
+    );
+    return sent ? sent[1] : null;
+  }
+
+  /**
    * Whether this page offers anybody a way to post to an address at all. A page
    * whose only button for it is switched off, or which renders no such button,
    * offers none — so a caller can ask whether an action is really open to the

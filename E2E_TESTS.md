@@ -166,8 +166,12 @@ what is missing. Only the old file says that.
 git fetch origin main
 git diff origin/main...HEAD -- <the file you changed>          # every removed line
 git show origin/main:<the file you changed>                    # the old file whole
-git diff origin/main...HEAD -- <file> | grep '^-' | grep expect  # the assertions
+git diff origin/main...HEAD -- <file> | grep '^-' | grep -E 'expect|assert'
 ```
+
+The last command finds most claims, not all of them. A helper such as
+`testRequiresAuth` carries a claim with neither word on the line, so the
+unfiltered diff above it stays the authority.
 
 Do this for **every** file that the change touches, not only the ones that you
 deleted outright. A file that you rewrote in place hides its losses the same

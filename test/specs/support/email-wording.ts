@@ -10,11 +10,9 @@
 
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
-import {
-  organiserReads,
-  organiserSendsTheFormAt,
-} from "#test/specs/support/browser.ts";
+import { organiserSendsTheFormAt } from "#test/specs/support/browser.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 import type { EmailTemplateType } from "#types";
 
 // jscpd:ignore-end
@@ -25,9 +23,6 @@ const ADVANCED_PATH = "/admin/settings-advanced";
  * so each is reached by where it posts rather than by what its button says. */
 const savePathFor = (which: EmailTemplateType): string =>
   `/admin/settings/email-templates/${which}`;
-
-/** The owner opens their advanced settings and keeps what the page said. */
-export const ownerOpensAdvancedSettings = organiserReads(ADVANCED_PATH);
 
 /** The owner writes one email's wording and saves it, through the form the
  * page really serves. */
@@ -60,6 +55,35 @@ export const SITES_OWN_WORDING: EmailContent = {
   html: "",
   subject: "",
   text: "",
+};
+
+/** Every box the owner can start from the site's own wording, and the wording
+ * each one must offer. Reading the boxes one at a time is the point: a page
+ * that carried the right wording on one box and nothing on the other three
+ * would still hold the words somewhere. */
+export const BOXES_WITH_A_DEFAULT = [
+  { box: "confirmation_html", part: "html", which: "confirmation" },
+  { box: "confirmation_text", part: "text", which: "confirmation" },
+  { box: "admin_html", part: "html", which: "admin" },
+  { box: "admin_text", part: "text", which: "admin" },
+] as const satisfies ReadonlyArray<{
+  box: string;
+  part: "html" | "text";
+  which: EmailTemplateType;
+}>;
+
+/** The wording one box carries for the link that fills it in, or null when
+ * the page renders no such box. The site's own wording is written onto the
+ * box itself, because the link only copies what is already there. */
+export const defaultTheBoxOffers = (
+  page: string,
+  box: string,
+): string | null => {
+  const tag = page.match(
+    new RegExp(`<textarea\\b[^>]*\\bid="${box}"[^>]*>`, "i"),
+  )?.[0];
+  const carried = tag?.match(/\bdata-default-tpl="([^"]*)"/)?.[1];
+  return carried === undefined ? null : decodeEntities(carried);
 };
 
 /** Wording the owner saved before the scenario started. */

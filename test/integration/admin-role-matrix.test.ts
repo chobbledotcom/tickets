@@ -285,8 +285,7 @@ describe("the routes this suite cannot ask", () => {
   test("are the writes at a path no route declares", async () => {
     // A write with no declared path takes its roles from its handler alone,
     // and nothing above compares the two. The count is stated so the gap
-    // cannot widen unnoticed. It moves down when a route goes: deleting the
-    // email-template preview route, which nothing called, took one with it.
+    // cannot widen unnoticed.
     const paths = new Set(declared.map((one) => one.pattern));
     const methods = await writeRoutes();
     const undeclared = [...methods.keys()].filter((path) => !paths.has(path));

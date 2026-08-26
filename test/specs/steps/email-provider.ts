@@ -4,13 +4,14 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
-  advancedSettingsHtml,
   howTheSiteSends,
   KEY_ALREADY_GIVEN,
+  offersATestSend,
   ownerConnects,
   ownerHasABusinessEmail,
   ownerOpensAdvancedSettings,
   ownerSendsATestEmail,
+  providerTheBoxShows,
   providerWillAnswer,
   settingsCopy,
   siteAlreadySendsThrough,
@@ -22,12 +23,6 @@ import {
 import { activityMessages } from "#test-utils/activity-log.ts";
 
 // jscpd:ignore-end
-
-/** The three boxes the connection form offers. They never reach a story — the
- * owner reads "Email Provider", "API Key" and "From Address". */
-const PROVIDER_FIELD = "email_provider";
-const KEY_FIELD = "email_api_key";
-const FROM_FIELD = "email_from_address";
 
 /** The key a story's owner types when it is connecting for the first time. */
 const KEY_TYPED_NOW = "re_key_typed_now";
@@ -95,29 +90,21 @@ When(
 When(
   "the owner connects {string} sending from {string}",
   function (this: TicketsWorld, provider: string, from: string): Promise<void> {
-    return ownerConnects(this, {
-      [FROM_FIELD]: from,
-      [KEY_FIELD]: KEY_TYPED_NOW,
-      [PROVIDER_FIELD]: provider,
-    });
+    return ownerConnects(this, { from, key: KEY_TYPED_NOW, provider });
   },
 );
 
 When(
   "the owner changes the provider to {string}, filling nothing else in",
   function (this: TicketsWorld, provider: string): Promise<void> {
-    return ownerConnects(this, {
-      [FROM_FIELD]: "",
-      [KEY_FIELD]: "",
-      [PROVIDER_FIELD]: provider,
-    });
+    return ownerConnects(this, { from: "", key: "", provider });
   },
 );
 
 When(
   "the owner chooses no provider at all",
   function (this: TicketsWorld): Promise<void> {
-    return ownerConnects(this, { [PROVIDER_FIELD]: "" });
+    return ownerConnects(this, { provider: "" });
   },
 );
 
@@ -209,28 +196,24 @@ Then(
 Then(
   "the page says the site sends through {string}",
   async function (this: TicketsWorld, provider: string): Promise<void> {
-    expect(await advancedSettingsHtml(this)).toContain(`value="${provider}"`);
+    // The box the page really puts back, not merely a choice it offers. Every
+    // provider is rendered whether or not it is the one on file, so a page
+    // that forgot the stored one would still hold its name somewhere.
+    expect(await providerTheBoxShows(this)).toBe(provider);
   },
 );
-
-/** Whether the page offers the test at all. Read off the page rather than
- * from the settings, because the whole claim is what the owner is shown. */
-const offersATest = async (world: TicketsWorld): Promise<boolean> =>
-  (await advancedSettingsHtml(world)).includes(
-    await settingsCopy("settings.advanced.send_test_email"),
-  );
 
 Then(
   "there is a way to send a test email",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await offersATest(this)).toBe(true);
+    expect(await offersATestSend(this)).toBe(true);
   },
 );
 
 Then(
   "there is no way to send a test email",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await offersATest(this)).toBe(false);
+    expect(await offersATestSend(this)).toBe(false);
   },
 );
 

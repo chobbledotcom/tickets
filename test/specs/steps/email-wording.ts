@@ -7,6 +7,8 @@ import type { EmailContent } from "#templates/email/shared.ts";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import { settingsCopy } from "#test/specs/support/email-provider.ts";
 import {
+  BOXES_WITH_A_DEFAULT,
+  defaultTheBoxOffers,
   ownerAlreadyWrote,
   ownerWrites,
   SITES_OWN_WORDING,
@@ -101,17 +103,15 @@ Then(
     expect(page).toContain(
       await settingsCopy("settings.advanced.edit_default_template"),
     );
-    // The link is what the page offers; the wording it fills in has to be
-    // carried on the box itself, or pressing it fills in nothing.
-    for (const box of [
-      "confirmation_html",
-      "confirmation_text",
-      "admin_html",
-      "admin_text",
-    ]) {
+    // Each box separately, because the link only copies the wording the box
+    // already carries. A page with the right wording on one box and nothing
+    // on the other three still fills three boxes with an empty string.
+    for (const { box, part, which } of BOXES_WITH_A_DEFAULT) {
       expect(page).toContain(`data-fill-default="${box}"`);
+      expect(defaultTheBoxOffers(page, box)).toBe(
+        DEFAULT_TEMPLATES[which][part],
+      );
     }
-    expect(page).toContain("data-default-tpl=");
   },
 );
 

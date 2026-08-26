@@ -10,7 +10,7 @@
 
 import { settings } from "#db/settings.ts";
 import {
-  adminPageHtmlAt,
+  openAdminPage,
   organiserReads,
   organiserSendsTheFormAt,
 } from "#test/specs/support/browser.ts";
@@ -27,6 +27,12 @@ const ADVANCED_PATH = "/admin/settings-advanced";
  * where it posts rather than by what its button says. */
 const CONNECT_PATH = "/admin/settings/email";
 const TEST_PATH = "/admin/settings/email/test";
+
+/** The three boxes the connection form offers. They never reach a story — the
+ * owner reads "Email Provider", "API Key" and "From Address". */
+const PROVIDER_FIELD = "email_provider";
+const KEY_FIELD = "email_api_key";
+const FROM_FIELD = "email_from_address";
 
 /** What the site says on the settings pages. */
 export const settingsCopy = copyFrom("settings");
@@ -79,12 +85,18 @@ export const ownerHasABusinessEmail = async (): Promise<void> => {
 };
 
 /** The owner fills the connection form in and saves it, through the form the
- * page really serves, so a page that stopped offering the form fails here. */
+ * page really serves, so a page that stopped offering the form fails here.
+ * The story says which provider, which key and which address; naming the
+ * boxes those go in is this file's job. */
 export const ownerConnects = (
   world: TicketsWorld,
-  values: Record<string, string>,
+  typed: { from?: string; key?: string; provider: string },
 ): Promise<void> =>
-  organiserSendsTheFormAt(world, ADVANCED_PATH, CONNECT_PATH, values);
+  organiserSendsTheFormAt(world, ADVANCED_PATH, CONNECT_PATH, {
+    [PROVIDER_FIELD]: typed.provider,
+    ...(typed.from === undefined ? {} : { [FROM_FIELD]: typed.from }),
+    ...(typed.key === undefined ? {} : { [KEY_FIELD]: typed.key }),
+  });
 
 /** What the provider answers this scenario, or nothing when it never does.
  * Recorded rather than stubbed here, because the send is the only moment an
@@ -105,6 +117,19 @@ export const ownerSendsATestEmail = async (
   await organiserSendsTheFormAt(world, ADVANCED_PATH, TEST_PATH);
 };
 
-/** The advanced settings page as it stands right now. */
-export const advancedSettingsHtml = (world: TicketsWorld): Promise<string> =>
-  adminPageHtmlAt(world, ADVANCED_PATH);
+/** Which provider the page puts back in the box, read as the browser would
+ * submit it. Every provider is rendered as a choice whether or not it is the
+ * one on file, so only the chosen option says what the site is set to. */
+export const providerTheBoxShows = async (
+  world: TicketsWorld,
+): Promise<string | null> =>
+  (await openAdminPage(world, ADVANCED_PATH)).wouldSendAt(
+    CONNECT_PATH,
+    PROVIDER_FIELD,
+  );
+
+/** Whether the owner really has a way to send a test: a button that is not
+ * switched off, on a form that posts to the test address. A heading that says
+ * "Send Test Email" beside no such button offers nobody anything. */
+export const offersATestSend = async (world: TicketsWorld): Promise<boolean> =>
+  (await openAdminPage(world, ADVANCED_PATH)).offersAWayToPost(TEST_PATH);
