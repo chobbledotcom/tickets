@@ -12,9 +12,9 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { resetEngine } from "#shared/email-renderer.ts";
 import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";

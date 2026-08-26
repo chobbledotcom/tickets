@@ -14,9 +14,7 @@ import {
   handleEmailPost,
   handleEmailTestPost,
 } from "#routes/admin/settings-email.ts";
-import {
-  handleEmailTemplatePost,
-} from "#routes/admin/settings-email-templates.ts";
+import { handleEmailTemplatePost } from "#routes/admin/settings-email-templates.ts";
 import {
   handleFeatureGet,
   handleFeaturePost,

@@ -11,15 +11,11 @@
 import { settings } from "#db/settings.ts";
 import {
   adminPageHtmlAt,
-  ORGANISER,
-  openAdminPage,
   organiserReads,
+  organiserSendsTheFormAt,
 } from "#test/specs/support/browser.ts";
 import { copyFrom } from "#test/specs/support/copy.ts";
-import {
-  keepWhatTheyWereTold,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 // jscpd:ignore-end
@@ -84,14 +80,11 @@ export const ownerHasABusinessEmail = async (): Promise<void> => {
 
 /** The owner fills the connection form in and saves it, through the form the
  * page really serves, so a page that stopped offering the form fails here. */
-export const ownerConnects = async (
+export const ownerConnects = (
   world: TicketsWorld,
   values: Record<string, string>,
-): Promise<void> => {
-  const browser = await openAdminPage(world, ADVANCED_PATH);
-  await browser.submitFormAt(CONNECT_PATH, values);
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
-};
+): Promise<void> =>
+  organiserSendsTheFormAt(world, ADVANCED_PATH, CONNECT_PATH, values);
 
 /** What the provider answers this scenario, or nothing when it never does.
  * Recorded rather than stubbed here, because the send is the only moment an
@@ -108,10 +101,8 @@ export const providerWillAnswer = (
 export const ownerSendsATestEmail = async (
   world: TicketsWorld,
 ): Promise<void> => {
-  const browser = await openAdminPage(world, ADVANCED_PATH);
   using _provider = stubFetch(world.providerReply ?? new Response());
-  await browser.submitFormAt(TEST_PATH);
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  await organiserSendsTheFormAt(world, ADVANCED_PATH, TEST_PATH);
 };
 
 /** The advanced settings page as it stands right now. */

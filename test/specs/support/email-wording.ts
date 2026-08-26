@@ -11,14 +11,10 @@
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import {
-  ORGANISER,
-  openAdminPage,
   organiserReads,
+  organiserSendsTheFormAt,
 } from "#test/specs/support/browser.ts";
-import {
-  keepWhatTheyWereTold,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { EmailTemplateType } from "#types";
 
 // jscpd:ignore-end
@@ -40,10 +36,10 @@ export const ownerWrites = async (
   which: EmailTemplateType,
   wording: EmailContent,
 ): Promise<void> => {
-  const browser = await openAdminPage(world, ADVANCED_PATH);
-  await browser.submitFormAt(savePathFor(which), { ...wording });
+  await organiserSendsTheFormAt(world, ADVANCED_PATH, savePathFor(which), {
+    ...wording,
+  });
   world.wordingWritten = wording;
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
 /** What the site would send for one email right now, read back out of the

@@ -93,6 +93,40 @@ export const writesOneMessage =
     await organiserSendsAndIsTold(world, page, { message }, await button());
   };
 
+/** The organiser sends one particular form on one of their pages, and is left
+ * with whatever the site said back. The form is chosen by where it posts,
+ * because a settings page carries a dozen of them whose buttons all say Save
+ * and no button's words can tell those apart. */
+export const organiserSendsTheFormAt: SendingOnAPage<void> = async (
+  world,
+  path,
+  action,
+  values = {},
+) => {
+  const browser = await sendsOnAdminPage(world, path, (page) =>
+    page.submitFormAt(action, values),
+  );
+  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+};
+
+/** The organiser presses one named button on a page, and is left with whatever
+ * the site said back. The sibling of the helper above for pages whose forms
+ * their buttons can tell apart. */
+export const organiserPressesOnPage: SendingOnAPage<void> = async (
+  world,
+  path,
+  buttonText,
+  values = {},
+) => {
+  const browser = await submitRenderedAdminForm(
+    world,
+    path,
+    buttonText,
+    values,
+  );
+  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+};
+
 /** Take a thing down from its own page: follow its delete link, type a name
  * to confirm, and keep what the site said for the story to read. Curried on
  * the page and the link, so each kind of thing declares itself in one line. */
@@ -215,19 +249,41 @@ export const withAdminPage = async (
   await act(await openAdminPage(world, path));
 };
 
-export const submitRenderedAdminForm = async (
+/** Sending one form on one of the owner's pages: which page, which form —
+ * named by where it posts or by the words on its button — and what to fill in.
+ * The three senders below differ only in how the form is picked and in what
+ * they hand back, so the shape is written once. */
+export type SendingOnAPage<Answer> = (
   world: TicketsWorld,
   path: string,
-  buttonText: string,
-  values: Record<string, string> = {},
+  picked: string,
+  values?: Record<string, string>,
+) => Promise<Answer>;
+
+/** Opening one of the owner's pages and sending a form on it. Which form, and
+ * how it is picked, is all that differs between the senders below. */
+const sendsOnAdminPage = async (
+  world: TicketsWorld,
+  path: string,
+  send: (page: TestBrowser) => Promise<void>,
 ): Promise<TestBrowser> => {
   const browser = await openAdminPage(world, path);
+  await send(browser);
+  return browser;
+};
+
+export const submitRenderedAdminForm: SendingOnAPage<TestBrowser> = (
+  world,
+  path,
+  buttonText,
+  values = {},
+) =>
   // Every value has to be one the page could really carry, so a form that
   // stopped offering a box fails here rather than the send going through
   // regardless.
-  await fillInAndSend(browser, values, buttonText);
-  return browser;
-};
+  sendsOnAdminPage(world, path, (page) =>
+    fillInAndSend(page, values, buttonText),
+  );
 
 /** Somebody takes one thing down, typing a name to confirm, and is told what
  * the site said. Every way in is followed rather than built — the link on the
