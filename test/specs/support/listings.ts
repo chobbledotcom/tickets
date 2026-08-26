@@ -83,8 +83,7 @@ export const putsPlainThingOnSale = (
   world: TicketsWorld,
   name: string,
   alsoSet: TestListingOverrides = {},
-): Promise<Listing> =>
-  putsOnSale(world, name, { ...PLAIN_THING, ...alsoSet });
+): Promise<Listing> => putsOnSale(world, name, { ...PLAIN_THING, ...alsoSet });
 
 /** Something the site sells at a price, remembered under the name the story
  * calls it. The listing a money story starts from, so its price and its id are

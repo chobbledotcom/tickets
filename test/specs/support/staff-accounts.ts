@@ -13,6 +13,7 @@ import {
   ORGANISER,
   openAdminPage,
   openAsNewcomer,
+  opensAdminPageAt,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import {
@@ -40,14 +41,22 @@ const managerBrowserName = (who: string): string => `manager ${who}`;
 const managerInviteName = (who: string): string =>
   `the manager invite for ${who}`;
 
-/** The owner fills in the rendered invite form and is handed back whatever the
- * site said. Some invites are meant to be refused, so the words matter as much
- * as the outcome. The role must be one the form itself offers. */
-export const ownerSendsInviteForm = async (
+/** Something the owner does about one person in one role, answering with
+ * words: what the site said, or the link it gave them. */
+type InvitesSomebody = (
   world: TicketsWorld,
   who: string,
   role: InvitedStaffRole,
-): Promise<string> => {
+) => Promise<string>;
+
+/** The owner fills in the rendered invite form and is handed back whatever the
+ * site said. Some invites are meant to be refused, so the words matter as much
+ * as the outcome. The role must be one the form itself offers. */
+export const ownerSendsInviteForm: InvitesSomebody = async (
+  world,
+  who,
+  role,
+) => {
   const browser = await openAdminPage(world, "/admin/user/new");
   await fillInAndSend(
     browser,
@@ -65,11 +74,7 @@ export const inviteLinkIn = (said: string): string | null =>
 /** The owner fills in the rendered invite form and reads back the link the
  * site gives them, for every story that needs a working invite rather than a
  * refused one. */
-export const createStaffInvite = async (
-  world: TicketsWorld,
-  who: string,
-  role: InvitedStaffRole,
-): Promise<string> => {
+export const createStaffInvite: InvitesSomebody = async (world, who, role) => {
   const link = inviteLinkIn(await ownerSendsInviteForm(world, who, role));
   if (!link) throw new Error(`The owner was given no link to send ${who}`);
   return link;
@@ -92,11 +97,7 @@ export const rowForPersonOnList = (
 };
 
 /** The owner opens the list of everybody who may sign in. */
-export const ownerOpensWhoMaySignIn = async (
-  world: TicketsWorld,
-): Promise<void> => {
-  await openAdminPage(world, "/admin/users");
-};
+export const ownerOpensWhoMaySignIn = opensAdminPageAt("/admin/users");
 
 /** How many people may sign in at all — an invite waiting to be used counts,
  * because that person already has a name reserved on the site. */

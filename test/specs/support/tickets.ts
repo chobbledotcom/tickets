@@ -24,9 +24,14 @@ import {
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
 import {
-  type OrderLine,
+  type BookingChoices,
   visitorTriesToOrder,
 } from "#test/specs/support/public-booking.ts";
+import {
+  type OrderOnAPage,
+  ownPageOrder,
+  togetherPageOrder,
+} from "#test/specs/support/sales-pages.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
@@ -86,26 +91,31 @@ export interface PlacesWanted {
 /** Somebody orders places on one or more of the things the site sells, through
  * the page that really sells them, and keeps the code the site hands back. One
  * order buys one code however many things it covers. */
-export const customerOrders = async (
+export const customerOrders = (
   world: TicketsWorld,
   who: string,
   wanted: PlacesWanted[],
-): Promise<void> => {
-  const lines: OrderLine[] = wanted.map(({ name, places }) => ({
-    listing: listingNamed(world, name),
-    places,
-  }));
-  const path = `/ticket/${lines.map(({ listing }) => listing.slug).join("+")}`;
-  const attempt = await visitorTriesToOrder(path, lines, {
-    email: emailFor(who),
-    who,
-  });
-  expect(attempt.wasBooked).toBe(true);
-  keepsTicketFor(
+): Promise<void> =>
+  ordersAndKeepsTheCode(
     world,
     wanted.map(({ name }) => name),
-    codeOnTheLinkTheyWereGiven(attempt.browser),
+    togetherPageOrder(world, wanted),
+    { email: emailFor(who), who },
   );
+
+/** Somebody sends an order and keeps the code the site hands back under the
+ * name of every thing it bought. Each booking here ends this way, whichever
+ * page it started from, so an order that was refused stops the story at the
+ * booking rather than several steps later. */
+const ordersAndKeepsTheCode = async (
+  world: TicketsWorld,
+  things: string[],
+  order: OrderOnAPage,
+  choices: BookingChoices,
+): Promise<void> => {
+  const attempt = await visitorTriesToOrder(...order, choices);
+  expect(attempt.wasBooked).toBe(true);
+  keepsTicketFor(world, things, codeOnTheLinkTheyWereGiven(attempt.browser));
 };
 
 /** The day every day-booking Scenario here works against. Fixed once per story,
@@ -115,20 +125,17 @@ export const theDayTheyPicked = (world: TicketsWorld): string =>
   dayFromToday(world, 10);
 
 /** Somebody books the day they picked on a thing sold by the day. */
-export const customerBooksTheirDay = async (
+export const customerBooksTheirDay = (
   world: TicketsWorld,
   who: string,
   name: string,
-): Promise<void> => {
-  const listing = listingNamed(world, name);
-  const attempt = await visitorTriesToOrder(
-    `/ticket/${listing.slug}`,
-    [{ listing, places: 1 }],
+): Promise<void> =>
+  ordersAndKeepsTheCode(
+    world,
+    [name],
+    ownPageOrder(world, name, { places: 1 }),
     { day: theDayTheyPicked(world), email: emailFor(who), who },
   );
-  expect(attempt.wasBooked).toBe(true);
-  keepsTicketFor(world, [name], codeOnTheLinkTheyWereGiven(attempt.browser));
-};
 
 /** What an organiser can fill in about a thing, in the words the story uses
  * for them. Reading the table through a schema means a Scenario that invents a

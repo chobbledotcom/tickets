@@ -22,66 +22,57 @@ import {
   listingNamed,
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ActOnOneThing,
+  AsksAboutOneThing,
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import type { TestListingOverrides } from "#test-utils/factories.ts";
 // jscpd:ignore-end
 
 /** The address the site sells one named thing from, whether that name belongs
  * to a single thing or to a group of them. */
-export const wayIntoNamed = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
+export const wayIntoNamed: ReadAboutOneThing = async (world, name) => {
   const listing = world.things.recall("listing", name);
   return `/ticket/${listing ? listing.slug : (await groupNamed(name)).slug}`;
 };
 
 /** Whether the list in front of the customer offers a way into one named
  * thing. */
-export const listOffersWayInto = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<boolean> => {
+const listOffersWayInto: AsksAboutOneThing = async (world, name) => {
   const wayIn = await wayIntoNamed(world, name);
   return browserSeenBy(world, CUSTOMER).links.some(
     ({ href }) => href === wayIn,
   );
 };
 
-/** The list neither leads to this thing nor mentions it. Both matter: a name
- * with no link is a dead end, and a link with no name is a way into something
- * the visitor was never told about. */
-export const expectNoWayInto = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  expect(await listOffersWayInto(world, name)).toBe(false);
-  expect(whatTheCustomerSees(world)).not.toContain(name);
-};
+/** What the list says about one thing: whether it names it, and whether it
+ * leads there. Curried on the answer wanted, because the two rules are the
+ * same reading with both answers turned around — and a name with no link is
+ * as broken as a link the visitor was never told about. */
+const expectListedOrNot =
+  (offered: boolean): ActOnOneThing =>
+  async (world, name) => {
+    expect(whatTheCustomerSees(world).includes(name)).toBe(offered);
+    expect(await listOffersWayInto(world, name)).toBe(offered);
+  };
 
-/** The list both names this thing and leads to it. */
-export const expectOffered = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  expect(whatTheCustomerSees(world)).toContain(name);
-  expect(await listOffersWayInto(world, name)).toBe(true);
-};
+export const expectOffered = expectListedOrNot(true);
+export const expectNoWayInto = expectListedOrNot(false);
 
 /** Somebody who was handed a link opens it themselves. Whatever the list shows,
  * the page behind the link is the organiser's promise to the people they gave
  * it to. */
-export const openedFromALinkTheyWereGiven = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
-  const browser = await openAsNewcomer(await wayIntoNamed(world, name));
-  return browser.pageText;
-};
+export const openedFromALinkTheyWereGiven: ReadAboutOneThing = async (
+  world,
+  name,
+) => (await openAsNewcomer(await wayIntoNamed(world, name))).pageText;
 
 /** Every word in this order, and none of them missing. Reading the page once
  * and comparing where each lands is what proves an order rather than mere
@@ -121,28 +112,26 @@ export const expectBelowTheBundles = (
   ]);
 };
 
+/** Something on sale, set up the way one story needs it. Curried on that
+ * difference, so each way of selling a thing is one line rather than another
+ * fixture of its own. */
+const sellsSomethingThatIs =
+  (alsoSet: TestListingOverrides): ActOnOneThing =>
+  async (world, name) => {
+    await putsPlainThingOnSale(world, name, alsoSet);
+  };
+
 /** Something people buy without ever turning up to be let in — a raffle
  * ticket, a donation. */
-export const sellsSomethingNobodyAttends = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  await putsPlainThingOnSale(world, name, { purchaseOnly: true });
-};
+export const sellsSomethingNobodyAttends = sellsSomethingThatIs({
+  purchaseOnly: true,
+});
 
 /** Something on sale that the organiser keeps off the public list. */
-export const sellsSomethingQuietly = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  await putsPlainThingOnSale(world, name, { hidden: true });
-};
+export const sellsSomethingQuietly = sellsSomethingThatIs({ hidden: true });
 
 /** One named thing taken off sale. */
-export const takeOffSale = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const takeOffSale: ActOnOneThing = async (world, name) => {
   await deactivateTestListing(listingNamed(world, name).id);
 };
 
