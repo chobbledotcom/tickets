@@ -262,3 +262,7 @@ src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.HtmlBody~1sl4ona  ?? →
 src/shared/email/bulk.ts::BULK_PROVIDERS.postmark.build.TextBody~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
 src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.html~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
 src/shared/email/bulk.ts::BULK_PROVIDERS.resend.build.text~1sl4ona  ?? → ||   # unsubscribeUrl is string | undefined, and the empty string it can hold is the same value the fallback supplies, so no recipient distinguishes the two operators
+src/shared/bulk-email.ts::resolveRecipientEmails.decrypted~0cin95y  false → true   # paidListing only decides payment_id, and this caller reads nothing but email
+src/shared/bulk-email.ts::buildMailtoLink.to~0u9lgeh  = → +=   # to is still the empty string here, so assigning the address and appending it give the same to
+src/shared/bulk-email.ts::buildMailtoLink~1gzgdij  1 → 0   # the branch above already took every one-address call, so this else-if can only see two or more either way
+src/shared/bulk-email.ts::buildMailtoLink.to~1lrzg1h  = → +=   # to is still the empty string here, so assigning the business email and appending it give the same to

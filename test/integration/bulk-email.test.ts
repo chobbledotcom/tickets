@@ -279,6 +279,12 @@ describe("mailto and unsubscribe footers", () => {
     );
     expect(marketingFooterText("https://x/u")).toContain("https://x/u");
   });
+
+  test("footers say why the reader is getting the email", () => {
+    const why = "You're receiving this because you registered for one of our";
+    expect(marketingFooterHtml("https://x/u")).toContain(why);
+    expect(marketingFooterText("https://x/u")).toContain(why);
+  });
 });
 
 describeWithEnv("buildBulkPayload", { encryptionKey: true }, () => {
