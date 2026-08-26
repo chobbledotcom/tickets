@@ -2941,8 +2941,9 @@ _Origin: the provider boundary work. The original entry named six modules, and
 four of them (`sumup/transport.ts`, `sumup/wire.ts`,
 `payment/checkout-failure.ts`, and Square's `transport.ts`) reached their mirror
 with the answer-reading work. A sweep of `payment/`, `square/`, `stripe/` and
-`sumup/` during the Stripe transport move found five more, and
-`payment/refund-network.ts` gained its suite with the one-attempt rule._
+`sumup/` during the Stripe transport move found five more.
+`payment/refund-network.ts` was one of those five, and it gained its suite with
+the one-attempt rule, so four remain beside `sumup/money.ts`._
 
 `deno task precommit:mutation` selects a source's direct tests by the mirror
 path alone (`scripts/mutation/test-map.ts`). The gate refuses to run for a
