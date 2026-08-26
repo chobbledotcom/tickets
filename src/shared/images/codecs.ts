@@ -7,7 +7,7 @@
  * so the ~1MB of codec wasm compiles lazily and once per isolate. A transient
  * CDN failure stays retryable.
  *
- * The SIMD build is chosen when the runtime reports SIMD support, matching
+ * The SIMD build is chosen when the runtime reports SIMD support, which mirrors
  * jSquash's own selection so the glue code and the wasm module always agree.
  */
 

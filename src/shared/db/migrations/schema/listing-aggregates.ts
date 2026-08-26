@@ -20,8 +20,8 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
  * quantity > 0. booked_quantity already treats 0 correctly and must NOT use
  * this predicate.
  *
- * Every site computing tickets_count references this one constant, so the rule
- * cannot silently diverge. A guard test asserts it appears at every one.
+ * Every site that computes tickets_count references this one constant, so the
+ * rule cannot silently diverge. A guard test asserts it appears at every one.
  */
 export const TICKET_COUNTS_PREDICATE = `quantity > 0 AND kind = '${ATTENDEE_KIND}'`;
 

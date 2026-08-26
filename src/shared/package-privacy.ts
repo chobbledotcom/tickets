@@ -1,4 +1,4 @@
-import { getPackageDisplaysByIds, type PackageDisplay } from "#db/groups.ts";
+import type { PackageDisplay } from "#db/groups.ts";
 
 /**
  * HIDDEN-PACKAGE PRIVACY — the one chokepoint deciding what a BUYER may see of
@@ -36,13 +36,6 @@ export const packagePrivacyOfDisplay = (
 export const namesConcealed = (privacy: PackagePrivacy): boolean =>
   privacy.kind === "hidden";
 
-/** The package name standing in for a concealed member in buyer-facing error
- * text, or undefined when members are visible (name the member as usual). */
-export const memberStandInName = (
-  privacy: PackagePrivacy,
-): string | undefined =>
-  privacy.kind === "hidden" ? privacy.packageName : undefined;
-
 /** For a HIDDEN package, replace each line's buyer-facing name with the
  * package name — hosted checkouts (Stripe/Square render the item name), the
  * /calculate quote, and the stored registration items all pass through here.
@@ -56,21 +49,21 @@ export const concealMemberNames = <T extends { name: string }>(
     ? items.map((item) => ({ ...item, name: privacy.packageName }))
     : items;
 
-/** Whether a SIGNED order's member names must be concealed, resolved fail-safe
- * from its persisted package group ids: hidden when ANY booked package hides
- * its listings, and a group that no longer resolves (deleted/un-packaged
- * mid-checkout) reads as hidden, because the stale group may have been a hidden
- * package and the refund path must not name its members either way. An order
- * with no packages conceals nothing. */
-export const resolveNamesConcealed = async (
+/** Whether a SIGNED order's member names must be concealed, read fail-safe from
+ * its persisted package group ids against displays the caller already holds.
+ * Hidden when ANY booked package hides its listings.
+ *
+ * A group that no longer resolves also reads as hidden. A delete or an
+ * un-package mid-checkout destroys the evidence of which kind it was, and the
+ * refund path must not name its members. An order with no packages conceals
+ * nothing. */
+export const namesConcealedIn = (
+  displays: ReadonlyMap<number, PackageDisplay>,
   packageGroupIds: Iterable<number>,
-): Promise<boolean> => {
-  const groupIds = [...new Set(packageGroupIds)];
-  const displays = await getPackageDisplaysByIds(groupIds);
-  return groupIds.some(
+): boolean =>
+  [...packageGroupIds].some(
     (groupId) => displays.get(groupId)?.hideListings ?? true,
   );
-};
 
 /** The stand-in names concealing a page's hidden bundles, for pages selling
  * several packages at once — the several-bundles form of

@@ -4,7 +4,7 @@
  * reference either by name alone. Names are stable across installs, ids are not.
  *
  * Names are field-level encrypted with no blind index, so this matches in
- * memory over the already-cached sets rather than querying. The catalog is
+ * memory over the already-cached sets and never queries them. The catalog is
  * bounded and admin-scale, so the scan is cheap and needs no schema column.
  */
 

@@ -334,10 +334,10 @@ Take 100 → 90 in one or two cheap steps first.
 
 ## How to bring a comment under the cap
 
-Bringing a docstring under a limit is not a formatting job. The first attempt at
-16 lines proved that: compression to save a line produced run-on sentences,
-broken grammar, and one file where a numbered step list became a 39-word
-paragraph. Compression is the wrong move. These three are the right ones.
+A docstring does not come under a limit by a change of format. The first attempt
+at 16 lines proved that. Compression to save a line produced run-on sentences
+and broken grammar. In one file a numbered step list became a 39-word paragraph.
+Compression is the wrong move. These three are the right ones.
 
 The 16 to 12 step then ran on deletion alone, across 222 comments in 181 files.
 No comment was compressed to fit. The tree landed at 12 lines with 101 comments
@@ -351,16 +351,17 @@ says something the reader **cannot** get from the code.
 
 It cannot get these:
 
-- a constraint from outside the repository — an edge subrequest budget, a
-  provider quirk, a replica catch-up window, a runtime that drops a body;
-- a rule the code permits but must never do — "never gate a security decision on
-  this cache";
-- an invariant that lives in another file, and the reason it holds;
-- a trap, where the obvious reading of the code is the wrong one.
+- A constraint from outside the repository. An edge subrequest budget, a
+  provider quirk, a replica catch-up window, a runtime that drops a body.
+- A rule the code permits but must never do. "Never gate a security decision on
+  this cache."
+- An invariant that lives in another file, and the reason it holds.
+- A trap, where the obvious sense of the code is the wrong one.
 
-It gets everything else by reading. A list of what each function does, a
-restatement of a type, an account of the structure below, a worked example of a
-call — all of that is narration, and narration is what fills these comments.
+The reader gets everything else from the code itself. A list of what each
+function does, a restatement of a type, an account of the structure below, a
+worked example of a call — all of that is narration, and narration is what fills
+these comments.
 
 ### Delete first
 
@@ -374,17 +375,17 @@ because the reader can call the function it is looking at.
 
 A long passage that is genuinely durable is usually in the wrong place:
 
-| The passage is                                      | It belongs in      |
-| --------------------------------------------------- | ------------------ |
-| a business rule                                     | a `specs/` Feature |
-| a design decision, with its options                 | `docs/`            |
-| a deferred idea                                     | `TODO.md`          |
-| a per-function contract, sitting in a module header | that function      |
+| The passage is                              | It belongs in      |
+| ------------------------------------------- | ------------------ |
+| a business rule                             | a `specs/` Feature |
+| a design decision, with its options         | `docs/`            |
+| a deferred idea                             | `TODO.md`          |
+| a per-function contract, in a module header | that function      |
 
 Split the comment, move the part that belongs elsewhere, and leave a pointer
 only when the reader needs one.
 
 ### Then measure
 
-Do not aim at the cap. Delete what the reader does not need, and the cap stops
-mattering. Set the next number from what the tree lands on.
+Do not aim at the cap. Delete what the reader does not need, and the cap no
+longer binds. Set the next number from what the tree lands on.

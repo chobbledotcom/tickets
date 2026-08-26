@@ -2,7 +2,7 @@
  * An attendee has ONE shared date range — a `start_date` plus a day count —
  * that applies to every daily listing they book. Fixed-date listings ignore it.
  *
- * The listing table is fixed: one row per booking path, including a path not
+ * The listing table is fixed: one row per booking path, and one for a path not
  * booked yet. Quantity 0 means "not booked". That is what lets the form work
  * with no add/remove buttons and no server round-trips.
  */

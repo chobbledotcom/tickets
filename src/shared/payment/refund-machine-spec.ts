@@ -1,4 +1,4 @@
-/** The atlas on `/admin/schema` DESCRIBES the machine, drawing whatever the
+/** The atlas on `/admin/schema` DESCRIBES the machine. It draws whatever the
  * real transitions do, so it can never fail. This module is the other half: it
  * DECLARES what each transition MUST do.
  *

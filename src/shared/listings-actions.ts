@@ -345,7 +345,7 @@ const leavesAGroup = async (
   );
 
 /**
- * Three transitions take away a page that could rescue a child-scoped add-on: a
+ * Three transitions take away a page that can rescue a child-scoped add-on: a
  * deactivation, clearing "can be booked by itself" on a child, and leaving a
  * group. The last is the subtle one, because an edge-less page has no touching
  * edge, so the edge walk never sees the move.

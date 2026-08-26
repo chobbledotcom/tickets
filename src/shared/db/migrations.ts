@@ -189,7 +189,7 @@ const initializeFreshSchema = async (): Promise<void> => {
  * Right after the drops, a replica and even a freshly-routed primary connection
  * can briefly serve the pre-wipe schema. A lagged answer used to either route
  * boot into schema verification against the wiped primary, or make the rebuild
- * skip its CREATEs and die at the next write, leaving the database empty.
+ * skip its CREATEs and die at the next write, which left the database empty.
  *
  * So every statement here is unconditional and idempotent, and nothing is
  * consulted first.

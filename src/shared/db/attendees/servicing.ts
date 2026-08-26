@@ -612,8 +612,8 @@ export const COST_REPLAY_MISMATCH =
  * payload comparison, memo included, since a payload-derived reference omits it.
  *
  * `occurredAt` is deliberately NOT compared. It is derived, not
- * operator-editable, and comparing it would fail a legitimate double-submit of
- * a dateless cost, defeating the idempotency key for its own retry case.
+ * operator-editable, and a comparison of it fails a legitimate double-submit of
+ * a dateless cost. That defeats the idempotency key for its own retry case.
  */
 const matchingServiceCostReplayId = async (
   input: RecordServiceCostInput,

@@ -1,14 +1,14 @@
 import type { ListingWithCount } from "#types";
 
 /**
- * One in-memory model representing a standalone listing, a multi-slug cart, a
- * regular group, a package, and parent/child folding as configurations of the
+ * One in-memory model that represents a standalone listing, a multi-slug cart,
+ * a regular group, a package, and parent/child folding as configurations of the
  * *same* structure.
  *
  * The single source of truth for two things every booking surface must agree
  * on: the `nodeKey` scheme a node is addressed by, and the exact `name="…"` its
- * control emits. Render and submit importing the *same* helpers is what keeps
- * "behaviour identical" mechanically true rather than a promise.
+ * control emits. Render and submit import the *same* helpers, which is what
+ * makes "behaviour identical" mechanically true instead of a promise.
  */
 
 /** What page/root a tree was entered through. A standalone listing (or an ad-hoc

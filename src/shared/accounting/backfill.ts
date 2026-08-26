@@ -46,7 +46,7 @@ type PaidRow = {
 /**
  * The backfill costs O(pages) edge subrequests, not one per attendee. A
  * round-trip-per-attendee backfill blew the inline migration's budget and got
- * the isolate evicted mid-run, holding the lock and 503ing every request.
+ * the isolate evicted mid-run. The lock stayed held, and every request 503ed.
  *
  * The ceiling is libsql's 32766 bound-variable limit. {@link alreadyLedgered}
  * lists a page's ids twice, so a page holds at most ~16k attendees. 5000 leaves

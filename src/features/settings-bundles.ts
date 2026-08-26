@@ -21,7 +21,7 @@ export const getPrefix = (path: string): string => {
  * because something unconditional reads it: domain resolution, routing gates,
  * the bare `Layout` every error page renders, the CSP rebuild, session auth and
  * PII decryption, and the listing-default resolution that runs at the cache
- * layer on any route loading a listing.
+ * layer on any route that loads a listing.
  */
 const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LISTING_DEFAULTS,

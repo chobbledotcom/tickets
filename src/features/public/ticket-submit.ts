@@ -284,8 +284,8 @@ const submitTicket = ticketFormRoute(
  * The submit path reprices with the real count before charging.
  *
  * With no payment provider the booking is taken without charging, but a paid
- * order still owes its full value, so the quote surfaces the amount owed rather
- * than implies the order is free.
+ * order still owes its full value, so the quote surfaces the amount owed and
+ * never implies that the order is free.
  */
 const renderQuote = async (
   ctx: TicketCtx,

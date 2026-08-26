@@ -7,7 +7,7 @@ import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { Attendee, ListingWithCount } from "#types";
 
 /**
- * A paid session carrying a cryptographically valid price proof, so it is
+ * A paid session that carries a cryptographically valid price proof, so it is
  * provably ours. A session with no valid proof never reaches this type: it
  * classifies as `ignore` and is acknowledged without processing or refunding.
  *

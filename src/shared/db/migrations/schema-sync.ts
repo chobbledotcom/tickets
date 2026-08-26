@@ -73,8 +73,8 @@ export type LiveSchema = {
  *
  * Pinned to the primary, not a replica. Every caller runs inside a migration,
  * where the snapshot must reflect DDL applied moments earlier in the same run.
- * A lagging replica reports a just-created table as missing and fails verify()
- * spuriously.
+ * A replica that lags reports a just-created table as missing, and fails
+ * verify() spuriously.
  */
 export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
