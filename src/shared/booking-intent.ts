@@ -95,7 +95,8 @@ export type ListingAnswerRefs = {
  * listing id is written. A key in any other shape can never match a listing,
  * so the answers under it would be dropped without a word after the buyer had
  * paid. Whether the key names a listing that was actually booked is a question
- * only the booking code can answer, and is noted in TODO.md.
+ * only the booking code can answer, so `reportAnswersForUnbookedListings`
+ * checks that against the created rows.
  */
 const ListingKeySchema = v.pipe(
   v.string(),

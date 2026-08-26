@@ -19,6 +19,7 @@ import {
   groupListingAnswerSets,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
+import { reportAnswersForUnbookedListings } from "#db/questions/attendee-answers/unbooked.ts";
 import { requiredMapValue } from "#fp";
 import { paymentReferenceOf } from "#payment/validated-session.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
@@ -196,6 +197,10 @@ export const saveSessionAnswers = async (
   intent: BookingIntent,
 ): Promise<void> => {
   if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
+  reportAnswersForUnbookedListings(createdEntries, [
+    intent.listingAnswerIds,
+    intent.listingTextAnswerIds,
+  ]);
   const grouped = groupListingAnswerSets(
     createdEntries,
     intent.listingAnswerIds ?? {},
