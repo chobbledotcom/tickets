@@ -71,6 +71,9 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       });
       expectRedirect(response, "/admin/emails?audience=active");
       expectFlash(response, "Subject is required", false);
+      // The error is aimed at the compose form, so the page can show it
+      // beside the field rather than only at the top.
+      expect(response.headers.get("location")).toContain("form=bulk-email");
     });
 
     test("rejects a posted listing that no longer exists", async () => {
@@ -200,6 +203,26 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       await seedMarketingDraftWithUnsubscriber();
       const html = await getPreviewHtml();
       expect(html).toContain("1 unsubscribed will be skipped");
+      // The other attendee is still sendable, so the send is not empty.
+      expect(html).toContain("1 recipient");
+    });
+
+    test("skips nobody when the same audience gets a plain send", async () => {
+      useResend();
+      const listing = await seedMarketingDraftWithUnsubscriber();
+      // Same audience, same unsubscriber, but not marketing. The
+      // unsubscribed list does not apply, so nobody is left out.
+      await seedDraft({
+        body: "Body",
+        marketing: false,
+        subject: "Subject",
+        target: { kind: "listing", listingId: listing.id },
+      });
+
+      const html = await getPreviewHtml();
+
+      expect(html).not.toContain("will be skipped");
+      expect(html).toContain("2 recipients");
     });
 
     test("labels a target whose listing has since been deleted", async () => {
