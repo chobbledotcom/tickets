@@ -93,6 +93,23 @@ const askOnce = async (
   }
 };
 
+/** One retry: the wait before it, or null when this attempt was the last. A
+ *  provider we never reached is always worth asking again, so only an answer
+ *  gets a say. */
+type RetryStep = (answer: FetchResult | null) => number | null;
+
+/** One step per retry the provider allows, in order. The ladder is a fixed
+ *  list rather than a counter, so a call can never ask more times than the
+ *  provider declared, whatever the code inside the loop does. */
+const ladderOf = (retries: ProviderRetries): RetryStep[] =>
+  Array.from(
+    { length: retries.limit },
+    (_, retry) => (answer) =>
+      answer === null || retries.again(answer)
+        ? retries.waitBefore(retry, answer)
+        : null,
+  );
+
 /** Bind one provider's name to the shared boundary. Every call it then makes
  * runs under the shared timeout, counts against the edge subrequest budget,
  * and tells each way of failing in the shared transport vocabulary. */
@@ -100,35 +117,28 @@ export const providerCaller = (
   namedBy: ProviderErrorDetailOf,
   retries?: ProviderRetries,
 ): ProviderCaller => {
-  /** The wait before asking again, or null when this attempt was the last. A
-   *  provider we never reached is always worth asking again while the limit
-   *  allows, so only an answer gets a say. */
-  const waitBeforeRetry = (
-    retry: number,
-    answer: FetchResult | null,
-  ): number | null => {
-    if (retries === undefined || retry >= retries.limit) return null;
-    if (answer !== null && !retries.again(answer)) return null;
-    return retries.waitBefore(retry, answer);
+  const ladder = retries === undefined ? [] : ladderOf(retries);
+
+  /** What one attempt got, or the failure to reach the provider at all. */
+  const answerOf = (attempt: Attempt): FetchResult => {
+    if (attempt.unreachable !== null) {
+      throw transportError.unreachable(namedBy(""), attempt.unreachable);
+    }
+    return attempt.answer;
   };
 
   const answer = async (
     url: string,
     init: ProviderRequest,
   ): Promise<FetchResult> => {
-    const attemptFrom = async (retry: number): Promise<FetchResult> => {
+    for (const step of ladder) {
       const attempt = await askOnce(url, init);
-      const wait = waitBeforeRetry(retry, attempt.answer);
-      if (wait !== null) {
-        await delay(wait);
-        return attemptFrom(retry + 1);
-      }
-      if (attempt.unreachable !== null) {
-        throw transportError.unreachable(namedBy(""), attempt.unreachable);
-      }
-      return attempt.answer;
-    };
-    return attemptFrom(0);
+      const wait = step(attempt.answer);
+      if (wait === null) return answerOf(attempt);
+      await delay(wait);
+    }
+    // The attempt no retry follows: the ladder is spent, or there was none.
+    return answerOf(await askOnce(url, init));
   };
 
   const text = async (url: string, init: ProviderRequest): Promise<string> => {

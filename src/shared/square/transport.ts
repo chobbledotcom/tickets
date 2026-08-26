@@ -11,9 +11,6 @@ import {
 /** Square API version for all requests. */
 export const SQUARE_API_VERSION = "2025-01-23";
 
-/** Square transport currently makes one physical fetch per logical call. */
-export const SQUARE_MAX_NETWORK_RETRIES = 0;
-
 /** Optional method and JSON body for one Square REST call. */
 export type SquareRequestOptions = { method?: string; body?: unknown };
 
