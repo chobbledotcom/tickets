@@ -78,14 +78,13 @@ const childIsBookable = (
   childSelectableForSpan(child, duration) &&
   childDateOk(date, holidays, duration)(child);
 
-/** The order's listing set, quantity/custom-price maps and selected ids, expanded
- * with the chosen children. Shared by the fold accumulator and the success result
- * so the two never drift apart. */
+/** The order's listing set and quantity/custom-price maps, expanded with the
+ * chosen children. Shared by the fold accumulator and the success result so the
+ * two never drift apart. */
 type FoldedOrder = {
   listings: TicketListing[];
   quantities: Map<number, number>;
   customPrices: Map<number, number>;
-  selectedListingIds: Set<number>;
 };
 
 /** Accumulator threaded through the recursive fold: the {@link FoldedOrder} plus
@@ -320,7 +319,6 @@ export const foldChild = (
     state.customPrices.set(childId, price);
   }
   state.quantities.set(childId, summed);
-  state.selectedListingIds.add(childId);
   if (!state.listings.some((e) => e.listing.id === childId)) {
     state.listings.push(child);
   }
@@ -402,13 +400,13 @@ export const resolvedByNodeKey = (
 
 /**
  * Fold every in-cart parent's selected children into the order by walking the
- * booking tree (server-side validation). Each
- * top-level node with a positive quantity and child edges folds its bookable
- * children — a package member, a group member and a standalone parent all take
- * the same path — expanding the listing set + quantity/custom-price maps +
- * selected ids so every downstream per-listing path sees a child as an ordinary
- * line. A parent with no bookable child is rejected (sold out). Child fields under
- * a zero-quantity parent are ignored, not read. No-op when no parent applies.
+ * booking tree (server-side validation). Each top-level node with a positive
+ * quantity and child edges folds its bookable children — a package member, a
+ * group member and a standalone parent all take the same path — expanding the
+ * listing set and the quantity/custom-price maps so every downstream
+ * per-listing path sees a child as an ordinary line. A parent with no bookable
+ * child is rejected (sold out). Child fields under a zero-quantity parent are
+ * ignored, not read. No-op when no parent applies.
  *
  * Pure: `resolved` maps each node's key to the availability-resolved
  * {@link TicketListing} (isClosed/isSoldOut/group-clamped maxPurchasable) the fold
@@ -436,7 +434,6 @@ export const foldBookingTree = (
       tree.nodes.map((node) => resolved.get(node.nodeKey)!),
     ),
     quantities: new Map(base.quantities),
-    selectedListingIds: new Set(base.quantities.keys()),
   };
 
   for (const { node, parentQty } of selectFoldableParents(
@@ -467,6 +464,5 @@ export const foldBookingTree = (
     ok: true,
     priceRuleByListingId: priceRuleByListingId(tree),
     quantities: state.quantities,
-    selectedListingIds: state.selectedListingIds,
   };
 };

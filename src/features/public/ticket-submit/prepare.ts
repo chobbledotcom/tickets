@@ -113,8 +113,8 @@ export const prepareOrder = async (
   await applyQrTokenOverride(form, ctx, customPricesResult);
 
   // Fold each in-cart parent's selected child into the order: expand the listing
-  // set + quantity/custom-price maps + selected ids, so every per-listing path
-  // below sees children as ordinary lines.
+  // set and the quantity/custom-price maps, so every per-listing path below
+  // sees children as ordinary lines.
   const fold = await foldSelectedChildren(
     ctx,
     form,
@@ -129,12 +129,31 @@ export const prepareOrder = async (
   );
   if (!fold.ok) return { error: fold.error, ok: false };
   const { hasCustomisable, dayCount, quantities } = fold;
-  const selectedListingIds = fold.selectedListingIds;
   // A folded ctx carrying the expanded listing set drives availability, item
   // building, contact fields and free-reservation creation downstream; the
   // questionListingMap already includes child questions (loaded in
   // getTicketContext).
   const foldedCtx: TicketCtx = { ...ctx, listings: fold.listings };
+
+  // Build the per-path lines from the tree: one line per booked top-level node
+  // (each priced by its own rule — a package member's override is a node facet
+  // scoped to that path) plus one line per folded child; then hidden-package
+  // names are masked.
+  const items = concealLineNames(
+    buildOrderLines(
+      tree,
+      nodeQuantities,
+      fold.quantities,
+      fold.customPrices,
+      dayCount,
+    ),
+    standIns,
+  );
+
+  // The order's own lines say which listings this booking is for. Every
+  // per-listing step below reads the set from here, so an answer cannot be
+  // filed under a listing the order has no line for.
+  const selectedListingIds = new Set(items.map((item) => item.listingId));
 
   const selected = listingsWithQuantity(foldedCtx.listings, quantities);
   const siteAssignmentCheck = await validateSiteAssignmentConfig(selected);
@@ -151,21 +170,6 @@ export const prepareOrder = async (
     activeQuestions,
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
-
-  // Build the per-path lines from the tree: one line per booked top-level node
-  // (each priced by its own rule — a package member's override is a node facet
-  // scoped to that path) plus one line per folded child; then hidden-package
-  // names are masked.
-  const items = concealLineNames(
-    buildOrderLines(
-      tree,
-      nodeQuantities,
-      fold.quantities,
-      fold.customPrices,
-      dayCount,
-    ),
-    standIns,
-  );
 
   const info: AnswerInfo = {
     activeQuestions,
