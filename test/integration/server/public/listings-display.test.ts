@@ -177,13 +177,21 @@ describeWithEnv(
         });
 
         const html = await assertPublicHtml("/listings", "Weekend Bundle");
+        // Where each word lands, or a stop: a word the page never says would
+        // otherwise come back as -1, which sorts below everything and leaves
+        // the order looking right.
+        const wherePageSays = (word: string): number => {
+          const at = html.indexOf(word);
+          if (at < 0) throw new Error(`The page never says "${word}"`);
+          return at;
+        };
         const inOrder = [
           "Packages",
           "Weekend Bundle",
           "Zephyr Bundle",
           "All bookable listings",
           "Regular Group",
-        ].map((word) => html.indexOf(word));
+        ].map(wherePageSays);
         expect(inOrder).toEqual([...inOrder].toSorted((a, b) => a - b));
       });
     });

@@ -10,6 +10,7 @@ import { getAllUsers } from "#db/users.ts";
 import { t } from "#i18n";
 import {
   browserSeenBy,
+  type OpensOneFixedPage,
   ORGANISER,
   openAdminPage,
   openAsNewcomer,
@@ -97,7 +98,8 @@ export const rowForPersonOnList = (
 };
 
 /** The owner opens the list of everybody who may sign in. */
-export const ownerOpensWhoMaySignIn = opensAdminPageAt("/admin/users");
+export const ownerOpensWhoMaySignIn: OpensOneFixedPage =
+  opensAdminPageAt("/admin/users");
 
 /** How many people may sign in at all — an invite waiting to be used counts,
  * because that person already has a name reserved on the site. */

@@ -3,9 +3,8 @@
  *
  * Every ticket is opened the way its holder opens theirs: by following the
  * link the site handed them when they booked, as somebody who is not signed
- * in. A booking that hands over no link, or a link that opens nothing, fails
- * the story rather than being reached around with a code read out of the
- * database.
+ * in. A booking that hands over no link, and a link that opens nothing, each
+ * fail the story here.
  */
 
 // jscpd:ignore-start

@@ -29,13 +29,10 @@ const ENTITIES = new Map<string, string>([
 const ANY_ENTITY = new RegExp([...ENTITIES.keys()].join("|"), "g");
 
 /**
- * What a reader sees, decoding entities the way a browser does: one pass over
- * the text, never a second look at what the first pass produced.
- *
- * Decoding them one kind at a time would read `&amp;times;` — the literal text
- * "&times;", which a browser shows as it is — as the "×" a single `&times;`
- * means. A page that escaped its markup twice would then read as if it were
- * right, and a test asserting on those words would pass.
+ * What a reader sees: one decoding pass, the way a browser does it, so nothing
+ * the pass produces is decoded again. That keeps `&amp;times;` reading as the
+ * literal "&times;" a browser shows, rather than as the "×" a single
+ * `&times;` means — a page escaped twice must not read as if it were right.
  */
 export const decodeEntities = (text: string): string =>
   text.replace(ANY_ENTITY, (entity) =>

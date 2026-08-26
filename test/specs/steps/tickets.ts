@@ -34,8 +34,8 @@ import {
 // jscpd:ignore-end
 
 /** The words on the ticket the person is holding, for every Then that reads
- * one. Each read opens the link again, so a link that stopped working fails
- * the story rather than a page read once and kept saying what it used to. */
+ * one. Each read opens the link again, so every assertion is made against a
+ * link that still works. */
 const ticketWords = (world: TicketsWorld): Promise<string> =>
   wordsOnTheirTicket(world);
 

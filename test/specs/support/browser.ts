@@ -149,12 +149,15 @@ export const opensPagesAs =
  * already. Every admin page a story reads starts here. */
 export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
 
+/** Somebody opens one page whose address never changes. */
+export type OpensOneFixedPage = (world: TicketsWorld) => Promise<void>;
+
 /** The organiser opens one page of their own, named once. Every "the owner
  * looks at X" step is this with a different address, so the address is the
  * only thing each caller says. */
 export const opensAdminPageAt =
-  (path: string) =>
-  async (world: TicketsWorld): Promise<void> => {
+  (path: string): OpensOneFixedPage =>
+  async (world) => {
     await openAdminPage(world, path);
   };
 

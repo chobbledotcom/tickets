@@ -111,10 +111,10 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
   });
 
   test("keeps two buyers of one package on separate cards and codes", async () => {
-    // /t/a+b resolves two distinct attendees sharing a private package. Cards
-    // bucket by (code, package), so both collapse yet stay two cards with their
-    // own check-in codes. Bucketing on a shared first token used to disable
-    // collapsing here and leak the member's name.
+    // Cards bucket by (code, package), so two attendees sharing one private
+    // package each collapse to their own card, keeping their own check-in
+    // code. Bucketing on anything the two share would merge them and name the
+    // member the package conceals.
     const { group, widget } = await hiddenOneMemberPackage();
     const asPackage = [
       { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
@@ -200,10 +200,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
     });
 
     test("shows the stay that was booked, not the longest one on offer", async () => {
-      // Regression: the card read the listing's own duration_days (the LONGEST
-      // bookable), so a three-day booking of a seven-day-maximum member drew a
-      // seven-day stay. Both the widest-member pick and the label must read the
-      // stored booked range — the facts the confirmation email renders.
+      // Both the widest-member pick and the label read the stay that was
+      // stored — the facts the confirmation email renders — never the listing's
+      // own duration_days, which is the longest stay it can sell.
       const group = await createTestGroup({ isPackage: true, name: "Flex" });
       const flex = await createTestListing({
         customisableDays: true,
