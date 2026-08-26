@@ -12,7 +12,6 @@ import { bookingIntent } from "#test/features/api/payment-processing/index/helpe
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 const bookedEntry = async (): Promise<CreatedEntry> => {
   const listing = await createTestListing({ maxAttendees: 5 });
@@ -43,26 +42,18 @@ const saveAndReadAnswers = async (
   ).rows;
 };
 
-/** One radio question with a single answer to choose. */
-const choiceQuestion = async () => {
-  const question = await questionsTable.insert({
-    displayType: "radio",
-    text: "Choose one",
-  });
-  const answer = await answersTable.insert({
-    questionId: question.id,
-    sortOrder: 0,
-    text: "Chosen",
-  });
-  return { answer, question };
-};
-
 describeWithEnv("paid booking answer saves", { db: true }, () => {
-  const errors = setupErrorSpy();
-
   test("saves a choice answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
-    const { question, answer } = await choiceQuestion();
+    const question = await questionsTable.insert({
+      displayType: "radio",
+      text: "Choose one",
+    });
+    const answer = await answersTable.insert({
+      questionId: question.id,
+      sortOrder: 0,
+      text: "Chosen",
+    });
     const saved = await saveAndReadAnswers(entry, {
       listingAnswerIds: { [entry.listing.id]: [answer.id] },
     });
@@ -88,25 +79,6 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
     });
     expect(saved).toEqual([
       { answer_id: null, question_id: question.id, string_id: stringId },
-    ]);
-  });
-
-  test("reports answers filed under a listing the order did not book", async () => {
-    const entry = await bookedEntry();
-    const { question, answer } = await choiceQuestion();
-    const unbookedListingId = entry.listing.id + 1000;
-    const saved = await saveAndReadAnswers(entry, {
-      listingAnswerIds: {
-        [entry.listing.id]: [answer.id],
-        [unbookedListingId]: [answer.id],
-      },
-    });
-
-    expect(errors.contains(`listing ${unbookedListingId}`)).toBe(true);
-    // The buyer already paid, so the answers that do name a booked listing
-    // still save rather than the whole booking failing.
-    expect(saved).toEqual([
-      { answer_id: answer.id, question_id: question.id, string_id: null },
     ]);
   });
 });

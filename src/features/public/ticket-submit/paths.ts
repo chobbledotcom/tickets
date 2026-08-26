@@ -13,7 +13,6 @@ import {
   groupListingAnswerSets,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
-import { reportAnswersForUnbookedListings } from "#db/questions/attendee-answers/unbooked.ts";
 import {
   type AnswerInfo,
   type extractContact,
@@ -160,10 +159,6 @@ export const handleFreePath = async (
 
   if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
     const maps = listingAnswerMaps(info, ctx.questionListingMap);
-    reportAnswersForUnbookedListings(result.entries, [
-      maps.answerIds,
-      maps.textAnswers,
-    ]);
     await saveAttendeeAnswers(
       groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
     );

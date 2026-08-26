@@ -52,7 +52,6 @@ const freshState = () => ({
   customPrices: new Map<number, number>(),
   listings: [] as TicketListing[],
   quantities: new Map<number, number>(),
-  selectedListingIds: new Set<number>(),
 });
 
 const foldOf = (
@@ -122,7 +121,6 @@ describe("foldBookingTree — walking the tree", () => {
     expect(fold.allocations).toEqual([]);
     expect([...fold.quantities]).toEqual([[1, 2]]);
     expect(fold.listings.map((l) => l.listing.id)).toEqual([1, 2]);
-    expect(fold.selectedListingIds.has(1)).toBe(true);
     expect(fold.hasCustomisable).toBe(false);
     expect(fold.dayCount).toBe(1);
   });
@@ -150,7 +148,6 @@ describe("foldBookingTree — walking the tree", () => {
     if (!fold.ok) return;
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 2 }]);
     expect(fold.quantities.get(9)).toBe(2);
-    expect(fold.selectedListingIds.has(9)).toBe(true);
     expect(fold.listings.map((l) => l.listing.id)).toContain(9);
   });
 
