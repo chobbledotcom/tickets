@@ -2,7 +2,7 @@
 /// <reference lib="dom.iterable" />
 /**
  * Rich markdown editor: progressively enhances every markdown-authored
- * textarea. The textarea stays the real form control, and every rich edit is
+ * textarea. The textarea stays the real form control. Every rich edit is
  * serialized back into it and re-announced as an `input` event, so submission,
  * validation, the character counter, and the preview dialog keep working.
  *

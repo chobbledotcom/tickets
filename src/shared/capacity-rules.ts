@@ -58,7 +58,7 @@ export const allCapacityFacets = (): CapacityFacet[] =>
  * - A duplicate rule key lets two declarations silently disagree.
  * - A facet with both `dateLessCap` and `perDateCap` double-counts the same
  *   cap. A facet with neither leaves a listing with no own-cap check at all.
- * - A rule matching no facet is dead, and would have no SQL type predicate.
+ * - A rule that matches no facet is dead, and has no SQL type predicate.
  *
  * Exported so the invariants are unit-testable. Runs once at module load.
  */

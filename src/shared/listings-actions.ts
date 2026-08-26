@@ -290,7 +290,7 @@ const orphanedAddOnAfterChange = async (
  * the targets marked inactive AT ONCE. An add-on rescued only by several group
  * members together is then still caught.
  *
- * DEACTIVATION only. Activating a listing can only ADD reachable pages.
+ * DEACTIVATION only. An activation can only ADD reachable pages.
  */
 /**
  * Run the shared child-scoped-add-on reachability over a would-be listing set:

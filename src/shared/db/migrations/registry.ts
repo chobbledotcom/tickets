@@ -1,7 +1,7 @@
 /**
- * The boot path reads only the ids here, so the migration implementations and
- * everything they import stay out of the cold-start module graph and load
- * lazily on the rare request with migration work to do.
+ * The boot path reads only the ids here. The migration implementations, and
+ * everything they import, therefore stay out of the cold-start module graph.
+ * They load lazily on the rare request that has migration work to do.
  *
  * This list IS the run order. Keep it in the exact order migrations must run.
  *

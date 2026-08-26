@@ -3,7 +3,7 @@
  * DB_ENCRYPTION_KEY cannot read them. Only an authenticated admin, whose
  * password unwraps the private key, can.
  *
- * Writing needs only the public key, which a set-up site always has, so an
+ * A write needs only the public key, which a set-up site always has. An
  * unauthenticated caller such as a webhook or the error logger still logs.
  *
  * Legacy rows carry the older env-key format and stay readable.

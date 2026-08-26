@@ -1,8 +1,8 @@
 /** SumUp does not sign its callbacks and has no subscription to redeliver
  * against, so a single lost callback is the whole of the notice we get. This
- * machine replaces that notice: every staged checkout is asked about until
- * SumUp answers definitively, and a row that may hold unaccounted money is
- * never deleted and never left with nothing to act on it.
+ * machine replaces that notice. Every staged checkout is asked about until
+ * SumUp answers definitively. A row that can still hold unaccounted money is
+ * never deleted, and never left with nothing to act on it.
  *
  * The table below IS the production lookup, not a description of one. A cell it
  * leaves out is a declared refusal, and the mirror sweep proves it throws. */

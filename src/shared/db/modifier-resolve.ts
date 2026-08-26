@@ -628,8 +628,8 @@ export const childUnreachableAddOnError = (
  * and it has no edge of its own, so an edge-touching traversal misses it.
  *
  * `allListings` carries the save's would-be state, with the deactivated listing
- * already marked inactive. Deactivating the sole reachable page therefore drops
- * it from the set and surfaces the dead end.
+ * already marked inactive. A deactivation of the sole reachable page therefore
+ * drops it from the set and surfaces the dead end.
  */
 /** The ids of listings that can still offer an add-on to a booker: an active
  *  listing that isn't one of the suppressed children (only those serve their
