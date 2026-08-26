@@ -47,6 +47,26 @@ describeWithEnv(
   "db > migrations > 2026-08-26_built_sites_renewal_tier",
   { db: true },
   () => {
+    test("declares the id the registry and the marker row key on", () => {
+      expect(renewalTierMigration(context).id).toBe(
+        "2026-08-26_built_sites_renewal_tier",
+      );
+    });
+
+    test("says which column it adds, and to which table", () => {
+      const { description } = renewalTierMigration(context);
+      expect(description).toContain("renewal_tier_listing_id");
+      expect(description).toContain("built_sites");
+    });
+
+    test("owns the one column, on the one table", () => {
+      // What a migration declares it owns drives its production verify() and
+      // the restore tests, so the declaration is the contract, not a label.
+      expect(renewalTierMigration(context).requires).toEqual({
+        columns: { built_sites: ["renewal_tier_listing_id"] },
+      });
+    });
+
     test("adds the column, leaving existing sites on no particular tier", async () => {
       await createPreTierTable();
       await insertSite();
