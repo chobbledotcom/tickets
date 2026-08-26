@@ -6,9 +6,10 @@
 Feature: The owner invites somebody to help
   The owner adds the people who may sign in from one page: a name, and what
   that person is allowed to do. The site hands back a one-time link to pass on,
-  and the person invited chooses their own password from it — the owner never
-  sets one and never learns it. That one list holds everybody who may sign in,
-  beside what each may do and whether they have joined yet.
+  and holds nobody twice under one name. That same page lists everybody who may
+  sign in, beside what each may do and whether they have joined yet. What the
+  person invited then does with the link is another story, told where an editor
+  sets their own account up.
 
   @rule:access.an-invite-hands-back-a-link-to-pass-on
   Rule: An invite hands back a link to pass on
