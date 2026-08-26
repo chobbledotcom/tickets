@@ -151,21 +151,15 @@ const renderChildOption = (
 };
 
 /** Render a sole bookable child as informational, and keep the auto-select. It
- * submits no `child_qty_<parentId>_<childId>` field at all. The server fold
+ * submits no `child_qty_<parentId>_<childId>` field at all: the server fold
  * auto-fills a sole child to the parent's quantity, so a fixed quantity
- * over-submits and gets rejected as "too many". It shows just the child's name
- * and price, plus a pay-more child's optional price input, which the fold
- * reads. Nothing posts a quantity, so it is safe without JS.
+ * over-submits and is rejected as "too many". Nothing posts a quantity, so it
+ * is safe without JS.
  *
- * The buyer makes no choice here, so there is no "choose an option" prompt —
- * that lives on the parent's `<legend>`. A hidden child shows nothing visible
- * but keeps its data markers and price input, so the fold and the client
- * scripts still drive off them.
- *
- * The informational marker ALSO carries the same date/span compatibility
- * attributes a selectable child option does ({@link childDateAttrs}). On a
- * group page the client script can then tell that the sole child cannot serve
- * the chosen date. It flags the parent instead of a submit-time rejection. */
+ * The informational marker still carries the date and span attributes a
+ * selectable child option does ({@link childDateAttrs}). A group page's client
+ * script can then see that the sole child does not serve the chosen date, and
+ * flag the parent instead of a submit-time rejection. */
 const renderSoleChildOption = (input: ChildOptionInput): string => {
   const { dateAttrs, listing, namedLabel, parentId, priceHtml } =
     childOptionParts(input);

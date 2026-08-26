@@ -820,17 +820,13 @@ export const orIgnore = (statement: SqlStatement): SqlStatement => ({
 });
 
 /**
- * Build an INSERT statement from a table name and column→value record. A
- * {@link rawSql} value goes into the SQL as written rather than becoming a bound
- * placeholder, which is how a column takes an expression:
+ * Build an INSERT statement from a table name and column-to-value record. A
+ * {@link rawSql} value goes into the SQL as written rather than as a bound
+ * placeholder, which is how a column takes an expression such as
+ * `last_insert_rowid()`.
  *
- * ```ts
- * insert("listing_attendees", { attendee_id: rawSql("last_insert_rowid()") })
- * // → VALUES (last_insert_rowid())   with no arg bound
- * ```
- *
- * Pass `returningColumns` when the caller needs something back from the written
- * row — a generated key, say, read with {@link insertedRowId}.
+ * Pass `returningColumns` when the caller needs a value back from the written
+ * row, such as a generated key read with {@link insertedRowId}.
  */
 export const insert = (
   table: string,

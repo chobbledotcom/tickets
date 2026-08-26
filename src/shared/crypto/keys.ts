@@ -31,14 +31,12 @@ import { fromBase64, getRandomBytes } from "./utils.ts";
  * The KEK wraps the DATA_KEY in users.wrapped_data_key. Two schemes coexist,
  * and they differ in what a database dump is worth:
  *
- * - v1 derives from the *stored password hash*, which is itself only encrypted
- *   with DB_ENCRYPTION_KEY. A dump plus that key unwraps the DATA_KEY, so PII
- *   at rest is protected by the env key alone.
- * - v2 derives from the *raw password*, which is never stored, so a dump plus
- *   the env key is not enough. All new wraps use v2.
+ * - v1 derives from the STORED password hash, itself only encrypted with
+ *   DB_ENCRYPTION_KEY, so a dump plus that key unwraps the DATA_KEY.
+ * - v2 derives from the RAW password, which is never stored, so a dump plus the
+ *   env key is not enough. All new wraps use v2.
  *
- * Both keep DB_ENCRYPTION_KEY in the salt, so a KEK always needs the env key as
- * well as its own secret.
+ * Both keep DB_ENCRYPTION_KEY in the salt, so a KEK always needs the env key.
  */
 
 /**

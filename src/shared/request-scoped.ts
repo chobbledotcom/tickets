@@ -1,18 +1,14 @@
 /**
- * Request-scoped state, safe against leaked async contexts. A dozen modules
- * keep per-request state — the collection cache, the locale, the client IP, the
- * query log — set at the request boundary and read deep inside rendering. Module
- * globals race: one isolate serving two requests has one global, so request B's
- * write clobbers A's while A is parked on an `await`. A scope per piece fixes it.
+ * Request-scoped state, safe against leaked async contexts. Module globals
+ * race: one isolate serving two requests has one global, so request B's write
+ * clobbers A's while A is parked on an `await`.
  *
- * The runtime adds one trap: it can re-attach a finished request's context to
- * later, unrelated work. Post-request reads are meaningless here, because
+ * The runtime adds one trap. It can re-attach a finished request's context to
+ * later, unrelated work. A post-request read is meaningless here, because
  * pending work is flushed before the response is sent, so a leaked store is
- * always that trap and reads treat it as outside a scope.
+ * always that trap, and a read treats it as outside a scope.
  *
- * This is the only module allowed to touch `AsyncLocalStorage`. Everything else
- * builds on {@link createScope} (a store per `run`), {@link createScopedValue}
- * (one fixed value with a fallback outside), or {@link createRequestScoped}.
+ * This is the only module allowed to touch `AsyncLocalStorage`.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";

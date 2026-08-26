@@ -58,15 +58,14 @@ const makeFetchTransport: ConstructorParameters<
 /**
  * Constructing `DenoClient` directly adds NO integrations, so the two that put
  * information into a report are named here. Both are pure event shaping, which
- * is all the edge runtime supports.
- *
- * `linkedErrors` walks the `cause` chain. Without it a report names the wrapper
- * and drops the failure underneath it. `breadcrumbs` keeps the console lines
- * carrying the request id, so a report leads back to its own log.
+ * is all the edge runtime supports. `linkedErrors` walks the `cause` chain,
+ * because without it a report names the wrapper and drops the failure
+ * underneath. `breadcrumbs` keeps the console lines carrying the request id, so
+ * a report leads back to its own log.
  *
  * Deliberately absent: `dedupe`, because two requests hitting one bug are two
- * real occurrences. `fetch` breadcrumbs, because an outbound URL can carry a
- * session id.
+ * real occurrences, and `fetch` breadcrumbs, because an outbound URL can carry
+ * a session id.
  */
 const eventShapingIntegrations = [
   breadcrumbsIntegration({ console: true, fetch: false, sentry: false }),

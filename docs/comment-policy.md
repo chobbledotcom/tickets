@@ -4,7 +4,7 @@ This measured what the comments in `src/` cost, tested the three claims that
 prompted the question, priced every cap we could set, and now records the
 decision taken and what is left to do.
 
-**Decided and shipped.** A comment may run at most **16 lines**, and one of its
+**Decided and shipped.** A comment may run at most **12 lines**, and one of its
 lines at most **100 columns**. `deno task check:comments` enforces both in
 `precommit`; the numbers live in `scripts/check-comments/run.ts` and are meant
 to come down. See [Where we are](#where-we-are) for the remaining steps.
@@ -278,7 +278,7 @@ Biome has no rule for any of this, so enforcement is a script. `skipComment` in
 ## Where we are
 
 The checker is in `scripts/check-comments/`, wired into `precommit`, and the
-tree is green at **16 lines and 100 columns**. Both numbers ratchet: lower one
+tree is green at **12 lines and 100 columns**. Both numbers ratchet: lower one
 in `run.ts`, bring the tree to it, repeat. Directives, the `deno doc` barrels,
 and shipped dated migrations are exempt — the last because they are append-only
 history the repo already declines to edit, the same reason `.jscpd.json` ignores
@@ -306,28 +306,27 @@ wants its own measurement first — `test/` is 1,908 files at 5.7% comment
 density, a different shape from `src/`, and its limits must be chosen against
 that rather than inherited.
 
-These are the remaining steps, now that ≤ 20 and ≤ 16 are done. The staged table
-above was measured at `470b47e`. `src/` grew after that measurement. The figures
-below are a fresh count of the tree as it stands today:
+These are the remaining steps, now that ≤ 20, ≤ 16 and ≤ 12 are done. The staged
+table above was measured at `470b47e`, and `src/` changed after that. The
+figures below are a fresh count of the tree as it stands today:
 
 | Next | Comments to rewrite | Files touched | Cumulative |
 | ---- | ------------------- | ------------- | ---------- |
-| ≤ 12 | 222                 | 181           | 222        |
-| ≤ 8  | 349                 | 275           | 571        |
-| ≤ 6  | 468                 | 323           | 1,039      |
-| ≤ 4  | 926                 | 459           | 1,965      |
-| ≤ 3  | 646                 | 358           | 2,611      |
-| ≤ 2  | 1,029               | 471           | 3,640      |
+| ≤ 8  | 513                 | 358           | 513        |
+| ≤ 6  | 513                 | 351           | 1,026      |
+| ≤ 4  | 939                 | 466           | 1,965      |
+| ≤ 3  | 647                 | 358           | 2,612      |
+| ≤ 2  | 1,029               | 471           | 3,641      |
 
 Width ratchets on the same tree, counted as comments with at least one
 over-width line:
 
 | Next | Comments to rewrite | Files touched | Cumulative |
 | ---- | ------------------- | ------------- | ---------- |
-| ≤ 95 | 13                  | 13            | 13         |
-| ≤ 90 | 40                  | 33            | 53         |
-| ≤ 85 | 104                 | 86            | 157        |
-| ≤ 80 | 1,348               | 477           | 1,505      |
+| ≤ 95 | 12                  | 12            | 12         |
+| ≤ 90 | 30                  | 29            | 42         |
+| ≤ 85 | 95                  | 78            | 137        |
+| ≤ 80 | 986                 | 431           | 1,123      |
 
 The last width step is the single biggest piece of work left in this plan.
 
@@ -336,10 +335,13 @@ Take 100 → 90 in one or two cheap steps first.
 ## How to bring a comment under the cap
 
 Bringing a docstring under a limit is not a formatting job. The first attempt at
-16 lines proved that: compressing prose to save a line produced run-on
-sentences, broken grammar, and one file where a numbered step list became a
-39-word paragraph. Compression is the wrong move. These three are the right
-ones.
+16 lines proved that: compression to save a line produced run-on sentences,
+broken grammar, and one file where a numbered step list became a 39-word
+paragraph. Compression is the wrong move. These three are the right ones.
+
+The 16 to 12 step then ran on deletion alone, across 222 comments in 181 files.
+No comment was compressed to fit. The tree landed at 12 lines with 101 comments
+still in the 11 to 12 band, which is where the cap was then set.
 
 ### Know who reads it
 
@@ -363,8 +365,10 @@ call — all of that is narration, and narration is what fills these comments.
 ### Delete first
 
 Cut every line the reader can derive. Most module headers lose most of their
-text this way. `keyed-cache.ts` went from 16 lines to 6, and the 6 are one
-replica-lag reason and one security rule.
+text this way. `keyed-cache.ts` went from 16 lines to 8, and what is left is one
+replica-lag reason and one security rule. `rest/crud-api.ts` and
+`rest/resource.ts` each lost a worked call example and went to 5 and 4 lines,
+because the reader can call the function it is looking at.
 
 ### Relocate what survives but does not belong
 

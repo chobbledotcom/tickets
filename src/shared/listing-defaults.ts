@@ -67,16 +67,15 @@ export type ListingDefaultField = {
 
 /**
  * Two fields carry an `appliesTo` gate, so the overlay never produces a listing
- * the save path would reject:
+ * the save path would reject. `duration_days` and `customisable_days` are
+ * excluded outright, because both are tied to save-time invariants that
+ * read-time inheritance cannot honour.
  *
  * - `uses_logistics` is inert while logistics is off, so a listing created in a
  *   logistics-off window cannot silently become one if the feature returns.
  * - `hidden` never applies to a renewal tier, which must stay hidden and
  *   purchase-only or renewal extension breaks. {@link catalogVisibleSql}
  *   mirrors this gate in SQL.
- *
- * `duration_days` and `customisable_days` are excluded. Both are tied to
- * save-time invariants that read-time inheritance cannot honour.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   {

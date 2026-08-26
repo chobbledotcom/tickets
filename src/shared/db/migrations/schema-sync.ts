@@ -254,17 +254,16 @@ const canCreateTrigger = (
   });
 
 /**
- * The copy, its indexes and its triggers all run inside one interactive
- * transaction. A failure that left a live table missing a UNIQUE index would
- * open a window for duplicates to land and break it permanently.
+ * The copy, its indexes, and its triggers all run in one interactive
+ * transaction. A failure that left a live table without a UNIQUE index would
+ * open a window for duplicates to land and break it permanently. They go as one
+ * structured batch, so a trigger body stays a single statement whose semicolons
+ * are not read as separators.
  *
- * The statements go as one structured batch, so a trigger body stays a single
- * statement whose semicolons are not read as separators.
- *
- * The new table has no foreign keys, so any the original had are removed. If
- * other tables hold FKs referencing this one and contain data, recreate those
- * first, or DROP TABLE fails. `PRAGMA foreign_keys=OFF` is no help: it does not
- * persist across HTTP requests in remote libsql.
+ * The new table has no foreign keys. If other tables hold FKs referencing this
+ * one and hold data, recreate those first, or DROP TABLE fails.
+ * `PRAGMA foreign_keys=OFF` does not persist across HTTP requests in remote
+ * libsql, so it is no help.
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);

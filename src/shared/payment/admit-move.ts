@@ -69,10 +69,9 @@ type LiveWork = RecoveryDeclaration & {
  *
  * A claim stops both writers, fresh or stale. A stale one means a run died
  * holding this money, and its record is the only sign the money may be going
- * back.
- *
- * The other two part company. A merge RELOCATES, so the marker rides the moved
- * row and the work survives. A delete DESTROYS the row the correction needs.
+ * back. The other two part company: a merge RELOCATES, so the marker rides the
+ * moved row and the work survives, while a delete DESTROYS the row the
+ * correction needs.
  *
  * `saidFirst` orders by urgency: money moving now, then a decision only the
  * owner can make, then a record repairable mechanically.
