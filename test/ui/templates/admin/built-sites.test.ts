@@ -82,7 +82,9 @@ describe("built-site templates", () => {
         [monthly],
       );
       expect(html).toContain("Renewal tier");
-      expect(html).toContain('<td><a href="/admin/listing/11">Monthly tier</a>');
+      expect(html).toContain(
+        '<td><a href="/admin/listing/11">Monthly tier</a>',
+      );
       expect(html).toContain("<td>Any</td>");
       expect(html).toContain("<td>Tier removed</td>");
     });
@@ -176,5 +178,4 @@ describe("built-site templates", () => {
       expect(deletePage).not.toContain("button-danger");
     });
   });
-
 });

@@ -3,6 +3,7 @@
  * maintenance, the secrets it carries, and the release it runs.
  */
 
+/* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -21,6 +22,8 @@ import {
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
+
+/* jscpd:ignore-end */
 
 const CodeNameList = ({ names }: { names: string[] }): JSX.Element => (
   <ul>

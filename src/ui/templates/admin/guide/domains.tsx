@@ -64,6 +64,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
             faq("how_do_i_create_a_new_tickets"),
             faq("what_do_i_need_before_building_a"),
             faq("can_i_add_a_site_record_without"),
+            faq("how_do_i_set_a_sites_renewal_tier"),
           ],
           id: "built-sites",
           titleKey: "built_sites",

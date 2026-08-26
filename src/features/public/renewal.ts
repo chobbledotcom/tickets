@@ -12,7 +12,7 @@ import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
 import { t } from "#i18n";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { formatDateLabel, listingDateToCalendarDate } from "#shared/dates.ts";
-import { tiersToRenewOn } from "#shared/renewal-helpers.ts";
+import { siteRenewalTier } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/site-assignment.ts";
 import { renewalErrorPage } from "#templates/public/renewal.tsx";
 import { renderTicketFlow } from "./ticket-submit.ts";
@@ -41,7 +41,10 @@ const handleRenewal = async (request: Request): Promise<Response> => {
   const site = await resolveRenewalSite(token);
   if (!site || !token) return notFoundResponse();
 
-  const tiers = tiersToRenewOn(site, await getQualifyingTierListings());
+  const { offered: tiers } = siteRenewalTier(
+    site,
+    await getQualifyingTierListings(),
+  );
   if (tiers.length === 0) {
     return applyNoindex(
       htmlResponse(renewalErrorPage({ siteName: site.name })),

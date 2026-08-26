@@ -4,7 +4,6 @@ import {
   formatDeadlineLabel,
   isProvisioned,
   siteRenewalTier,
-  tiersToRenewOn,
 } from "#shared/renewal-helpers.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 
@@ -66,24 +65,29 @@ describe("siteRenewalTier", () => {
   const annual = { id: 12, name: "Annual" };
   const qualifying = [monthly, annual];
 
-  test("reports 'any' when the site is on no particular tier", () => {
+  test("offers every tier when the site is on no particular one", () => {
     const site = testBuiltSite({ renewalTierListingId: null });
-    expect(siteRenewalTier(site, qualifying)).toEqual({ kind: "any" });
+    expect(siteRenewalTier(site, qualifying)).toEqual({
+      kind: "any",
+      offered: [monthly, annual],
+    });
   });
 
-  test("reports the chosen tier when it still qualifies", () => {
+  test("offers only the chosen tier while it still qualifies", () => {
     const site = testBuiltSite({ renewalTierListingId: 12 });
     expect(siteRenewalTier(site, qualifying)).toEqual({
       kind: "pinned",
+      offered: [annual],
       tier: annual,
     });
   });
 
-  test("reports 'retired' when the chosen tier no longer qualifies", () => {
+  test("falls back to every tier when the chosen one was retired", () => {
     const site = testBuiltSite({ renewalTierListingId: 99 });
     expect(siteRenewalTier(site, qualifying)).toEqual({
       kind: "retired",
       listingId: 99,
+      offered: [monthly, annual],
     });
   });
 
@@ -92,37 +96,17 @@ describe("siteRenewalTier", () => {
     expect(siteRenewalTier(site, [])).toEqual({
       kind: "retired",
       listingId: 11,
+      offered: [],
     });
   });
-});
 
-describe("tiersToRenewOn", () => {
-  const monthly = { id: 11, name: "Monthly" };
-  const annual = { id: 12, name: "Annual" };
-  const qualifying = [monthly, annual];
-
-  test("offers only the chosen tier", () => {
-    const site = testBuiltSite({ renewalTierListingId: 11 });
-    expect(tiersToRenewOn(site, qualifying)).toEqual([monthly]);
-  });
-
-  test("offers every tier when the site is on no particular tier", () => {
+  test("offers nothing when the site is on no tier and none qualifies", () => {
     const site = testBuiltSite({ renewalTierListingId: null });
-    expect(tiersToRenewOn(site, qualifying)).toEqual([monthly, annual]);
-  });
-
-  test("offers every tier when the chosen one was retired", () => {
-    const site = testBuiltSite({ renewalTierListingId: 99 });
-    expect(tiersToRenewOn(site, qualifying)).toEqual([monthly, annual]);
-  });
-
-  test("offers nothing when nothing qualifies", () => {
-    const site = testBuiltSite({ renewalTierListingId: 11 });
-    expect(tiersToRenewOn(site, [])).toEqual([]);
+    expect(siteRenewalTier(site, []).offered).toEqual([]);
   });
 
   test("copies the list rather than handing back the caller's array", () => {
     const site = testBuiltSite({ renewalTierListingId: null });
-    expect(tiersToRenewOn(site, qualifying)).not.toBe(qualifying);
+    expect(siteRenewalTier(site, qualifying).offered).not.toBe(qualifying);
   });
 });

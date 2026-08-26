@@ -63,7 +63,10 @@ const builtSiteTierCell = (
   );
 };
 
-const builtSiteColumns: readonly TableColumn<BuiltSite, ListingWithCount[]>[] = [
+/** Every column reads the page's qualifying tiers as its context. */
+type BuiltSiteColumn = TableColumn<BuiltSite, ListingWithCount[]>;
+
+const builtSiteColumns: readonly BuiltSiteColumn[] = [
   {
     cell: builtSiteNameCell,
     header: translatedTableHeader("common.name"),
@@ -103,39 +106,25 @@ const builtSiteColumns: readonly TableColumn<BuiltSite, ListingWithCount[]>[] = 
 
 const builtSitesTable = defineTable(builtSiteColumns);
 
-const BuiltSitesTable = ({
-  hostingIds,
-  renewalTiers,
-  sites,
-}: {
+type BuiltSitesListProps = {
   hostingIds: string;
   renewalTiers: ListingWithCount[];
   sites: BuiltSite[];
-}): JSX.Element => (
-  <div>
-    {renderTable(builtSitesTable, sites, { context: renewalTiers })}
-    <p>{hostingIds}</p>
-  </div>
-);
+};
 
 export const BuiltSitesListBody = ({
   hostingIds,
   renewalTiers,
   sites,
-}: {
-  hostingIds: string;
-  renewalTiers: ListingWithCount[];
-  sites: BuiltSite[];
-}): JSX.Element => (
+}: BuiltSitesListProps): JSX.Element => (
   <>
     {sites.length === 0 ? (
       <p>{t("built_sites.no_built_sites")}</p>
     ) : (
-      <BuiltSitesTable
-        hostingIds={hostingIds}
-        renewalTiers={renewalTiers}
-        sites={sites}
-      />
+      <div>
+        {renderTable(builtSitesTable, sites, { context: renewalTiers })}
+        <p>{hostingIds}</p>
+      </div>
     )}
     <RenewalTierSummary tiers={renewalTiers} />
   </>

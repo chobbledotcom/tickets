@@ -26,6 +26,7 @@ const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
   id: 1,
   name: "Test",
   readOnlyFrom: "",
+  renewalTierListingId: null,
   renewalToken: null,
   renewalTokenIndex: null,
   scheduledTaskKey: null,

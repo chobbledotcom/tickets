@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { formatCurrency } from "#shared/currency.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panel.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";

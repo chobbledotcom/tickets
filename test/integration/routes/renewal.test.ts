@@ -61,6 +61,35 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     return { response, token };
   };
 
+  /** Two qualifying tiers and a provisioned site set to renew on the annual
+   * one. Both tiers allow several months per order, so the picker renders its
+   * quantity control even when only one tier is offered. */
+  const siteOnAnnualTier = async () => {
+    const monthly = await createTestListing({
+      hidden: true,
+      maxAttendees: 100,
+      maxQuantity: 12,
+      monthsPerUnit: 1,
+      name: "Monthly tier",
+      purchaseOnly: true,
+      unitPrice: 500,
+    });
+    const annual = await createTestListing({
+      hidden: true,
+      maxAttendees: 100,
+      maxQuantity: 12,
+      monthsPerUnit: 12,
+      name: "Annual tier",
+      purchaseOnly: true,
+      unitPrice: 5000,
+    });
+    const { site, token } = await setupRenewalSite();
+    await updateBuiltSiteRenewalState(site.id, {
+      renewalTierListingId: annual.id,
+    });
+    return { annual, monthly, token };
+  };
+
   describe("GET /renew/", () => {
     test("renders renewal picker with every qualifying tier listing", async () => {
       const monthly = await createTestListing({
@@ -100,28 +129,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("offers only the tier the site renews on", async () => {
-      const monthly = await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        maxQuantity: 12,
-        monthsPerUnit: 1,
-        name: "Monthly tier",
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const annual = await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        maxQuantity: 12,
-        monthsPerUnit: 12,
-        name: "Annual tier",
-        purchaseOnly: true,
-        unitPrice: 5000,
-      });
-      const { site, token } = await setupRenewalSite();
-      await updateBuiltSiteRenewalState(site.id, {
-        renewalTierListingId: annual.id,
-      });
+      const { annual, monthly, token } = await siteOnAnnualTier();
 
       const response = await handleRequest(
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
@@ -138,28 +146,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("offers every tier again once the chosen one stops qualifying", async () => {
-      const monthly = await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        maxQuantity: 12,
-        monthsPerUnit: 1,
-        name: "Monthly tier",
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const annual = await createTestListing({
-        hidden: true,
-        maxAttendees: 100,
-        maxQuantity: 12,
-        monthsPerUnit: 12,
-        name: "Annual tier",
-        purchaseOnly: true,
-        unitPrice: 5000,
-      });
-      const { site, token } = await setupRenewalSite();
-      await updateBuiltSiteRenewalState(site.id, {
-        renewalTierListingId: annual.id,
-      });
+      const { annual, monthly, token } = await siteOnAnnualTier();
       await deactivateTestListing(annual.id);
 
       const response = await handleRequest(
