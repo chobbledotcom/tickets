@@ -4,7 +4,10 @@ import { getDb } from "#db/client.ts";
 import builtSitesUpdatesMigration from "#db/migrations/2026-06-24_built_sites_updates.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { buildMigrationContext } from "#test-utils/migrations.ts";
+import {
+  buildMigrationContext,
+  tableColumnNames,
+} from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -39,11 +42,6 @@ const insertSite = (updates?: string) =>
         },
   );
 
-const columnNames = async (): Promise<string[]> => {
-  const result = await getDb().execute("PRAGMA table_info(built_sites)");
-  return result.rows.map((row) => String(row.name));
-};
-
 describeWithEnv(
   "db > migrations > 2026-06-24_built_sites_updates",
   { db: true },
@@ -51,11 +49,11 @@ describeWithEnv(
     test("adds the updates column, defaulting existing rows to release", async () => {
       await createPreUpdatesTable();
       await insertSite();
-      expect(await columnNames()).not.toContain("updates");
+      expect(await tableColumnNames("built_sites")).not.toContain("updates");
 
       await runMigration();
 
-      expect(await columnNames()).toContain("updates");
+      expect(await tableColumnNames("built_sites")).toContain("updates");
       const { rows } = await getDb().execute("SELECT updates FROM built_sites");
       // A site that predates the channel feature lands on the safe default.
       expect(rows[0]?.updates).toBe("release");

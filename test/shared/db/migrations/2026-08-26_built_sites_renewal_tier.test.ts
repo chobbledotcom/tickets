@@ -4,7 +4,10 @@ import { getDb } from "#db/client.ts";
 import renewalTierMigration from "#db/migrations/2026-08-26_built_sites_renewal_tier.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { buildMigrationContext } from "#test-utils/migrations.ts";
+import {
+  buildMigrationContext,
+  tableColumnNames,
+} from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -33,11 +36,6 @@ const insertSite = () =>
     "INSERT INTO built_sites (site_data, created) VALUES ('{}', '2026-01-01T00:00:00Z')",
   );
 
-const columnNames = async (): Promise<string[]> => {
-  const result = await getDb().execute("PRAGMA table_info(built_sites)");
-  return result.rows.map((row) => String(row.name));
-};
-
 const storedTiers = async (): Promise<unknown[]> => {
   const { rows } = await getDb().execute(
     "SELECT renewal_tier_listing_id FROM built_sites",
@@ -52,11 +50,15 @@ describeWithEnv(
     test("adds the column, leaving existing sites on no particular tier", async () => {
       await createPreTierTable();
       await insertSite();
-      expect(await columnNames()).not.toContain("renewal_tier_listing_id");
+      expect(await tableColumnNames("built_sites")).not.toContain(
+        "renewal_tier_listing_id",
+      );
 
       await runMigration();
 
-      expect(await columnNames()).toContain("renewal_tier_listing_id");
+      expect(await tableColumnNames("built_sites")).toContain(
+        "renewal_tier_listing_id",
+      );
       // NULL is what the app reads as "the customer picks from every tier",
       // which is what a site that predates the column was already doing.
       expect(await storedTiers()).toEqual([null]);
@@ -68,7 +70,7 @@ describeWithEnv(
 
       await runMigration();
 
-      const columns = await columnNames();
+      const columns = await tableColumnNames("built_sites");
       for (const kept of [
         "assigned_listing_id",
         "read_only_from",
@@ -100,7 +102,9 @@ describeWithEnv(
 
       await runMigration();
 
-      expect(await columnNames()).toContain("renewal_tier_listing_id");
+      expect(await tableColumnNames("built_sites")).toContain(
+        "renewal_tier_listing_id",
+      );
       expect(await storedTiers()).toEqual([null]);
     });
   },

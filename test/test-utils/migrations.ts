@@ -36,6 +36,13 @@ export const tableExists = async (table: string): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
+/** The names of a table's columns, in the order SQLite reports them. What a
+ * migration test asks to see whether a column arrived or went. */
+export const tableColumnNames = async (table: string): Promise<string[]> => {
+  const info = await getDb().execute(`PRAGMA table_info(${table})`);
+  return info.rows.map((row) => String(row.name));
+};
+
 export const settingsTableExists = (): Promise<boolean> =>
   tableExists("settings");
 
