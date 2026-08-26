@@ -645,7 +645,7 @@ const keepPackageDatesChildrenCanServe = (
  * here. That aggregate already excludes every daily listing, and a daily
  * parent's group is type-homogeneous, so any child co-grouped with it is daily
  * too. Per-date capacity is left to the date-aware {@link checkAvailability},
- * which rejects rather than clamps.
+ * which rejects and never clamps.
  */
 export const loadChildrenByParentId = async (
   listings: TicketListing[],

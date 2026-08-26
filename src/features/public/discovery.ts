@@ -63,7 +63,7 @@ export const dropHiddenPackageMembers = async <T extends { id: number }>(
  * - `nonStandaloneChildIds` suppresses a call to action the booking entry point
  *   would reject anyway.
  * - `addOnChildIds` has at least one bookable parent. A child whose every
- *   parent is dead renders unavailable rather than points at nothing.
+ *   parent is dead renders unavailable and never points at nothing.
  * - `soldOutParentIds` is judged on combined parent-and-child demand.
  */
 export type DiscoveryClassification = {

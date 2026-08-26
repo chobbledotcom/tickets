@@ -3,8 +3,8 @@
  * configured is missing it. This diffs a site's live secrets against the set we
  * would copy today, and backfills what is missing.
  *
- * It NEVER overwrites a secret already on the site, because a value may have
- * been changed deliberately.
+ * It NEVER overwrites a secret already on the site, because someone can change
+ * a value deliberately.
  *
  * DB_ENCRYPTION_KEY is excluded from the expected set entirely. It is generated
  * per-site and never stored, so it cannot be reproduced, and re-setting it with

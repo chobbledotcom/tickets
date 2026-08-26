@@ -2,9 +2,9 @@
  * Creating and saving attendees. Viewing one renders through `attendee-page.ts`.
  * The calendar deep-links a create with `?select_<id>=1&start_date=…`.
  *
- * A failure re-renders the submitted form in place rather than redirects, so
- * entered data and per-line errors survive without a stash that has to live
- * until the next GET.
+ * A failure re-renders the submitted form in place and never redirects. Entered
+ * data and per-line errors then survive without a stash that must live until
+ * the next GET.
  */
 
 import { logActivity } from "#db/activity-log.ts";

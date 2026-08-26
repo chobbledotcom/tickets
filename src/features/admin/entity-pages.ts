@@ -5,9 +5,8 @@
  * A GET runs only the active tab's section loaders. That is where the
  * cold-start win comes from.
  *
- * A failed POST re-renders at 400 carrying the submitted values, rather than
- * redirects and depends on the best-effort form stash surviving to the next
- * GET.
+ * A failed POST re-renders at 400 with the submitted values. It never redirects
+ * and never depends on the best-effort form stash to reach the next GET.
  */
 
 import type { ActivityLogEntry } from "#db/activity-log.ts";

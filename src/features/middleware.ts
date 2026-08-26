@@ -34,8 +34,8 @@ export type PaymentCspConfig = {
  * An embeddable page omits frame-ancestors here. `applySecurityHeaders` adds it
  * when embed host restrictions are configured.
  *
- * Every provider redirects server-side rather than embeds an SDK, so
- * form-action is the only directive naming provider hosts.
+ * Every provider redirects server-side and embeds no SDK, so form-action is the
+ * only directive that names provider hosts.
  */
 export const buildCspHeader = (
   embeddable: boolean,

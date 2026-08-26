@@ -4,8 +4,8 @@
  * at.
  *
  * A domain declares which kinds it allows and which two columns hold them, and
- * gets the whole vocabulary back. A fourth such feature declares its kinds
- * rather than invents a fourth vocabulary.
+ * gets the whole vocabulary back. A fourth such feature declares its kinds and
+ * does not invent a fourth vocabulary.
  *
  * This module is pure and never touches the database itself.
  */

@@ -373,8 +373,8 @@ export const acceptInvite = async (
  * re-wrap. The password only authenticates, and protects no key.
  *
  * Single-use: the UPDATE is guarded on the `password_hash = ''` unactivated
- * marker, which database pruning also uses. A replay or race therefore no-ops
- * rather than overwrites the password the first submit set.
+ * marker, which database pruning also uses. A replay or a race therefore no-ops
+ * and never overwrites the password the first submit set.
  */
 export const activateKeylessUser = async (
   userId: number,

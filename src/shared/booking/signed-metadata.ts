@@ -100,7 +100,7 @@ const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
  * the parent without the add-on the current page requires.
  *
  * The caller fails such an order closed, so it takes the `price_changed` refund
- * rather than books a stale bundle. Per-line price drift is checked separately.
+ * and never books a stale bundle. Per-line price drift is checked separately.
  */
 /** Total folded (allocated) quantity per child id across every allocation. */
 const allocatedQtyByChild = (

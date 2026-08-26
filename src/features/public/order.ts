@@ -285,7 +285,7 @@ const stateLabel = (state: OrderOptionState): string => {
 /**
  * NOTHING selected is dropped, not even a sold-out pick. The booking page and
  * its submit are the availability authority, so a sold-out slug goes through
- * without a pre-fill rather than disappears.
+ * without a pre-fill and never disappears.
  *
  * A package needs no `?q_` pre-fill: its count selector already defaults to one
  * bundle. Returns null when no selected key names a catalog item at all.
