@@ -135,6 +135,10 @@ export interface TicketsWorld extends World, EvidencePages {
   firstDay?: string;
   firstFailureData?: string;
   firstStatus?: number;
+  /** What the SMS gateway answers in this story, when it is not the ordinary
+   * "it took the message". A new answer each time it is asked, because a
+   * story that sends twice would read one body twice. */
+  gatewayReply?: () => Response;
   groupSlug?: string;
   holdListingId?: number;
   lengthChangeMessage?: string;

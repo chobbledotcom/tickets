@@ -8,9 +8,8 @@
 // jscpd:ignore-start
 import { settings } from "#db/settings.ts";
 import {
-  openAdminPage,
   openAsNewcomer,
-  organiserSendsAndIsTold,
+  writesOneMessage,
 } from "#test/specs/support/browser.ts";
 import {
   answersTheEmailProviderWith,
@@ -80,6 +79,11 @@ export const siteCanSendFrom = async (address: string): Promise<void> => {
   await connectResendProvider();
 };
 
+const writesToTheHost = writesOneMessage(
+  () => SUPPORT_PAGE,
+  () => SEND,
+);
+
 /** The owner writes to the host through the form on the page, and is told
  * something back. The words they typed are kept, so the story can prove
  * those words are what left the site. */
@@ -87,9 +91,8 @@ export const ownerWritesToTheHost = async (
   world: TicketsWorld,
   message: string,
 ): Promise<void> => {
-  const browser = await openAdminPage(world, SUPPORT_PAGE);
   world.messageWritten = message;
-  await organiserSendsAndIsTold(world, browser, { message }, SEND);
+  await writesToTheHost(world, message);
 };
 
 /** A stranger looks for the Support page and lands wherever the site puts

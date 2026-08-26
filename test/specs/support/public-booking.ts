@@ -13,6 +13,7 @@
 
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import {
   CUSTOMER,
@@ -237,3 +238,16 @@ export const daysOfferedOn = (html: string): string[] =>
 /** The days a listing's own page offers as a stay's first day. */
 export const daysOfferedFor = async (listing: Listing): Promise<string[]> =>
   daysOfferedOn((await openBookingPage(listing)).currentHtml);
+
+/** The one booking made on a listing. Fails loudly when there is not exactly
+ * one, so a story can never carry on against an arbitrary row. */
+export const soleBookingOn = async (listingId: number): Promise<number> => {
+  const bookings = await getAttendeesRaw(listingId);
+  const only = bookings[0];
+  if (bookings.length !== 1 || !only) {
+    throw new Error(
+      `Expected one booking on listing ${listingId}, found ${bookings.length}`,
+    );
+  }
+  return only.id;
+};

@@ -7,7 +7,7 @@
 // jscpd:ignore-start
 
 import { execute } from "#db/client.ts";
-import { ensureMessageGroups, t } from "#i18n";
+import { t } from "#i18n";
 import {
   ADMIN_FEATURES,
   type AdminFeatureDefinition,
@@ -17,6 +17,7 @@ import {
   ORGANISER,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
+import { copyLoaded } from "#test/specs/support/copy.ts";
 import {
   keepWhatTheyWereTold,
   scenarioEnv,
@@ -27,10 +28,8 @@ import {
 
 const SETTINGS_PATH = "/admin/settings";
 
-/** The feature copy, loaded before anything reads it. A step runs outside a
- * request, so nothing has pulled this group in yet and `t` throws rather than
- * guessing at a name. */
-const featureCopy = (): Promise<void> => ensureMessageGroups(["features"]);
+/** What the site says about features, loaded before anything reads it. */
+const featureCopy = (): Promise<void> => copyLoaded("features");
 
 /** The one feature the site prints under this name. A story naming a feature
  * the site does not have would otherwise open a page that 404s, and the

@@ -59,6 +59,19 @@ export const organiserSendsAndIsTold = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
+/** The organiser writes one message on a page and sends it, keeping what the
+ * site said back. Curried on the page and the button, because those are all
+ * that differ between writing to the host and texting somebody. */
+export const writesOneMessage =
+  (
+    where: (world: TicketsWorld) => string,
+    button: () => string | Promise<string>,
+  ) =>
+  async (world: TicketsWorld, message: string): Promise<void> => {
+    const page = await openAdminPage(world, where(world));
+    await organiserSendsAndIsTold(world, page, { message }, await button());
+  };
+
 /** Take a thing down from its own page: follow its delete link, type a name
  * to confirm, and keep what the site said for the story to read. Curried on
  * the page and the link, so each kind of thing declares itself in one line. */
