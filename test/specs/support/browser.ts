@@ -149,8 +149,10 @@ export const opensPagesAs =
  * already. Every admin page a story reads starts here. */
 export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
 
-/** Somebody opens one page whose address never changes. */
-export type OpensOneFixedPage = (world: TicketsWorld) => Promise<void>;
+/** Somebody opens one page whose address never changes, and is handed the
+ * window they are looking at it through. A caller that only needs the page
+ * open can ignore what comes back. */
+export type OpensOneFixedPage = (world: TicketsWorld) => Promise<TestBrowser>;
 
 /** Where a page lives: an address that never changes, or one worked out from
  * the story so far. */
@@ -161,8 +163,8 @@ export type PageAddress = string | ((world: TicketsWorld) => string);
  * only thing each caller says. The window comes back for a caller that reads
  * it, and a step that only needs the page open can ignore it. */
 export const opensAdminPageAt =
-  (where: PageAddress) =>
-  (world: TicketsWorld): Promise<TestBrowser> =>
+  (where: PageAddress): OpensOneFixedPage =>
+  (world) =>
     openAdminPage(world, typeof where === "string" ? where : where(world));
 
 /** The organiser opens one of their own pages, and something is done with

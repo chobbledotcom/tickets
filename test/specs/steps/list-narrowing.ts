@@ -17,8 +17,8 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 When(
   "the organiser opens their list",
-  function (this: TicketsWorld): Promise<void> {
-    return organiserOpensList(this);
+  async function (this: TicketsWorld): Promise<void> {
+    await organiserOpensList(this);
   },
 );
 
