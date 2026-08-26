@@ -47,7 +47,7 @@ const recorded =
   (sent: SentRequest[]) =>
   (answer: FetchReply): FetchResponder =>
   async (url, init) => {
-    sent.push({ at: Date.now(), init: init ?? {}, url });
+    sent.push({ at: Date.now(), init: { ...init }, url });
     if (answer instanceof Error) throw answer;
     return typeof answer === "function" ? await answer(url, init) : answer;
   };
