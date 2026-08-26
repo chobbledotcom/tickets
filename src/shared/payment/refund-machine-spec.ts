@@ -1,18 +1,12 @@
-/** The refund machine as one executable table: every stored shape, every
- * transition, and the exact move each pair must make.
+/** The atlas on `/admin/schema` DESCRIBES the machine, drawing whatever the
+ * real transitions do, so it can never fail. This module is the other half: it
+ * DECLARES what each transition MUST do.
  *
- * The atlas on `/admin/schema` DESCRIBES the machine — it draws whatever the
- * real transitions do, so it can never fail. This module is the other half:
- * it DECLARES what each transition must do, and the mirror test executes
- * every (node × event × representative) cell against the real production
- * functions. A cell missing from {@link EXPECTED_MOVES} is not skipped — it
- * is the declaration that the transition must refuse (throw), and the sweep
- * proves that too. The map and the checks share these states and events, so
- * they cannot drift apart.
+ * A cell missing from {@link EXPECTED_MOVES} is not skipped. It declares that
+ * the transition must refuse, and the sweep proves that too.
  *
- * Money never moves here: every `run` is a pure state transition. The
- * `movesMoney` flag marks the events whose ENGINE counterpart sends money to
- * the provider, so checks can tell a money path from a bookkeeping path. */
+ * Money never moves here: every `run` is a pure state transition. `movesMoney`
+ * marks the events whose ENGINE counterpart sends money to the provider. */
 
 import type { Money } from "#payment/money.ts";
 import {

@@ -1,18 +1,13 @@
 /**
- * Listing defaults — operator-set defaults that listings inherit live.
+ * Inheritance happens at READ time, so changing a default instantly changes
+ * every "Use defaults" listing. The row's own value for a defaulted field is
+ * ignored while the flag is on.
  *
- * The operator sets a default for any subset of the fields below on the Listing
- * Defaults page. A listing with `use_defaults` on inherits each set default's
- * *current* value at read time ({@link resolveListingDefaults}), so changing a
- * default instantly changes every "Use defaults" listing; the row's own value
- * for a defaulted field is ignored while the flag is on. A field with no
- * default is never touched.
+ * Inheritance is one per-listing flag, never per-field. A per-field toggle is
+ * ambiguous for a field whose own value is `false` or empty: an override, or
+ * just unset? So the whole set moves together.
  *
- * Inheritance is one per-listing flag, never per-field: a per-field "use
- * default?" toggle would be ambiguous for a field whose own value is
- * `false`/empty (an override, or just unset?), so the whole set moves together.
- *
- * This module is pure. Form parsing/validation lives in the feature layer.
+ * This module is pure.
  */
 
 import * as v from "valibot";
@@ -71,20 +66,17 @@ export type ListingDefaultField = {
 };
 
 /**
- * Every defaultable field, in display order — the single source of truth for the
- * settings form, the form-field hiding, the storage round-trip, and the overlay.
- * Two carry an `appliesTo` gate so the overlay never produces a listing the save
- * path would reject:
- * - `uses_logistics` is inert while logistics is off, which matches the
- *   per-listing save gate, so a listing created during a logistics-off window
- *   cannot silently become a logistics listing if the feature returns.
- * - `hidden` never applies to a renewal tier (`months_per_unit > 0`), which must
- *   stay hidden and purchase-only or renewal extension breaks.
- *   {@link catalogVisibleSql} mirrors this gate in SQL.
+ * Two fields carry an `appliesTo` gate, so the overlay never produces a listing
+ * the save path would reject:
  *
- * `duration_days` and `customisable_days` are deliberately excluded: both are
- * tied to per-listing booking data and save-time invariants that read-time
- * inheritance cannot honour, so a global default would be rejected on save.
+ * - `uses_logistics` is inert while logistics is off, so a listing created in a
+ *   logistics-off window cannot silently become one if the feature returns.
+ * - `hidden` never applies to a renewal tier, which must stay hidden and
+ *   purchase-only or renewal extension breaks. {@link catalogVisibleSql}
+ *   mirrors this gate in SQL.
+ *
+ * `duration_days` and `customisable_days` are excluded. Both are tied to
+ * save-time invariants that read-time inheritance cannot honour.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   {

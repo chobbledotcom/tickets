@@ -1,20 +1,13 @@
 import { getPackageDisplaysByIds, type PackageDisplay } from "#db/groups.ts";
 
 /**
- * HIDDEN-PACKAGE PRIVACY — the one chokepoint that decides what a BUYER may see
- * of a package's member listings. A package with `hide_package_listings` sells
- * as one concealed bundle, so its member names must never reach a buyer-facing
- * surface. Every such surface resolves member visibility through THIS module,
- * never by an ad hoc read of `hide_package_listings`:
+ * HIDDEN-PACKAGE PRIVACY — the one chokepoint deciding what a BUYER may see of
+ * a package's member listings. A member name must NEVER reach a buyer-facing
+ * surface, and every such surface resolves visibility through THIS module,
+ * never by an ad hoc read of `hide_package_listings`.
  *
- *   - checkout/quote line names → {@link concealMemberNames}
- *   - day-count + payment error text → {@link memberStandInName} /
- *     {@link resolveNamesConcealed}
- *   - confirmation email + SVG ticket collapse → `buyerEntryGroups`
- *   - /t package cards, public API member lists → {@link namesConcealed}
- *
- * A surface added tomorrow takes a `PackagePrivacy` and cannot leak a member
- * name without a visible bypass. Access-level guards live in db/groups.ts.
+ * A surface added tomorrow takes a `PackagePrivacy` and cannot leak a name
+ * without a visible bypass. Access-level guards live in db/groups.ts.
  */
 
 export type PackagePrivacy =

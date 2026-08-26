@@ -259,20 +259,16 @@ export const singleListingAnswerIds = (
   answerIds?.length ? { [String(listingId)]: answerIds } : undefined;
 
 /**
- * Build checkout metadata from a CheckoutIntent, compacting its items. The
- * plain `siteToken` is hashed into `site_token_index` first, so the provider
- * never sees a value usable at /renew. `total` is the agreed order total the
- * caller already priced, so the signed proof and the charged amount cannot
- * disagree even if pricing settings change mid-checkout.
+ * The plain `siteToken` is hashed FIRST, so the provider never sees a value
+ * usable at /renew. `total` is the price the caller already agreed, so the
+ * signed proof and the charged amount cannot disagree if pricing changes
+ * mid-checkout.
  *
- * `maxValueLength` is the provider's per-value cap and `maxEntries` its
- * optional entry-count cap, which only Square sets. `thank_you_url` can break
- * session creation two ways: a long URL exceeds the per-value cap, or even a
- * short one is the extra entry that tips a full payload over the entry cap. It
- * is only a post-completion redirect, so an over-cap URL is dropped before
- * signing. That order keeps the signed payload and the emitted metadata
- * identical, so the webhook never sees a key the proof covers but the wire
- * omitted, which would read as tampering.
+ * `thank_you_url` can break session creation two ways: a long URL exceeds the
+ * per-value cap, or even a short one tips a full payload over the entry cap. It
+ * is only a post-completion redirect, so an over-cap URL is dropped BEFORE
+ * signing. That order keeps the signed payload and the wire identical, so the
+ * webhook never sees a covered key the wire omitted and reads it as tampering.
  */
 /**
  * Whether the optional `thank_you_url` can be kept in the metadata: it must be
@@ -494,18 +490,13 @@ export const withCheckoutError = async (
 };
 
 /**
- * Small, bounded booking fields collapsed into a single packed `b` entry.
+ * Square allows only 10 metadata entries, and a fully-populated checkout
+ * overflows that. These fields are individually short, so packing them into one
+ * entry frees slots without risking the per-value length cap.
  *
- * Payment providers cap how many metadata entries a session may carry (Square
- * allows only 10), and a fully-populated checkout otherwise overflows it. These
- * fields are individually short — a date, a day count, a reservation snapshot —
- * so JSON-packing them into one entry frees slots without risking the per-value
- * length cap. Large or length-sensitive fields (items, answer_ids, address,
- * special_instructions, and modifiers — whose compact refs would double-encode
- * inside `b` and could exceed Square's 255-char value cap) and the
- * integrity-critical ones (_origin, name, email, price_proof) stay top-level,
- * where they keep their full per-value headroom, remain individually
- * length-checked, and are directly readable by the metadata guards.
+ * Two kinds of field stay top-level. A large or length-sensitive one would
+ * double-encode inside `b` and could exceed the 255-char value cap. An
+ * integrity-critical one must stay directly readable by the metadata guards.
  */
 const PACKED_KEYS = [
   "phone",
@@ -576,20 +567,14 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
 };
 
 /**
- * Enforce a payment provider's metadata limits. Only items, answer_ids,
- * modifiers and allocations can realistically exceed the per-value length
- * limit, since they grow with how much the buyer selected. Every other field is
- * already held by form validation well below the smallest provider limit of 255.
+ * Only the fields growing with what the buyer selected can realistically exceed
+ * the per-value limit. Form validation already holds every other field well
+ * below the smallest provider limit of 255.
  *
- * Square also caps the number of entries: a customisable-day checkout that
- * fills its optional fields plus a modifiers ref can reach the 10-entry limit,
- * so when `maxEntries` is supplied the key count is checked too, which surfaces
- * the same batching error rather than a generic provider rejection.
- *
- * `thank_you_url` is deliberately not handled here. It must never fail a
- * checkout, so an over-cap URL is dropped before the metadata is signed, in
+ * `thank_you_url` is deliberately NOT handled here. It must never fail a
+ * checkout, so an over-cap URL is dropped before signing, in
  * `buildItemsMetadata`. A cap here, after `signPrice`, would strip a key the
- * proof was signed with, and the webhook would read the session as tampered.
+ * proof covers, and the webhook would read the session as tampered.
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
