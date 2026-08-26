@@ -231,3 +231,8 @@ src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3 The unanswered SumUp count returned no result→""   # unreachable: one ResultSet per batch statement
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w The unanswered SumUp count returned no row→""   # unreachable: COUNT(*) always returns one row
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn The unanswered SumUp listing returned no result→""   # unreachable: one ResultSet per batch statement
+
+# The note-entity CHECK joins one quoted value per kind a note can be about,
+# and NoteEntitySchema is v.picklist(["attendee"]) — a single kind. A one-item
+# array never places a separator, so both joins build the same CHECK text.
+src/shared/db/migrations/schema/tables-questions.ts::noteEntityCheck~1ojiiqr ,%20→""   # NOTE_ENTITIES has one member, so join(", ") and join("") both yield "'attendee'"

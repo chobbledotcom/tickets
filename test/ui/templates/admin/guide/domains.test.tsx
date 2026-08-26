@@ -21,6 +21,9 @@ const host = (overrides: Partial<GuideHostConfig> = {}): GuideHostConfig => ({
 const sectionIds = (hostConfig?: GuideHostConfig) =>
   domainsSections(hostConfig).map(({ id }) => id);
 
+const sectionNames = (hostConfig?: GuideHostConfig) =>
+  domainsSections(hostConfig).map(({ id, titleKey }) => ({ id, titleKey }));
+
 const entryIds = (
   sectionId: string,
   hostConfig?: GuideHostConfig,
@@ -35,12 +38,12 @@ const entryIds = (
 };
 
 describe("domains guide schema", () => {
-  test("keeps every domains section in its intended order", () => {
-    expect(sectionIds(host({ builderEnabled: true }))).toEqual([
-      "host-subdomain",
-      "custom-domain",
-      "settings",
-      "built-sites",
+  test("keeps every domains section in its intended order, each with its title", () => {
+    expect(sectionNames(host({ builderEnabled: true }))).toEqual([
+      { id: "host-subdomain", titleKey: "host_subdomain" },
+      { id: "custom-domain", titleKey: "custom_domain" },
+      { id: "settings", titleKey: "settings_overview" },
+      { id: "built-sites", titleKey: "built_sites" },
     ]);
   });
 
@@ -59,6 +62,17 @@ describe("domains guide schema", () => {
       "can_i_add_a_site_record_without",
       "how_do_i_set_a_sites_renewal_tier",
     ]);
+  });
+
+  test("spaces the subdomain answer's prose around its code and bold parts", () => {
+    const html = String(renderGuideSections(domainsSections()));
+    expect(html).toContain(
+      "site (e.g. <code>my-business.example.com</code>) instead of",
+    );
+    expect(html).toContain(
+      "The option appears in <strong>Advanced Settings</strong> under " +
+        "<strong>Host Subdomain</strong>.",
+    );
   });
 
   test("shows the host's own subdomain suffix, or a placeholder without one", () => {

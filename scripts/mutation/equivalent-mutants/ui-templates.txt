@@ -57,3 +57,15 @@ src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? �
 # schema-atlas.tsx: formatTimeAgo returns a formatted string or null, never
 # "", so ?? and || pick the same side for every input.
 src/ui/templates/admin/schema-atlas.tsx::UnansweredMoneySection~15crpim ??→||   # formatTimeAgo → string|null, never ""
+
+# built-sites list (ui/templates/admin/built-sites/list-parts.tsx) — column keys
+# nothing reads back. BuiltSitesListBody renders these columns through
+# renderTable with a context and nothing else, so it supplies no columnKeys, no
+# hiddenKeys, and no filters, and builtSiteColumns never reaches
+# renderColumnReference.
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns.key~1qw07sv name→""   # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering, none of which this table supplies
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns.key~0xxfagh site_url→""   # same as the name key above — the built-sites list supplies only a context, so no reader of a column key is in play
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns.key~14rcnj0 status→""   # same as the name key above — the built-sites list supplies only a context, so no reader of a column key is in play
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns.key~10whzhp renewal_tier→""   # same as the name key above — the built-sites list supplies only a context, so no reader of a column key is in play
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns.key~1px2oaw updates→""   # same as the name key above — the built-sites list supplies only a context, so no reader of a column key is in play
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns.key~0eu98xz read_only→""   # same as the name key above — the built-sites list supplies only a context, so no reader of a column key is in play

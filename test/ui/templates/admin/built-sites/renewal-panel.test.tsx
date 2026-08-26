@@ -134,6 +134,25 @@ describe("renewal panel", () => {
       );
     });
 
+    test("labels the picker and names the field the action reads", () => {
+      const html = render(testBuiltSite({ renewalTierListingId: null }));
+      // The label points at the select, and the select carries the field name
+      // handleSetRenewalTier reads.
+      expect(html).toContain(
+        '<label for="renewal_tier">Change the renewal tier</label>' +
+          '<select id="renewal_tier" name="tier_id">',
+      );
+    });
+
+    test("still offers the picker when only one tier qualifies", () => {
+      const html = render(testBuiltSite({ renewalTierListingId: null }), [
+        monthlyTier,
+      ]);
+      expect(html).toContain("set-renewal-tier");
+      expect(html).toContain(`value="${monthlyTier.id}">Monthly tier`);
+      expect(html).not.toContain("No renewal tier listing is configured");
+    });
+
     test("warns when the chosen tier no longer qualifies", () => {
       const html = render(testBuiltSite({ renewalTierListingId: 99 }));
       expect(html).toContain(
