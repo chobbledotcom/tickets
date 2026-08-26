@@ -31,9 +31,8 @@ import { enablePublicSite } from "./settings.ts";
 
 /** GET `/ticket/<slugs>` and return the raw Response. */
 export const ticketGet = async (slugs: string): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
-  return handleRequest(mockRequest(`/ticket/${slugs}`));
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  return awaitTestRequest(`/ticket/${slugs}`);
 };
 
 /** GET the booking-page HTML for `slugs`. */
@@ -52,40 +51,33 @@ export const bookingPageToken = async (slugs: string): Promise<string> => {
   );
 };
 
-/** POST a booking to `/ticket/<slugs>` with the given fields (CSRF auto-added). */
-export const postBooking = async (
+/** POST `fields` under `<section>/<slugs>`, carrying the booking page's own
+ * CSRF token. Booking and quoting post the same form to two sections. */
+const postToBookingPath = async (
+  section: string,
   slugs: string,
   fields: Record<string, string>,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const csrf = await bookingPageToken(slugs);
-  return handleRequest(
-    mockFormRequest(
-      `/ticket/${slugs}`,
-      { csrf_token: csrf, ...fields },
-      `csrf_token=${csrf}`,
-    ),
-  );
+  return awaitTestRequest(`/${section}/${slugs}`, {
+    cookie: `csrf_token=${csrf}`,
+    data: { csrf_token: csrf, ...fields },
+  });
 };
+
+/** POST a booking to `/ticket/<slugs>` with the given fields (CSRF auto-added). */
+export const postBooking = (
+  slugs: string,
+  fields: Record<string, string>,
+): Promise<Response> => postToBookingPath("ticket", slugs, fields);
 
 /** POST a `/calculate/<slugs>` quote, returning the rendered HTML fragment. */
 export const postCalculate = async (
   slugs: string,
   fields: Record<string, string>,
-): Promise<string> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  const csrf = await bookingPageToken(slugs);
-  const res = await handleRequest(
-    mockFormRequest(
-      `/calculate/${slugs}`,
-      { csrf_token: csrf, ...fields },
-      `csrf_token=${csrf}`,
-    ),
-  );
-  return res.text();
-};
+): Promise<string> =>
+  (await postToBookingPath("calculate", slugs, fields)).text();
 
 /** POST a booking to `/ticket/<slug>` with the standard test contact
  *  (`email: "a@b.com"`, `name: "Ada"`) merged into `fields`. The shared default
@@ -175,10 +167,8 @@ export const makeCustomisableDailyParent = () =>
 
 /** GET a JSON API path and return the raw Response. */
 export const apiGet = async (path: string): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  return handleRequest(
-    new Request(`http://localhost${path}`, { headers: { host: "localhost" } }),
-  );
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  return awaitTestRequest(path);
 };
 
 /** GET `/api/listings` (the collection endpoint) and return the row whose slug
@@ -301,9 +291,8 @@ export const expectChildAvailability = (
  * shared fetch behind {@link publicBody} and {@link ticketPageStatus}. */
 const publicFetch = async (path: string): Promise<Response> => {
   await enablePublicSite();
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
-  return handleRequest(mockRequest(path));
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  return awaitTestRequest(path);
 };
 
 /** Fetch a public page body with the public site enabled. Shared by the
@@ -413,22 +402,15 @@ export const postChildren = async (
   childIds: number[],
 ): Promise<Response> => {
   const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const { cookie, csrfToken } = await getTestSession();
-  const body = new URLSearchParams();
-  body.set("csrf_token", csrfToken);
-  for (const id of childIds) body.append("child_listing_ids", String(id));
-  return handleRequest(
-    new Request(`http://localhost/admin/listing/${listingId}/children`, {
-      body: body.toString(),
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        cookie,
-        host: "localhost",
-      },
-      method: "POST",
-    }),
-  );
+  return awaitTestRequest(`/admin/listing/${listingId}/children`, {
+    cookie,
+    data: {
+      child_listing_ids: childIds.map(String),
+      csrf_token: csrfToken,
+    },
+  });
 };
 
 /** GET an admin listing page (`/admin/listing/<id><suffix>`) as HTML. */
@@ -556,13 +538,7 @@ export const soldOutParentInGroup = async (
  */
 export const expectNoListingsCta = async (groupSlug: string): Promise<void> => {
   await enablePublicSite();
-  const { handleRequest } = await import("#routes");
-  const body = await (
-    await handleRequest(
-      new Request("http://localhost/listings", {
-        headers: { host: "localhost" },
-      }),
-    )
-  ).text();
+  const { testPageHtml } = await import("#test-utils/mocks.ts");
+  const body = await testPageHtml("/listings");
   expect(body).not.toContain(`href="/ticket/${groupSlug}"`);
 };

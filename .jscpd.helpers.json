@@ -1,0 +1,29 @@
+{
+  "threshold": 0,
+  "_comment": "The reusable test helpers under test/test-utils, scanned at 40 tokens rather than the 48 the rest of test/ gets, and scanned alongside src/ so a helper that reimplements production logic is flagged against the source it copied — a separate run could never see that. Like the Cucumber support helpers, these are production-shaped code — one named helper per thing a test does — so two helpers that nearly match are a merge to make. The *.test.ts files inside test/test-utils are tests of those helpers, not helpers, so they stay on the ordinary test/ scan: a test body repeats by design. src/ against itself is already held at 0% by .jscpd.json, so nothing new is reported there, and test/test-utils stays in the .jscpd.test.json scan too so its clones against test bodies are still caught. 40 is a ratchet position, not a floor: see docs/test-duplication.md for what each step down costs.",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-helpers",
+  "ignore": [
+    "**/node_modules/**",
+    "**/fp.ts",
+    "**/db/migrations/2*.ts",
+    "**/db/migrations/schema/columns.ts",
+    "**/test-utils/**/*.test.ts"
+  ],
+  "format": [
+    "typescript",
+    "tsx"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 40,
+  "path": [
+    "src",
+    "test/test-utils"
+  ]
+}

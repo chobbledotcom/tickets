@@ -48,6 +48,8 @@
   "bulk_email.no_recipients": "There are no recipients to send to.",
   "bulk_email.all_unsubscribed": "Everyone in this audience has unsubscribed.",
   "bulk_email.sent_flash": "Sent to {count, plural, one {# recipient} other {# recipients}} via {provider}. {summary}",
+  "bulk_email.sent_partial_flash": "Sent to {sent} of {count, plural, one {# recipient} other {# recipients}} via {provider}. {summary}",
+  "bulk_email.sent_none_flash": "{provider} sent none of your {count, plural, one {# message} other {# messages}}. {summary}",
   "bulk_email.delete_template_heading": "Delete template",
   "bulk_email.delete_template_intro": "Are you sure you want to delete the saved template with subject:",
   "bulk_email.delete_template_prompt": "Type the template subject to confirm:",

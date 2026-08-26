@@ -70,7 +70,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import { ok } from "#shared/response.ts";
+import { fail, ok } from "#shared/response.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
@@ -81,6 +81,43 @@ import {
 } from "#templates/admin/bulk-email.tsx";
 
 const COMPOSE_PATH = "/admin/emails";
+
+/** How many the provider took, named against how many were tried. */
+const recipientLabel = (sent: number, attempted: number): string => {
+  const noun = `recipient${attempted === 1 ? "" : "s"}`;
+  return sent === attempted
+    ? `${attempted} ${noun}`
+    : `${sent} of ${attempted} ${noun}`;
+};
+
+/** A send that lost some messages must not flash as a clean success, and one
+ * that lost every message is not a success at all. */
+const sendOutcome = (
+  sent: number,
+  refused: number,
+  attempted: number,
+  config: EmailConfig,
+  summary: string,
+): Response => {
+  const values = {
+    count: attempted,
+    provider: EMAIL_PROVIDER_LABELS[config.provider],
+    summary,
+  };
+  // Only a provider that refused every message sent none. One that left
+  // them unconfirmed may still have sent them, and telling the operator
+  // otherwise is how the same mailshot goes out twice.
+  if (refused === attempted) {
+    return fail(COMPOSE_PATH, t("bulk_email.sent_none_flash", values));
+  }
+  if (sent < attempted) {
+    return ok(
+      COMPOSE_PATH,
+      t("bulk_email.sent_partial_flash", { ...values, sent }),
+    );
+  }
+  return ok(COMPOSE_PATH, t("bulk_email.sent_flash", values));
+};
 const PREVIEW_PATH = "/admin/emails/preview";
 
 /** Whether the owner's *own* provider can send bulk, plus a reason if not. */
@@ -345,27 +382,22 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
   }
   const result = await sendBulkEmails(config, payload);
-  await recordContacts(
-    await hashAll(payload.recipients.map((r) => r.to)),
-    draft.subject,
-    privateKey,
-  );
+  // Only the people the provider took were contacted, so only they belong
+  // in the contact history. A later count cannot recover who really got it.
+  await recordContacts(await hashAll(result.taken), draft.subject, privateKey);
   await settings.update.bulkEmailDraft("");
   const providerSummary = summarizeProviderResponse(result.responses);
-  const recipientLabel = `${result.attempted} recipient${
-    result.attempted === 1 ? "" : "s"
-  }`;
+  const sent = result.taken.length;
   await logActivity(
-    `Sent bulk email "${draft.subject}" to ${recipientLabel}. ${providerSummary}`,
+    `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
     targetLogListingId(draft.target),
   );
-  return ok(
-    COMPOSE_PATH,
-    t("bulk_email.sent_flash", {
-      count: result.attempted,
-      provider: EMAIL_PROVIDER_LABELS[config.provider],
-      summary: providerSummary,
-    }),
+  return sendOutcome(
+    sent,
+    result.failed,
+    result.attempted,
+    config,
+    providerSummary,
   );
 });
 

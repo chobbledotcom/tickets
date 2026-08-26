@@ -14,7 +14,7 @@ import { t } from "#i18n";
 import {
   findsTheWayInFrom,
   ORGANISER,
-  openAdminPage,
+  opensAdminPageAt,
   opensListAtRow,
   type TakesOneThingDown,
   takesDownFromList,
@@ -32,7 +32,6 @@ import {
   type ReadAboutOneThing,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -67,8 +66,7 @@ const theJob = (job: string): { badge: string; box: string } => {
 };
 
 /** The organiser's own list of states, open in front of them. */
-const openList = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, THE_LIST);
+const openList = opensAdminPageAt(THE_LIST);
 
 /** What the link into one state's own row looks like: the list's own address
  * with the state's number on the end. */

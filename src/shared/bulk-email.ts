@@ -13,11 +13,13 @@ import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
 import {
   filter,
+  flatMap,
   map,
   mapNotNullish,
   pipe,
   sort,
   sum,
+  sumOf,
   unique,
   uniqueBy,
 } from "#fp";
@@ -28,11 +30,13 @@ import {
 } from "#shared/bulk-email-targets/types.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
+  type BatchMessageOutcome,
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkBatchResponse,
   type BulkEmailPayload,
   type BulkRecipient,
 } from "#shared/email/bulk.ts";
+import { cappedReply } from "#shared/email.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
@@ -248,34 +252,68 @@ export const contactFrequencySummary = (counts: number[]): string => {
 
 // ── Provider reply ──────────────────────────────────────────────────
 
-/** Cap on how much of a provider's reply we echo back, so a verbose body can't
- * blow a flash cookie or flood the activity log. */
-const MAX_PROVIDER_REPLY_LENGTH = 300;
+const messageNoun = (count: number): string =>
+  count === 1 ? "message" : "messages";
+
+/** A sentence about one kind of message across every batch, or nothing at
+ * all when the reply held none of that kind. */
+const noteOn =
+  (
+    pick: (outcome: BatchMessageOutcome) => number,
+    say: (count: number, batches: BulkBatchResponse[]) => string,
+  ) =>
+  (batches: BulkBatchResponse[]): string => {
+    const count = sumOf((r: BulkBatchResponse) => pick(r.outcome))(batches);
+    return count === 0 ? "" : say(count, batches);
+  };
+
+/** What the provider refused, said plainly after the reply itself. Silent
+ * when it refused nothing, so a clean send reads as it always did. */
+const refusedNote = noteOn(
+  (outcome) => outcome.refused,
+  (count, batches) => {
+    const reasons = pipe(
+      flatMap((r: BulkBatchResponse) => r.outcome.reasons),
+      unique,
+    )(batches);
+    const why =
+      reasons.length === 0 ? "" : ` ${cappedReply(reasons.join("; "))}.`;
+    return ` It refused ${count} ${messageNoun(count)}.${why}`;
+  },
+);
+
+/** Messages the provider took but did not report on. The operator must not
+ * read this as a failure and send them all again. */
+const unconfirmedNote = noteOn(
+  (outcome) => outcome.unconfirmed,
+  (count) =>
+    ` It did not confirm ${count} ${messageNoun(count)}.` +
+    " They may still have been sent. Check the provider before you send them" +
+    " again.",
+);
 
 /**
  * One-line, human-readable summary of what the email provider said in reply to
  * a bulk send. Providers acknowledge a batch with queued message IDs or, on
  * failure, a reason — both worth surfacing to the sender and storing in the
  * log. Distinct per-batch replies are de-duplicated and the result is
- * length-capped.
+ * length-capped. What the reply said about the messages inside an accepted
+ * batch follows it.
  */
 export const summarizeProviderResponse = (
   responses: readonly BulkBatchResponse[],
 ): string => {
   if (responses.length === 0) return "The email provider sent no response.";
+  const batches = responses as BulkBatchResponse[];
   const parts = pipe(
     map((r: BulkBatchResponse) => {
       const body = r.body.trim();
       return body ? `HTTP ${r.status}: ${body}` : `HTTP ${r.status}`;
     }),
     unique,
-  )(responses as BulkBatchResponse[]);
-  const joined = parts.join("; ");
-  const trimmed =
-    joined.length > MAX_PROVIDER_REPLY_LENGTH
-      ? `${joined.slice(0, MAX_PROVIDER_REPLY_LENGTH)}...`
-      : joined;
-  return `The email provider responded with ${trimmed}.`;
+  )(batches);
+  const replied = `The email provider responded with ${cappedReply(parts.join("; "))}.`;
+  return `${replied}${refusedNote(batches)}${unconfirmedNote(batches)}`;
 };
 
 // ── mailto fallback ─────────────────────────────────────────────────

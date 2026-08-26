@@ -46,8 +46,8 @@ Given(
 
 When(
   "the owner looks at who may sign in",
-  function (this: TicketsWorld): Promise<void> {
-    return ownerOpensWhoMaySignIn(this);
+  async function (this: TicketsWorld): Promise<void> {
+    await ownerOpensWhoMaySignIn(this);
   },
 );
 

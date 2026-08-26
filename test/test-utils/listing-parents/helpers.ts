@@ -162,8 +162,9 @@ export const postListingEdit = async (
     "#test-utils/db-helpers/listing-forms.ts"
   );
   const { getTestSession } = await import("#test-utils/session.ts");
-  const { handleRequest } = await import("#routes");
-  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
+  const { mockMultipartRequest, sendToApp } = await import(
+    "#test-utils/mocks.ts"
+  );
   const existing = (await getListingWithCount(listingId))!;
   const form = buildUpdateListingForm(updates, existing);
   // The edit form carries group membership as `group_ids` checkboxes. Translate
@@ -177,7 +178,7 @@ export const postListingEdit = async (
   const formWithGroups =
     groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
   const session = await getTestSession();
-  return handleRequest(
+  return sendToApp(
     mockMultipartRequest(
       `/admin/listing/${listingId}/edit`,
       { ...formWithGroups, csrf_token: session.csrfToken },

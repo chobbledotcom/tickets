@@ -12,6 +12,7 @@ import {
   ORGANISER,
   openAdminPage,
   openAsNewcomer,
+  opensAdminPageAt,
   takesDownFromOwnPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -171,8 +172,9 @@ export const answerInListDownload = async (
 };
 
 /** The question's own admin page, open. */
-const openQuestionPage = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, `/admin/questions/${askedQuestion(world).id}`);
+const openQuestionPage = opensAdminPageAt(
+  (world) => `/admin/questions/${askedQuestion(world).id}`,
+);
 
 /** Whether the question's own page offers a way to add answer choices. A
  * written question has none to offer, so its page must not either. */
