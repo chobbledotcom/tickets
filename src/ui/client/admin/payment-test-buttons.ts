@@ -2,13 +2,6 @@
 /// <reference lib="dom.iterable" />
 import { csrfPost } from "./csrf.ts";
 
-/** Wire up a payment provider "Test Connection" button.
- * @param btnId - button element ID
- * @param resultId - result div element ID
- * @param url - POST endpoint to test
- * @param cssClass - CSS class for result formatting
- * @param formatLines - extract display lines from JSON response
- */
 /** Show the result box with the given text, coloured green for a pass and red
  * for a failure. */
 const showTestResult = (
@@ -22,16 +15,19 @@ const showTestResult = (
   resultDiv.classList.add(passed ? "success" : "error", cssClass);
 };
 
+/** Wire up one payment provider's "Test Connection" button. The provider's
+ * own name gives the two element ids, the result class and the test address,
+ * so the page and this script cannot disagree about any of them. */
 const setupTestButton = (
-  btnId: string,
-  resultId: string,
-  url: string,
-  cssClass: string,
+  provider: string,
   // deno-lint-ignore no-explicit-any
   formatLines: (data: any) => string[],
 ) => {
-  const button = document.getElementById(btnId);
+  const button = document.getElementById(`${provider}-test-btn`);
   if (!(button instanceof HTMLButtonElement)) return;
+  const resultId = `${provider}-test-result`;
+  // The page owns the button label, so keep its own words to put back.
+  const label = button.textContent;
   button.addEventListener("click", async () => {
     const resultDiv = document.getElementById(resultId)!;
     button.disabled = true;
@@ -42,23 +38,26 @@ const setupTestButton = (
       const csrfInput = button
         .closest("form")
         ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
-      const data = await csrfPost(url, csrfInput?.value ?? "");
+      const data = await csrfPost(
+        `/admin/settings/${provider}/test`,
+        csrfInput?.value ?? "",
+      );
       showTestResult(
         resultDiv,
         formatLines(data).join("\n"),
         data.ok,
-        cssClass,
+        resultId,
       );
     } catch (e) {
       showTestResult(
         resultDiv,
         `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`,
         false,
-        cssClass,
+        resultId,
       );
     }
     button.disabled = false;
-    button.textContent = "Test Connection";
+    button.textContent = label;
   });
 };
 
@@ -100,51 +99,34 @@ const formatStripeWebhooks = (data: any): string[] => {
   return lines;
 };
 
-/** Wire up Stripe + Square "Test Connection" buttons on the admin settings page. */
+/** Wire up the "Test Connection" button of every payment provider that has
+ * one on the admin settings page. */
 export const initPaymentTestButtons = (): void => {
-  setupTestButton(
-    "stripe-test-btn",
-    "stripe-test-result",
-    "/admin/settings/stripe/test",
-    "stripe-test-result",
-    (data) => [
-      formatCredentialLine("API Key", data.apiKey),
-      ...formatStripeWebhooks(data),
-    ],
-  );
+  setupTestButton("stripe", (data) => [
+    formatCredentialLine("API Key", data.apiKey),
+    ...formatStripeWebhooks(data),
+  ]);
 
-  setupTestButton(
-    "square-test-btn",
-    "square-test-result",
-    "/admin/settings/square/test",
-    "square-test-result",
-    (data) => [
-      formatCredentialLine("Access Token", data.accessToken),
-      formatLocationLine(data.location),
-      formatWebhookLine(data.webhook, "Signature key configured"),
-    ],
-  );
+  setupTestButton("square", (data) => [
+    formatCredentialLine("Access Token", data.accessToken),
+    formatLocationLine(data.location),
+    formatWebhookLine(data.webhook, "Signature key configured"),
+  ]);
 
-  setupTestButton(
-    "sumup-test-btn",
-    "sumup-test-result",
-    "/admin/settings/sumup/test",
-    "sumup-test-result",
-    (data) => {
-      const apiKeyLine = formatCredentialLine("API Key", data.apiKey);
-      // A rejected key means the merchant lookup never ran, so "Merchant: Not
-      // configured" would be misleading and the currency note is just noise.
-      // The API Key line already carries the full, actionable fix.
-      if (!data.apiKey.valid) return [apiKeyLine];
-      return [
-        apiKeyLine,
-        data.merchant.configured
-          ? `Merchant: ${data.merchant.merchantCode}`
-          : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
-        data.currency.supported
-          ? `Currency: ${data.currency.code} (supported)`
-          : `Currency: ${data.currency.code} is not supported by SumUp`,
-      ];
-    },
-  );
+  setupTestButton("sumup", (data) => {
+    const apiKeyLine = formatCredentialLine("API Key", data.apiKey);
+    // A rejected key means the merchant lookup never ran, so "Merchant: Not
+    // configured" would be misleading and the currency note is just noise.
+    // The API Key line already carries the full, actionable fix.
+    if (!data.apiKey.valid) return [apiKeyLine];
+    return [
+      apiKeyLine,
+      data.merchant.configured
+        ? `Merchant: ${data.merchant.merchantCode}`
+        : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
+      data.currency.supported
+        ? `Currency: ${data.currency.code} (supported)`
+        : `Currency: ${data.currency.code} is not supported by SumUp`,
+    ];
+  });
 };

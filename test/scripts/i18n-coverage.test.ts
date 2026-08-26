@@ -81,7 +81,7 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/settings/custom-domain.tsx", 5],
   ["ui/templates/admin/settings/email.tsx", 1],
   ["ui/templates/admin/settings/google-wallet.tsx", 1],
-  ["ui/templates/admin/settings/payment.tsx", 8],
+  ["ui/templates/admin/settings/payment.tsx", 6],
   ["ui/templates/admin/site.tsx", 2],
   ["ui/templates/email/defaults.ts", 12],
   ["ui/templates/fields/add-attendee.ts", 3],

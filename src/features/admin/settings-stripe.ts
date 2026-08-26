@@ -11,7 +11,6 @@ import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 
 export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
-  formId: "settings-stripe",
   logMessage: "Stripe key configured",
   provider: "stripe",
   saveSecret: async (value) => {
@@ -55,7 +54,6 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     );
     return null;
   },
-  secretField: "stripe_secret_key",
   secretRequiredError: t("error.stripe_key_required"),
   successMessage: t("success.stripe_updated"),
   testFn: () => stripeApi.testStripeConnection(),

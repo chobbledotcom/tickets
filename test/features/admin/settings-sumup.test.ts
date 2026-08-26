@@ -104,7 +104,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("sumup");
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain("No SumUp API key is configured");
+      expect(html).toContain("No SumUp credentials are saved");
       expect(html).not.toContain("sumup-test-btn");
     });
 
@@ -125,7 +125,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      expect(html).toContain("A SumUp API key is currently configured");
+      expect(html).toContain("Your SumUp credentials are saved");
       expect(html).toContain("sumup-test-btn");
     });
   });

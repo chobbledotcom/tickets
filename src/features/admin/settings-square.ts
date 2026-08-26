@@ -28,7 +28,6 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
     locationId: form.getString("square_location_id"),
     sandbox: form.get("square_sandbox") === "on",
   }),
-  formId: "settings-square",
   logMessage: "Square credentials updated",
   provider: "square",
   saveFields: async ({ locationId, sandbox }) => {
@@ -36,7 +35,6 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
     await settings.update.square.sandbox(sandbox);
   },
   saveSecret: (value) => settings.update.square.accessToken(value),
-  secretField: "square_access_token",
   secretRequiredError: t("error.square_token_required"),
   successMessage: "Square credentials updated",
   // A lambda, not the member itself: the config is built once at module
