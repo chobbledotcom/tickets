@@ -136,39 +136,50 @@ const endOfInterpolation = (text: string, start: number): number => {
   return index;
 };
 
-/** Just past the backtick closing the template that opened before `start`. */
-const endOfTemplate = (text: string, start: number): number => {
+/**
+ * Just past the character that closes a run. `step` reads one character and
+ * says where to carry on from, or `null` to say that this one closes the run.
+ * An escape is always skipped whole, whatever the run is.
+ */
+const endOfRun = (
+  text: string,
+  start: number,
+  step: (index: number) => number | null,
+): number => {
   let index = start;
   while (index < text.length) {
-    const character = text[index];
-    if (character === "\\") index += 2;
-    else if (character === "`") return index + 1;
-    else if (character === "$" && text[index + 1] === "{") {
-      index = endOfInterpolation(text, index + 2);
-    } else index++;
+    if (text[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    const next = step(index);
+    if (next === null) return index + 1;
+    index = next;
   }
   return index;
 };
+
+/** Just past the backtick closing the template that opened before `start`. */
+const endOfTemplate = (text: string, start: number): number =>
+  endOfRun(text, start, (index) => {
+    if (text[index] === "`") return null;
+    return text[index] === "$" && text[index + 1] === "{"
+      ? endOfInterpolation(text, index + 2)
+      : index + 1;
+  });
 
 /**
  * Just past the `/` closing a regular expression, and its flags. A `/` inside
  * a character class does not close one, so `/a[/]b/` is read whole.
  */
 const endOfRegExp = (text: string, start: number): number => {
-  let index = start;
   let inClass = false;
-  while (index < text.length) {
-    const character = text[index];
-    if (character === "\\") {
-      index += 2;
-      continue;
-    }
-    if (character === "/" && !inClass) break;
-    if (character === "[") inClass = true;
-    if (character === "]") inClass = false;
-    index++;
-  }
-  index++;
+  let index = endOfRun(text, start, (at) => {
+    if (text[at] === "/" && !inClass) return null;
+    if (text[at] === "[") inClass = true;
+    if (text[at] === "]") inClass = false;
+    return at + 1;
+  });
   while (index < text.length && /[a-z]/.test(text[index] as string)) index++;
   return index;
 };

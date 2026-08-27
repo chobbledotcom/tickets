@@ -50,12 +50,10 @@ export const isSharedMechanism = (file: string): boolean =>
  * qualified name repeats — two callbacks in one object's entries, say.
  */
 const distinctNames = (found: readonly { name: string }[]): string[] => {
-  const totals = new Map<string, number>();
-  for (const one of found)
-    totals.set(one.name, (totals.get(one.name) ?? 0) + 1);
+  const sharing = Map.groupBy(found, (one) => one.name);
   const seen = new Map<string, number>();
   return found.map((one) => {
-    if ((totals.get(one.name) as number) === 1) return one.name;
+    if ((sharing.get(one.name) as unknown[]).length === 1) return one.name;
     const nth = (seen.get(one.name) ?? 0) + 1;
     seen.set(one.name, nth);
     return `${one.name}@${nth}`;
