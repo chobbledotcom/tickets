@@ -1,6 +1,5 @@
 /**
- * Telling a mention that puts a value into a field from one that takes a
- * value out of it.
+ * Which mentions put a value into a field, and which take one out.
  *
  * This is the whole point of the scan. A field can be mentioned often and
  * still never be read: every mention writes it, and nothing downstream ever
@@ -108,6 +107,8 @@ const isAssignedTo: AskAboutAMention = onParent((node, parent) => {
     return isAssignedTo(parent.parent);
   }
   if (ts.isArrayLiteralExpression(parent)) return isAssignedTo(parent);
+  // `(row.total) = value` puts the parentheses between the field and the `=`.
+  if (ts.isParenthesizedExpression(parent)) return isAssignedTo(parent);
   return false;
 });
 
@@ -128,12 +129,22 @@ const isWrite: AskAboutAMention = onParent((node, parent) =>
 
 const isDeleted: AskAboutAMention = onParent(isDeletedProperty);
 
-/** The third way to name a member is to let a pattern take it out. A pattern
- * names the field it reaches on the left, so `const { total } = row` names it
- * once, and `const { total: sum } = row` names `total` and binds `sum`. */
+/** The two object-literal nodes a destructuring assignment is built from. */
+const NAMES_AN_ASSIGNED_SLOT = [
+  named(ts.isPropertyAssignment),
+  named(ts.isShorthandPropertyAssignment),
+];
+
+/** The third way to name a member is to let a pattern take it out, and a
+ * pattern names the field it reaches on its left. `const { total } = row`
+ * reaches it through a binding element, and `const { total: sum } = row`
+ * names `total` there and binds `sum`. `({ total } = row)` reaches it through
+ * the object-literal nodes an assignment pattern is built from instead. */
 const namedByAPattern = (node: ts.Node, parent: ts.Node): boolean =>
-  ts.isBindingElement(parent) &&
-  (parent.propertyName === node || parent.name === node);
+  ts.isBindingElement(parent)
+    ? parent.propertyName === node || parent.name === node
+    : isDestructuringTarget(parent) &&
+      NAMES_AN_ASSIGNED_SLOT.some((names) => names(node, parent));
 
 /** True when this mention names a member of something rather than standing on
  * its own as a plain name. */

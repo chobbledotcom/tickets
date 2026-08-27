@@ -1,5 +1,26 @@
 # TODO — remaining follow-ups
 
+## Scan the static side of an exported class
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`inheritedFields` in `scripts/unread-fields/scan.ts` asks
+`checker.getTypeAtLocation(shape.name)`, which is the **instance** type of a
+class. A static member lives on the constructor type instead, so
+`export class C { static make() {} }` contributes no `make`. The syntax walk
+does not catch it either, because `holdsAField` accepts a property declaration
+and not a method. A probe reproduces it.
+
+`src/` declares no static class member today, so no line in the report is
+missing because of this.
+
+Ask `checker.getTypeOfSymbolAtLocation` for the class symbol as well, and put
+the two sets of properties together. Decide first how the report names a static
+field, because `C.make` reads as an instance member. Look at the report diff
+before and after.
+
+---
+
 ## Scan a class that a module exports with no name
 
 _Origin: a review of PR #2166. No file in `src/` triggers it today._

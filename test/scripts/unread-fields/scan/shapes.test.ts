@@ -171,6 +171,25 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("NamedByALiteral", "1")).toBe("never read");
   });
 
+  test("leaves out a type a class keeps to itself", () => {
+    // Nobody outside reaches the private member, so nobody reaches its type
+    // either. The public method beside it is still a field.
+    const lines = scanned.all.filter((f) =>
+      f.owner.startsWith("KeepsSecretsInside"),
+    );
+    expect(lines.map((f) => f.field)).toEqual(["read"]);
+  });
+
+  test("leaves out the fields a keyof only names", () => {
+    // `keyof Row` is the words a shape's fields are called, not the fields.
+    expect(scanned.all.filter((f) => f.owner.includes("Keys"))).toEqual([]);
+  });
+
+  test("still sees a field a readonly array hands out", () => {
+    // `readonly` is a type operator too, and this one does hand a field out.
+    expect(verdictOf("StillHandsOneOut", "keptByReadonly")).toBe("never read");
+  });
+
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "AnsweredAgain.answeredTwice",
@@ -215,12 +234,14 @@ describe("the shapes the scan finds", () => {
       "Inner.onlyInsideNamespace",
       "Intersects.fromAnIntersection",
       "Intersects.ofItsOwnAgain",
+      "KeepsSecretsInside.read",
       "ListExported.onlyInAList",
       "NamedByALiteral.1",
       "NamedByALiteral.plainName",
       "NamedByALiteral.quoted-name",
       "NamedItsParameter.onlyTheConstructorNamesIt",
       "NamedItsParameter.takenOutByADestructure",
+      "NamedItsParameter.takenOutByAnAssignment",
       "NestsTheSameName.inside",
       "NestsTheSameName.inside.sharedNameDifferentField",
       "NestsTheSameName.sharedNameDifferentField",
@@ -235,12 +256,14 @@ describe("the shapes the scan finds", () => {
       "Report.nested",
       "Report.nested.deep",
       "Report.onlyTestsRead",
+      "StillHandsOneOut.keptByReadonly",
       "Sum.noOneReadsThis",
       "Sum.readOnlyFromOutside",
       "Sum.takenOutByPattern",
       "Sum.total",
       "WrittenByARest.filledByAnArrayRest",
       "WrittenByARest.filledByAnObjectRest",
+      "WrittenThroughParens.filledInsideParens",
     ]);
   });
 

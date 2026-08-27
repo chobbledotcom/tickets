@@ -59,6 +59,7 @@ import {
   NamedItsParameter,
   type Passed,
   type WrittenByARest,
+  type WrittenThroughParens,
 } from "./shapes.ts";
 
 export type ItsType = Borrowed["onlyItsTypeIsUsed"];
@@ -115,6 +116,10 @@ export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
 
 export const handOver = (h: HandsAnObjectOver): void => {
   h.takesAnObject({ insideAParameter: 1 });
+};
+
+export const fillInsideParens = (w: WrittenThroughParens): void => {
+  (w.filledInsideParens) = 1;
 };
 
 export const readAQuotedName = (n: NamedByALiteral): string =>
@@ -238,8 +243,12 @@ export class NamedItsParameter extends Error {
   constructor(
     public onlyTheConstructorNamesIt: string,
     public takenOutByADestructure: string,
+    public takenOutByAnAssignment: string,
   ) {
     super(onlyTheConstructorNamesIt);
+    let held = "";
+    ({ takenOutByAnAssignment: held } = this);
+    console.log(held);
   }
 }
 
@@ -346,6 +355,26 @@ export interface NamedByALiteral {
   "quoted-name": string;
   1: string;
   plainName: string;
+}
+
+export class KeepsSecretsInside {
+  private state: { onlyInsideAPrivate: string } = { onlyInsideAPrivate: "x" };
+
+  read(): string {
+    return this.state.onlyInsideAPrivate;
+  }
+}
+
+interface NamesItsKeys {
+  reachedOnlyByKeyof: string;
+}
+
+export type JustTheKeys = keyof NamesItsKeys;
+export type JustTheInlineKeys = keyof { alsoOnlyByKeyof: string };
+export type StillHandsOneOut = readonly { keptByReadonly: number }[];
+
+export interface WrittenThroughParens {
+  filledInsideParens: number;
 }
 
 interface FirstArm {

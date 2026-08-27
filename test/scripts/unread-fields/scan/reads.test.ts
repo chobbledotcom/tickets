@@ -119,4 +119,18 @@ describe("the reads the scan counts", () => {
     // The parameter is in reach here, so only `this.` tells them apart.
     expect(verdictOf("Carrier", "readByThisInside")).toBe("read");
   });
+
+  test("counts a field an assignment pattern takes out of this", () => {
+    // `({ field: held } = this)` is built out of object-literal nodes, not
+    // the binding elements a `const` pattern uses.
+    expect(verdictOf("NamedItsParameter", "takenOutByAnAssignment")).toBe(
+      "read",
+    );
+  });
+
+  test("counts a field written through parentheses as supplied", () => {
+    expect(verdictOf("WrittenThroughParens", "filledInsideParens")).toBe(
+      "never read",
+    );
+  });
 });

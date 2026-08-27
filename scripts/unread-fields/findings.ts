@@ -16,9 +16,10 @@ export interface Finding {
   verdict: Verdict;
 }
 
-/** Folders that hold tests. `scripts/email-sandbox-e2e/` is a live end-to-end
- * harness, so a field only it reads is kept alive by a test like any other. */
-const TEST_FOLDERS = ["test/", "scripts/email-sandbox-e2e/"];
+/** Folders that hold tests. `scripts/email-sandbox-e2e/` and `e2e-payments/`
+ * are live end-to-end harnesses, so a field only one of them reads is kept
+ * alive by a test like any other. */
+const TEST_FOLDERS = ["test/", "scripts/email-sandbox-e2e/", "e2e-payments/"];
 
 const isTest = (file: string): boolean =>
   TEST_FOLDERS.some((folder) => file.startsWith(folder));

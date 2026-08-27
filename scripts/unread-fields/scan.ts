@@ -12,7 +12,7 @@ import { filter, mapNotNullish, unique } from "#fp";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { type Finding, verdictFor } from "./findings.ts";
-import { answered, compilerOptions, serviceHost } from "./host.ts";
+import { answered, compilerOptions, pathIs, serviceHost } from "./host.ts";
 import {
   type AskAboutAMention,
   isInside,
@@ -22,12 +22,17 @@ import {
 } from "./writes.ts";
 
 /** Folders whose code ships. `test/` is scanned too, so the scan can tell a
- * field only its tests read from one nothing reads. */
-const SCANNED = ["src", "test", "scripts", "cli"];
+ * field only its tests read from one nothing reads, and so are the two live
+ * end-to-end harnesses, which read production fields the same way. A
+ * repository without one of these folders is normal, so the walk skips it. */
+const SCANNED = ["src", "test", "scripts", "cli", "e2e-payments/src"];
+
+const isDirectory = pathIs("isDirectory");
 
 const sourceFilesIn = async (root: string): Promise<string[]> => {
+  const here = SCANNED.filter((folder) => isDirectory(`${root}/${folder}`));
   const perFolder = await Promise.all(
-    SCANNED.map((folder) => collectSourceFiles(`${root}/${folder}`)),
+    here.map((folder) => collectSourceFiles(`${root}/${folder}`)),
   );
   return perFolder.flat();
 };
@@ -205,12 +210,20 @@ const inheritedFields = (
   }));
 };
 
+/** `keyof Row` names the words a shape's fields are called, not the fields. */
+const isKeyOf = (node: ts.Node): boolean =>
+  ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.KeyOfKeyword;
+
 /** Which of a node's parts can hold a member. `R extends { paid: number } ?
  * { paid: string } : never` checks one type against another, and only the
  * answer is part of the shape. A function keeps its parameters and the type it
  * hands back. Its body holds a type that never leaves it, and its type
  * parameters describe themselves, exactly as a shape's own ones do. */
 const worthWalking = (node: ts.Node): ((part: ts.Node) => boolean) => {
+  // `keyof { paid: number }` is the one word "paid", not a shape with a
+  // field, so nothing under it is a field either. `readonly` is a type
+  // operator too, and `readonly { paid: number }[]` does hand `paid` out.
+  if (isKeyOf(node)) return () => false;
   if (ts.isConditionalTypeNode(node)) {
     return (part) => part !== node.checkType && part !== node.extendsType;
   }
@@ -242,23 +255,27 @@ const exportedFields = (
   // are one field of the shape. A second line for it could reach a different
   // verdict, and a reader could not tell which one to act on.
   const counted = new Set<string>();
+  /** Write one field down, and say what its own parts belong to. A shape
+   * that already carries the line keeps the one it has. */
+  const remember = (owner: string, name: FieldName): string => {
+    const inside = `${owner}.${name.text}`;
+    if (counted.has(inside)) return inside;
+    counted.add(inside);
+    found.push({ names: [name], owner });
+    return inside;
+  };
+
   const collect = (owner: string, node: ts.Node): void => {
+    // A member a class keeps to itself hands nothing out. A type written
+    // inside it is out of reach for the same reason.
+    if (isHidden(node)) return;
     const name = fieldNameOf(node);
-    if (name) {
-      const inside = `${owner}.${name.text}`;
-      if (!counted.has(inside)) {
-        counted.add(inside);
-        found.push({ names: [name], owner });
-      }
-      for (const child of membersOf(node)) collect(inside, child);
-      return;
-    }
     // `Extract<Result, { ok: true }>` names a filter, not a member. The walk
     // must not read `ok` off it, because the checker path already resolves
     // what the reference hands on.
-    if (!ts.isTypeReferenceNode(node)) {
-      for (const child of membersOf(node)) collect(owner, child);
-    }
+    if (!name && ts.isTypeReferenceNode(node)) return;
+    const inside = name ? remember(owner, name) : owner;
+    for (const child of membersOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     const before = found.length;
