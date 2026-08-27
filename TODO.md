@@ -3013,7 +3013,7 @@ and must be judged on its own.
 ## The merge queue does not gate on `checks` or `test`
 
 _Origin: #2158 merged with `checks` red, and so did the two merges before it. I
-found this while I traced why main stopped linting._
+found this while I traced why lint failed on main._
 
 `test.yml` runs on `merge_group`, so the queue does run the `checks` job, and
 that job runs `deno task lint:ci` before its other checks. The queue runs it,
