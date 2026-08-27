@@ -13,8 +13,9 @@ export type HostConfigOverride<T = any> = ReturnType<
 
 /**
  * Read a host setting out of the environment, unless a test put one in front
- * of it. An override of `null` means "the host has none", which is different
- * from having no override at all.
+ * of it. `setOverride(null)` clears the override rather than storing an empty
+ * one, because that is what `lazyRef` does with null — so a test cannot say
+ * "the host has none" over an environment that provides one.
  */
 export const createHostConfigOverride = <T>(getFromEnv: () => T | null) => {
   const [getOverride, setOverride] = lazyRef<T | null | undefined>(
