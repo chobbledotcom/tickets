@@ -134,8 +134,8 @@ plan was first written and have **since merged into main**:
   (`test/integration/no-quantity-audit.test.ts`, the
   `attendees.no-quantity-tickets` story, and the shared-predicate guard tests).
   One shipped gap matters here: the **merge writer has no whole-result owed-leg
-  reversal** (the edit path reconciles a no-real-lines attendee's owed balance
-  to £0 with a `writeoff` leg; the merge does not) — see the merge notes below.
+  reversal**. The edit path reconciles a no-real-lines attendee's owed balance
+  to £0 with a `writeoff` leg. The merge does not. See the merge notes below.
 - **Contact/attendee notes rework** landed as a per-attendee **`system_notes`**
   table (owner-public-key-encrypted `owner` notes + DB-key `system` notes) plus
   per-contact `/admin/history/:hmac` records. The original plan's single
@@ -204,7 +204,7 @@ Two consequences that drive importer design:
    edit form) does need the private key.
 2. **String interning splits into a pure half and a database half.**
    `prepareStringRows(texts)` does the HMAC and the hybrid encryption and holds
-   no statement; `internStringRows(rows, tx)` writes them, on an open
+   no statement. `internStringRows(rows, tx)` writes them, on an open
    transaction when it is given one. `getOrCreateStringIds` is the two-in-one
    call, for a caller that opens no transaction of its own. A caller that wraps
    its save in `withTransaction` must call `prepareStringRows` **before** it
@@ -803,7 +803,7 @@ is **not** an orphan and its products stay structured/matched.
 Shipped with the no-quantity feature (#1366); the code and its tests
 (`test/integration/no-quantity-audit.test.ts` and the
 `attendees.no-quantity-tickets` story) are the source of truth. Rule of thumb:
-operational, public, and capacity surfaces exclude `quantity = 0`; admin
+operational, public, and capacity surfaces exclude `quantity = 0`. Admin
 record/detail views keep the rows but guard their per-row actions (check-in,
 refund, resend). This importer plan intentionally does not duplicate the surface
 list.
@@ -1088,7 +1088,7 @@ Writing (in the whole-file transaction — see
   into the importer's single batch, using the resolved `stringId` and the
   matched `question_id`. Do **not** call `saveAttendeeAnswers` — even once for
   the whole file: it opens a transaction **of its own**, which commits
-  separately from the importer's, so it would break whole-file atomicity (the
+  separately from the importer's, so it breaks whole-file atomicity (the
   answer-equivalent of the existing "don't call `createAttendeeAtomic` per row"
   rule). Resolving the string ids and then doing direct `attendee_answers`
   inserts mirrors what `ticket-submit` does on the paid path. Call
@@ -1346,18 +1346,18 @@ Implementation notes:
   The `INSERT OR IGNORE` runs _before_ any `attendee_answers` insert, and
   `internStringRows` takes an optional `TxScope`. Run **without** that handle —
   which is what the one-call `getOrCreateStringIds` does — it commits on its
-  own, so it would persist every distinct imported answer (notes, addresses,
+  own. It then persists every distinct imported answer (notes, addresses,
   invoice fields — encrypted source PII) even when the main transaction later
   rolls back. Those rows are created with `used_count = 0` and never referenced
-  by `attendee_answers`; the delete trigger only **decrements** `used_count`, so
+  by `attendee_answers`. The delete trigger only **decrements** `used_count`, so
   they linger until the **age-based** `pruneUnusedStrings` sweep
   (`used_count = 0 AND created < cutoff`) eventually reaps them. A failed
-  "all-or-nothing" import would therefore leave imported PII sitting in
-  `strings` until that sweep — breaking both atomicity and the privacy stance,
-  so it is **not** acceptable. The writer must do one of:
+  "all-or-nothing" import therefore leaves imported PII in `strings` until that
+  sweep. That breaks both atomicity and the privacy stance, so it is **not**
+  acceptable. The writer must do one of:
   - call `prepareStringRows` before the transaction opens and pass its rows plus
     the guarded transaction's `TxScope` to `internStringRows`, so the ids
-    resolve within the transaction and a rollback unwinds them too (preferred);
+    resolve within the transaction and a rollback unwinds them too (preferred),
     or
   - on any failure/rollback, explicitly delete the strings it newly created that
     are still at `used_count = 0`. Either way, a rolled-back import must leave

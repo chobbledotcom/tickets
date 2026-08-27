@@ -354,7 +354,7 @@ _Origin: visual audit of the mobile Retina screenshots generated from
 
 The screenshots use real application pages with scenario-specific custom CSS.
 Every `scripts/screenshots/*.js` file named below lives in the **`tickets-site`
-repository**, not this one; this repository holds only the runner that loads
+repository**, not this one. This repository holds only the runner that loads
 them (`scripts/screenshots.ts` and `scripts/screenshots/`). Keep fixes in those
 scenarios unless the same problem also appears in the normal application UI.
 Regenerate each affected PNG and inspect the final image at its actual size
@@ -1061,8 +1061,8 @@ genuinely long suites, which now bound the slowest groups:
   group — profile with a `performance.now()` probe around
   `import("#test-utils")` under `deno test` before and after.
 - **`test/scripts/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
-  to test the harness's port handling; each spawn is inherently slow. If it
-  grows, the port-conflict cases could stub the child-process layer the same way
+  to test the harness's port handling. Each spawn is inherently slow. If it
+  grows, the port-conflict cases can stub the child-process layer the same way
   the supervisor tests do.
 
 Starting point: run `deno task test`, read the slow-test report at the end, and
@@ -2585,11 +2585,11 @@ The mechanism exists and is proven. `formGuardAt` and `pageGuardAt` in
 `adminDestinationAt` in `src/shared/admin-surface.ts:62`, so the roles are
 written once in the admin surface declaration.
 
-- **Declare the 97 undeclared write routes.** Every GET route declares who may
+- **Declare the 97 undeclared write routes.** Every GET route declares who can
   reach it, and a test enforces the declaration. 97 write routes take their
   roles from the handler alone, and nothing compares the two. This is the one
   item on the list that adds lines, about 110 of them, because it buys the role
-  matrix a way to check 98 permission gates it cannot see today. Do it first in
+  matrix a way to check 97 permission gates it cannot see today. Do it first in
   this fold. It unlocks the two items below.
 - **Gates derived from the route.** Once the writes are declared, `AuthOption`
   and the handler wiring in `src/routes/admin/actions.ts` can read the route

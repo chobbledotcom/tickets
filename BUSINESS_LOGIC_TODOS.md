@@ -29,15 +29,15 @@ this on their own. `visibleAdminSections` keeps a section only when the
 section's own **landing** route admits the viewer, and `visibleSections` then
 drops every section with a single link. An agent's only page,
 `/admin/deliveries`, is a nav child of the Calendar section, whose landing is
-staff-only, so an agent sees no section at all through those folds. Deriving the
-landing from "the first visible section" would therefore leave an agent with
-nowhere to go.
+staff-only, so an agent sees no section at all through those folds. A landing
+derived from "the first visible section" therefore leaves an agent with nowhere
+to go.
 
 **Plan.** Give the declaration the fact it is missing, then delete the
 hand-written map. Either mark a preferred landing per role on the section, or
 make Deliveries its own section whose landing admits agents. Keep a test that
-every role lands somewhere it may open — that is the property the map holds
-today by hand.
+every role lands somewhere it can open. That is the property the map holds today
+by hand.
 
 **Exemplar:** `visibleAdminSections` / `visibleSections` in
 `src/shared/admin-pages.ts` for the fold to extend, and `sectionVisible` for the
@@ -53,12 +53,12 @@ has no record page.
 
 **Not yet schema-tized** (lower priority — each is a hand-written `redirect`
 call in a single handler): the "back to the list" pattern (modifiers, images,
-sessions, servicing, users, and about five more), the `return_url` honouring
-pattern (attendees, refunds), and the `getRowPath` config in
-`src/features/admin/crud-handlers.ts`. These could be an `afterSave` field on
-the declaration naming the detail, edit, or list landing, but each has
-per-handler nuances (`return_url` threading, `formId` anchors) that make a
-one-size fold less clean than the record-vs-list rule that shipped.
+sessions, servicing, users, and about five more), the pattern that honours
+`return_url` (attendees, refunds), and the `getRowPath` config in
+`src/features/admin/crud-handlers.ts`. An `afterSave` field on the declaration
+can name the detail, edit, or list landing. But each handler has its own
+nuances, such as the threading of `return_url` and the `formId` anchors, which
+make a one-size fold less clean than the record-vs-list rule that shipped.
 
 ---
 
@@ -73,7 +73,7 @@ allowlist of non-admin routes that stay writable in read-only mode (auth,
 billing, webhooks, check-in, and the rest) — is still a hand-maintained list.
 These are public and inter-instance routes, not admin-section routes, so they do
 not fit the admin-page schema naturally. A separate `READ_ONLY_SAFE_ROUTES`
-schema could consolidate them, but the list is stable and low-risk.
+schema can consolidate them, but the list is stable and low-risk.
 
 ---
 
