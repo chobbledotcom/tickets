@@ -253,9 +253,9 @@ const readsHere = (
   return !onlyThroughAMember || namesAMember(node);
 };
 
-/** Whether a field is written down as a constructor parameter. */
+/** Whether a field is written down as a constructor parameter. The answer
+ * already requires a constructor above it, so it needs no second question. */
 const isParameterProperty = (field: ts.Identifier): boolean =>
-  ts.isParameter(field.parent) &&
   ts.isParameterPropertyDeclaration(field.parent, field.parent.parent);
 
 /** Ask the service who reads one field, and say where those readers live. A
