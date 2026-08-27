@@ -22,6 +22,21 @@ The scan asks TypeScript instead. It builds a program over `src`, `test`,
 compiler expects, and asks the language service who refers to each field. The
 answer is per symbol, so the four other `failed` mentions do not count.
 
+## What counts as a shape
+
+A field belongs to a shape that `src/` exports. Both spellings count, because
+this repository uses both:
+
+```typescript
+export interface Sum {
+  total: number;
+}
+export type Report = { headline: string };
+```
+
+An object type nested inside one counts too, because `report.nested.deep`
+reaches it. A shape the file keeps to itself does not.
+
 ## Reads, not mentions
 
 A field can be mentioned often and still never be read. Every mention writes it,
@@ -33,8 +48,17 @@ and nothing downstream looks. So the scan counts reads only:
 | `{ total: 1 }`          | write     |
 | `{ total }`             | write     |
 | `row.total = 1`         | write     |
+| `<Meter total={1} />`   | write     |
+| `{ total() {} }`        | write     |
+| `get total()`           | write     |
 | `row.total`             | read      |
 | `const { total } = row` | read      |
+| `({ total } = row)`     | read      |
+
+The last two lines are the pair that catches people out. Both take `row.total`
+out, but the second is built from the same nodes as `{ total: 1 }`. The scan
+tells them apart by what the object literal around them is for: a pattern on the
+left of an `=` reads, and a value anywhere else writes.
 
 A field is reported when nothing reads it, or when only `test/` does. A field
 its tests alone read is kept alive by the tests themselves, which is the same

@@ -83,25 +83,35 @@ const serviceHost = (
   };
 };
 
-/** Every exported interface in a file, with its field names. */
+/** An exported interface or type alias: the two ways this repository writes
+ * down a shape whose fields other files can reach. */
+const isExportedShape = (
+  node: ts.Node,
+): node is ts.InterfaceDeclaration | ts.TypeAliasDeclaration => {
+  if (!ts.isInterfaceDeclaration(node) && !ts.isTypeAliasDeclaration(node)) {
+    return false;
+  }
+  const modifiers = ts.getModifiers(node);
+  return (
+    modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true
+  );
+};
+
+/** Every field an exported shape declares, including the fields of object
+ * types nested inside it, since `shape.inner.total` reaches those too. */
 const exportedFields = (
   source: ts.SourceFile,
 ): { owner: string; field: ts.Identifier }[] => {
   const found: { owner: string; field: ts.Identifier }[] = [];
-  const visit = (node: ts.Node): void => {
-    const exported = ts.canHaveModifiers(node)
-      ? ts
-          .getModifiers(node)
-          ?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-      : false;
-    if (ts.isInterfaceDeclaration(node) && exported) {
-      for (const member of node.members) {
-        if (member.name && ts.isIdentifier(member.name)) {
-          found.push({ field: member.name, owner: node.name.text });
-        }
-      }
+  const collect = (owner: string, node: ts.Node): void => {
+    if (ts.isTypeElement(node) && node.name && ts.isIdentifier(node.name)) {
+      found.push({ field: node.name, owner });
     }
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, (child) => collect(owner, child));
+  };
+  const visit = (node: ts.Node): void => {
+    if (isExportedShape(node)) collect(node.name.text, node);
+    else ts.forEachChild(node, visit);
   };
   ts.forEachChild(source, visit);
   return found;
