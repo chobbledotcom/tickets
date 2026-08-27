@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import type { BrowserSession } from "#e2e/browser.ts";
+import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
 import { log } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import {
@@ -26,13 +26,11 @@ const stripeApi = <T>(
     ...(method === undefined ? {} : { method }),
   }) as Promise<T>;
 
-const saveStripeKey = async (
+const saveStripeKey = (
   session: BrowserSession,
   secretKey: string,
-): Promise<void> => {
-  await session.fill("stripe_secret_key", secretKey);
-  await session.clickButton("Update Stripe Key");
-};
+): Promise<void> =>
+  fillAndSubmit(session, { stripe_secret_key: secretKey }, "Update Stripe Key");
 
 /** Ask the owner's "Test Connection" button about Stripe. Beyond the key, it
  * proves the rotation left exactly one of our webhook endpoints behind. */

@@ -6,7 +6,7 @@
  * owner session, booker identity, and credentials can never drift apart.
  */
 
-import type { BrowserSession } from "#e2e/browser.ts";
+import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
 import { config } from "#e2e/config.ts";
 // jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
@@ -291,10 +291,8 @@ export const requireSystemMapAnswersClean = async (
 };
 
 /** Submit the currently-rendered refund confirmation form. */
-export const submitRenderedRefundForm = async (
+export const submitRenderedRefundForm = (
   session: BrowserSession,
   bookerName: string,
-): Promise<void> => {
-  await session.fill("confirm_identifier", bookerName);
-  await session.clickButton("Refund Attendee");
-};
+): Promise<void> =>
+  fillAndSubmit(session, { confirm_identifier: bookerName }, "Refund Attendee");

@@ -238,9 +238,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/email-renderer.ts:resetEngine",
   // Skip login delay in tests without env var races
   "shared/test-overrides.ts:setSkipLoginDelayForTest",
-  // Reset/set host email config between tests without env var races
-  "shared/email.ts:setHostEmailConfigForTest",
-  "shared/email.ts:hostEmail.resetOverride",
   // Timezone validation utility (timezone now derived from country, but still useful for tests)
   "shared/timezone.ts:isValidTimezone",
   // Attachment size constant (now re-exported from limits.ts, not detected by export patterns)

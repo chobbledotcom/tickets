@@ -1,14 +1,11 @@
 # Functions that share a shape because they are the same thing twice.
 #
-# Every line here is a merge somebody still has to make, so this file only
-# shrinks. Make the merge, delete the line. See "Code Duplication" in
-# AGENTS.md for how to make one: a helper first, a curry when no helper jumps
-# out.
+# This file is empty, and that is the state to keep it in. Every merge it once
+# held is made, so a new line here is a merge somebody owes. Make the merge and
+# delete the line. See "Code Duplication" in AGENTS.md for how: a helper first,
+# a curry when no helper jumps out.
 #
 # A group whose sites are not all one thing still belongs here when any two of
 # them are. Merging that pair breaks the group up, and the entry goes with it.
 #
 # Format: the match, two spaces, then `# why it is still here`.
-e2e-payments/src/cucumber/steps/pages.ts::submitRenderedRefundForm,e2e-payments/src/providers/stripe.ts::saveStripeKey  # both fill one named box then press one named button; a fillsAndSubmits curry takes both
-src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delete.ts::deleteAnswer  # both cascade a delete over the same two shapes of table
-src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers

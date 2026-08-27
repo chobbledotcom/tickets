@@ -41,6 +41,22 @@ export interface BrowserSession {
   typeInto: (selector: string, text: string) => Promise<void>;
 }
 
+/**
+ * Fill the named boxes, then press the named button. Nearly every form this
+ * suite submits is that shape, so the caller names the boxes and the button
+ * rather than writing the steps out.
+ */
+export const fillAndSubmit = async (
+  session: BrowserSession,
+  boxes: Record<string, string>,
+  button: string,
+): Promise<void> => {
+  for (const [name, value] of Object.entries(boxes)) {
+    await session.fill(name, value);
+  }
+  await session.clickButton(button);
+};
+
 export interface AppBrowser {
   baseUrl: string;
   browser: Browser;

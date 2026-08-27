@@ -489,6 +489,21 @@ export const deleteByFieldBatch = (
 ): Promise<void> => executeBatch(deletes.map(deleteByFieldStatement));
 
 /**
+ * Delete one row and the rows that point at it, children first, in one batch.
+ * Each child names the column that holds the parent's id.
+ */
+export const deleteWithChildren =
+  (
+    table: string,
+    children: readonly { field: string; table: string }[],
+  ): ((id: number) => Promise<void>) =>
+  (id) =>
+    deleteByFieldBatch([
+      ...children.map((child) => ({ ...child, value: id })),
+      { field: "id", table, value: id },
+    ]);
+
+/**
  * Reset selected aggregate columns from trusted SQL expressions. Each
  * expression must use the entity id as its only placeholder.
  */

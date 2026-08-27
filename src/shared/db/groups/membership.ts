@@ -15,7 +15,11 @@ import {
 } from "#db/groups/homogeneity.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
-import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
+import {
+  refusingTheWriteOn,
+  TransactionValidationError,
+  txIdSet,
+} from "#db/transaction.ts";
 import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
@@ -267,13 +271,9 @@ const packageGroupMembersErrorTx = async (
 };
 
 /** Stops the containing write when its changed group no longer has valid package members. */
-const requirePackageGroupMembersTx = async (
-  tx: TxScope,
-  groupId: number,
-): Promise<void> => {
-  const error = await packageGroupMembersErrorTx(tx, groupId);
-  if (error) throw new TransactionValidationError(error);
-};
+const requirePackageGroupMembersTx = refusingTheWriteOn(
+  packageGroupMembersErrorTx,
+);
 
 /** Rechecks the sold-hidden invariant inside the write transaction: if the
  *  group was a hidden package and is being un-packaged, a checkout that

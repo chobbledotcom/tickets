@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 import type { Locator, Page } from "playwright";
-import type { BrowserSession } from "#e2e/browser.ts";
+import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import { type AfterPayOutcome, watchAfterPay } from "./post-pay.ts";
@@ -122,9 +122,14 @@ export const sumup: PaymentProvider = {
   // payments and refunds are append-only sandbox resources.
   cleanup: noProviderCleanup,
   configure: configureProvider("sumup", async (session, secrets) => {
-    await session.fill("sumup_api_key", secrets.apiKey);
-    await session.fill("sumup_merchant_code", secrets.merchantCode);
-    await session.clickButton("Update SumUp Credentials");
+    await fillAndSubmit(
+      session,
+      {
+        sumup_api_key: secrets.apiKey,
+        sumup_merchant_code: secrets.merchantCode,
+      },
+      "Update SumUp Credentials",
+    );
     await testSumupConnection(session, secrets.merchantCode);
   }),
   name: "sumup",

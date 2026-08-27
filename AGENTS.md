@@ -1318,11 +1318,21 @@ It reports whole named functions, not runs of tokens inside them. That is what
 keeps it readable: a config object handed to a shared factory is the shape this
 codebase wants more of, and it never looks like a function body.
 
+It reads every `.ts`, `.tsx` and `.js` file under the trees `.jscpd.json` scans,
+so a browser script we ship as plain JavaScript is compared too. Words a
+component renders become one string, so two components that differ only in their
+wording share a shape, and rewrapped markup does not change one. `#fp` is
+compared like anything else, and only a group whose every site is inside it is
+dropped: its curried pairs match each other by design, but a body elsewhere that
+copies one of them is a real merge to make — call the helper.
+
 The accepted list at `scripts/check-shapes/accepted/` records every match this
 tree already carries, one per line with the reason it stands, split in two:
 
 - `merges-to-make.txt` — the same thing written twice. Every line is work
-  somebody still has to do. Make the merge, delete the line.
+  somebody still has to do. Make the merge, delete the line. **This file is
+  empty**, and that is the state to keep it in: a line added here is a merge
+  somebody owes.
 - `coincidences.txt` — two functions with one shape and no shared step to lift.
   A line earns this file only after somebody tried to write the curry.
 

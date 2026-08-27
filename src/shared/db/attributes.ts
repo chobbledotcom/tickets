@@ -8,7 +8,7 @@
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
-  deleteByFieldBatch,
+  deleteWithChildren,
   executeBatch,
   inPlaceholders,
   queryAll,
@@ -302,11 +302,9 @@ export const getAttributeListingUse = async (
   };
 };
 
-export const deleteAttributeOption = (optionId: number): Promise<void> =>
-  deleteByFieldBatch([
-    { field: "option_id", table: "listing_attribute_options", value: optionId },
-    { field: "id", table: "attribute_options", value: optionId },
-  ]);
+export const deleteAttributeOption = deleteWithChildren("attribute_options", [
+  { field: "option_id", table: "listing_attribute_options" },
+]);
 
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([
