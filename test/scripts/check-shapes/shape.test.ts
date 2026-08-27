@@ -51,6 +51,14 @@ describe("shapeOf", () => {
     expect(shapeOf("a /* unclosed")).toEqual(["ID"]);
   });
 
+  test("reads a slash that divides, rather than opening a comment", () => {
+    expect(shapeOf("a / b")).toEqual(["ID", "/", "ID"]);
+  });
+
+  test("reads a slash at the very end as itself", () => {
+    expect(shapeOf("a /")).toEqual(["ID", "/"]);
+  });
+
   test("keeps punctuation as written, so structure still separates", () => {
     expect(shapeOf("a?.b")).toEqual(["ID", "?", ".", "ID"]);
   });

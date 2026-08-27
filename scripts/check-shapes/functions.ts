@@ -47,6 +47,14 @@ const lineAt = (source: string, offset: number): number => {
   return line;
 };
 
+/** Where a body sits in the file. Every type in {@link FUNCTION_TYPES} carries
+ * one: a function written without a body parses as `TSDeclareFunction`, which
+ * is not in the set. */
+interface BodySpan {
+  end: number;
+  start: number;
+}
+
 /** This node's body, when it is a function with a name to report it by. */
 const functionBody = (
   node: AstNode,
@@ -54,10 +62,9 @@ const functionBody = (
   source: string,
 ): NamedFunction | null => {
   if (!FUNCTION_TYPES.has(node.type) || name === null) return null;
-  const body = node.body;
-  if (!isAstNode(body) || typeof body.start !== "number") return null;
+  const body = node.body as BodySpan;
   return {
-    end: body.end as number,
+    end: body.end,
     line: lineAt(source, body.start),
     name,
     start: body.start,
