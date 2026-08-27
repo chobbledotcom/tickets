@@ -45,6 +45,7 @@ export const modifierToFieldValues = (
     fields,
     {
       active: (m) => booleanToCheckbox(m.active),
+      max_per_order: (m) => m.max_per_order ?? "",
       min_subtotal: (m) =>
         m.min_subtotal ? Number(toMajorUnits(m.min_subtotal)) : "",
       min_visits: (m) => m.min_visits || "",

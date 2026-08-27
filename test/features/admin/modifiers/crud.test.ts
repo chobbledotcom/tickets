@@ -191,6 +191,53 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect((await lastModifier()).stock).toBeNull();
     });
 
+    test("stores the max times per order on a question-answer modifier", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({
+          calc_kind: "fixed",
+          calc_value: "10",
+          direction: "charge",
+          max_per_order: "2",
+          name: "Zone 2 delivery",
+          trigger: "answer",
+        }),
+      );
+      expect((await lastModifier()).max_per_order).toBe(2);
+    });
+
+    test("drops the max times per order for other triggers", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ max_per_order: "1" }),
+      );
+      expect((await lastModifier()).max_per_order).toBeNull();
+    });
+
+    test("rejects a max times per order below 1", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ max_per_order: "0", trigger: "answer" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Max times per order must be a whole number of 1 or more",
+        false,
+      )(response);
+    });
+
+    test("rejects a fractional max times per order", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ max_per_order: "1.5", trigger: "answer" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Max times per order must be a whole number of 1 or more",
+        false,
+      )(response);
+    });
+
     test("rejects a non-numeric value", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",

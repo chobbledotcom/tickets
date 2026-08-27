@@ -7,11 +7,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import {
-  keepsWhatTheOrganiserSaw,
   newcomerReading,
   openAdminPage,
+  organiserPressesOnPage,
   type PageRead,
-  submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
 import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -29,8 +28,7 @@ const writesFrontPage = async (
   values: Record<string, string>,
 ): Promise<void> => {
   await enablePublicSite();
-  const browser = await submitRenderedAdminForm(world, path, "Save", values);
-  keepsWhatTheOrganiserSaw(world, browser);
+  await organiserPressesOnPage(world, path, "Save", values);
 };
 
 export const ownerWritesHomepage = (

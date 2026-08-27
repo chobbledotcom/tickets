@@ -119,7 +119,6 @@
     "@std/testing": "jsr:@std/testing@^1.0.17",
     "auto-console-group": "npm:auto-console-group@^1.3.0",
     "esbuild": "npm:esbuild@^0.28.0",
-    "fast-check": "npm:fast-check@^3.23.0",
     "fflate": "npm:fflate@^0.8.2",
     "happy-dom": "npm:happy-dom@^15.11.7",
     "intl-messageformat": "npm:intl-messageformat@^10",
