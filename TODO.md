@@ -1,5 +1,36 @@
 # TODO — remaining follow-ups
 
+## The stale-claim touch test failed once on a loaded runner
+
+_Origin: CI on PR #2166, commit `8f31a8c`,
+[run 33084214958](https://github.com/chobbledotcom/tickets/actions/runs/33084214958/job/98559311987).
+One test of 25,834 failed. The next run, over the superset commit `05e6f3e`,
+passed every check._
+
+`test/scripts/stale-claim/touching.test.ts` holds the test "touches the claim on
+time, so it never reads as walked away". It installs a `FakeTime` clock, which
+stubs `Date.now` and `setTimeout`. It then waits for a real disk write through
+`eventually` in `test/scripts/stale-claim/helpers.ts`. That wait is real time,
+bounded at 400 attempts of 5 ms, so about two seconds. The fake clock stays
+still while it runs. On a loaded runner, that budget is the only guard against a
+hard failure.
+
+Two readings of the code are wrong, so do not start from either. `claimAgeMs`
+looks as though it holds a fake `Date.now()` against a real file mtime. In fact
+`readClaimRecord` reads the stamp out of the file, and falls back to mtime only
+where the file names no time. Both sides are fake, so the sum is deterministic.
+The takers' guard looks as though it retries on a stubbed `setTimeout`. In fact
+`withFileLock` in `scripts/lock-file.ts` is a `for (;;)` loop around a blocking
+advisory lock, and it holds no timer.
+
+15 runs of the test alone did not reproduce the failure. The suite is dealt into
+groups whose count follows the machine, so the group that failed does not exist
+on a smaller one. Reproduce it under load, or through its whole group, before
+you change a line. The honest fix probably separates the fake clock from the
+real-time wait, which is a change to the whole stale-claim suite rather than to
+one test.
+
+---
 ## Scan the static side a class inherits
 
 _Origin: a review of PR #2166. No file in `src/` triggers it today._
@@ -10,7 +41,7 @@ A class's own static members are scanned. The syntax walk reaches them, because
 reports `typeof C.make`. The class object carries its own name, because a class
 can write one word down on both sides.
 
-An **inherited** static is still missing. `inheritedFields` asks
+An **inherited** static is still missing. `inheritedNames` asks
 `checker.getTypeAtLocation(shape.name)`, which is the instance type, and the
 syntax walk sees only the class's own members. So
 `class Base { static baseStatic = 1 }` with `export class C extends Base {}`
@@ -23,7 +54,6 @@ Ask `checker.getTypeOfSymbolAtLocation` for the class symbol as well, and put
 the two sets of properties together. Decide first how the report names a static
 field, because `C.make` reads as an instance member. Look at the report diff
 before and after.
-
 ---
 
 ## Scan a class that a module exports with no name
@@ -72,11 +102,10 @@ A probe reports `UsedDeferred.selectorNotOutput` beside the right field
 `UsedDeferred.unpaidWhenItDoesNot`. No value of `UsedDeferred` holds
 `selectorNotOutput`, so that line is a false positive.
 
-The checker already answers this for the alias itself, through
-`inheritedFields`. A start is to keep the walk out of the arguments of a
-reference whose target is a conditional type, and to leave every other generic
-as it is. `src/` exports no alias of this shape, so no line in the report
-changes today.
+The checker already answers this for the alias itself, through `inheritedNames`.
+A start is to keep the walk out of the arguments of a reference whose target is
+a conditional type, and to leave every other generic as it is. `src/` exports no
+alias of this shape, so no line in the report changes today.
 
 ---
 
