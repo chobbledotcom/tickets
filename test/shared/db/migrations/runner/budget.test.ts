@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, withTransaction } from "#db/client.ts";
 import { releaseMigrationLock } from "#db/migrations/lock.ts";
+import { recordMigrationBatch } from "#db/migrations/markers.ts";
 import {
   applyMigrationWithRetry,
   runPendingMigrations,
@@ -78,18 +79,28 @@ describeWithEnv(
   "db > migrations > runner subrequest budget against a database",
   { db: true },
   () => {
-    /** Run a batch the way a request does: one subrequest budget, one query log. */
-    const runBatch = async (pending: Migration[]): Promise<Migration[]> => {
+    /** Run `work` the way a request does: one subrequest budget, one query log,
+     *  with the migration lock held for it. */
+    const asOneRequest = async <T>(
+      work: (lockToken: string) => Promise<T>,
+    ): Promise<T> => {
       const lockToken = await takeMigrationLock();
       try {
         return await runWithSubrequestBudget(() =>
-          runWithQueryLogContext(() =>
-            runPendingMigrations(pending, lockToken),
-          ),
+          runWithQueryLogContext(() => work(lockToken)),
         );
       } finally {
         await releaseMigrationLock(lockToken);
       }
+    };
+
+    const runBatch = (pending: Migration[]): Promise<Migration[]> =>
+      asOneRequest((lockToken) => runPendingMigrations(pending, lockToken));
+
+    /** Spend the database calls this request still has, keeping `spare` back. */
+    const spendAllBut = async (spare: number): Promise<void> => {
+      const calls = getSubrequestRemaining().database - spare;
+      for (let i = 0; i < calls; i += 1) await getDb().execute("SELECT 1");
     };
 
     test("inside a request, runs as many migrations as fit and returns the finished prefix", async () => {
@@ -117,17 +128,40 @@ describeWithEnv(
       // start without a spare round-trip to roll itself back with. That refusal
       // means "no budget left", not "this migration is broken", so the batch
       // must stop and keep the migration that already finished.
-      const spendTheAllowance = async (): Promise<void> => {
-        const calls = getSubrequestRemaining().database;
-        for (let i = 0; i < calls; i += 1) await getDb().execute("SELECT 1");
-      };
       const completed = await runBatch([
-        migrationOf("spend", spendTheAllowance),
+        migrationOf("spend", () => spendAllBut(0)),
         migrationOf("rebuild", () =>
           withTransaction((tx) => tx.execute("SELECT 1")),
         ),
       ]);
       expect(completed.map((migration) => migration.id)).toEqual(["spend"]);
+    });
+
+    test("leaves the caller room to record the batch and release the lock", async () => {
+      // The held-back round-trips are the whole reason a stale database moves
+      // forward: a batch that spent every call could not write its markers, so
+      // the next request would replay the same work behind a held lock.
+      await asOneRequest(async (lockToken) => {
+        const completed = await runPendingMigrations(
+          [migrationOf("spend", () => spendAllBut(0))],
+          lockToken,
+        );
+        await recordMigrationBatch(completed, false, lockToken);
+      });
+    });
+
+    test("runs one migration on the last call the request has", async () => {
+      // With less left than the runner holds back, the batch still gets one
+      // round-trip, so a reload attempts the next migration instead of
+      // stalling on a database that can never finish updating.
+      const completed = await asOneRequest(async (lockToken) => {
+        await spendAllBut(1);
+        return await runPendingMigrations(
+          [migrationOf("one call", () => getDb().execute("SELECT 1"))],
+          lockToken,
+        );
+      });
+      expect(completed.map((migration) => migration.id)).toEqual(["one call"]);
     });
   },
 );

@@ -18,6 +18,16 @@ import {
  * the budget runs out, and reads the type rather than the message to tell that
  * refusal from a real defect. Both refusals below are raised from this state.
  */
+/** The error `work` refused with. Fails the test when it does not refuse. */
+const refusalFrom = (work: () => void): Error => {
+  try {
+    work();
+  } catch (error) {
+    return error as Error;
+  }
+  throw new Error("the work was allowed to run, so nothing refused it");
+};
+
 const withNothingLeft = (work: () => void): void =>
   runWithSubrequestBudget(() =>
     withSubrequestAllowance({ database: 0, external: 0, total: 0 }, work),
@@ -184,6 +194,53 @@ describe("combined subrequest budget", () => {
           throw new Error("reserved work must not run");
         }),
       ).toThrow(SubrequestBudgetError);
+    });
+  });
+
+  test("names itself, so a log line says which refusal this was", () => {
+    // An unnamed refusal reads as a bare Error wherever it is reported.
+    withNothingLeft(() => {
+      expect(
+        refusalFrom(() => countSubrequest("database", "blocked call")).name,
+      ).toBe("SubrequestBudgetError");
+    });
+  });
+
+  test("refuses a reserve the database calls alone cannot cover", () => {
+    // Only the database dimension is short, so a guard that demanded every
+    // dimension be short would let this reserve through.
+    runWithSubrequestBudget(() => {
+      withSubrequestAllowance({ database: 0, external: 5, total: 5 }, () => {
+        expect(() =>
+          withSubrequestReserve({ database: 1, external: 0, total: 1 }, () => {
+            throw new Error("reserved work must not run");
+          }),
+        ).toThrow("Subrequest reserve unavailable");
+      });
+    });
+  });
+
+  test("refuses a reserve the external calls alone cannot cover", () => {
+    runWithSubrequestBudget(() => {
+      withSubrequestAllowance({ database: 5, external: 0, total: 5 }, () => {
+        expect(() =>
+          withSubrequestReserve({ database: 0, external: 1, total: 1 }, () => {
+            throw new Error("reserved work must not run");
+          }),
+        ).toThrow("Subrequest reserve unavailable");
+      });
+    });
+  });
+
+  test("hands the work what is left after the tail is taken out", () => {
+    runWithSubrequestBudget(() => {
+      withSubrequestReserve({ database: 1, external: 1, total: 2 }, () => {
+        expect(getSubrequestRemaining()).toEqual({
+          database: BUNNY_SUBREQUEST_LIMIT - 1,
+          external: BUNNY_SUBREQUEST_LIMIT - 1,
+          total: BUNNY_SUBREQUEST_LIMIT - 2,
+        });
+      });
     });
   });
 
