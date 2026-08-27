@@ -4,7 +4,7 @@ Chobble Tickets is a reservation system that runs on Bunny Edge Scripting (or
 any Deno environment) with libsql, which encrypts all PII at rest and handles
 free and paid listings with Stripe, Square, or SumUp.
 
-It is developed by [Chobble CIC](https://chobble.com) - a community interest
+It is developed by [Chobble CIC](https://www.chobble.com) - a community interest
 company, which means the assets are locked to the community and cannot be sold
 off.
 
@@ -685,5 +685,5 @@ more).
 
 ## License
 
-AGPL-3.0-only - developed by [Chobble CIC](https://chobble.com), a community
+AGPL-3.0-only - developed by [Chobble CIC](https://www.chobble.com), a community
 interest company.
