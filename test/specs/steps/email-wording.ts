@@ -14,6 +14,7 @@ import {
   ownerWrites,
   SITES_OWN_WORDING,
   subjectShownBehindTheBox,
+  threeParts,
   whatTheBoxCarries,
   wordingKeptFor,
   wordingTheBoxesWouldSend,
@@ -31,16 +32,22 @@ const WHICH_EMAIL = { admin: "admin", confirmation: "confirmation" } as const;
 
 type WhichEmail = keyof typeof WHICH_EMAIL;
 
-/** A story's table of wording, read as the three parts the form offers. */
+/** A story's table of wording, read as the three parts the form offers. The
+ * table must name all three. A row left out or misspelled is not a part the
+ * owner wrote as empty, and the step that reads the wording back would agree
+ * with the same gap and pass. */
 const wordingFrom = (table: {
   rowsHash(): Record<string, string>;
 }): EmailContent => {
   const rows = table.rowsHash();
-  return {
-    html: rows.html ?? "",
-    subject: rows.subject ?? "",
-    text: rows.text ?? "",
-  };
+  const written = threeParts((part) => {
+    const row = rows[part];
+    if (row === undefined) throw new Error(`This table names no ${part}`);
+    return row;
+  });
+  const stray = Object.keys(rows).find((row) => !(row in written));
+  if (stray) throw new Error(`An email has no ${stray} to write`);
+  return written;
 };
 
 /** Wording an owner might plausibly have saved earlier. */

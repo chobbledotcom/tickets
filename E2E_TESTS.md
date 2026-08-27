@@ -165,7 +165,11 @@ what is missing. Only the old file says that.
 ```bash
 git fetch origin main
 base=$(git merge-base origin/main HEAD)      # where this branch left main
-file=test/features/admin/settings-email.test.ts   # the file you changed
+
+# the files to audit: every one the base holds
+git diff --name-only --no-renames --diff-filter=a "$base" HEAD
+
+file=test/features/admin/settings-email.test.ts   # one name from that list
 
 git diff "$base" HEAD -- "$file"             # every removed line
 git show "$base:$file"                       # the old file whole
@@ -185,9 +189,15 @@ The last command finds most claims, not all of them. A helper such as
 `testRequiresAuth` carries a claim with neither word on the line, so the
 unfiltered diff above it stays the authority.
 
-Do this for **every** file that the change touches, not only the ones that you
-deleted outright. A file that you rewrote in place hides its losses the same
-way, and the rewrites are where the real losses occurred.
+Do this for **every** file in that list, not only the ones that you deleted
+outright. A file that you rewrote in place hides its losses the same way, and
+the rewrites are where the real losses occurred.
+
+The list holds the files that the base holds. It leaves out the files that the
+change adds, for two reasons. A new file carries no earlier claims. And
+`git show "$base:$file"` exits 128 for a path that the base does not hold, which
+stops the audit before the later files. `--no-renames` keeps a file that moved,
+under the name it had at the base.
 
 Each claim ends up in exactly one of three places, and you must be able to say
 which:

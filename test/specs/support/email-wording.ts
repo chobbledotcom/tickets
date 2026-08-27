@@ -52,7 +52,7 @@ export const ownerWrites = async (
 /** An email's three parts, taken from wherever this reader finds them. Every
  * reader below answers in the same shape, so one place decides what "the
  * wording" is and none of them can leave a part out. */
-const threeParts = (
+export const threeParts = (
   of: (part: keyof EmailContent) => string,
 ): EmailContent => ({
   html: of("html"),
