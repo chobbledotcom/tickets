@@ -1759,10 +1759,10 @@ checklist for migrating an existing test into a story, and the pitfalls that
 have caught people out before.
 
 One rule from that checklist is repeated here, because it is the rule that
-people skip, and a skipped check lost real coverage more than once. **A test
-that moves into a story is a replacement, so prove that it replaced everything.
-Build the list of the old test's claims from the diff, never from the new
-file.** Name the merge base and the file once, as `base` and `file`, then read
+people skip. A skipped check lost real coverage more than once. **A test that
+moves into a story is a replacement, so prove that it replaced everything. Build
+the list of the old test's claims from the diff, never from the new file.** Name
+the merge base and the file once, as `base` and `file`, then read
 `git diff "$base" HEAD -- "$file"` and `git show "$base:$file"`. Both names stay
 quoted, and neither command reads from main's tip. Audit only a file that the
 base holds, which
