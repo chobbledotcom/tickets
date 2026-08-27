@@ -73,12 +73,12 @@ unread. Four cases do that in this repository:
 
 - A field carried by a spread. `({ title, ...props }) => ({ ...props })` moves
   every other field of the shape without naming one of them, so the six fields
-  of `WarningDeleteProps` that travel that way all report as unread. This is the
-  most common false positive by a distance.
+  of `WarningDeleteProps` that travel that way all report as unread.
 - A row written and read through the table machinery, where the column is named
   by a `dbKey` string rather than by the field.
 - A shape that crosses a boundary as JSON. The reader is another program, or a
-  person.
+  person. The 17 fields of `PublicListing` are one response body, and every one
+  of them reports as unread.
 - A value matched structurally, as `toEqual` does with an object literal.
 
 Each is a false positive, and a reader has to judge them. That is why the scan

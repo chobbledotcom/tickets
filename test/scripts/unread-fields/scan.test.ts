@@ -41,18 +41,11 @@ export const badge = <Badge label="hi" supplied="nothing reads this" />;
 `,
 
   "src/consume.ts": `
+import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
+import type { Passed } from "./shapes.ts";
 
 export const shown = String(sum.total) + report.headline;
-
-export const takeDeepOut = (): number => {
-  let deep = 0;
-  ({ deep } = report.nested);
-  return deep;
-};
-
-import type { Reached } from "./inner";
-import type { Passed } from "#shapes";
 
 export const reach = (r: Reached): number => r.total;
 
@@ -61,6 +54,12 @@ export const forward = ({ kept, ...rest }: Passed): Passed => ({
   kept: kept + 1,
 });
 
+export const takeDeepOut = (): number => {
+  let deep = 0;
+  ({ deep } = report.nested);
+  return deep;
+};
+
 export const takePatternOut = (): number => {
   let takenOutByPattern = 0;
   ({ takenOutByPattern } = sum);
@@ -68,8 +67,8 @@ export const takePatternOut = (): number => {
 };
 `,
 
-  // Reached by a directory import, which the compiler only finds after being
-  // told truthfully that "src/inner.ts" is not a file.
+  // Reached by a directory import. The compiler finds it only when the host
+  // says truthfully that "src/inner.ts" is not a file.
   "src/inner/index.ts": `
 export interface Reached {
   total: number;

@@ -58,10 +58,18 @@ const WAYS_TO_WRITE = [
   isAssignedProperty,
 ];
 
+/** Every question here is about a node and the node above it, so a node with
+ * nothing above it — a whole file — answers no before the question is put. */
+const onParent =
+  (ask: (node: ts.Node, parent: ts.Node) => boolean) =>
+  (node: ts.Node): boolean => {
+    const parent = node.parent;
+    return parent ? ask(node, parent) : false;
+  };
+
 /** Whether this literal is what an assignment writes into, following the
  * nesting of `({ inner: { total } } = row)` out to the `=`. */
-const isAssignedTo = (node: ts.Node): boolean => {
-  const parent = node.parent;
+const isAssignedTo: (node: ts.Node) => boolean = onParent((node, parent) => {
   if (ts.isBinaryExpression(parent)) {
     return (
       parent.left === node &&
@@ -72,7 +80,7 @@ const isAssignedTo = (node: ts.Node): boolean => {
   if (ts.isPropertyAssignment(parent)) return isAssignedTo(parent.parent);
   if (ts.isArrayLiteralExpression(parent)) return isAssignedTo(parent);
   return false;
-};
+});
 
 /** `({ total } = row)` and `({ total: t } = row)` are built out of the same
  * nodes as `{ total: 1 }`, so they look like writes. They are reads: the
@@ -85,9 +93,8 @@ const isDestructuringTarget = (parent: ts.Node): boolean =>
 /** True when this mention puts a value into the field. `{ total: 1 }`,
  * `row.total = 1` and `<Meter total={1} />` write it. `row.total` and
  * `const { total } = row` read it. */
-export const isWrite = (node: ts.Node): boolean => {
-  const parent = node.parent;
-  if (!parent) return false;
-  if (isDestructuringTarget(parent)) return false;
-  return WAYS_TO_WRITE.some((writes) => writes(node, parent));
-};
+export const isWrite: (node: ts.Node) => boolean = onParent((node, parent) =>
+  isDestructuringTarget(parent)
+    ? false
+    : WAYS_TO_WRITE.some((writes) => writes(node, parent)),
+);

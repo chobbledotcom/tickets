@@ -24,17 +24,17 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
   return perFolder.flat();
 };
 
+/** The scan never emits and never reads a diagnostic, so only parsing and
+ * module resolution matter. `jsx` is set because a `.tsx` file must parse as
+ * JSX. The rest tells the compiler how to find a file. */
 const compilerOptions = (
   root: string,
   paths: Record<string, string[]>,
 ): ts.CompilerOptions => ({
-  allowImportingTsExtensions: true,
   baseUrl: root,
   jsx: ts.JsxEmit.ReactJSX,
-  jsxImportSource: "#jsx",
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,
-  noEmit: true,
   paths,
   target: ts.ScriptTarget.ESNext,
 });
