@@ -103,7 +103,7 @@ const settingsBase = {
     },
     get provider(): AddressLookupSetting {
       return knownSetting(
-        "address_lookup_provider",
+        snap("address_lookup_provider"),
         isAddressLookupSetting,
         "none",
       );

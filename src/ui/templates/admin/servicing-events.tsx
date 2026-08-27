@@ -9,6 +9,7 @@ import { t } from "#i18n";
 import { adminPath } from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
+import { openSection } from "#templates/components/open-section.tsx";
 
 /** A link that opens the service event's edit page, labelled with its name. */
 export const ServicingEventEditLink = ({
@@ -48,9 +49,7 @@ const upcomingServicingRow = (event: ServicingEventSummary): JSX.Element => {
 export const upcomingServicingSection = (
   events: ServicingEventSummary[],
 ): string =>
-  String(
-    <details open>
-      <summary>{t("admin.dashboard.upcoming_service_events")}</summary>
-      <ul>{events.map(upcomingServicingRow)}</ul>
-    </details>,
+  openSection(
+    t("admin.dashboard.upcoming_service_events"),
+    <ul>{events.map(upcomingServicingRow)}</ul>,
   );

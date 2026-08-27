@@ -215,6 +215,21 @@ export const byId = <T extends { id: number }>(
   items: readonly T[],
 ): Map<number, T> => new Map(items.map((item) => [item.id, item]));
 
+/** Keep the items a test accepts, then take one thing from each. */
+export const keepAndTake =
+  <T, R>(
+    keep: (item: T) => boolean,
+    take: (item: T) => R,
+  ): ((items: readonly T[]) => R[]) =>
+  (items) =>
+    items.filter(keep).map(take);
+
+/** Whether two records hold the same value in every named field. */
+export const sameOn =
+  <T>(...fields: readonly (keyof T)[]): ((left: T, right: T) => boolean) =>
+  (left, right) =>
+    fields.every((field) => left[field] === right[field]);
+
 /** A Map holding an empty list for each key, ready to be filled. */
 export const emptyListsFor = <Key, Value>(
   keys: readonly Key[],

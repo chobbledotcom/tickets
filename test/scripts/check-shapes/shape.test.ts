@@ -159,6 +159,57 @@ describe("shapeOf", () => {
   });
 });
 
+describe("shapeOf reading a word as a name", () => {
+  test("reads a kept word used as a property as a name", () => {
+    expect(shapeOf("row.type === 1")).toEqual(shapeOf("item.kind === 1"));
+  });
+
+  test("reads a kept word used as an object key as a name", () => {
+    expect(shapeOf("({ type: 1 })")).toEqual(shapeOf("({ kind: 1 })"));
+  });
+
+  test("still keeps the same word where it is syntax", () => {
+    expect(shapeOf("typeof value")).toEqual(["typeof", "ID"]);
+    expect(shapeOf("a as B")).toEqual(["ID", "as", "ID"]);
+  });
+});
+
+describe("shapeOf reading a pattern", () => {
+  test("gives two patterns that differ only in what they match one shape", () => {
+    expect(shapeOf("/foo/.test(s)")).toEqual(shapeOf("/bar-baz/i.test(s)"));
+  });
+
+  test("reads a slash inside a character class as part of the pattern", () => {
+    expect(shapeOf("/a[/*]b/.test(s) && s.length")).toEqual([
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+      "&",
+      "&",
+      "ID",
+      ".",
+      "ID",
+    ]);
+  });
+
+  test("reads an escaped slash without ending the pattern", () => {
+    expect(shapeOf("/a\\/b/.test(s)")).toEqual(shapeOf("/xy/.test(s)"));
+  });
+
+  test("still reads a slash after a value as dividing", () => {
+    expect(shapeOf("a / b")).toEqual(["ID", "/", "ID"]);
+    expect(shapeOf("total() / 2")).toEqual(["ID", "(", ")", "/", "NUM"]);
+  });
+
+  test("still reads a comment opening with a slash as a comment", () => {
+    expect(shapeOf("/* gone */ value")).toEqual(["ID"]);
+    expect(shapeOf("value // gone")).toEqual(["ID"]);
+  });
+});
+
 describe("maskJsxText", () => {
   /** Masks the whole of `source`, given the runs a caller says are JSX text.
    * Each run is found after the one before it, so a repeated run still lands

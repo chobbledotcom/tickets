@@ -150,6 +150,46 @@ const endOfTemplate = (text: string, start: number): number => {
   return index;
 };
 
+/**
+ * Just past the `/` closing a regular expression, and its flags. A `/` inside
+ * a character class does not close one, so `/a[/]b/` is read whole.
+ */
+const endOfRegExp = (text: string, start: number): number => {
+  let index = start;
+  let inClass = false;
+  while (index < text.length) {
+    const character = text[index];
+    if (character === "\\") index += 2;
+    else if (character === "[") (inClass = true), index++;
+    else if (character === "]") (inClass = false), index++;
+    else if (character === "/" && !inClass) break;
+    else index++;
+  }
+  index++;
+  while (index < text.length && /[a-z]/.test(text[index] as string)) index++;
+  return index;
+};
+
+/**
+ * Tokens a value can end on. A `/` after one of these divides; a `/` anywhere
+ * else opens a regular expression. This is the whole of what tells the two
+ * apart without parsing, and it is what JavaScript itself relies on.
+ */
+const ENDS_A_VALUE = new Set([
+  ")",
+  "]",
+  "}",
+  "ID",
+  "NUM",
+  "RE",
+  "STR",
+  "false",
+  "null",
+  "this",
+  "true",
+  "undefined",
+]);
+
 /** One step through a body: what it read, and where to carry on. */
 interface Step {
   next: number;
@@ -174,11 +214,23 @@ const readNumber = (body: string, start: number): Step => {
   return { next: index, tokens: ["NUM"] };
 };
 
+/**
+ * Whether the word ending at `index` is being used as a name rather than as
+ * syntax. A word after a dot is a property, and a word before a colon is a key
+ * — `row.type` and `{ type: … }` are both names somebody chose, so they read
+ * as `ID` the same way `row.kind` does.
+ */
+const isUsedAsName = (body: string, start: number, index: number): boolean => {
+  if (body.slice(0, start).trimEnd().endsWith(".")) return true;
+  return body.slice(index).trimStart().startsWith(":");
+};
+
 const readWord = (body: string, start: number): Step => {
   let index = start + 1;
   while (index < body.length && isWordPart(body[index] as string)) index++;
   const word = body.slice(start, index);
-  return { next: index, tokens: [KEPT_WORDS.has(word) ? word : "ID"] };
+  const kept = KEPT_WORDS.has(word) && !isUsedAsName(body, start, index);
+  return { next: index, tokens: [kept ? word : "ID"] };
 };
 
 /**
@@ -202,12 +254,16 @@ const readTemplate = (body: string, start: number): Step => {
   return { next, tokens };
 };
 
-/** What sits at `index`, and where whatever follows it begins. */
-const stepAt = (body: string, index: number): Step => {
+/** What sits at `index`, and where whatever follows it begins. The token
+ *  before it decides whether a `/` divides or opens a pattern. */
+const stepAt = (body: string, index: number, before?: string): Step => {
   const character = body[index] as string;
   if (/\s/.test(character)) return { next: index + 1, tokens: [] };
   if (character === "/" && /[/*]/.test(body[index + 1] ?? "")) {
     return { next: endOfComment(body, index), tokens: [] };
+  }
+  if (character === "/" && !ENDS_A_VALUE.has(before ?? "")) {
+    return { next: endOfRegExp(body, index + 1), tokens: ["RE"] };
   }
   if (character === "`") return readTemplate(body, index);
   if (character === '"' || character === "'") {
@@ -227,7 +283,7 @@ export const shapeOf = (body: string): string[] => {
   const shape: string[] = [];
   let index = 0;
   while (index < body.length) {
-    const step = stepAt(body, index);
+    const step = stepAt(body, index, shape[shape.length - 1]);
     shape.push(...step.tokens);
     index = step.next;
   }

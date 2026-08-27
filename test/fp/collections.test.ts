@@ -13,12 +13,14 @@ import {
   isNotNullish,
   isNullish,
   joinStrings,
+  keepAndTake,
   map,
   mapBy,
   mapById,
   partition,
   pipe,
   requiredMapValue,
+  sameOn,
   sameOrder,
   sumByKey,
 } from "#fp";
@@ -373,5 +375,78 @@ describe("sameOrder", () => {
     expect(sameOrder(new Uint8Array([1, 2]), new Uint8Array([1, 3]))).toBe(
       false,
     );
+  });
+});
+
+describe("keepAndTake", () => {
+  const rows = [
+    { group: "EU", id: 1 },
+    { group: "US", id: 2 },
+    { group: "EU", id: 3 },
+  ];
+
+  test("takes one thing from each item the test accepts", () => {
+    expect(
+      keepAndTake(
+        (r: (typeof rows)[number]) => r.group === "EU",
+        (r) => r.id,
+      )(rows),
+    ).toEqual([1, 3]);
+  });
+
+  test("gives nothing when the test accepts nothing", () => {
+    expect(
+      keepAndTake(
+        (r: (typeof rows)[number]) => r.group === "AU",
+        (r) => r.id,
+      )(rows),
+    ).toEqual([]);
+  });
+
+  test("keeps the order the items came in", () => {
+    expect(
+      keepAndTake(
+        (r: (typeof rows)[number]) => r.id > 0,
+        (r) => r.group,
+      )(rows),
+    ).toEqual(["EU", "US", "EU"]);
+  });
+});
+
+describe("sameOn", () => {
+  const matches = sameOn<{ amount: number; currency: string; note: string }>(
+    "amount",
+    "currency",
+  );
+
+  test("matches two records that agree on every named field", () => {
+    expect(
+      matches(
+        { amount: 5, currency: "GBP", note: "one" },
+        { amount: 5, currency: "GBP", note: "two" },
+      ),
+    ).toBe(true);
+  });
+
+  test("refuses a difference in the first named field", () => {
+    expect(
+      matches(
+        { amount: 5, currency: "GBP", note: "" },
+        { amount: 6, currency: "GBP", note: "" },
+      ),
+    ).toBe(false);
+  });
+
+  test("refuses a difference in the last named field", () => {
+    expect(
+      matches(
+        { amount: 5, currency: "GBP", note: "" },
+        { amount: 5, currency: "USD", note: "" },
+      ),
+    ).toBe(false);
+  });
+
+  test("matches anything when no field is named", () => {
+    expect(sameOn<{ a: number }>()({ a: 1 }, { a: 2 })).toBe(true);
   });
 });

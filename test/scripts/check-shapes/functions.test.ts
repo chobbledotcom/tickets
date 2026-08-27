@@ -50,26 +50,48 @@ describe("namedFunctions", () => {
   });
 
   test("names an arrow held by an object property", () => {
-    expect(names("const handlers = { save: (a) => a + 1 };")).toEqual(["save"]);
+    expect(names("const handlers = { save: (a) => a + 1 };")).toEqual([
+      "handlers.save",
+    ]);
   });
 
   test("names an object method", () => {
     expect(names("const handlers = { save(a) { return a; } };")).toEqual([
-      "save",
+      "handlers.save",
     ]);
   });
 
   test("names a class method", () => {
-    expect(names("class A { save(a) { return a; } }")).toEqual(["save"]);
+    expect(names("class A { save(a) { return a; } }")).toEqual(["A.save"]);
   });
 
   test("names a class field holding an arrow", () => {
-    expect(names("class A { save = (a) => a; }")).toEqual(["save"]);
+    expect(names("class A { save = (a) => a; }")).toEqual(["A.save"]);
   });
 
-  test("names a function expression by its own name over the variable's", () => {
+  test("names a function expression by its own name as well as the variable's", () => {
     expect(names("const outer = function inner() { return 1; };")).toEqual([
-      "inner",
+      "outer.inner",
+    ]);
+  });
+});
+
+describe("namedFunctions naming what a function sits inside", () => {
+  test("names a method by its object as well as itself", () => {
+    expect(names("const handlers = { save() { return 1; } };")).toEqual([
+      "handlers.save",
+    ]);
+  });
+
+  test("tells two methods of the same name in one file apart", () => {
+    expect(
+      names("const a = { save: () => 1 }; const b = { save: () => 2 };"),
+    ).toEqual(["a.save", "b.save"]);
+  });
+
+  test("names a class method by its class", () => {
+    expect(names("class Ledger { post(a) { return a; } }")).toEqual([
+      "Ledger.post",
     ]);
   });
 });

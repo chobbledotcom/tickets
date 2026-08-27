@@ -44,6 +44,24 @@ const isFrozen = (file: string): boolean =>
 export const isSharedMechanism = (file: string): boolean =>
   /(^|\/)fp\.ts$/.test(file);
 
+/**
+ * The names one file's functions go by, with `@1`, `@2` in source order where
+ * two of them share a name. A key has to name one function, and even a fully
+ * qualified name repeats — two callbacks in one object's entries, say.
+ */
+const distinctNames = (found: readonly { name: string }[]): string[] => {
+  const totals = new Map<string, number>();
+  for (const one of found)
+    totals.set(one.name, (totals.get(one.name) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return found.map((one) => {
+    if ((totals.get(one.name) as number) === 1) return one.name;
+    const nth = (seen.get(one.name) ?? 0) + 1;
+    seen.set(one.name, nth);
+    return `${one.name}@${nth}`;
+  });
+};
+
 /** Every named function body under the given roots. */
 export const collectSites = async (
   roots: readonly string[],
@@ -55,15 +73,17 @@ export const collectSites = async (
       const source = await Deno.readTextFile(file);
       const { program } = parseSync(file, source);
       const jsxText = jsxTextSpans(program);
-      for (const found of namedFunctions(program, source)) {
+      const found = namedFunctions(program, source);
+      const names = distinctNames(found);
+      found.forEach((one, index) => {
         sites.push({
-          body: source.slice(found.start, found.end),
+          body: source.slice(one.start, one.end),
           file,
-          line: found.line,
-          masked: maskJsxText(source, found, jsxText),
-          name: found.name,
+          line: one.line,
+          masked: maskJsxText(source, one, jsxText),
+          name: names[index] as string,
         });
-      }
+      });
     }
   }
   return sites;

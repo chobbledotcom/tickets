@@ -36,6 +36,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { nowIso } from "#shared/now.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
+import { replacing } from "#shared/replacements.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
@@ -44,12 +45,12 @@ import {
 import type { Attendee, NewsPostSummary } from "#types";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
-export const escapeIcs = (text: string): string =>
-  text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
+export const escapeIcs = replacing(
+  [/\\/g, "\\\\"],
+  [/;/g, "\\;"],
+  [/,/g, "\\,"],
+  [/\n/g, "\\n"],
+);
 
 /** Escape text for XML (extends HTML escaping with apostrophe) */
 export const escapeXml = (text: string): string =>

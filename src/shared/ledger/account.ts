@@ -1,5 +1,6 @@
 /** Pure helpers for account identity. */
 
+import { sameOn } from "#fp";
 import type { AccountRef } from "./types.ts";
 
 /**
@@ -15,8 +16,7 @@ export const accountKey = (a: AccountRef): string =>
   `${a.type}${ACCOUNT_KEY_SEPARATOR}${a.id}`;
 
 /** Structural equality of two account references. */
-export const sameAccount = (a: AccountRef, b: AccountRef): boolean =>
-  a.type === b.type && a.id === b.id;
+export const sameAccount = sameOn<AccountRef>("type", "id");
 
 /** Build an account reference, stringifying a numeric row id. */
 export const account = (type: string, id: number | string): AccountRef => ({

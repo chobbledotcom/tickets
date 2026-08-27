@@ -56,6 +56,19 @@ const lineAt = (source: string, offset: number): number => {
   return line;
 };
 
+/**
+ * The full name of a function: the names it sits inside, then its own. A leaf
+ * name alone is not enough, because one file can hold several `save` methods.
+ */
+const qualify = (
+  name: string | null,
+  within: readonly string[],
+): string | null => {
+  if (name === null) return null;
+  const path = within.at(-1) === name ? within : [...within, name];
+  return path.join(".");
+};
+
 /** This node's body, when it is a function with a name to report it by. Every
  * type in {@link FUNCTION_TYPES} carries a body: a function written without one
  * parses as `TSDeclareFunction`, which is not in the set. */
@@ -74,27 +87,39 @@ const functionBody = (
   };
 };
 
+/** One node, the name in scope for it, and the names it sits inside. */
+interface Found {
+  name: string | null;
+  node: AstNode;
+  within: readonly string[];
+}
+
 /**
- * Every node in the tree, each carrying the variable name in scope for it.
- * `const format = (value) => …` puts `format` in scope for the arrow beside
- * it, and so do a property, a class member and an object method. Nothing else
- * passes a name down, so the arrow inside a curried factory is not named again
- * and the factory reports once.
+ * Every node in the tree, each carrying the variable name in scope for it and
+ * the names it sits inside. `const format = (value) => …` puts `format` in
+ * scope for the arrow beside it, and so do a property, a class member and an
+ * object method. Nothing else passes a name down, so the arrow inside a curried
+ * factory is not named again and the factory reports once.
+ *
+ * The names it sits inside build up separately, because two methods called
+ * `save` in one file are two functions, and a finding has to say which.
  */
 function* walk(
   node: unknown,
   assignedName: string | null,
-): Generator<{ name: string | null; node: AstNode }> {
+  within: readonly string[],
+): Generator<Found> {
   if (Array.isArray(node)) {
-    for (const child of node) yield* walk(child, null);
+    for (const child of node) yield* walk(child, null, within);
     return;
   }
   if (!isAstNode(node)) return;
-  const name = declaredName(node) ?? assignedName;
-  yield { name, node };
-  const passDown = NAMING_TYPES.has(node.type) ? name : null;
+  const own = declaredName(node);
+  yield { name: own ?? assignedName, node, within };
+  const passDown = NAMING_TYPES.has(node.type) ? (own ?? assignedName) : null;
+  const inside = own === null ? within : [...within, own];
   for (const [key, value] of Object.entries(node)) {
-    if (key !== "type") yield* walk(value, passDown);
+    if (key !== "type") yield* walk(value, passDown, inside);
   }
 }
 
@@ -103,9 +128,9 @@ export const namedFunctions = (
   program: unknown,
   source: string,
 ): NamedFunction[] =>
-  mapNotNullish(({ name, node }: { name: string | null; node: AstNode }) =>
-    functionBody(node, name, source),
-  )([...walk(program, null)]);
+  mapNotNullish(({ name, node, within }: Found) =>
+    functionBody(node, qualify(name, within), source),
+  )([...walk(program, null, [])]);
 
 /**
  * Every run of literal text inside JSX, in the order it appears. `<b>Save</b>`
@@ -117,4 +142,4 @@ export const jsxTextSpans = (program: unknown): Span[] =>
     node.type === "JSXText"
       ? { end: node.end as number, start: node.start as number }
       : null,
-  )([...walk(program, null)]);
+  )([...walk(program, null, [])]);
