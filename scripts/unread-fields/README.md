@@ -7,7 +7,7 @@ nix develop -c deno task unread-fields
 ```
 
 The scan takes a few minutes. It prints a line per reported field, and it does
-not gate. It reports about one exported field in seven. Most of those are the
+not gate. It reports about one exported field in eight. Most of those are the
 false positives listed below, so the report is a place to start.
 
 ## Why the type checker
@@ -23,6 +23,14 @@ The scan asks TypeScript instead. It builds a program over `src`, and over
 translates the import map's `#` aliases into what the compiler expects, and asks
 the language service who refers to each field. The answer is per symbol, so the
 four other `failed` mentions do not count.
+
+It asks with the options the repository asks for, out of `deno.json`. That
+matters more than it looks. Under `strict`, an `if (!result.ok)` narrows a
+result to its failure arm, and the read of `result.error` inside belongs to the
+field that arm declares. Without it the compiler narrows differently and the
+read lands elsewhere, so the field looks dead. 46 fields reported as never read
+under the wrong options, and every one of them is read by production. Almost all
+were called `error`, `reason`, `response` or `detail`.
 
 The report is about `src`, so a checkout without it fails rather than reports. A
 run that says every one of no fields is read reads like a clean bill.
