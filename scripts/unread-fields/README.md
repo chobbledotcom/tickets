@@ -61,8 +61,10 @@ A conditional type is the same idea. `true extends true ? A : B` answers with
 parameter has no answer yet, and both arms count.
 
 A shape the file keeps to itself does not count. Neither does a member a class
-keeps to itself, nor a type written inside one. A static block holds only code,
-so a type declared inside one does not count either.
+keeps to itself, nor a type written inside one. A `private` on a constructor
+parameter is the one exception. The word hides the field, and the constructor
+stays everyone's to call, so the type a caller supplies still counts. A static
+block holds only code, so a type declared inside one does not count either.
 
 `C.made` and `held.made` are two fields. A static belongs to the class object,
 and the report calls that object `typeof C`, which is what TypeScript calls it.
@@ -123,6 +125,13 @@ delete takes the field away, and the second names the field to borrow its type.
 Neither takes the value out, which is the only question the scan asks, so both
 sit on the write side of it.
 
+A name in brackets can borrow a type the same way.
+`interface Uses {
+[Registry.key]: string }` works its name out while the file
+compiles, and nothing evaluates it when the program runs. So does a member of a
+class the program never builds. An object literal and a real class both work
+their key out as they run, so both read.
+
 `{ ["total"]: 1 }` supplies the field exactly as `{ total: 1 }` does, and
 `({ ["total"]: held } = row)` takes it out exactly as `({ total: held } = row)`
 does. The brackets change nothing, so the scan puts its question to the brackets
@@ -137,7 +146,9 @@ because its operand must be a property reference.
 `class C extends r.total {}` is the odd one. The compiler counts the clause it
 sits in as a type. The program still reads the field when it runs, to find the
 class to build on. An interface's `extends`, and every `implements`, read
-nothing.
+nothing. Neither does a class the program never builds. A `declare class`, a
+class inside a `declare namespace`, and every declaration in a `.d.ts` file
+describe a class that exists somewhere else.
 
 Two ways of writing a field give it a namesake, and the compiler answers a
 lookup for either name with both. `constructor(public total: number)` declares a
@@ -153,9 +164,9 @@ writes. In `const s = { sum: total }` and `class S { sum = total }`, `total` is
 the value rather than the name, so both read it.
 
 A field is reported when nothing reads it, or when only a test does. `test/`
-counts as tests, and so does `scripts/email-sandbox-e2e/`, which is a live
-end-to-end harness. A field only its tests read is kept alive by those tests. No
-production code needs it, so it is dead under another name.
+counts as tests, and so do `scripts/email-sandbox-e2e/` and `e2e-payments/`,
+which are live end-to-end harnesses. A field only its tests read is kept alive
+by those tests. No production code needs it, so it is dead under another name.
 
 ## What it cannot see
 
@@ -174,7 +185,10 @@ unread. Four cases do that in this repository:
 
 A line names the field the way code reaches it. A plain word goes after a dot,
 as `Sum.total`. Any other name takes brackets and quotes, as `Row["has.a.dot"]`,
-so a name that holds a dot cannot read like a path.
+so a name that holds a dot cannot read like a path. A member with no name of its
+own gets the way a reader reaches through it instead: `Callable["()"]` for a
+call signature, `Constructable["new ()"]` for a construct signature, and
+`Bag["[]"]` for an index signature.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start looking, not a verdict.
