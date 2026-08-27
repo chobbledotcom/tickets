@@ -19,6 +19,24 @@ describe("the folders the scan reads", () => {
       await Deno.remove(root, { recursive: true });
     }
   });
+
+  test("scans a repository whose deno.json has no import map", async () => {
+    // Most Deno repositories declare no aliases at all. One of those has
+    // nothing to translate, and the scan reads it like any other.
+    const root = await Deno.makeTempDir({ prefix: "unread-fields-noimp-" });
+    try {
+      await Deno.mkdir(`${root}/src`);
+      await Deno.writeTextFile(`${root}/deno.json`, JSON.stringify({}));
+      await Deno.writeTextFile(
+        `${root}/src/shapes.ts`,
+        "export interface Sum { total: number }\n",
+      );
+      const found = await scanUnreadFields(root);
+      expect(found.map((f) => `${f.owner}.${f.field}`)).toEqual(["Sum.total"]);
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
 });
 
 describe("the reads the scan counts", () => {
