@@ -30,12 +30,10 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Current");
       expect(html).toContain("From attendee data");
-      // The stored 9 and the recounted 2 must both be on the page, or the
-      // operator cannot see what they are about to change.
-      await Deno.writeTextFile(
-        "/tmp/claude-0/-home-user-tickets/9375e6cc-caf5-549b-b40a-a36cbe28aaab/scratchpad/recalc.html",
-        html,
-      );
+      // Stored 9 and 5 beside the one booking's 1 and 1, or the operator
+      // cannot see what they are about to change.
+      expect(html).toContain("<td>9</td><td>1</td>");
+      expect(html).toContain("<td>5</td><td>1</td>");
     });
 
     test("is a 404 for a listing id that does not exist", async () => {
