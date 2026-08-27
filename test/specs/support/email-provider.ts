@@ -127,6 +127,17 @@ export const providerTheBoxShows = async (
     PROVIDER_FIELD,
   );
 
+/** The address the page puts back in the from-address box, read as the browser
+ * would submit it. The route ignores an empty from-address and keeps the stored
+ * one, so nothing downstream notices a page that stopped filling the box in. */
+export const fromAddressTheBoxShows = async (
+  world: TicketsWorld,
+): Promise<string | null> =>
+  (await openAdminPage(world, ADVANCED_PATH)).wouldSendAt(
+    CONNECT_PATH,
+    FROM_FIELD,
+  );
+
 /** Whether the owner really has a way to send a test: a button that is not
  * switched off, on a form that posts to the test address. A heading that says
  * "Send Test Email" beside no such button offers nobody anything. */

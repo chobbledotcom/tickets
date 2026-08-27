@@ -176,10 +176,10 @@ Change the `file=` line and run the block as it stands. Both names are quoted,
 because a bare `<file>` placeholder is redirection to a shell, not a hole to
 fill in.
 
-Name the merge base once and read every command from it. Reading from
-`origin/main` instead takes main's tip, so a branch that started before the
-newest main commits compares two different bases. An upstream change then reads
-as a claim that this branch lost, or hides one that it did.
+Name the merge base once and read every command from it. If you read from
+`origin/main` instead, the command takes main's tip. A branch that started
+before the newest main commits then compares two different bases. An upstream
+change reads as a claim that this branch lost, or hides one that it did.
 
 The last command finds most claims, not all of them. A helper such as
 `testRequiresAuth` carries a claim with neither word on the line, so the

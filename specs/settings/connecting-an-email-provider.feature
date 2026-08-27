@@ -41,6 +41,7 @@ Feature: The owner connects the site to an email provider
     @case:email.switching-provider-without-retyping-the-key
     Scenario: The owner changes provider and leaves the key box empty
       Given the site sends through "resend" from "from@example.com"
+      Then the from-address box still shows "from@example.com"
       When the owner changes the provider to "postmark", filling nothing else in
       Then the owner is told the email settings were updated
       And the site is set to send through "postmark" from "from@example.com"

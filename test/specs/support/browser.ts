@@ -270,7 +270,7 @@ export const withAdminPage = async (
  * named by where it posts or by the words on its button — and what to fill in.
  * The three senders below differ only in how the form is picked and in what
  * they hand back, so the shape is written once. */
-export type SendingOnAPage<Answer> = (
+type SendingOnAPage<Answer> = (
   world: TicketsWorld,
   path: string,
   picked: string,

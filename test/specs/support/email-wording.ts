@@ -132,11 +132,14 @@ export const whatTheBoxCarries = (
   page: string,
   box: string,
 ): { fillsInWith: string | null; hint: string | null } => {
+  // Each name must start after a space. A word boundary would also match the
+  // tail of `data-id` or `data-placeholder`, so a page that renamed the real
+  // attribute would still answer, with the wrong value.
   const tag = page.match(
-    new RegExp(`<textarea\\b[^>]*\\bid="${box}"[^>]*>`, "i"),
+    new RegExp(`<textarea\\b[^>]*(?<=\\s)id="${box}"[^>]*>`, "i"),
   )?.[0];
   const attribute = (name: string): string | null => {
-    const carried = tag?.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
+    const carried = tag?.match(new RegExp(`(?<=\\s)${name}="([^"]*)"`))?.[1];
     return carried === undefined ? null : decodeEntities(carried);
   };
   return {

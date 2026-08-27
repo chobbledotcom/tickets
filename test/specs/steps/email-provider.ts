@@ -4,6 +4,7 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
+  fromAddressTheBoxShows,
   howTheSiteSends,
   KEY_ALREADY_GIVEN,
   offersATestSend,
@@ -97,7 +98,10 @@ When(
 When(
   "the owner changes the provider to {string}, filling nothing else in",
   function (this: TicketsWorld, provider: string): Promise<void> {
-    return ownerConnects(this, { from: "", key: "", provider });
+    // Only the provider. Naming the other boxes would send what this step
+    // chose rather than what the page put in them, and the route ignores an
+    // empty from-address, so the send would prove nothing about either.
+    return ownerConnects(this, { provider });
   },
 );
 
@@ -190,6 +194,13 @@ Then(
     expect(await activityMessages()).toContain(
       await settingsCopy("success.email_settings_updated"),
     );
+  },
+);
+
+Then(
+  "the from-address box still shows {string}",
+  async function (this: TicketsWorld, from: string): Promise<void> {
+    expect(await fromAddressTheBoxShows(this)).toBe(from);
   },
 );
 
