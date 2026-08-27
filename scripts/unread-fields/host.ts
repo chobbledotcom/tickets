@@ -18,9 +18,9 @@ export const answered = <T>(value: T | undefined, what: string): T => {
 };
 
 /** The two ways a probe can find nothing: no such path, or a path whose parent
- * is a file. Any other failure is a broken checkout or a permission the scan
- * does not have, and a file dropped for one of those would shrink the report
- * without saying so. */
+ * is a file. Every other failure means a broken checkout, or a permission the
+ * scan does not hold. A file dropped for one of those shrinks the report in
+ * silence, so the scan raises it. */
 const isAbsence = (error: unknown): boolean =>
   error instanceof Deno.errors.NotFound ||
   error instanceof Deno.errors.NotADirectory;

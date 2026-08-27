@@ -154,6 +154,23 @@ describe("the shapes the scan finds", () => {
     ).toBe("never read");
   });
 
+  test("leaves out a field that only a type parameter's constraint holds", () => {
+    // `<T extends { id: number }>` describes T, exactly as a shape's own type
+    // parameters do, so `id` is no field the shape hands out.
+    expect(
+      scanned.all.filter((f) => f.owner.startsWith("HandsAnObjectOver.mapped")),
+    ).toEqual([]);
+  });
+
+  test("sees a field written down with a quoted name", () => {
+    // `n["quoted-name"]` reaches it, so it is a field like any other.
+    expect(verdictOf("NamedByALiteral", "quoted-name")).toBe("read");
+  });
+
+  test("sees a field written down with a number", () => {
+    expect(verdictOf("NamedByALiteral", "1")).toBe("never read");
+  });
+
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "AnsweredAgain.answeredTwice",
@@ -190,6 +207,7 @@ describe("the shapes the scan finds", () => {
       "FromAShorthand.readInItsOwnFile",
       "FromAShorthand.readsLikeAField",
       "FromAShorthand.writtenInFull",
+      "HandsAnObjectOver.mapped",
       "HandsAnObjectOver.takesAnObject",
       "HandsAnObjectOver.takesAnObject.insideAParameter",
       "HoldsAClass.builtOnByAChild",
@@ -198,6 +216,9 @@ describe("the shapes the scan finds", () => {
       "Intersects.fromAnIntersection",
       "Intersects.ofItsOwnAgain",
       "ListExported.onlyInAList",
+      "NamedByALiteral.1",
+      "NamedByALiteral.plainName",
+      "NamedByALiteral.quoted-name",
       "NamedItsParameter.onlyTheConstructorNamesIt",
       "NamedItsParameter.takenOutByADestructure",
       "NestsTheSameName.inside",

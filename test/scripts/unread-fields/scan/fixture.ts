@@ -55,6 +55,7 @@ import {
   type FromAShorthand,
   type HandsAnObjectOver,
   type HoldsAClass,
+  type NamedByALiteral,
   NamedItsParameter,
   type Passed,
   type WrittenByARest,
@@ -115,6 +116,9 @@ export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
 export const handOver = (h: HandsAnObjectOver): void => {
   h.takesAnObject({ insideAParameter: 1 });
 };
+
+export const readAQuotedName = (n: NamedByALiteral): string =>
+  n["quoted-name"];
 `,
 
   // Reached by a directory import. The compiler finds it only when the host
@@ -335,6 +339,13 @@ export interface HoldsAClass {
 
 export interface HandsAnObjectOver {
   takesAnObject: (made: { insideAParameter: number }) => void;
+  mapped<T extends { onlyInAConstraint: number }>(value: T): void;
+}
+
+export interface NamedByALiteral {
+  "quoted-name": string;
+  1: string;
+  plainName: string;
 }
 
 interface FirstArm {

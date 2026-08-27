@@ -94,7 +94,7 @@ const exportedShapes = (
  * read points at whichever arm it holds. The first name says where a reader
  * has to go, and the rest are the other places a read can point at. */
 interface OwnedField {
-  names: [ts.Identifier, ...ts.Identifier[]];
+  names: [FieldName, ...FieldName[]];
   owner: string;
 }
 
@@ -119,19 +119,28 @@ const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
 
-/** The identifier a declaration is named by. An index signature has no name,
- * and a quoted or `#private` member is not named by an identifier, so neither
- * is a field the scan can look up. */
-const nameOf = (node: ts.Node): ts.Identifier | undefined => {
+/** A field's name as it is written down. `row["status-code"]` reaches the
+ * same member as `row.total`, so a quoted or numbered name counts. A computed
+ * name is worked out when the program runs, and a `#private` one is nobody
+ * else's to reach, so neither is a field the scan can look up. */
+type FieldName = ts.Identifier | ts.StringLiteral | ts.NumericLiteral;
+
+const isFieldName = (node: ts.Node): node is FieldName =>
+  ts.isIdentifier(node) ||
+  ts.isStringLiteral(node) ||
+  ts.isNumericLiteral(node);
+
+/** The name a declaration is written down by. An index signature has none. */
+const nameOf = (node: ts.Node): FieldName | undefined => {
   if (isHidden(node)) return;
   const { name } = node as ts.NamedDeclaration;
-  return name && ts.isIdentifier(name) ? name : undefined;
+  return name && isFieldName(name) ? name : undefined;
 };
 
 /** The same question asked of a shape's own syntax, where a node has to be a
  * member before its name is a field. The checker needs no such guard, because
  * it hands back properties and nothing else. */
-const fieldNameOf = (node: ts.Node): ts.Identifier | undefined =>
+const fieldNameOf = (node: ts.Node): FieldName | undefined =>
   holdsAField(node) ? nameOf(node) : undefined;
 
 /** Whether a shape takes fields from somewhere else. An alias always does,
@@ -154,7 +163,7 @@ const partsOf = (type: ts.Type): readonly ts.Type[] =>
  * and the scan has no identifier to look up. A library's own members are
  * written down, but not by this repository: `Config["total"]` resolves to
  * `number`, which carries `toFixed`. */
-const writtenNames = (property: ts.Symbol): ts.Identifier[] =>
+const writtenNames = (property: ts.Symbol): FieldName[] =>
   mapNotNullish(nameOf)(
     (property.declarations ?? []).filter(
       (at) => !at.getSourceFile().isDeclarationFile,
@@ -166,10 +175,10 @@ const writtenNames = (property: ts.Symbol): ts.Identifier[] =>
  * to itself, and `CheckoutIntent` intersects one. A reader of either reaches
  * those fields like any other. A field the shape declares again is already
  * counted. */
-type NamesByField = Map<string, [ts.Identifier, ...ts.Identifier[]]>;
+type NamesByField = Map<string, [FieldName, ...FieldName[]]>;
 
 /** Remember one more place a field is written down. */
-const rememberName = (byField: NamesByField, name: ts.Identifier): void => {
+const rememberName = (byField: NamesByField, name: FieldName): void => {
   const found = byField.get(name.text);
   if (found) found.push(name);
   else byField.set(name.text, [name]);
@@ -241,7 +250,7 @@ const exportedFields = (
         counted.add(inside);
         found.push({ names: [name], owner });
       }
-      ts.forEachChild(node, (child) => collect(inside, child));
+      for (const child of membersOf(node)) collect(inside, child);
       return;
     }
     // `Extract<Result, { ok: true }>` names a filter, not a member. The walk
@@ -287,7 +296,7 @@ const readsHere = (
  * `{ value }` declares the field out of a local, and that local is there for
  * the whole file. This says where the namesake lives, or nothing when the
  * field has none. */
-const livesBesideANamesake = (field: ts.Identifier): ts.Node | undefined => {
+const livesBesideANamesake = (field: FieldName): ts.Node | undefined => {
   const holder = field.parent;
   if (ts.isParameterPropertyDeclaration(holder, holder.parent)) {
     return holder.parent;
@@ -300,7 +309,7 @@ const livesBesideANamesake = (field: ts.Identifier): ts.Node | undefined => {
 /** Where a field has a namesake, a plain mention of the name is the namesake
  * and no value leaves the field. `this.value` and `const { value } = held`
  * name the field, and so does every mention outside the namesake's reach. */
-const namesTheNamesakeOf = (field: ts.Identifier): AskAboutAMention => {
+const namesTheNamesakeOf = (field: FieldName): AskAboutAMention => {
   const namesake = livesBesideANamesake(field);
   if (!namesake) return () => false;
   const withinReach = isInside(namesake);
@@ -314,7 +323,7 @@ const readersOfName = (
   service: ts.LanguageService,
   program: ts.Program,
   root: string,
-  field: ts.Identifier,
+  field: FieldName,
 ): string[] => {
   const references = answered(
     service.findReferences(field.getSourceFile().fileName, field.getStart()),
@@ -337,7 +346,7 @@ const readersOf = (
   service: ts.LanguageService,
   program: ts.Program,
   root: string,
-  names: readonly ts.Identifier[],
+  names: readonly FieldName[],
 ): string[] =>
   unique(names.flatMap((name) => readersOfName(service, program, root, name)));
 

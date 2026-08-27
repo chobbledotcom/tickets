@@ -1,5 +1,27 @@
 # TODO — remaining follow-ups
 
+## Scan a class that a module exports with no name
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`isShape` in `scripts/unread-fields/scan.ts` needs a class to carry a name,
+because `Shape` is typed `& { name: ts.Identifier }` and every later step starts
+from that name: the owner in the report, and
+`checker.getTypeAtLocation(shape.name)`. So
+`export default class { visible = 1 }` contributes no field, although an
+importer reaches `visible` like any other. A probe reproduces it.
+
+`src/` holds no default-exported class. The 26 `export default` lines under
+`src/shared/db/migrations/` all export the result of a call.
+
+The fix needs an owner name for a class that has none, and the type has to let
+`shape.name` be absent. Take the type from the declaration instead of from the
+name, and give the report a word for the default export. Look at the report diff
+before and after, because the owner column changes for every shape the change
+touches.
+
+---
+
 ## Let the unread-fields scan resolve a valibot shape
 
 _Origin: a review of PR #2166. Measured, real, and larger than that PR._
