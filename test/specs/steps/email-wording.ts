@@ -9,10 +9,12 @@ import { settingsCopy } from "#test/specs/support/email-provider.ts";
 import {
   BOXES_WITH_A_DEFAULT,
   defaultTheBoxOffers,
+  emailTheSiteWouldSend,
   ownerAlreadyWrote,
   ownerWrites,
   SITES_OWN_WORDING,
   wordingKeptFor,
+  wordingTheBoxesWouldSend,
 } from "#test/specs/support/email-wording.ts";
 import {
   requiredWorldValue,
@@ -86,12 +88,18 @@ Then(
 
 Then(
   "the site's own wording shows through the empty boxes",
-  function (this: TicketsWorld): void {
+  async function (this: TicketsWorld): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    // The site's real defaults, read from the module that supplies them, so a
-    // page showing some other wording as its placeholder fails here.
     for (const which of ["confirmation", "admin"] as const) {
+      // The site's real defaults, read from the module that supplies them, so
+      // a page showing some other wording behind the boxes fails here.
       expect(page).toContain(DEFAULT_TEMPLATES[which].subject);
+      // "Behind" and not "in": every box is empty until the owner writes in
+      // it. A page that filled one in would store the site's own wording as
+      // the owner's the first time they pressed Save.
+      expect(await wordingTheBoxesWouldSend(this, which)).toEqual(
+        SITES_OWN_WORDING,
+      );
     }
   },
 );
@@ -129,7 +137,16 @@ Then(
 Then(
   "the {word} email goes back to the site's own wording",
   async function (this: TicketsWorld, which: WhichEmail): Promise<void> {
-    expect(await wordingKeptFor(WHICH_EMAIL[which])).toEqual(SITES_OWN_WORDING);
+    const email = WHICH_EMAIL[which];
+    // Nothing of the owner's own left on file...
+    expect(await wordingKeptFor(email)).toEqual(SITES_OWN_WORDING);
+    // ...and the email that would go out is the site's again, not a blank one.
+    // Clearing the boxes and falling back are two separate things, and a story
+    // about what the site sends has to see the second one happen.
+    const sent = await emailTheSiteWouldSend(email);
+    for (const part of ["subject", "html", "text"] as const) {
+      expect(sent[part]).not.toBe("");
+    }
   },
 );
 

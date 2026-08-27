@@ -9,9 +9,17 @@
 // jscpd:ignore-start
 
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import {
+  buildTemplateData,
+  renderEmailContent,
+} from "#shared/email-renderer.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
-import { organiserSendsTheFormAt } from "#test/specs/support/browser.ts";
+import {
+  openAdminPage,
+  organiserSendsTheFormAt,
+} from "#test/specs/support/browser.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { makeTestEntry } from "#test-utils/factories.ts";
 import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 import type { EmailTemplateType } from "#types";
 
@@ -55,6 +63,43 @@ export const SITES_OWN_WORDING: EmailContent = {
   html: "",
   subject: "",
   text: "",
+};
+
+/** What every box on one template's form would send right now, read the way a
+ * browser submits it. The claim is that the boxes are empty: a page that
+ * prefilled one with the site's own wording would store that wording as the
+ * owner's the first time they pressed Save. */
+export const wordingTheBoxesWouldSend = async (
+  world: TicketsWorld,
+  which: EmailTemplateType,
+): Promise<EmailContent> => {
+  const page = await openAdminPage(world, ADVANCED_PATH);
+  const box = (field: keyof EmailContent): string => {
+    const sent = page.wouldSendAt(savePathFor(which), field);
+    // A missing box is not an empty one. Without this the caller compares
+    // three absent controls against three empty strings and passes.
+    if (sent === null)
+      throw new Error(`No ${field} box for the ${which} email`);
+    return sent;
+  };
+  return { html: box("html"), subject: box("subject"), text: box("text") };
+};
+
+/** What the site would really send for one email right now, rendered. A story
+ * about the owner's wording is about the email that goes out, not the shape of
+ * the row behind it. */
+export const emailTheSiteWouldSend = async (
+  which: EmailTemplateType,
+): Promise<EmailContent> => {
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
+  const data = await buildTemplateData(
+    [makeTestEntry()],
+    "GBP",
+    "https://example.test/t/ABC",
+  );
+  const { html, subject, text } = await renderEmailContent(which, data);
+  return { html, subject, text };
 };
 
 /** Every box the owner can start from the site's own wording, and the wording

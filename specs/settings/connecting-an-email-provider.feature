@@ -34,9 +34,9 @@ Feature: The owner connects the site to an email provider
 
   @rule:email.changing-the-provider-keeps-the-key-already-given
   Rule: Leaving the key box empty keeps the key already given
-    A saved key is never shown back to the owner, so asking them to retype it
-    to change anything else would mean asking for something they cannot see.
-    An empty key box means "leave it as it is", not "forget it".
+    A saved key is never shown back to the owner. The site cannot ask for it
+    again, because the owner cannot see what to type. An empty key box means
+    "leave it as it is", not "forget it".
 
     @case:email.switching-provider-without-retyping-the-key
     Scenario: The owner changes provider and leaves the key box empty
