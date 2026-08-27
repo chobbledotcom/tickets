@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { beforeAll, it as test } from "@std/testing/bdd";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
@@ -9,8 +9,10 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
-describe("site editor pages", () => {
+describeWithEnv("site editor pages", { db: true }, () => {
   beforeAll(setupAdminPageTest);
 
   test("the home page shows both boxes carrying the stored values", () => {
@@ -59,6 +61,9 @@ describe("site editor pages", () => {
     expect(toggle).toContain('value="true"');
     expect(html).toContain("submissions are accepted without a spam check");
     expect(html).not.toContain("to receive contact form messages");
+    // The env-key names sit one space apart, not glued.
+    expect(html).toContain("and <code>BOTPOISON_SECRET_KEY</code>");
+    expect(html).toContain('class="prose"');
   });
 
   test("the contact page names Botpoison when it is active", () => {
@@ -95,6 +100,7 @@ describe("site editor pages", () => {
     );
     expect(toggle).toContain('type="checkbox"');
     expect(toggle).toContain('value="true"');
+    expect(html).toContain('class="prose"');
   });
 
   test("the order page counts the listings it will show", () => {
@@ -116,7 +122,26 @@ describe("site editor pages", () => {
       listingCount: 0,
     });
     expect(html).toContain("You have no bookable listings yet.");
-    expect(html).toContain('href="/admin/"');
+    // The warning's own link, with its words one space apart.
+    expect(html).toContain('href="/admin/">Create a listing</a> for it');
     expect(html).not.toContain("will be shown on the order page");
+  });
+
+  test("each editor opens the Site nav section with its landing link lit", async () => {
+    await enableFeature("site");
+    for (const html of [
+      adminSiteHomePage(OWNER_SESSION, "", ""),
+      adminSiteContactPage(OWNER_SESSION, "", {
+        botpoisonEnabled: false,
+        enabled: false,
+        hasBusinessEmail: true,
+      }),
+      adminSiteOrderPage(OWNER_SESSION, "", {
+        enabled: false,
+        listingCount: 1,
+      }),
+    ]) {
+      expect(html).toContain('<a class="active" href="/admin/site">');
+    }
   });
 });

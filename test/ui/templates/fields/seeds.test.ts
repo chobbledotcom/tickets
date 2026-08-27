@@ -11,6 +11,8 @@ describe("seeds form", () => {
     expect(listings!.max).toBe(MAX_SEED_LISTINGS);
     expect(attendees!.name).toBe("attendees_per_listing");
     expect(attendees!.max).toBe(SEED_MAX_ATTENDEES);
+    // The limits themselves, pinned: the route clamps to the same numbers.
+    expect(MAX_SEED_LISTINGS).toBe(30);
   });
 
   test("starts each box at its suggested count", () => {

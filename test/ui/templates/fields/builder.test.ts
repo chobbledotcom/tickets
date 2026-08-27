@@ -19,6 +19,9 @@ describe("builder form", () => {
     for (const value of ["bunny", "turso", "manual"]) {
       expect(html).toContain(`value="${value}"`);
     }
+    // Bunny appears once per choice list — database and hosting — and both
+    // must carry the value, or one route arm reads nothing.
+    expect(html.match(/value="bunny"/g)).toHaveLength(2);
     // The name box refuses to submit empty, so the route never sees "".
     expect(html).toContain('name="site_name"');
   });
