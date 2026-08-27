@@ -15,7 +15,7 @@ import { lazyRef } from "#fp";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { setHostEmailConfigForTest } from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -105,7 +105,7 @@ const withCapturedPassword = async (
 describeWithEnv("server (admin settings superuser)", { db: true }, () => {
   afterEach(() => {
     clearAdminEmailEnv();
-    setHostEmailConfigForTest(null);
+    hostEmail.setOverride(null);
   });
 
   test("POST /admin/settings/superuser returns 403 for non-owner session", async () => {
@@ -277,7 +277,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
   describe("POST enable-superuser — email config fallback", () => {
     test("falls back to host email config when DB email config is null", async () => {
       restoreAdminEmail("admin@example.com");
-      setHostEmailConfigForTest({
+      hostEmail.setOverride({
         apiKey: "host-key",
         fromAddress: validEmail("host@example.com"),
         provider: "resend",
@@ -332,14 +332,14 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
   describe("POST enable-superuser — error: missing email config", () => {
     test("redirects with error when neither DB nor host email config is set", async () => {
       restoreAdminEmail("admin@example.com");
-      setHostEmailConfigForTest(null);
+      hostEmail.setOverride(null);
       const { response } = await postChoice("enable-superuser");
       expectErrorFlash(response, "Email must be configured");
     });
 
     test("email config error is returned before any user is created", async () => {
       restoreAdminEmail("admin@example.com");
-      setHostEmailConfigForTest(null);
+      hostEmail.setOverride(null);
       await postChoice("enable-superuser");
       const user = await getUserByUsername("admin");
       expect(user).toBeNull();
@@ -416,7 +416,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
 
   test("POST enable-superuser returns error when session lacks wrappedDataKey", async () => {
     restoreAdminEmail("admin@example.com");
-    setHostEmailConfigForTest({
+    hostEmail.setOverride({
       apiKey: "k",
       fromAddress: validEmail("f@e.com"),
       provider: "resend",
@@ -498,7 +498,7 @@ function restoreAdminEmail(value: string | undefined): void {
 
 function setupForEnable(email: string): void {
   restoreAdminEmail(email);
-  setHostEmailConfigForTest({
+  hostEmail.setOverride({
     apiKey: "k",
     fromAddress: validEmail("f@e.com"),
     provider: "resend",

@@ -1,5 +1,8 @@
 import { money } from "#payment/money.ts";
-import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import {
+  type TaggedPaymentReference,
+  taggedPaymentReference,
+} from "#payment/provider-reference.ts";
 import { isResourceId } from "#payment/resource-id.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
@@ -40,11 +43,8 @@ export type MalformedRejection = Extract<
 /** The provider-tagged identity of the charge a malformed rejection names. */
 export const rejectedChargeReference = (
   rejection: MalformedRejection,
-): TaggedPaymentReference => ({
-  kind: "tagged",
-  provider: rejection.provider,
-  reference: rejection.paymentReference,
-});
+): TaggedPaymentReference =>
+  taggedPaymentReference(rejection.provider, rejection.paymentReference);
 
 /** The durable charge identity proved by a validated session, or no charge for
  * a free checkout. A non-empty invalid id contradicts the session boundary and
@@ -59,11 +59,7 @@ export const paymentReferenceOf = (
   if (!isResourceId(session.paymentReference)) {
     throw new Error("Validated session has an invalid provider resource id");
   }
-  return {
-    kind: "tagged",
-    provider: session.provider,
-    reference: session.paymentReference,
-  };
+  return taggedPaymentReference(session.provider, session.paymentReference);
 };
 
 /** A session path that requires captured money, narrowed to its charge. */

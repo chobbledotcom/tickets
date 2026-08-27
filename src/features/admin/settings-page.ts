@@ -16,7 +16,7 @@ import {
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
-import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
+import { EMAIL_PROVIDER_LABELS, hostEmail } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -137,7 +137,7 @@ const getAdvancedSettingsPageState = async (
       return `Host env (${hostConfig.passTypeId})`;
     })(),
     hostEmailLabel: (() => {
-      const hostConfig = getHostEmailConfig();
+      const hostConfig = hostEmail.getHostConfig();
       if (!hostConfig) return "";
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;

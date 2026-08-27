@@ -5,7 +5,7 @@ import { resetEffectiveDomain } from "#shared/config.ts";
 import {
   type EmailConfig,
   type EmailMessage,
-  resetHostEmailConfig,
+  hostEmail,
 } from "#shared/email.ts";
 import {
   parseEmail,
@@ -103,7 +103,7 @@ export const emailTestSandbox = () => {
   const teardown = (): void => {
     fetchStub?.restore();
     fetchStub = undefined;
-    resetHostEmailConfig();
+    hostEmail.resetOverride();
     resetEffectiveDomain();
     settings.clearTestOverrides();
     envScope?.dispose();

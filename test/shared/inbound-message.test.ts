@@ -13,7 +13,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
-import { type EmailConfig, setHostEmailConfigForTest } from "#shared/email.ts";
+import { type EmailConfig, hostEmail } from "#shared/email.ts";
 import {
   buildMessageHtml,
   buildMessageText,
@@ -146,7 +146,7 @@ describe("inbound-message", () => {
 
     test("falls back to the host provider config when settings has none", async () => {
       settings.setForTest({ email_api_key: "", email_provider: "" });
-      setHostEmailConfigForTest(hostConfig);
+      hostEmail.setOverride(hostConfig);
       expect(await resolveMessageEmailConfig()).toEqual(hostConfig);
       // The "no provider" miss must not be logged when one was resolved.
       expect(errors.contains("no email provider configured")).toBe(false);
@@ -158,7 +158,7 @@ describe("inbound-message", () => {
         email_api_key: "settings-key",
         email_provider: "resend",
       });
-      setHostEmailConfigForTest(hostConfig);
+      hostEmail.setOverride(hostConfig);
       expect(await resolveMessageEmailConfig()).toEqual({
         apiKey: "settings-key",
         fromAddress: validEmail("owner@example.com"),
@@ -168,7 +168,7 @@ describe("inbound-message", () => {
 
     test("returns null and logs the miss when no provider is configured", async () => {
       settings.setForTest({ email_api_key: "", email_provider: "" });
-      setHostEmailConfigForTest(null);
+      hostEmail.setOverride(null);
       expect(await resolveMessageEmailConfig()).toBeNull();
       expect(
         errors.contains("message form: no email provider configured"),

@@ -19,11 +19,7 @@ import { range, sort } from "#fp";
 import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { addMonthsIso, parseDateMs } from "#shared/dates.ts";
-import {
-  getEmailConfig,
-  getHostEmailConfig,
-  sendEmail,
-} from "#shared/email.ts";
+import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -336,7 +332,7 @@ const sendSiteAssignmentEmail = async (
   to: ValidEmail,
   assignments: SiteAssignment[],
 ): Promise<void> => {
-  const config = getEmailConfig() ?? getHostEmailConfig();
+  const config = getEmailConfig() ?? hostEmail.getHostConfig();
   if (!config) return;
 
   const plural = assignments.length > 1;

@@ -30,7 +30,7 @@ import {
   isPaymentsEnabled,
   providerValue,
 } from "#shared/config.ts";
-import { getHostEmailConfig } from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import {
   getEnv,
   getReadOnlyCutoffIso,
@@ -199,7 +199,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     ? bunnyCdnResult.hostname
     : EMPTY_DEBUG_VALUE;
 
-  const hostEmailConfig = getHostEmailConfig();
+  const hostEmailConfig = hostEmail.getHostConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
   const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
   const paymentProvider = settings.paymentProvider;

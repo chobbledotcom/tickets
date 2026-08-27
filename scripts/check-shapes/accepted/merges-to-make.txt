@@ -10,7 +10,5 @@
 #
 # Format: the match, two spaces, then `# why it is still here`.
 e2e-payments/src/cucumber/steps/pages.ts::submitRenderedRefundForm,e2e-payments/src/providers/stripe.ts::saveStripeKey  # both fill one named box then press one named button; a fillsAndSubmits curry takes both
-src/features/admin/refunds/readiness.ts::providerIdentity,src/shared/payment/validated-session.ts::rejectedChargeReference  # both build the same tagged provider reference
 src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delete.ts::deleteAnswer  # both cascade a delete over the same two shapes of table
 src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers
-src/shared/email.ts::getHostEmailConfig,src/shared/wallets/wallet-settings-types.ts::getHostConfig  # both prefer an override and fall back to the environment

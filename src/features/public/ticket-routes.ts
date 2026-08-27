@@ -10,7 +10,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 /* jscpd:ignore-end */
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
+import { getEmailConfig, hostEmail } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleCartBySlugs } from "./cart.ts";
@@ -23,7 +23,7 @@ import { parseSlugs } from "./types.ts";
 
 /** Get the email from-address if email is configured. Returns empty string if not. */
 export const getFromEmailIfConfigured = async (): Promise<string> => {
-  const config = (await getEmailConfig()) ?? getHostEmailConfig();
+  const config = (await getEmailConfig()) ?? hostEmail.getHostConfig();
   return config?.fromAddress ?? "";
 };
 

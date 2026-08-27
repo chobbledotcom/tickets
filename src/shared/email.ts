@@ -5,12 +5,12 @@
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start -- imports */
-import { lazyRef } from "#fp";
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
 /* jscpd:ignore-end */
 import { errorMessage } from "#shared/error-message.ts";
 import { apiErrorMessage, type FetchResult, fetchText } from "#shared/fetch.ts";
+import { createHostConfigOverride } from "#shared/host-config.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   emailHost,
@@ -86,23 +86,13 @@ const getHostEmailConfigFromEnv = (): EmailConfig | null => {
   return { apiKey, fromAddress, provider };
 };
 
-const [getHostEmailOverride, setHostEmailOverride] = lazyRef<
-  EmailConfig | null | undefined
->(() => undefined);
-
-export const getHostEmailConfig = (): EmailConfig | null => {
-  const override = getHostEmailOverride();
-  return override !== undefined ? override : getHostEmailConfigFromEnv();
-};
-
-export const setHostEmailConfigForTest = (config: EmailConfig | null): void =>
-  setHostEmailOverride(config);
-
-export const resetHostEmailConfig = (): void => setHostEmailOverride(undefined);
+/** The host machine's own email credentials, read from its environment, with
+ *  the hook a test uses to stand a different set in front of them. */
+export const hostEmail = createHostConfigOverride(getHostEmailConfigFromEnv);
 
 export const getActiveEmailConfig = (): EmailConfig | null => {
   const siteConfig = getEmailConfig();
-  return siteConfig !== null ? siteConfig : getHostEmailConfig();
+  return siteConfig !== null ? siteConfig : hostEmail.getHostConfig();
 };
 
 type Headers = Record<string, string>;
