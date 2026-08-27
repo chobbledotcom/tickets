@@ -40,7 +40,10 @@ const throughTheField =
  * fills, as in `({ value: row.total } = source)`. Both put a value in. */
 const isAssignedProperty = throughTheField((access) => isAssignedTo(access));
 
-/** The node above, with any parentheses around it stepped over. */
+/** The node above, with any parentheses around it stepped over. Parentheses
+ * are the only wrapper a delete allows: `delete row.total!` and
+ * `delete (row.total as unknown)` are both refused, because the operand of a
+ * delete has to be a property reference. */
 const aboveTheParens = (node: ts.Node): ts.Node | undefined => {
   let at = node.parent;
   while (at && ts.isParenthesizedExpression(at)) at = at.parent;
@@ -83,14 +86,54 @@ const WAYS_TO_WRITE = [
 /** Every question below is put to one mention and answered yes or no. */
 export type AskAboutAMention = (node: ts.Node) => boolean;
 
+/** The quoted or numbered name inside a pair of brackets, when that is what
+ * the brackets hold. `["total"]` and `[7]` name the same fields `"total"` and
+ * `7` do. Brackets holding anything else — a variable, a sum, a symbol — work
+ * their name out when the program runs, so nothing can look that name up. */
+export const quotedInBrackets = (name: ts.Node): ts.Node | undefined => {
+  if (!ts.isComputedPropertyName(name)) return;
+  const { expression } = name;
+  return ts.isStringLiteral(expression) || ts.isNumericLiteral(expression)
+    ? expression
+    : undefined;
+};
+
+/** The brackets a mention sits inside, when the mention is the name they
+ * hold. A property is joined to the brackets rather than to the name inside
+ * them, so only the brackets sit where the thing that holds the field can see
+ * them. `[row.total]` is not this case: there the mention is a value the
+ * brackets read, and it stands for itself. */
+const inBrackets = (node: ts.Node): ts.Node => {
+  const { parent } = node;
+  return parent && quotedInBrackets(parent) === node ? parent : node;
+};
+
 /** Every question here is about a node and the node above it, so a node with
- * nothing above it — a whole file — answers no before the question is put. */
+ * nothing above it — a whole file — answers no before the question is put. A
+ * name in brackets stands for its brackets, because `["total"]: 1` supplies
+ * the field exactly as `total: 1` does. */
 const onParent =
   (ask: (node: ts.Node, parent: ts.Node) => boolean): AskAboutAMention =>
   (node) => {
-    const parent = node.parent;
-    return parent ? ask(node, parent) : false;
+    const mention = inBrackets(node);
+    const parent = mention.parent;
+    return parent ? ask(mention, parent) : false;
   };
+
+/** Four ways to wrap a value that change nothing when the program runs, so
+ * each can sit between the field and the `=`: `(row.total) = 1`,
+ * `row.total! = 1`, `(row.total as number) = 1`, and the same with
+ * `satisfies`. All four write the field. `<number>row.total = 1` is not one
+ * of them, because it does not parse. */
+const WRAPPERS_THAT_DO_NOTHING: ReadonlySet<ts.SyntaxKind> = new Set([
+  ts.SyntaxKind.ParenthesizedExpression,
+  ts.SyntaxKind.NonNullExpression,
+  ts.SyntaxKind.AsExpression,
+  ts.SyntaxKind.SatisfiesExpression,
+]);
+
+const onlyWraps = (node: ts.Node): boolean =>
+  WRAPPERS_THAT_DO_NOTHING.has(node.kind);
 
 /** Whether an assignment writes into this node, following the nesting of
  * `({ inner: { total } } = row)` out to the `=`. */
@@ -114,8 +157,7 @@ const isAssignedTo: AskAboutAMention = onParent((node, parent) => {
     return isAssignedTo(parent.parent);
   }
   if (ts.isArrayLiteralExpression(parent)) return isAssignedTo(parent);
-  // `(row.total) = value` puts the parentheses between the field and the `=`.
-  if (ts.isParenthesizedExpression(parent)) return isAssignedTo(parent);
+  if (onlyWraps(parent)) return isAssignedTo(parent);
   return false;
 });
 

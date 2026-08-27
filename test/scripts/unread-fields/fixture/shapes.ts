@@ -209,10 +209,15 @@ export interface HandsAnObjectOver {
   mapped<T extends { onlyInAConstraint: number }>(value: T): void;
 }
 
+const WORKED_OUT_WHEN_IT_RUNS = "keptOut";
+
 export interface NamedByALiteral {
   "quoted-name": string;
   1: string;
   plainName: string;
+  ["quoted-in-brackets"]: string;
+  [2]: string;
+  [WORKED_OUT_WHEN_IT_RUNS]: string;
 }
 
 export class HasAStaticAndAccessors {
@@ -287,8 +292,19 @@ export type JustTheKeys = keyof NamesItsKeys;
 export type JustTheInlineKeys = keyof { alsoOnlyByKeyof: string };
 export type StillHandsOneOut = readonly { keptByReadonly: number }[];
 
+export interface UsedAsAKey {
+  namesAKeyInAPattern: string;
+}
+
+export interface SuppliedInBrackets {
+  filledThroughBrackets: number;
+}
+
 export interface WrittenThroughParens {
   filledInsideParens: number;
+  filledBehindABang: number;
+  filledBehindACast: number;
+  filledBehindSatisfies: number;
 }
 
 interface FirstArm {

@@ -163,4 +163,36 @@ describe("the reads the scan counts", () => {
       "never read",
     );
   });
+
+  test("counts a field written behind a non-null assertion as supplied", () => {
+    expect(verdictOf("WrittenThroughParens", "filledBehindABang")).toBe(
+      "never read",
+    );
+  });
+
+  test("counts a field written behind a cast as supplied", () => {
+    expect(verdictOf("WrittenThroughParens", "filledBehindACast")).toBe(
+      "never read",
+    );
+  });
+
+  test("counts a field a pattern works its key out from", () => {
+    // `[k.namesAKeyInAPattern]` is a value the brackets read, not a name they
+    // hold, so the field is read even though the brackets are a slot.
+    expect(verdictOf("UsedAsAKey", "namesAKeyInAPattern")).toBe("read");
+  });
+
+  test("counts a field a name in brackets supplies", () => {
+    // `["filledThroughBrackets"]: 1` fills the field exactly as a plain name
+    // does, so the only mention of it puts a value in.
+    expect(verdictOf("SuppliedInBrackets", "filledThroughBrackets")).toBe(
+      "never read",
+    );
+  });
+
+  test("counts a field written behind a satisfies as supplied", () => {
+    expect(verdictOf("WrittenThroughParens", "filledBehindSatisfies")).toBe(
+      "never read",
+    );
+  });
 });

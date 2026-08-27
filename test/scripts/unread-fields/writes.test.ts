@@ -212,6 +212,43 @@ describe("readsTheValue", () => {
     expect(readsAt("use([...row.total]);", "total")).toBe(true);
   });
 
+  test("does not read a field filled behind a non-null assertion", () => {
+    expect(readsAt("row.total! = 1;", "total")).toBe(false);
+  });
+
+  test("does not read a field filled behind a cast", () => {
+    expect(readsAt("(row.total as number) = 1;", "total")).toBe(false);
+  });
+
+  test("does not read a field filled behind a satisfies", () => {
+    expect(readsAt("(row.total satisfies number) = 1;", "total")).toBe(false);
+  });
+
+  test("does not read a field a for-of loop fills behind a bang", () => {
+    expect(readsAt("for (row.total! of rows) use(row);", "total")).toBe(false);
+  });
+
+  test("does not read a field a name in brackets supplies", () => {
+    expect(readsAt('const s: Sum = { ["total"]: 1 };', "total")).toBe(false);
+  });
+
+  test("does not read a field a name in brackets declares on a class", () => {
+    expect(readsAt('class S { ["total"] = 1; }', "total")).toBe(false);
+  });
+
+  test("reads a field a pattern takes out through brackets", () => {
+    expect(readsAt('({ ["total"]: held } = row);', "total")).toBe(true);
+  });
+
+  test("reads a field a pattern works its key out from", () => {
+    // `[row.total]` is a value the brackets read, not a name they hold.
+    expect(readsAt("({ [row.total]: held } = source);", "total")).toBe(true);
+  });
+
+  test("still reads a field a non-null assertion hands to a call", () => {
+    expect(readsAt("use(row.total!);", "total")).toBe(true);
+  });
+
   test("reads a field a class is built on", () => {
     // The clause counts as a type, but the program reads the field to find
     // the class to build on.
@@ -271,6 +308,10 @@ describe("namesAMember", () => {
 
   test("a name standing on its own names no member", () => {
     expect(namesAMemberAt("const total = 1;", "total")).toBe(false);
+  });
+
+  test("the name a pattern reaches through brackets names a member", () => {
+    expect(namesAMemberAt('({ ["total"]: held } = row);', "total")).toBe(true);
   });
 
   test("a name with nothing above it names no member", () => {

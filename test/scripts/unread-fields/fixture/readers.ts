@@ -19,6 +19,8 @@ import {
   type NamedByALiteral,
   NamedItsParameter,
   type Passed,
+  type SuppliedInBrackets,
+  type UsedAsAKey,
   type WrittenByARest,
   type WrittenThroughParens,
 } from "./shapes.ts";
@@ -97,10 +99,29 @@ export const handOver = (h: HandsAnObjectOver): void => {
   h.takesAnObject({ insideAParameter: 1 });
 };
 
+export const takeOutByAComputedKey = (
+  k: UsedAsAKey,
+  source: Record<string, number>,
+): number => {
+  let held = 0;
+  ({ [k.namesAKeyInAPattern]: held } = source);
+  return held;
+};
+
+export const madeInBrackets: SuppliedInBrackets = {
+  ["filledThroughBrackets"]: 1,
+};
+
 export const fillInsideParens = (w: WrittenThroughParens): void => {
   (w.filledInsideParens) = 1;
+  w.filledBehindABang! = 1;
+  (w.filledBehindACast as number) = 1;
+  (w.filledBehindSatisfies satisfies number) = 1;
 };
 
 export const readAQuotedName = (n: NamedByALiteral): string =>
   n["quoted-name"];
+
+export const readANameInBrackets = (n: NamedByALiteral): string =>
+  n["quoted-in-brackets"];
 `;

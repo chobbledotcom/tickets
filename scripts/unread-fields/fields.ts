@@ -7,6 +7,7 @@
 
 import ts from "typescript";
 import { filter, mapNotNullish } from "#fp";
+import { quotedInBrackets } from "./writes.ts";
 
 /** A named declaration whose fields the scan can look up. The name is
  * required, because every lookup starts from it. */
@@ -105,9 +106,9 @@ const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
     ts.isParameterPropertyDeclaration(node, node.parent));
 
 /** A field's name as it is written down. `row["status-code"]` reaches the
- * same member as `row.total`, so a quoted or numbered name counts. A computed
- * name is worked out when the program runs, and a `#private` one is nobody
- * else's to reach, so neither is a field the scan can look up. */
+ * same member as `row.total`, so a quoted or numbered name counts. A
+ * `#private` name is nobody else's to reach, so it is not a field the scan
+ * can look up. */
 export type FieldName = ts.Identifier | ts.StringLiteral | ts.NumericLiteral;
 
 const isFieldName = (node: ts.Node): node is FieldName =>
@@ -122,7 +123,10 @@ const isFieldName = (node: ts.Node): node is FieldName =>
 const nameOf = (node: ts.Node): FieldName | undefined => {
   if (isHidden(node) || ts.isSetAccessorDeclaration(node)) return;
   const { name } = node as ts.NamedDeclaration;
-  return name && isFieldName(name) ? name : undefined;
+  // `["foo"]: 1` declares the same field as `"foo": 1`, and the compiler
+  // answers a lookup for `row.foo` with either.
+  const written = name && (quotedInBrackets(name) ?? name);
+  return written && isFieldName(written) ? written : undefined;
 };
 
 /** The same question asked of a shape's own syntax, where a node has to be a

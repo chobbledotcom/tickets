@@ -172,6 +172,21 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("NamedByALiteral", "1")).toBe("never read");
   });
 
+  test("sees a quoted name written inside brackets", () => {
+    // `["quoted-in-brackets"]: string` declares the same field as
+    // `"quoted-in-brackets": string`, and `n["quoted-in-brackets"]` reads it.
+    expect(verdictOf("NamedByALiteral", "quoted-in-brackets")).toBe("read");
+  });
+
+  test("sees a number written inside brackets", () => {
+    expect(verdictOf("NamedByALiteral", "2")).toBe("never read");
+  });
+
+  test("leaves out a name a variable works out", () => {
+    // The variable is not the field, so there is nothing to look up.
+    expect(verdictOf("NamedByALiteral", "keptOut")).toBeUndefined();
+  });
+
   test("leaves out a type a class keeps to itself", () => {
     // Nobody outside reaches the private member, so nobody reaches its type
     // either. The public method beside it is still a field.

@@ -51,6 +51,11 @@ and no value of the shape has a field of it. `Exclude` works the same way.
 A shape the file keeps to itself does not count. Neither does a member a class
 keeps to itself, nor a type written inside one.
 
+A field is named in four ways, and all four reach the same member. `total`,
+`"quoted-name"`, `1`, and `["quoted-name"]` are each a name the compiler answers
+a lookup for. A name a variable works out stays out, because the variable is not
+the field. A `#private` name stays out too, because nobody outside can reach it.
+
 A `declare global` block does not count either. It adds its shapes to the global
 scope rather than to what the file exports. The one in
 `src/shared/jsx/jsx-runtime.ts` holds the JSX contract, and the compiler reads
@@ -76,6 +81,7 @@ mention by the syntax around it, and counts the reads:
 | `total: number`              | write     |
 | `{ total: 1 }`               | write     |
 | `{ total }`                  | write     |
+| `{ ["total"]: 1 }`           | write     |
 | `row.total = 1`              | write     |
 | `<Meter total={1} />`        | write     |
 | `{ total() {} }`             | write     |
@@ -83,6 +89,7 @@ mention by the syntax around it, and counts the reads:
 | `delete row.total`           | write     |
 | `Config["total"]`            | write     |
 | `[...row.total] = src`       | write     |
+| `row.total! = 1`             | write     |
 | `row.total`                  | read      |
 | `const { total } = row`      | read      |
 | `({ total } = row)`          | read      |
@@ -98,6 +105,16 @@ read. The same literal anywhere else is a value, and its members write.
 delete takes the field away, and the second names the field to borrow its type.
 Neither takes the value out, which is the only question the scan asks, so both
 sit on the write side of it.
+
+`{ ["total"]: 1 }` supplies the field exactly as `{ total: 1 }` does, and
+`({ ["total"]: held } = row)` takes it out exactly as `({ total: held } = row)`
+does. The brackets change nothing, so the scan puts its question to the brackets
+and to the thing that holds them.
+
+`row.total! = 1` is the wrapper case. Four wrappers can sit between the field
+and the `=`: parentheses, a `!`, an `as`, and a `satisfies`. None of them
+changes what the program does, so all four write the field. A delete allows only
+parentheses, because its operand must be a property reference.
 
 `class C extends r.total {}` is the odd one. The compiler counts the clause it
 sits in as a type. The program still reads the field when it runs, to find the
