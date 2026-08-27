@@ -360,3 +360,4 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → ||   # the 
 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → ||   # find returns a refund read object or undefined, and every object is truthy
+src/shared/types.ts::DayPriceKeySchema~0yvxbbw  1 → 0   # the pipe's regex only passes /^[1-9]\d*$/, so every value that reaches this check is already 1 or more

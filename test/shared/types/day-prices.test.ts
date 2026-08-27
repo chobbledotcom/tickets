@@ -8,6 +8,7 @@ import {
   clampDurationDays,
   DayPricesSchema,
   dayPriceFor,
+  hasTicketQuantity,
   isPaidListing,
   MAX_DURATION_DAYS,
   parseDayPrices,
@@ -146,6 +147,26 @@ describe("DayPricesSchema", () => {
     expect(accepts({ "0": 500 })).toBe(false);
     expect(accepts({ "1.5": 500 })).toBe(false);
   });
+
+  test("accepts a free tier, and refuses a negative price", () => {
+    // Zero is a real price: a listing can offer a day at no charge. The floor
+    // sits at zero rather than one for exactly that reason.
+    expect(accepts({ "1": 0 })).toBe(true);
+    expect(accepts({ "1": -1 })).toBe(false);
+  });
+});
+
+describe("hasTicketQuantity", () => {
+  test("is true for a booking of one ticket, the smallest real one", () => {
+    expect(hasTicketQuantity({ quantity: 1 })).toBe(true);
+  });
+
+  test("is false for the no-quantity sentinel row", () => {
+    // A zero-quantity row stands for somebody attached to an order without a
+    // ticket. Readers, rosters and exports must skip it, so the boundary is
+    // what separates a real ticket from a ghost.
+    expect(hasTicketQuantity({ quantity: 0 })).toBe(false);
+  });
 });
 
 describe("dayPriceFor", () => {
@@ -161,6 +182,17 @@ describe("dayPriceFor", () => {
 
   test("returns null for a count with no configured price", () => {
     expect(dayPriceFor(listing, 3)).toBeNull();
+  });
+
+  test("returns zero for a free count, not null", () => {
+    // A free tier is a price the listing offers. Reading it as "no price"
+    // would drop the count off the booking page instead of offering it free.
+    const free = testListing({
+      customisable_days: true,
+      day_prices: { 1: 0, 2: 1800 },
+      duration_days: 3,
+    });
+    expect(dayPriceFor(free, 1)).toBe(0);
   });
 
   test("returns null for a count outside [1, max]", () => {
