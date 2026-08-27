@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  byId,
   compact,
+  emptyListsFor,
   fieldById,
   filter,
   firstProblem,
@@ -17,6 +19,7 @@ import {
   partition,
   pipe,
   requiredMapValue,
+  sameOrder,
   sumByKey,
 } from "#fp";
 
@@ -300,5 +303,75 @@ describe("fp collections", () => {
     test("empty input gives an empty map", () => {
       expect(itemsById([])).toEqual(new Map());
     });
+  });
+});
+
+describe("byId", () => {
+  test("keys every item by its own id", () => {
+    const rows = [
+      { id: 7, name: "seven" },
+      { id: 2, name: "two" },
+    ];
+    expect([...byId(rows)]).toEqual([
+      [7, rows[0]],
+      [2, rows[1]],
+    ]);
+  });
+
+  test("keeps the last of two items sharing an id", () => {
+    const first = { id: 1, name: "first" };
+    const second = { id: 1, name: "second" };
+    expect(byId([first, second]).get(1)).toBe(second);
+  });
+
+  test("gives an empty map for no items", () => {
+    expect(byId([]).size).toBe(0);
+  });
+});
+
+describe("emptyListsFor", () => {
+  test("holds an empty list for every key", () => {
+    expect([...emptyListsFor([3, 1])]).toEqual([
+      [3, []],
+      [1, []],
+    ]);
+  });
+
+  test("gives each key a list of its own to fill", () => {
+    const lists = emptyListsFor<string, number>(["a", "b"]);
+    lists.get("a")?.push(1);
+    expect(lists.get("b")).toEqual([]);
+  });
+});
+
+describe("sameOrder", () => {
+  test("matches two sequences holding the same values in the same order", () => {
+    expect(sameOrder([1, 2, 3], [1, 2, 3])).toBe(true);
+  });
+
+  test("refuses sequences of different lengths", () => {
+    expect(sameOrder([1, 2], [1, 2, 3])).toBe(false);
+    expect(sameOrder([1, 2, 3], [1, 2])).toBe(false);
+  });
+
+  test("refuses the same values in a different order", () => {
+    expect(sameOrder(["a", "b"], ["b", "a"])).toBe(false);
+  });
+
+  test("refuses a difference at the very last place", () => {
+    expect(sameOrder([1, 2, 3], [1, 2, 4])).toBe(false);
+  });
+
+  test("matches two empty sequences", () => {
+    expect(sameOrder([], [])).toBe(true);
+  });
+
+  test("reads a typed array the same way it reads a list", () => {
+    expect(sameOrder(new Uint8Array([1, 2]), new Uint8Array([1, 2]))).toBe(
+      true,
+    );
+    expect(sameOrder(new Uint8Array([1, 2]), new Uint8Array([1, 3]))).toBe(
+      false,
+    );
   });
 });

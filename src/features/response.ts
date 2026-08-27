@@ -38,6 +38,15 @@ const encodedResponse =
       status,
     });
 
+/**
+ * Hand on something that was loaded, unless it came back as a Response. A
+ * Response is already the answer — a 404, a 400 — so it goes straight back.
+ */
+export const orResponse = async <T>(
+  loaded: T | Response,
+  use: (value: T) => Response | Promise<Response>,
+): Promise<Response> => (loaded instanceof Response ? loaded : use(loaded));
+
 /** Create HTML response */
 export const htmlResponse = encodedResponse("text/html");
 

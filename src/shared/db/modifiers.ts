@@ -41,6 +41,7 @@ import {
   type WhereClause,
   whereSql,
 } from "#db/where-clauses.ts";
+import { emptyListsFor } from "#fp";
 import type {
   CalcKind,
   ModifierDirection,
@@ -242,9 +243,6 @@ export const modifierGroups = linkTableSide(
 
 type ModifierListingLinkRow = { listing_id: number; modifier_id: number };
 
-const emptyModifierScopeMap = (modifierIds: number[]): Map<number, number[]> =>
-  new Map(modifierIds.map((id) => [id, []]));
-
 const appendModifierListingLinks = (
   links: Map<number, number[]>,
   rows: ModifierListingLinkRow[],
@@ -266,7 +264,10 @@ const modifierScopeListingIdsLookup =
       buildSql(inPlaceholders(modifierIds)),
       modifierIds,
     );
-    return appendModifierListingLinks(emptyModifierScopeMap(modifierIds), rows);
+    return appendModifierListingLinks(
+      emptyListsFor<number, number>(modifierIds),
+      rows,
+    );
   };
 
 /** Listing ids belonging to linked groups for each group-scoped modifier id. */

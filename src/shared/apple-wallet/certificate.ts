@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import {
-  bytesEqual,
   type DerValue,
   encodeOid,
   readDerChildren,
@@ -9,6 +8,7 @@ import {
 } from "#crypto/der.ts";
 import { readPem } from "#crypto/pem.ts";
 import { isValidRsaPublicKey } from "#crypto/rsa-private-key.ts";
+import { sameOrder } from "#fp";
 
 /* jscpd:ignore-end */
 
@@ -46,7 +46,7 @@ const requireRsaPublicKey = (publicKey: DerValue): void => {
   const algorithm = fieldAt(fields, 0, 0x30, "public-key algorithm");
   const algorithmFields = readDerChildren(algorithm);
   const oid = fieldAt(algorithmFields, 0, 0x06, "public-key OID");
-  if (!bytesEqual(oid.encoded, RSA_ENCRYPTION_OID)) {
+  if (!sameOrder(oid.encoded, RSA_ENCRYPTION_OID)) {
     throw new Error("Certificate public key is not RSA");
   }
   fieldAt(fields, 1, 0x03, "public key");

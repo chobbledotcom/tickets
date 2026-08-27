@@ -5,6 +5,7 @@ import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
+import { orResponse } from "#routes/response.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -115,10 +116,7 @@ export const parseApiJsonBody: JsonBodyReader = async (request) => {
 export const withApiBody = async (
   request: Request,
   use: (body: Record<string, unknown>) => Promise<Response>,
-): Promise<Response> => {
-  const body = await parseApiJsonBody(request);
-  return body instanceof Response ? body : use(body);
-};
+): Promise<Response> => orResponse(await parseApiJsonBody(request), use);
 
 /** A route handler keyed by a single `:slug` path param — the shape every
  * `withSlugLoaded` wrapper returns to the router. Kept as a named type so the

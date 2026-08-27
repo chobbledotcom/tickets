@@ -24,20 +24,21 @@ import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
-import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
+import {
+  type ModifierTrigger,
+  normalizeCode,
+  signedModifierValue,
+} from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
 
-/** The signed pricing value the engine applies, from a modifier's stored
- * magnitude + direction. Multipliers ignore direction (the factor encodes it);
- * fixed amounts are entered in major currency units and stored as such. */
-const signedValue = (modifier: Modifier): number => {
-  if (modifier.calc_kind === "multiply") return modifier.calc_value;
-  const magnitude =
-    modifier.calc_kind === "fixed"
-      ? toMinorUnits(modifier.calc_value)
-      : modifier.calc_value;
-  return modifier.direction === "discount" ? -magnitude : magnitude;
-};
+/** The signed value one stored modifier applies, reading it off the columns
+ * this table spells in snake_case. */
+const signedValue = (modifier: Modifier): number =>
+  signedModifierValue({
+    direction: modifier.direction,
+    kind: modifier.calc_kind,
+    value: modifier.calc_value,
+  });
 
 /** Resolve the listing ids each "groups"-scoped modifier covers. The default
  * resolves the group→listing membership live (the DB join); the would-be variant

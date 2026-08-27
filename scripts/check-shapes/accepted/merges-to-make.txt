@@ -10,11 +10,7 @@
 #
 # Format: the match, two spaces, then `# why it is still here`.
 e2e-payments/src/cucumber/steps/pages.ts::submitRenderedRefundForm,e2e-payments/src/providers/stripe.ts::saveStripeKey  # both fill one named box then press one named button; a fillsAndSubmits curry takes both
-scripts/bench/cold-start/support.ts::sampleMap,src/shared/db/modifiers.ts::emptyModifierScopeMap  # both build a Map of empty lists from ids; #fp wants an emptyListsFor
-scripts/static-assets/cache.ts::sameList,src/shared/crypto/der.ts::bytesEqual  # same length-then-every comparison over two sequences
-src/features/admin/attendee-notes.ts::withLoadedAttendee,src/features/api/helpers.ts::withApiBody  # both load, hand back a Response as-is, and otherwise call on
 src/features/admin/refunds/readiness.ts::providerIdentity,src/shared/payment/validated-session.ts::rejectedChargeReference  # both build the same tagged provider reference
-src/features/api/payment-processing/snapshot/build.ts::signedModifierValue,src/shared/db/modifier-resolve.ts::signedValue  # one pricing rule written twice, once over snake_case columns and once over camelCase fields; the pair can drift
 src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delete.ts::deleteAnswer  # both cascade a delete over the same two shapes of table
 src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers
 src/shared/email.ts::getHostEmailConfig,src/shared/wallets/wallet-settings-types.ts::getHostConfig  # both prefer an override and fall back to the environment

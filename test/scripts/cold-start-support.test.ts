@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
+import { emptyListsFor } from "#fp";
 import {
   balancedCycles,
   balancedRotation,
   benchmarkCatalogueMarkers,
   requireBenchmarkCatalogue,
   requiredEnv,
-  sampleMap,
   samplesFor,
 } from "#scripts/bench/cold-start/support.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -81,15 +81,15 @@ describe("cold-start benchmark support", () => {
     expect(() => requiredEnv(key)).toThrow(`${key} is required`);
   });
 
-  test("sampleMap stores samples for each requested key", () => {
-    const samples = sampleMap<string, number>(["cold", "warm"]);
+  test("emptyListsFor stores samples for each requested key", () => {
+    const samples = emptyListsFor<string, number>(["cold", "warm"]);
     samplesFor(samples, "cold").push(42);
     expect(samplesFor(samples, "cold")).toEqual([42]);
     expect(samplesFor(samples, "warm")).toEqual([]);
   });
 
   test("samplesFor rejects an unknown key", () => {
-    expect(() => samplesFor(sampleMap(["cold"]), "warm")).toThrow(
+    expect(() => samplesFor(emptyListsFor(["cold"]), "warm")).toThrow(
       "Samples missing for warm",
     );
   });

@@ -7,8 +7,8 @@ import type {
   SnapshotRows,
 } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { ModifierRef } from "#shared/booking-intent.ts";
-import { toMinorUnits } from "#shared/currency.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
+import { signedModifierValue } from "#shared/price-modifier.ts";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import { classifyBookingLedger } from "#shared/session-ledger.ts";
 import type { GroupListing } from "#types";
@@ -66,15 +66,6 @@ const packagePricing = (
     }),
   );
 
-const signedModifierValue = (modifier: SnapshotModifierRow): number => {
-  if (modifier.calcKind === "multiply") return modifier.calcValue;
-  const magnitude =
-    modifier.calcKind === "fixed"
-      ? toMinorUnits(modifier.calcValue)
-      : modifier.calcValue;
-  return modifier.direction === "discount" ? -magnitude : magnitude;
-};
-
 const modifierSpecs = (
   refs: ModifierRef[],
   rows: SnapshotModifierRow[],
@@ -97,7 +88,11 @@ const modifierSpecs = (
         name: modifier.name,
         quantity: ref.q,
         trigger: modifier.trigger,
-        value: signedModifierValue(modifier),
+        value: signedModifierValue({
+          direction: modifier.direction,
+          kind: modifier.calcKind,
+          value: modifier.calcValue,
+        }),
       },
     ];
   });

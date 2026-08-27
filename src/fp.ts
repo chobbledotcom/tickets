@@ -215,6 +215,27 @@ export const byId = <T extends { id: number }>(
   items: readonly T[],
 ): Map<number, T> => new Map(items.map((item) => [item.id, item]));
 
+/** A Map holding an empty list for each key, ready to be filled. */
+export const emptyListsFor = <Key, Value>(
+  keys: readonly Key[],
+): Map<Key, Value[]> => new Map(keys.map((key) => [key, []]));
+
+/**
+ * Whether two sequences hold the same values, in the same order. It stops at
+ * the first difference, so how long it takes says how much matched: never
+ * compare secrets with it.
+ */
+export const sameOrder = <T>(
+  left: ArrayLike<T>,
+  right: ArrayLike<T>,
+): boolean => {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+};
+
 /** Read a required map entry, failing where a broken completeness invariant is
  * first observed instead of passing an undefined value onward. */
 export const requiredMapValue = <Key, Value>(
