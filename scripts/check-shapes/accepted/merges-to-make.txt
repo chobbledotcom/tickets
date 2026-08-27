@@ -17,6 +17,4 @@ src/features/admin/refunds/readiness.ts::providerIdentity,src/shared/payment/val
 src/features/api/payment-processing/snapshot/build.ts::signedModifierValue,src/shared/db/modifier-resolve.ts::signedValue  # one pricing rule written twice, once over snake_case columns and once over camelCase fields; the pair can drift
 src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delete.ts::deleteAnswer  # both cascade a delete over the same two shapes of table
 src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers
-src/shared/db/listings/records.ts::getListingsById,src/shared/db/modifier-resolve.ts::activeModifiersById  # both key a loaded list by id; one byId helper serves both
-src/shared/db/notes/queries.ts::noteOfTarget,src/shared/db/site-page-items.ts::itemOnPage  # both build the same where-clause pair from a record target
 src/shared/email.ts::getHostEmailConfig,src/shared/wallets/wallet-settings-types.ts::getHostConfig  # both prefer an override and fall back to the environment

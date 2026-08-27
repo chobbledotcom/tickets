@@ -206,6 +206,15 @@ export const groupToMap =
       ]),
     );
 
+/**
+ * Key items by their own id, so a caller can look one up. Hand-rolled because
+ * `@std/collections.associateBy` keys by a string and gives back an object,
+ * while every caller here has number ids and wants a Map.
+ */
+export const byId = <T extends { id: number }>(
+  items: readonly T[],
+): Map<number, T> => new Map(items.map((item) => [item.id, item]));
+
 /** Read a required map entry, failing where a broken completeness invariant is
  * first observed instead of passing an undefined value onward. */
 export const requiredMapValue = <Key, Value>(

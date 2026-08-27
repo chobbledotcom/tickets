@@ -16,7 +16,7 @@ import {
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
-import { mapNotNullish } from "#fp";
+import { byId, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
@@ -137,8 +137,8 @@ const listingStatesTx = async (
     listing_type: row.listing_type,
     name: row.name,
   }));
-  const byId = new Map(states.map((state) => [state.id, state]));
-  return mapNotNullish((id: number) => byId.get(id))(listingIds);
+  const stateById = byId(states);
+  return mapNotNullish((id: number) => stateById.get(id))(listingIds);
 };
 
 /** Checks the package rules against the transaction's current group and edge rows.

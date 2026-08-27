@@ -1,4 +1,5 @@
 import { packageMemberMaps } from "#db/groups.ts";
+import { byId } from "#fp";
 import type {
   PaidOrderSnapshot,
   SnapshotDayPriceRow,
@@ -80,10 +81,10 @@ const modifierSpecs = (
   scopeRows: SnapshotRows["modifierScopes"],
   visits: number,
 ): ModifierSpec[] => {
-  const byId = new Map(rows.map((row) => [row.id, row]));
+  const rowsById = byId(rows);
   const scopes = Map.groupBy(scopeRows, (row) => row.modifierId);
   return refs.flatMap((ref) => {
-    const modifier = byId.get(ref.i);
+    const modifier = rowsById.get(ref.i);
     if (!modifier || modifier.minVisits > visits) return [];
     return [
       {
