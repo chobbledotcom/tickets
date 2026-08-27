@@ -279,9 +279,9 @@ const submitTicket = ticketFormRoute(
 );
 
 /**
- * A quote strips the PII that a buyer's visit count needs, so it runs at zero
- * visits. A returning buyer's `min_visits` modifiers are therefore absent. The
- * submit path reprices with the real count before it charges.
+ * A quote strips the PII needed to look up a buyer's visit count, so it runs at
+ * zero visits. A returning buyer's `min_visits` modifiers are therefore absent.
+ * The submit path reprices with the real count before it charges.
  *
  * With no payment provider the booking is taken without charging, but a paid
  * order still owes its full value, so the quote surfaces the amount owed and

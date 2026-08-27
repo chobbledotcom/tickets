@@ -5,16 +5,17 @@ setting we can choose, and records the decision taken and what is left to do.
 
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
-Cucumber support helpers under `test/specs/support` stay at **19 tokens** for
-now, and the work that lets them go lower is named below. See
-[Where we are](#where-we-are) for the remaining steps.
+Cucumber support helpers under `test/specs/support` are scanned twice: at **19
+tokens** alongside `src/`, and at **18 tokens** on their own by
+`.jscpd.support.json`. See [Where we are](#where-we-are) for the remaining
+steps.
 
 All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
 the setting every config in this repository uses. A count is the number of clone
 pairs the scan reports, not the number of places to edit: one merge usually
 clears several pairs.
 
-## The four scans, and why there are four
+## The five scans, and why there are five
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is. It sets the shortest run of tokens that counts as a clone, so a
@@ -24,6 +25,7 @@ lower number is a tighter net.
 | --------------------- | -------------------------------- | --------- |
 | `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
+| `.jscpd.support.json` | `test/specs/support`             | 18        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 
@@ -110,10 +112,44 @@ clean at 19 and cannot go below it:
 | 17        | 497                         |
 | 16        | 961                         |
 
-So the number in that config cannot come down. The support helpers need a
-second, support-only config to be held tighter, and that config can be added
-only after the curries below 19 are done. **19 is where the config sits, not
-where the helpers have to stay.**
+So the number in _that_ config cannot come down. The support helpers therefore
+get a second scan of their own, `.jscpd.support.json`, which drops `src/` and
+holds them at 18. **19 is where the shared config sits, not where the helpers
+have to stay.**
+
+### What the curries cost, and where the helpers are now
+
+Every family the 46 fell into was merged. The counts, measured after each step:
+
+| minTokens | Pairs before | Pairs now |
+| --------- | ------------ | --------- |
+| 19        | 0            | 0         |
+| 18        | —            | 0         |
+| 17        | —            | 4         |
+| 16        | 78           | 11        |
+
+The merges, in the order they landed: `opensAdminPageAt` adopted at the four
+files that hand-rolled it; `withAdminPage` widened to carry a result back and
+adopted at seven; `keepsWhatTheOrganiserSaw` and `visiting` in `browser.ts`;
+`forThisScenario` in `world.ts`; `organiserSavesFields`; the reader's presses,
+the erase form and Refund All curried; the named step types `ActOnOneThing`,
+`ReadAboutOneThing`, `AsksAboutOneThing` adopted at 31 helpers and the new
+`ActOnTheStory` at nine more; `emailFor` moved out of `tickets.ts`;
+`newcomerSends`, `recordPageUnder`, `wordsOnPageFrom`, `expectAccepted`,
+`savesServedForm`, `expectNotBooked`; and the named shapes `PageRead`,
+`StoredCounts`, `LineWithoutItsThing`, `FillsInServedForm` and
+`SavesNamedThingsForm`.
+
+Two helpers keep their own shape, and say why in a comment. `deposits.ts` joins
+a person's names with a hyphen, so its address is a different address, not the
+same one written twice. `asksNotToHearAboutPromotions` has to serve the choices
+page before it can name the button on it, because serving the page is what loads
+that group of copy. The specs caught the second one: a curry that named the
+button as an argument named it too early.
+
+The gate also caught a twin this work created. `savesBundleForm` repeated
+`saveBundleForm`'s whole parameter list, and now takes
+`Parameters<typeof saveBundleForm>` instead.
 
 ### The other test helpers moved from 48 to 40
 
@@ -203,13 +239,14 @@ of 19,000 lines costs about one second.
 
 - **Done.** `test/test-utils` scanned at 40 tokens against `src/`. The
   production-schema reimplementation removed. 12 helper merges landed.
-- **Done.** `opensAdminPageAt` widened to hand back the window, and adopted by
-  the four support files that hand-rolled it. The pairs at 16 tokens went from
-  78 to 75.
-- **Next.** Adopt `withAdminPage` and `submitRenderedAdminForm` at the 30 sites
-  that hand-roll them, then work the smaller families. When `test/specs/support`
-  reports no pairs at 16 tokens, add a support-only config at 16 and keep
-  `.jscpd.specs.json` at 19 for the scan against `src/`.
+- **Done.** Every curry family in `test/specs/support` merged, and
+  `.jscpd.support.json` added at 18 tokens. The pairs at 16 tokens went from 78
+  to 11.
+- **Next.** Take `.jscpd.support.json` to 17. Four pairs, and each needs a
+  judgement: two unrelated bodies behind one parameter list want a named type,
+  and `somethingForSale` is exported twice, from `editors.ts` and
+  `shown-code.ts`, with different options. That last one is a real unification,
+  not a signature coincidence.
 - **Next.** Take `.jscpd.helpers.json` to 36 tokens. 17 pairs, mostly whole
   helpers that duplicate a sibling.
 - **Then.** 32, 28, and below. Classify each band before you price it, and reach

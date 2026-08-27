@@ -6,6 +6,7 @@ import {
   listingIdNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -51,7 +52,7 @@ const giveAttendeeTicket = async (
   const { attendee, token } = await createTestAttendeeDirect(
     listingId,
     attendeeName,
-    `${attendeeName.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    emailFor(attendeeName),
     2,
   );
   world.attendeeId = attendee.id;

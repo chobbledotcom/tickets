@@ -1,4 +1,6 @@
 // jscpd:ignore-start
+
+import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
   type RowOnList,
@@ -50,16 +52,71 @@ export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
 export const scenarioBrowser = (world: TicketsWorld): TestBrowser =>
   browserOf(world, ORGANISER);
 
+/** What somebody fills in, worked out from the page they were actually served.
+ * Reading the served page is what stops a story sending a value no real
+ * browser could have offered. */
+export type FillsInServedForm = (
+  served: string,
+) => Record<string, string | string[]>;
+
+/** Filling in and saving the form on one named thing's own page, and being
+ * handed whatever the caller needs to read afterwards. */
+export type SavesNamedThingsForm<Answer> = (
+  world: TicketsWorld,
+  name: string,
+  fillsIn: FillsInServedForm,
+) => Promise<Answer>;
+
+/** Save the form a page is showing, filled in from the markup it served, so a
+ * story can never send a value the page did not offer. */
+export const savesServedForm = (
+  browser: TestBrowser,
+  fillsIn: FillsInServedForm,
+  buttonText = "Save Changes",
+): Promise<void> =>
+  browser.submitForm(fillsIn(browser.currentHtml), buttonText);
+
+/** The site took the request. Handing the response back lets the caller read
+ * whatever it came with. */
+export const expectAccepted = (response: Response): Response => {
+  expect(response.status).toBe(200);
+  return response;
+};
+
+/** Take a window to an address and hand it back, so the caller reads the page
+ * the visit really landed on. */
+export const visiting = async (
+  browser: TestBrowser,
+  path: string,
+): Promise<TestBrowser> => {
+  await browser.visit(path);
+  return browser;
+};
+
 /** The organiser sends a form on the admin page in front of them, and what
  * the site says back is kept for the story to read — the tail every one of
  * their actions ends in. */
+/** Keep what the site said to the organiser in the window in front of them.
+ * Every action of theirs ends here, so only this line knows that what they
+ * were told is the text of the page they landed on. */
+export const keepsWhatTheOrganiserSaw = (
+  world: TicketsWorld,
+  told: TestBrowser | string,
+): void => {
+  keepWhatTheyWereTold(
+    world,
+    ORGANISER,
+    typeof told === "string" ? told : told.pageText,
+  );
+};
+
 export const organiserSendsAndIsTold = async (
   world: TicketsWorld,
   browser: TestBrowser,
   ...sending: SendingAForm
 ): Promise<void> => {
   await fillInAndSend(browser, ...sending);
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  keepsWhatTheOrganiserSaw(world, browser);
 };
 
 /** Where one page lives: an address that never changes, or one worked out
@@ -111,15 +168,16 @@ export const organiserSendsTheFormAt: SendingOnAPage<void> = async (
   action,
   values = {},
 ) => {
-  const browser = await sendsOnAdminPage(world, path, async (page) => {
+  const browser = await withAdminPage(world, path, async (page) => {
     // Picking the form by where it posts says a form goes there; it says
     // nothing about the boxes. Every value still has to be one that form
     // really offers, so a page that stopped offering a box fails here rather
     // than the send carrying a value no person could have typed.
     expectCanReallySend(page.formBodyAt(action), values);
     await page.submitFormAt(action, values);
+    return page;
   });
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  keepsWhatTheOrganiserSaw(world, browser);
 };
 
 /** The organiser presses one named button on a page, and is left with whatever
@@ -131,14 +189,18 @@ export const organiserPressesOnPage: SendingOnAPage<void> = async (
   buttonText,
   values = {},
 ) => {
-  const browser = await submitRenderedAdminForm(
+  keepsWhatTheOrganiserSaw(
     world,
-    path,
-    buttonText,
-    values,
+    await submitRenderedAdminForm(world, path, buttonText, values),
   );
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
+
+/** Where one remembered record lives under an admin section. Every "take this
+ * one down from the list" step resolves its address this way. */
+export const recordPageUnder =
+  (section: string) =>
+  (world: TicketsWorld, name: string): Promise<string> =>
+    Promise.resolve(`${section}/${world.things.require("record", name)}`);
 
 /** Take a thing down from its own page: follow its delete link, type a name
  * to confirm, and keep what the site said for the story to read. Curried on
@@ -152,7 +214,7 @@ export const takesDownFromOwnPage =
     const browser = await openPage(world);
     await browser.clickLink(deleteLabel);
     await fillInAndSend(browser, { confirm_identifier: typed }, deleteLabel);
-    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+    keepsWhatTheOrganiserSaw(world, browser);
   };
 
 /** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
@@ -172,9 +234,18 @@ export const adminBrowser = async (
 
 /** Somebody who has not been here before opens a page — a customer following a
  * link, or a person opening an invite they were sent. */
-export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
-  const browser = new TestBrowser();
-  await browser.visit(path);
+export const openAsNewcomer = (path: string): Promise<TestBrowser> =>
+  visiting(new TestBrowser(), path);
+
+/** Somebody who was never signed in opens a page and sends the form on it.
+ * The window they end on comes back, so the caller reads where the send took
+ * them. */
+export const newcomerSends = async (
+  path: string,
+  ...sending: SendingAForm
+): Promise<TestBrowser> => {
+  const browser = await openAsNewcomer(path);
+  await fillInAndSend(browser, ...sending);
   return browser;
 };
 
@@ -222,15 +293,19 @@ export const opensPagesAs =
   (
     whoseBrowser: (world: TicketsWorld) => TestBrowser | Promise<TestBrowser>,
   ): OpensAPage =>
-  async (world, path) => {
-    const browser = await whoseBrowser(world);
-    await browser.visit(path);
-    return browser;
-  };
+  async (world, path) =>
+    visiting(await whoseBrowser(world), path);
 
 /** The organiser opens one of their own pages, signing in first if they are not
  * already. Every admin page a story reads starts here. */
 export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
+
+/** The words on a page, read fresh each time it is asked for. Curried on the
+ * way in, so "what X says" is one line wherever the page comes from. */
+export const wordsOnPageFrom =
+  (open: (world: TicketsWorld) => Promise<TestBrowser>) =>
+  async (world: TicketsWorld): Promise<string> =>
+    (await open(world)).pageText;
 
 /** Somebody opens one page whose address never changes, and is handed the
  * window they are looking at it through. A caller that only needs the page
@@ -257,19 +332,18 @@ export const adminPageHtmlAt = async (
 
 /** The organiser opens one of their own pages, and something is done with
  * the window they are looking at — the opening every organiser action on a
- * page shares. */
-export const withAdminPage = async (
+ * page shares. Whatever the act works out comes back, so a caller that reads
+ * the page hands its answer straight on. */
+export const withAdminPage = async <Answer>(
   world: TicketsWorld,
   path: string,
-  act: (browser: TestBrowser) => Promise<void>,
-): Promise<void> => {
-  await act(await openAdminPage(world, path));
-};
+  act: (browser: TestBrowser) => Promise<Answer>,
+): Promise<Answer> => act(await openAdminPage(world, path));
 
 /** Sending one form on one of the owner's pages: which page, which form —
  * named by where it posts or by the words on its button — and what to fill in.
- * The three senders below differ only in how the form is picked and in what
- * they hand back, so the shape is written once. */
+ * The three senders differ only in how the form is picked and in what they
+ * hand back, so the shape is written once. */
 type SendingOnAPage<Answer> = (
   world: TicketsWorld,
   path: string,
@@ -277,30 +351,19 @@ type SendingOnAPage<Answer> = (
   values?: Record<string, string>,
 ) => Promise<Answer>;
 
-/** Opening one of the owner's pages and sending a form on it. Which form, and
- * how it is picked, is all that differs between the senders below. */
-const sendsOnAdminPage = async (
-  world: TicketsWorld,
-  path: string,
-  send: (page: TestBrowser) => Promise<void>,
-): Promise<TestBrowser> => {
-  const browser = await openAdminPage(world, path);
-  await send(browser);
-  return browser;
-};
-
 export const submitRenderedAdminForm: SendingOnAPage<TestBrowser> = (
   world,
   path,
   buttonText,
   values = {},
 ) =>
-  // Every value has to be one the page could really carry, so a form that
-  // stopped offering a box fails here rather than the send going through
-  // regardless.
-  sendsOnAdminPage(world, path, (page) =>
-    fillInAndSend(page, values, buttonText),
-  );
+  withAdminPage(world, path, async (browser) => {
+    // Every value has to be one the page could really carry, so a form that
+    // stopped offering a box fails here rather than the send going through
+    // regardless.
+    await fillInAndSend(browser, values, buttonText);
+    return browser;
+  });
 
 /** Somebody takes one thing down, typing a name to confirm, and is told what
  * the site said. Every way in is followed rather than built — the link on the

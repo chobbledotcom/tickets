@@ -27,10 +27,14 @@ const orderOf = (lines: OrderLine[]): OrderOnAPage => [
 
 /** The order for one named thing on its own page — however many places, and
  * whatever else the story asks for on that line. */
+/** Everything a story says about one line of an order except which thing it
+ * is for. The page it is ordered from already names that. */
+export type LineWithoutItsThing = Omit<OrderLine, "listing">;
+
 export const ownPageOrder = (
   world: TicketsWorld,
   name: string,
-  line: Omit<OrderLine, "listing"> = {},
+  line: LineWithoutItsThing = {},
 ): OrderOnAPage => orderOf([{ listing: listingNamed(world, name), ...line }]);
 
 /** The order for some named things bought together, in the order the story

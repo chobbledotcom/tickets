@@ -169,6 +169,23 @@ describe("test-utils — db-backed & settings contracts", () => {
       );
     });
 
+    test("manager and agent helpers take a username in any case", async () => {
+      // Production stores usernames lower-cased, and the login lookup hashes
+      // them lower-cased to match. A helper that indexed the caller's own
+      // spelling could not find the row it had just written.
+      const managerCookie = await createTestManagerSession(
+        "mgr-mixed",
+        "MixedCaseManager",
+      );
+      expect(managerCookie).toContain("mgr-mixed");
+
+      const agent = await createTestAgentSession({
+        token: "agent-mixed",
+        username: "MixedCaseAgent",
+      });
+      expect(agent.userId).toBeGreaterThan(0);
+    });
+
     test("manager and agent helpers require the setup admin key", async () => {
       resetDb();
       await createTestDb();

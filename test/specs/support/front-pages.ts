@@ -14,7 +14,7 @@ import {
 } from "#test/specs/support/browser.ts";
 import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -41,19 +41,13 @@ export const ownerWritesHomepage = (
     website_title: title,
   });
 
-export const ownerWritesContactPage = (
-  world: TicketsWorld,
-  text: string,
-): Promise<void> =>
+export const ownerWritesContactPage: ActOnOneThing = (world, text) =>
   writesFrontPage(world, "/admin/site/contact", { contact_page_text: text });
 
 /** The owner turns the order page on and writes its introduction. The page
  * carries two forms behind the same Save wording; each send goes through the
  * form that really renders the field being filled in. */
-export const ownerTurnsOrderPageOn = async (
-  world: TicketsWorld,
-  intro: string,
-): Promise<void> => {
+export const ownerTurnsOrderPageOn: ActOnOneThing = async (world, intro) => {
   await enablePublicSite();
   const browser = await openAdminPage(world, "/admin/site/order");
   // The tick only counts if the page's own box really sends "true" — the

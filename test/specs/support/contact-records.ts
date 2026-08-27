@@ -19,7 +19,10 @@ import { mapNotNullish } from "#fp";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -38,6 +41,13 @@ interface RecordEdit {
 
 /** Where one person's record lives, under the one-way code made from their
  *  email rather than the address itself. */
+/** The plain counts a stored contact record carries, whatever else it holds. */
+interface StoredCounts {
+  bookedByHand: number;
+  bookedThroughTheSite: number;
+  visits: number;
+}
+
 const recordPath = (code: string): string => `/admin/history/${code}`;
 
 /** Everything the site has stored about them right now. */
@@ -47,13 +57,10 @@ export const recordFor = async (email: string): Promise<ContactRecord> =>
 /** Someone the site has already seen, with a history behind them. */
 export const contactWithHistory = async (
   email: string,
-  history: {
-    bookedByHand: number;
-    bookedThroughTheSite: number;
+  history: StoredCounts & {
     lastContacted: string;
     messages: number;
     note: string;
-    visits: number;
   },
 ): Promise<void> => {
   await saveContactRecord(await hashEmail(email), {
@@ -71,11 +78,7 @@ export const contactWithHistory = async (
  * counts intact — the state a half-finished write can leave behind. */
 export const unreadableRecord = async (
   email: string,
-  counts: {
-    bookedByHand: number;
-    bookedThroughTheSite: number;
-    visits: number;
-  },
+  counts: StoredCounts,
 ): Promise<void> => {
   await execute(
     "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (?, ?, ?, ?, ?, ?)",
@@ -93,10 +96,10 @@ export const unreadableRecord = async (
 /** The organiser opens someone's record. The address it lives at is kept on
  *  the world because it is made from a one-way code, not from the email, so an
  *  evidence capture has no path it could write by hand. */
-export const openRecord = async (
-  world: TicketsWorld,
-  email: string,
-): Promise<TestBrowser> => {
+export const openRecord: ReadAboutOneThing<TestBrowser> = async (
+  world,
+  email,
+) => {
   const code = toContactHashParam(await hashEmail(email));
   leaveEvidencePage(
     world,

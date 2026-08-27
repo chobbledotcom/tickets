@@ -10,12 +10,13 @@ import { getAllUsers } from "#db/users.ts";
 import { t } from "#i18n";
 import {
   browserSeenBy,
+  newcomerSends,
   type OpensOneFixedPage,
   ORGANISER,
   openAdminPage,
-  openAsNewcomer,
   opensAdminPageAt,
   rememberBrowser,
+  visiting,
 } from "#test/specs/support/browser.ts";
 import {
   type RowOnList,
@@ -108,17 +109,12 @@ export const howManyMaySignIn = async (): Promise<number> =>
 
 /** The invited person follows the real link and chooses their password in the
  * form it serves. This browser holds only the single-use invitation visit. */
-export const acceptStaffInvite = async (
-  invite: string,
-): Promise<TestBrowser> => {
-  const browser = await openAsNewcomer(invite);
-  await fillInAndSend(
-    browser,
+export const acceptStaffInvite = (invite: string): Promise<TestBrowser> =>
+  newcomerSends(
+    invite,
     { password: STAFF_PASSWORD, password_confirm: STAFF_PASSWORD },
     t("join.set_password.submit"),
   );
-  return browser;
-};
 
 /** Follow an invite and keep the resulting browser under one story name. */
 export const rememberAcceptedStaffInvite = async (
@@ -130,14 +126,11 @@ export const rememberAcceptedStaffInvite = async (
 
 /** Sign in through the ordinary login form from a fresh browser, and hand
  * back the browser they are now looking at. */
-const signsInOnAFreshPage = async (
+const signsInOnAFreshPage = (
   who: string,
   password: string,
-): Promise<TestBrowser> => {
-  const browser = await openAsNewcomer("/admin/");
-  await fillInAndSend(browser, { password, username: who }, t("login.submit"));
-  return browser;
-};
+): Promise<TestBrowser> =>
+  newcomerSends("/admin/", { password, username: who }, t("login.submit"));
 
 /** Sign in with these credentials and keep the window under one story name,
  * for whoever needs a signed-in window of their own — a staff member's, or
@@ -188,15 +181,11 @@ export const managerBrowser = (world: TicketsWorld, who: string): TestBrowser =>
   browserSeenBy(world, managerBrowserName(who));
 
 /** A manager opens a page in their own signed-in browser. */
-export const openManagerPage = async (
+export const openManagerPage = (
   world: TicketsWorld,
   who: string,
   path: string,
-): Promise<TestBrowser> => {
-  const browser = managerBrowser(world, who);
-  await browser.visit(path);
-  return browser;
-};
+): Promise<TestBrowser> => visiting(managerBrowser(world, who), path);
 
 /** Whether somebody can sign in with this password, proved by opening a page
  * only the signed-in staff may see. Merely being refused once proves

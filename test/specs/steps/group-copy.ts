@@ -4,7 +4,11 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
-import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  keepsWhatTheOrganiserSaw,
+  ORGANISER,
+  openAdminPage,
+} from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   bulkActionPath,
@@ -12,10 +16,7 @@ import {
   groupNamed,
 } from "#test/specs/support/groups.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
-import {
-  keepWhatTheyWereTold,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -93,7 +94,7 @@ const organiserDuplicatesGroup = async (
   const source = await groupNamed(sourceName);
   const browser = await openAdminPage(world, DUPLICATE_PATH(source.id));
   await fillInAndSend(browser, fillsIn, duplicateButton());
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+  keepsWhatTheOrganiserSaw(world, browser);
   return browser;
 };
 

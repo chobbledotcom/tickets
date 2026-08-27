@@ -18,17 +18,18 @@ const triggers = (workflow: string): string => {
 describe("Test workflow triggers", () => {
   test("does not run the suite twice on a merge queue branch", async () => {
     // A queue branch arrives as a push, so without this the suite runs once
-    // for `push` and again for `merge_group`. The queue waits for both, and a
-    // stalled duplicate once timed the queue out an hour after the real run
-    // had passed.
+    // for `push` and again for `merge_group`. A stalled duplicate once timed
+    // the queue out an hour after the real run had passed.
     expect(triggers(await readWorkflow())).toContain(
       'branches-ignore: [main, "gh-readonly-queue/**"]',
     );
   });
 
-  test("still reports on a merge queue branch, which the queue gates on", async () => {
-    // The pair matters: ignoring queue branches without this leaves the queue
-    // waiting for checks that never arrive, which is worse than the duplicate.
+  test("still reports on a merge queue branch", async () => {
+    // `checks` and `test` are not required checks on `main`, so the queue does
+    // not wait for them today. See TODO.md. Once they are required, a queue
+    // branch with no `merge_group` run reports nothing, and the queue waits for
+    // a check that never arrives.
     expect(triggers(await readWorkflow())).toContain("merge_group:");
   });
 

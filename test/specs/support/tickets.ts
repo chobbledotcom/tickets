@@ -16,6 +16,7 @@ import {
   newcomerReading,
   openAsNewcomer,
   type PageRead,
+  wordsOnPageFrom,
 } from "#test/specs/support/browser.ts";
 import {
   listingNamed,
@@ -33,6 +34,7 @@ import {
 } from "#test/specs/support/sales-pages.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
+  type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -44,6 +46,13 @@ import type { Listing } from "#types";
 /** The code the site gave somebody, read off the link on the page their
  * booking landed on. A booking whose page offers no way back to a ticket is a
  * booking its holder can never look at again, so it stops the story here. */
+/** The email address the person a story names books with. One rule, so a
+ * later step can look a person up by the same address the booking used. Kept
+ * here rather than in world.ts: world.ts is loaded by the unit suite, which
+ * never books anybody, so a home there would read as uncovered. */
+export const emailFor = (who: string): string =>
+  `${who.toLowerCase().replaceAll(" ", ".")}@example.com`;
+
 export const codeOnTheLinkTheyWereGiven = (browser: TestBrowser): string => {
   const toTicket = browser.links.find(({ href }) => href.startsWith("/t/"));
   if (!toTicket) throw new Error("The booking gave them no link to a ticket");
@@ -61,11 +70,6 @@ export const keepsTicketFor = (
   for (const thing of things) world.things.remember("ticket", thing, code);
   world.ticketToken = code;
 };
-
-/** One made-up address per person, so two people in one story are never taken
- * for one. */
-const emailFor = (who: string): string =>
-  `${who.toLowerCase().replaceAll(" ", ".")}@example.com`;
 
 /** The organiser attaches a file to something they sell. A file is uploaded on
  * its own rather than typed into the listing's form, so the story records what
@@ -167,10 +171,10 @@ export const sellsSomethingFilledIn = async (
 };
 
 /** Something sold a day at a time, bookable from today onwards. */
-export const sellsSomethingByTheDay = (
-  world: TicketsWorld,
-  name: string,
-): Promise<Listing> =>
+export const sellsSomethingByTheDay: ReadAboutOneThing<Listing> = (
+  world,
+  name,
+) =>
   putsOnSaleByTheDay(world, name, {
     maxAttendees: 20,
     maxQuantity: 5,
@@ -223,9 +227,7 @@ export const openTicket = (world: TicketsWorld): Promise<TestBrowser> =>
   openAsNewcomer(`/t/${linkInTheirHand(world)}`);
 
 /** What their ticket says, in the words a reader sees. */
-export const wordsOnTheirTicket = async (
-  world: TicketsWorld,
-): Promise<string> => (await openTicket(world)).pageText;
+export const wordsOnTheirTicket = wordsOnPageFrom(openTicket);
 
 /** A code the site was never given. Long enough that it cannot collide with a
  * real one, and the same every time so the story reads the same each run. */

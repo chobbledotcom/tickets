@@ -7,11 +7,10 @@
  * than being stepped around.
  */
 
-import { expect } from "@std/expect";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { openAdminPage } from "#test/specs/support/browser.ts";
+import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
   listingNamed,
@@ -140,10 +139,7 @@ const codeOnPage = (browser: TestBrowser): string => {
 };
 
 /** The organiser opens a listing's door. */
-const openDoor = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<TestBrowser> =>
+const openDoor: ReadAboutOneThing<TestBrowser> = async (world, listing) =>
   openAdminPage(world, listingPath(world, listing, "scanner"));
 
 /** The organiser holds a ticket up to a listing's door and is told what to do
@@ -181,24 +177,20 @@ export const showTicketAtDoor = async (
       method: "POST",
     }),
   );
-  expect(response.status).toBe(200);
-  return (await response.json()) as DoorAnswer;
+  return (await expectAccepted(response).json()) as DoorAnswer;
 };
 
 /** The whole door page, for checks about what is not on it at all. */
-export const doorPageHtml = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<string> => (await openDoor(world, listing)).currentHtml;
+export const doorPageHtml: ReadAboutOneThing = async (world, listing) =>
+  (await openDoor(world, listing)).currentHtml;
 
 /** The people the door offers when the organiser looks someone up by hand
  * instead of reading their ticket. Each one is read from the row the organiser
  * would click, so a name shown anywhere else on the page does not count as
  * being offered. */
-export const peopleOfferedAtDoor = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<Array<{ name: string; ticket: string }>> => {
+export const peopleOfferedAtDoor: ReadAboutOneThing<
+  Array<{ name: string; ticket: string }>
+> = async (world, listing) => {
   const html = await doorPageHtml(world, listing);
   return [...html.matchAll(/<div[^>]*role="option"[^>]*>/g)].map(([row]) => ({
     name: readOf(row, "name"),

@@ -5,9 +5,9 @@
  * A package sets a fixed price per member and sells the whole bundle, so:
  *  - a pay-what-you-want listing has no fixed member price to charge.
  *  - a child listing is only ever sold alongside its parent.
- *  - on a HIDDEN package, a member that gates its own children shows a child
- *    selector that names the very listings the package hides. A VISIBLE package
- *    renders that selector fine.
+ *  - on a HIDDEN package, a member that gates its own children needs a child
+ *    selector, and that selector names the very listings the package hides. A
+ *    VISIBLE package renders that selector fine.
  */
 /* jscpd:ignore-start */
 import { t } from "#i18n";

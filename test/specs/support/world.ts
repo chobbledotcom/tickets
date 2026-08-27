@@ -39,6 +39,9 @@ export type ActOnOneThing = (
   world: TicketsWorld,
   name: string,
 ) => Promise<void>;
+/** A step that names nothing at all: it acts on the story as it stands. */
+export type ActOnTheStory = (world: TicketsWorld) => Promise<void>;
+
 export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,

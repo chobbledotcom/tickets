@@ -8,8 +8,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
-
 import { listingNamed } from "#test/specs/support/listings.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import type {
   ReadAboutOneThing,
   TicketsWorld,
@@ -99,7 +99,7 @@ export const apiBooks = async (
   ask(`/api/listings/${listingNamed(world, name).slug}/book`, {
     body: {
       date: day,
-      email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+      email: emailFor(who),
       name: who,
     },
     method: "POST",
