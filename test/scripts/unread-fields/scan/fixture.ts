@@ -53,6 +53,7 @@ import {
   type BothArmsWriteIt,
   type ExtendsFarBase,
   type FromAShorthand,
+  type HandsAnObjectOver,
   type HoldsAClass,
   NamedItsParameter,
   type Passed,
@@ -110,6 +111,10 @@ export const throughTheSecondArm = (either: BothArmsWriteIt): number =>
     : 0;
 
 export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
+
+export const handOver = (h: HandsAnObjectOver): void => {
+  h.takesAnObject({ insideAParameter: 1 });
+};
 `,
 
   // Reached by a directory import. The compiler finds it only when the host
@@ -240,9 +245,10 @@ export class Carrier {
 
   constructor(
     public heldByTheConstructor: number,
+    public readByThisInside: number,
     plainParameter: number,
   ) {
-    this.onlyOnAClass = plainParameter;
+    this.onlyOnAClass = plainParameter + this.readByThisInside;
   }
 
   keep(): number {
@@ -327,6 +333,10 @@ export interface HoldsAClass {
   builtOnByAChild: new () => { madeByTheChild: number };
 }
 
+export interface HandsAnObjectOver {
+  takesAnObject: (made: { insideAParameter: number }) => void;
+}
+
 interface FirstArm {
   whichArm: "first";
   writtenByBothArms: number;
@@ -342,11 +352,17 @@ export type BothArmsWriteIt = FirstArm | SecondArm;
 
 const namedByALocal = 1;
 const readsLikeAField = 2;
-const SHORTHANDS = [{ namedByALocal, readsLikeAField, writtenInFull: 3 }];
+const readInItsOwnFile = 4;
+const SHORTHANDS = [
+  { namedByALocal, readInItsOwnFile, readsLikeAField, writtenInFull: 3 },
+];
 
 export type FromAShorthand = (typeof SHORTHANDS)[number];
 
 export const useTheLocal = (): number => namedByALocal + 1;
+
+export const readItHere = (one: FromAShorthand): number =>
+  one.readInItsOwnFile;
 `,
 
   "test/report.test.ts": `

@@ -109,4 +109,14 @@ describe("the reads the scan counts", () => {
   test("still counts a member read of a shorthand field", () => {
     expect(verdictOf("FromAShorthand", "writtenInFull")).toBe("read");
   });
+
+  test("counts a member read inside the file the local lives in", () => {
+    // The local is in reach here, so only the member read tells them apart.
+    expect(verdictOf("FromAShorthand", "readInItsOwnFile")).toBe("read");
+  });
+
+  test("counts a parameter field the constructor reads through this", () => {
+    // The parameter is in reach here, so only `this.` tells them apart.
+    expect(verdictOf("Carrier", "readByThisInside")).toBe("read");
+  });
 });

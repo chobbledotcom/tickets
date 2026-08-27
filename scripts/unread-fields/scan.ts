@@ -198,17 +198,15 @@ const inheritedFields = (
 
 /** Which of a node's parts can hold a member. `R extends { paid: number } ?
  * { paid: string } : never` checks one type against another, and only the
- * answer is part of the shape. A function keeps what it writes down before its
- * body: a type written inside the body never leaves it. */
+ * answer is part of the shape. A function keeps its parameters and the type it
+ * hands back. Its body holds a type that never leaves it, and its type
+ * parameters describe themselves, exactly as a shape's own ones do. */
 const worthWalking = (node: ts.Node): ((part: ts.Node) => boolean) => {
   if (ts.isConditionalTypeNode(node)) {
     return (part) => part !== node.checkType && part !== node.extendsType;
   }
   if (!ts.isFunctionLike(node)) return () => true;
-  return (part) =>
-    ts.isTypeNode(part) ||
-    ts.isParameter(part) ||
-    ts.isTypeParameterDeclaration(part);
+  return (part) => ts.isTypeNode(part) || ts.isParameter(part);
 };
 
 /** The parts of a node the walk goes on through. */

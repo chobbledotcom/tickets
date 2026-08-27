@@ -118,6 +118,6 @@ scripts/unread-fields/writes.ts::nodeAt.descend~1bsvjf5  ?? → ||   # ts.forEac
 # Unread-fields host: a constant the compiler only ever compares against
 # itself.
 scripts/unread-fields/scan.ts::declaredIn~0hvqe62  ?? → ||   # ts.Symbol.declarations is a Declaration[] or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
-scripts/unread-fields/scan.ts::borrowedName.written~1o9qusl  ?? → ||   # ts.Symbol.declarations is a Declaration[] or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
+scripts/unread-fields/scan.ts::writtenNames~1o9qusl  ?? → ||   # ts.Symbol.declarations is a Declaration[] or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/scan.ts::scanUnreadFields.program~0cb3obs  program for the scan → ""   # the text names the thing a full language service failed to build, and a live service always builds a program, so no input reaches the throw that would print it
 scripts/unread-fields/host.ts::serviceHost.getScriptVersion~0co5u5s  1 → ""   # the document registry reads a version only to notice that a file changed between calls, and this host answers the same constant for every file while nothing writes to the checkout during a scan, so every constant builds the same program

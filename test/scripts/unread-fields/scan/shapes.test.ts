@@ -147,6 +147,13 @@ describe("the shapes the scan finds", () => {
     expect(lines.map((f) => f.field)).toEqual(["measure"]);
   });
 
+  test("sees a field inside a parameter of a function the shape hands out", () => {
+    // Whoever calls it has to build that object, so its fields are reachable.
+    expect(
+      verdictOf("HandsAnObjectOver.takesAnObject", "insideAParameter"),
+    ).toBe("never read");
+  });
+
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "AnsweredAgain.answeredTwice",
@@ -162,6 +169,7 @@ describe("the shapes the scan finds", () => {
       "Carrier.heldByTheConstructor",
       "Carrier.keep",
       "Carrier.onlyOnAClass",
+      "Carrier.readByThisInside",
       "DeclaresATypeInAMethod.measure",
       "EitherNamed.onlyWhenItWentBadly",
       "EitherNamed.onlyWhenItWentWell",
@@ -179,8 +187,11 @@ describe("the shapes the scan finds", () => {
       "FarBase.readFromFarAway",
       "FromAList.writtenInAList",
       "FromAShorthand.namedByALocal",
+      "FromAShorthand.readInItsOwnFile",
       "FromAShorthand.readsLikeAField",
       "FromAShorthand.writtenInFull",
+      "HandsAnObjectOver.takesAnObject",
+      "HandsAnObjectOver.takesAnObject.insideAParameter",
       "HoldsAClass.builtOnByAChild",
       "HoldsAClass.builtOnByAChild.madeByTheChild",
       "Inner.onlyInsideNamespace",
