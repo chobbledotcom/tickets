@@ -168,6 +168,19 @@ export interface HoldsThingsInGenerics {
   inARecord: Record<string, { insideARecord: number }>;
 }
 
+// A field and a list of the same name are two fields. One is h.sharedName
+// and the other is h[0].sharedName, so one line for both would let a read of
+// either speak for the one nothing reads.
+export type HoldsAListOfTheSameName = { sharedWithAList: string } & Array<{
+  sharedWithAList: number;
+}>;
+
+// The other two ways to write a list. Both reach an element the same way.
+export interface WritesAListTwoWays {
+  withBrackets: { insideBrackets: number }[];
+  readonly withReadonly: readonly { insideReadonly: number }[];
+}
+
 export type InlineArmsShareIt =
   | { whichInlineArm: "first"; sharedByInlineArms: number }
   | {

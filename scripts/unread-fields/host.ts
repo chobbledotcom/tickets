@@ -10,7 +10,7 @@ import ts from "typescript";
 
 /** What the compiler answered, where its own types allow nothing but this
  * scan's construction rules nothing out. A full language service over a file
- * it has parsed always has these, so nothing reaching here is a state to
+ * it has parsed always has these, so nothing that reaches here is a state to
  * handle. */
 export const answered = <T>(value: T | undefined, what: string): T => {
   if (value === undefined) throw new Error(`The compiler had no ${what}`);
@@ -49,8 +49,8 @@ export const pathIs =
   (path) =>
     probing(false)(() => Deno.statSync(path)[kind]);
 
-/** The scan never emits and never reads a diagnostic, so only parsing and
- * module resolution matter. `jsx` is set because a `.tsx` file must parse as
+/** The scan never emits and never reads a diagnostic, so only the parse and
+ * the module resolution matter. `jsx` is set because a `.tsx` file must parse as
  * JSX. The rest tells the compiler how to find a file. */
 /** What the repository asks the compiler for, out of its own `deno.json`.
  * Strictness changes what a type means, so a scan that leaves it out reads a

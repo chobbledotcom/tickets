@@ -197,6 +197,32 @@ down with each one. That also makes the report say which `Item` a line means.
 
 ---
 
+## Find the readers of a negative numeric field name
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`interface X { [-3]: string }` is valid TypeScript, and the checker names the
+property `-3`. `quotedInBrackets` in `scripts/unread-fields/writes.ts` keeps a
+string or a number inside brackets and drops everything else, so it drops the
+`PrefixUnaryExpression` that holds the minus. `nameOf` then finds no name and
+the field never enters the report.
+
+The obvious fix does not work, and a probe says why. `findReferences` answers
+with nothing at every position the name occupies: the `-3` expression, the `3`
+inside it, and the brackets around both. So a field found this way would carry
+no reader at all and report as never read, whatever reads it. That is a false
+positive, which is worse than the field's absence.
+
+A fix therefore needs a way to reach the readers that is not the position of the
+name. `checker.getSymbolAtLocation` does answer at the computed name, so one
+starting point is the symbol rather than the position. `FieldName` also has to
+admit a node whose own text is `3` while the field is called `-3`, because
+`remember` keys its line on `name.text`.
+
+`src/` holds no negative numeric key. `grep -rnE '\[\s*-[0-9]' src/` finds none.
+
+---
+
 ## Remove the alias exports in the test helpers
 
 _Origin: the test-helper duplication pass (`docs/test-duplication.md`). Found

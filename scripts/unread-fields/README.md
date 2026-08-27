@@ -52,9 +52,12 @@ export class Badge {
 
 An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
-`Record<string, { id: number }>` both count. `Extract<Row, { kind: "one" }>` is
-different. Its second argument says which arms of `Row` to keep. It is a filter,
-and no value of the shape has a field of it. `Exclude` works the same way.
+`Record<string, { id: number }>` both count. `Array<T>`, `ReadonlyArray<T>` and
+`T[]` add a step for the element, because `rows[0].id` is one step further than
+`rows.id`. Without that step a shape that holds both a field and a list of the
+same name reports the two as one. `Extract<Row, { kind: "one" }>` is different.
+Its second argument says which arms of `Row` to keep. It is a filter, and no
+value of the shape has a field of it. `Exclude` works the same way.
 
 A conditional type is the same idea. `true extends true ? A : B` answers with
 `A`, so no value of it holds a field of `B`. A conditional that waits on a type
@@ -153,13 +156,13 @@ nothing. Neither does a class that is only described. A `declare class`, a class
 inside a `declare namespace`, and every declaration in a `.d.ts` file describe a
 class that exists somewhere else.
 
-Two ways of writing a field give it a namesake, and the compiler answers a
-lookup for either name with both. `constructor(public total: number)` declares a
-parameter beside the field. `{ total }` declares the field out of a local. The
-parameter is only there inside the constructor, and the local is there for the
-whole file. Inside that reach, only a mention that names a member reads the
-field. `this.total` and `const { total } = row` name one. A plain `total` names
-the namesake, and no value leaves the field.
+A field gets a namesake in two ways, and the compiler answers a lookup for
+either name with both. `constructor(public total: number)` declares a parameter
+beside the field. `{ total }` declares the field out of a local. The parameter
+is only there inside the constructor, and the local is there for the whole file.
+Inside that reach, only a mention that names a member reads the field.
+`this.total` and `const { total } = row` name one. A plain `total` names the
+namesake, and no value leaves the field.
 
 The rule is about the syntax a mention sits in, never about the name alone. In
 `({ value: row.total } = source)` the field `value` reads and `row.total`
@@ -173,7 +176,7 @@ by those tests. No production code needs it, so it is dead under another name.
 
 ## What it cannot see
 
-A field reached without naming it has no reference to find, so the scan calls it
+A field that no code names has no reference to find, so the scan calls it
 unread. Four cases do that in this repository:
 
 - A field carried by a spread. `({ title, ...props }) => ({ ...props })` moves
@@ -191,13 +194,15 @@ as `Sum.total`. Any other name takes brackets and quotes, as `Row["has.a.dot"]`,
 so a name that holds a dot cannot read like a path. A member with no name of its
 own gets the way a reader reaches through it instead: `Callable["()"]` for a
 call signature, `Constructable["new ()"]` for a construct signature, and
-`Bag["[]"]` for an index signature.
+`Bag["[]"]` for an index signature. A list reads one element at a time, so it
+takes the same `[]` step. The fields of `Array<{ total: number }>` sit under
+`Rows["[]"]`, because a reader writes `rows[0].total`.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
-reports rather than fails: the list is a place to start looking, not a verdict.
-A field the scan misses is rarer. It needs a read the compiler cannot see, such
-as one through `Object.keys` or a computed name. One kind of shape is missed
-whole: `Intent = v.InferOutput<typeof IntentSchema>` names a type the compiler
-cannot work out here, because the program does not resolve the bare `valibot`
-import. 77 exported aliases under `src/` take their shape that way, and each
-contributes no fields to the report.
+reports rather than fails: the list is a place to start, not a verdict. A field
+the scan misses is rarer. It needs a read the compiler cannot see, such as one
+through `Object.keys` or a computed name. One kind of shape is missed whole:
+`Intent = v.InferOutput<typeof IntentSchema>` names a type the compiler cannot
+work out here, because the program does not resolve the bare `valibot` import.
+77 exported aliases under `src/` take their shape that way, and each contributes
+no fields to the report.

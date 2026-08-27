@@ -39,12 +39,15 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
     throw new Error(`The repository at ${root} has no ${REPORTED} folder`);
   }
   const here = ALSO_READ.filter((folder) => isDirectory(`${root}/${folder}`));
-  const perFolder = await Promise.all(
-    [REPORTED, ...here].map((folder) =>
-      collectSourceFiles(`${root}/${folder}`),
-    ),
-  );
-  return perFolder.flat();
+  const [reported, alsoRead] = await Promise.all([
+    collectSourceFiles(`${root}/${REPORTED}`),
+    Promise.all(here.map((folder) => collectSourceFiles(`${root}/${folder}`))),
+  ]);
+  // An empty folder reports nothing, and nothing reads like a clean bill.
+  if (reported.length === 0) {
+    throw new Error(`The ${REPORTED} folder at ${root} holds no source file`);
+  }
+  return [reported, ...alsoRead].flat();
 };
 
 /** Whether one reference takes the field's value out. */
@@ -60,8 +63,8 @@ const readsHere = (
   return !namesTheNamesake(node);
 };
 
-/** Two ways of writing a field give it a namesake the compiler cannot tell it
- * apart from. `constructor(public value: string)` declares a parameter beside
+/** A field gets a namesake the compiler cannot tell it apart from in two
+ * ways. `constructor(public value: string)` declares a parameter beside
  * the field, and the parameter is only there inside the constructor.
  * `{ value }` declares the field out of a local, and that local is there for
  * the whole file. This says where the namesake lives, or nothing when the

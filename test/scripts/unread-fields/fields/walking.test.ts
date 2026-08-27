@@ -91,15 +91,18 @@ describe("what the walk goes into", () => {
 
   test("still sees a field a readonly array hands out", () => {
     // `readonly` is a type operator too, and this one does hand a field out.
-    expect(verdictOf("StillHandsOneOut", "keptByReadonly")).toBe("never read");
+    // The list still takes its step, because a reader writes `kept[0]`.
+    expect(verdictOf('StillHandsOneOut["[]"]', "keptByReadonly")).toBe(
+      "never read",
+    );
   });
 
   test("sees a field of an object type a generic holds", () => {
     // `Array<{ id }>` and `Record<string, { id }>` both hand the inner shape
     // on, and a reader reaches it as `rows.inAnArray[0].insideAnArray`.
-    expect(verdictOf("HoldsThingsInGenerics.inAnArray", "insideAnArray")).toBe(
-      "read",
-    );
+    expect(
+      verdictOf('HoldsThingsInGenerics.inAnArray["[]"]', "insideAnArray"),
+    ).toBe("read");
     expect(verdictOf("HoldsThingsInGenerics.inARecord", "insideARecord")).toBe(
       "never read",
     );
@@ -183,6 +186,28 @@ describe("what the walk goes into", () => {
 
   test("stays out of the type of a property the class keeps to itself", () => {
     expect(verdictOf("Keeps.held", "keptInsideToo")).toBeUndefined();
+  });
+
+  test("keeps a field and a list of the same name apart", () => {
+    // `{ shared: string } & Array<{ shared: number }>` declares the name
+    // twice. One is `h.shared` and the other is `h[0].shared`, so one line
+    // for both would let the read of the first speak for the second.
+    expect(verdictOf("HoldsAListOfTheSameName", "sharedWithAList")).toBe(
+      "read",
+    );
+    expect(verdictOf('HoldsAListOfTheSameName["[]"]', "sharedWithAList")).toBe(
+      "never read",
+    );
+  });
+
+  test("gives a list the same step however it is written", () => {
+    // `T[]` and `readonly T[]` reach an element exactly as `Array<T>` does.
+    expect(
+      verdictOf('WritesAListTwoWays.withBrackets["[]"]', "insideBrackets"),
+    ).toBe("never read");
+    expect(
+      verdictOf('WritesAListTwoWays.withReadonly["[]"]', "insideReadonly"),
+    ).toBe("never read");
   });
 
   test("reads the key an indexed access keeps, and not the one it drops", () => {

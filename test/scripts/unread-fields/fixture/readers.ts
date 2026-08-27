@@ -17,6 +17,7 @@ import {
   HasAStaticAndAccessors,
   type HoldsAClass,
   type HoldsClasses,
+  type HoldsAListOfTheSameName,
   type HoldsThingsInGenerics,
   type InlineArmsShareIt,
   type NamedByALiteral,
@@ -83,6 +84,12 @@ export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
 
 export const readInsideAnArray = (h: HoldsThingsInGenerics): number =>
   h.inAnArray[0].insideAnArray;
+
+// Reads the field the shape declares itself, and never the element's. The
+// two share a name, so this is what proves they hold two lines.
+export const readTheSharedNameNotTheElement = (
+  h: HoldsAListOfTheSameName,
+): string => h.sharedWithAList;
 
 export const dropInParens = (d: DeletedInParens): void => {
   delete (d.takenAwayInParens);

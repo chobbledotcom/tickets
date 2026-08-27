@@ -8,7 +8,7 @@
 
 import ts from "typescript";
 
-/** The innermost node covering a position, which is the identifier a
+/** The innermost node over a position, which is the identifier a
  * reference points at. */
 export const nodeAt = (
   source: ts.SourceFile,
@@ -69,7 +69,8 @@ const named =
 
 /** Every way a mention can put a value into a field. `<Meter total={1} />`
  * supplies one as surely as `{ total: 1 }` does, and `get total()` supplies
- * one from a class. A mention matching none of these takes the value out. */
+ * one from a class. A mention that matches none of these takes the value
+ * out. */
 const WAYS_TO_WRITE = [
   named(ts.isPropertySignature),
   named(ts.isPropertyDeclaration),
@@ -96,7 +97,7 @@ export type AskAboutAMention = (node: ts.Node) => boolean;
 
 /** The quoted or numbered name inside a pair of brackets, when that is what
  * the brackets hold. `["total"]` and `[7]` name the same fields `"total"` and
- * `7` do. Brackets holding anything else — a variable, a sum, a symbol — hold
+ * `7` do. Brackets that hold anything else — a variable, a sum, a symbol — hold
  * an expression rather than a word, so nothing can look that name up. Where
  * the expression is worked out is a separate question, and the answer differs
  * between a class and an interface. */
@@ -146,8 +147,8 @@ const WRAPPERS_THAT_DO_NOTHING: ReadonlySet<ts.SyntaxKind> = new Set([
 const onlyWraps = (node: ts.Node): boolean =>
   WRAPPERS_THAT_DO_NOTHING.has(node.kind);
 
-/** Whether an assignment writes into this node, following the nesting of
- * `({ inner: { total } } = row)` out to the `=`. */
+/** Whether an assignment writes into this node, out through the nested
+ * `({ inner: { total } } = row)` to the `=`. */
 const isAssignedTo: AskAboutAMention = onParent((node, parent) => {
   if (ts.isBinaryExpression(parent)) {
     return (
@@ -206,7 +207,7 @@ const namedByAPattern = (node: ts.Node, parent: ts.Node): boolean =>
     : isDestructuringTarget(parent) &&
       NAMES_AN_ASSIGNED_SLOT.some((names) => names(node, parent));
 
-/** True when this mention names a member of something rather than standing on
+/** True when this mention names a member of something rather than stands on
  * its own as a plain name. */
 export const namesAMember: AskAboutAMention = onParent(
   (node, parent) =>
@@ -222,9 +223,9 @@ const anywhereAbove =
   (node) =>
     ts.findAncestor(node, matches) !== undefined;
 
-/** Whether a mention sits inside one particular piece of the program. Asking
- * the nodes themselves needs no file name and no character counting: a
- * mention in another file has none of that file's nodes above it. */
+/** Whether a mention sits inside one particular piece of the program. A
+ * question put to the nodes themselves needs no file name and no character
+ * count: a mention in another file has none of that file's nodes above it. */
 export const isInside = (whole: ts.Node): AskAboutAMention =>
   anywhereAbove((at) => at === whole);
 

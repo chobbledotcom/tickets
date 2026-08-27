@@ -20,6 +20,21 @@ describe("the folders the scan reads", () => {
     }
   });
 
+  test("refuses a repository whose src folder holds no source file", async () => {
+    // The same reason as above: zero fields, every one of them read. An
+    // empty folder passes the folder check, so the file count has to fail.
+    const root = await Deno.makeTempDir({ prefix: "unread-fields-empty-" });
+    await Deno.writeTextFile(`${root}/deno.json`, JSON.stringify({}));
+    await Deno.mkdir(`${root}/src`);
+    try {
+      await expect(scanUnreadFields(root)).rejects.toThrow(
+        "holds no source file",
+      );
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+
   test("scans a repository whose deno.json has no import map", async () => {
     // Most Deno repositories declare no aliases at all. One of those has
     // nothing to translate, and the scan reads it like any other.

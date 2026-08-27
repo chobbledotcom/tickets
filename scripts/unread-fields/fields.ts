@@ -26,7 +26,7 @@ const isShape = (node: ts.Node): node is Shape =>
   (ts.isClassDeclaration(node) && node.name !== undefined);
 
 /** An export list names a symbol that stands for the declaration, so ask what
- * it stands for before looking at where it was written down. */
+ * it stands for before it asks where the declaration was written down. */
 const standsFor = (checker: ts.TypeChecker, exported: ts.Symbol): ts.Symbol =>
   (exported.flags & ts.SymbolFlags.Alias) === 0
     ? exported
@@ -197,10 +197,19 @@ const inheritedNames = (checker: ts.TypeChecker, shape: Shape): FieldName[] =>
  * argument holds a type the shape hands on, as `Array<{ id: number }>` does. */
 const NARROWS_BY_A_FILTER = new Set(["Extract", "Exclude", "Pick", "Omit"]);
 
-const narrowsByAFilter = (node: ts.Node): boolean =>
-  ts.isTypeReferenceNode(node) &&
-  ts.isIdentifier(node.typeName) &&
-  NARROWS_BY_A_FILTER.has(node.typeName.text);
+/** A type this repository names rather than writes out, picked from a list. */
+const namedOneOf =
+  (names: ReadonlySet<string>): ((node: ts.Node) => boolean) =>
+  (node) =>
+    ts.isTypeReferenceNode(node) &&
+    ts.isIdentifier(node.typeName) &&
+    names.has(node.typeName.text);
+
+const narrowsByAFilter = namedOneOf(NARROWS_BY_A_FILTER);
+
+/** The two names for a list. `Array<Row>` and `Row[]` are one type written
+ * two ways, and a reader of either reaches a field one element at a time. */
+const holdsElements = namedOneOf(new Set(["Array", "ReadonlyArray"]));
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
@@ -277,13 +286,18 @@ const stepText = (step: Step): string =>
 const ownerOf = (path: readonly Step[]): string =>
   path.map(stepText).reduce(reaching);
 
+/** One element of something that holds many. An index signature and a list
+ * both read this way, and a shape is never both at one place in the path. */
+const ELEMENT = "[]";
+
 /** How a reader reaches through a member that has no name to give. */
 const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.CallSignature, "()"],
   [ts.SyntaxKind.ConstructSignature, "new ()"],
   [ts.SyntaxKind.FunctionType, "()"],
   [ts.SyntaxKind.ConstructorType, "new ()"],
-  [ts.SyntaxKind.IndexSignature, "[]"],
+  [ts.SyntaxKind.IndexSignature, ELEMENT],
+  [ts.SyntaxKind.ArrayType, ELEMENT],
 ]);
 
 /** The step a member with no name of its own adds to the path. A shape can
@@ -294,7 +308,8 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
  * place in the list stands in. A call signature, a construct signature and an
  * index signature have neither, so the way a reader reaches through it does.
  * `bag[key].total` is a step away from `bag.total`, and without the step the
- * two are one field. */
+ * two are one field. A list is the same case: `rows[0].total` is a step away
+ * from `rows.total`, so `Array<Row>` and `Row[]` both add one. */
 const underAnUnnamedPart = (
   path: readonly Step[],
   node: ts.Node,
@@ -305,11 +320,13 @@ const underAnUnnamedPart = (
       : String(node.parent.parameters.indexOf(node));
     return [...path, { way }];
   }
-  const through = REACHED_THROUGH.get(node.kind);
+  const through = holdsElements(node)
+    ? ELEMENT
+    : REACHED_THROUGH.get(node.kind);
   return through === undefined ? path : [...path, { way: through }];
 };
 
-/** Every field an exported shape declares, including the fields of object
+/** Every field an exported shape declares, with the fields of the object
  * types nested inside it, since `shape.inner.total` reaches those too. The
  * owner carries the path down to the field, so the two `dbConfigured` fields
  * of `DebugPageState` do not report as one line. */
@@ -323,8 +340,8 @@ export const exportedFields = (
   /** Write one field down, and say what its own parts belong to. One field
    * deserves one line, because two lines could disagree, so a field already
    * written down keeps its line and gains any new place it is written. The
-   * path stays a list of steps, because a field can be called `"a.b"` and
-   * joining first would make it one field with the `b` of an `a` beside it. */
+   * path stays a list of steps, because a field can be called `"a.b"`, and one
+   * joined string would make it the `b` of an `a` instead. */
   const remember = (path: readonly Step[], name: FieldName): Step[] => {
     const inside: Step[] = [...path, { name: name.text }];
     const key = JSON.stringify(inside);
