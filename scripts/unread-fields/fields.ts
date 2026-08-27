@@ -12,13 +12,11 @@ import { carriesAModifier, quotedInBrackets } from "./writes.ts";
 
 /** A named declaration whose fields the scan can look up. The name is
  * required, because every lookup starts from it. */
-type Shape =
-  & (
-    | ts.ClassDeclaration
-    | ts.InterfaceDeclaration
-    | ts.TypeAliasDeclaration
-  )
-  & { name: ts.Identifier };
+type Shape = (
+  | ts.ClassDeclaration
+  | ts.InterfaceDeclaration
+  | ts.TypeAliasDeclaration
+) & { name: ts.Identifier };
 
 /** A class counts, because `SafeHtml.html` is reached like any other field.
  * An unnamed one cannot be looked up, so it is left out. */
@@ -186,8 +184,8 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
 const inheritedNames = (checker: ts.TypeChecker, shape: Shape): FieldName[] =>
   inheritsFrom(shape)
     ? partsOf(checker.getTypeAtLocation(shape.name))
-      .flatMap((part) => checker.getPropertiesOfType(part))
-      .flatMap(writtenNames)
+        .flatMap((part) => checker.getPropertiesOfType(part))
+        .flatMap(writtenNames)
     : [];
 
 /** Four built-in types that keep some of the first argument and drop the
@@ -233,7 +231,8 @@ const holdsOnlyCode = (node: ts.Node): boolean =>
  * leaves it, and its type parameters describe themselves, exactly as a
  * shape's own ones do. */
 const worthWalking =
-  (checker: ts.TypeChecker) => (node: ts.Node): (part: ts.Node) => boolean => {
+  (checker: ts.TypeChecker) =>
+  (node: ts.Node): ((part: ts.Node) => boolean) => {
     if (narrowsByAFilter(node)) return () => false;
     // `keyof { paid: number }` is the one word "paid", not a shape with a
     // field, so nothing under it is a field either. `readonly` is a type
@@ -249,13 +248,15 @@ const worthWalking =
   };
 
 /** The parts of a node the walk goes on through. */
-const membersOf = (checker: ts.TypeChecker) => (node: ts.Node): ts.Node[] => {
-  const parts: ts.Node[] = [];
-  ts.forEachChild(node, (child) => {
-    parts.push(child);
-  });
-  return filter(worthWalking(checker)(node))(parts);
-};
+const membersOf =
+  (checker: ts.TypeChecker) =>
+  (node: ts.Node): ts.Node[] => {
+    const parts: ts.Node[] = [];
+    ts.forEachChild(node, (child) => {
+      parts.push(child);
+    });
+    return filter(worthWalking(checker)(node))(parts);
+  };
 
 /** How a reader reaches through a member that has no name to give. None of
  * these can be a field's name, so none can be mistaken for one. */
