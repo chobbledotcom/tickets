@@ -6,6 +6,7 @@ import {
   getSubrequestRemaining,
   getSubrequestUsage,
   runWithSubrequestBudget,
+  SubrequestBudgetError,
   withSubrequestAllowance,
   withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
@@ -153,6 +154,30 @@ describe("combined subrequest budget", () => {
         external: BUNNY_SUBREQUEST_LIMIT,
         total: 1,
       });
+    });
+  });
+
+  test("raises one type for both refusals, so a caller can stop on either", async () => {
+    // The migration runner stops its batch and continues on the next request
+    // when the budget runs out. It reads the type, not the message, so a call
+    // blocked at the cap and a reserve that no longer fits both reach it.
+    await runWithSubrequestBudget(async () => {
+      await withSubrequestAllowance(
+        { database: 0, external: 0, total: 0 },
+        async () => {
+          expect(() => countSubrequest("database", "blocked call")).toThrow(
+            SubrequestBudgetError,
+          );
+          expect(() =>
+            withSubrequestReserve(
+              { database: 1, external: 0, total: 1 },
+              () => {
+                throw new Error("reserved work must not run");
+              },
+            ),
+          ).toThrow(SubrequestBudgetError);
+        },
+      );
     });
   });
 

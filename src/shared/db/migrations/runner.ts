@@ -10,6 +10,7 @@ import { retryWithBackoff } from "#shared/retry.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestRemaining,
+  SubrequestBudgetError,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { loadMigrations } from "./context.ts";
@@ -34,13 +35,6 @@ import type { Migration } from "./types.ts";
  * window is turned away and re-runs the same over-budget batch.
  */
 const MIGRATION_BOOKKEEPING_RESERVE = 5;
-
-/** True when `error` is the "subrequest budget spent" signal countSubrequest
- *  raises at the reserve cap — the cue to stop the batch here rather than a
- *  migration defect. The cap always trips this budget guard before the wider
- *  round-trip limit, so that is the only message to match. */
-const isSubrequestBudgetError = (error: unknown): boolean =>
-  errorMessage(error).startsWith("Subrequest allowance exceeded");
 
 /** The migrations whose ids are not yet recorded as applied, in run order.
  *  Checks the ids first so the implementations only load when at least one
@@ -88,7 +82,7 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
     (error, { attempt, willRetry }) => {
       // A spent subrequest budget is not a transient lag: retrying just burns
       // the reserve. Propagate so the batch stops and its progress is recorded.
-      if (isSubrequestBudgetError(error)) throw error;
+      if (error instanceof SubrequestBudgetError) throw error;
       if (!willRetry) return;
       logDebug(
         "Migration",
@@ -121,7 +115,7 @@ export const applyMigrationWithRetry = async (
     // Re-running up() to repair a lagged snapshot only helps a transient miss;
     // an over-budget request has no budget left for a second up(), so hand the
     // signal back to stop the batch instead.
-    if (isSubrequestBudgetError(error)) throw error;
+    if (error instanceof SubrequestBudgetError) throw error;
     logDebug(
       "Migration",
       `verify ${migration.id} still failing after retries, re-running up(): ${errorMessage(
@@ -148,8 +142,10 @@ const applyUntilBudgetSpent = async (
     } catch (error) {
       // Out of budget: stop here so the caller records what finished and the
       // next request continues. The half-applied migration is idempotent, so
-      // it re-runs cleanly from the top next time.
-      if (isSubrequestBudgetError(error)) return;
+      // it re-runs cleanly from the top next time. Either refusal lands here:
+      // a statement blocked at the cap, and a migration that opens a
+      // transaction whose rollback reserve no longer fits.
+      if (error instanceof SubrequestBudgetError) return;
       throw error;
     }
     completed.push(migration);

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
+import { getDb, withTransaction } from "#db/client.ts";
 import { releaseMigrationLock } from "#db/migrations/lock.ts";
 import {
   applyMigrationWithRetry,
@@ -9,16 +9,30 @@ import {
 } from "#db/migrations/runner.ts";
 import type { Migration } from "#db/migrations/types.ts";
 import { runWithQueryLogContext } from "#db/query-log.ts";
-import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
+import {
+  getSubrequestRemaining,
+  runWithSubrequestBudget,
+  SubrequestBudgetError,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { takeMigrationLock } from "#test-utils/migrations.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /** The error countSubrequest raises once the request's budget is spent. */
 const budgetError = (n: number): Error =>
-  new Error(
+  new SubrequestBudgetError(
     `Subrequest allowance exceeded: ${n} database + 0 external calls. Blocked database operation: batch`,
   );
+
+/** A migration with the given work as its up() and a verify() that passes. */
+const migrationOf = (id: string, up: () => Promise<unknown>): Migration => ({
+  description: id,
+  id,
+  up: async () => {
+    await up();
+  },
+  verify: () => Promise.resolve(),
+});
 
 describe("db > migrations > runner subrequest budget", () => {
   test("verify does not retry a spent budget — the reserve is not for retries", async () => {
@@ -64,6 +78,20 @@ describeWithEnv(
   "db > migrations > runner subrequest budget against a database",
   { db: true },
   () => {
+    /** Run a batch the way a request does: one subrequest budget, one query log. */
+    const runBatch = async (pending: Migration[]): Promise<Migration[]> => {
+      const lockToken = await takeMigrationLock();
+      try {
+        return await runWithSubrequestBudget(() =>
+          runWithQueryLogContext(() =>
+            runPendingMigrations(pending, lockToken),
+          ),
+        );
+      } finally {
+        await releaseMigrationLock(lockToken);
+      }
+    };
+
     test("inside a request, runs as many migrations as fit and returns the finished prefix", async () => {
       // Each migration spends several round-trips; the batch as a whole exceeds
       // the request's budget, so the run stops partway and leaves headroom for
@@ -71,30 +99,35 @@ describeWithEnv(
       const spend = async (): Promise<void> => {
         for (let i = 0; i < 12; i += 1) await getDb().execute("SELECT 1");
       };
-      const costly = (id: string): Migration => ({
-        description: id,
-        id,
-        up: spend,
-        verify: () => Promise.resolve(),
-      });
-      const pending = ["m1", "m2", "m3", "m4", "m5", "m6"].map(costly);
-      const lockToken = await takeMigrationLock();
-      try {
-        const completed = await runWithSubrequestBudget(() =>
-          runWithQueryLogContext(() =>
-            runPendingMigrations(pending, lockToken),
-          ),
-        );
-        // Some — but not all — ran: the budget stopped the batch.
-        expect(completed.length).toBeGreaterThan(0);
-        expect(completed.length).toBeLessThan(pending.length);
-        // The ones that ran are the leading prefix, in order.
-        expect(completed.map((migration) => migration.id)).toEqual(
-          pending.slice(0, completed.length).map((migration) => migration.id),
-        );
-      } finally {
-        await releaseMigrationLock(lockToken);
-      }
+      const pending = ["m1", "m2", "m3", "m4", "m5", "m6"].map((id) =>
+        migrationOf(id, spend),
+      );
+      const completed = await runBatch(pending);
+      // Some — but not all — ran: the budget stopped the batch.
+      expect(completed.length).toBeGreaterThan(0);
+      expect(completed.length).toBeLessThan(pending.length);
+      // The ones that ran are the leading prefix, in order.
+      expect(completed.map((migration) => migration.id)).toEqual(
+        pending.slice(0, completed.length).map((migration) => migration.id),
+      );
+    });
+
+    test("stops the batch when a migration cannot reserve its transaction rollback", async () => {
+      // A table rebuild opens an interactive transaction, which refuses to
+      // start without a spare round-trip to roll itself back with. That refusal
+      // means "no budget left", not "this migration is broken", so the batch
+      // must stop and keep the migration that already finished.
+      const spendTheAllowance = async (): Promise<void> => {
+        const calls = getSubrequestRemaining().database;
+        for (let i = 0; i < calls; i += 1) await getDb().execute("SELECT 1");
+      };
+      const completed = await runBatch([
+        migrationOf("spend", spendTheAllowance),
+        migrationOf("rebuild", () =>
+          withTransaction((tx) => tx.execute("SELECT 1")),
+        ),
+      ]);
+      expect(completed.map((migration) => migration.id)).toEqual(["spend"]);
     });
   },
 );
