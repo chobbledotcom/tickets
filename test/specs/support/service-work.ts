@@ -57,10 +57,10 @@ export const wayInto = (world: TicketsWorld, name: string): string =>
   `href="/admin/servicing/${world.things.require("record", name)}"`;
 
 /** The Servicing page: every service event, with what each one holds. */
-export const organiserOpensServicing = organiserReads(() => SERVICING_PAGE);
+export const organiserOpensServicing = organiserReads(SERVICING_PAGE);
 
 /** Their dashboard, which carries the short version of the same work. */
-export const organiserOpensDashboard = organiserReads(() => DASHBOARD);
+export const organiserOpensDashboard = organiserReads(DASHBOARD);
 
 /** Just the dashboard block about work still to come. The rest of the page
  * names every listing, and a listing held for a service event is often named
