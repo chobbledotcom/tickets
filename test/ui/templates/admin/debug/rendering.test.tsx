@@ -9,7 +9,7 @@ import {
 import { debugOwnerSession, makeDebugState } from "#test-utils/debug.ts";
 
 const rowValues = (html: string, label: string): string[] => {
-  const marker = `<tr><td>${label}</td><td>`;
+  const marker = `<tr><th>${label}</th><td>`;
   return html
     .split(marker)
     .slice(1)
