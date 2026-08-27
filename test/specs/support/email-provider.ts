@@ -116,27 +116,25 @@ export const ownerSendsATestEmail = async (
   await organiserSendsTheFormAt(world, ADVANCED_PATH, TEST_PATH);
 };
 
-/** Which provider the page puts back in the box, read as the browser would
- * submit it. Every provider is rendered as a choice whether or not it is the
- * one on file, so only the chosen option says what the site is set to. */
-export const providerTheBoxShows = async (
-  world: TicketsWorld,
-): Promise<string | null> =>
-  (await openAdminPage(world, ADVANCED_PATH)).wouldSendAt(
-    CONNECT_PATH,
-    PROVIDER_FIELD,
-  );
+/** What the page puts back in one box of the connection form, read as the
+ * browser would submit it. Reading the rendered HTML is not enough: every
+ * provider appears as a choice whether or not it is the one on file, and a
+ * from-address box that lost its value still looks like a box. */
+const boxOnTheConnectionForm =
+  (field: string) =>
+  async (world: TicketsWorld): Promise<string | null> =>
+    (await openAdminPage(world, ADVANCED_PATH)).wouldSendAt(
+      CONNECT_PATH,
+      field,
+    );
 
-/** The address the page puts back in the from-address box, read as the browser
- * would submit it. The route ignores an empty from-address and keeps the stored
- * one, so nothing downstream notices a page that stopped filling the box in. */
-export const fromAddressTheBoxShows = async (
-  world: TicketsWorld,
-): Promise<string | null> =>
-  (await openAdminPage(world, ADVANCED_PATH)).wouldSendAt(
-    CONNECT_PATH,
-    FROM_FIELD,
-  );
+/** Which provider the page puts back, so only the chosen option answers. */
+export const providerTheBoxShows = boxOnTheConnectionForm(PROVIDER_FIELD);
+
+/** The address the page puts back. The route ignores an empty from-address and
+ * keeps the stored one, so nothing downstream notices a page that stopped
+ * filling the box in. */
+export const fromAddressTheBoxShows = boxOnTheConnectionForm(FROM_FIELD);
 
 /** Whether the owner really has a way to send a test: a button that is not
  * switched off, on a form that posts to the test address. A heading that says
