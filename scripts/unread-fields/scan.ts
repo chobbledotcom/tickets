@@ -130,10 +130,13 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   const program = answered(service.getProgram(), "program for the scan");
   const checker = program.getTypeChecker();
 
+  // The program also holds every locale JSON that `src/` imports, and every
+  // file it reached outside `src/`. Only the TypeScript the walk found counts.
+  const scanned = new Set(files.filter((f) => f.startsWith(`${root}/src/`)));
   const findings: Finding[] = [];
   for (const source of program.getSourceFiles()) {
     const file = source.fileName;
-    if (!file.startsWith(`${root}/src/`)) continue;
+    if (!scanned.has(file)) continue;
     for (const { owner, field } of exportedFields(checker, source)) {
       findings.push({
         field: field.text,

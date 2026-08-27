@@ -115,8 +115,6 @@ scripts/check-comments/rules.ts::namesMentioned~1ugmzzy  %20 → ""   # the link
 # the one the coalesce already handles.
 scripts/unread-fields/writes.ts::nodeAt.descend~1bsvjf5  ?? → ||   # ts.forEachChild returns either undefined or a node the callback gave it, and every node is a truthy object, so nothing falsy-but-defined can reach the fallback and both operators pick the same value
 
-# Unread-fields scan: a constant the compiler only compares against itself, a
-# fallback nothing falsy can reach, and the message of an unreachable throw.
-scripts/unread-fields/scan.ts::serviceHost.getScriptVersion~0co5u5s  1 → ""   # the document registry reads a version only to notice that a file changed between calls, and this host answers the same constant for every file while nothing writes to the checkout during a scan, so every constant builds the same program
-scripts/unread-fields/scan.ts::readersOf.references~0bxgakf  ?? → ||   # findReferences returns ReferencedSymbol[] or undefined, and every array is truthy, so only undefined reaches the fallback and both operators pick the same []
-scripts/unread-fields/scan.ts::scanUnreadFields~0q5k3eb  TypeScript built no program for the scan → ""   # getProgram returns undefined only for a syntax-only language service, and this one is built full, so the throw cannot run and its message cannot be observed — the guard exists because the return type is optional
+# Unread-fields host: a constant the compiler only ever compares against
+# itself.
+scripts/unread-fields/host.ts::serviceHost.getScriptVersion~0co5u5s  1 → ""   # the document registry reads a version only to notice that a file changed between calls, and this host answers the same constant for every file while nothing writes to the checkout during a scan, so every constant builds the same program
