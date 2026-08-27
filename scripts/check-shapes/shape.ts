@@ -159,11 +159,14 @@ const endOfRegExp = (text: string, start: number): number => {
   let inClass = false;
   while (index < text.length) {
     const character = text[index];
-    if (character === "\\") index += 2;
-    else if (character === "[") (inClass = true), index++;
-    else if (character === "]") (inClass = false), index++;
-    else if (character === "/" && !inClass) break;
-    else index++;
+    if (character === "\\") {
+      index += 2;
+      continue;
+    }
+    if (character === "/" && !inClass) break;
+    if (character === "[") inClass = true;
+    if (character === "]") inClass = false;
+    index++;
   }
   index++;
   while (index < text.length && /[a-z]/.test(text[index] as string)) index++;
