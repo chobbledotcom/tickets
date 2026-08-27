@@ -3007,3 +3007,38 @@ Do them together. Deletion of the fourteen entries is the proof that it works.
 Do not start with the deletion. Removal of the blind spot can unmask a genuinely
 dead export that a phantom same-file match was hiding, which is separate work
 and must be judged on its own.
+
+---
+
+## The merge queue does not gate on `checks` or `test`
+
+_Origin: #2158 merged with `checks` red, and so did the two merges before it.
+Found while tracing why main stopped linting._
+
+`test.yml` runs on `merge_group`, so the queue does run the `checks` job, and
+that job's first step is `deno task lint:ci`. The queue runs it, reads the
+failure, and merges anyway. Three consecutive merges did this:
+
+| Queue run     | PR    | `checks`        |
+| ------------- | ----- | --------------- |
+| `33021228000` | #2157 | failure, merged |
+| `33022892823` | #2155 | failure, merged |
+| `33024444803` | #2158 | failure, merged |
+
+The run before those, for #2156, passed. #2157 is the merge that put the
+duplicate `PageAddress` declaration on main, so the first ignored failure is
+also the one that broke main.
+
+GitHub waits for the checks a ruleset marks REQUIRED, not for every check on the
+ref. `checks` and `test` are not in that list for `main`, so both are advisory
+in the queue. The comment at the top of `test.yml` used to state the opposite,
+and that belief is why nothing looked.
+
+The fix is a repository setting, not a file here: Settings, then Rules, then the
+ruleset for `main`, then add `checks` and `test` to the merge queue's required
+status checks. No settings-as-code file exists in this repository, so nobody can
+make this change through a pull request.
+
+Until that changes, a red `checks` never blocks a merge, and main can break
+again the same way. `deno task precommit` before merge is the only thing that
+catches it, and it depends on a person running it.

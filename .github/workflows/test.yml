@@ -2,9 +2,15 @@ name: Test
 
 # A merge queue builds its branch by pushing it, so `push` and `merge_group`
 # both fire on one queue branch and the suite runs twice on the same commit.
-# The queue waits for every check on the ref, so the second run only adds cost
-# and one more chance for a stalled runner to time the queue out. `merge_group`
-# still reports both check names there, which is what the queue gates on.
+# `merge_group` reports both check names on the queue ref, so the `push` run
+# there only adds cost and one more chance for a stalled runner to time the
+# queue out.
+#
+# The queue does NOT gate on these two checks. GitHub waits for the checks a
+# ruleset marks REQUIRED, and `checks` and `test` are not in that list for
+# `main`, so a red run here never blocks a merge. Runs 33021228000, 33022892823
+# and 33024444803 each failed `checks` in the queue and merged anyway. See
+# TODO.md, "The merge queue does not gate on `checks` or `test`".
 on:
   push:
     branches-ignore: [main, "gh-readonly-queue/**"]
