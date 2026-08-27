@@ -265,8 +265,19 @@ const membersOf =
     return filter(worthWalking(checker)(node))(parts);
   };
 
-/** How a reader reaches through a member that has no name to give. None of
- * these can be a field's name, so none can be mistaken for one. */
+/** One step down to a field. A `name` is what a field is called, and a `way`
+ * is how a reader reaches through a member with no name of its own. The two
+ * are kept apart, because a field can be called `"()"` and a call is not one. */
+type Step = { name: string } | { way: string };
+
+const stepText = (step: Step): string =>
+  "name" in step ? step.name : step.way;
+
+/** The path a reader follows, written the way the code that follows it is. */
+const ownerOf = (path: readonly Step[]): string =>
+  path.map(stepText).reduce(reaching);
+
+/** How a reader reaches through a member that has no name to give. */
 const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.CallSignature, "()"],
   [ts.SyntaxKind.ConstructSignature, "new ()"],
@@ -285,19 +296,17 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
  * `bag[key].total` is a step away from `bag.total`, and without the step the
  * two are one field. */
 const underAnUnnamedPart = (
-  path: readonly string[],
+  path: readonly Step[],
   node: ts.Node,
-): readonly string[] => {
+): readonly Step[] => {
   if (ts.isParameter(node)) {
-    return [
-      ...path,
-      ts.isIdentifier(node.name)
-        ? node.name.text
-        : String(node.parent.parameters.indexOf(node)),
-    ];
+    const way = ts.isIdentifier(node.name)
+      ? node.name.text
+      : String(node.parent.parameters.indexOf(node));
+    return [...path, { way }];
   }
   const through = REACHED_THROUGH.get(node.kind);
-  return through === undefined ? path : [...path, through];
+  return through === undefined ? path : [...path, { way: through }];
 };
 
 /** Every field an exported shape declares, including the fields of object
@@ -314,13 +323,13 @@ export const exportedFields = (
   /** Write one field down, and say what its own parts belong to. One field
    * deserves one line, because two lines could disagree, so a field already
    * written down keeps its line and gains any new place it is written. The
-   * path stays a list of names, because a field can be called `"a.b"` and
+   * path stays a list of steps, because a field can be called `"a.b"` and
    * joining first would make it one field with the `b` of an `a` beside it. */
-  const remember = (path: readonly string[], name: FieldName): string[] => {
-    const inside = [...path, name.text];
+  const remember = (path: readonly Step[], name: FieldName): Step[] => {
+    const inside: Step[] = [...path, { name: name.text }];
     const key = JSON.stringify(inside);
     const line = found.get(key);
-    if (!line) found.set(key, { names: [name], owner: path.reduce(reaching) });
+    if (!line) found.set(key, { names: [name], owner: ownerOf(path) });
     // For every field a shape writes down itself, the checker hands back the
     // very declaration the walk already saw. One lookup answers for both.
     else if (!line.names.includes(name)) line.names.push(name);
@@ -328,20 +337,23 @@ export const exportedFields = (
   };
 
   const partsOf = membersOf(checker);
-  const collect = (path: readonly string[], node: ts.Node): void => {
+  const collect = (path: readonly Step[], node: ts.Node): void => {
     if (handsNothingOut(node)) return;
-    const here = isStatic(node) ? [`typeof ${path.reduce(reaching)}`] : path;
+    const here: readonly Step[] = isStatic(node)
+      ? [{ way: `typeof ${ownerOf(path)}` }]
+      : path;
     const name = fieldNameOf(node);
     const inside = name ? remember(here, name) : underAnUnnamedPart(here, node);
     for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
-    for (const part of shapeBody(shape)) collect([shape.name.text], part);
+    const from: Step[] = [{ name: shape.name.text }];
+    for (const part of shapeBody(shape)) collect(from, part);
     // A borrowed field goes under the shape's own name, so a field the shape
     // declares itself already holds the line. It gains a second name only
     // where the checker hands back a second declaration, as `A & B` does.
     for (const name of inheritedNames(checker, shape)) {
-      remember([shape.name.text], name);
+      remember(from, name);
     }
   }
   return [...found.values()];

@@ -6,7 +6,8 @@ import { scannedFixture } from "#test/scripts/unread-fields/fixture/build.ts";
  * How a field is written down, and what keeps two of one name apart.
  */
 describe("how a field is named", () => {
-  const { verdictOf } = scannedFixture();
+  const scanned = scannedFixture();
+  const verdictOf = scanned.verdictOf;
 
   test("sees a field written down with a quoted name", () => {
     // `n["quoted-name"]` reaches it, so it is a field like any other.
@@ -139,5 +140,16 @@ describe("how a field is named", () => {
     expect(verdictOf('BuiltForIt["new ()"]', "sharedWithTheNew")).toBe(
       "never read",
     );
+  });
+
+  test('tells a field called "()" from what the call hands back', () => {
+    // Both lines carry the same label, and they are two fields. A read of the
+    // one that is really called `"()"` must not answer for the call.
+    const lines = scanned.all.filter(
+      (f) =>
+        f.owner === 'CollidesWithItsCall["()"]' &&
+        f.field === "sharedWithTheLabel",
+    );
+    expect(lines.map((f) => f.verdict).sort()).toEqual(["never read", "read"]);
   });
 });

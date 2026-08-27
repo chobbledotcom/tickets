@@ -90,6 +90,16 @@ export type BuiltForIt = { sharedWithTheNew: string } & (new () => {
 export const readTheProperty = (held: CalledForIt): string =>
   held.sharedWithTheCall;
 
+export interface CollidesWithItsCall {
+  "()": { sharedWithTheLabel: number };
+  (): { sharedWithTheLabel: number };
+}
+
+// Reads the field of the property that is literally called "()". Nothing
+// reads what the call hands back, and the report labels both the same way.
+export const readTheLiteralOne = (held: CollidesWithItsCall): number =>
+  held["()"].sharedWithTheLabel;
+
 // The brackets pick one key. No value of this holds the key it dropped, nor
 // anything under it, so only the checker can say what is left.
 export type PickedByAKey = {

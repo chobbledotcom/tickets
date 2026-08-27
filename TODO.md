@@ -29,11 +29,11 @@ arguments through `holdsNoAnswer`, and the checker path goes around it.
 both lines and changes nothing else in the report. It did not ship because no
 small program reproduced the leak, so the branch would arrive with no test and
 no coverage. Five shapes failed: a plain filter, a generic filter, a union
-filter over a union source, a filter naming a field the source does not, and a
-three-arm union closest to the real one. Each either resolved the `Extract` away
-or put the nested names in the real declaration rather than in the filter.
+filter over a union source, a filter that names a field the source does not, and
+a three-arm union closest to the real one. Each either resolved the `Extract`
+away or put the nested names in the real declaration rather than in the filter.
 
-Start by reproducing the leak, not by writing the guard. Build a program with
+Reproduce the leak first, and write the guard second. Build a program with
 `ts.createProgram`, call `exportedFields` over it, and print every line with the
 line number of each of its names. Look for a nested name whose only declaration
 sits inside the filter. Add the guard and its fixture together.
