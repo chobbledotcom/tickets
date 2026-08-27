@@ -1305,12 +1305,12 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The four scans, and how hard each looks
+### The six scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
-lower number is a tighter net. Four configs divide the tree, because helper code
-and test bodies deserve different nets.
+lower number is a tighter net. Six configs divide the tree, because helper code,
+test bodies and stylesheets each deserve a different net.
 
 | Config                | Scans                            | minTokens |
 | --------------------- | -------------------------------- | --------- |
@@ -1319,6 +1319,7 @@ and test bodies deserve different nets.
 | `.jscpd.support.json` | `test/specs/support`             | 18        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
+| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
