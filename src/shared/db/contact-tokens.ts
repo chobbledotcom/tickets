@@ -12,6 +12,7 @@ import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { mapParallel } from "#fp";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is
@@ -210,7 +211,9 @@ const bookingTokensFrom = (
   lines: OwnerKeyEncrypted[],
   privateKey: CryptoKey,
 ): Promise<BookingToken[]> =>
-  Promise.all(lines.map((line) => parseTokenEntry(line, privateKey)));
+  mapParallel((line: OwnerKeyEncrypted) => parseTokenEntry(line, privateKey))(
+    lines,
+  );
 
 /** Read only the newest booked ticket tokens, decrypting no older entries. */
 export const getRecentBookingTokens = async (

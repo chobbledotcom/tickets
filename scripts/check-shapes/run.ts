@@ -19,7 +19,9 @@ import { shapeOf } from "./shape.ts";
  */
 export const MIN_TOKENS = 20;
 
-export const SOURCE_DIRS = ["src", "scripts"];
+/** The trees `.jscpd.json` scans, so a renamed copy cannot hide in one this
+ * check never visits. */
+export const SOURCE_DIRS = ["src", "scripts", "e2e-payments"];
 
 export const ACCEPTED_DIR = "scripts/check-shapes/accepted";
 

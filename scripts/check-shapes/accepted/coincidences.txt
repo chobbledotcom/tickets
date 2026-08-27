@@ -1,27 +1,27 @@
 # Functions that share a shape and are not the same thing.
 #
 # A shape is a coarse thing: build an object from another object's fields, map
-# then join, await two loads at once. Enough code does that for two unrelated
-# functions to match without either being a copy of the other.
+# then join, compare two fields with `&&`. Enough code does that for two
+# unrelated functions to match without either being a copy of the other.
 #
-# A line belongs here only when there is no shared step to lift. When in
-# doubt, try writing the curry first — "these two cannot be merged" is nearly
-# always wrong, and this file is the one place that judgement is recorded.
+# A line belongs here only when there is no shared step to lift, and only when
+# no two of its sites are a pair. When in doubt, try writing the curry first —
+# "these two cannot be merged" is nearly always wrong, and this file is the one
+# place that judgement is recorded.
 #
 # Format: the match, two spaces, then `# why they are not one thing`.
 
+e2e-payments/src/cucumber/steps/pages.ts::bookingIdentity,src/features/admin/refunds/candidates.ts::loadedRefundAttendee  # each builds an object from another object's fields, one in the app and one in the live-payment harness
+e2e-payments/src/cucumber/steps/setup.ts::requireProvider,e2e-payments/src/providers/shared.ts::expectProvider  # both refuse a mismatched provider, but one guards the harness target and the other narrows a checkout type, so neither can take the other
 scripts/bunny-regions.ts::euIds,scripts/email-sandbox-e2e/report.ts::failedProviders  # a filter then a map over unrelated records; no shared step to lift
 scripts/run-tests.ts::escapeAnnotationValue,src/shared/db/contact-preferences.ts::toContactHashParam  # three chained replaceAll calls, one making base64url and one escaping an annotation
 scripts/specs/evidence/resolve.ts::stableItem,src/features/admin/holidays.ts::extractHolidayInput,src/features/public/group-liveness.ts::publicGroupSummary,src/shared/db/attendees/tokens.ts::previousBookingLineWithoutAttendee,src/shared/db/attributes.ts::rowAttribute,src/shared/listing-details.ts::listingDetails,src/shared/provider-refunds/state.ts::receipt  # seven functions that each build an object from another object's fields; that is construction, not a shared step
-src/features/admin/attendees-merge.ts::extractSourcePii,src/features/admin/attendees-merge.ts::extractTargetPii,src/features/admin/content-form-fields.ts::contentFieldValues  # two PII copies are a real pair, but the third only shares object construction; merge the pair first
-src/features/admin/attendees-merge.ts::toAnswerChoice,src/features/admin/attendees-merge.ts::toBookingChoice,src/features/auth.ts::adminLandingPath  # if-chains returning literals; the two merge helpers are a pair, the landing path is not
 src/features/admin/content-form-fields.ts::seoContentInput,src/shared/db/contact-preferences.ts::statsToBlob,src/shared/db/logistics.ts::rowToAssignment  # three functions that each build an object from another object's fields
 src/features/admin/listing-qr.ts::loadQrFormContext,src/shared/db/payment-anchor/reference.ts::paymentAnchorReference  # both destructure a Promise.all of two unrelated loads
-src/shared/bunny-cdn.ts::deleteDnsRecordImpl,src/shared/bunny-cdn.ts::loadFreeCertificate  # both build a Bunny URL then call it, but neither step is shared
-src/shared/db/attendees/payment-provenance.ts::statement,src/shared/db/groups.ts::copyPackageOverridesStatement  # both open numberedStatement and bind one id, then write unrelated SQL
+src/features/admin/settings-general.ts::extract,src/features/admin/settings-square.ts::extraFields  # both read a settings form into an object; the fields differ and nothing else is shared
 src/shared/db/chosen-columns.ts::columnsSql,src/shared/markdown.ts::rewriteTokens  # a map then a join, over columns and over markdown tokens
-src/shared/db/contact-tokens.ts::bookingTokensFrom,src/shared/db/notes/sealing.ts::openNotes,src/shared/provider-refunds.ts::requestProviderRefunds  # three Promise.all over a map; the awaited call is all that differs and there is nothing else to lift
 src/shared/ledger/reverse.ts::isInverseOf,src/shared/provider-refunds/state.ts::sameConflictDecision  # both compare three fields with &&, over a ledger leg and over a refund decision
+src/shared/payment/money.ts::sameMoney,src/shared/square/client.ts::isSameConfig  # two fields compared with &&, over money and over a Square client config
 src/shared/payment/refund-machine-spec.ts::family,src/ui/templates/fields/aggregate.ts::buildAggregateFields  # a map with a destructured entry, over machine states and over field specs
 src/ui/client/admin/address-lookup.ts::initAddressLookup,src/ui/client/admin/markdown-editor.ts::initMarkdownEditor  # both walk a querySelectorAll and set one panel up; the setup is all there is and it differs
 src/ui/templates/admin/settings/schema-form.tsx::renderField,src/ui/templates/admin/settings/schema-form.tsx::settingsForm  # two switch statements over unrelated unions in one file

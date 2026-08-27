@@ -46,6 +46,24 @@ describe("namedFunctions", () => {
     ]);
   });
 
+  test("names an arrow held by an object property", () => {
+    expect(names("const handlers = { save: (a) => a + 1 };")).toEqual(["save"]);
+  });
+
+  test("names an object method", () => {
+    expect(names("const handlers = { save(a) { return a; } };")).toEqual([
+      "save",
+    ]);
+  });
+
+  test("names a class method", () => {
+    expect(names("class A { save(a) { return a; } }")).toEqual(["save"]);
+  });
+
+  test("names a class field holding an arrow", () => {
+    expect(names("class A { save = (a) => a; }")).toEqual(["save"]);
+  });
+
   test("names a function expression by its own name over the variable's", () => {
     expect(names("const outer = function inner() { return 1; };")).toEqual([
       "inner",

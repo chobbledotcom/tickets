@@ -79,44 +79,115 @@ const endOfComment = (text: string, start: number): number => {
   return close === -1 ? text.length : close + 2;
 };
 
-/** One step through a body: what to record, and where to carry on. */
+/** Where a quote or a template opening at `index` ends, or nothing when one
+ * does not open there. Skipping these whole keeps the braces and backticks
+ * inside them from being counted. */
+const endOfNested = (text: string, index: number): number | null => {
+  const character = text[index] as string;
+  if (character === '"' || character === "'") {
+    return endOfQuoted(text, index + 1, character);
+  }
+  return character === "`" ? endOfTemplate(text, index + 1) : null;
+};
+
+/** Just past the `}` closing the `${` that opened at `start`. Braces nest, so
+ * only the one that brings the count back to zero ends it. */
+const endOfInterpolation = (text: string, start: number): number => {
+  let depth = 1;
+  let index = start;
+  while (index < text.length && depth > 0) {
+    const nested = endOfNested(text, index);
+    if (nested !== null) {
+      index = nested;
+      continue;
+    }
+    if (text[index] === "{") depth++;
+    if (text[index] === "}") depth--;
+    index++;
+  }
+  return index;
+};
+
+/** Just past the backtick closing the template that opened before `start`. */
+const endOfTemplate = (text: string, start: number): number => {
+  let index = start;
+  while (index < text.length) {
+    const character = text[index];
+    if (character === "\\") index += 2;
+    else if (character === "`") return index + 1;
+    else if (character === "$" && text[index + 1] === "{") {
+      index = endOfInterpolation(text, index + 2);
+    } else index++;
+  }
+  return index;
+};
+
+/** One step through a body: what it read, and where to carry on. */
 interface Step {
   next: number;
-  /** The symbol this step read, or nothing when it read something we drop. */
-  token: string | null;
+  /** The symbols this step read. Empty for whitespace and comments, and more
+   * than one for a template, whose interpolations each hold code. */
+  tokens: readonly string[];
 }
+
+/** Every spelling of one number reads as a single NUM, so `1e+3` and `1000`,
+ * or `0XFF` and `255`, cannot give two copies different shapes. The sign after
+ * an exponent belongs to the number; a `+` anywhere else does not. */
+const NUMBER_PART = /[eE][+-]|[0-9a-fA-FoOxXbBnE._]/y;
 
 const readNumber = (body: string, start: number): Step => {
   let index = start;
-  while (
-    index < body.length &&
-    /[0-9a-fA-Fox._n]/.test(body[index] as string)
-  ) {
-    index++;
+  while (index < body.length) {
+    NUMBER_PART.lastIndex = index;
+    const part = NUMBER_PART.exec(body);
+    if (part === null) break;
+    index += part[0].length;
   }
-  return { next: index, token: "NUM" };
+  return { next: index, tokens: ["NUM"] };
 };
 
 const readWord = (body: string, start: number): Step => {
   let index = start + 1;
   while (index < body.length && isWordPart(body[index] as string)) index++;
   const word = body.slice(start, index);
-  return { next: index, token: KEPT_WORDS.has(word) ? word : "ID" };
+  return { next: index, tokens: [KEPT_WORDS.has(word) ? word : "ID"] };
+};
+
+/**
+ * A template is one literal plus the code inside its `${…}` groups. Collapsing
+ * the whole thing to `STR` would erase that code, and a function whose work
+ * happens inside an interpolation would read as a single token.
+ */
+const readTemplate = (body: string, start: number): Step => {
+  const next = endOfTemplate(body, start + 1);
+  const tokens: string[] = ["STR"];
+  let index = start + 1;
+  while (index < next - 1) {
+    if (body[index] === "\\") {
+      index += 2;
+    } else if (body[index] === "$" && body[index + 1] === "{") {
+      const close = endOfInterpolation(body, index + 2);
+      tokens.push(...shapeOf(body.slice(index + 2, close - 1)));
+      index = close;
+    } else index++;
+  }
+  return { next, tokens };
 };
 
 /** What sits at `index`, and where whatever follows it begins. */
 const stepAt = (body: string, index: number): Step => {
   const character = body[index] as string;
-  if (/\s/.test(character)) return { next: index + 1, token: null };
+  if (/\s/.test(character)) return { next: index + 1, tokens: [] };
   if (character === "/" && /[/*]/.test(body[index + 1] ?? "")) {
-    return { next: endOfComment(body, index), token: null };
+    return { next: endOfComment(body, index), tokens: [] };
   }
-  if (character === '"' || character === "'" || character === "`") {
-    return { next: endOfQuoted(body, index + 1, character), token: "STR" };
+  if (character === "`") return readTemplate(body, index);
+  if (character === '"' || character === "'") {
+    return { next: endOfQuoted(body, index + 1, character), tokens: ["STR"] };
   }
   if (/[0-9]/.test(character)) return readNumber(body, index);
   if (isWordStart(character)) return readWord(body, index);
-  return { next: index + 1, token: character };
+  return { next: index + 1, tokens: [character] };
 };
 
 /**
@@ -128,9 +199,9 @@ export const shapeOf = (body: string): string[] => {
   const shape: string[] = [];
   let index = 0;
   while (index < body.length) {
-    const { next, token } = stepAt(body, index);
-    if (token !== null) shape.push(token);
-    index = next;
+    const step = stepAt(body, index);
+    shape.push(...step.tokens);
+    index = step.next;
   }
   return shape;
 };

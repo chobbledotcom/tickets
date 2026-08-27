@@ -419,7 +419,7 @@ export const range = (start: number, end: number): number[] =>
  */
 export const mapParallel =
   <T, U>(fn: (item: T) => Promise<U>) =>
-  (array: T[]): Promise<U[]> =>
+  (array: readonly T[]): Promise<U[]> =>
     Promise.all(array.map(fn));
 
 /** Collection cache returned by collectionCache() */

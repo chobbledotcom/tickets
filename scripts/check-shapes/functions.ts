@@ -32,11 +32,23 @@ const isAstNode = (value: unknown): value is AstNode =>
   value !== null &&
   typeof (value as { type?: unknown }).type === "string";
 
-/** The name a node declares, when it declares one. */
+/** The name a node declares or is keyed by. A declaration carries its own
+ * `id`; a property, a class member and an object method carry a `key`, so
+ * `{ save: () => … }`, `{ save() {} }` and `class A { save() {} }` all name
+ * the function they hold. */
 const declaredName = (node: AstNode): string | null => {
-  const id = node.id;
-  return isAstNode(id) && typeof id.name === "string" ? id.name : null;
+  const named = isAstNode(node.id) ? node.id : node.key;
+  return isAstNode(named) && typeof named.name === "string" ? named.name : null;
 };
+
+/** Nodes that put their name in scope for the function they hold. */
+const NAMING_TYPES = new Set([
+  "MethodDefinition",
+  "ObjectProperty",
+  "Property",
+  "PropertyDefinition",
+  "VariableDeclarator",
+]);
 
 /** Counts the newlines before an offset, so a finding can name a line. */
 const lineAt = (source: string, offset: number): number => {
@@ -74,8 +86,9 @@ const functionBody = (
 /**
  * Every node in the tree, each carrying the variable name in scope for it.
  * `const format = (value) => …` puts `format` in scope for the arrow beside
- * it; nothing else passes a name down, so the arrow inside a curried factory
- * is not named again and the factory reports once.
+ * it, and so do a property, a class member and an object method. Nothing else
+ * passes a name down, so the arrow inside a curried factory is not named again
+ * and the factory reports once.
  */
 function* walk(
   node: unknown,
@@ -88,7 +101,7 @@ function* walk(
   if (!isAstNode(node)) return;
   const name = declaredName(node) ?? assignedName;
   yield { name, node };
-  const passDown = node.type === "VariableDeclarator" ? name : null;
+  const passDown = NAMING_TYPES.has(node.type) ? name : null;
   for (const [key, value] of Object.entries(node)) {
     if (key !== "type") yield* walk(value, passDown);
   }
