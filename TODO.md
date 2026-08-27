@@ -116,9 +116,10 @@ _Origin: a review of PR #2166. Measured, real, and larger than that PR._
 `scripts/unread-fields/scan.ts` builds its TypeScript program from the `#`
 aliases in `deno.json` only, through `aliasPaths` in `aliases.ts`. A bare
 specifier such as `valibot` stays unresolved, so `v.InferOutput<...>` is `any`
-and `getPropertiesOfType` hands back nothing. 79 exported type aliases under
+and `getPropertiesOfType` hands back nothing. 77 exported type aliases under
 `src/` take their shape that way, and every one of them contributes no field to
-the report.
+the report. Seven more take it and stay inside their own file, so the scan never
+asks about them.
 
 A probe over `export type Intent = v.InferOutput<typeof IntentSchema>` with two
 fields reports zero fields. Add the same probe as a test when this is fixed.

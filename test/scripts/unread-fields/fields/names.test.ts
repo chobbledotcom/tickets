@@ -126,4 +126,18 @@ describe("how a field is named", () => {
     // step the two are one line, and a read of the named one covers both.
     expect(verdictOf('Indexed["[]"]', "sharedName")).toBe("never read");
   });
+
+  test("keeps what a call hands back off the shape's own path", () => {
+    // `held.sharedWithTheCall` and `held().sharedWithTheCall` are two fields.
+    // Without the step through the call they are one line and one verdict.
+    expect(verdictOf('CalledForIt["()"]', "sharedWithTheCall")).toBe(
+      "never read",
+    );
+  });
+
+  test("keeps what a new hands back off the shape's own path", () => {
+    expect(verdictOf('BuiltForIt["new ()"]', "sharedWithTheNew")).toBe(
+      "never read",
+    );
+  });
 });

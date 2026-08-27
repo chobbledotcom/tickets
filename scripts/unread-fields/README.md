@@ -196,5 +196,5 @@ A field the scan misses is rarer. It needs a read the compiler cannot see, such
 as one through `Object.keys` or a computed name. One kind of shape is missed
 whole: `Intent = v.InferOutput<typeof IntentSchema>` names a type the compiler
 cannot work out here, because the program does not resolve the bare `valibot`
-import. 79 exported aliases under `src/` take their shape that way, and each
+import. 77 exported aliases under `src/` take their shape that way, and each
 contributes no fields to the report.

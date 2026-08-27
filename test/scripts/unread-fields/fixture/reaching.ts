@@ -1,9 +1,11 @@
 /**
- * Fields that share one place, and fields a word puts out of reach.
+ * How a reader reaches a field, and what the scan must not take for one.
  *
  * Two call signatures, the two parts of a tuple, and two arms of a union can
  * each write a field of the same name down. One line covers them all, so it
- * carries every name or it misses the readers of the rest.
+ * carries every name or it misses the readers of the rest. A member reached
+ * through brackets, a call or a `new` needs a step of its own, or it lands on
+ * the shape's own path and merges with a field that is really there.
  */
 export const REACHING = `
 export interface Formatter {
@@ -75,4 +77,29 @@ export interface Indexed {
 // apart.
 export const readTheNamedOne = (held: Indexed): string =>
   held.sharedWithTheIndex.sharedName;
+
+export type CalledForIt = { sharedWithTheCall: string } & (() => {
+  sharedWithTheCall: string;
+});
+
+export type BuiltForIt = { sharedWithTheNew: string } & (new () => {
+  sharedWithTheNew: string;
+});
+
+// Reads the property, and nothing reads what the call hands back.
+export const readTheProperty = (held: CalledForIt): string =>
+  held.sharedWithTheCall;
+
+// The brackets pick one key. No value of this holds the key it dropped, nor
+// anything under it, so only the checker can say what is left.
+export type PickedByAKey = {
+  keptByTheKey: { keptInsideTheKey: number };
+  droppedByTheKey: { droppedInsideTheKey: number };
+}["keptByTheKey"];
+
+interface HandsOnAShape {
+  borrowedHolder: { deepInsideABorrowedField: number };
+}
+
+export interface TakesTheShape extends HandsOnAShape {}
 `;

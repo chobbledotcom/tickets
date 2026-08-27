@@ -206,6 +206,14 @@ const narrowsByAFilter = (node: ts.Node): boolean =>
 const isKeyOf = (node: ts.Node): boolean =>
   ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.KeyOfKeyword;
 
+/** Three ways to write a type none of whose parts is the answer. A filter
+ * keeps some of its first argument, `keyof` names the words rather than the
+ * fields, and `Row["paid"]` picks one key out of another type. The checker
+ * knows what is left in each, and it answers for the shape that holds the
+ * reference. */
+const holdsNoAnswer = (node: ts.Node): boolean =>
+  narrowsByAFilter(node) || isKeyOf(node) || ts.isIndexedAccessTypeNode(node);
+
 /** The one arm a conditional answers with, when it has an answer. `true
  * extends true ? A : B` is only ever A, so no value of it holds a field of B.
  * A conditional that waits on a type parameter has no answer yet, and both
@@ -233,11 +241,10 @@ const holdsOnlyCode = (node: ts.Node): boolean =>
 const worthWalking =
   (checker: ts.TypeChecker) =>
   (node: ts.Node): ((part: ts.Node) => boolean) => {
-    if (narrowsByAFilter(node)) return () => false;
     // `keyof { paid: number }` is the one word "paid", not a shape with a
     // field, so nothing under it is a field either. `readonly` is a type
     // operator too, and `readonly { paid: number }[]` does hand `paid` out.
-    if (isKeyOf(node)) return () => false;
+    if (holdsNoAnswer(node)) return () => false;
     if (ts.isConditionalTypeNode(node)) {
       const answer = answeredWith(checker, node);
       if (answer) return (part) => part === answer;
@@ -263,6 +270,8 @@ const membersOf =
 const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.CallSignature, "()"],
   [ts.SyntaxKind.ConstructSignature, "new ()"],
+  [ts.SyntaxKind.FunctionType, "()"],
+  [ts.SyntaxKind.ConstructorType, "new ()"],
   [ts.SyntaxKind.IndexSignature, "[]"],
 ]);
 
@@ -332,7 +341,10 @@ export const exportedFields = (
     // declares itself already holds the line. It gains a second name only
     // where the checker hands back a second declaration, as `A & B` does.
     for (const name of inheritedNames(checker, shape)) {
-      remember([shape.name.text], name);
+      const inside = remember([shape.name.text], name);
+      // A borrowed field holds a shape of its own as readily as one the shape
+      // writes down, and `public.inner.deep` reaches it the same way.
+      for (const part of partsOf(name.parent)) collect(inside, part);
     }
   }
   return [...found.values()];

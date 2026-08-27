@@ -57,8 +57,13 @@ describe("what the walk goes into", () => {
 
   test("sees a field inside a parameter of a function the shape hands out", () => {
     // Whoever calls it has to build that object, so its fields are reachable.
+    // The call is a step of its own: the field is not `takesAnObject.made`,
+    // it is what a caller passes to `takesAnObject(...)`.
     expect(
-      verdictOf("HandsAnObjectOver.takesAnObject.made", "insideAParameter"),
+      verdictOf(
+        'HandsAnObjectOver.takesAnObject["()"].made',
+        "insideAParameter",
+      ),
     ).toBe("never read");
   });
 
@@ -178,5 +183,20 @@ describe("what the walk goes into", () => {
 
   test("stays out of the type of a property the class keeps to itself", () => {
     expect(verdictOf("Keeps.held", "keptInsideToo")).toBeUndefined();
+  });
+
+  test("reads the key an indexed access keeps, and not the one it drops", () => {
+    // No value of `{ ... }["keptByTheKey"]` holds the dropped key, so the
+    // walk stays out of both operands and the checker says what is left.
+    expect(verdictOf("PickedByAKey", "keptInsideTheKey")).toBe("never read");
+    expect(verdictOf("PickedByAKey", "droppedByTheKey")).toBeUndefined();
+  });
+
+  test("goes into the shape a borrowed field holds", () => {
+    // `takesTheShape.borrowedHolder.deepInsideABorrowedField` reaches it, as
+    // it does for a field the shape writes down itself.
+    expect(
+      verdictOf("TakesTheShape.borrowedHolder", "deepInsideABorrowedField"),
+    ).toBe("never read");
   });
 });
