@@ -7,7 +7,8 @@
  *   purchaseable purchase_only (the "No check-in" flag)
  *   logistics    uses_logistics
  *
- * A listing that matches no named template is "Custom": full form, nothing hid.
+ * A listing that matches no named template is "Custom": full form, no fields
+ * hidden.
  */
 
 import type { Listing } from "#types";

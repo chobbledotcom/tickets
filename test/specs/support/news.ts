@@ -5,6 +5,7 @@ import {
   newcomerReading,
   openAsNewcomer,
   type PageRead,
+  recordPageUnder,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
@@ -29,8 +30,7 @@ export const ownerPostsNews = (
 /** The typed-name check behind the post's Actions tab; what the owner types
  * is the story's business. */
 export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
-  (world, name) =>
-    Promise.resolve(`/admin/site/news/${world.things.require("record", name)}`),
+  recordPageUnder("/admin/site/news"),
   {
     deleteLinkKey: "news.delete_title",
     submitKey: "news.delete_submit",

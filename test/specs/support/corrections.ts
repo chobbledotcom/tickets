@@ -12,6 +12,7 @@ import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { worldBalance } from "#test/specs/support/money-reads.ts";
 import {
+  type ActOnTheStory,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -21,9 +22,7 @@ import { insertModifier } from "#test-utils/modifiers.ts";
 
 /** What the site holds and what it has parked, before a correction is made, so
  * a story can prove a correction moved one and not the other. */
-export const rememberMoneyBefore = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const rememberMoneyBefore: ActOnTheStory = async (world) => {
   world.cashBefore = await worldBalance();
   world.writeoffBefore = await accountBalance(WRITEOFF);
 };

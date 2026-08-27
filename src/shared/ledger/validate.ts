@@ -60,8 +60,9 @@ const transferChecks: readonly TransferCheck[] = [
  * Returns every reason it was rejected, so a caller sees all the problems at
  * once rather than only the first.
  *
- * The amount must be a SAFE integer, so a sum of balances as JS numbers cannot
- * lose pennies. An account part must not carry the reserved key separator.
+ * Each amount must be a SAFE integer, so no single amount loses pennies as a JS
+ * number. Nothing bounds their sum, which {@link allBalances} accumulates as a
+ * plain number. An account part must not carry the reserved key separator.
  *
  * Currency is not a ledger concern: a site has one, fixed at setup, so every
  * transfer shares it.

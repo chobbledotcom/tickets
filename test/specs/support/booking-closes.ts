@@ -5,8 +5,7 @@
  */
 
 // jscpd:ignore-start
-import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
-import { organiserSavesListing } from "#test/specs/support/listings.ts";
+import { organiserSavesFields } from "#test/specs/support/listings.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
@@ -32,9 +31,5 @@ export const closesOn = async (
   name: string,
   daysFromToday: number,
 ): Promise<void> => {
-  const closingTime = noonOn(world, daysFromToday);
-  await organiserSavesListing(world, name, (served) => {
-    expectCanReallySend(served, closingTime);
-    return closingTime;
-  });
+  await organiserSavesFields(world, name, noonOn(world, daysFromToday));
 };

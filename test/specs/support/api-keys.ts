@@ -101,9 +101,16 @@ const askedAsKey = (
 ): Promise<Response> => handleRequest(requestAsApiKey(path, carrying, sending));
 
 /** What the site answers a caller asking what it sells, and what it said. */
+/** How the site answered another system, and what it sent back. Not a
+ * PageRead: nobody landed anywhere, because no visitor was ever here. */
+interface ApiAnswer {
+  answered: number;
+  said: string;
+}
+
 export const askedWhatIsSold = async (
   carrying: string | null,
-): Promise<{ answered: number; said: string }> => {
+): Promise<ApiAnswer> => {
   const response = await handleRequest(
     carrying === null
       ? mockRequest(WHAT_THE_SITE_SELLS)

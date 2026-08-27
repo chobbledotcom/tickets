@@ -12,8 +12,10 @@ import {
   newcomerReading,
   openAdminPage,
   opensListAtRow,
+  type PageRead,
   type TakesOneThingDown,
   takesDownFromList,
+  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
@@ -55,30 +57,28 @@ export const ownerWritesPages = async (world: TicketsWorld): Promise<void> => {
 
 /** The owner writes a page, choosing the address it lives at. Keeps what they
  * were told, because some of these are meant to be refused. */
-export const ownerWritesPage = async (
+export const ownerWritesPage = (
   world: TicketsWorld,
   name: string,
   address: string,
-): Promise<string> => {
-  const browser = await openAdminPage(world, PAGES_LIST);
-  await browser.clickLink(t("site.pages.add"));
-  await fillInAndSend(
-    browser,
-    { content: wordsOnlyOn(name), name, slug: address },
-    t("site.pages.create_submit"),
-  );
-  keepWhatTheyWereTold(world, OWNER, browser.pageText);
-  // The address the owner chose, so a capture can open the page the way a
-  // visitor would rather than being told the address a second time.
-  leaveEvidencePage(world, ["page-anybody-can-read"], `/page/${address}`);
-  return browser.pageText;
-};
+): Promise<string> =>
+  withAdminPage(world, PAGES_LIST, async (browser) => {
+    await browser.clickLink(t("site.pages.add"));
+    await fillInAndSend(
+      browser,
+      { content: wordsOnlyOn(name), name, slug: address },
+      t("site.pages.create_submit"),
+    );
+    keepWhatTheyWereTold(world, OWNER, browser.pageText);
+    // The address the owner chose, so a capture can open the page the way a
+    // visitor would rather than being told the address a second time.
+    leaveEvidencePage(world, ["page-anybody-can-read"], `/page/${address}`);
+    return browser.pageText;
+  });
 
 /** What a visitor reading one of the site's own pages is shown. Opened by
  * somebody who was never signed in, because that is who these pages are for. */
-export const visitorReading = (
-  address: string,
-): Promise<{ answered: number; said: string }> =>
+export const visitorReading = (address: string): Promise<PageRead> =>
   newcomerReading(`/page/${address}`);
 
 /** The owner's own list, open at one page's row — the row whose name links

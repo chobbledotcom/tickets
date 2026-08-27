@@ -101,16 +101,9 @@ const twoPaidDuplicates = async (
       `${name} Source`,
       `source-${name}@example.com`,
     );
-  await postListingSale({
-    attendeeId: target.id,
-    gross: 5000,
-    listingId: listing.id,
-  });
-  await postListingSale({
-    attendeeId: source.id,
-    gross: 5000,
-    listingId: listing.id,
-  });
+  for (const attendeeId of [target.id, source.id]) {
+    await postListingSale({ attendeeId, gross: 5000, listingId: listing.id });
+  }
   return {
     listingId: listing.id,
     sourceId: source.id,

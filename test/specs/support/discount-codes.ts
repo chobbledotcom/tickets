@@ -10,14 +10,17 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { formatCurrency } from "#shared/currency.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  keepsWhatTheOrganiserSaw,
+  withAdminPage,
+} from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import {
+  type AsksAboutOneThing,
   keepsAnswerAs,
-  keepWhatTheyWereTold,
   requiredWorldValue,
   type StoryJourney,
   type TicketsWorld,
@@ -29,42 +32,39 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The organiser makes a percentage-off promo code through the real form,
  * named after the code so the summary shows the words the story uses. */
-export const organiserCreatesCode = async (
+export const organiserCreatesCode = (
   world: TicketsWorld,
   code: string,
   percentOff: number,
-): Promise<void> => {
-  const browser = await openAdminPage(world, "/admin/modifiers/new");
-  await fillInAndSend(
-    browser,
-    {
-      calc_kind: "percent",
-      calc_value: String(percentOff),
-      code,
-      direction: "discount",
-      name: code,
-      trigger: "code",
-    },
-    "Create Modifier",
-  );
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
-  // Creation lands back on the list; the new code's own link carries its id.
-  const rows = browser.currentHtml.matchAll(
-    /<a[^>]*href="\/admin\/modifiers\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g,
-  );
-  // Matched whole, so an older "SAVE100" can never stand in for "SAVE10".
-  const id = [...rows].find(
-    (row) => row[2]!.replace(/<[^>]*>/g, "").trim() === code,
-  )?.[1];
-  if (!id) throw new Error(`The modifier list offers no link to ${code}`);
-  world.things.remember("record", code, Number(id));
-};
+): Promise<void> =>
+  withAdminPage(world, "/admin/modifiers/new", async (browser) => {
+    await fillInAndSend(
+      browser,
+      {
+        calc_kind: "percent",
+        calc_value: String(percentOff),
+        code,
+        direction: "discount",
+        name: code,
+        trigger: "code",
+      },
+      "Create Modifier",
+    );
+    keepsWhatTheOrganiserSaw(world, browser);
+    // Creation lands back on the list; the new code's own link carries its id.
+    const rows = browser.currentHtml.matchAll(
+      /<a[^>]*href="\/admin\/modifiers\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g,
+    );
+    // Matched whole, so an older "SAVE100" can never stand in for "SAVE10".
+    const id = [...rows].find(
+      (row) => row[2]!.replace(/<[^>]*>/g, "").trim() === code,
+    )?.[1];
+    if (!id) throw new Error(`The modifier list offers no link to ${code}`);
+    world.things.remember("record", code, Number(id));
+  });
 
 /** Whether a listing's booking page asks for a promo code at all. */
-export const codeBoxOffered = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<boolean> => {
+export const codeBoxOffered: AsksAboutOneThing = async (world, listingName) => {
   const browser = await openBookingPage(listingNamed(world, listingName));
   return /\sname="promo_code"/.test(browser.currentHtml);
 };
