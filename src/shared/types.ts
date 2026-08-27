@@ -128,26 +128,16 @@ export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 /** Type guard: check if an arbitrary string is a valid ListingType */
 export const isListingType = guardFor(ListingTypeSchema);
 
-/** Schema for the persisted email template types: the attendee confirmation and
- *  the admin notification. The single source of truth for the template
- *  discriminator used by the renderer, settings store, and admin forms. */
-export const EmailTemplateTypeSchema = v.picklist(["confirmation", "admin"]);
+/** The persisted email template types: the attendee confirmation and the admin
+ *  notification. The discriminator the renderer, the settings store, and the
+ *  admin forms all key on. A plain union rather than a picklist schema,
+ *  because nothing validates a string against it — every value comes from a
+ *  typed call, never from a form or a stored row. */
+export type EmailTemplateType = "confirmation" | "admin";
 
-/** Persisted email template type */
-export type EmailTemplateType = v.InferOutput<typeof EmailTemplateTypeSchema>;
-
-/** Schema for the parts of an email template: the subject line, the html
- *  body, and the plain-text body. */
-export const EmailTemplateFormatSchema = v.picklist([
-  "subject",
-  "html",
-  "text",
-]);
-
-/** A single part of an email template */
-export type EmailTemplateFormat = v.InferOutput<
-  typeof EmailTemplateFormatSchema
->;
+/** A single part of an email template: the subject line, the html body, or the
+ *  plain-text body. A plain union for the same reason. */
+export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */
