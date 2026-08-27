@@ -8,11 +8,11 @@ import { ORGANISER } from "#test/specs/support/browser.ts";
 import { settingsCopy } from "#test/specs/support/email-provider.ts";
 import {
   BOXES_WITH_A_DEFAULT,
-  defaultTheBoxOffers,
   emailTheSiteWouldSend,
   ownerAlreadyWrote,
   ownerWrites,
   SITES_OWN_WORDING,
+  whatTheBoxCarries,
   wordingKeptFor,
   wordingTheBoxesWouldSend,
 } from "#test/specs/support/email-wording.ts";
@@ -80,9 +80,14 @@ Then(
 Then(
   "the boxes say to leave them blank for the site's own wording",
   async function (this: TicketsWorld): Promise<void> {
-    expect(whatTheyWereTold(this, ORGANISER)).toContain(
-      `placeholder="${await settingsCopy("settings.advanced.leave_blank_default")}"`,
-    );
+    const page = whatTheyWereTold(this, ORGANISER);
+    const hint = await settingsCopy("settings.advanced.leave_blank_default");
+    // Every box, not one anywhere on the page. Three boxes that lost the hint
+    // leave three owners guessing why their email came out in wording they
+    // never wrote.
+    for (const { box } of BOXES_WITH_A_DEFAULT) {
+      expect(whatTheBoxCarries(page, box).hint).toBe(hint);
+    }
   },
 );
 
@@ -116,7 +121,7 @@ Then(
     // on the other three still fills three boxes with an empty string.
     for (const { box, part, which } of BOXES_WITH_A_DEFAULT) {
       expect(page).toContain(`data-fill-default="${box}"`);
-      expect(defaultTheBoxOffers(page, box)).toBe(
+      expect(whatTheBoxCarries(page, box).fillsInWith).toBe(
         DEFAULT_TEMPLATES[which][part],
       );
     }

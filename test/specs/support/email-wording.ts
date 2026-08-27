@@ -125,18 +125,24 @@ export const BOXES_WITH_A_DEFAULT = [
   which: EmailTemplateType;
 }>;
 
-/** The wording one box carries for the link that fills it in, or null when
- * the page renders no such box. The site's own wording is written onto the
- * box itself, because the link only copies what is already there. */
-export const defaultTheBoxOffers = (
+/** What one body box carries for the owner: the wording the link would fill
+ * in, and the hint shown while the box is empty. Both live on the same tag, so
+ * one read answers for both. Null means the page renders no such box. */
+export const whatTheBoxCarries = (
   page: string,
   box: string,
-): string | null => {
+): { fillsInWith: string | null; hint: string | null } => {
   const tag = page.match(
     new RegExp(`<textarea\\b[^>]*\\bid="${box}"[^>]*>`, "i"),
   )?.[0];
-  const carried = tag?.match(/\bdata-default-tpl="([^"]*)"/)?.[1];
-  return carried === undefined ? null : decodeEntities(carried);
+  const attribute = (name: string): string | null => {
+    const carried = tag?.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
+    return carried === undefined ? null : decodeEntities(carried);
+  };
+  return {
+    fillsInWith: attribute("data-default-tpl"),
+    hint: attribute("placeholder"),
+  };
 };
 
 /** Wording the owner saved before the scenario started. */
