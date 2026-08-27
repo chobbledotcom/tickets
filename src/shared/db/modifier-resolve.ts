@@ -135,7 +135,7 @@ const stockedQuantity = (
 const checkedPerOrderCap = (modifier: Modifier, cap: number): number => {
   if (!Number.isInteger(cap) || cap < 1) {
     throw new Error(
-      `Modifier "${modifier.name}" (id ${modifier.id}) stores max_per_order ${cap}; the column must hold a whole number of 1 or more`,
+      `Modifier "${modifier.name}" (id ${modifier.id}) stores max_per_order ${cap}. The column must hold a whole number of 1 or more`,
     );
   }
   return cap;
