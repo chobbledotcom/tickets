@@ -136,6 +136,12 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("InlineArmsShareIt", "sharedByInlineArms")).toBe("read");
   });
 
+  test("does not count a delete wrapped in parentheses as a reader", () => {
+    expect(verdictOf("DeletedInParens", "takenAwayInParens")).toBe(
+      "never read",
+    );
+  });
+
   test("counts a field written through parentheses as supplied", () => {
     expect(verdictOf("WrittenThroughParens", "filledInsideParens")).toBe(
       "never read",

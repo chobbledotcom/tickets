@@ -131,12 +131,14 @@ const isHidden = (node: ts.Node): boolean => {
   );
 };
 
-/** A member that holds a field. `SafeHtml` writes its one field as
+/** A member that holds a field. Every member of a class or an interface does,
+ * a method included: `send(value: { id: string })` puts `id` under `send`
+ * rather than under the class. `SafeHtml` writes its one field as
  * `constructor(public html: string)`, which is a parameter and a field at
  * once. A plain constructor parameter is not one. */
 const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   ts.isTypeElement(node) ||
-  ts.isPropertyDeclaration(node) ||
+  ts.isClassElement(node) ||
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
 

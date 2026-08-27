@@ -8,6 +8,7 @@ import { report, sum } from "./produce.ts";
 import {
   type Borrowed,
   type BothArmsWriteIt,
+  type DeletedInParens,
   type ExtendsFarBase,
   type FromAShorthand,
   type HandsAnObjectOver,
@@ -75,6 +76,10 @@ export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
 
 export const readInsideAnArray = (h: HoldsThingsInGenerics): number =>
   h.inAnArray[0].insideAnArray;
+
+export const dropInParens = (d: DeletedInParens): void => {
+  delete (d.takenAwayInParens);
+};
 
 export const throughOneInlineArm = (u: InlineArmsShareIt): number =>
   u.whichInlineArm === "second"

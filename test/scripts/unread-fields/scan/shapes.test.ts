@@ -227,6 +227,17 @@ describe("the shapes the scan finds", () => {
     expect(leaked).toEqual([]);
   });
 
+  test("puts a field a method takes under that method", () => {
+    // Two methods can take an object with the same field name, and the two
+    // are different fields. Under the class they would read as one.
+    expect(verdictOf("TakesObjectsInMethods.send", "sameNameInBoth")).toBe(
+      "never read",
+    );
+    expect(verdictOf("TakesObjectsInMethods.post", "sameNameInBoth")).toBe(
+      "never read",
+    );
+  });
+
   test("leaves out a type a hash-private member keeps to itself", () => {
     // `#kept` says it is private with its name rather than with a word, and
     // the type written inside it is out of reach for the same reason.
@@ -265,6 +276,7 @@ describe("the shapes the scan finds", () => {
       "Carrier.onlyOnAClass",
       "Carrier.readByThisInside",
       "DeclaresATypeInAMethod.measure",
+      "DeletedInParens.takenAwayInParens",
       "EitherNamed.onlyWhenItWentBadly",
       "EitherNamed.onlyWhenItWentWell",
       "EitherNamed.sharedByTheNames",
@@ -333,6 +345,10 @@ describe("the shapes the scan finds", () => {
       "Sum.readOnlyFromOutside",
       "Sum.takenOutByPattern",
       "Sum.total",
+      "TakesObjectsInMethods.post",
+      "TakesObjectsInMethods.post.sameNameInBoth",
+      "TakesObjectsInMethods.send",
+      "TakesObjectsInMethods.send.sameNameInBoth",
       "WrittenByARest.filledByAnArrayRest",
       "WrittenByARest.filledByAnObjectRest",
       "WrittenThroughParens.filledInsideParens",

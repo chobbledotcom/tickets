@@ -40,12 +40,19 @@ const throughTheField =
  * fills, as in `({ value: row.total } = source)`. Both put a value in. */
 const isAssignedProperty = throughTheField((access) => isAssignedTo(access));
 
-/** `delete row.total` takes the field away. It never looks at the value, so
- * it is not a reader. */
-const isDeletedProperty = throughTheField(
-  (access) =>
-    access.parent !== undefined && ts.isDeleteExpression(access.parent),
-);
+/** The node above, with any parentheses around it stepped over. */
+const aboveTheParens = (node: ts.Node): ts.Node | undefined => {
+  let at = node.parent;
+  while (at && ts.isParenthesizedExpression(at)) at = at.parent;
+  return at;
+};
+
+/** `delete row.total` takes the field away, and so does `delete (row.total)`.
+ * Neither looks at the value, so neither is a reader. */
+const isDeletedProperty = throughTheField((access) => {
+  const above = aboveTheParens(access);
+  return above !== undefined && ts.isDeleteExpression(above);
+});
 
 type Holder = ts.Node & { name?: ts.Node };
 

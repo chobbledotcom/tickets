@@ -215,6 +215,20 @@ export interface NamedByALiteral {
   plainName: string;
 }
 
+export class TakesObjectsInMethods {
+  send(value: { sameNameInBoth: string }): void {
+    console.log(value);
+  }
+
+  post(value: { sameNameInBoth: number }): void {
+    console.log(value);
+  }
+}
+
+export interface DeletedInParens {
+  takenAwayInParens?: number;
+}
+
 export class KeepsAHashPrivate {
   #kept: { onlyInsideAHashPrivate: string } = { onlyInsideAHashPrivate: "x" };
 

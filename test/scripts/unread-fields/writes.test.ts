@@ -178,6 +178,10 @@ describe("readsTheValue", () => {
     expect(readsAt("delete row.total;", "total")).toBe(false);
   });
 
+  test("does not read a field a delete takes away through parentheses", () => {
+    expect(readsAt("delete (row.total);", "total")).toBe(false);
+  });
+
   test("does not read a field a delete takes away through brackets", () => {
     expect(readsAt('delete row["total"];', "total")).toBe(false);
   });
