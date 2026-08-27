@@ -44,6 +44,13 @@ export const takeDeepOut = (): number => {
   return deep;
 };
 
+import type { Passed } from "#shapes";
+
+export const forward = ({ kept, ...rest }: Passed): Passed => ({
+  ...rest,
+  kept: kept + 1,
+});
+
 export const takePatternOut = (): number => {
   let takenOutByPattern = 0;
   ({ takenOutByPattern } = sum);
@@ -76,6 +83,11 @@ export type Report = {
   nested: { deep: number };
   [key: string]: unknown;
 };
+
+export interface Passed {
+  kept: number;
+  carriedBySpread: number;
+}
 
 interface NotExported {
   hidden: number;
@@ -121,9 +133,11 @@ describe("scanUnreadFields", () => {
     expect(findings.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "BadgeProps.label",
       "BadgeProps.supplied",
-      "Report.deep",
+      "Passed.carriedBySpread",
+      "Passed.kept",
       "Report.headline",
       "Report.nested",
+      "Report.nested.deep",
       "Report.onlyTestsRead",
       "Sum.noOneReadsThis",
       "Sum.takenOutByPattern",
@@ -154,7 +168,7 @@ describe("scanUnreadFields", () => {
   });
 
   test("sees a field of an object type nested in an exported shape", () => {
-    expect(verdictOf("Report", "deep")).toBe("read");
+    expect(verdictOf("Report.nested", "deep")).toBe("read");
   });
 
   test("counts only the tests when only the tests read a field", () => {
@@ -163,6 +177,16 @@ describe("scanUnreadFields", () => {
 
   test("counts a field taken out by a destructuring assignment as read", () => {
     expect(verdictOf("Sum", "takenOutByPattern")).toBe("read");
+  });
+
+  test("counts a field a rest pattern names as read", () => {
+    expect(verdictOf("Passed", "kept")).toBe("read");
+  });
+
+  // The blind spot the README names first: a spread moves the field without
+  // naming it, so there is no reference for the scan to find.
+  test("cannot follow a field carried only by a spread", () => {
+    expect(verdictOf("Passed", "carriedBySpread")).toBe("never read");
   });
 
   test("counts a JSX attribute as supplying the field, not reading it", () => {

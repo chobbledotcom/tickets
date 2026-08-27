@@ -62,7 +62,6 @@ const WAYS_TO_WRITE = [
  * nesting of `({ inner: { total } } = row)` out to the `=`. */
 const isAssignedTo = (node: ts.Node): boolean => {
   const parent = node.parent;
-  if (!parent) return false;
   if (ts.isBinaryExpression(parent)) {
     return (
       parent.left === node &&

@@ -98,14 +98,20 @@ const isExportedShape = (
 };
 
 /** Every field an exported shape declares, including the fields of object
- * types nested inside it, since `shape.inner.total` reaches those too. */
+ * types nested inside it, since `shape.inner.total` reaches those too. The
+ * owner carries the path down to the field, so the two `dbConfigured` fields
+ * of `DebugPageState` do not report as one line. */
 const exportedFields = (
   source: ts.SourceFile,
 ): { owner: string; field: ts.Identifier }[] => {
   const found: { owner: string; field: ts.Identifier }[] = [];
   const collect = (owner: string, node: ts.Node): void => {
-    if (ts.isTypeElement(node) && node.name && ts.isIdentifier(node.name)) {
-      found.push({ field: node.name, owner });
+    const name = ts.isTypeElement(node) ? node.name : undefined;
+    if (name && ts.isIdentifier(name)) {
+      found.push({ field: name, owner });
+      const inside = `${owner}.${name.text}`;
+      ts.forEachChild(node, (child) => collect(inside, child));
+      return;
     }
     ts.forEachChild(node, (child) => collect(owner, child));
   };

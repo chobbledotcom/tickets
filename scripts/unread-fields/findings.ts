@@ -11,7 +11,7 @@ export interface Finding {
   field: string;
   /** The file that declares it, relative to the repository. */
   file: string;
-  /** The exported shape the field belongs to. */
+  /** The exported shape the field belongs to, and the path down to it. */
   owner: string;
   verdict: Verdict;
 }
