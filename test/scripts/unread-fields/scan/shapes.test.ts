@@ -138,6 +138,15 @@ describe("the shapes the scan finds", () => {
     expect(scanned.all.filter((f) => f.owner === "ItsType")).toEqual([]);
   });
 
+  test("leaves out a type a method declares inside its body", () => {
+    // The method itself is a field of the class. The local type inside it
+    // cannot leave the method, so it is not.
+    const lines = scanned.all.filter(
+      (f) => f.owner === "DeclaresATypeInAMethod",
+    );
+    expect(lines.map((f) => f.field)).toEqual(["measure"]);
+  });
+
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "AnsweredAgain.answeredTwice",
@@ -147,9 +156,13 @@ describe("the shapes the scan finds", () => {
       "BadgeProps.supplied",
       "Borrowed.onlyItsTypeIsUsed",
       "Borrowed.takenAwayByDelete",
+      "BothArmsWriteIt.onlyOnTheSecondArm",
+      "BothArmsWriteIt.whichArm",
+      "BothArmsWriteIt.writtenByBothArms",
       "Carrier.heldByTheConstructor",
       "Carrier.keep",
       "Carrier.onlyOnAClass",
+      "DeclaresATypeInAMethod.measure",
       "EitherNamed.onlyWhenItWentBadly",
       "EitherNamed.onlyWhenItWentWell",
       "EitherNamed.sharedByTheNames",
@@ -165,6 +178,11 @@ describe("the shapes the scan finds", () => {
       "FarBase.paddingSoTheOffsetIsWrongInAnotherFile",
       "FarBase.readFromFarAway",
       "FromAList.writtenInAList",
+      "FromAShorthand.namedByALocal",
+      "FromAShorthand.readsLikeAField",
+      "FromAShorthand.writtenInFull",
+      "HoldsAClass.builtOnByAChild",
+      "HoldsAClass.builtOnByAChild.madeByTheChild",
       "Inner.onlyInsideNamespace",
       "Intersects.fromAnIntersection",
       "Intersects.ofItsOwnAgain",
@@ -189,6 +207,8 @@ describe("the shapes the scan finds", () => {
       "Sum.readOnlyFromOutside",
       "Sum.takenOutByPattern",
       "Sum.total",
+      "WrittenByARest.filledByAnArrayRest",
+      "WrittenByARest.filledByAnObjectRest",
     ]);
   });
 

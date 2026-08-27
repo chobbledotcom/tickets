@@ -67,4 +67,46 @@ describe("the reads the scan counts", () => {
   test("counts a prop the component destructures as read", () => {
     expect(verdictOf("BadgeProps", "label")).toBe("read");
   });
+
+  test("counts an array rest target as supplying the field", () => {
+    // `[...w.field] = from` puts a value in without a look at the old one.
+    expect(verdictOf("WrittenByARest", "filledByAnArrayRest")).toBe(
+      "never read",
+    );
+  });
+
+  test("counts an object rest target as supplying the field", () => {
+    expect(verdictOf("WrittenByARest", "filledByAnObjectRest")).toBe(
+      "never read",
+    );
+  });
+
+  test("counts a class built on a field as reading it", () => {
+    // `class Child extends h.field {}` reads the field when the program runs,
+    // although the compiler counts the clause it sits in as a type.
+    expect(verdictOf("HoldsAClass", "builtOnByAChild")).toBe("read");
+  });
+
+  test("counts a read through one arm as a read of the union's field", () => {
+    // Both arms write the field down, and the read points at the second one.
+    expect(verdictOf("BothArmsWriteIt", "writtenByBothArms")).toBe("read");
+  });
+
+  test("counts a read of the field only one arm writes down", () => {
+    expect(verdictOf("BothArmsWriteIt", "onlyOnTheSecondArm")).toBe("read");
+  });
+
+  test("does not count a use of the local a shorthand field is named by", () => {
+    // `{ namedByALocal }` gives the field and the local one name, and the
+    // compiler answers a lookup for either with both.
+    expect(verdictOf("FromAShorthand", "namedByALocal")).toBe("never read");
+  });
+
+  test("does not count a shorthand field with no use at all", () => {
+    expect(verdictOf("FromAShorthand", "readsLikeAField")).toBe("never read");
+  });
+
+  test("still counts a member read of a shorthand field", () => {
+    expect(verdictOf("FromAShorthand", "writtenInFull")).toBe("read");
+  });
 });

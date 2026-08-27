@@ -98,7 +98,15 @@ const isAssignedTo: AskAboutAMention = onParent((node, parent) => {
   if (ts.isForOfStatement(parent) || ts.isForInStatement(parent)) {
     return parent.initializer === node;
   }
-  if (ts.isPropertyAssignment(parent)) return isAssignedTo(parent.parent);
+  // A rest element sits between the field and the literal that holds it, so
+  // `[...row.total] = source` writes the field the same way `[row.total]` does.
+  if (
+    ts.isPropertyAssignment(parent) ||
+    ts.isSpreadAssignment(parent) ||
+    ts.isSpreadElement(parent)
+  ) {
+    return isAssignedTo(parent.parent);
+  }
   if (ts.isArrayLiteralExpression(parent)) return isAssignedTo(parent);
   return false;
 });
@@ -120,15 +128,26 @@ const isWrite: AskAboutAMention = onParent((node, parent) =>
 
 const isDeleted: AskAboutAMention = onParent(isDeletedProperty);
 
-/** True when this mention names a member of something, after a dot or inside
- * brackets, rather than standing on its own as a plain name. */
-export const namesAMember: AskAboutAMention = onParent(reachesTheField);
+/** The third way to name a member is to let a pattern take it out. A pattern
+ * names the field it reaches on the left, so `const { total } = row` names it
+ * once, and `const { total: sum } = row` names `total` and binds `sum`. */
+const namedByAPattern = (node: ts.Node, parent: ts.Node): boolean =>
+  ts.isBindingElement(parent) &&
+  (parent.propertyName === node || parent.name === node);
+
+/** True when this mention names a member of something rather than standing on
+ * its own as a plain name. */
+export const namesAMember: AskAboutAMention = onParent(
+  (node, parent) =>
+    reachesTheField(node, parent) || namedByAPattern(node, parent),
+);
 
 /** Put a question to a mention and to everything it sits inside, up to the
  * whole file. The compiler already climbs that chain, so this only turns the
- * node it stops on into a yes or a no. */
+ * node it stops on into a yes or a no. A question answers "quit" to stop the
+ * climb where it stands. */
 const anywhereAbove =
-  (matches: AskAboutAMention): AskAboutAMention =>
+  (matches: (at: ts.Node) => boolean | "quit"): AskAboutAMention =>
   (node) =>
     ts.findAncestor(node, matches) !== undefined;
 
@@ -138,9 +157,22 @@ const anywhereAbove =
 export const isInside = (whole: ts.Node): AskAboutAMention =>
   anywhereAbove((at) => at === whole);
 
+/** `class Child extends registry.Base {}` reads `registry.Base` to find the
+ * class to build on, and that read happens when the program runs. An
+ * interface's `extends`, and every `implements`, name a type and read
+ * nothing. */
+const isRuntimeHeritage = (node: ts.Node): boolean =>
+  ts.isExpressionWithTypeArguments(node) &&
+  ts.isHeritageClause(node.parent) &&
+  node.parent.token === ts.SyntaxKind.ExtendsKeyword &&
+  ts.isClassLike(node.parent.parent);
+
 /** A mention inside a type names the field to borrow its type, and no value
- * moves when the program runs. `Config["execute"]` is one. */
-const isTypeOnly: AskAboutAMention = anywhereAbove(ts.isTypeNode);
+ * moves when the program runs. `Config["execute"]` is one. The compiler counts
+ * a heritage clause as a type, so the climb stops before it. */
+const isTypeOnly: AskAboutAMention = anywhereAbove((at) =>
+  isRuntimeHeritage(at) ? "quit" : ts.isTypeNode(at),
+);
 
 /** True when this mention takes the value out of the field. `row.total` and
  * `const { total } = row` do. `{ total: 1 }`, `<Meter total={1} />`,

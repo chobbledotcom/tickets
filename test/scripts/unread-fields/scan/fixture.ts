@@ -50,9 +50,13 @@ import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
 import {
   type Borrowed,
+  type BothArmsWriteIt,
   type ExtendsFarBase,
+  type FromAShorthand,
+  type HoldsAClass,
   NamedItsParameter,
   type Passed,
+  type WrittenByARest,
 } from "./shapes.ts";
 
 export type ItsType = Borrowed["onlyItsTypeIsUsed"];
@@ -88,6 +92,24 @@ export const takePatternOut = (): number => {
   ({ takenOutByPattern } = sum);
   return takenOutByPattern;
 };
+
+export const fillByRest = (w: WrittenByARest, from: number[]): void => {
+  [...w.filledByAnArrayRest] = from;
+};
+
+export const fillByObjectRest = (w: WrittenByARest, from: object): void => {
+  ({ ...w.filledByAnObjectRest } = from);
+};
+
+export const buildOn = (h: HoldsAClass): unknown =>
+  class Child extends h.builtOnByAChild {};
+
+export const throughTheSecondArm = (either: BothArmsWriteIt): number =>
+  either.whichArm === "second"
+    ? either.writtenByBothArms + either.onlyOnTheSecondArm
+    : 0;
+
+export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
 `,
 
   // Reached by a directory import. The compiler finds it only when the host
@@ -286,6 +308,45 @@ export type Renamings = {
 };
 
 export const hide = (n: NotExported): number => n.hidden;
+
+export interface WrittenByARest {
+  filledByAnArrayRest: number[];
+  filledByAnObjectRest: object;
+}
+
+export class DeclaresATypeInAMethod {
+  measure(): number {
+    const inTheBody: { onlyInsideTheMethod: string } = {
+      onlyInsideTheMethod: "x",
+    };
+    return inTheBody.onlyInsideTheMethod.length;
+  }
+}
+
+export interface HoldsAClass {
+  builtOnByAChild: new () => { madeByTheChild: number };
+}
+
+interface FirstArm {
+  whichArm: "first";
+  writtenByBothArms: number;
+}
+
+interface SecondArm {
+  whichArm: "second";
+  writtenByBothArms: number;
+  onlyOnTheSecondArm: number;
+}
+
+export type BothArmsWriteIt = FirstArm | SecondArm;
+
+const namedByALocal = 1;
+const readsLikeAField = 2;
+const SHORTHANDS = [{ namedByALocal, readsLikeAField, writtenInFull: 3 }];
+
+export type FromAShorthand = (typeof SHORTHANDS)[number];
+
+export const useTheLocal = (): number => namedByALocal + 1;
 `,
 
   "test/report.test.ts": `

@@ -8,7 +8,7 @@
  */
 
 import ts from "typescript";
-import { mapNotNullish } from "#fp";
+import { filter, mapNotNullish, unique } from "#fp";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { type Finding, verdictFor } from "./findings.ts";
@@ -89,14 +89,17 @@ const exportedShapes = (
   return shapes;
 };
 
-/** One field the scan looked at, and the shape it belongs to. */
+/** One field the scan looked at, and the shape it belongs to. A field can be
+ * written down in more than one place: both arms of a union declare it, and a
+ * read points at whichever arm it holds. The first name says where a reader
+ * has to go, and the rest are the other places a read can point at. */
 interface OwnedField {
-  field: ts.Identifier;
+  names: [ts.Identifier, ...ts.Identifier[]];
   owner: string;
 }
 
-/** What a shape is made of, leaving out its type parameters: a constraint like
- * `<E extends { id: number }>` describes E, and `id` is not a field of the
+/** What a shape is made of. Its type parameters stay out. A constraint such
+ * as `<E extends { id: number }>` describes E, and `id` is no field of the
  * shape itself. */
 const shapeBody = (shape: Shape): readonly ts.Node[] =>
   ts.isTypeAliasDeclaration(shape) ? [shape.type] : shape.members;
@@ -146,62 +149,75 @@ const inheritsFrom = (shape: Shape): boolean =>
 const partsOf = (type: ts.Type): readonly ts.Type[] =>
   type.isUnion() ? type.types : [type];
 
-/** Where one borrowed field is written down, or nothing when the shape names
- * it itself. A field can be written down more than once — `PaymentFailureResult`
- * gets `success` from its own arm and from `PaymentFailure` — and one field
- * deserves one line, because two could disagree. */
-const borrowedName = (
-  property: ts.Symbol,
-  own: Set<string>,
-): ts.Identifier | undefined => {
-  // A mapped type such as `Partial<Listing>` makes up its properties, so some
-  // are written down nowhere and the scan has no identifier to look up. A
-  // library's own members are written down, but not by this repository:
-  // `Config["total"]` resolves to `number`, which carries `toFixed`.
-  const written = (property.declarations ?? []).filter(
-    (at) => !at.getSourceFile().isDeclarationFile,
+/** Every place a borrowed field is written down. A mapped type such as
+ * `Partial<Listing>` makes up its properties, so some are written down nowhere
+ * and the scan has no identifier to look up. A library's own members are
+ * written down, but not by this repository: `Config["total"]` resolves to
+ * `number`, which carries `toFixed`. */
+const writtenNames = (property: ts.Symbol): ts.Identifier[] =>
+  mapNotNullish(nameOf)(
+    (property.declarations ?? []).filter(
+      (at) => !at.getSourceFile().isDeclarationFile,
+    ),
   );
-  const names = mapNotNullish(nameOf)(written);
-  return names.some((name) => own.has(name.text)) ? undefined : names[0];
-};
 
 /** The fields an exported shape gets from somewhere else.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
  * to itself, and `CheckoutIntent` intersects one. A reader of either reaches
  * those fields like any other. A field the shape declares again is already
  * counted. */
+type NamesByField = Map<string, [ts.Identifier, ...ts.Identifier[]]>;
+
+/** Remember one more place a field is written down. */
+const rememberName = (byField: NamesByField, name: ts.Identifier): void => {
+  const found = byField.get(name.text);
+  if (found) found.push(name);
+  else byField.set(name.text, [name]);
+};
+
 const inheritedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
   own: Set<string>,
 ): OwnedField[] => {
   if (!inheritsFrom(shape)) return [];
-  const found: OwnedField[] = [];
-  const type = checker.getTypeAtLocation(shape.name);
-  for (const part of partsOf(type)) {
-    for (const property of checker.getPropertiesOfType(part)) {
-      const field = borrowedName(property, own);
-      if (field) {
-        own.add(field.text);
-        found.push({ field, owner: shape.name.text });
-      }
-    }
-  }
-  return found;
+  const written = partsOf(checker.getTypeAtLocation(shape.name))
+    .flatMap((part) => checker.getPropertiesOfType(part))
+    .flatMap(writtenNames)
+    .filter((name) => !own.has(name.text));
+  // One field deserves one line, because two could disagree. Both arms of a
+  // union write the shared field down, and a read points at one arm, so the
+  // line carries every arm or it misses the readers of the others.
+  const byField: NamesByField = new Map();
+  for (const name of written) rememberName(byField, name);
+  return [...byField.values()].map((names) => ({
+    names,
+    owner: shape.name.text,
+  }));
 };
 
-/** The parts of a node that can hold a member. `R extends { paid: number } ?
+/** Which of a node's parts can hold a member. `R extends { paid: number } ?
  * { paid: string } : never` checks one type against another, and only the
- * answer is part of the shape. */
+ * answer is part of the shape. A function keeps what it writes down before its
+ * body: a type written inside the body never leaves it. */
+const worthWalking = (node: ts.Node): ((part: ts.Node) => boolean) => {
+  if (ts.isConditionalTypeNode(node)) {
+    return (part) => part !== node.checkType && part !== node.extendsType;
+  }
+  if (!ts.isFunctionLike(node)) return () => true;
+  return (part) =>
+    ts.isTypeNode(part) ||
+    ts.isParameter(part) ||
+    ts.isTypeParameterDeclaration(part);
+};
+
+/** The parts of a node the walk goes on through. */
 const membersOf = (node: ts.Node): ts.Node[] => {
   const parts: ts.Node[] = [];
   ts.forEachChild(node, (child) => {
     parts.push(child);
   });
-  if (!ts.isConditionalTypeNode(node)) return parts;
-  return parts.filter(
-    (part) => part !== node.checkType && part !== node.extendsType,
-  );
+  return filter(worthWalking(node))(parts);
 };
 
 /** Every field an exported shape declares, including the fields of object
@@ -225,7 +241,7 @@ const exportedFields = (
       const inside = `${owner}.${name.text}`;
       if (!counted.has(inside)) {
         counted.add(inside);
-        found.push({ field: name, owner });
+        found.push({ names: [name], owner });
       }
       ts.forEachChild(node, (child) => collect(inside, child));
       return;
@@ -247,7 +263,7 @@ const exportedFields = (
       found
         .slice(before)
         .filter((found) => found.owner === shape.name.text)
-        .map((found) => found.field.text),
+        .map((found) => found.names[0].text),
     );
     found.push(...inheritedFields(checker, shape, own));
   }
@@ -258,31 +274,45 @@ const exportedFields = (
 const readsHere = (
   program: ts.Program,
   reference: ts.ReferencedSymbolEntry,
-  namesTheParameter: AskAboutAMention,
+  namesTheNamesake: AskAboutAMention,
 ): boolean => {
   if (reference.isDefinition) return false;
   const source = program.getSourceFile(reference.fileName);
   const node = source && nodeAt(source, reference.textSpan.start);
   if (!node || !readsTheValue(node)) return false;
-  return !namesTheParameter(node);
+  return !namesTheNamesake(node);
 };
 
-/** `constructor(public value: string)` declares a parameter and a field with
- * one name, and the compiler answers a lookup with both. Inside that
- * constructor a plain `value` is the parameter, and no value leaves the field.
- * `this.value` there is the field, and so is every mention outside. */
-const namesTheParameterOf = (field: ts.Identifier): AskAboutAMention => {
-  if (!ts.isParameterPropertyDeclaration(field.parent, field.parent.parent)) {
-    return () => false;
+/** Two ways of writing a field give it a namesake the compiler cannot tell it
+ * apart from. `constructor(public value: string)` declares a parameter beside
+ * the field, and the parameter is only there inside the constructor.
+ * `{ value }` declares the field out of a local, and that local is there for
+ * the whole file. This says where the namesake lives, or nothing when the
+ * field has none. */
+const livesBesideANamesake = (field: ts.Identifier): ts.Node | undefined => {
+  const holder = field.parent;
+  if (ts.isParameterPropertyDeclaration(holder, holder.parent)) {
+    return holder.parent;
   }
-  const insideTheConstructor = isInside(field.parent.parent);
-  return (node) => insideTheConstructor(node) && !namesAMember(node);
+  return ts.isShorthandPropertyAssignment(holder)
+    ? field.getSourceFile()
+    : undefined;
 };
 
-/** Ask the service who reads one field, and say where those readers live. An
- * inherited field was written down in the base's file, not in the shape's, so
- * the lookup starts from the file that declares it. */
-const readersOf = (
+/** Where a field has a namesake, a plain mention of the name is the namesake
+ * and no value leaves the field. `this.value` and `const { value } = held`
+ * name the field, and so does every mention outside the namesake's reach. */
+const namesTheNamesakeOf = (field: ts.Identifier): AskAboutAMention => {
+  const namesake = livesBesideANamesake(field);
+  if (!namesake) return () => false;
+  const withinReach = isInside(namesake);
+  return (node) => withinReach(node) && !namesAMember(node);
+};
+
+/** Ask the service who reads one written-down name, and say where those
+ * readers live. An inherited field was written down in the base's file, not in
+ * the shape's, so the lookup starts from the file that declares it. */
+const readersOfName = (
   service: ts.LanguageService,
   program: ts.Program,
   root: string,
@@ -292,17 +322,26 @@ const readersOf = (
     service.findReferences(field.getSourceFile().fileName, field.getStart()),
     `references for ${field.text}`,
   );
-  const namesTheParameter = namesTheParameterOf(field);
+  const namesTheNamesake = namesTheNamesakeOf(field);
   const readers: string[] = [];
   for (const group of references) {
     for (const reference of group.references) {
-      if (readsHere(program, reference, namesTheParameter)) {
+      if (readsHere(program, reference, namesTheNamesake)) {
         readers.push(reference.fileName.replace(`${root}/`, ""));
       }
     }
   }
   return readers;
 };
+
+/** Everyone who reads a field, wherever it was written down. */
+const readersOf = (
+  service: ts.LanguageService,
+  program: ts.Program,
+  root: string,
+  names: readonly ts.Identifier[],
+): string[] =>
+  unique(names.flatMap((name) => readersOfName(service, program, root, name)));
 
 /** Look at every exported field the repository declares under `src/`. */
 export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
@@ -323,14 +362,14 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   for (const source of program.getSourceFiles()) {
     const file = source.fileName;
     if (!scanned.has(file)) continue;
-    for (const { owner, field } of exportedFields(checker, source)) {
+    for (const { owner, names } of exportedFields(checker, source)) {
       findings.push({
-        field: field.text,
+        field: names[0].text,
         // Where a reader has to go to find it, which is where it was written
         // down rather than the shape that hands it on.
-        file: field.getSourceFile().fileName.replace(`${root}/`, ""),
+        file: names[0].getSourceFile().fileName.replace(`${root}/`, ""),
         owner,
-        verdict: verdictFor(readersOf(service, program, root, field)),
+        verdict: verdictFor(readersOf(service, program, root, names)),
       });
     }
   }

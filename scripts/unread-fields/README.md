@@ -57,20 +57,22 @@ A field can be mentioned often and still never be read. Every one of its
 mentions can put a value in, and none take one out. So the scan sorts each
 mention by the syntax around it, and counts the reads:
 
-| Mention                 | Counts as |
-| ----------------------- | --------- |
-| `total: number`         | write     |
-| `{ total: 1 }`          | write     |
-| `{ total }`             | write     |
-| `row.total = 1`         | write     |
-| `<Meter total={1} />`   | write     |
-| `{ total() {} }`        | write     |
-| `get total()`           | write     |
-| `delete row.total`      | write     |
-| `Config["total"]`       | write     |
-| `row.total`             | read      |
-| `const { total } = row` | read      |
-| `({ total } = row)`     | read      |
+| Mention                      | Counts as |
+| ---------------------------- | --------- |
+| `total: number`              | write     |
+| `{ total: 1 }`               | write     |
+| `{ total }`                  | write     |
+| `row.total = 1`              | write     |
+| `<Meter total={1} />`        | write     |
+| `{ total() {} }`             | write     |
+| `get total()`                | write     |
+| `delete row.total`           | write     |
+| `Config["total"]`            | write     |
+| `[...row.total] = src`       | write     |
+| `row.total`                  | read      |
+| `const { total } = row`      | read      |
+| `({ total } = row)`          | read      |
+| `class C extends r.total {}` | read      |
 
 `const { total } = row` and `({ total } = row)` are the pair that catches people
 out. Both take `row.total` out, but the second is built from the same nodes as
@@ -82,6 +84,19 @@ read. The same literal anywhere else is a value, and its members write.
 delete takes the field away, and the second names the field to borrow its type.
 Neither takes the value out, which is the only question the scan asks, so both
 sit on the write side of it.
+
+`class C extends r.total {}` is the odd one. The compiler counts the clause it
+sits in as a type, but the program reads the field when it runs, to find the
+class to build on. An interface's `extends`, and every `implements`, read
+nothing.
+
+Two ways of writing a field give it a namesake, and the compiler answers a
+lookup for either name with both. `constructor(public total: number)` declares a
+parameter beside the field. `{ total }` declares the field out of a local. The
+parameter is only there inside the constructor, and the local is there for the
+whole file. Inside that reach, only a mention that names a member reads the
+field. `this.total` and `const { total } = row` name one. A plain `total` names
+the namesake, and no value leaves the field.
 
 The rule is about the syntax a mention sits in, never about the name alone. In
 `({ value: row.total } = source)` the field `value` reads and `row.total`
@@ -110,5 +125,9 @@ unread. Four cases do that in this repository:
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start looking, not a verdict.
-A field the scan misses is rarer, and needs a read the compiler cannot see, such
-as one through `Object.keys` or a computed name.
+A field the scan misses is rarer. It needs a read the compiler cannot see, such
+as one through `Object.keys` or a computed name. One kind of shape is missed
+whole: `Intent = v.InferOutput<typeof IntentSchema>` names a type the compiler
+cannot work out here, because the program does not resolve the bare `valibot`
+import. 79 exported aliases under `src/` take their shape that way, and each
+contributes no fields to the report.

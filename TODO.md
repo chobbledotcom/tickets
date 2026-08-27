@@ -1,5 +1,46 @@
 # TODO — remaining follow-ups
 
+## Let the unread-fields scan resolve a valibot shape
+
+_Origin: a review of PR #2166. Measured, real, and larger than that PR._
+
+`scripts/unread-fields/scan.ts` builds its TypeScript program from the `#`
+aliases in `deno.json` only, through `aliasPaths` in `aliases.ts`. A bare
+specifier such as `valibot` stays unresolved, so `v.InferOutput<...>` is `any`
+and `getPropertiesOfType` hands back nothing. 79 exported type aliases under
+`src/` take their shape that way, and every one of them contributes no field to
+the report.
+
+A probe over `export type Intent = v.InferOutput<typeof IntentSchema>` with two
+fields reports zero fields. Add the same probe as a test when this is fixed.
+
+Start at `scripts/unread-fields/host.ts`, which builds the compiler host and the
+compiler options. `deno info --json <entry>` prints the module graph with the
+local path of each cached dependency. Map each bare specifier to that path and
+put the result in the `paths` table beside the `#` aliases. Make sure that the
+report's denominator grows and that no shape loses fields.
+
+---
+
+## Tell two shapes with one name in different namespaces apart
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`exportedFields` in `scripts/unread-fields/scan.ts` names a field by its shape
+and its own name, as `Item.value`. A namespace above the shape is left out. One
+file with `namespace A { export interface Item }` and
+`namespace B { export interface Item }` gives both fields the key `Item.value`,
+and the file-wide `counted` set drops the second before the scan asks who reads
+it. A probe reproduces it. `src/` holds one namespace today, `JSX` in
+`src/shared/jsx/jsx-runtime.ts`, so nothing in this repository hits it.
+
+Put the namespace path into the owner. The owner is built in `exportedShapes`,
+which already walks a namespace to find the shapes inside it, so it can carry
+the name of the namespace down with it. That also makes the report say which
+`Item` a line means.
+
+---
+
 ## Remove the alias exports in the test helpers
 
 _Origin: the test-helper duplication pass (`docs/test-duplication.md`). Found
