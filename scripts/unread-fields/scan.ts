@@ -118,11 +118,18 @@ interface OwnedField {
 const shapeBody = (shape: Shape): readonly ts.Node[] =>
   ts.isTypeAliasDeclaration(shape) ? [shape.type] : shape.members;
 
-/** A member nobody outside the class can reach is not a field it hands out. */
-const isHidden = (node: ts.Node): boolean =>
-  (ts.getCombinedModifierFlags(node as ts.Declaration) &
-    (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !==
-  0;
+/** A member nobody outside the class can reach is not a field it hands out.
+ * `private` and `protected` say so with a word, and `#name` says so with the
+ * name itself. */
+const isHidden = (node: ts.Node): boolean => {
+  const { name } = node as ts.NamedDeclaration;
+  if (name && ts.isPrivateIdentifier(name)) return true;
+  return (
+    (ts.getCombinedModifierFlags(node as ts.Declaration) &
+      (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !==
+    0
+  );
+};
 
 /** A member that holds a field. `SafeHtml` writes its one field as
  * `constructor(public html: string)`, which is a parameter and a field at
@@ -280,26 +287,29 @@ const exportedFields = (
   // verdict, and a reader could not tell which one to act on.
   const counted = new Set<string>();
   /** Write one field down, and say what its own parts belong to. A shape
-   * that already carries the line keeps the one it has. */
-  const remember = (owner: string, name: FieldName): string => {
-    const inside = `${owner}.${name.text}`;
-    if (counted.has(inside)) return inside;
-    counted.add(inside);
-    found.push({ names: [name], owner });
+   * that already carries the line keeps the one it has. The path stays a list
+   * of names, because a field can be called `"a.b"` and joining first would
+   * make it one field with the `b` of an `a` beside it. */
+  const remember = (path: readonly string[], name: FieldName): string[] => {
+    const inside = [...path, name.text];
+    const key = JSON.stringify(inside);
+    if (counted.has(key)) return inside;
+    counted.add(key);
+    found.push({ names: [name], owner: path.join(".") });
     return inside;
   };
 
-  const collect = (owner: string, node: ts.Node): void => {
+  const collect = (path: readonly string[], node: ts.Node): void => {
     // A member a class keeps to itself hands nothing out. A type written
     // inside it is out of reach for the same reason.
     if (isHidden(node)) return;
     const name = fieldNameOf(node);
-    const inside = name ? remember(owner, name) : owner;
+    const inside = name ? remember(path, name) : path;
     for (const child of membersOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     const before = found.length;
-    for (const part of shapeBody(shape)) collect(shape.name.text, part);
+    for (const part of shapeBody(shape)) collect([shape.name.text], part);
     // Only what the shape writes down itself. A field of an object type nested
     // inside it is a different field with the same name, and counting it here
     // would hide the one the shape takes from somewhere else.

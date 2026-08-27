@@ -227,6 +227,27 @@ describe("the shapes the scan finds", () => {
     expect(leaked).toEqual([]);
   });
 
+  test("leaves out a type a hash-private member keeps to itself", () => {
+    // `#kept` says it is private with its name rather than with a word, and
+    // the type written inside it is out of reach for the same reason.
+    const lines = scanned.all.filter((f) =>
+      f.owner.startsWith("KeepsAHashPrivate"),
+    );
+    expect(lines.map((f) => f.field)).toEqual(["show"]);
+  });
+
+  test("tells a name that holds a dot from a path built with dots", () => {
+    // `"a.b": string` and `a: { b: string }` read the same once the path is
+    // joined, and they are two different fields.
+    expect(verdictOf("NameHoldsADot", "hasADotInIts.name")).toBe("never read");
+    expect(verdictOf("NameHoldsADot", "hasADotInIts")).toBe("never read");
+    expect(verdictOf("NameHoldsADot.hasADotInIts", "name")).toBe("never read");
+  });
+
+  // `NameHoldsADot.hasADotInIts.name` is listed twice on purpose. One is the
+  // field written `"hasADotInIts.name"`, the other is the `name` of the
+  // `hasADotInIts` beside it. They are two fields that read the same once the
+  // path is joined with dots, which is why the scan keys them on the list.
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "AnsweredAgain.answeredTwice",
@@ -278,11 +299,15 @@ describe("the shapes the scan finds", () => {
       "Inner.onlyInsideNamespace",
       "Intersects.fromAnIntersection",
       "Intersects.ofItsOwnAgain",
+      "KeepsAHashPrivate.show",
       "KeepsSecretsInside.read",
       "KeptByAFilter.onlyOnTheFirst",
       "KeptByAFilter.onlyOnTheSecond",
       "KeptByAFilter.sharedByBothArms",
       "ListExported.onlyInAList",
+      "NameHoldsADot.hasADotInIts",
+      "NameHoldsADot.hasADotInIts.name",
+      "NameHoldsADot.hasADotInIts.name",
       "NamedByALiteral.1",
       "NamedByALiteral.plainName",
       "NamedByALiteral.quoted-name",

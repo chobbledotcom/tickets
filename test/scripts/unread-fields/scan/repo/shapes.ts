@@ -215,6 +215,19 @@ export interface NamedByALiteral {
   plainName: string;
 }
 
+export class KeepsAHashPrivate {
+  #kept: { onlyInsideAHashPrivate: string } = { onlyInsideAHashPrivate: "x" };
+
+  show(): string {
+    return this.#kept.onlyInsideAHashPrivate;
+  }
+}
+
+export interface NameHoldsADot {
+  "hasADotInIts.name": string;
+  hasADotInIts: { name: string };
+}
+
 export class KeepsSecretsInside {
   private state: { onlyInsideAPrivate: string } = { onlyInsideAPrivate: "x" };
 
