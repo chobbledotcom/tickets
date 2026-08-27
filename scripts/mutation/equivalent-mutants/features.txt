@@ -205,3 +205,15 @@ src/features/router.ts::routeSpecificity.literalLength~0au8fma   → "mutated"  
 src/features/admin/bulk-email.ts::getBulkAvailability.disabledReason~0ah9p7f   → "mutated"   # this reason belongs to the configured case, and both pages render disabledReason only when canBulkSend is false
 src/features/admin/bulk-email.ts::handlePreviewGet.providerLabel~0tea227   → "mutated"   # this label belongs to the unavailable case, and the preview page renders providerLabel only inside its canBulkSend branch
 src/features/admin/bulk-email.ts::handleComposeGet.draft.marketing~0aepv7o  ?? → ||   # marketing is a boolean, whose only falsy value is the false the fallback supplies, so no draft distinguishes the two operators
+
+# Form-quantity fallbacks: the parser answers a whole number or null, and the
+# fallback for null is the same 0 that the literal "0" parses to, so no posted
+# value tells the operators or the spellings apart.
+src/features/public/ticket-form.ts::collectValuesByListing.list~0zcnvvx  ?? → ||   # the answer bucket is an array or absent, and an array is always truthy
+src/features/public/ticket-form.ts::parseQuantities.raw~11sglfa  0 → ""   # "" parses to null then the minimum supplies 0; the literal "0" parses to 0 directly
+src/features/public/ticket-form.ts::parseAddOnSelections.quantity~1ksz3r2  0 → ""   # both spellings parse to zero add-ons, which the caller drops
+src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1av017t  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  ?? → ||   # form.get answers a string or absent; "" parses to null and falls to the same 0 the "0" literal parses to
+src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
+src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
