@@ -218,8 +218,15 @@ export const expectMergedMultiListingAttendee = async (
  * the "received" check out of `expectWebhookIgnored`/`expectWebhookPending`
  * so the two differ only in that one assertion.
  */
+type ExpectsAWebhookOutcome = (
+  event: Parameters<typeof stubWebhookVerify>[0],
+  extraCleanup?: () => void,
+) => Promise<void>;
+
 const expectWebhookAcknowledged =
-  (assertOutcome: (json: Record<string, unknown>) => void) =>
+  (
+    assertOutcome: (json: Record<string, unknown>) => void,
+  ): ExpectsAWebhookOutcome =>
   async (
     event: Parameters<typeof stubWebhookVerify>[0],
     extraCleanup?: () => void,
@@ -240,9 +247,8 @@ const expectWebhookAcknowledged =
  * established. It is acknowledged without processing or refunding. A valid
  * proof whose booking will not parse is a different, retryable outcome.
  */
-export const expectWebhookIgnored = expectWebhookAcknowledged((json) =>
-  expect(json.processed).toBeUndefined(),
-);
+export const expectWebhookIgnored: ExpectsAWebhookOutcome =
+  expectWebhookAcknowledged((json) => expect(json.processed).toBeUndefined());
 
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares
@@ -275,6 +281,5 @@ export const expectAttendeeCreatedWithPiiBlob = async (
  * status), so the webhook acknowledges it as a pending retry rather than
  * processing, refunding, or dropping it.
  */
-export const expectWebhookPending = expectWebhookAcknowledged((json) =>
-  expect(json.status).toBe("pending"),
-);
+export const expectWebhookPending: ExpectsAWebhookOutcome =
+  expectWebhookAcknowledged((json) => expect(json.status).toBe("pending"));

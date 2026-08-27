@@ -22,8 +22,12 @@ import {
   type OrderLine,
   visitorFillsInOrder,
 } from "#test/specs/support/public-booking.ts";
-import { ownPageOrder } from "#test/specs/support/sales-pages.ts";
 import {
+  type LineWithoutItsThing,
+  ownPageOrder,
+} from "#test/specs/support/sales-pages.ts";
+import {
+  type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -107,10 +111,7 @@ export const sellDayBookedThing = async (
 
 /** The first day a listing's own page offers, or a loud failure — "a day
  * soon" in a story is a day the site really offers. */
-export const firstDayOffered = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
+export const firstDayOffered: ReadAboutOneThing = async (world, name) => {
   const [day] = await daysOfferedFor(listingNamed(world, name));
   if (!day) throw new Error(`The ${name} offers no day to book`);
   return day;
@@ -123,7 +124,7 @@ export const firstDayOffered = async (
 export const fillsOwnPageIn = async (
   world: TicketsWorld,
   name: string,
-  line: Omit<OrderLine, "listing">,
+  line: LineWithoutItsThing,
   extras: Partial<BookingChoices>,
 ): Promise<void> => {
   await fillsIn(world, ...ownPageOrder(world, name, line), {

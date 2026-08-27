@@ -8,14 +8,14 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
-  ORGANISER,
+  keepsWhatTheOrganiserSaw,
   openAdminPage,
   withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { takeDownFromActions } from "#test/specs/support/form-controls.ts";
-import {
-  keepWhatTheyWereTold,
-  type TicketsWorld,
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -50,14 +50,13 @@ export const ownerTakesDown = async (
       deleteLink: deleteUserLabel(),
       submit: deleteUserLabel(),
     });
-    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+    keepsWhatTheOrganiserSaw(world, browser);
   });
 };
 
 /** The address of one person's row on the Users list, or nothing when no
  * row names them — the list is the surface the owner actually reads. */
-export const rowAddressFor = async (
-  world: TicketsWorld,
-  who: string,
-): Promise<string | null> =>
-  rowNaming(await openAdminPage(world, USERS_LIST), who);
+export const rowAddressFor: ReadAboutOneThing<string | null> = async (
+  world,
+  who,
+) => rowNaming(await openAdminPage(world, USERS_LIST), who);

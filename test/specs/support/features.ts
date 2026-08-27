@@ -13,6 +13,7 @@ import {
 } from "#shared/admin-features.ts";
 import {
   adminPageHtmlAt,
+  keepsWhatTheOrganiserSaw,
   ORGANISER,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
@@ -70,7 +71,7 @@ export const ownerOpensFeature = async (
   world: TicketsWorld,
   printed: string,
 ): Promise<void> => {
-  keepWhatTheyWereTold(world, ORGANISER, await featurePageHtml(world, printed));
+  keepsWhatTheOrganiserSaw(world, await featurePageHtml(world, printed));
 };
 
 /** The owner makes one feature's choice through the form the page really

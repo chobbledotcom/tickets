@@ -1316,14 +1316,18 @@ and test bodies deserve different nets.
 | --------------------- | -------------------------------- | --------- |
 | `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
+| `.jscpd.support.json` | `test/specs/support`             | 18        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
-separate run could never see that pair. A test body is different: it repeats by
-design, and the shared mechanism is the test framework itself, so the whole of
-`test/` stays at the loose 48.
+separate run could never see that pair. Where a helper tree can be held tighter
+than `src/` can, it gets a second scan of its own — the support helpers are at
+18 that way, because the scan they share with `src/` cannot go below 19 without
+dragging `src/` down too. A test body is different: it repeats by design, and
+the shared mechanism is the test framework itself, so the whole of `test/` stays
+at the loose 48.
 
 **Every helper number ratchets downward** — lower it, bring the tree to it,
 repeat — the same way `check:comments` works. `docs/test-duplication.md`

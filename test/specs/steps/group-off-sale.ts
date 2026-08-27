@@ -5,7 +5,11 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  keepsWhatTheOrganiserSaw,
+  ORGANISER,
+  openAdminPage,
+} from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   bulkActionPath,
@@ -17,7 +21,6 @@ import {
 } from "#test/specs/support/groups.ts";
 import { listingNamed, rememberListing } from "#test/specs/support/listings.ts";
 import {
-  keepWhatTheyWereTold,
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
@@ -96,7 +99,7 @@ const organiserSwitchesGroup =
       { confirm_identifier: typed },
       theSwitch.button(),
     );
-    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
+    keepsWhatTheOrganiserSaw(world, browser);
   };
 
 const organiserDeactivatesGroup = organiserSwitchesGroup(OFF_SALE);

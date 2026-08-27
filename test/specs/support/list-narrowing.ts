@@ -18,7 +18,11 @@ import {
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ActOnOneThing,
+  ActOnTheStory,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -40,10 +44,7 @@ const isLookingAtList = (browser: TestBrowser | undefined): boolean =>
  * A second narrowing carries on from the page the first left them on, which is
  * the only way to show that the two hold together — so the list is opened only
  * when they are not already looking at it. */
-export const organiserNarrowsList = async (
-  world: TicketsWorld,
-  to: string,
-): Promise<void> => {
+export const organiserNarrowsList: ActOnOneThing = async (world, to) => {
   if (!isLookingAtList(world.things.recall("browser", ORGANISER))) {
     await organiserOpensList(world);
   }
@@ -84,9 +85,7 @@ export const expectNoChoiceOfKind = (
 
 /** A customer looks at everything the site has for sale, never having signed
  * in — which is who that list is for. */
-export const customerLooksAtEverything = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const customerLooksAtEverything: ActOnTheStory = async (world) => {
   rememberBrowser(world, CUSTOMER, await openAsNewcomer("/listings"));
 };
 

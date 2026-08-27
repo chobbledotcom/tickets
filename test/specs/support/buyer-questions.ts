@@ -10,10 +10,10 @@ import { expect } from "@std/expect";
 import {
   adminBrowser,
   ORGANISER,
-  openAdminPage,
   openAsNewcomer,
   opensAdminPageAt,
   takesDownFromOwnPage,
+  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
@@ -21,6 +21,8 @@ import {
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
 import {
+  type ActOnOneThing,
+  type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
   whatTheyWereTold,
@@ -42,30 +44,27 @@ export const askedQuestion = (
 /** The owner writes a question, of either kind, and lands on its own page.
  * The id is read from where the site sent them, so everything later acts on
  * the question the site really made. */
-const ownerWritesQuestion = async (
+const ownerWritesQuestion = (
   world: TicketsWorld,
   text: string,
   displayType: "radio" | "free_text",
-): Promise<TestBrowser> => {
-  const browser = await openAdminPage(world, "/admin/questions");
-  await fillInAndSend(
-    browser,
-    { display_type: displayType, text },
-    "Add question",
-  );
-  const id = browser.currentUrl.match(/\/admin\/questions\/(\d+)/)?.[1];
-  world.buyerQuestion = {
-    id: Number(requiredWorldValue(id, `the page for the question "${text}"`)),
-    text,
-  };
-  return browser;
-};
+): Promise<TestBrowser> =>
+  withAdminPage(world, "/admin/questions", async (browser) => {
+    await fillInAndSend(
+      browser,
+      { display_type: displayType, text },
+      "Add question",
+    );
+    const id = browser.currentUrl.match(/\/admin\/questions\/(\d+)/)?.[1];
+    world.buyerQuestion = {
+      id: Number(requiredWorldValue(id, `the page for the question "${text}"`)),
+      text,
+    };
+    return browser;
+  });
 
 /** Tick the question on one listing's own questions tab. */
-const ownerAssignsQuestionTo = (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<void> =>
+const ownerAssignsQuestionTo: ActOnOneThing = (world, listingName) =>
   tickOnListingTab(
     world,
     listingName,
@@ -105,11 +104,10 @@ export const ownerAsksWrittenQuestion = async (
 
 /** The booking page a visitor sees for this listing, opened by somebody who
  * was never signed in. */
-export const visitorOpensBooking = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<TestBrowser> =>
-  openAsNewcomer(`/ticket/${listingNamed(world, listingName).slug}`);
+export const visitorOpensBooking: ReadAboutOneThing<TestBrowser> = async (
+  world,
+  listingName,
+) => openAsNewcomer(`/ticket/${listingNamed(world, listingName).slug}`);
 
 /** The field the served page offers for this question, or a loud failure —
  * asserting on a page that stopped asking would prove nothing. */
@@ -145,10 +143,10 @@ export const visitorBooksAnswering = async (
 
 /** What the owner's list download says this booking answered. The download is
  * where every answer ends up, whichever kind of question it came from. */
-export const answerInListDownload = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<string> => {
+export const answerInListDownload: ReadAboutOneThing = async (
+  world,
+  listingName,
+) => {
   const listing = listingNamed(world, listingName);
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${listing.id}/attendees`);

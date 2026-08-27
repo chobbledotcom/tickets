@@ -86,31 +86,35 @@ const expectInThisOrder = (page: string, words: string[]): void => {
   expect(found).toEqual([...found].toSorted((a, b) => a - b));
 };
 
+/** What the customer is looking at, read once, and checked for these words in
+ * this order. Every ordering rule on the public list is this. */
+const expectCustomerSeesInOrder = (
+  world: TicketsWorld,
+  words: string[],
+): void => {
+  expectInThisOrder(whatTheCustomerSees(world), words);
+};
+
 /** The bundles come first, under their own heading and in the order named,
  * and everything else on sale begins below them. */
 export const expectBundlesGatheredFirst = (
   world: TicketsWorld,
   first: string,
   second: string,
-): void => {
-  expectInThisOrder(whatTheCustomerSees(world), [
+): void =>
+  expectCustomerSeesInOrder(world, [
     t("public.packages"),
     first,
     second,
     t("public.all_bookable_listings"),
   ]);
-};
 
 /** This thing sits below the bundles, among everything else on sale. */
 export const expectBelowTheBundles = (
   world: TicketsWorld,
   name: string,
-): void => {
-  expectInThisOrder(whatTheCustomerSees(world), [
-    t("public.all_bookable_listings"),
-    name,
-  ]);
-};
+): void =>
+  expectCustomerSeesInOrder(world, [t("public.all_bookable_listings"), name]);
 
 /** Something on sale, set up the way one story needs it. Curried on that
  * difference, so each way of selling a thing is one line rather than another

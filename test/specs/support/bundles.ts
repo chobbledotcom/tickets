@@ -15,6 +15,8 @@ import {
   openAdminPage,
   openAsNewcomer,
   opensSalesPagesAt,
+  type SavesNamedThingsForm,
+  savesServedForm,
 } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
@@ -149,43 +151,44 @@ const boxCleared = (html: string, field: string): string[] => {
 };
 
 /** The organiser's own page for one bundle. */
-const bundlePage = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<TestBrowser> =>
+const bundlePage: ReadAboutOneThing<TestBrowser> = async (world, name) =>
   openAdminPage(world, `/admin/groups/${bundleNamed(world, name).id}/edit`);
 
 /** The organiser fills in the bundle's own form and saves it, and is handed
  * back what the site told them — some of these saves are meant to be refused,
  * so the words matter as much as the outcome. */
-const saveBundleForm = async (
-  world: TicketsWorld,
-  name: string,
-  fillsIn: (served: string) => Record<string, string | string[]>,
-): Promise<string> => {
+const saveBundleForm: SavesNamedThingsForm<string> = async (
+  world,
+  name,
+  fillsIn,
+) => {
   const browser = await bundlePage(world, name);
-  await browser.submitForm(fillsIn(browser.currentHtml), "Save Changes");
+  await savesServedForm(browser, fillsIn);
   return browser.pageText;
+};
+
+/** Save the bundle's own form and make sure the save really landed. A save
+ * that wrote the bundle and then fell over is not an organiser building one,
+ * and everything the story checks afterwards would still pass. */
+const savesBundleForm = async (
+  ...saving: Parameters<typeof saveBundleForm>
+): Promise<void> => {
+  expect(await saveBundleForm(...saving)).toContain(GROUP_SAVED);
 };
 
 /** The organiser turns a group into a bundle, pricing each part, and says
  * whether what is inside stays private. */
-export const organiserSellsAsBundle = async (
+export const organiserSellsAsBundle = (
   world: TicketsWorld,
   name: string,
   parts: PartOfBundle[],
   keepPartsPrivate: boolean,
-): Promise<void> => {
-  // A save that wrote the bundle and then fell over is not an organiser
-  // building one, and everything the story checks afterwards would still pass.
-  expect(
-    await saveBundleForm(world, name, (page) => ({
-      ...bundleForm(world, parts, page),
-      hide_package_listings: choiceOnForm(page, PRIVATE_BOX, keepPartsPrivate),
-      is_package: choiceOnForm(page, BUNDLE_BOX, true),
-    })),
-  ).toContain(GROUP_SAVED);
-};
+): Promise<void> =>
+  savesBundleForm(world, name, (page) => ({
+    ...bundleForm(world, parts, page),
+    hide_package_listings: choiceOnForm(page, PRIVATE_BOX, keepPartsPrivate),
+    is_package: choiceOnForm(page, BUNDLE_BOX, true),
+  }));
 
 /** What the site tells an organiser when a group's own form saves, and when a
  * group is deleted. */
@@ -197,32 +200,23 @@ const PRIVATE_BOX = "hide_package_listings";
 
 /** The organiser stops selling this as a bundle, by clearing the box. Keeps
  * what they were told, because this is refused for a private bundle. */
-export const organiserStopsBundling = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> =>
+export const organiserStopsBundling: ReadAboutOneThing = async (world, name) =>
   saveBundleForm(world, name, (page) => ({
     is_package: boxCleared(page, BUNDLE_BOX),
   }));
 
 /** The organiser lets people see what is inside again. */
-export const organiserRevealsParts: ActOnOneThing = async (world, name) => {
-  expect(
-    await saveBundleForm(world, name, (page) => ({
-      hide_package_listings: boxCleared(page, PRIVATE_BOX),
-    })),
-  ).toContain(GROUP_SAVED);
-};
+export const organiserRevealsParts: ActOnOneThing = (world, name) =>
+  savesBundleForm(world, name, (page) => ({
+    hide_package_listings: boxCleared(page, PRIVATE_BOX),
+  }));
 
 /** The bundle as the site has it now, or nothing if it is gone. */
 const storedBundleOrNull = (world: TicketsWorld, name: string) =>
   groups.table.read.one({ id: bundleNamed(world, name).id });
 
 /** Whether the site is still selling this as one bundle. */
-export const isStillABundle = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<boolean> => {
+export const isStillABundle: AsksAboutOneThing = async (world, name) => {
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
   return stillThere(await storedBundleOrNull(world, name), name).is_package;
@@ -253,10 +247,10 @@ const openBundlePage = opensSalesPagesAt(
   (world, name) => `/ticket/${bundleNamed(world, name).slug}`,
 );
 
-export const customerOpensBundlePage = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<TestBrowser> => {
+export const customerOpensBundlePage: ReadAboutOneThing<TestBrowser> = async (
+  world,
+  name,
+) => {
   const group = bundleNamed(world, name);
   const browser = await openBundlePage(world, name);
   // The box has to be there and be able to take a one, or the bundle could not
