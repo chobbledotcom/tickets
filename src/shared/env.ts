@@ -11,9 +11,8 @@
  * and writes too.
  */
 
-import { parseDateMs } from "#shared/dates.ts";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
-import { DAY_MS } from "#shared/now.ts";
+import { DAY_MS, parseDateMs } from "#shared/now.ts";
 
 declare const Deno:
   | { env: { get(key: string): string | undefined } }

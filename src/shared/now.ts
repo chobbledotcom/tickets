@@ -1,13 +1,27 @@
 /**
- * Time helpers — return fresh values on every call.
+ * Epoch-time helpers. The ones that read the clock return fresh values on
+ * every call.
  *
  * On Bunny Edge each request spins up a fresh isolate, so module-level
  * constants used to work. In Deno.serve (dev) and tests the process
  * lives across many requests, so functions avoid stale timestamps.
+ *
+ * This module imports nothing, which is why the foundation modules can read
+ * it. `#shared/env.ts` is one of them, and a helper it needs must live here
+ * rather than in `#shared/dates.ts`, which reaches the database for a site's
+ * timezone.
  */
 
 /** Milliseconds in one day — for whole-day arithmetic on epoch times. */
 export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The epoch milliseconds a written date names, or null when it names none —
+ * the safe wrapper around `Date.parse`, whose own failure mode (`NaN`) is easy
+ * to let leak into arithmetic by accident. */
+export const parseDateMs = (value: string): number | null => {
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+};
 
 /** Current time as a Date */
 export const now = (): Date => new Date();

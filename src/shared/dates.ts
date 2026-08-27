@@ -48,14 +48,6 @@ const isLeapYear = (year: number): boolean =>
 const daysInMonth = (year: number, month: number): number =>
   month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month]!;
 
-/** Parse a date/timestamp string to epoch milliseconds, or null when it
- *  doesn't parse — the safe wrapper around `Date.parse`, whose own failure
- *  mode (`NaN`) is easy to let leak into arithmetic by accident. */
-export const parseDateMs = (value: string): number | null => {
-  const ms = Date.parse(value);
-  return Number.isNaN(ms) ? null : ms;
-};
-
 /**
  * Add N months to an ISO timestamp, clamping to the last day of the target month.
  * e.g. 2026-01-31 + 1mo → 2026-02-28

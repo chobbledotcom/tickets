@@ -89,14 +89,14 @@ describe("bestSpelling", () => {
 describe("topLevelImports", () => {
   test("records the line, specifier, and names-only shape", () => {
     expect(topLevelImports('import { a } from "#types";\n')).toEqual([
-      { line: 1, namesOnly: true, specifier: "#types" },
+      { line: 1, namesOnly: true, specifier: "#types", typeOnly: false },
     ]);
   });
 
   test("reports a wrapped import at the line it starts on", () => {
     const source = 'const x = 1;\nimport {\n  a,\n  b,\n} from "#types";\n';
     expect(topLevelImports(source)).toEqual([
-      { line: 2, namesOnly: true, specifier: "#types" },
+      { line: 2, namesOnly: true, specifier: "#types", typeOnly: false },
     ]);
   });
 
@@ -104,6 +104,18 @@ describe("topLevelImports", () => {
     expect(
       topLevelImports('import type { A } from "#types";')[0]?.namesOnly,
     ).toBe(true);
+  });
+
+  test("marks a type-only import as erased before anything runs", () => {
+    expect(
+      topLevelImports('import type { A } from "#types";')[0]?.typeOnly,
+    ).toBe(true);
+  });
+
+  test("marks an import that brings in a value as surviving to run time", () => {
+    expect(topLevelImports('import { a } from "#types";')[0]?.typeOnly).toBe(
+      false,
+    );
   });
 
   test("does not count a namespace import as names-only", () => {

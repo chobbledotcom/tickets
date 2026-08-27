@@ -19,7 +19,6 @@ import type {
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { parseDateMs } from "#shared/dates.ts";
 import {
   type ErrorCodeType,
   type LogCategory,
@@ -27,6 +26,7 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
+import { parseDateMs } from "#shared/now.ts";
 import {
   PAYMENT_PROVIDERS,
   type PaymentProviderMeta,

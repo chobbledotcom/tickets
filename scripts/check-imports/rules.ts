@@ -17,6 +17,10 @@ export interface ImportLine {
   /** True when the statement only brings in names inside `{ }`. */
   namesOnly: boolean;
   specifier: string;
+  /** True when the statement opens `import type`, so nothing it brings in
+   *  survives to run time. A statement whose every name instead carries an
+   *  inline `type` is erased too, and reads here as a run-time import. */
+  typeOnly: boolean;
 }
 
 export interface ImportIssue {
@@ -136,6 +140,7 @@ export const topLevelImports = (content: string): ImportLine[] => {
         line: open.line,
         namesOnly: /^import\s+(type\s+)?\{/.test(open.head),
         specifier,
+        typeOnly: /^import\s+type\b/.test(open.head),
       });
     }
     open = null;
