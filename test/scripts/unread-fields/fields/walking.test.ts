@@ -103,9 +103,9 @@ describe("what the walk goes into", () => {
     expect(
       verdictOf('HoldsThingsInGenerics.inAnArray["[]"]', "insideAnArray"),
     ).toBe("read");
-    expect(verdictOf("HoldsThingsInGenerics.inARecord", "insideARecord")).toBe(
-      "never read",
-    );
+    expect(
+      verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
+    ).toBe("never read");
   });
 
   test("leaves out a field only a filter's argument names", () => {
@@ -201,12 +201,27 @@ describe("what the walk goes into", () => {
   });
 
   test("gives a list the same step however it is written", () => {
-    // `T[]` and `readonly T[]` reach an element exactly as `Array<T>` does.
+    // `T[]`, `readonly T[]` and `ReadonlyArray<T>` all reach an element the
+    // way `Array<T>` does, so each spelling has to take the step.
     expect(
-      verdictOf('WritesAListTwoWays.withBrackets["[]"]', "insideBrackets"),
+      verdictOf('WritesAListEveryWay.withBrackets["[]"]', "insideBrackets"),
     ).toBe("never read");
     expect(
-      verdictOf('WritesAListTwoWays.withReadonly["[]"]', "insideReadonly"),
+      verdictOf('WritesAListEveryWay.withReadonly["[]"]', "insideReadonly"),
+    ).toBe("never read");
+    expect(
+      verdictOf(
+        'WritesAListEveryWay.namedReadonly["[]"]',
+        "insideNamedReadonly",
+      ),
+    ).toBe("never read");
+  });
+
+  test("gives a Record the step its index signature spelling takes", () => {
+    // `Record<string, T>` and `{ [k: string]: T }` are one type written two
+    // ways, so a reader writes `rec[key].inside` for both.
+    expect(
+      verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
     ).toBe("never read");
   });
 

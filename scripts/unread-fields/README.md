@@ -54,10 +54,11 @@ An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 `Record<string, { id: number }>` both count. `Array<T>`, `ReadonlyArray<T>` and
 `T[]` add a step for the element, because `rows[0].id` is one step further than
-`rows.id`. Without that step a shape that holds both a field and a list of the
-same name reports the two as one. `Extract<Row, { kind: "one" }>` is different.
-Its second argument says which arms of `Row` to keep. It is a filter, and no
-value of the shape has a field of it. `Exclude` works the same way.
+`rows.id`. `Record<K, T>` adds the same step, because it is the index signature
+written as a generic. Without that step a shape that holds both a field and a
+list of the same name reports the two as one. `Extract<Row, { kind: "one" }>` is
+different. Its second argument says which arms of `Row` to keep. It is a filter,
+and no value of the shape has a field of it. `Exclude` works the same way.
 
 A conditional type is the same idea. `true extends true ? A : B` answers with
 `A`, so no value of it holds a field of `B`. A conditional that waits on a type
@@ -194,9 +195,9 @@ as `Sum.total`. Any other name takes brackets and quotes, as `Row["has.a.dot"]`,
 so a name that holds a dot cannot read like a path. A member with no name of its
 own gets the way a reader reaches through it instead: `Callable["()"]` for a
 call signature, `Constructable["new ()"]` for a construct signature, and
-`Bag["[]"]` for an index signature. A list reads one element at a time, so it
-takes the same `[]` step. The fields of `Array<{ total: number }>` sit under
-`Rows["[]"]`, because a reader writes `rows[0].total`.
+`Bag["[]"]` for an index signature. A list and a `Record` read one member at a
+time, so they take the same `[]` step. The fields of `Array<{ total: number }>`
+sit under `Rows["[]"]`, because a reader writes `rows[0].total`.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start, not a verdict. A field

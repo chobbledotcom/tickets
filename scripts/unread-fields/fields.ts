@@ -207,9 +207,10 @@ const namedOneOf =
 
 const narrowsByAFilter = namedOneOf(NARROWS_BY_A_FILTER);
 
-/** The two names for a list. `Array<Row>` and `Row[]` are one type written
- * two ways, and a reader of either reaches a field one element at a time. */
-const holdsElements = namedOneOf(new Set(["Array", "ReadonlyArray"]));
+/** The generics a reader reaches one member at a time. `Array<Row>` and
+ * `Row[]` are one type written two ways, and `Record<string, Row>` is the
+ * index signature written as a generic, which already takes this step. */
+const holdsElements = namedOneOf(new Set(["Array", "ReadonlyArray", "Record"]));
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
@@ -309,7 +310,7 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
  * index signature have neither, so the way a reader reaches through it does.
  * `bag[key].total` is a step away from `bag.total`, and without the step the
  * two are one field. A list is the same case: `rows[0].total` is a step away
- * from `rows.total`, so `Array<Row>` and `Row[]` both add one. */
+ * from `rows.total`, so a list and a `Record` add one too. */
 const underAnUnnamedPart = (
   path: readonly Step[],
   node: ts.Node,

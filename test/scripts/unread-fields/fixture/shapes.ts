@@ -175,10 +175,12 @@ export type HoldsAListOfTheSameName = { sharedWithAList: string } & Array<{
   sharedWithAList: number;
 }>;
 
-// The other two ways to write a list. Both reach an element the same way.
-export interface WritesAListTwoWays {
+// Every other way to write something reached one member at a time. All of
+// them take the same step, so each spelling needs its own field here.
+export interface WritesAListEveryWay {
   withBrackets: { insideBrackets: number }[];
   readonly withReadonly: readonly { insideReadonly: number }[];
+  namedReadonly: ReadonlyArray<{ insideNamedReadonly: number }>;
 }
 
 export type InlineArmsShareIt =
