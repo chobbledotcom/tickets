@@ -64,4 +64,15 @@ export type OneArmOrTheOther =
 // relates two near-identical arms and stops relating four.
 export const readTheSecondArm = (rule: OneArmOrTheOther): number =>
   rule.pickedArm === "second" ? rule.declaredByTwoArms : 1;
+
+export interface Indexed {
+  sharedWithTheIndex: { sharedName: string };
+  [key: string]: { sharedName: string };
+}
+
+// Reads the named field's own one. Nothing reads the field under the index,
+// and the two share a name, so only the step through the brackets tells them
+// apart.
+export const readTheNamedOne = (held: Indexed): string =>
+  held.sharedWithTheIndex.sharedName;
 `;

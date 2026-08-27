@@ -120,4 +120,10 @@ describe("how a field is named", () => {
     // the report called it never read while one line away production reads it.
     expect(verdictOf("OneArmOrTheOther", "declaredByTwoArms")).toBe("read");
   });
+
+  test("keeps a field under the index off the shape's own path", () => {
+    // `bag[key].sharedName` is a step away from `bag.sharedName`. Without the
+    // step the two are one line, and a read of the named one covers both.
+    expect(verdictOf('Indexed["[]"]', "sharedName")).toBe("never read");
+  });
 });

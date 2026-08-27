@@ -139,8 +139,11 @@ _Origin: a review of PR #2166. No file in `src/` triggers it today._
 and its own name, as `Item.value`. A namespace above the shape is left out. One
 file with `namespace A { export interface Item }` and
 `namespace B { export interface Item }` gives both fields the key `Item.value`,
-and the file-wide `counted` set drops the second before the scan asks who reads
-it. A probe reproduces it. `src/` holds one namespace today, `JSX` in
+so the file-wide `found` map in `exportedFields` puts the second declaration on
+the first's line. One line then covers two different fields, and a read of
+either calls both read. A probe shows it: with `A.Item.value` read and
+`B.Item.value` read by nothing, the report holds the one line `Item.value`,
+"read". `src/` holds one namespace today, `JSX` in
 `src/shared/jsx/jsx-runtime.ts`, so nothing in this repository hits it.
 
 Put the namespace path into the owner. The owner starts from the shape's own

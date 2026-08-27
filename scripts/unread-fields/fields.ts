@@ -263,6 +263,7 @@ const membersOf =
 const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.CallSignature, "()"],
   [ts.SyntaxKind.ConstructSignature, "new ()"],
+  [ts.SyntaxKind.IndexSignature, "[]"],
 ]);
 
 /** The step a member with no name of its own adds to the path. A shape can
@@ -270,8 +271,10 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
  * a step that tells them apart is what keeps the two fields two.
  * `send(first: { id: string }, second: { id: string })` is the plain case: the
  * parameter's own name does it. A destructured parameter has no name, so its
- * place in the list stands in. A call or construct signature has neither, so
- * the way a reader reaches through it does. */
+ * place in the list stands in. A call signature, a construct signature and an
+ * index signature have neither, so the way a reader reaches through it does.
+ * `bag[key].total` is a step away from `bag.total`, and without the step the
+ * two are one field. */
 const underAnUnnamedPart = (
   path: readonly string[],
   node: ts.Node,

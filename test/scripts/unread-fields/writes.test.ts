@@ -292,6 +292,25 @@ describe("readsTheValue", () => {
   test("reads a node with nothing above it", () => {
     expect(readsTheValue(parse("const total = 1;"))).toBe(true);
   });
+
+  test("does not read a field an interface's brackets name", () => {
+    // The compiler works the name out while it checks the file, and nothing
+    // evaluates it when the program runs.
+    expect(readsAt("interface Uses { [Registry.key]: string }", "key")).toBe(
+      false,
+    );
+  });
+
+  test("does not read a field a described class's brackets name", () => {
+    expect(
+      readsAt("declare class Held { [Registry.key]: string }", "key"),
+    ).toBe(false);
+  });
+
+  test("reads a field a real class's brackets name", () => {
+    // A class the program builds works its member names out as it runs.
+    expect(readsAt('class Runs { [Registry.key] = "x" }', "key")).toBe(true);
+  });
 });
 
 describe("namesAMember", () => {
