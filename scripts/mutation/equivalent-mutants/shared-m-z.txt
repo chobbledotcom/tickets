@@ -275,6 +275,13 @@ src/shared/schema-atlas/types.ts::atlasState.facts~0j1zyry ?? → ||   # extra.f
 # distinguishes it from "".
 src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim attendee ids must be sorted and unique → ""   # issue text is discarded by the stored-JSON wrapper; unobservable through any surface
 
+# types.ts: every write path validates day-count keys as whole numbers of
+# 1 or more before they are stored (the DayPriceKeySchema regex [1-9]\d*,
+# parseDayPrices, and the fail-closed admin API parser), so no reachable
+# input carries a day count below 1. The schema's own minimum check agrees
+# with the regex on every string that reaches it.
+src/shared/types.ts::DayPriceKeySchema~0yvxbbw 1 → 0   # the regex already admits only keys >= 1, so >= 1 and >= 0 agree on every string that reaches the check
+
 # seeds.ts — two thresholds no seeded value can fall between.
 src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1   # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds
 src/shared/seeds.ts::createSeeds~0ghuowu  0 → 1   # the customisable listing always yields a delete plus one multi-row insert, so the list holds 0 or 2 statements, never 1
@@ -290,7 +297,7 @@ src/shared/superuser.ts::%3cfile%3e~0ljtci5  0 → 1   # the generation is only 
 # and each option is an object or absent.
 src/shared/db/modifier-resolve.ts::stockedQuantity.remaining~06sda3h  ?? → ||   # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
 src/shared/db/modifier-resolve.ts::triggerQuantity~04te607  ?? → ||   # the add-on map holds requested whole quantities, so its only falsy value is the 0 the fallback supplies
-src/shared/db/modifier-resolve.ts::triggerQuantity~18fvmyz  ?? → ||   # the answer-quantity map holds whole counts, so its only falsy value is the 0 the fallback supplies
+src/shared/db/modifier-resolve.ts::triggerQuantity.requested~18fvmyz  ?? → ||   # the answer-quantity map holds whole counts, so its only falsy value is the 0 the fallback supplies
 src/shared/db/modifier-resolve.ts::answerModifierQuantities.entries~15ao8g3  ?? → ||   # the argument is a record of answer ids or absent, and every record is truthy, the empty one included
 src/shared/db/modifier-resolve.ts::answerModifierQuantities.modifierIds~1y1b3am  ?? → ||   # the map holds arrays of modifier ids, and every array is truthy, the empty one included
 src/shared/db/modifier-resolve.ts::answerModifierQuantities~1ju3gsl  ?? → ||   # the running total is a whole count, so its only falsy value is the 0 the fallback supplies
@@ -360,4 +367,3 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → ||   # the 
 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → ||   # find returns a refund read object or undefined, and every object is truthy
-src/shared/types.ts::DayPriceKeySchema~0yvxbbw  1 → 0   # the pipe's regex only passes /^[1-9]\d*$/, so every value that reaches this check is already 1 or more
