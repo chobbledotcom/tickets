@@ -13,9 +13,6 @@ e2e-payments/src/cucumber/steps/pages.ts::submitRenderedRefundForm,e2e-payments/
 scripts/bench/cold-start/support.ts::sampleMap,src/shared/db/modifiers.ts::emptyModifierScopeMap  # both build a Map of empty lists from ids; #fp wants an emptyListsFor
 scripts/static-assets/cache.ts::sameList,src/shared/crypto/der.ts::bytesEqual  # same length-then-every comparison over two sequences
 src/features/admin/attendee-notes.ts::withLoadedAttendee,src/features/api/helpers.ts::withApiBody  # both load, hand back a Response as-is, and otherwise call on
-src/features/admin/attendees-merge.ts::extractSourcePii,src/features/admin/attendees-merge.ts::extractTargetPii,src/features/admin/content-form-fields.ts::contentFieldValues  # the two PII readers are one function; the third site only shares object construction, so merge the pair and this entry goes with it
-src/features/admin/attendees-merge.ts::parseBookingDecisions,src/features/admin/attendees-merge.ts::parseMoneyDecisions  # same file, differing only in the field prefix and the choice reader
-src/features/admin/attendees-merge.ts::toAnswerChoice,src/features/admin/attendees-merge.ts::toBookingChoice,src/features/auth.ts::adminLandingPath  # the two merge-choice readers are one if-chain over a picklist; the landing path is not, and leaves the group when they merge
 src/features/admin/refunds/readiness.ts::providerIdentity,src/shared/payment/validated-session.ts::rejectedChargeReference  # both build the same tagged provider reference
 src/features/api/payment-processing/snapshot/build.ts::signedModifierValue,src/shared/db/modifier-resolve.ts::signedValue  # one pricing rule written twice, once over snake_case columns and once over camelCase fields; the pair can drift
 src/shared/crypto/keys.ts::unwrapKeyWithToken,src/shared/crypto/keys.ts::wrapKeyWithToken  # same file, differing only in the direction of the key derivation
