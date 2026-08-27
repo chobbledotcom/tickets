@@ -19,15 +19,23 @@ import {
 } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import { getHiddenPackageMemberIds } from "#db/groups.ts";
+import {
+  getHiddenPackageMemberIds,
+  groups,
+  listingGroups,
+} from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
   hydrateListingLinks,
   listingChildren,
 } from "#db/listing-parents.ts";
-import { getListingAggregateRecalculation } from "#db/listings/aggregates.ts";
+import {
+  getListingAggregateRecalculation,
+  type ListingAggregateRecalculation,
+} from "#db/listings/aggregates.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getStoredListingWithCount } from "#db/listings/records.ts";
 import {
   loadNotesForAttendees,
   loadNotesForListing,
@@ -53,6 +61,7 @@ import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
   type Attendee,
+  type Group,
   isOwnerRole,
   isPaidListing,
   type ListingWithCount,
@@ -65,6 +74,33 @@ import {
   rosterListSetup,
 } from "./listings-view.ts";
 import { loadListingOr } from "./load-listing.ts";
+
+/** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
+export const getListingAndGroups = async (
+  listingId: number,
+): Promise<{
+  aggregateRecalculation: ListingAggregateRecalculation;
+  groups: Group[];
+  listing: ListingWithCount;
+  selectedGroupIds: number[];
+} | null> => {
+  const [listing, allGroups, selectedGroupIds] = await Promise.all([
+    // The edit form reads the listing's *stored* values, not the resolved view,
+    // so editing an inheriting listing can't bake the current defaults into its
+    // row (and the editor webhook lock below preserves the real stored URL).
+    getStoredListingWithCount(listingId),
+    groups.cache.getAll(),
+    listingGroups.getIds(listingId),
+  ]);
+  return listing
+    ? {
+        aggregateRecalculation: await getListingAggregateRecalculation(listing),
+        groups: allGroups,
+        listing,
+        selectedGroupIds,
+      }
+    : null;
+};
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any

@@ -15,8 +15,6 @@ import { anyHiddenPackageGroup, groups, listingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import {
   adjustListingIncome,
-  getListingAggregateRecalculation,
-  type ListingAggregateRecalculation,
   type ListingAggregateValues,
   listingAggregates,
 } from "#db/listings/aggregates.ts";
@@ -65,13 +63,13 @@ import {
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   type AdminSession,
-  type Group,
   isListingType,
   type Listing,
   type ListingWithCount,
 } from "#types";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
+import { getListingAndGroups } from "./listing-page-data.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import {
   buildCreateListingResource,
@@ -300,33 +298,6 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       childWarning,
     );
   });
-
-/** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
-export const getListingAndGroups = async (
-  listingId: number,
-): Promise<{
-  aggregateRecalculation: ListingAggregateRecalculation;
-  groups: Group[];
-  listing: ListingWithCount;
-  selectedGroupIds: number[];
-} | null> => {
-  const [listing, allGroups, selectedGroupIds] = await Promise.all([
-    // The edit form reads the listing's *stored* values, not the resolved view,
-    // so editing an inheriting listing can't bake the current defaults into its
-    // row (and the editor webhook lock below preserves the real stored URL).
-    getStoredListingWithCount(listingId),
-    groups.cache.getAll(),
-    listingGroups.getIds(listingId),
-  ]);
-  return listing
-    ? {
-        aggregateRecalculation: await getListingAggregateRecalculation(listing),
-        groups: allGroups,
-        listing,
-        selectedGroupIds,
-      }
-    : null;
-};
 
 type ListingAndGroups = NonNullable<
   Awaited<ReturnType<typeof getListingAndGroups>>

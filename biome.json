@@ -27,6 +27,9 @@
     "lineWidth": 80
   },
   "linter": {
+    "domains": {
+      "project": "all"
+    },
     "enabled": true,
     "rules": {
       "a11y": {
@@ -56,6 +59,8 @@
         "useWhile": "error"
       },
       "correctness": {
+        "noUndeclaredDependencies": "off",
+        "noUnresolvedImports": "off",
         "noUnusedFunctionParameters": "error",
         "noUnusedImports": "error",
         "noUnusedVariables": "error"
