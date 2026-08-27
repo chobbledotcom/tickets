@@ -66,6 +66,26 @@ const exportedShapes = (
   return shapes;
 };
 
+/** One field the scan looked at, and the shape it belongs to. */
+interface OwnedField {
+  field: ts.Identifier;
+  owner: string;
+}
+
+/** What a shape is made of, leaving out its type parameters: a constraint like
+ * `<E extends { id: number }>` describes E, and `id` is not a field of the
+ * shape itself. */
+const shapeBody = (shape: Shape): readonly ts.Node[] =>
+  ts.isInterfaceDeclaration(shape) ? shape.members : [shape.type];
+
+/** The identifier a type element is named by. An index signature has no name,
+ * and a quoted member is not named by an identifier, so neither is a field the
+ * scan can look up. */
+const fieldNameOf = (node: ts.Node): ts.Identifier | undefined => {
+  const name = ts.isTypeElement(node) ? node.name : undefined;
+  return name && ts.isIdentifier(name) ? name : undefined;
+};
+
 /** The fields an exported shape gets from a base it extends.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
  * to itself, and a reader of the exported shape reaches it like any other
@@ -74,17 +94,17 @@ const inheritedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
   own: Set<ts.Identifier>,
-): { owner: string; field: ts.Identifier }[] => {
+): OwnedField[] => {
   if (!ts.isInterfaceDeclaration(shape) || !shape.heritageClauses) return [];
-  const found: { owner: string; field: ts.Identifier }[] = [];
+  const found: OwnedField[] = [];
   const type = checker.getTypeAtLocation(shape.name);
   for (const property of checker.getPropertiesOfType(type)) {
     for (const declaration of answered(
       property.declarations,
       `declarations for ${property.name}`,
     )) {
-      const name = ts.isTypeElement(declaration) ? declaration.name : undefined;
-      if (name && ts.isIdentifier(name) && !own.has(name)) {
+      const name = fieldNameOf(declaration);
+      if (name && !own.has(name)) {
         found.push({ field: name, owner: shape.name.text });
       }
     }
@@ -99,13 +119,13 @@ const inheritedFields = (
 const exportedFields = (
   checker: ts.TypeChecker,
   source: ts.SourceFile,
-): { owner: string; field: ts.Identifier }[] => {
+): OwnedField[] => {
   const container = checker.getSymbolAtLocation(source);
   if (!container) return [];
-  const found: { owner: string; field: ts.Identifier }[] = [];
+  const found: OwnedField[] = [];
   const collect = (owner: string, node: ts.Node): void => {
-    const name = ts.isTypeElement(node) ? node.name : undefined;
-    if (name && ts.isIdentifier(name)) {
+    const name = fieldNameOf(node);
+    if (name) {
       found.push({ field: name, owner });
       const inside = `${owner}.${name.text}`;
       ts.forEachChild(node, (child) => collect(inside, child));
@@ -115,23 +135,24 @@ const exportedFields = (
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     const before = found.length;
-    collect(shape.name.text, shape);
+    for (const part of shapeBody(shape)) collect(shape.name.text, part);
     const own = new Set(found.slice(before).map((f) => f.field));
     found.push(...inheritedFields(checker, shape, own));
   }
   return found;
 };
 
-/** Ask the service who reads one field, and say where those readers live. */
+/** Ask the service who reads one field, and say where those readers live. A
+ * position means nothing without the file it counts from, and an inherited
+ * field was written down in the base's file, not in the shape's. */
 const readersOf = (
   service: ts.LanguageService,
   program: ts.Program,
   root: string,
-  file: string,
   field: ts.Identifier,
 ): string[] => {
   const references = answered(
-    service.findReferences(file, field.getStart()),
+    service.findReferences(field.getSourceFile().fileName, field.getStart()),
     `references for ${field.text}`,
   );
   const readers: string[] = [];
@@ -169,9 +190,11 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
     for (const { owner, field } of exportedFields(checker, source)) {
       findings.push({
         field: field.text,
-        file: file.replace(`${root}/`, ""),
+        // Where a reader has to go to find it, which is where it was written
+        // down rather than the shape that hands it on.
+        file: field.getSourceFile().fileName.replace(`${root}/`, ""),
         owner,
-        verdict: verdictFor(readersOf(service, program, root, file, field)),
+        verdict: verdictFor(readersOf(service, program, root, field)),
       });
     }
   }

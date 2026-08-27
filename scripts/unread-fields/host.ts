@@ -25,28 +25,29 @@ const isAbsence = (error: unknown): boolean =>
   error instanceof Deno.errors.NotFound ||
   error instanceof Deno.errors.NotADirectory;
 
+/** Ask the filesystem something, and answer `whenAbsent` where the path is
+ * not there. Every other failure is raised. */
+const probing =
+  <T>(whenAbsent: T) =>
+  (look: () => T): T => {
+    try {
+      return look();
+    } catch (error) {
+      if (!isAbsence(error)) throw error;
+      return whenAbsent;
+    }
+  };
+
 /** A file's text, or nothing when the repository does not have that path. */
-export const textOrNothing = (file: string): string | undefined => {
-  try {
-    return Deno.readTextFileSync(file);
-  } catch (error) {
-    if (!isAbsence(error)) throw error;
-    return;
-  }
-};
+export const textOrNothing = (file: string): string | undefined =>
+  probing<string | undefined>(undefined)(() => Deno.readTextFileSync(file));
 
 /** Whether a path is a file, or is a directory. A path that is not there is
  * neither, which is what lets the compiler move on to its next candidate. */
 export const pathIs =
   (kind: "isFile" | "isDirectory"): ((path: string) => boolean) =>
-  (path) => {
-    try {
-      return Deno.statSync(path)[kind];
-    } catch (error) {
-      if (!isAbsence(error)) throw error;
-      return false;
-    }
-  };
+  (path) =>
+    probing(false)(() => Deno.statSync(path)[kind]);
 
 /** The scan never emits and never reads a diagnostic, so only parsing and
  * module resolution matter. `jsx` is set because a `.tsx` file must parse as

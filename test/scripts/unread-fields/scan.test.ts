@@ -49,11 +49,13 @@ export type { Gone } from "./nowhere.ts";
   "src/consume.ts": `
 import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
-import type { Passed } from "./shapes.ts";
+import type { ExtendsFarBase, Passed } from "./shapes.ts";
 
 export const shown = String(sum.total) + report.headline;
 
 export const reach = (r: Reached): number => r.total;
+
+export const far = (f: ExtendsFarBase): number => f.readFromFarAway;
 
 export const forward = ({ kept, ...rest }: Passed): Passed => ({
   ...rest,
@@ -78,6 +80,11 @@ export const takePatternOut = (): number => {
   "src/inner/index.ts": `
 export interface Reached {
   total: number;
+}
+
+export interface FarBase {
+  paddingSoTheOffsetIsWrongInAnotherFile: number;
+  readFromFarAway: number;
 }
 `,
 
@@ -122,6 +129,10 @@ interface HiddenBase extends BaseClass {
   fromABaseNobodySees: number;
   shadowed: number;
 }
+
+import type { FarBase } from "./inner/index.ts";
+
+export interface ExtendsFarBase extends FarBase {}
 
 export interface Extends extends HiddenBase {
   ofItsOwn: number;
@@ -192,6 +203,10 @@ describe("scanUnreadFields", () => {
       "Extends.fromABaseNobodySees",
       "Extends.ofItsOwn",
       "Extends.shadowed",
+      "ExtendsFarBase.paddingSoTheOffsetIsWrongInAnotherFile",
+      "ExtendsFarBase.readFromFarAway",
+      "FarBase.paddingSoTheOffsetIsWrongInAnotherFile",
+      "FarBase.readFromFarAway",
       "Inner.onlyInsideNamespace",
       "ListExported.onlyInAList",
       "Passed.carriedBySpread",
@@ -219,6 +234,18 @@ describe("scanUnreadFields", () => {
     expect(
       findings.filter((f) => f.owner === "Extends" && f.field === "shadowed"),
     ).toHaveLength(1);
+  });
+
+  test("looks a field up in the file that declares it", () => {
+    expect(verdictOf("ExtendsFarBase", "readFromFarAway")).toBe("read");
+  });
+
+  test("names the declaring file, not the shape that hands the field on", () => {
+    expect(
+      findings.find(
+        (f) => f.owner === "ExtendsFarBase" && f.field === "readFromFarAway",
+      )?.file,
+    ).toBe("src/inner/index.ts");
   });
 
   test("finds a shape exported by a list at the foot of the file", () => {
