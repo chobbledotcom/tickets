@@ -12,6 +12,7 @@ import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
   execute,
   executeBatch,
@@ -58,12 +59,9 @@ export const hashPhone = (phone: string): Promise<string> =>
 /**
  * The contact hash is standard base64, so it can contain `+`, `/` and `=` —
  * characters that break a URL path segment (a `/` splits the path, and CDNs/
- * proxies routinely mangle `%2F`). These convert to/from a base64url form that
- * is safe to carry in `/admin/history/:hmac` without percent-encoding.
+ * proxies routinely mangle `%2F`). `base64ToBase64Url` writes the safe form a
+ * `/admin/history/:hmac` path carries; this reads it back.
  */
-export const toContactHashParam = (hash: string): string =>
-  hash.replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-
 export const fromContactHashParam = (param: string): string => {
   const base64 = param.replaceAll("-", "+").replaceAll("_", "/");
   return base64 + "=".repeat((4 - (base64.length % 4)) % 4);
@@ -268,7 +266,7 @@ export const getContactRecordOrRepair: (
   } catch (error) {
     logError({
       code: ErrorCode.DECRYPT_FAILED,
-      detail: `${context} ${toContactHashParam(hash)}: ${error}`,
+      detail: `${context} ${base64ToBase64Url(hash)}: ${error}`,
     });
     return getRepairFallbackRecord(hash);
   }

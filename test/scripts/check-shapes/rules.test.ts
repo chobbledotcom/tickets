@@ -15,6 +15,7 @@ const site = (name: string, body: string, file = "src/a.ts"): ShapeSite => ({
   line: 1,
   masked: body,
   name,
+  sharedMechanism: file === "src/fp.ts",
 });
 
 const LONG_A = "(a) => a.one().two().three().four().five().six().seven()";
@@ -122,7 +123,6 @@ describe("formatMatch", () => {
 });
 
 describe("outsideSharedMechanism", () => {
-  const inFp = (file: string) => file === "src/fp.ts";
   const group = (...sites: ShapeSite[]) => ({ key: "k", sites, tokens: 30 });
 
   test("drops a group whose every site is the shared mechanism", () => {
@@ -130,7 +130,7 @@ describe("outsideSharedMechanism", () => {
       site("map", LONG_A, "src/fp.ts"),
       site("filter", LONG_B, "src/fp.ts"),
     );
-    expect(outsideSharedMechanism(inFp)([only])).toEqual([]);
+    expect(outsideSharedMechanism([only])).toEqual([]);
   });
 
   test("keeps a group where one site copies the shared mechanism", () => {
@@ -138,11 +138,26 @@ describe("outsideSharedMechanism", () => {
       site("map", LONG_A, "src/fp.ts"),
       site("mapAgain", LONG_B, "src/elsewhere.ts"),
     );
-    expect(outsideSharedMechanism(inFp)([mixed])).toEqual([mixed]);
+    expect(outsideSharedMechanism([mixed])).toEqual([mixed]);
   });
 
   test("keeps a group that never touches the shared mechanism", () => {
     const plain = group(site("a", LONG_A), site("b", LONG_B, "src/z.ts"));
-    expect(outsideSharedMechanism(inFp)([plain])).toEqual([plain]);
+    expect(outsideSharedMechanism([plain])).toEqual([plain]);
+  });
+});
+
+describe("shapeMatches leaving exact copies to deno task cpd", () => {
+  test("skips a pair of byte-identical bodies, which cpd reports", () => {
+    const twins = [site("a", LONG_A), site("b", LONG_A, "src/z.ts")];
+    expect(shapeMatches(twins, shapeOf, 20)).toEqual([]);
+  });
+
+  test("reports an exact copy of an #fp helper, which cpd never reads", () => {
+    const copied = [
+      site("map", LONG_A, "src/fp.ts"),
+      site("mapAgain", LONG_A, "src/z.ts"),
+    ];
+    expect(shapeMatches(copied, shapeOf, 20)).toHaveLength(1);
   });
 });

@@ -5,11 +5,15 @@
 
 import { lazyRef } from "#fp";
 
-/** What {@link createHostConfigOverride} gives back. */
-// deno-lint-ignore no-explicit-any
-export type HostConfigOverride<T = any> = ReturnType<
-  typeof createHostConfigOverride<T>
->;
+/**
+ * What {@link createHostConfigOverride} gives back: the reader every caller
+ * uses, and the two hooks a test drives it with.
+ */
+export interface HostConfigOverride<T> {
+  getHostConfig: () => T | null;
+  resetOverride: () => void;
+  setOverride: (value: T | null) => void;
+}
 
 /**
  * Read a host setting out of the environment, unless a test put one in front
@@ -17,7 +21,9 @@ export type HostConfigOverride<T = any> = ReturnType<
  * one, because that is what `lazyRef` does with null — so a test cannot say
  * "the host has none" over an environment that provides one.
  */
-export const createHostConfigOverride = <T>(getFromEnv: () => T | null) => {
+export const createHostConfigOverride = <T>(
+  getFromEnv: () => T | null,
+): HostConfigOverride<T> => {
   const [getOverride, setOverride] = lazyRef<T | null | undefined>(
     () => undefined,
   );

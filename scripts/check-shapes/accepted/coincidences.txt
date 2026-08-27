@@ -13,7 +13,6 @@
 
 e2e-payments/src/cucumber/steps/pages.ts::bookingIdentity,src/features/admin/refunds/candidates.ts::loadedRefundAttendee  # each builds an object from another object's fields, one in the app and one in the live-payment harness
 e2e-payments/src/cucumber/steps/setup.ts::requireProvider,e2e-payments/src/providers/shared.ts::expectProvider  # both refuse a mismatched provider, but one guards the harness target and the other narrows a checkout type, so neither can take the other
-scripts/run-tests.ts::escapeAnnotationValue,src/shared/db/contact-preferences.ts::toContactHashParam  # three chained replaceAll calls, one making base64url and one escaping an annotation
 scripts/specs/evidence/resolve.ts::stableItem,src/features/admin/holidays.ts::extractHolidayInput,src/features/public/group-liveness.ts::publicGroupSummary,src/shared/db/attendees/tokens.ts::previousBookingLineWithoutAttendee,src/shared/db/attributes.ts::rowAttribute,src/shared/listing-details.ts::listingDetails,src/shared/provider-refunds/state.ts::receipt  # seven functions that each build an object from another object's fields; that is construction, not a shared step
 src/features/admin/content-form-fields.ts::seoContentInput,src/shared/db/contact-preferences.ts::statsToBlob,src/shared/db/logistics.ts::rowToAssignment  # three functions that each build an object from another object's fields
 src/features/admin/listing-qr.ts::loadQrFormContext,src/shared/db/payment-anchor/reference.ts::paymentAnchorReference  # both destructure a Promise.all of two unrelated loads
@@ -21,7 +20,7 @@ src/features/admin/settings-general.ts::handleThemePost.extract,src/features/adm
 src/shared/db/chosen-columns.ts::chooseColumns.columnsSql,src/shared/markdown.ts::rewriteTokens  # a map then a join, over columns and over markdown tokens
 src/shared/ledger/reverse.ts::isInverseOf,src/shared/provider-refunds/state.ts::sameConflictDecision  # both compare three fields with &&, over a ledger leg and over a refund decision
 src/shared/payment/refund-machine-spec.ts::family,src/ui/templates/fields/aggregate.ts::buildAggregateFields  # a map with a destructured entry, over machine states and over field specs
-src/ui/client/admin/address-lookup.ts::initAddressLookup,src/ui/client/admin/markdown-editor.ts::initMarkdownEditor  # both walk a querySelectorAll and set one panel up; the setup is all there is and it differs
 src/ui/templates/admin/settings/schema-form.tsx::renderField,src/ui/templates/admin/settings/schema-form.tsx::settingsForm  # two switch statements over unrelated unions in one file
 
 src/shared/email.ts::sendgridAttachment,src/shared/payment/transport-error.ts::providerDetail.stripe  # each names four fields of its own, one for a SendGrid attachment and one for a Stripe error; the field names are the whole content, so there is nothing to lift
+src/ui/templates/components/aggregate-sections.tsx::SectionFieldset,src/ui/templates/components/page-structure.tsx::TitledArticle  # both wrap children under a heading, but in different elements: a form section is a fieldset with a legend, which is the accessibility contract AGENTS.md pins, and an article is an h2. A curry over the tag name would hide exactly the thing those rules exist to keep visible

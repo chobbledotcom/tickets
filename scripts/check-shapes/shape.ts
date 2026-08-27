@@ -7,9 +7,9 @@
  * written, so renaming one copy hides it.
  */
 
-/** Words that carry meaning of their own, so they survive normalisation. A
- * name outside this set becomes `ID`, because a rename must not change a
- * shape. */
+/** Words that carry meaning of their own, so they survive normalisation. Every
+ * name the parser found is already masked by then, so one of these words used
+ * as a name — `row.type`, `{ type }` — never reaches this set. */
 const KEPT_WORDS = new Set([
   "as",
   "await",
@@ -58,24 +58,31 @@ export interface Span {
   start: number;
 }
 
+/** One run of a file to replace before it is shaped, and what to put there. */
+export interface Masked extends Span {
+  as: string;
+}
+
 /**
- * One body with every run of JSX text replaced by an empty string, so the words
- * a component renders read as one literal rather than as names. Text that is
- * only whitespace goes altogether: JSX drops it, and keeping it would make the
- * shape change when `deno fmt` rewraps the markup.
+ * One body with each masked run replaced by what stands for it. The parser says
+ * which runs those are: every name somebody chose, and every word a component
+ * renders. Masking before tokenising is what lets a keyword used as a name read
+ * as a name, and two components that differ only in their wording read alike.
+ *
+ * The runs must be in order and must not overlap, which is how the parser
+ * reports them.
  */
-export const maskJsxText = (
+export const maskSpans = (
   source: string,
   body: Span,
-  spans: readonly Span[],
+  runs: readonly Masked[],
 ): string => {
   let masked = "";
   let cursor = body.start;
-  for (const span of spans) {
-    if (span.start < cursor || span.end > body.end) continue;
-    const text = source.slice(span.start, span.end);
-    masked += source.slice(cursor, span.start) + (/\S/.test(text) ? '""' : "");
-    cursor = span.end;
+  for (const run of runs) {
+    if (run.start < cursor || run.end > body.end) continue;
+    masked += source.slice(cursor, run.start) + run.as;
+    cursor = run.end;
   }
   return masked + source.slice(cursor, body.end);
 };
@@ -107,15 +114,33 @@ const endOfComment = (text: string, start: number): number => {
   return close === -1 ? text.length : close + 2;
 };
 
-/** Where a quote or a template opening at `index` ends, or nothing when one
- * does not open there. Skipping these whole keeps the braces and backticks
- * inside them from being counted. */
-const endOfNested = (text: string, index: number): number | null => {
+/**
+ * What the character before a slash counts as, when the boundary scan has to
+ * tell a divide from a pattern. Only the end offset comes out of that scan, so
+ * reading every word as a value is close enough: a `${…}` never opens with a
+ * keyword that a pattern could follow.
+ */
+const valueEndingAt = (character: string): string | undefined => {
+  if (isWordPart(character)) return "ID";
+  return ")]}".includes(character) ? character : undefined;
+};
+
+/** Where a run that can hold a brace of its own opens at `index` — a quote, a
+ * template, a comment or a pattern — and where it ends. Skipping these whole
+ * keeps the braces inside them from being counted. */
+const endOfNested = (
+  text: string,
+  index: number,
+  before?: string,
+): number | null => {
   const character = text[index] as string;
   if (character === '"' || character === "'") {
     return endOfQuoted(text, index + 1, character);
   }
-  return character === "`" ? endOfTemplate(text, index + 1) : null;
+  if (character === "`") return endOfTemplate(text, index + 1);
+  if (character !== "/") return null;
+  if (/[/*]/.test(text[index + 1] ?? "")) return endOfComment(text, index);
+  return ENDS_A_VALUE.has(before ?? "") ? null : endOfRegExp(text, index + 1);
 };
 
 /** Just past the `}` closing the `${` that opened at `start`. Braces nest, so
@@ -123,14 +148,17 @@ const endOfNested = (text: string, index: number): number | null => {
 const endOfInterpolation = (text: string, start: number): number => {
   let depth = 1;
   let index = start;
+  let before: string | undefined;
   while (index < text.length && depth > 0) {
-    const nested = endOfNested(text, index);
+    const nested = endOfNested(text, index, before);
     if (nested !== null) {
+      before = "RE";
       index = nested;
       continue;
     }
     if (text[index] === "{") depth++;
     if (text[index] === "}") depth--;
+    before = valueEndingAt(text[index] as string) ?? before;
     index++;
   }
   return index;
@@ -228,23 +256,11 @@ const readNumber = (body: string, start: number): Step => {
   return { next: index, tokens: ["NUM"] };
 };
 
-/**
- * Whether the word ending at `index` is being used as a name rather than as
- * syntax. A word after a dot is a property, and a word before a colon is a key
- * — `row.type` and `{ type: … }` are both names somebody chose, so they read
- * as `ID` the same way `row.kind` does.
- */
-const isUsedAsName = (body: string, start: number, index: number): boolean => {
-  if (body.slice(0, start).trimEnd().endsWith(".")) return true;
-  return body.slice(index).trimStart().startsWith(":");
-};
-
 const readWord = (body: string, start: number): Step => {
   let index = start + 1;
   while (index < body.length && isWordPart(body[index] as string)) index++;
   const word = body.slice(start, index);
-  const kept = KEPT_WORDS.has(word) && !isUsedAsName(body, start, index);
-  return { next: index, tokens: [kept ? word : "ID"] };
+  return { next: index, tokens: [KEPT_WORDS.has(word) ? word : "ID"] };
 };
 
 /**

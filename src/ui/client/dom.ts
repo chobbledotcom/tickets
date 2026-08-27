@@ -14,12 +14,14 @@ export const createButton = (className: string): HTMLButtonElement => {
   return button;
 };
 
-/** Run `fn` for every `<a>` in the document that matches `selector`. */
-export const forEachAnchor = (
+/** Run `setUp` for every element in the document that matches `selector`.
+ *  Every widget on a page starts this way: find the marked elements, then
+ *  enhance each one. */
+export const forEachMatch = <TElement extends Element>(
   selector: string,
-  fn: (link: HTMLAnchorElement) => void,
+  setUp: (element: TElement) => void,
 ): void => {
-  for (const link of document.querySelectorAll<HTMLAnchorElement>(selector)) {
-    fn(link);
+  for (const element of document.querySelectorAll<TElement>(selector)) {
+    setUp(element);
   }
 };

@@ -8,14 +8,14 @@ import { parseSync } from "npm:oxc-parser@0.132.0";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { collectScriptFiles } from "#scripts/walk-files.ts";
 import { acceptedProblems, formatProblem, parseAccepted } from "./accepted.ts";
-import { jsxTextSpans, namedFunctions } from "./functions.ts";
+import { maskedRuns, namedFunctions } from "./functions.ts";
 import {
   formatMatch,
   outsideSharedMechanism,
   type ShapeSite,
   shapeMatches,
 } from "./rules.ts";
-import { maskJsxText, shapeOf } from "./shape.ts";
+import { maskSpans, shapeOf } from "./shape.ts";
 
 /**
  * The shortest body that counts. This number ratchets downward: lower it,
@@ -70,7 +70,7 @@ export const collectSites = async (
       if (isFrozen(file)) continue;
       const source = await Deno.readTextFile(file);
       const { program } = parseSync(file, source);
-      const jsxText = jsxTextSpans(program);
+      const runs = maskedRuns(program, source);
       const found = namedFunctions(program, source);
       const names = distinctNames(found);
       found.forEach((one, index) => {
@@ -78,8 +78,9 @@ export const collectSites = async (
           body: source.slice(one.start, one.end),
           file,
           line: one.line,
-          masked: maskJsxText(source, one, jsxText),
+          masked: maskSpans(source, one, runs),
           name: names[index] as string,
+          sharedMechanism: isSharedMechanism(file),
         });
       });
     }
@@ -113,7 +114,7 @@ export const runShapeCheck = async (
   acceptedDir: string,
   output: CheckOutput,
 ): Promise<number> => {
-  const matches = outsideSharedMechanism(isSharedMechanism)(
+  const matches = outsideSharedMechanism(
     shapeMatches(await collectSites(roots), shapeOf, MIN_TOKENS),
   );
   const { entries, malformed } = await readAccepted(acceptedDir);

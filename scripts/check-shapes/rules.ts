@@ -10,9 +10,13 @@ export interface ShapeSite {
   body: string;
   file: string;
   line: number;
-  /** The body with its JSX text masked, which is what gets shaped. */
+  /** The body with its names and its JSX text masked, which is what gets
+   * shaped. */
   masked: string;
   name: string;
+  /** Whether this site is `#fp` itself. `.jscpd.json` skips `#fp`, so a group
+   * holding one is nobody else's to report. */
+  sharedMechanism: boolean;
 }
 
 /** Two or more functions that share one shape. */
@@ -68,7 +72,10 @@ export const shapeMatches = (
   const matches: ShapeMatch[] = [];
   for (const [shapeKey, group] of byShape) {
     if (group.length < 2) continue;
-    if (new Set(group.map((site) => site.body)).size < 2) continue;
+    // Bodies that match exactly are `deno task cpd`'s to report — unless one is
+    // `#fp`, which cpd never reads, so nobody else would report the pair.
+    const seenByCpd = group.every((site) => !site.sharedMechanism);
+    if (seenByCpd && new Set(group.map((site) => site.body)).size < 2) continue;
     matches.push({
       key: matchKey(group),
       sites: group,
@@ -84,9 +91,7 @@ export const shapeMatches = (
  * everything else calls. A body outside `#fp` that matches one of them is still
  * a finding, because there the merge is to call the helper.
  */
-export const outsideSharedMechanism =
-  (isShared: (file: string) => boolean) =>
-  (matches: readonly ShapeMatch[]): ShapeMatch[] =>
-    matches.filter(
-      (match) => !match.sites.every((site) => isShared(site.file)),
-    );
+export const outsideSharedMechanism = (
+  matches: readonly ShapeMatch[],
+): ShapeMatch[] =>
+  matches.filter((match) => !match.sites.every((site) => site.sharedMechanism));

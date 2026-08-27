@@ -5,7 +5,7 @@
  */
 
 import { mapNotNullish } from "#fp";
-import type { Span } from "./shape.ts";
+import type { Masked, Span } from "./shape.ts";
 
 /** One named function's body, located in the file it came from. */
 export interface NamedFunction extends Span {
@@ -35,17 +35,32 @@ const isAstNode = (value: unknown): value is AstNode =>
  * the function they hold. */
 const declaredName = (node: AstNode): string | null => {
   const named = isAstNode(node.id) ? node.id : node.key;
-  return isAstNode(named) && typeof named.name === "string" ? named.name : null;
+  if (isAstNode(named) && typeof named.name === "string") return named.name;
+  return assignedTo(node);
 };
 
 /** Nodes that put their name in scope for the function they hold. */
 const NAMING_TYPES = new Set([
+  "AssignmentExpression",
   "MethodDefinition",
   "ObjectProperty",
   "Property",
   "PropertyDefinition",
   "VariableDeclarator",
 ]);
+
+/** The name an assignment installs a function under. `script.onload = …` and
+ *  `handlers.save = …` both name the function on their left. */
+const assignedTo = (node: AstNode): string | null => {
+  if (node.type !== "AssignmentExpression") return null;
+  const target = node.left;
+  if (!isAstNode(target)) return null;
+  if (typeof target.name === "string") return target.name;
+  const property = target.property;
+  return isAstNode(property) && typeof property.name === "string"
+    ? property.name
+    : null;
+};
 
 /** Counts the newlines before an offset, so a finding can name a line. */
 const lineAt = (source: string, offset: number): number => {
@@ -132,14 +147,32 @@ export const namedFunctions = (
     functionBody(node, qualify(name, within), source),
   )([...walk(program, null, [])]);
 
+/** What one node stands for once it is masked, or nothing when it stays as
+ *  written. A name becomes `_`, which reads as any other name; the words a
+ *  component renders become one string, and whitespace between elements goes
+ *  altogether, because JSX drops it and `deno fmt` moves it. */
+const maskFor = (node: AstNode, source: string): string | null => {
+  if (node.type === "Identifier") return "_";
+  // A closing tag reads as one without repeating the element's name, which the
+  // opening tag already carried. Dropping its `/` also keeps the tokeniser from
+  // reading `</b>` as a pattern opening after `<`.
+  if (node.type === "JSXClosingElement") return "<>";
+  if (node.type !== "JSXText") return null;
+  return /\S/.test(source.slice(node.start as number, node.end as number))
+    ? '""'
+    : "";
+};
+
 /**
- * Every run of literal text inside JSX, in the order it appears. `<b>Save</b>`
- * holds one, and without it the tokeniser reads `Save` as a name — so two
- * components that differ only in their wording would read as two shapes.
+ * Every run of the file that must read as one symbol whatever it says: each
+ * name somebody chose, and each word a component renders. The parser decides,
+ * so a keyword used as a name — `row.type`, `{ type }`, `(type) => …` — is a
+ * name, and only real syntax survives.
  */
-export const jsxTextSpans = (program: unknown): Span[] =>
-  mapNotNullish(({ node }: { node: AstNode }) =>
-    node.type === "JSXText"
-      ? { end: node.end as number, start: node.start as number }
-      : null,
-  )([...walk(program, null, [])]);
+export const maskedRuns = (program: unknown, source: string): Masked[] =>
+  mapNotNullish(({ node }: { node: AstNode }) => {
+    const as = maskFor(node, source);
+    return as === null
+      ? null
+      : { as, end: node.end as number, start: node.start as number };
+  })([...walk(program, null, [])]);

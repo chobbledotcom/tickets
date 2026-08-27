@@ -1,10 +1,7 @@
 import { parseSync } from "npm:oxc-parser@0.132.0";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  jsxTextSpans,
-  namedFunctions,
-} from "#scripts/check-shapes/functions.ts";
+import { maskedRuns, namedFunctions } from "#scripts/check-shapes/functions.ts";
 
 const found = (source: string) =>
   namedFunctions(parseSync("sample.ts", source).program, source);
@@ -96,32 +93,46 @@ describe("namedFunctions naming what a function sits inside", () => {
   });
 });
 
-/** The text each JSX run covers, so a test reads words rather than offsets. */
-const jsxText = (source: string): string[] =>
-  jsxTextSpans(parseSync("sample.tsx", source).program).map((span) =>
-    source.slice(span.start, span.end),
-  );
+/** What each masked run covers and what stands for it, so a test reads text
+ *  rather than offsets. */
+const masked = (source: string): [string, string][] =>
+  maskedRuns(parseSync("sample.tsx", source).program, source).map((run) => [
+    source.slice(run.start, run.end),
+    run.as,
+  ]);
 
-describe("jsxTextSpans", () => {
-  test("finds the words a component renders", () => {
-    expect(jsxText("const A = () => <b>Save changes</b>;")).toEqual([
+describe("maskedRuns", () => {
+  test("masks every name somebody chose", () => {
+    expect(masked("const total = (rows) => rows.length;")).toEqual([
+      ["total", "_"],
+      ["rows", "_"],
+      ["rows", "_"],
+      ["length", "_"],
+    ]);
+  });
+
+  test("masks a keyword used as a name, so it reads as a name", () => {
+    expect(masked("const f = (type) => type;")).toContainEqual(["type", "_"]);
+  });
+
+  test("masks the words a component renders as one string", () => {
+    expect(masked("const A = () => <b>Save changes</b>;")).toContainEqual([
       "Save changes",
+      '""',
     ]);
   });
 
-  test("finds the runs on both sides of a nested element", () => {
-    expect(jsxText("const A = () => <p>Hi <b>you</b> there</p>;")).toEqual([
-      "Hi ",
-      "you",
-      " there",
-    ]);
+  test("drops whitespace between elements, so wrapping cannot change a shape", () => {
+    const runs = masked("const A = () => (\n  <p>\n    <b/>\n  </p>\n);");
+    expect(runs.filter(([, as]) => as === "")).not.toEqual([]);
   });
 
-  test("finds nothing in a file with no JSX", () => {
-    expect(jsxText("const add = (a: number) => a + 1;")).toEqual([]);
+  test("masks a closing tag without repeating the element name", () => {
+    expect(masked("const A = () => <b>x</b>;")).toContainEqual(["</b>", "<>"]);
   });
 
-  test("leaves an interpolated value alone, because it is code", () => {
-    expect(jsxText("const A = ({ n }) => <b>{n.toFixed(2)}</b>;")).toEqual([]);
+  test("leaves an interpolated value as code, masking only its names", () => {
+    const runs = masked("const A = ({ n }) => <b>{n.toFixed(2)}</b>;");
+    expect(runs.every(([, as]) => as !== '""')).toBe(true);
   });
 });

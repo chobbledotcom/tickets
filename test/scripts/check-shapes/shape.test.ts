@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { maskJsxText, shapeOf } from "#scripts/check-shapes/shape.ts";
+import { maskSpans, shapeOf } from "#scripts/check-shapes/shape.ts";
 
 /** A `${…}` group, written so the linter does not read this test's data as a
  * template somebody forgot to tag. */
@@ -159,21 +159,6 @@ describe("shapeOf", () => {
   });
 });
 
-describe("shapeOf reading a word as a name", () => {
-  test("reads a kept word used as a property as a name", () => {
-    expect(shapeOf("row.type === 1")).toEqual(shapeOf("item.kind === 1"));
-  });
-
-  test("reads a kept word used as an object key as a name", () => {
-    expect(shapeOf("({ type: 1 })")).toEqual(shapeOf("({ kind: 1 })"));
-  });
-
-  test("still keeps the same word where it is syntax", () => {
-    expect(shapeOf("typeof value")).toEqual(["typeof", "ID"]);
-    expect(shapeOf("a as B")).toEqual(["ID", "as", "ID"]);
-  });
-});
-
 describe("shapeOf reading a pattern", () => {
   test("gives two patterns that differ only in what they match one shape", () => {
     expect(shapeOf("/foo/.test(s)")).toEqual(shapeOf("/bar-baz/i.test(s)"));
@@ -210,44 +195,48 @@ describe("shapeOf reading a pattern", () => {
   });
 });
 
-describe("maskJsxText", () => {
-  /** Masks the whole of `source`, given the runs a caller says are JSX text.
-   * Each run is found after the one before it, so a repeated run still lands
-   * where it was written. */
-  const maskAll = (source: string, ...runs: string[]): string => {
+describe("maskSpans", () => {
+  /** Masks the whole of `source`, given each run and what stands for it. Each
+   * run is found after the one before it, so a repeated run still lands where
+   * it was written. */
+  const maskAll = (source: string, ...runs: [string, string][]): string => {
     let cursor = 0;
-    const spans = runs.map((run) => {
+    const spans = runs.map(([run, as]) => {
       const start = source.indexOf(run, cursor);
       cursor = start + run.length;
-      return { end: cursor, start };
+      return { as, end: cursor, start };
     });
-    return maskJsxText(source, { end: source.length, start: 0 }, spans);
+    return maskSpans(source, { end: source.length, start: 0 }, spans);
   };
 
-  test("turns the words a component renders into one string", () => {
-    expect(maskAll("<b>Save changes</b>", "Save changes")).toBe('<b>""</b>');
+  test("puts what stands for a run in its place", () => {
+    expect(maskAll("<b>Save changes</b>", ["Save changes", '""'])).toBe(
+      '<b>""</b>',
+    );
   });
 
-  test("drops a run that is only whitespace, so wrapping cannot change a shape", () => {
-    expect(maskAll("<p>\n  <b/>\n</p>", "\n  ", "\n")).toBe("<p><b/></p>");
+  test("takes a run away when nothing stands for it", () => {
+    expect(maskAll("<p>\n  <b/>\n</p>", ["\n  ", ""], ["\n", ""])).toBe(
+      "<p><b/></p>",
+    );
   });
 
-  test("leaves a body with no JSX exactly as it was", () => {
+  test("leaves a body with no runs exactly as it was", () => {
     expect(maskAll("(a) => a + 1")).toBe("(a) => a + 1");
   });
 
   test("ignores a run outside the body it is asked for", () => {
     const source = "<b>one</b><i>two</i>";
-    const spans = [
-      { end: 6, start: 3 },
-      { end: 17, start: 14 },
+    const runs = [
+      { as: '""', end: 6, start: 3 },
+      { as: '""', end: 17, start: 14 },
     ];
-    expect(maskJsxText(source, { end: 10, start: 0 }, spans)).toBe('<b>""</b>');
+    expect(maskSpans(source, { end: 10, start: 0 }, runs)).toBe('<b>""</b>');
   });
 
   test("gives two components that differ only in wording one shape", () => {
-    const first = maskAll("<b>Yes please</b>", "Yes please");
-    const second = maskAll("<b>No thanks</b>", "No thanks");
+    const first = maskAll("<b>Yes please</b>", ["Yes please", '""']);
+    const second = maskAll("<b>No thanks</b>", ["No thanks", '""']);
     expect(shapeOf(first)).toEqual(shapeOf(second));
   });
 });
