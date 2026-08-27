@@ -7,6 +7,7 @@
  * hardcoded, so this guard and the JS preflight read the same declaration.
  */
 
+import type { LineBooking } from "#db/attendee-types.ts";
 import type { SqlStatement } from "#db/client.ts";
 import {
   numberedStatement,
@@ -406,3 +407,19 @@ export const buildManyFitsSql = (demands: CartDemand[]): SqlStatement => {
         .join(", ")}`,
   );
 };
+
+/**
+ * The capacity condition for one booked line. An edit passes the attendee whose
+ * own row must not count against the room it is asking for.
+ */
+export const capacityConditionFor = (
+  booking: LineBooking,
+  excludeAttendeeId?: number,
+): CapacitySql =>
+  buildCapacityCondition(
+    booking.listingId,
+    booking.quantity,
+    booking.date,
+    excludeAttendeeId,
+    booking.durationDays,
+  );

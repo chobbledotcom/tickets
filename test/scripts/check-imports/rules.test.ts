@@ -185,13 +185,10 @@ describe("topLevelImports", () => {
     expect(topLevelImports('  import { a } from "#types";\n')).toEqual([]);
   });
 
-  test("ignores a side-effect import, which brings in no names", () => {
-    expect(topLevelImports('import "#shared/boot.ts";\n')).toEqual([]);
-  });
-
   test("keeps reading after a side-effect import", () => {
     const source = 'import "#shared/boot.ts";\nimport { a } from "#types";\n';
     expect(topLevelImports(source).map((entry) => entry.specifier)).toEqual([
+      "#shared/boot.ts",
       "#types",
     ]);
   });

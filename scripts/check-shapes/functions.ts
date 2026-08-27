@@ -48,9 +48,13 @@ const keyText = (named: unknown): string | null => {
 const declaredName = (node: AstNode): string | null =>
   keyText(node.id) ?? keyText(node.key) ?? assignedTo(node);
 
-/** Nodes that put their name in scope for the function they hold. */
-const NAMING_TYPES = new Set([
+/** Nodes that hand a name on to the function inside them. A declaration or a
+ * property names what it holds. A call hands on the name it was given, because
+ * `const handleBook = withActiveListing(async (…) => …)` names that handler
+ * and nothing else does — the call itself has no name of its own. */
+const HANDS_A_NAME_ON = new Set([
   "AssignmentExpression",
+  "CallExpression",
   "MethodDefinition",
   "ObjectProperty",
   "Property",
@@ -119,8 +123,10 @@ interface Found {
  * Every node in the tree, each carrying the variable name in scope for it and
  * the names it sits inside. `const format = (value) => …` puts `format` in
  * scope for the arrow beside it, and so do a property, a class member and an
- * object method. Nothing else passes a name down, so the arrow inside a curried
- * factory is not named again and the factory reports once.
+ * object method. A call hands that name on to the function it wraps, so the
+ * body of `const handleBook = withActiveListing(async (…) => …)` is read. A
+ * function does not, so the arrow inside a curried factory is not named again
+ * and the factory reports once.
  *
  * The names it sits inside build up separately, because two methods called
  * `save` in one file are two functions, and a finding has to say which.
@@ -131,13 +137,17 @@ function* walk(
   within: readonly string[],
 ): Generator<Found> {
   if (Array.isArray(node)) {
-    for (const child of node) yield* walk(child, null, within);
+    // A list carries the name on rather than ending it, because a call holds
+    // the function it wraps in its argument list.
+    for (const child of node) yield* walk(child, assignedName, within);
     return;
   }
   if (!isAstNode(node)) return;
   const own = declaredName(node);
   yield { name: own ?? assignedName, node, within };
-  const passDown = NAMING_TYPES.has(node.type) ? (own ?? assignedName) : null;
+  const passDown = HANDS_A_NAME_ON.has(node.type)
+    ? (own ?? assignedName)
+    : null;
   const inside = own === null ? within : [...within, own];
   for (const [key, value] of Object.entries(node)) {
     if (key !== "type") yield* walk(value, passDown, inside);

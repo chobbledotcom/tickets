@@ -9,6 +9,7 @@ import {
   buildManyFitsSql,
   type CapacityBucket,
   type CartDemand,
+  capacityConditionFor,
 } from "#db/capacity.ts";
 import {
   inPlaceholders,
@@ -76,13 +77,7 @@ export const checkLinesCapacity = async (
 ): Promise<boolean[]> => {
   if (bookings.length === 0) return [];
   const conditions = bookings.map((booking) =>
-    buildCapacityCondition(
-      booking.listingId,
-      booking.quantity,
-      booking.date,
-      excludeAttendeeId,
-      booking.durationDays,
-    ),
+    capacityConditionFor(booking, excludeAttendeeId),
   );
   const statement = numberedStatement((bind) => {
     const excludeAttendeeIdSql =
