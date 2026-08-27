@@ -18,7 +18,7 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
 
   /** The two ways a row's own arrow can be one nobody could press: nothing on
    * it submits at all, or what does submit would not post to this address. */
-  const NOTHING_TO_PRESS = `The form posting to "${SECOND_ROW}" cannot be submitted`;
+  const NOTHING_TO_PRESS = `The form that posts to "${SECOND_ROW}" cannot be submitted`;
   const NOT_A_POST = `No button on the form at "${SECOND_ROW}" posts there`;
 
   /** What the page renders as the second row's arrow, and what pressing that

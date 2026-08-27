@@ -245,7 +245,7 @@ export const theWayToPost = (
   const declared = findForms(html).find((form) => form.action === action);
   if (!declared) throw new Error(`No form on this page posts to "${action}"`);
   if (pressableOn(declared).length === 0) {
-    throw new Error(`The form posting to "${action}" cannot be submitted`);
+    throw new Error(`The form that posts to "${action}" cannot be submitted`);
   }
   throw new Error(`No button on the form at "${action}" posts there`);
 };

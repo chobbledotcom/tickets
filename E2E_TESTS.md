@@ -164,10 +164,17 @@ what is missing. Only the old file says that.
 
 ```bash
 git fetch origin main
-git diff origin/main...HEAD -- <the file you changed>          # every removed line
-git show origin/main:<the file you changed>                    # the old file whole
-git diff origin/main...HEAD -- <file> | grep '^-' | grep -E 'expect|assert'
+base=$(git merge-base origin/main HEAD)   # where this branch left main
+git diff "$base" HEAD -- <the file you changed>   # every removed line
+git show "$base":<the file you changed>           # the old file whole
+git diff "$base" HEAD -- <file> | grep '^-' | grep -E 'expect|assert'
 ```
+
+Name the merge base once and read every command from it.
+`git show
+origin/main:<file>` reads main's tip instead, so a branch that started
+before the newest main commits compares two different bases. An upstream change
+then reads as a claim that this branch lost, or hides one that it did.
 
 The last command finds most claims, not all of them. A helper such as
 `testRequiresAuth` carries a claim with neither word on the line, so the
