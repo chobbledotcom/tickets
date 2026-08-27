@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingAggregates } from "#db/listings/aggregates.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
   handleListingRecalculateGet,
@@ -9,27 +8,9 @@ import {
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createListingWithDriftedTotals } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
-
-/** A listing whose stored totals were pushed away from what its one booking
- * says, so every test below starts from real drift to repair. */
-const listingWithDriftedTotals = async () => {
-  const listing = await createTestListing({ maxAttendees: 100 });
-  await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "Counted Person",
-    "counted@example.com",
-  );
-  await listingAggregates.update(listing.id, {
-    booked_quantity: 9,
-    tickets_count: 5,
-  });
-  return listing;
-};
 
 const recalculatePath = (listingId: number): string =>
   `/admin/listings/recalculate/${listingId}`;
@@ -37,7 +18,7 @@ const recalculatePath = (listingId: number): string =>
 describeWithEnv("admin listing recalculate routes", { db: true }, () => {
   describe("GET", () => {
     test("shows the stored totals beside the recounted ones", async () => {
-      const listing = await listingWithDriftedTotals();
+      const listing = await createListingWithDriftedTotals();
       const { cookie } = await getTestSession();
 
       const response = await handleListingRecalculateGet(
@@ -69,7 +50,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
 
   describe("POST", () => {
     test("resets the ticked total and leaves the others alone", async () => {
-      const listing = await listingWithDriftedTotals();
+      const listing = await createListingWithDriftedTotals();
       const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleListingRecalculatePost(
@@ -99,7 +80,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
     });
 
     test("names the listing in the activity log", async () => {
-      const listing = await listingWithDriftedTotals();
+      const listing = await createListingWithDriftedTotals();
       const { cookie, csrfToken } = await getTestSession();
 
       await handleListingRecalculatePost(
@@ -121,7 +102,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
     });
 
     test("asks for a choice when no total is ticked, and changes nothing", async () => {
-      const listing = await listingWithDriftedTotals();
+      const listing = await createListingWithDriftedTotals();
       const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleListingRecalculatePost(
