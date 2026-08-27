@@ -15,6 +15,7 @@ import {
   type HandsAnObjectOver,
   HasAStaticAndAccessors,
   type HoldsAClass,
+  type HoldsClasses,
   type HoldsThingsInGenerics,
   type InlineArmsShareIt,
   type NamedByALiteral,
@@ -23,6 +24,7 @@ import {
   type SuppliedInBrackets,
   type UsedAsAKey,
   type WrittenByARest,
+  type WrappedInAngles,
   type WrittenThroughParens,
 } from "./shapes.ts";
 
@@ -110,6 +112,19 @@ export const takeOutByAComputedKey = (
   ({ [k.namesAKeyInAPattern]: held } = source);
   return held;
 };
+
+export const fillBehindAngles = (w: WrappedInAngles): void => {
+  (<number> w.filledBehindAngles) = 1;
+};
+
+declare const classes: HoldsClasses;
+
+export class BuiltChild extends classes.builtWhenItRuns {}
+
+// A declared class describes one that exists somewhere else, so nothing here
+// ever looks the field up.
+declare class DescribedChild extends classes.onlyDescribed {}
+export type HoldsDescribed = DescribedChild;
 
 export const madeInBrackets: SuppliedInBrackets = {
   ["filledThroughBrackets"]: 1,

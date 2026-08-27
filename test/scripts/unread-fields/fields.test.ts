@@ -151,7 +151,7 @@ describe("the shapes the scan finds", () => {
   test("sees a field inside a parameter of a function the shape hands out", () => {
     // Whoever calls it has to build that object, so its fields are reachable.
     expect(
-      verdictOf("HandsAnObjectOver.takesAnObject", "insideAParameter"),
+      verdictOf("HandsAnObjectOver.takesAnObject.made", "insideAParameter"),
     ).toBe("never read");
   });
 
@@ -252,6 +252,36 @@ describe("the shapes the scan finds", () => {
     ).toBeUndefined();
   });
 
+  test("tells two parameters of one method apart", () => {
+    // Both parameters hold a field of the same name, and one line for the
+    // two would let a read of either speak for both.
+    expect(
+      verdictOf("TakesTwoObjects.send.first", "sameNameInBothParameters"),
+    ).toBe("never read");
+    expect(
+      verdictOf("TakesTwoObjects.send.second", "sameNameInBothParameters"),
+    ).toBe("never read");
+  });
+
+  test("tells a parameter with no name of its own by its place", () => {
+    expect(
+      verdictOf(
+        'TakesADestructuredObject.handle["0"]',
+        "onlyInsideADestructured",
+      ),
+    ).toBe("never read");
+  });
+
+  test("leaves out a key that Omit removed", () => {
+    expect(verdictOf("OmittedAway", "keptByOmit")).toBe("never read");
+    expect(verdictOf("OmittedAway", "removedByOmit")).toBeUndefined();
+  });
+
+  test("leaves out a key that Pick did not take", () => {
+    expect(verdictOf("PickedOut", "keptByPick")).toBe("never read");
+    expect(verdictOf("PickedOut", "notPicked")).toBeUndefined();
+  });
+
   test("counts a shape exported under two names once", () => {
     const lines = scanned.all.filter((f) => f.owner === "OneShape");
     expect(lines.map((f) => f.field)).toEqual(["namedTwiceOverAllTheSame"]);
@@ -286,12 +316,12 @@ describe("the shapes the scan finds", () => {
   test("puts a field a method takes under that method", () => {
     // Two methods can take an object with the same field name, and the two
     // are different fields. Under the class they would read as one.
-    expect(verdictOf("TakesObjectsInMethods.send", "sameNameInBoth")).toBe(
-      "never read",
-    );
-    expect(verdictOf("TakesObjectsInMethods.post", "sameNameInBoth")).toBe(
-      "never read",
-    );
+    expect(
+      verdictOf("TakesObjectsInMethods.send.value", "sameNameInBoth"),
+    ).toBe("never read");
+    expect(
+      verdictOf("TakesObjectsInMethods.post.value", "sameNameInBoth"),
+    ).toBe("never read");
   });
 
   test("leaves out a type a hash-private member keeps to itself", () => {

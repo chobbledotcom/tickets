@@ -316,6 +316,36 @@ export class RunsABlockWhenMade {
   reachedOnAValue = 1;
 }
 
+export interface TakesTwoObjects {
+  send(
+    first: { sameNameInBothParameters: string },
+    second: { sameNameInBothParameters: string },
+  ): void;
+}
+
+export interface TakesADestructuredObject {
+  handle({ passedIn }: { onlyInsideADestructured: string }): void;
+}
+
+export type OmittedAway = Omit<
+  { keptByOmit: string; removedByOmit: string },
+  "removedByOmit"
+>;
+
+export type PickedOut = Pick<
+  { keptByPick: string; notPicked: string },
+  "keptByPick"
+>;
+
+export interface WrappedInAngles {
+  filledBehindAngles: number;
+}
+
+export interface HoldsClasses {
+  builtWhenItRuns: new () => object;
+  onlyDescribed: new () => object;
+}
+
 export interface UsedAsAKey {
   namesAKeyInAPattern: string;
 }

@@ -182,6 +182,19 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("UsedAsAKey", "namesAKeyInAPattern")).toBe("read");
   });
 
+  test("counts a field written behind an angle-bracket assertion", () => {
+    expect(verdictOf("WrappedInAngles", "filledBehindAngles")).toBe(
+      "never read",
+    );
+  });
+
+  test("does not count an ambient class's heritage as a reader", () => {
+    // A real class reads the field to find what to build on. A declared one
+    // describes a class that exists somewhere else, and reads nothing.
+    expect(verdictOf("HoldsClasses", "builtWhenItRuns")).toBe("read");
+    expect(verdictOf("HoldsClasses", "onlyDescribed")).toBe("never read");
+  });
+
   test("counts a field a name in brackets supplies", () => {
     // `["filledThroughBrackets"]: 1` fills the field exactly as a plain name
     // does, so the only mention of it puts a value in.

@@ -8,7 +8,7 @@
 import ts from "typescript";
 import { filter, mapNotNullish, unique } from "#fp";
 import { reaching } from "./findings.ts";
-import { quotedInBrackets } from "./writes.ts";
+import { carriesAModifier, quotedInBrackets } from "./writes.ts";
 
 /** A named declaration whose fields the scan can look up. The name is
  * required, because every lookup starts from it. */
@@ -87,23 +87,20 @@ const shapeBody = (shape: Shape): readonly ts.Node[] =>
 /** A member nobody outside the class can reach is not a field it hands out.
  * `private` and `protected` say so with a word, and `#name` says so with the
  * name itself. */
+const keepsItToItself = carriesAModifier(
+  ts.ModifierFlags.Private | ts.ModifierFlags.Protected,
+);
+
 const isHidden = (node: ts.Node): boolean => {
   const { name } = node as ts.NamedDeclaration;
   if (name && ts.isPrivateIdentifier(name)) return true;
-  return (
-    (ts.getCombinedModifierFlags(node as ts.Declaration) &
-      (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !==
-    0
-  );
+  return keepsItToItself(node);
 };
 
 /** A member the class carries rather than a value of it. `C.made` and
  * `held.made` are two fields, so the class object gets a name of its own:
  * `typeof C` is what TypeScript calls it. */
-const isStatic = (node: ts.Node): boolean =>
-  (ts.getCombinedModifierFlags(node as ts.Declaration) &
-    ts.ModifierFlags.Static) !==
-  0;
+const isStatic = carriesAModifier(ts.ModifierFlags.Static);
 
 /** A member that holds a field. Every member of a class or an interface does,
  * a method included: `send(value: { id: string })` puts `id` under `send`
@@ -208,13 +205,14 @@ const inheritedFields = (
   }));
 };
 
-/** `Extract<Result, { ok: true }>` and `Exclude<Result, { ok: true }>` keep
- * some arms of the first argument and drop others. Neither argument is the
- * answer: the filter's fields are nobody's to read, and the arms it dropped
- * are no longer fields of the shape. Only the checker knows what is left, and
- * it resolves the reference for the shape it belongs to. Every other type
+/** Four built-in types that keep some of the first argument and drop the
+ * rest. `Extract` and `Exclude` choose arms of a union; `Pick` and `Omit`
+ * choose keys of an object. Neither argument of any of them is the answer:
+ * the second says what to keep and is nobody's to read, and the first still
+ * holds what was dropped. Only the checker knows what is left, and it
+ * resolves the reference for the shape it belongs to. Every other type
  * argument holds a type the shape hands on, as `Array<{ id: number }>` does. */
-const NARROWS_BY_A_FILTER = new Set(["Extract", "Exclude"]);
+const NARROWS_BY_A_FILTER = new Set(["Extract", "Exclude", "Pick", "Omit"]);
 
 const narrowsByAFilter = (node: ts.Node): boolean =>
   ts.isTypeReferenceNode(node) &&
@@ -305,6 +303,23 @@ export const exportedFields = (
     return inside;
   };
 
+  /** A plain parameter is no field of the shape, but the object type inside
+   * it holds fields, and one method can take two of them.
+   * `send(first: { id: string }, second: { id: string })` declares two `id`
+   * fields, so the parameter's name keeps them apart. A parameter that is
+   * destructured has no name of its own, and its place in the list says
+   * which one it is. */
+  const underTheParameter = (
+    path: readonly string[],
+    node: ts.Node,
+  ): readonly string[] => {
+    if (!ts.isParameter(node)) return path;
+    const called = ts.isIdentifier(node.name)
+      ? node.name.text
+      : String(node.parent.parameters.indexOf(node));
+    return [...path, called];
+  };
+
   const partsOf = membersOf(checker);
   const collect = (path: readonly string[], node: ts.Node): void => {
     // A member a class keeps to itself hands nothing out. A type written
@@ -312,7 +327,7 @@ export const exportedFields = (
     if (isHidden(node)) return;
     const here = isStatic(node) ? [`typeof ${path.reduce(reaching)}`] : path;
     const name = fieldNameOf(node);
-    const inside = name ? remember(here, name) : here;
+    const inside = name ? remember(here, name) : underTheParameter(here, node);
     for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {

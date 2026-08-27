@@ -83,6 +83,15 @@ const WAYS_TO_WRITE = [
   isAssignedProperty,
 ];
 
+/** Whether a declaration was written with one of these words. `static`,
+ * `declare`, `private` and `protected` are all modifiers, and the compiler
+ * answers for a node and everything above it at once, so a class inside a
+ * `declare namespace` counts as declared. */
+export const carriesAModifier =
+  (flags: ts.ModifierFlags): ((node: ts.Node) => boolean) =>
+  (node) =>
+    (ts.getCombinedModifierFlags(node as ts.Declaration) & flags) !== 0;
+
 /** Every question below is put to one mention and answered yes or no. */
 export type AskAboutAMention = (node: ts.Node) => boolean;
 
@@ -120,16 +129,17 @@ const onParent =
     return parent ? ask(mention, parent) : false;
   };
 
-/** Four ways to wrap a value that change nothing when the program runs, so
+/** Five ways to wrap a value that change nothing when the program runs, so
  * each can sit between the field and the `=`: `(row.total) = 1`,
- * `row.total! = 1`, `(row.total as number) = 1`, and the same with
- * `satisfies`. All four write the field. `<number>row.total = 1` is not one
- * of them, because it does not parse. */
+ * `row.total! = 1`, `(row.total as number) = 1`, the same with `satisfies`,
+ * and `(<number>row.total) = 1`. All five write the field. The last one needs
+ * its parentheses, because `<number>row.total = 1` does not parse. */
 const WRAPPERS_THAT_DO_NOTHING: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ParenthesizedExpression,
   ts.SyntaxKind.NonNullExpression,
   ts.SyntaxKind.AsExpression,
   ts.SyntaxKind.SatisfiesExpression,
+  ts.SyntaxKind.TypeAssertionExpression,
 ]);
 
 const onlyWraps = (node: ts.Node): boolean =>
@@ -217,15 +227,22 @@ const anywhereAbove =
 export const isInside = (whole: ts.Node): AskAboutAMention =>
   anywhereAbove((at) => at === whole);
 
+/** A class the program never builds, because the declaration only describes
+ * one that exists somewhere else. `declare class` is the plain form, and
+ * every class inside a `declare namespace` or a `.d.ts` file is one too. */
+const isAmbient = carriesAModifier(ts.ModifierFlags.Ambient);
+
 /** `class Child extends registry.Base {}` reads `registry.Base` to find the
  * class to build on, and that read happens when the program runs. An
  * interface's `extends`, and every `implements`, name a type and read
- * nothing. */
+ * nothing. Neither does an ambient class: it describes a class rather than
+ * builds one, so nothing evaluates what it extends. */
 const isRuntimeHeritage = (node: ts.Node): boolean =>
   ts.isExpressionWithTypeArguments(node) &&
   ts.isHeritageClause(node.parent) &&
   node.parent.token === ts.SyntaxKind.ExtendsKeyword &&
-  ts.isClassLike(node.parent.parent);
+  ts.isClassLike(node.parent.parent) &&
+  !isAmbient(node.parent.parent);
 
 /** A mention inside a type names the field to borrow its type, and no value
  * moves when the program runs. `Config["execute"]` is one. The compiler counts

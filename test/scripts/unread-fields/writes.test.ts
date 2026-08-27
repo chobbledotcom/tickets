@@ -8,20 +8,27 @@ import {
   readsTheValue,
 } from "#scripts/unread-fields/writes.ts";
 
-const parse = (code: string): ts.SourceFile =>
-  ts.createSourceFile(
-    "probe.tsx",
-    code,
-    ts.ScriptTarget.ESNext,
-    true,
-    ts.ScriptKind.TSX,
-  );
+/** Read a scrap of code as one kind of file. `<number>x` is an assertion in
+ * TypeScript and a tag in TSX, so a case about it has to say which. */
+const parsing =
+  (kind: ts.ScriptKind, extension: string) =>
+  (code: string): ts.SourceFile =>
+    ts.createSourceFile(
+      `probe.${extension}`,
+      code,
+      ts.ScriptTarget.ESNext,
+      true,
+      kind,
+    );
+
+const parse = parsing(ts.ScriptKind.TSX, "tsx");
+const parsePlainTs = parsing(ts.ScriptKind.TS, "ts");
 
 /** Put a question to the mention of `field` at `nth` in a scrap of code. */
 const askAt =
-  (ask: AskAboutAMention) =>
+  (ask: AskAboutAMention, read: (code: string) => ts.SourceFile = parse) =>
   (code: string, field: string, nth = 0): boolean => {
-    const source = parse(code);
+    const source = read(code);
     let from = -1;
     for (let seen = 0; seen <= nth; seen++) {
       from = code.indexOf(field, from + 1);
@@ -36,6 +43,9 @@ const readsAt = askAt(readsTheValue);
 
 /** Whether that mention names a member of something. */
 const namesAMemberAt = askAt(namesAMember);
+
+/** The same question, put to code an angle-bracket assertion can live in. */
+const readsInPlainTsAt = askAt(readsTheValue, parsePlainTs);
 
 describe("nodeAt", () => {
   test("finds the identifier covering a position", () => {
@@ -222,6 +232,20 @@ describe("readsTheValue", () => {
 
   test("does not read a field filled behind a satisfies", () => {
     expect(readsAt("(row.total satisfies number) = 1;", "total")).toBe(false);
+  });
+
+  test("does not read a field filled behind an angle-bracket assertion", () => {
+    // `(<number>row.total) = 1` needs its parentheses to parse at all, and
+    // the assertion inside them changes nothing when the program runs.
+    expect(readsInPlainTsAt("(<number>row.total) = 1;", "total")).toBe(false);
+  });
+
+  test("does not read a field an ambient class only describes", () => {
+    // A declared class describes one that exists somewhere else. Nothing
+    // builds it, so nothing ever looks the field up.
+    expect(readsAt("declare class Child extends r.total {}", "total")).toBe(
+      false,
+    );
   });
 
   test("does not read a field a for-of loop fills behind a bang", () => {
