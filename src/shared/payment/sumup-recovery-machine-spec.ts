@@ -2,7 +2,7 @@
  * against, so a single lost callback is the whole of the notice we get. This
  * machine replaces that notice. Every staged checkout is asked about until
  * SumUp answers definitively. A row that can still hold unaccounted money is
- * never deleted, and never left with nothing to act on it.
+ * never deleted, and always stays in a state something can act on.
  *
  * The table below IS the production lookup, not a description of one. A cell it
  * leaves out is a declared refusal, and the mirror sweep proves it throws. */
