@@ -30,11 +30,23 @@ const reachesTheField = (node: ts.Node, parent: ts.Node): boolean =>
   (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
   (ts.isElementAccessExpression(parent) && parent.argumentExpression === node);
 
+/** Both of the questions below are about the access that reaches the field,
+ * so both put their question to that access the same way. */
+const throughTheField =
+  (ask: (access: ts.Node) => boolean) =>
+  (node: ts.Node, parent: ts.Node): boolean =>
+    reachesTheField(node, parent) && ask(parent);
+
 /** A field an assignment writes into: `row.total = 1`, and the slot a pattern
- * fills, as in `({ value: row.total } = source)`. Both put a value in, so both
- * ask the same question of the access that reaches the field. */
-const isAssignedProperty = (node: ts.Node, parent: ts.Node): boolean =>
-  reachesTheField(node, parent) && isAssignedTo(parent);
+ * fills, as in `({ value: row.total } = source)`. Both put a value in. */
+const isAssignedProperty = throughTheField((access) => isAssignedTo(access));
+
+/** `delete row.total` takes the field away. It never looks at the value, so
+ * it is not a reader. */
+const isDeletedProperty = throughTheField(
+  (access) =>
+    access.parent !== undefined && ts.isDeleteExpression(access.parent),
+);
 
 type Holder = ts.Node & { name?: ts.Node };
 
@@ -94,11 +106,26 @@ const isDestructuringTarget = (parent: ts.Node): boolean =>
     ts.isShorthandPropertyAssignment(parent)) &&
   isAssignedTo(parent.parent);
 
-/** True when this mention puts a value into the field. `{ total: 1 }`,
- * `row.total = 1` and `<Meter total={1} />` write it. `row.total` and
- * `const { total } = row` read it. */
-export const isWrite: (node: ts.Node) => boolean = onParent((node, parent) =>
+/** True when this mention puts a value into the field. */
+const isWrite: (node: ts.Node) => boolean = onParent((node, parent) =>
   isDestructuringTarget(parent)
     ? false
     : WAYS_TO_WRITE.some((writes) => writes(node, parent)),
 );
+
+const isDeleted: (node: ts.Node) => boolean = onParent(isDeletedProperty);
+
+/** A mention inside a type names the field to borrow its type, and no value
+ * moves when the program runs. `Config["execute"]` is one. */
+const isTypeOnly = (node: ts.Node): boolean => {
+  for (let at: ts.Node | undefined = node; at; at = at.parent) {
+    if (ts.isTypeNode(at)) return true;
+  }
+  return false;
+};
+
+/** True when this mention takes the value out of the field. `row.total` and
+ * `const { total } = row` do. `{ total: 1 }`, `<Meter total={1} />`,
+ * `delete row.total` and `Config["total"]` do not. */
+export const readsTheValue = (node: ts.Node): boolean =>
+  !(isWrite(node) || isDeleted(node) || isTypeOnly(node));

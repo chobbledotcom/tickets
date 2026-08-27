@@ -25,18 +25,29 @@ answer is per symbol, so the four other `failed` mentions do not count.
 
 ## What counts as a shape
 
-A field belongs to a shape that `src/` exports. Both spellings count, because
-this repository uses both:
+A field belongs to a shape that `src/` exports. All three spellings count,
+because this repository uses all three:
 
 ```typescript
 export interface Sum {
   total: number;
 }
 export type Report = { headline: string };
+export class Badge {
+  html = "";
+}
 ```
 
 An object type nested inside one counts too, because `report.nested.deep`
-reaches it. A shape the file keeps to itself does not.
+reaches it. A shape the file keeps to itself does not, and neither does a member
+a class keeps to itself.
+
+A shape also hands on the fields it takes from somewhere else: a base it
+extends, an intersection, or another type it simply names, as
+`StripeRefund = StripeRefundFields` does. A union alias is left out, because its
+common fields belong to the shapes it is made of. A field written down in a
+library, such as the `toFixed` that `number` carries, is not a field this
+repository exports.
 
 ## Reads, not mentions
 
@@ -53,6 +64,8 @@ mention by the syntax around it, and counts the reads:
 | `<Meter total={1} />`   | write     |
 | `{ total() {} }`        | write     |
 | `get total()`           | write     |
+| `delete row.total`      | write     |
+| `Config["total"]`       | write     |
 | `row.total`             | read      |
 | `const { total } = row` | read      |
 | `({ total } = row)`     | read      |
@@ -63,14 +76,20 @@ tells them apart by what the object literal around them is for. An object
 literal on the left of an `=` is a pattern, and its members read. The same
 literal anywhere else is a value, and its members write.
 
+The last two rows above the reads are not writes in the ordinary sense. A delete
+takes the field away, and `Config["total"]` names the field to borrow its type.
+Neither takes the value out, which is the only question the scan asks, so both
+sit on the write side of it.
+
 The rule is about the syntax a mention sits in, never about the name alone. In
 `({ value: row.total } = source)` the field `value` reads and `row.total`
 writes. In `const s = { sum: total }` and `class S { sum = total }`, `total` is
 the value rather than the name, so both read it.
 
-A field is reported when nothing reads it, or when only `test/` does. A field
-its tests alone read is kept alive by the tests themselves, which is the same
-thing wearing a disguise.
+A field is reported when nothing reads it, or when only a test does. `test/`
+counts as tests, and so does `scripts/email-sandbox-e2e/`, which is a live
+end-to-end harness. A field its tests alone read is kept alive by the tests
+themselves, which is the same thing wearing a disguise.
 
 ## What it cannot see
 

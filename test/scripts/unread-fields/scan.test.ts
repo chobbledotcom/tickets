@@ -49,7 +49,13 @@ export type { Gone } from "./nowhere.ts";
   "src/consume.ts": `
 import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
-import type { ExtendsFarBase, Passed } from "./shapes.ts";
+import type { Borrowed, ExtendsFarBase, Passed } from "./shapes.ts";
+
+export type ItsType = Borrowed["onlyItsTypeIsUsed"];
+
+export const drop = (b: Borrowed): void => {
+  delete b.takenAwayByDelete;
+};
 
 export const shown = String(sum.total) + report.headline;
 
@@ -176,6 +182,43 @@ interface ListExported {
 
 export type { ListExported };
 
+interface NamedDirectly {
+  reachedThroughAnAlias: number;
+}
+
+export type Renamed = NamedDirectly;
+
+interface AnsweredOnce {
+  answeredTwice: boolean;
+}
+
+export type AnsweredAgain = AnsweredOnce & { answeredTwice: boolean };
+
+export class Carrier {
+  onlyOnAClass = 1;
+  private notForOutside = 2;
+
+  constructor(
+    public heldByTheConstructor: number,
+    plainParameter: number,
+  ) {
+    this.onlyOnAClass = plainParameter;
+  }
+
+  keep(): number {
+    return this.notForOutside;
+  }
+}
+
+export interface Borrowed {
+  onlyItsTypeIsUsed: number;
+  takenAwayByDelete?: number;
+}
+
+export type Renamings = {
+  [K in keyof Borrowed as \`re\${Capitalize<K & string>}\`]: number;
+};
+
 export const hide = (n: NotExported): number => n.hidden;
 `,
 
@@ -212,11 +255,62 @@ describe("scanUnreadFields", () => {
     await Deno.remove(root, { recursive: true });
   });
 
+  test("sees the fields of an alias that only names another type", () => {
+    // `StripeRefund = StripeRefundFields` is seven of these in one real file.
+    expect(verdictOf("Renamed", "reachedThroughAnAlias")).toBe("never read");
+  });
+
+  test("gives a field an intersection supplies twice one line", () => {
+    const lines = findings.filter((f) => f.owner === "AnsweredAgain");
+    expect(lines.map((f) => f.field)).toEqual(["answeredTwice"]);
+  });
+
+  test("sees a public field of an exported class", () => {
+    expect(verdictOf("Carrier", "onlyOnAClass")).toBe("never read");
+  });
+
+  test("sees a field the constructor declares as a parameter", () => {
+    // `SafeHtml` writes its one field as `constructor(public html: string)`.
+    expect(verdictOf("Carrier", "heldByTheConstructor")).toBe("never read");
+  });
+
+  test("leaves out a plain constructor parameter", () => {
+    expect(verdictOf("Carrier", "plainParameter")).toBeUndefined();
+  });
+
+  test("leaves out a field the class keeps to itself", () => {
+    expect(verdictOf("Carrier", "notForOutside")).toBeUndefined();
+  });
+
+  test("leaves out a made-up field a mapped type renames into being", () => {
+    // `catalog-fields/definition.ts` renames its keys this way. Such a field
+    // is written down nowhere, so there is no identifier to look up.
+    expect(findings.filter((f) => f.owner === "Renamings")).toEqual([]);
+  });
+
+  test("leaves out the built-in members an alias to a number resolves to", () => {
+    expect(findings.filter((f) => f.owner === "ItsType")).toEqual([]);
+  });
+
+  test("does not count a mention that only borrows the field's type", () => {
+    expect(verdictOf("Borrowed", "onlyItsTypeIsUsed")).toBe("never read");
+  });
+
+  test("does not count a delete as a reader", () => {
+    expect(verdictOf("Borrowed", "takenAwayByDelete")).toBe("never read");
+  });
+
   test("reports every field of every exported shape, and only those", () => {
     expect(findings.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
+      "AnsweredAgain.answeredTwice",
       "BadgeProps.label",
       "BadgeProps.supplied",
+      "Borrowed.onlyItsTypeIsUsed",
+      "Borrowed.takenAwayByDelete",
+      "Carrier.heldByTheConstructor",
+      "Carrier.onlyOnAClass",
       "Extends.fromABaseNobodySees",
+      "Extends.fromAClass",
       "Extends.ofItsOwn",
       "Extends.shadowed",
       "ExtendsFarBase.paddingSoTheOffsetIsWrongInAnotherFile",
@@ -230,6 +324,7 @@ describe("scanUnreadFields", () => {
       "Passed.carriedBySpread",
       "Passed.kept",
       "Reached.total",
+      "Renamed.reachedThroughAnAlias",
       "Report.headline",
       "Report.nested",
       "Report.nested.deep",

@@ -8,11 +8,12 @@
  */
 
 import ts from "typescript";
+import { mapNotNullish } from "#fp";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { type Finding, verdictFor } from "./findings.ts";
 import { answered, compilerOptions, serviceHost } from "./host.ts";
-import { isWrite, nodeAt } from "./writes.ts";
+import { nodeAt, readsTheValue } from "./writes.ts";
 
 /** Folders whose code ships. `test/` is scanned too, so the scan can tell a
  * field only its tests read from one nothing reads. */
@@ -25,10 +26,20 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
   return perFolder.flat();
 };
 
-type Shape = ts.InterfaceDeclaration | ts.TypeAliasDeclaration;
+/** A named declaration whose fields the scan can look up. The name is
+ * required, because every lookup starts from it. */
+type Shape = (
+  | ts.ClassDeclaration
+  | ts.InterfaceDeclaration
+  | ts.TypeAliasDeclaration
+) & { name: ts.Identifier };
 
+/** A class counts, because `SafeHtml.html` is reached like any other field.
+ * An unnamed one cannot be looked up, so it is left out. */
 const isShape = (node: ts.Node): node is Shape =>
-  ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node);
+  ts.isInterfaceDeclaration(node) ||
+  ts.isTypeAliasDeclaration(node) ||
+  (ts.isClassDeclaration(node) && node.name !== undefined);
 
 /** An export list names a symbol that stands for the declaration, so ask what
  * it stands for before looking at where it was written down. */
@@ -44,10 +55,11 @@ const declaredIn = (symbol: ts.Symbol, file: string): ts.Declaration[] =>
     (declaration) => declaration.getSourceFile().fileName === file,
   );
 
-/** Every shape a file lets other files reach. Asking the checker, rather than
- * reading `export` off the declaration, also catches the seven aliases of
- * `settings-helpers.ts`, which are declared plainly and exported in a list at
- * the foot of the file. A namespace is a module too, so it is asked in turn. */
+/** Every shape a file lets other files reach. The checker answers this, not
+ * the `export` keyword on the declaration. That also catches the seven
+ * aliases of `settings-helpers.ts`. Those are declared plainly, and a list at
+ * the foot of the file exports them. A namespace is a module too, so the walk
+ * asks it in turn. */
 const exportedShapes = (
   checker: ts.TypeChecker,
   container: ts.Symbol,
@@ -81,23 +93,58 @@ interface OwnedField {
  * `<E extends { id: number }>` describes E, and `id` is not a field of the
  * shape itself. */
 const shapeBody = (shape: Shape): readonly ts.Node[] =>
-  ts.isInterfaceDeclaration(shape) ? shape.members : [shape.type];
+  ts.isTypeAliasDeclaration(shape) ? [shape.type] : shape.members;
 
-/** The identifier a type element is named by. An index signature has no name,
- * and a quoted member is not named by an identifier, so neither is a field the
- * scan can look up. */
+/** A member nobody outside the class can reach is not a field it hands out. */
+const isHidden = (node: ts.Node): boolean =>
+  (ts.getCombinedModifierFlags(node as ts.Declaration) &
+    (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !==
+  0;
+
+/** A member that holds a field. `SafeHtml` writes its one field as
+ * `constructor(public html: string)`, which is a parameter and a field at
+ * once. A plain constructor parameter is not one. */
+const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
+  ts.isTypeElement(node) ||
+  ts.isPropertyDeclaration(node) ||
+  (ts.isParameter(node) &&
+    ts.isParameterPropertyDeclaration(node, node.parent));
+
+/** The identifier a member is named by. An index signature has no name, and a
+ * quoted or `#private` member is not named by an identifier, so neither is a
+ * field the scan can look up. */
 const fieldNameOf = (node: ts.Node): ts.Identifier | undefined => {
-  const name = ts.isTypeElement(node) ? node.name : undefined;
-  return name && ts.isIdentifier(name) ? name : undefined;
+  if (!holdsAField(node) || isHidden(node)) return;
+  return node.name && ts.isIdentifier(node.name) ? node.name : undefined;
 };
 
-/** Whether a shape takes fields from somewhere else: an interface that
- * extends, or an alias that intersects. A union alias is left out, because its
- * common fields belong to the shapes it is made of. */
-const inheritsFrom = (shape: Shape): boolean =>
-  ts.isInterfaceDeclaration(shape)
-    ? shape.heritageClauses !== undefined
-    : ts.isIntersectionTypeNode(shape.type);
+/** Whether a shape takes fields from somewhere else. An alias does whenever
+ * it is not a list of its own members: `StripeRefund = StripeRefundFields`
+ * names one type, and `Omit<Row, "id">` reshapes one. A union alias is left
+ * out, because its common fields belong to the shapes it is made of. */
+const inheritsFrom = (shape: Shape): boolean => {
+  if (ts.isTypeAliasDeclaration(shape)) return !ts.isUnionTypeNode(shape.type);
+  return ts.isClassDeclaration(shape) || shape.heritageClauses !== undefined;
+};
+
+/** Where one borrowed field is written down, or nothing when the shape names
+ * it itself. A field can be written down more than once — `PaymentFailureResult`
+ * gets `success` from its own arm and from `PaymentFailure` — and one field
+ * deserves one line, because two could disagree. */
+const borrowedName = (
+  property: ts.Symbol,
+  own: Set<ts.Identifier>,
+): ts.Identifier | undefined => {
+  // A mapped type such as `Partial<Listing>` makes up its properties, so some
+  // are written down nowhere and the scan has no identifier to look up. A
+  // library's own members are written down, but not by this repository:
+  // `Config["total"]` resolves to `number`, which carries `toFixed`.
+  const written = (property.declarations ?? []).filter(
+    (at) => !at.getSourceFile().isDeclarationFile,
+  );
+  const names = mapNotNullish(fieldNameOf)(written);
+  return names.some((name) => own.has(name)) ? undefined : names[0];
+};
 
 /** The fields an exported shape gets from somewhere else.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
@@ -113,15 +160,8 @@ const inheritedFields = (
   const found: OwnedField[] = [];
   const type = checker.getTypeAtLocation(shape.name);
   for (const property of checker.getPropertiesOfType(type)) {
-    for (const declaration of answered(
-      property.declarations,
-      `declarations for ${property.name}`,
-    )) {
-      const name = fieldNameOf(declaration);
-      if (name && !own.has(name)) {
-        found.push({ field: name, owner: shape.name.text });
-      }
-    }
+    const field = borrowedName(property, own);
+    if (field) found.push({ field, owner: shape.name.text });
   }
   return found;
 };
@@ -175,7 +215,7 @@ const readersOf = (
       if (reference.isDefinition) continue;
       const source = program.getSourceFile(reference.fileName);
       const node = source && nodeAt(source, reference.textSpan.start);
-      if (!node || isWrite(node)) continue;
+      if (!node || !readsTheValue(node)) continue;
       readers.push(reference.fileName.replace(`${root}/`, ""));
     }
   }

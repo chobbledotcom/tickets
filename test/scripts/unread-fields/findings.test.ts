@@ -29,6 +29,12 @@ describe("verdictFor", () => {
   test("calls a field one shipped reader reads read", () => {
     expect(verdictFor(["test/a.test.ts", "scripts/b.ts"])).toBe("read");
   });
+
+  test("counts the live end-to-end harness as a test", () => {
+    expect(verdictFor(["scripts/email-sandbox-e2e/run.ts"])).toBe(
+      "read only by tests",
+    );
+  });
 });
 
 describe("worthReporting", () => {

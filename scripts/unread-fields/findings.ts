@@ -16,7 +16,12 @@ export interface Finding {
   verdict: Verdict;
 }
 
-const isTest = (file: string): boolean => file.startsWith("test/");
+/** Folders that hold tests. `scripts/email-sandbox-e2e/` is a live end-to-end
+ * harness, so a field only it reads is kept alive by a test like any other. */
+const TEST_FOLDERS = ["test/", "scripts/email-sandbox-e2e/"];
+
+const isTest = (file: string): boolean =>
+  TEST_FOLDERS.some((folder) => file.startsWith(folder));
 
 /** A field nothing reads is written for nobody. A field only its tests read
  * is kept alive by the tests themselves, which is the same thing wearing a

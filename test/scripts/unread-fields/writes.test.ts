@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import ts from "typescript";
-import { isWrite, nodeAt } from "#scripts/unread-fields/writes.ts";
+import { nodeAt, readsTheValue } from "#scripts/unread-fields/writes.ts";
 
 const parse = (code: string): ts.SourceFile =>
   ts.createSourceFile(
@@ -12,14 +12,14 @@ const parse = (code: string): ts.SourceFile =>
     ts.ScriptKind.TSX,
   );
 
-/** Whether the mention of `field` at `nth` puts a value in or takes one out. */
-const writesAt = (code: string, field: string, nth = 0): boolean => {
+/** Whether the mention of `field` at `nth` takes the value out of it. */
+const readsAt = (code: string, field: string, nth = 0): boolean => {
   const source = parse(code);
   let from = -1;
   for (let seen = 0; seen <= nth; seen++) from = code.indexOf(field, from + 1);
   const node = nodeAt(source, from);
   if (!node) throw new Error(`no node at ${from} in ${code}`);
-  return isWrite(node);
+  return readsTheValue(node);
 };
 
 describe("nodeAt", () => {
@@ -36,126 +36,141 @@ describe("nodeAt", () => {
   });
 });
 
-describe("isWrite", () => {
-  test("counts the declaration in an interface", () => {
-    expect(writesAt("interface Sum { total: number }", "total")).toBe(true);
+describe("readsTheValue", () => {
+  test("does not read the declaration in an interface", () => {
+    expect(readsAt("interface Sum { total: number }", "total")).toBe(false);
   });
 
-  test("counts a field declared on a class", () => {
-    expect(writesAt("class Sum { total = 1 }", "total")).toBe(true);
+  test("does not read a field declared on a class", () => {
+    expect(readsAt("class Sum { total = 1 }", "total")).toBe(false);
   });
 
-  test("counts a field named in an object literal", () => {
-    expect(writesAt("const s: Sum = { total: 1 };", "total")).toBe(true);
+  test("does not read a field named in an object literal", () => {
+    expect(readsAt("const s: Sum = { total: 1 };", "total")).toBe(false);
   });
 
-  test("counts a shorthand field in an object literal", () => {
-    expect(writesAt("const s: Sum = { total };", "total")).toBe(true);
+  test("does not read a shorthand field in an object literal", () => {
+    expect(readsAt("const s: Sum = { total };", "total")).toBe(false);
   });
 
-  test("counts an assignment onto a field", () => {
-    expect(writesAt("s.total = 1;", "total")).toBe(true);
+  test("does not read an assignment onto a field", () => {
+    expect(readsAt("s.total = 1;", "total")).toBe(false);
   });
 
-  test("counts an assignment through a fixed key in brackets", () => {
-    expect(writesAt('row["total"] = 1;', "total")).toBe(true);
+  test("does not read an assignment through a fixed key in brackets", () => {
+    expect(readsAt('row["total"] = 1;', "total")).toBe(false);
   });
 
-  test("counts the slot a destructuring pattern fills", () => {
-    expect(writesAt("({ value: row.total } = source);", "total")).toBe(true);
+  test("does not read the slot a destructuring pattern fills", () => {
+    expect(readsAt("({ value: row.total } = source);", "total")).toBe(false);
   });
 
-  test("counts the slot an array pattern fills", () => {
-    expect(writesAt("[row.total] = pair;", "total")).toBe(true);
+  test("does not read the slot an array pattern fills", () => {
+    expect(readsAt("[row.total] = pair;", "total")).toBe(false);
   });
 
-  test("counts a field supplied as a JSX attribute", () => {
-    expect(writesAt("const b = <Meter total={1} />;", "total")).toBe(true);
+  test("does not read a field supplied as a JSX attribute", () => {
+    expect(readsAt("const b = <Meter total={1} />;", "total")).toBe(false);
   });
 
-  test("counts a method that fills a field in an object", () => {
-    expect(writesAt("const s = { total() { return 1; } };", "total")).toBe(
-      true,
-    );
-  });
-
-  test("counts a method that fills a field on a class", () => {
-    expect(writesAt("class S { total() { return 1; } }", "total")).toBe(true);
-  });
-
-  test("counts a getter that fills a field", () => {
-    expect(writesAt("class S { get total() { return 1; } }", "total")).toBe(
-      true,
-    );
-  });
-
-  test("counts a setter that fills a field", () => {
-    expect(writesAt("class S { set total(v: number) {} }", "total")).toBe(true);
-  });
-
-  test("counts a method an interface declares", () => {
-    expect(writesAt("interface S { total(): number }", "total")).toBe(true);
-  });
-
-  test("counts building an object on the right of an assignment", () => {
-    expect(writesAt("s = { total: 1 };", "total")).toBe(true);
-  });
-
-  test("does not count reading a field", () => {
-    expect(writesAt("use(s.total);", "total")).toBe(false);
-  });
-
-  test("does not count a field taken out by destructuring", () => {
-    expect(writesAt("const { total } = s;", "total")).toBe(false);
-  });
-
-  test("does not count a read through a fixed key in brackets", () => {
-    expect(writesAt('use(row["total"]);', "total")).toBe(false);
-  });
-
-  test("does not count a field compared against something", () => {
-    expect(writesAt("if (s.total === 1) use(s);", "total")).toBe(false);
-  });
-
-  test("does not count the value side of an object literal", () => {
-    expect(writesAt("const s = { sum: total };", "total")).toBe(false);
-  });
-
-  test("does not count a field taken out by a destructuring assignment", () => {
-    expect(writesAt("({ total } = row);", "total")).toBe(false);
-  });
-
-  test("does not count a renamed destructuring assignment", () => {
-    expect(writesAt("({ total: t } = row);", "total")).toBe(false);
-  });
-
-  test("does not count a destructuring assignment with a default", () => {
-    expect(writesAt("({ total = 2 } = row);", "total")).toBe(false);
-  });
-
-  test("does not count a destructuring assignment nested in a pattern", () => {
-    expect(writesAt("({ inner: { total } } = row);", "total")).toBe(false);
-  });
-
-  test("does not count a destructuring assignment inside an array pattern", () => {
-    expect(writesAt("[{ total }] = rows;", "total")).toBe(false);
-  });
-
-  test("does not count a destructuring assignment made by a for loop", () => {
-    expect(writesAt("for ({ total } of rows) use(total);", "total")).toBe(
+  test("does not read a method that fills a field in an object", () => {
+    expect(readsAt("const s = { total() { return 1; } };", "total")).toBe(
       false,
     );
   });
 
-  test("does not count a bare value given to a field on a class", () => {
-    expect(writesAt("class S { sum = total; }", "total")).toBe(false);
+  test("does not read a method that fills a field on a class", () => {
+    expect(readsAt("class S { total() { return 1; } }", "total")).toBe(false);
   });
 
-  test("does not count a bare default in a shorthand field", () => {
-    expect(writesAt("const s = { sum = total };", "total")).toBe(false);
+  test("does not read a getter that fills a field", () => {
+    expect(readsAt("class S { get total() { return 1; } }", "total")).toBe(
+      false,
+    );
   });
 
-  test("does not count a node with nothing above it", () => {
-    expect(isWrite(parse("const total = 1;"))).toBe(false);
+  test("does not read a setter that fills a field", () => {
+    expect(readsAt("class S { set total(v: number) {} }", "total")).toBe(false);
+  });
+
+  test("does not read a method an interface declares", () => {
+    expect(readsAt("interface S { total(): number }", "total")).toBe(false);
+  });
+
+  test("does not read building an object on the right of an assignment", () => {
+    expect(readsAt("s = { total: 1 };", "total")).toBe(false);
+  });
+
+  test("reads reading a field", () => {
+    expect(readsAt("use(s.total);", "total")).toBe(true);
+  });
+
+  test("reads a field taken out by destructuring", () => {
+    expect(readsAt("const { total } = s;", "total")).toBe(true);
+  });
+
+  test("reads a read through a fixed key in brackets", () => {
+    expect(readsAt('use(row["total"]);', "total")).toBe(true);
+  });
+
+  test("reads a field compared against something", () => {
+    expect(readsAt("if (s.total === 1) use(s);", "total")).toBe(true);
+  });
+
+  test("reads the value side of an object literal", () => {
+    expect(readsAt("const s = { sum: total };", "total")).toBe(true);
+  });
+
+  test("reads a field taken out by a destructuring assignment", () => {
+    expect(readsAt("({ total } = row);", "total")).toBe(true);
+  });
+
+  test("reads a renamed destructuring assignment", () => {
+    expect(readsAt("({ total: t } = row);", "total")).toBe(true);
+  });
+
+  test("reads a destructuring assignment with a default", () => {
+    expect(readsAt("({ total = 2 } = row);", "total")).toBe(true);
+  });
+
+  test("reads a destructuring assignment nested in a pattern", () => {
+    expect(readsAt("({ inner: { total } } = row);", "total")).toBe(true);
+  });
+
+  test("reads a destructuring assignment inside an array pattern", () => {
+    expect(readsAt("[{ total }] = rows;", "total")).toBe(true);
+  });
+
+  test("reads a destructuring assignment made by a for loop", () => {
+    expect(readsAt("for ({ total } of rows) use(total);", "total")).toBe(true);
+  });
+
+  test("reads a bare value given to a field on a class", () => {
+    expect(readsAt("class S { sum = total; }", "total")).toBe(true);
+  });
+
+  test("reads a bare default in a shorthand field", () => {
+    expect(readsAt("const s = { sum = total };", "total")).toBe(true);
+  });
+
+  test("does not read a field a delete takes away", () => {
+    expect(readsAt("delete row.total;", "total")).toBe(false);
+  });
+
+  test("does not read a field a delete takes away through brackets", () => {
+    expect(readsAt('delete row["total"];', "total")).toBe(false);
+  });
+
+  test("does not read a field named only to borrow its type", () => {
+    // `Config["total"]` reuses the type. Nothing moves when the program runs.
+    expect(readsAt('type T = Config["total"];', "total")).toBe(false);
+  });
+
+  test("still reads a field named in a value beside a type", () => {
+    expect(readsAt("const t: Config = row.total;", "total")).toBe(true);
+  });
+
+  test("reads a node with nothing above it", () => {
+    expect(readsTheValue(parse("const total = 1;"))).toBe(true);
   });
 });
