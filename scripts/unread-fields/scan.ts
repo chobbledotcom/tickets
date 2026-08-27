@@ -52,14 +52,19 @@ const exportedShapes = (
   checker: ts.TypeChecker,
   container: ts.Symbol,
   file: string,
+  seen: Set<ts.Symbol> = new Set(),
 ): Shape[] => {
+  // `namespace Wrapped { export import Self = Wrapped }` exports itself, and
+  // the walk would follow that round for ever.
+  if (seen.has(container)) return [];
+  seen.add(container);
   const shapes: Shape[] = [];
   for (const exported of checker.getExportsOfModule(container)) {
     const symbol = standsFor(checker, exported);
     for (const declaration of declaredIn(symbol, file)) {
       if (isShape(declaration)) shapes.push(declaration);
       else if (ts.isModuleDeclaration(declaration)) {
-        shapes.push(...exportedShapes(checker, symbol, file));
+        shapes.push(...exportedShapes(checker, symbol, file, seen));
       }
     }
   }

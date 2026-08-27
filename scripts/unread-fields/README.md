@@ -40,8 +40,9 @@ reaches it. A shape the file keeps to itself does not.
 
 ## Reads, not mentions
 
-A field can be mentioned often and still never be read. Every mention writes it,
-and nothing downstream looks. So the scan counts reads only:
+A field can be mentioned often and still never be read, because every one of
+those mentions puts a value in and none takes one out. So the scan sorts each
+mention by the syntax around it, and counts the reads:
 
 | Mention                 | Counts as |
 | ----------------------- | --------- |
@@ -58,8 +59,14 @@ and nothing downstream looks. So the scan counts reads only:
 
 The last two lines are the pair that catches people out. Both take `row.total`
 out, but the second is built from the same nodes as `{ total: 1 }`. The scan
-tells them apart by what the object literal around them is for. A pattern on the
-left of an `=` reads. A value anywhere else writes.
+tells them apart by what the object literal around them is for. An object
+literal on the left of an `=` is a pattern, and its members read. The same
+literal anywhere else is a value, and its members write.
+
+The rule is about the syntax a mention sits in, never about the name alone. In
+`({ value: row.total } = source)` the field `value` reads and `row.total`
+writes. In `const s = { sum: total }` and `class S { sum = total }`, `total` is
+the value rather than the name, so both read it.
 
 A field is reported when nothing reads it, or when only `test/` does. A field
 its tests alone read is kept alive by the tests themselves, which is the same

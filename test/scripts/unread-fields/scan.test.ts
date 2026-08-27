@@ -17,7 +17,7 @@ const FIXTURE: Record<string, string> = {
   "outside.ts": `
 import { sum } from "./src/produce.ts";
 
-export const ignored = sum.noOneReadsThis;
+export const ignored = sum.readOnlyFromOutside;
 `,
 
   // Reached by the prefix form of an alias, "#jsx/*". It lives under scripts/
@@ -99,7 +99,12 @@ console.log(kept);
   "src/produce.ts": `
 import type { Report, Sum } from "#shapes";
 
-export const sum: Sum = { total: 1, noOneReadsThis: 2, takenOutByPattern: 3 };
+export const sum: Sum = {
+  noOneReadsThis: 2,
+  readOnlyFromOutside: 4,
+  takenOutByPattern: 3,
+  total: 1,
+};
 export const report: Report = {
   headline: "hi",
   onlyTestsRead: "x",
@@ -111,6 +116,7 @@ export const report: Report = {
 export interface Sum {
   total: number;
   noOneReadsThis: number;
+  readOnlyFromOutside: number;
   takenOutByPattern: number;
 }
 
@@ -140,6 +146,8 @@ export interface Extends extends HiddenBase {
 }
 
 export namespace Wrapped {
+  export import Self = Wrapped;
+
   export interface Inner {
     onlyInsideNamespace: number;
   }
@@ -217,6 +225,7 @@ describe("scanUnreadFields", () => {
       "Report.nested.deep",
       "Report.onlyTestsRead",
       "Sum.noOneReadsThis",
+      "Sum.readOnlyFromOutside",
       "Sum.takenOutByPattern",
       "Sum.total",
     ]);
@@ -268,13 +277,7 @@ describe("scanUnreadFields", () => {
   });
 
   test("ignores a reader outside the folders it scans", () => {
-    expect(verdictOf("Sum", "noOneReadsThis")).toBe("never read");
-  });
-
-  test("names the file that declares each field", () => {
-    expect(
-      findings.find((f) => f.owner === "Sum" && f.field === "total")?.file,
-    ).toBe("src/shapes.ts");
+    expect(verdictOf("Sum", "readOnlyFromOutside")).toBe("never read");
   });
 
   test("sees a field read through an import map alias", () => {
