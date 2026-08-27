@@ -47,6 +47,7 @@ import {
 } from "#test-utils/session.ts";
 import {
   featureSetting,
+  settingsAsStored,
   storedFeatureEnabled,
   testWithSetting,
   useSetting,
@@ -129,6 +130,19 @@ describe("test-utils — db-backed & settings contracts", () => {
       await expect(getTestPrivateKey()).rejects.toThrow(
         "Test setup failed: no wrapped private key",
       );
+    });
+
+    test("settingsAsStored brings the stored value back", async () => {
+      await settings.update.email.fromAddress("owner@example.com");
+
+      // Dropping the cache alone leaves an empty snapshot, which reads as the
+      // setting's default and not as what is stored. A caller that stopped
+      // there would assert against defaults and believe it read the database.
+      settings.invalidateCache();
+      expect(settings.email.fromAddress).toBe("");
+
+      await settingsAsStored();
+      expect(settings.email.fromAddress).toBe("owner@example.com");
     });
 
     test("storedFeatureEnabled fails when the feature setting is missing", async () => {
