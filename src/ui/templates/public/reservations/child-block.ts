@@ -150,24 +150,16 @@ const renderChildOption = (
   return `<label class="child-option">${select} ${label}</label>${priceHtml}${input.attributesHtml}`;
 };
 
-/** Render a sole bookable child as informational, keeping the auto-select: it
- * submits no `child_qty_<parentId>_<childId>` field at all, because the server
- * fold auto-fills a sole child to the parent's quantity, so emitting a fixed
- * quantity would over-submit and be rejected as "too many". It shows just the
- * child's name and price, plus a pay-more child's optional price input, which
- * the fold reads. Nothing posts a quantity, so it is safe without JS.
+/** Render a sole bookable child as informational, and keep the auto-select. It
+ * submits no `child_qty_<parentId>_<childId>` field at all: the server fold
+ * auto-fills a sole child to the parent's quantity, so a fixed quantity
+ * over-submits and is rejected as "too many". Nothing posts a quantity, so it
+ * is safe without JS.
  *
- * The buyer makes no choice here, so there is no "choose an option" prompt —
- * that lives on the parent's `<legend>`. A hidden child shows nothing visible
- * but keeps its data markers and price input, so the fold and the client
- * scripts still drive off them.
- *
- * The informational marker ALSO carries the same date/span compatibility
- * attributes a selectable child option does ({@link childDateAttrs}) so on a
- * group/multi-listing page (where the date/day-count controls aren't globally
- * constrained to the child's calendar) the client script can tell the auto-selected
- * sole child can't serve the chosen date/span and flag/disable the parent — rather
- * than letting the buyer hit the submit-side `child_sold_out` rejection. */
+ * The informational marker still carries the date and span attributes a
+ * selectable child option does ({@link childDateAttrs}). A group page's client
+ * script can then see that the sole child does not serve the chosen date, and
+ * flag the parent instead of a submit-time rejection. */
 const renderSoleChildOption = (input: ChildOptionInput): string => {
   const { dateAttrs, listing, namedLabel, parentId, priceHtml } =
     childOptionParts(input);

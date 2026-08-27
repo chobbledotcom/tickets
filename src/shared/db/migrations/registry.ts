@@ -1,16 +1,12 @@
 /**
- * Ordered registry of every dated migration: its id plus a loader for the
- * module that builds it.
+ * The boot path reads only the ids here. The migration implementations, and
+ * everything they import, therefore stay out of the cold-start module graph.
+ * They load lazily on the rare request that has migration work to do.
  *
- * The boot path reads only the ids here (plus the schema markers), so the
- * migration implementations — and everything they import — stay out of the
- * cold-start module graph and load lazily on the rare request that actually
- * has migration work to do. Keep this list in the exact order migrations must
- * run; it IS the run order (the old MIGRATIONS array order, comments and all).
+ * This list IS the run order. Keep it in the exact order migrations must run.
  *
- * Each entry's id doubles as the module's filename, and
- * `test/shared/db/migration-registry.test.ts` loads every entry to assert the
- * built migration carries the same id, so the two cannot drift.
+ * Each entry's id doubles as its module filename, and a test asserts the built
+ * migration carries the same id, so the two cannot drift.
  */
 import type { MigrationBuilder } from "./types.ts";
 

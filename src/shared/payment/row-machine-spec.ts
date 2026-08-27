@@ -1,19 +1,14 @@
-/** The payment row machine as one executable table.
+/** One row's slot carries up to three pieces of live work, or the terminal
+ * outcome on a row that ended clean. A cell missing from
+ * {@link EXPECTED_MOVES} must refuse.
  *
- * One row's slot carries up to three pieces of live work — a refund run's
- * claim, an owner review, and returned money the books do not show — or, on
- * a row that ended clean, the terminal outcome. The nodes are the reachable
- * combinations; the events are the real pure transitions from
- * `row-transitions.ts`. The mirror test executes every (node × event ×
- * shape) cell; a cell missing from {@link EXPECTED_MOVES} must refuse.
+ * Two production truths are kept as-is rather than smoothed over. A retire of a
+ * review the row does not hold, and a record of books that were never behind,
+ * are silent no-ops that STILL release the claim. A terminal outcome can also
+ * replace an earlier one, the conservative-then-final write, so
+ * `settled × write_outcome` is a declared self-move rather than a refusal.
  *
- * Two production truths are kept as-is rather than smoothed over: retiring
- * a review the row does not hold, and recording books that were never
- * behind, are silent no-ops that still release the claim; and a terminal
- * outcome may replace an earlier one (the conservative-then-final write),
- * so `settled × write_outcome` is a declared self-move, not a refusal.
- * Acknowledging a review changes nothing the row machine can see — that
- * move belongs to the payment-review machine. */
+ * A review acknowledgement belongs to the payment-review machine. */
 
 import { acknowledgePaymentReview } from "#payment/review.ts";
 import type { PaymentRowState, RefundClaim } from "#payment/row-state.ts";

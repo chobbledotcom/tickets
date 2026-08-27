@@ -1,15 +1,11 @@
 /**
- * One shared shape for "refuse this if any of these reasons holds — and say
- * which".
+ * "Refuse this if any of these reasons holds, and say which."
  *
- * A reason looks at a case and answers with the words to show when it blocks,
- * or null when it allows. Keeping a rule set as a list of reasons (instead of
- * an if/else-if chain) means one list serves every consumer: a save picks the
- * first reason to refuse with, a summary lists every reason at once, and a
- * picker can ask each candidate why it would be blocked before offering it.
+ * A list of reasons, not an if/else chain, so ONE list serves every consumer. A
+ * save picks the first refusal. A summary lists them all. A picker asks each
+ * candidate why it is blocked, then offers the rest.
  *
- * The sibling for "one check over many items" is `firstProblem` in `#fp`;
- * this module is "many reasons over one case".
+ * The sibling for "one check over many items" is `firstProblem` in `#fp`.
  */
 
 import { mapNotNullish } from "#fp";

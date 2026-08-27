@@ -1,18 +1,8 @@
 /**
- * The attendee entity page: one declarative definition of
- * the tabbed /admin/attendees/:id page.
- *
- *   Overview  — summary table, bookings, answers, payment details, a short
- *               activity preview, contact history
- *   Edit      — the attendee form (attendee-form.tsx), warnings and errors
- *   Ledger    — the order summary, account statement, balance collection and
- *               activity history (owner-only)
- *   Activity  — the full activity log
- *   Actions   — refund / resend / send text / merge, danger zone: delete
- *
- * The banner (status + notes) is visible on every tab — system-note alerts
- * must never hide behind a tab. Submit handlers live in
- * attendee-form-routes.ts; the shared loaders live in attendee-page-data.ts.
+ * The tabbed /admin/attendees/:id entity page. The banner (status + notes) is
+ * visible on every tab, because a system-note alert must never hide behind one.
+ * Submit handlers live in attendee-form-routes.ts, loaders in
+ * attendee-page-data.ts.
  */
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";

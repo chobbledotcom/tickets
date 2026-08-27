@@ -1,17 +1,12 @@
 /**
- * Token attempts table operations (404 rate limiting for token URLs)
+ * 404 rate limiting for token URLs. Unlike login_attempts, this counts DISTINCT
+ * tokens in a tumbling window, so repeated hits on the same invalid token do
+ * not add up.
  *
- * Unlike login_attempts, this tracks DISTINCT tokens attempted within a
- * tumbling window. Hitting the same invalid token many times doesn't count —
- * only MAX_TOKEN_404S distinct invalid tokens inside a single TOKEN_WINDOW_MS
- * window trigger a TOKEN_LOCKOUT_MS lockout.
+ * `recent_tokens` is merged inside the database by the recording statement and
+ * never read back into JS.
  *
- * Per hashed IP it stores `recent_tokens` (the window's hashed tokens, merged
- * inside the database by the recording statement below and never read back into
- * JS), `window_start` (which tumbles once TOKEN_WINDOW_MS passes), and
- * `locked_until` / `last_attempt`, the latter driving prune.
- *
- * There is deliberately no per-attempt timestamp: one `window_start` enforces
+ * There is deliberately no per-attempt timestamp. One `window_start` enforces
  * the limit, and storing less keeps the timing of individual invalid-link
  * clicks off disk.
  */

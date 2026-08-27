@@ -1,19 +1,6 @@
 /**
- * REST resource abstraction - ties together table definitions, form fields,
- * and HTTP handlers for unified CRUD operations.
- *
- * Usage:
- *   const listingsResource = defineResource({
- *     table: listingsTable,
- *     form: listingForm,
- *     toInput: extractListingInput,
- *     nameField: 'name', // For delete verification
- *   });
- *
- *   // Create from form data
- *   const result = await listingsResource.create(form);
- *   if (!result.ok) return errorResponse(result.error);
- *   return redirect('/admin/');
+ * Ties a table definition, its form fields and its HTTP handlers into one CRUD
+ * surface. `nameField` is the column a delete asks the operator to type back.
  */
 
 /* jscpd:ignore-start */

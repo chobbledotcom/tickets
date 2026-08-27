@@ -1,16 +1,10 @@
 /**
- * Reading a provider's records: the shared call shell bound to what a read
- * means, and the ladder each answer is judged by.
+ * "Absent" means ONE thing here: a documented resource the provider did not
+ * send. Never a provider that is not configured, and never a malformed answer.
  *
- * A read is {@link askProvider} with two answers fixed for every provider. A
- * provider nothing is configured for is unavailable. "Absent" means one thing
- * too: a call that comes back with nothing is a documented resource the
- * provider did not send, never a provider that is not configured and never a
- * malformed answer.
- *
- * The judging step is declared as a ladder of refusals rather than written as
- * a chain of `if`s, so each refusal sits beside the reason it returns and a
- * new rung is one entry rather than one more arm.
+ * The judgement is a ladder of refusals, not a chain of `if`s. Each refusal
+ * therefore sits beside the reason it returns, and a new rung is one entry
+ * rather than one more arm.
  */
 
 import * as v from "valibot";

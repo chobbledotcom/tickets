@@ -1,21 +1,14 @@
 /**
- * Short-lived, in-memory stash that carries submitted form values across a
- * POST → redirect → GET (Post/Redirect/Get) cycle without putting them in a
- * cookie or the URL.
+ * Carries submitted form values across a POST → redirect → GET cycle without
+ * putting them in a cookie or the URL. The stash token travels inside the
+ * existing HttpOnly, SameSite=Strict flash cookie.
  *
- * When a submission fails validation the handler redirects back to the form.
- * The values are stashed here under a high-entropy token that travels only
- * inside the existing HttpOnly, SameSite=Strict flash cookie. On the follow-up
- * GET — almost always the same warm edge isolate a few milliseconds later — the
- * token is redeemed, the values are handed to setSavedFormData(), and
- * renderFields() re-fills the inputs with no template or handler changes.
+ * A warm-isolate optimisation with a graceful cold fallback. A cold or
+ * different isolate simply misses, and the flash cookie still carries the
+ * message, so the stash is NEVER a correctness dependency.
  *
- * This mirrors the settings cache: a warm-isolate optimisation with a graceful
- * cold fallback. A cold or different isolate simply misses, and the flash
- * cookie still carries the message (the existing behaviour), so the stash is
- * never a correctness dependency. Entries are one-shot (deleted on redeem),
- * expire after a few seconds, and are capped in both per-entry size and total
- * count to bound memory and limit abuse.
+ * Entries are one-shot, expire in seconds, and are capped in per-entry size and
+ * total count to bound memory and limit abuse.
  */
 
 import { generateSecureToken } from "#crypto/utils.ts";

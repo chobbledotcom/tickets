@@ -2914,3 +2914,74 @@ tests call `reverseOf`, because the `{@link reverseOf}` in the JSDoc of that
 module reads as a production use. `isInverseOf` beside it has a live caller in
 `accounting/conflicts.ts`, so the module stays exempt either way. See
 "Dead-export scanner matches raw text" above.
+
+---
+
+## A checker for Simplified Technical English in `src/` comments
+
+_Origin: Codex review of PR #2158 (the comment-length ratchet). That PR rewrote
+222 comments and fixed every rule break it introduced, across three review
+rounds. The breaks below predate it._
+
+`AGENTS.md` holds code comments to ASD-STE100. No checker enforces that section,
+so `src/` carries a stock of prose that breaks it, and a review bot is the only
+thing that catches a new break. That is the wrong place for the check. Anyone
+who rewrites comments at volume trips it repeatedly, and each round costs a
+push.
+
+A sweep of the first 84 comments PR #2158 rewrote counted 137 descriptive
+sentences above the 25-word limit and 26 uses of a banned modal. The whole tree
+holds more, because the sweep only read comments that one PR touched.
+
+The mechanical half of the rule is checkable, and it is the half that keeps
+being broken. Each of these is a regular expression over comment prose:
+
+- a contraction, a semicolon, or a banned modal (`should`, `would`, `may`,
+  `might`, `could`);
+- a present perfect form, such as `has been` or `have grown`;
+- an `-ing` verb form after a comma, which is the shape that produced most of
+  the breaks;
+- a sentence above 25 words in descriptive text, or above 20 in a procedural
+  one.
+
+Build it beside `scripts/check-comments/`, which already has the lexer, the
+exempt list, and the ratchet shape. The word limits ratchet downward the same
+way the line and column limits do. Bullets, table rows, and code examples must
+be exempt from the sentence limits, as they are in the length checker.
+
+A starting point exists. The sweep script is about 60 lines over `readComments`
+from `scripts/check-comments/rules.ts`. It reads each comment, drops bullet,
+table, and code-example lines, splits the rest into sentences, and counts words.
+It is not committed.
+
+The judgement half of the rule stays with the person. A checker cannot tell
+whether a word is too fancy, or whether a sentence says the wrong thing.
+
+---
+
+## The dead-export scanner cannot credit same-file usage
+
+_Origin: PR #2158, where a comment edit that removed a `{@link}` broke the
+`exports from src/ should be used in production code` test._
+
+`test/scripts/code-quality/detectors.ts` decides whether an export is used by
+matching import clauses across the tree. A production export whose only caller
+sits in its own file therefore reads as dead, and `ALLOWED_TEST_HOOKS` in
+`test/integration/code-quality.test.ts` carries an entry for each one. Fourteen
+of its entries say so in as many words, and their comments name the shapes the
+matcher misses: a same-file throw, a same-file call, and same-file arithmetic
+such as `X * DAY_MS`, because `*` is not in the usage character class.
+
+`AGENTS.md` says that an allow-list entry is a signal that an export is dead.
+These fourteen are the opposite. The export is live and the scanner cannot see
+it, so the list carries the scanner's blind spot, and a reader cannot tell the
+two kinds of entry apart without reading each comment.
+
+The fix is a same-file usage pass that reads the file's own body after the
+export declaration. It pairs with the code-only preprocessing pass in
+"Dead-export scanner matches raw text" above, because both want the same lexer.
+Do them together. Deletion of the fourteen entries is the proof that it works.
+
+Do not start with the deletion. Removal of the blind spot can unmask a genuinely
+dead export that a phantom same-file match was hiding, which is separate work
+and must be judged on its own.

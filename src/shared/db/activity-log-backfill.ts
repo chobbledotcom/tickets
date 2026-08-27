@@ -1,15 +1,11 @@
 /**
- * Activity-log backfill — re-encrypt legacy env-key messages to the owner key.
+ * Re-encrypt legacy env-key activity-log messages to the owner key. A dump plus
+ * DB_ENCRYPTION_KEY could otherwise read the whole history.
  *
- * Before the owner-key switch, `activity_log.message` was encrypted with
- * DB_ENCRYPTION_KEY, so a database dump plus that key could read the whole
- * history. This converts those rows in bounded batches: decrypt each `enc:` row
- * with the env key, re-encrypt under the owner's public key, write it back.
- * Only the public key is needed (no password), so it runs unattended.
+ * Only the public key is needed, so it runs unattended.
  *
  * It is resumable without a row cursor: a converted row no longer matches the
- * `enc:` prefix, so each batch shrinks the remaining set. The maintenance task
- * stores a completion checkpoint after the final batch, avoiding future scans.
+ * `enc:` prefix, so each batch shrinks the remaining set.
  */
 
 /* jscpd:ignore-start */

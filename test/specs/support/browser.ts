@@ -62,14 +62,14 @@ export const organiserSendsAndIsTold = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
-/** Where one page lives: an address that never changes, or one worked out from
- * the world and from whatever the story's own words named — a person, a thing
- * for sale, or nothing at all. */
+/** Where one page lives: an address that never changes, or one worked out
+ * from the world and from whatever the story's own words named — a person, a
+ * thing for sale, or nothing at all. */
 export type PageAddress<Args extends unknown[] = []> =
   | string
   | ((world: TicketsWorld, ...args: Args) => string);
 
-/** The address itself, whichever of the two ways it was given. */
+/** The address itself, whichever of the two ways the caller named it. */
 const addressOf = <Args extends unknown[]>(
   where: PageAddress<Args>,
   world: TicketsWorld,
@@ -239,10 +239,12 @@ export type OpensOneFixedPage = (world: TicketsWorld) => Promise<TestBrowser>;
 
 /** The organiser opens one page of their own, named once. Every "the owner
  * looks at X" step is this with a different address, so the address is the
- * only thing each caller says. The window comes back for a caller that reads
- * it, and a step that only needs the page open can ignore it. */
+ * only thing each caller says. An address that never changes is given as it
+ * is; one worked out from the story so far is given as a `PageAddress`. The
+ * window comes back for a caller that reads it, and a step that only needs
+ * the page open can ignore it. */
 export const opensAdminPageAt =
-  (where: PageAddress): OpensOneFixedPage =>
+  (where: string | PageAddress<[]>): OpensOneFixedPage =>
   (world) =>
     openAdminPage(world, addressOf(where, world));
 

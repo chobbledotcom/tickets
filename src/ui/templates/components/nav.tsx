@@ -1,16 +1,12 @@
 /**
- * The one leveled navigation both site navigations (admin and public) render
- * through: a plain node/level data model plus a single renderer that emits the
- * stacked-bars-on-mobile / pinned-sidebar-on-desktop pattern from the same CSS
- * (`admin-nav--mobile` / `admin-nav--desktop`; the `.admin-nav-group` wrapper
- * is what the desktop grid pins left).
+ * The one leveled navigation both site navigations render through: a node and
+ * level data model plus a single renderer.
  *
- * Each viewport keeps its own correctly-ordered DOM, so tab/reading order
- * always matches what's shown — no CSS `order` reshuffling:
- *
- *  - a desktop sidebar, where the submenu levels nest recursively beneath the
- *    active node of the level above, and
- *  - mobile bars, where each level follows the top-level row as its own bar.
+ * Each viewport gets its own correctly-ordered DOM instead of a CSS `order`
+ * reshuffle, so tab order and reading order always match what is shown. On
+ * desktop the submenu levels nest under the active node of the level above, and
+ * the `.admin-nav-group` wrapper is what the grid pins left. On mobile each
+ * level follows the top-level row as its own bar.
  */
 
 /** One nav entry. The public site-pages `NavNode` is structurally one of

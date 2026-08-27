@@ -1,19 +1,10 @@
 /**
- * Shared form model for the unified add/edit attendee page.
+ * An attendee has ONE shared date range — a `start_date` plus a day count —
+ * that applies to every daily listing they book. Fixed-date listings ignore it.
  *
- * Both `/admin/attendees/new` (create) and `/admin/attendees/:id` (edit) render
- * the same fields and run the same validation. An attendee has ONE shared date
- * range — a `start_date` plus a day count — that applies to every daily listing
- * they book; standard (fixed-date) listings ignore it.
- *
- * The listing editor is a fixed table with ONE ROW PER BOOKING PATH — every
- * stored `listing_attendees` row (a listing may hold several: its own
- * standalone row beside package rows, or a child folded under a parent), plus
- * a blank standalone line per not-yet-booked listing and a blank line per
- * (package, member) path so the operator can book any combination a public
- * buyer could. Quantity ≥ 1 books a line, 0 leaves it out. There are no
- * add/remove-line buttons, so the form needs no server round-trips (the blank
- * lines hide behind pure-CSS toggles).
+ * The listing table is fixed: one row per booking path, and one for a path not
+ * booked yet. Quantity 0 means "not booked". That is what lets the form work
+ * with no add/remove buttons and no server round-trips.
  */
 
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";

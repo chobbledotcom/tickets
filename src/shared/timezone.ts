@@ -75,19 +75,15 @@ export const epochMsToTzDate = (ms: number, tz: string): string =>
   msToZoned(ms, tz).toPlainDate().toString();
 
 /**
- * Strict datetime-local shape: a calendar date optionally followed by a
- * wall-clock time. Deliberately excludes any UTC designator (`Z`), numeric
- * offset, or bracketed IANA zone, since the rest of the app interprets these
- * values in the configured timezone. `Temporal.PlainDateTime.from` handles
- * those suffixes inconsistently — it *rejects* a `Z` but silently *discards* a
- * numeric offset or bracketed zone (storing a different instant than written) —
- * so the regex rejects all three up front rather than relying on that.
+ * Strict datetime-local shape: a calendar date, optionally with a wall-clock
+ * time. The rest of the app reads these values in the configured timezone, so a
+ * UTC `Z`, a numeric offset, and a bracketed IANA zone must all be rejected
+ * here. `Temporal.PlainDateTime.from` rejects a `Z` but silently DISCARDS the
+ * other two, and stores a different instant than the one written.
  *
- * The time fields are range-constrained (`HH` 00–23, `MM`/`SS` 00–59) rather
- * than bare `\d{2}`: Temporal rejects an out-of-range hour/minute, but it
- * *clamps* a `:60` leap second to `:59` even under `overflow: "reject"`, which
- * would silently shift the stored time. The regex rejects it instead. Calendar
- * validity (real month/day) is still delegated to Temporal's `overflow`.
+ * The time fields carry ranges for the same reason: Temporal CLAMPS a `:60`
+ * leap second to `:59` even under `overflow: "reject"`. Calendar validity stays
+ * with Temporal.
  */
 const NAIVE_DATETIME =
   /^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?)?$/;

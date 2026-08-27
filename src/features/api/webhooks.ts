@@ -1,17 +1,11 @@
 /**
- * Webhook routes - payment callbacks and provider webhooks
+ * The success redirect and the webhook race each other, so both go through
+ * two-phase locking. The first handler reserves the session under a DB lock,
+ * creates the attendee, then finalizes. A later handler sees the reserved or
+ * finalized session and returns the existing attendee.
  *
- * Payment flow (race-condition safe with two-phase locking):
- * 1. User submits form -> checkout session created with intent metadata (no attendee yet)
- * 2. User pays -> redirected to /payment/success OR webhook fires
- * 3. First handler reserves session (DB lock), creates attendee, finalizes lock
- * 4. Subsequent handlers see reserved/finalized session and return existing attendee
- * 5. If capacity exceeded after payment, auto-refund and show error
- *
- * Security:
- * - Webhooks are verified using provider-specific signature verification
- * - Session ID alone cannot create attendees - provider API confirms payment status
- * - Two-phase locking prevents duplicate attendee creation from race conditions
+ * A session id alone can never create an attendee. The provider API confirms
+ * the payment first.
  */
 
 import { t } from "#i18n";

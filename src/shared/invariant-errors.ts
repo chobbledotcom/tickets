@@ -1,15 +1,13 @@
 /**
  * The few operator-facing errors that mean a promise OUR system makes was
- * broken — not a mistake the operator made. Most `error.*` messages are the
- * operator's to fix and stay out of error reporting; these are incidents.
- * Each exported reporter renders its flash message and also reports it
- * through the classified error fan-out (console, ntfy, activity log, Sentry),
- * so the person running the platform hears about it even if the operator who
- * saw the flash closes the page and moves on.
+ * broken, not a mistake the operator made. Most `error.*` messages are the
+ * operator's to fix and stay out of error reporting. These are incidents, so
+ * each also goes through the classified error fan-out. The platform operator
+ * hears about it even if whoever saw the flash closes the page.
  *
- * Add a reporter here only when showing the message means data now needs a
- * manual repair — the exemplar is a provider refund that went through while
- * our own ledger write did not.
+ * Add a reporter here ONLY when showing the message means data now needs a
+ * manual repair. The exemplar is a provider refund that went through while our
+ * own ledger write did not.
  */
 import { t } from "#i18n";
 import { ErrorCode, logError } from "#shared/logger.ts";

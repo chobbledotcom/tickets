@@ -1,22 +1,13 @@
 /**
- * Request-scoped access to the site's private key.
+ * Deriving the private key needs the authenticated session: its token unwraps
+ * the DATA_KEY, which decrypts the stored private key.
  *
- * The owner key pair decrypts attendee PII (and now the activity log). Deriving
- * the private key needs the authenticated session: its token unwraps the
- * DATA_KEY, which decrypts the stored private key. Historically every caller
- * had to thread the derived key (or the session) down through its call stack.
+ * The session store is bound to the current request's async context, so the
+ * accessor can only ever return *this* request's own session. The derivation is
+ * keyed by that session's unique token, so no path lets one request obtain
+ * another's key.
  *
- * {@link getRequestPrivateKey} removes that threading: it reads the
- * AsyncLocalStorage-scoped session for the *current request* (see
- * session-context.ts) and derives the key on demand (memoised per token by
- * getPrivateKeyFromSession). Because the session store is bound to the current
- * request's async context, the accessor can only ever return *this* request's
- * own session, and the derivation is keyed by that session's unique token — so
- * there is no path by which one request can obtain another session's key.
- *
- * Outside a request (background jobs, webhooks that only write, unit tests that
- * don't establish a context) there is no session, so the accessor returns null
- * / throws — fail-closed, never falling back to another session.
+ * Outside a request there is no session, and the accessor FAILS CLOSED.
  */
 
 import { getPrivateKeyFromSession } from "#crypto/keys.ts";

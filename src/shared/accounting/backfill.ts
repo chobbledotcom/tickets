@@ -1,22 +1,13 @@
 /**
  * One-shot backfill of the transfers ledger from existing booking rows.
  *
- * No production modifier or reservation has ever existed, so every historical
- * booking is paid in full: rows with `price_paid > 0` reconstruct to one `sale`
- * per listing plus a single `payment` for the lot, and a refunded attendee gets
- * the matching reversal. One event group per attendee mirrors the live flow, so
- * a later refund still finds a single booking order. It reuses the live
- * mappers, so references and validation match the dual-write path exactly.
+ * No production modifier or reservation ever existed, so every historical
+ * booking is paid in full. One event group per attendee mirrors the live flow,
+ * so a later refund still finds a single booking order.
  *
- * A whole page of attendees goes in one batch (see {@link ATTENDEE_PAGE}): this
- * runs inline on an edge isolate whose subrequest budget a
- * round-trip-per-attendee backfill would blow on real booking history, evicting
- * the isolate mid-run and leaving the migration lock held. An attendee's legs
- * and row-stamp always land together, so each posts all-or-nothing — which is
- * what lets the guard skip an attendee already carrying legs, so a booking the
- * live path recorded is never double-posted. Legs use `INSERT OR IGNORE` on the
- * unique reference, so a re-run is a no-op, and currency needs no guard at all:
- * a site has one, fixed at setup.
+ * An attendee's legs and row-stamp always land together, which lets the guard
+ * skip an attendee already carrying legs. `INSERT OR IGNORE` on the unique
+ * reference makes a re-run a no-op.
  */
 
 /* jscpd:ignore-start */
@@ -53,20 +44,13 @@ type PaidRow = {
 /** A leg INSERT or row-stamp UPDATE the backfill writes to the database. */
 
 /**
- * Attendees are paged so a large booking history never loads all at once, and
- * each page's legs are written in a single batch (one libsql round-trip), so the
- * backfill costs O(pages) edge subrequests instead of one per attendee — a
- * round-trip-per-attendee backfill blew the inline migration's subrequest budget
- * and got the isolate evicted mid-run (lock held → endless 503s). A big page
- * keeps that round-trip count low on large sites.
+ * The backfill costs O(pages) edge subrequests, not one per attendee. A
+ * round-trip-per-attendee backfill blew the inline migration's budget and got
+ * the isolate evicted mid-run. The lock stayed held, and every request 503ed.
  *
- * The cap is libsql's 32766 bound-variable limit: {@link alreadyLedgered}'s
- * balance query lists the page's ids twice (as source and as destination), so a
- * page may hold at most ~16k attendees. 5000 leaves wide margin while still
- * clearing a 100k-attendee site in ~20 round-trips. The per-page write batch
- * (~5000 attendees × a few legs each) is well within what one libsql batch
- * handles — the legs are PII-free, so there is none of the per-row encryption
- * that makes the seed path chunk for memory.
+ * The ceiling is libsql's 32766 bound-variable limit. {@link alreadyLedgered}
+ * lists a page's ids twice, so a page holds at most ~16k attendees. 5000 leaves
+ * wide margin and still clears a 100k-attendee site in ~20 round-trips.
  */
 const ATTENDEE_PAGE = 5000;
 

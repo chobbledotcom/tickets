@@ -1,17 +1,13 @@
 /**
- * Opaque, non-reversible references for the ledger.
+ * Both keys are HMAC-SHA256 digests of a JSON-encoded tuple, which buys three
+ * properties at once:
  *
- * Every leg of one business event shares an `eventGroup`; each leg also gets its
- * own `legReference`, which is the per-leg idempotency key. Both are HMAC-SHA256
- * digests of a JSON-encoded tuple, which gives three properties at once:
- *
- * - **Deterministic** — a retry of the same event recomputes the same keys, so
- *   re-posting is a no-op (the store dedupes on `legReference`).
- * - **Collision-free** — JSON encoding is injective, so `["booking", "a|b"]` and
- *   `["booking", "a", "b"]` produce different digests (a `|`-joined string would
- *   not).
- * - **Non-reversible** — a provider payment id fed in as a part cannot be read
- *   back out of the digest, so the retained ledger holds no provider ids or PII.
+ * - **Deterministic**, so a retry recomputes the same keys and re-posting is a
+ *   no-op.
+ * - **Collision-free**, because JSON encoding is injective. A `|`-joined string
+ *   would collide `["booking", "a|b"]` with `["booking", "a", "b"]`.
+ * - **Non-reversible**, so a provider payment id fed in as a part cannot be
+ *   read back out, and the retained ledger holds no provider ids or PII.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";

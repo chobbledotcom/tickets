@@ -79,20 +79,16 @@ const evaluatePriceProof = async (
 };
 
 /**
- * The single classification of a paid session — the one place the trust matrix
- * lives, so every downstream decision reads one verdict. A valid price proof is
- * the *only* signal that a session is ours: it cannot be forged without our key,
- * and our checkout always attaches one, so the `_origin` marker plays no part in
- * the decision (it is unsigned and forgeable).
+ * The one place the trust matrix lives, so every downstream decision reads one
+ * verdict.
  *
- *  - `trusted` — valid proof and the charge matches the signed total: process,
- *    using `agreed` as the price oracle.
- *  - `mismatch` — valid proof but the provider charged a different amount than we
- *    signed: refund (defensive — we create the checkout with the exact total).
- *  - `ignore` — no valid proof (absent, malformed, tampered, or signed by another
- *    instance). We cannot prove it is ours, so we neither process nor refund it:
- *    refunding an unverifiable session could refund another instance's payment,
- *    and a corrupted one of ours is a support case, not an automatic refund.
+ * A valid price proof is the *only* signal that a session is ours. It cannot be
+ * forged without our key, and our checkout always attaches one, so the
+ * `_origin` marker plays no part: it is unsigned and forgeable.
+ *
+ * `ignore` neither processes nor refunds, because refunding an unverifiable
+ * session can refund another instance's payment. A corrupted session of ours is
+ * a support case, not an automatic refund.
  */
 type SessionClass = SignedVerdict | { verdict: "ignore" };
 

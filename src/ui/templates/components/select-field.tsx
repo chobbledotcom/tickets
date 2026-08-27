@@ -1,15 +1,11 @@
 /**
- * A `<select>` whose options are declared as data — each option's value, its
- * label, and whether it is the currently-selected one (`option.value ===
- * value`). Many admin forms hand-wrote `<select>{opts.map(o => <option
- * selected={cur === o.value} .../>)}</select>`; this owns that shape so the
- * option-mapping and selection comparison live in one place.
+ * A `<select>` whose options are declared as data, with the selected one found
+ * by `option.value === value`.
  *
- * Renders only the `<select>` (not a wrapping `<label>`), because the callers
- * differ in how they label it — some wrap it in a `<label>`, some pair it with
- * a separate `<label for=…>`. A leading "none"/empty choice is just an option
- * with `value: ""`; pass the current value as `""` when nothing is chosen so
- * the same `===` comparison selects it.
+ * It renders the `<select>` alone and no wrapping `<label>`, because callers
+ * differ: some wrap it, some pair it with a separate `<label for=…>`. A leading
+ * "none" choice is an option with `value: ""`, so pass `""` as the current
+ * value when nothing is chosen and the same comparison selects it.
  */
 
 import { t } from "#i18n";

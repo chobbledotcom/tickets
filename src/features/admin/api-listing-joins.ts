@@ -45,18 +45,9 @@ export type PreparedListingJoins = {
 };
 
 /**
- * Interpret the optional `child_listing_ids` field on a write body, telling
- * three cases apart so a client typo can never silently wipe existing edges:
- * - `{ skip: true }` — the parents feature is off or the field is omitted, so
- *   the API leaves the listing's existing edges untouched;
- * - `{ error }` — the field is present but malformed: not an array (a string,
- *   object, …), or an array containing any entry that is not a positive integer
- *   listing id (e.g. a JSON client sending `["7"]`). Both are reported as a 400
- *   with the edges left intact — failing closed, so a typo can never silently
- *   wipe a gated parent's edges down to an empty replacement;
- * - `{ childIds }` — a real array of positive integer ids, for
- *   {@link validateChildEdges} to strip self-edges and unknown ids from before
- *   {@link persistListingJoins} writes what survives.
+ * Interpret the optional `child_listing_ids` field on a write body. The three
+ * cases are told apart so a client typo can never silently wipe existing edges.
+ * A malformed field fails closed: a 400, with the stored edges left intact.
  */
 type SubmittedChildIds =
   | { skip: true }

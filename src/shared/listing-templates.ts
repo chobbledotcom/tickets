@@ -1,15 +1,13 @@
 /**
- * Listing template inference — derive a listing's "type" from its four stored
- * boolean/enum dimensions without any new DB column.
+ * A listing's "type" is inferred from four stored dimensions, with no DB column
+ * of its own:
  *
- * The four dimensions are:
  *   daily        listing_type === "daily"
  *   dated        date field non-empty
  *   purchaseable purchase_only (the "No check-in" flag)
  *   logistics    uses_logistics
  *
- * Four named templates cover the most-common shapes; any listing whose
- * dimensions don't match is treated as "Custom" (full form, no hiding).
+ * A listing that matches no named template is "Custom": full form, nothing hid.
  */
 
 import type { Listing } from "#types";
@@ -132,17 +130,11 @@ export const inferTemplate = (
   ) ?? null;
 
 /**
- * Returns true when a blank `date` should be rejected on create.
+ * Both halves of the condition are needed. The template choice alone would
+ * reject the Custom card's legitimate unnamed shape. The submitted dimensions
+ * alone would be vacuous, because a blank date never infers one-off.
  *
- * The condition is the conjunction of:
- *   (a) the operator chose the one-off-event template, AND
- *   (b) the submitted non-date dimensions still match the one-off shape
- *       (daily=false, purchaseable=false, logistics=false).
- *
- * Using (a) alone would reject the Custom card's legitimate unnamed shape
- * (standard + no date + check-in + no logistics). Using (b) alone would be
- * vacuous: with a blank date the submitted dims never infer one-off. The
- * conjunction is what distinguishes "forgot the date" from "different type".
+ * Together they distinguish "forgot the date" from "different type".
  */
 export const submissionRequiresDate = (
   chosenTemplateId: string | null,

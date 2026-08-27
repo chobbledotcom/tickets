@@ -1,20 +1,12 @@
 /**
- * Collated Overview-tab statistics for a single listing, computed entirely in
- * SQL from the trigger-maintained columns and the transfers ledger — so the
- * Overview never loads (nor decrypts) a listing's individual attendee rows.
+ * Computed entirely in SQL, so the Overview never loads or decrypts a listing's
+ * individual attendee rows.
  *
- * The subtle figure is the "incomplete payment" split — a booking that
- * recognised a sale but never linked a provider payment:
- *
- *   incomplete  ⇔  sale leg AND no booking payment AND no processed reference
- *                  AND nothing still owed AND not refunded
- *
- * The last two clauses keep settled and refunded bookings out: a refunded
- * balance-paid booking can have its processed reference pruned once a
- * `refund_cash` leg exists, which would otherwise read as a bare sale.
- *
- * Everything else the Overview shows comes from that split plus the plain
- * quantity and check-in columns.
+ * The subtle figure is the "incomplete payment" split: a sale leg, no booking
+ * payment, no processed reference, nothing still owed, and not refunded. The
+ * last two clauses keep settled and refunded bookings out. A refunded
+ * balance-paid booking can lose its processed reference once a `refund_cash`
+ * leg exists, and would otherwise read as a bare sale.
  */
 
 /* jscpd:ignore-start */

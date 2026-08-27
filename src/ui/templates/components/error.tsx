@@ -1,22 +1,14 @@
 /**
- * The two kinds of error-styled box, kept deliberately distinct.
+ * Two error-styled boxes, kept distinct on purpose.
  *
- * {@link ErrorAlert} is a *live* error — a validation or action failure the
- * operator just triggered. It is announced assertively (`role="alert"`), fades
- * in (the `.error[role="alert"]` keyframe in style.scss), and is focusable
- * (`tabindex="-1"` + `autofocus`) so the browser focuses the first one on the
- * page and scrolls straight to it — the no-JavaScript "jump to the error".
+ * {@link ErrorAlert} is a live failure the operator just triggered. It is
+ * announced assertively and is focusable, so the browser scrolls straight to
+ * the first one: the no-JavaScript "jump to the error". {@link ErrorNote} is a
+ * standing caution styled like an error, so it is not announced, animated, or
+ * focused.
  *
- * {@link ErrorNote} is a *standing* note styled like an error — a persistent
- * caution or status (the money-ledger warning, a "set a business email"
- * prompt, a deactivated-listing banner). It is not a live alert: no
- * `role="alert"`, so it is neither announced assertively, animated on load, nor
- * a focus/scroll target.
- *
- * Because only the first `autofocus` element on a page takes focus and alerts
- * render in document order, a failed submit lands on the topmost live error.
- * A form field that autofocuses *above* an error must give up its autofocus
- * when an error is present, or it would win that race.
+ * Only the FIRST `autofocus` element on a page takes focus. A form field that
+ * autofocuses above an error must give up its autofocus, or it wins that race.
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
