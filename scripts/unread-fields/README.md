@@ -43,12 +43,18 @@ export class Badge {
 ```
 
 An object type nested inside one counts too, because `report.nested.deep`
-reaches it. A generic that holds one hands it on, so `Array<{ id: number }>` and
+reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 `Record<string, { id: number }>` both count. `Extract<Row, { kind: "one" }>` is
-different. Its second argument says which arms of `Row` to keep, so it is a
-filter, and no value of the shape has a field of it. `Exclude` works the same
-way. A shape the file keeps to itself does not count, and neither does a member
-a class keeps to itself, nor a type written inside one.
+different. Its second argument says which arms of `Row` to keep. It is a filter,
+and no value of the shape has a field of it. `Exclude` works the same way.
+
+A shape the file keeps to itself does not count. Neither does a member a class
+keeps to itself, nor a type written inside one.
+
+A `declare global` block does not count either. It adds its shapes to the global
+scope rather than to what the file exports. The one in
+`src/shared/jsx/jsx-runtime.ts` holds the JSX contract, and the compiler reads
+those fields rather than any code here, so the scan would call them unread.
 
 A shape also hands on the fields it takes from somewhere else. That means a base
 it extends, an intersection, another type it simply names, or every arm of a
@@ -94,7 +100,7 @@ Neither takes the value out, which is the only question the scan asks, so both
 sit on the write side of it.
 
 `class C extends r.total {}` is the odd one. The compiler counts the clause it
-sits in as a type, but the program reads the field when it runs, to find the
+sits in as a type. The program still reads the field when it runs, to find the
 class to build on. An interface's `extends`, and every `implements`, read
 nothing.
 

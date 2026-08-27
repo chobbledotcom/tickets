@@ -1,10 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { scannedFixture } from "./fixture.ts";
+import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
+import { scannedFixture } from "./fixture/build.ts";
 
 /**
- * Whether a mention takes the value out, and where the reader lives.
+ * Which folders the scan reads, whether a mention takes the value out, and
+ * where the reader lives.
  */
+describe("the folders the scan reads", () => {
+  test("refuses a repository with no src folder", async () => {
+    // A run that says every one of no fields is read reads like a clean bill,
+    // so a checkout without the folder the report is about has to fail.
+    const root = await Deno.makeTempDir({ prefix: "unread-fields-bare-" });
+    await Deno.writeTextFile(`${root}/deno.json`, JSON.stringify({}));
+    try {
+      await expect(scanUnreadFields(root)).rejects.toThrow("has no src folder");
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+});
+
 describe("the reads the scan counts", () => {
   const scanned = scannedFixture();
   const verdictOf = scanned.verdictOf;

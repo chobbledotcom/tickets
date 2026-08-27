@@ -1,8 +1,8 @@
 import { afterAll, beforeAll } from "@std/testing/bdd";
 import type { Finding } from "#scripts/unread-fields/findings.ts";
 import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
-import { READERS } from "./repo/readers.ts";
-import { SHAPES } from "./repo/shapes.ts";
+import { READERS } from "./readers.ts";
+import { SHAPES } from "./shapes.ts";
 
 /**
  * A whole repository, small enough to hold in your head, covering every way a
