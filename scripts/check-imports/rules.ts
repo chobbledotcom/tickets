@@ -21,9 +21,10 @@ export interface ImportLine {
   reExport: boolean;
   specifier: string;
   /** True when the statement opens `import type` or `export type`, so nothing
-   *  it names survives to run time. A statement whose every name instead
-   *  carries an inline `type` is erased too, and reads here as a run-time
-   *  import. */
+   *  it names survives to run time. A statement whose names all carry an
+   *  inline `type` reads here as a run-time import on purpose: whether that
+   *  spelling is erased or left as `import {} from "…"` depends on how the
+   *  code is built, and a reader of the text cannot tell. */
   typeOnly: boolean;
 }
 
