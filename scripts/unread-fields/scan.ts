@@ -110,13 +110,20 @@ const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
 
-/** The identifier a member is named by. An index signature has no name, and a
- * quoted or `#private` member is not named by an identifier, so neither is a
- * field the scan can look up. */
-const fieldNameOf = (node: ts.Node): ts.Identifier | undefined => {
-  if (!holdsAField(node) || isHidden(node)) return;
-  return node.name && ts.isIdentifier(node.name) ? node.name : undefined;
+/** The identifier a declaration is named by. An index signature has no name,
+ * and a quoted or `#private` member is not named by an identifier, so neither
+ * is a field the scan can look up. */
+const nameOf = (node: ts.Node): ts.Identifier | undefined => {
+  if (isHidden(node)) return;
+  const { name } = node as ts.NamedDeclaration;
+  return name && ts.isIdentifier(name) ? name : undefined;
 };
+
+/** The same question asked of a shape's own syntax, where a node has to be a
+ * member before its name is a field. The checker needs no such guard, because
+ * it hands back properties and nothing else. */
+const fieldNameOf = (node: ts.Node): ts.Identifier | undefined =>
+  holdsAField(node) ? nameOf(node) : undefined;
 
 /** Whether a shape takes fields from somewhere else. An alias does whenever
  * it is not a list of its own members: `StripeRefund = StripeRefundFields`
@@ -133,7 +140,7 @@ const inheritsFrom = (shape: Shape): boolean => {
  * deserves one line, because two could disagree. */
 const borrowedName = (
   property: ts.Symbol,
-  own: Set<ts.Identifier>,
+  own: Set<string>,
 ): ts.Identifier | undefined => {
   // A mapped type such as `Partial<Listing>` makes up its properties, so some
   // are written down nowhere and the scan has no identifier to look up. A
@@ -142,8 +149,8 @@ const borrowedName = (
   const written = (property.declarations ?? []).filter(
     (at) => !at.getSourceFile().isDeclarationFile,
   );
-  const names = mapNotNullish(fieldNameOf)(written);
-  return names.some((name) => own.has(name)) ? undefined : names[0];
+  const names = mapNotNullish(nameOf)(written);
+  return names.some((name) => own.has(name.text)) ? undefined : names[0];
 };
 
 /** The fields an exported shape gets from somewhere else.
@@ -154,7 +161,7 @@ const borrowedName = (
 const inheritedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
-  own: Set<ts.Identifier>,
+  own: Set<string>,
 ): OwnedField[] => {
   if (!inheritsFrom(shape)) return [];
   const found: OwnedField[] = [];
@@ -164,6 +171,20 @@ const inheritedFields = (
     if (field) found.push({ field, owner: shape.name.text });
   }
   return found;
+};
+
+/** The parts of a node that can hold a member. `R extends { paid: number } ?
+ * { paid: string } : never` checks one type against another, and only the
+ * answer is part of the shape. */
+const membersOf = (node: ts.Node): ts.Node[] => {
+  const parts: ts.Node[] = [];
+  ts.forEachChild(node, (child) => {
+    parts.push(child);
+  });
+  if (!ts.isConditionalTypeNode(node)) return parts;
+  return parts.filter(
+    (part) => part !== node.checkType && part !== node.extendsType,
+  );
 };
 
 /** Every field an exported shape declares, including the fields of object
@@ -177,20 +198,32 @@ const exportedFields = (
   const container = checker.getSymbolAtLocation(source);
   if (!container) return [];
   const found: OwnedField[] = [];
+  // Both arms of `{ ok: true } | { ok: false }` write `ok` down, and the two
+  // are one field of the shape. A second line for it could reach a different
+  // verdict, and a reader could not tell which one to act on.
+  const counted = new Set<string>();
   const collect = (owner: string, node: ts.Node): void => {
     const name = fieldNameOf(node);
     if (name) {
-      found.push({ field: name, owner });
       const inside = `${owner}.${name.text}`;
+      if (!counted.has(inside)) {
+        counted.add(inside);
+        found.push({ field: name, owner });
+      }
       ts.forEachChild(node, (child) => collect(inside, child));
       return;
     }
-    ts.forEachChild(node, (child) => collect(owner, child));
+    // `Extract<Result, { ok: true }>` names a filter, not a member. The walk
+    // must not read `ok` off it, because the checker path already resolves
+    // what the reference hands on.
+    if (!ts.isTypeReferenceNode(node)) {
+      for (const child of membersOf(node)) collect(owner, child);
+    }
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     const before = found.length;
     for (const part of shapeBody(shape)) collect(shape.name.text, part);
-    const own = new Set(found.slice(before).map((f) => f.field));
+    const own = new Set(found.slice(before).map((f) => f.field.text));
     found.push(...inheritedFields(checker, shape, own));
   }
   return found;

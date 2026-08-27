@@ -1,5 +1,5 @@
 /**
- * Talking to the compiler: how it reaches a file, and what it hands back.
+ * How the compiler reaches a file, and what it hands back.
  *
  * The compiler probes far more paths than the repository has, so the helpers
  * here answer "not there" rather than fail. That is the documented behaviour
