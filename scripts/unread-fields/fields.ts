@@ -12,11 +12,13 @@ import { carriesAModifier, quotedInBrackets } from "./writes.ts";
 
 /** A named declaration whose fields the scan can look up. The name is
  * required, because every lookup starts from it. */
-type Shape = (
-  | ts.ClassDeclaration
-  | ts.InterfaceDeclaration
-  | ts.TypeAliasDeclaration
-) & { name: ts.Identifier };
+type Shape =
+  & (
+    | ts.ClassDeclaration
+    | ts.InterfaceDeclaration
+    | ts.TypeAliasDeclaration
+  )
+  & { name: ts.Identifier };
 
 /** A class counts, because `SafeHtml.html` is reached like any other field.
  * An unnamed one cannot be looked up, so it is left out. */
@@ -184,8 +186,8 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
 const inheritedNames = (checker: ts.TypeChecker, shape: Shape): FieldName[] =>
   inheritsFrom(shape)
     ? partsOf(checker.getTypeAtLocation(shape.name))
-        .flatMap((part) => checker.getPropertiesOfType(part))
-        .flatMap(writtenNames)
+      .flatMap((part) => checker.getPropertiesOfType(part))
+      .flatMap(writtenNames)
     : [];
 
 /** Four built-in types that keep some of the first argument and drop the
@@ -231,8 +233,7 @@ const holdsOnlyCode = (node: ts.Node): boolean =>
  * leaves it, and its type parameters describe themselves, exactly as a
  * shape's own ones do. */
 const worthWalking =
-  (checker: ts.TypeChecker) =>
-  (node: ts.Node): ((part: ts.Node) => boolean) => {
+  (checker: ts.TypeChecker) => (node: ts.Node): (part: ts.Node) => boolean => {
     if (narrowsByAFilter(node)) return () => false;
     // `keyof { paid: number }` is the one word "paid", not a shape with a
     // field, so nothing under it is a field either. `readonly` is a type
@@ -248,15 +249,13 @@ const worthWalking =
   };
 
 /** The parts of a node the walk goes on through. */
-const membersOf =
-  (checker: ts.TypeChecker) =>
-  (node: ts.Node): ts.Node[] => {
-    const parts: ts.Node[] = [];
-    ts.forEachChild(node, (child) => {
-      parts.push(child);
-    });
-    return filter(worthWalking(checker)(node))(parts);
-  };
+const membersOf = (checker: ts.TypeChecker) => (node: ts.Node): ts.Node[] => {
+  const parts: ts.Node[] = [];
+  ts.forEachChild(node, (child) => {
+    parts.push(child);
+  });
+  return filter(worthWalking(checker)(node))(parts);
+};
 
 /** How a reader reaches through a member that has no name to give. None of
  * these can be a field's name, so none can be mistaken for one. */
@@ -304,9 +303,9 @@ export const exportedFields = (
   const found = new Map<string, OwnedField>();
   /** Write one field down, and say what its own parts belong to. One field
    * deserves one line, because two lines could disagree, so a field already
-   * written down keeps its line and gains the new place. The path stays a
-   * list of names, because a field can be called `"a.b"` and joining first
-   * would make it one field with the `b` of an `a` beside it. */
+   * written down keeps its line and gains any new place it is written. The
+   * path stays a list of names, because a field can be called `"a.b"` and
+   * joining first would make it one field with the `b` of an `a` beside it. */
   const remember = (path: readonly string[], name: FieldName): string[] => {
     const inside = [...path, name.text];
     const key = JSON.stringify(inside);
@@ -329,7 +328,8 @@ export const exportedFields = (
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     for (const part of shapeBody(shape)) collect([shape.name.text], part);
     // A borrowed field goes under the shape's own name, so a field the shape
-    // declares again already holds the line and only gains the other place.
+    // declares itself already holds the line. It gains a second name only
+    // where the checker hands back a second declaration, as `A & B` does.
     for (const name of inheritedNames(checker, shape)) {
       remember([shape.name.text], name);
     }
