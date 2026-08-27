@@ -1,3 +1,4 @@
+import { namedError } from "#shared/named-error.ts";
 import { createScope } from "#shared/request-scoped.ts";
 
 /** Bunny Edge Scripting stops an incoming request after this many subrequests. */
@@ -16,6 +17,18 @@ type BudgetState = {
   counts: Counts;
   limits: Counts & { total: number };
 };
+
+/**
+ * This request has no subrequests left for the work it was about to start.
+ *
+ * Both refusals below raise it: the call blocked at the cap, and the block of
+ * work refused up front because its reserved tail no longer fits. A caller that
+ * can stop and continue on a later request — the migration runner — tells the
+ * two apart from a real defect by this type, never by the message text.
+ */
+export class SubrequestBudgetError extends namedError(
+  "SubrequestBudgetError",
+) {}
 
 const budgetScope = createScope<BudgetState>();
 
@@ -65,7 +78,7 @@ export const withSubrequestReserve = <T>(
     reserve.external > remaining.external ||
     reserve.total > remaining.total
   ) {
-    throw new Error(
+    throw new SubrequestBudgetError(
       `Subrequest reserve unavailable: need ${reserve.database} database + ` +
         `${reserve.external} external calls (${reserve.total} total), but ` +
         `${remaining.database} database + ${remaining.external} external ` +
@@ -137,7 +150,7 @@ export const countSubrequest = (
     enforce &&
     (nextCounts[kind] > state.limits[kind] || usage.total > state.limits.total)
   ) {
-    throw new Error(
+    throw new SubrequestBudgetError(
       `Subrequest allowance exceeded: ${usage.database} database + ` +
         `${usage.external} external calls. Blocked ${kind} operation: ${operation}`,
     );
