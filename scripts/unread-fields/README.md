@@ -153,8 +153,8 @@ the value rather than the name, so both read it.
 
 A field is reported when nothing reads it, or when only a test does. `test/`
 counts as tests, and so does `scripts/email-sandbox-e2e/`, which is a live
-end-to-end harness. A field its tests alone read is kept alive by the tests
-themselves, which is the same thing wearing a disguise.
+end-to-end harness. A field only its tests read is kept alive by those tests. No
+production code needs it, so it is dead under another name.
 
 ## What it cannot see
 

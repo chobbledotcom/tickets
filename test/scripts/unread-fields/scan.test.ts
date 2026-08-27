@@ -195,6 +195,14 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("HoldsClasses", "onlyDescribed")).toBe("never read");
   });
 
+  test("does not count a declared namespace's class heritage as a reader", () => {
+    // The declare sits on the namespace rather than on the class, and a
+    // modifier flag does not travel down to what the namespace holds.
+    expect(verdictOf("HoldsClasses", "onlyInsideADeclaredNamespace")).toBe(
+      "never read",
+    );
+  });
+
   test("counts a field a name in brackets supplies", () => {
     // `["filledThroughBrackets"]: 1` fills the field exactly as a plain name
     // does, so the only mention of it puts a value in.

@@ -56,6 +56,7 @@ export const EVERY_FIELD: readonly string[] = [
   "HoldsAClass.builtOnByAChild.madeByTheChild",
   "HoldsClasses.builtWhenItRuns",
   "HoldsClasses.onlyDescribed",
+  "HoldsClasses.onlyInsideADeclaredNamespace",
   "HoldsThingsInGenerics.inARecord",
   "HoldsThingsInGenerics.inARecord.insideARecord",
   "HoldsThingsInGenerics.inAnArray",

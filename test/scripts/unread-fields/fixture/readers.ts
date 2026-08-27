@@ -130,6 +130,13 @@ export class BuiltChild extends classes.builtWhenItRuns {}
 declare class DescribedChild extends classes.onlyDescribed {}
 export type HoldsDescribed = DescribedChild;
 
+// A namespace can be declared too, and the classes inside it are described
+// rather than built. The declare sits on the namespace, not on the class.
+declare namespace Described {
+  class Nested extends classes.onlyInsideADeclaredNamespace {}
+}
+export type HoldsNested = Described.Nested;
+
 export const madeInBrackets: SuppliedInBrackets = {
   ["filledThroughBrackets"]: 1,
 };

@@ -359,6 +359,7 @@ export interface WrappedInAngles {
 export interface HoldsClasses {
   builtWhenItRuns: new () => object;
   onlyDescribed: new () => object;
+  onlyInsideADeclaredNamespace: new () => object;
 }
 
 export interface UsedAsAKey {

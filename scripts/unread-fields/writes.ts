@@ -227,10 +227,17 @@ const anywhereAbove =
 export const isInside = (whole: ts.Node): AskAboutAMention =>
   anywhereAbove((at) => at === whole);
 
+const saysDeclare = carriesAModifier(ts.ModifierFlags.Ambient);
+
 /** A class the program never builds, because the declaration only describes
- * one that exists somewhere else. `declare class` is the plain form, and
- * every class inside a `declare namespace` or a `.d.ts` file is one too. */
-const isAmbient = carriesAModifier(ts.ModifierFlags.Ambient);
+ * one that exists somewhere else. `declare class` is the plain form. A class
+ * inside a `declare namespace` is one too, and so is every declaration in a
+ * `.d.ts` file. The walk up is what catches those two: a modifier flag is
+ * combined with the declaration's own list and with nothing above it, so the
+ * namespace's `declare` never reaches the class it holds. */
+const isAmbient = (node: ts.Node): boolean =>
+  node.getSourceFile().isDeclarationFile ||
+  ts.findAncestor(node, saysDeclare) !== undefined;
 
 /** `class Child extends registry.Base {}` reads `registry.Base` to find the
  * class to build on, and that read happens when the program runs. An

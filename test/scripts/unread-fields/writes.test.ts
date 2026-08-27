@@ -248,6 +248,12 @@ describe("readsTheValue", () => {
     );
   });
 
+  test("does not read a field a class in a declared namespace describes", () => {
+    expect(
+      readsAt("declare namespace N { class C extends r.total {} }", "total"),
+    ).toBe(false);
+  });
+
   test("does not read a field a for-of loop fills behind a bang", () => {
     expect(readsAt("for (row.total! of rows) use(row);", "total")).toBe(false);
   });
