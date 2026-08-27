@@ -2,9 +2,9 @@ name: Test
 
 # A merge queue builds its branch by pushing it, so `push` and `merge_group`
 # both fire on one queue branch and the suite runs twice on the same commit.
-# `merge_group` reports both check names on the queue ref, so the `push` run
-# there only adds cost and one more chance for a stalled runner to time the
-# queue out.
+# `merge_group` reports both check names on the queue ref. The `push` run there
+# only adds cost, and one more chance for a stalled runner to time the queue
+# out.
 #
 # The queue does NOT gate on these two checks. GitHub waits for the checks a
 # ruleset marks REQUIRED. `checks` and `test` are not in that list for `main`,

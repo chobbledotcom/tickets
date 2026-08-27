@@ -114,7 +114,8 @@ type ChildOnlyAddOnResolver = (
 
 /**
  * Reject a parent→children edge set the inherited-date booking model or the v1
- * add-on scoping cannot honour. Nesting is one edge deep.
+ * add-on scoping cannot honour. A parent and its child have one edge, and
+ * neither takes another.
  *
  * An **empty** child set is always allowed. It clears the listing's edges, so a
  * listing that is itself a child can still save its blank children form, and a

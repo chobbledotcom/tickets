@@ -277,8 +277,8 @@ export interface PaymentProvider {
    * stays provider-agnostic.
    *
    * @returns the session. `"skip"` acknowledges an event without processing it.
-   *          `"retry"` means the provider could not be read, or contradicted
-   *          our facts, so redelivery must try again. A rejection means the
+   *          `"retry"` means the read failed, or the provider contradicted our
+   *          facts, so redelivery must try again. A rejection means the
    *          provider reported a paid charge the boundary cannot read. `null`
    *          means the event is provably not ours.
    */
