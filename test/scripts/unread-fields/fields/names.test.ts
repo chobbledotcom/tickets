@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { scannedFixture } from "../fixture/build.ts";
+import { scannedFixture } from "#test/scripts/unread-fields/fixture/build.ts";
 
 /**
  * How a field is written down, and what keeps two of one name apart.

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { scannedFixture } from "../fixture/build.ts";
-import { EVERY_FIELD } from "../fixture/every-field.ts";
+import { scannedFixture } from "#test/scripts/unread-fields/fixture/build.ts";
+import { EVERY_FIELD } from "#test/scripts/unread-fields/fixture/every-field.ts";
 
 /**
  * Every field the scan finds in the fixture, so a change that quietly adds

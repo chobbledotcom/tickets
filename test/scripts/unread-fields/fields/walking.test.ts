@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { scannedFixture } from "../fixture/build.ts";
+import { scannedFixture } from "#test/scripts/unread-fields/fixture/build.ts";
 
 /**
  * Which parts of a shape hold fields, and which hold none.
