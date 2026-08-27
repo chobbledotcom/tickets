@@ -8,6 +8,7 @@ import { report, sum } from "./produce.ts";
 import {
   type Borrowed,
   type BothArmsWriteIt,
+  BothSides,
   type DeletedInParens,
   type ExtendsFarBase,
   type FromAShorthand,
@@ -98,6 +99,8 @@ export const throughOneInlineArm = (u: InlineArmsShareIt): number =>
 export const handOver = (h: HandsAnObjectOver): void => {
   h.takesAnObject({ insideAParameter: 1 });
 };
+
+export const readTheClassSide = (): number => BothSides.heldByTheClass;
 
 export const takeOutByAComputedKey = (
   k: UsedAsAKey,

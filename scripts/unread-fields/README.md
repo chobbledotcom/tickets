@@ -48,8 +48,17 @@ reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 different. Its second argument says which arms of `Row` to keep. It is a filter,
 and no value of the shape has a field of it. `Exclude` works the same way.
 
+A conditional type is the same idea. `true extends true ? A : B` answers with
+`A`, so no value of it holds a field of `B`. A conditional that waits on a type
+parameter has no answer yet, and both arms count.
+
 A shape the file keeps to itself does not count. Neither does a member a class
-keeps to itself, nor a type written inside one.
+keeps to itself, nor a type written inside one. A static block holds only code,
+so a type declared inside one does not count either.
+
+`C.made` and `held.made` are two fields. A static belongs to the class object,
+and the report calls that object `typeof C`, which is what TypeScript calls it.
+One line for both would call a field on a value read because the class side is.
 
 A field is named in four ways, and all four reach the same member. `total`,
 `"quoted-name"`, `1`, and `["quoted-name"]` are each a name the compiler answers
@@ -153,6 +162,10 @@ unread. Four cases do that in this repository:
   person. The 17 fields of `PublicListing` are one response body, and every one
   of them reports as unread.
 - A value matched structurally, as `toEqual` does with an object literal.
+
+A line names the field the way code reaches it. A plain word goes after a dot,
+as `Sum.total`. Any other name takes brackets and quotes, as `Row["has.a.dot"]`,
+so a name that holds a dot cannot read like a path.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start looking, not a verdict.

@@ -292,6 +292,30 @@ export type JustTheKeys = keyof NamesItsKeys;
 export type JustTheInlineKeys = keyof { alsoOnlyByKeyof: string };
 export type StillHandsOneOut = readonly { keptByReadonly: number }[];
 
+export class BothSides {
+  static heldByTheClass = 1;
+  heldByAValue = 1;
+}
+
+export type ResolvedByItsCheck = true extends true
+  ? { keptByTheAnswer: number }
+  : { droppedByTheAnswer: number };
+
+class OneShape {
+  namedTwiceOverAllTheSame = 1;
+}
+
+export { OneShape, OneShape as AlsoOneShape };
+
+export class RunsABlockWhenMade {
+  static {
+    const local: { hiddenInsideTheBlock: number } = { hiddenInsideTheBlock: 1 };
+    void local;
+  }
+
+  reachedOnAValue = 1;
+}
+
 export interface UsedAsAKey {
   namesAKeyInAPattern: string;
 }

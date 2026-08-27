@@ -6,7 +6,8 @@
  */
 
 import ts from "typescript";
-import { filter, mapNotNullish } from "#fp";
+import { filter, mapNotNullish, unique } from "#fp";
+import { reaching } from "./findings.ts";
 import { quotedInBrackets } from "./writes.ts";
 
 /** A named declaration whose fields the scan can look up. The name is
@@ -31,7 +32,7 @@ const standsFor = (checker: ts.TypeChecker, exported: ts.Symbol): ts.Symbol =>
     ? exported
     : checker.getAliasedSymbol(exported);
 
-/** Where a symbol was written down, keeping this file only, because a
+/** Where a symbol was written down. Only this file counts, because a
  * re-export belongs to the file that declares it. */
 const declaredIn = (symbol: ts.Symbol, file: string): ts.Declaration[] =>
   (symbol.declarations ?? []).filter(
@@ -63,7 +64,9 @@ const exportedShapes = (
       }
     }
   }
-  return shapes;
+  // `export { Row, Row as PublicRow }` names one declaration twice, and a
+  // second walk of it would count every field again.
+  return unique(shapes);
 };
 
 /** One field the scan looked at, and the shape it belongs to. A field can be
@@ -93,6 +96,14 @@ const isHidden = (node: ts.Node): boolean => {
     0
   );
 };
+
+/** A member the class carries rather than a value of it. `C.made` and
+ * `held.made` are two fields, so the class object gets a name of its own:
+ * `typeof C` is what TypeScript calls it. */
+const isStatic = (node: ts.Node): boolean =>
+  (ts.getCombinedModifierFlags(node as ts.Declaration) &
+    ts.ModifierFlags.Static) !==
+  0;
 
 /** A member that holds a field. Every member of a class or an interface does,
  * a method included: `send(value: { id: string })` puts `id` under `send`
@@ -214,32 +225,57 @@ const narrowsByAFilter = (node: ts.Node): boolean =>
 const isKeyOf = (node: ts.Node): boolean =>
   ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.KeyOfKeyword;
 
-/** Which of a node's parts can hold a member. `R extends { paid: number } ?
- * { paid: string } : never` checks one type against another, and only the
- * answer is part of the shape. A function keeps its parameters and the type it
- * hands back. Its body holds a type that never leaves it, and its type
- * parameters describe themselves, exactly as a shape's own ones do. */
-const worthWalking = (node: ts.Node): ((part: ts.Node) => boolean) => {
-  if (narrowsByAFilter(node)) return () => false;
-  // `keyof { paid: number }` is the one word "paid", not a shape with a
-  // field, so nothing under it is a field either. `readonly` is a type
-  // operator too, and `readonly { paid: number }[]` does hand `paid` out.
-  if (isKeyOf(node)) return () => false;
-  if (ts.isConditionalTypeNode(node)) {
-    return (part) => part !== node.checkType && part !== node.extendsType;
-  }
-  if (!ts.isFunctionLike(node)) return () => true;
-  return (part) => ts.isTypeNode(part) || ts.isParameter(part);
+/** The one arm a conditional answers with, when it has an answer. `true
+ * extends true ? A : B` is only ever A, so no value of it holds a field of B.
+ * A conditional that waits on a type parameter has no answer yet, and both
+ * arms stay possible. */
+const answeredWith = (
+  checker: ts.TypeChecker,
+  node: ts.ConditionalTypeNode,
+): ts.TypeNode | undefined => {
+  const whole = checker.getTypeFromTypeNode(node);
+  const arms = [node.trueType, node.falseType];
+  return arms.find((arm) => checker.getTypeFromTypeNode(arm) === whole);
 };
 
+/** A node that holds a body and nothing a shape hands out. A static block is
+ * one: it runs when the class is made, and the locals inside it are nobody
+ * else's to reach. */
+const holdsOnlyCode = (node: ts.Node): boolean =>
+  ts.isFunctionLike(node) || ts.isClassStaticBlockDeclaration(node);
+
+/** Which of a node's parts can hold a member. A conditional checks one type
+ * against another, and only the answer is part of the shape. A function keeps
+ * its parameters and the type it hands back. Its body holds a type that never
+ * leaves it, and its type parameters describe themselves, exactly as a
+ * shape's own ones do. */
+const worthWalking =
+  (checker: ts.TypeChecker) =>
+  (node: ts.Node): ((part: ts.Node) => boolean) => {
+    if (narrowsByAFilter(node)) return () => false;
+    // `keyof { paid: number }` is the one word "paid", not a shape with a
+    // field, so nothing under it is a field either. `readonly` is a type
+    // operator too, and `readonly { paid: number }[]` does hand `paid` out.
+    if (isKeyOf(node)) return () => false;
+    if (ts.isConditionalTypeNode(node)) {
+      const answer = answeredWith(checker, node);
+      if (answer) return (part) => part === answer;
+      return (part) => part !== node.checkType && part !== node.extendsType;
+    }
+    if (!holdsOnlyCode(node)) return () => true;
+    return (part) => ts.isTypeNode(part) || ts.isParameter(part);
+  };
+
 /** The parts of a node the walk goes on through. */
-const membersOf = (node: ts.Node): ts.Node[] => {
-  const parts: ts.Node[] = [];
-  ts.forEachChild(node, (child) => {
-    parts.push(child);
-  });
-  return filter(worthWalking(node))(parts);
-};
+const membersOf =
+  (checker: ts.TypeChecker) =>
+  (node: ts.Node): ts.Node[] => {
+    const parts: ts.Node[] = [];
+    ts.forEachChild(node, (child) => {
+      parts.push(child);
+    });
+    return filter(worthWalking(checker)(node))(parts);
+  };
 
 /** Every field an exported shape declares, including the fields of object
  * types nested inside it, since `shape.inner.total` reaches those too. The
@@ -265,17 +301,19 @@ export const exportedFields = (
     const key = JSON.stringify(inside);
     if (counted.has(key)) return inside;
     counted.add(key);
-    found.push({ names: [name], owner: path.join(".") });
+    found.push({ names: [name], owner: path.reduce(reaching) });
     return inside;
   };
 
+  const partsOf = membersOf(checker);
   const collect = (path: readonly string[], node: ts.Node): void => {
     // A member a class keeps to itself hands nothing out. A type written
     // inside it is out of reach for the same reason.
     if (isHidden(node)) return;
+    const here = isStatic(node) ? [`typeof ${path.reduce(reaching)}`] : path;
     const name = fieldNameOf(node);
-    const inside = name ? remember(path, name) : path;
-    for (const child of membersOf(node)) collect(inside, child);
+    const inside = name ? remember(here, name) : here;
+    for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     const before = found.length;

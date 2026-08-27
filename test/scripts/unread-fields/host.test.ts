@@ -5,7 +5,6 @@ import {
   compilerOptions,
   pathIs,
   serviceHost,
-  textOrNothing,
 } from "#scripts/unread-fields/host.ts";
 
 /** A path no repository has. The compiler probes shapes like this constantly,
@@ -39,24 +38,6 @@ describe("the compiler's view of a repository", () => {
       expect(() => answered(undefined, "program for the scan")).toThrow(
         "The compiler had no program for the scan",
       );
-    });
-  });
-
-  describe("textOrNothing", () => {
-    test("reads a file that is there", () => {
-      expect(textOrNothing(file)).toBe("export const total = 1;\n");
-    });
-
-    test("answers nothing for a path that is not there", () => {
-      expect(textOrNothing(NOWHERE)).toBeUndefined();
-    });
-
-    test("answers nothing when a file stands where a folder should", () => {
-      expect(textOrNothing(`${file}/probe.ts`)).toBeUndefined();
-    });
-
-    test("raises anything that is not the path being absent", () => {
-      expect(() => textOrNothing(root)).toThrow(Deno.errors.IsADirectory);
     });
   });
 
@@ -96,6 +77,16 @@ describe("the compiler's view of a repository", () => {
 
     test("offers no snapshot for a path that is not there", () => {
       expect(hostFor().getScriptSnapshot(NOWHERE)).toBeUndefined();
+    });
+
+    test("reads nothing where a file stands in place of a folder", () => {
+      expect(hostFor().readFile?.(`${file}/probe.ts`)).toBeUndefined();
+    });
+
+    test("raises anything that is not the path being absent", () => {
+      expect(() => hostFor().readFile?.(root)).toThrow(
+        Deno.errors.IsADirectory,
+      );
     });
 
     test("reads a file once and answers from memory after that", async () => {

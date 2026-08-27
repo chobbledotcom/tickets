@@ -7,13 +7,14 @@ _Origin: a review of PR #2166. No file in `src/` triggers it today._
 A class's own static members are scanned. The syntax walk reaches them, because
 `holdsAField` in `scripts/unread-fields/fields.ts` accepts every
 `ts.ClassElement`, and a probe over `export class C { static make() {} }`
-reports `C.make`.
+reports `typeof C.make`. The class object carries its own name, because a class
+can write one word down on both sides.
 
 An **inherited** static is still missing. `inheritedFields` asks
 `checker.getTypeAtLocation(shape.name)`, which is the instance type, and the
 syntax walk sees only the class's own members. So
 `class Base { static baseStatic = 1 }` with `export class C extends Base {}`
-gives no `C.baseStatic`. A probe reproduces that much.
+gives no `typeof C.baseStatic`. A probe reproduces that much.
 
 `src/` declares no static class member at all, inherited or own, so no line in
 the report is missing because of this.
@@ -29,7 +30,7 @@ before and after.
 
 _Origin: a review of PR #2166. No file in `src/` triggers it today._
 
-`isShape` in `scripts/unread-fields/scan.ts` needs a class to carry a name,
+`isShape` in `scripts/unread-fields/fields.ts` needs a class to carry a name,
 because `Shape` is typed `& { name: ts.Identifier }` and every later step starts
 from that name: the owner in the report, and
 `checker.getTypeAtLocation(shape.name)`. So
@@ -44,6 +45,38 @@ The fix needs an owner name for a class that has none, and the type has to let
 name, and give the report a word for the default export. Look at the report diff
 before and after, because the owner column changes for every shape the change
 touches.
+
+---
+
+## Tell a generic's selector from its output
+
+_Origin: found while a review of PR #2166 was addressed. No file in `src/`
+triggers it today._
+
+`worthWalking` in `scripts/unread-fields/fields.ts` goes into the type arguments
+of a type reference. That is right for `Array<{ id: number }>`, where the
+argument is the shape a reader reaches. It is wrong where the argument only
+picks an answer.
+
+`Extract` and `Exclude` are named as filters, so the walk stays out of both. A
+generic alias of your own carries no such name:
+
+```typescript
+export type DeferredChoice<R> = R extends { paid: number }
+  ? { paidWhenItMatches: string }
+  : { unpaidWhenItDoesNot: string };
+export type UsedDeferred = DeferredChoice<{ selectorNotOutput: number }>;
+```
+
+A probe reports `UsedDeferred.selectorNotOutput` beside the right field
+`UsedDeferred.unpaidWhenItDoesNot`. No value of `UsedDeferred` holds
+`selectorNotOutput`, so that line is a false positive.
+
+The checker already answers this for the alias itself, through
+`inheritedFields`. A start is to keep the walk out of the arguments of a
+reference whose target is a conditional type, and to leave every other generic
+as it is. `src/` exports no alias of this shape, so no line in the report
+changes today.
 
 ---
 
@@ -73,7 +106,7 @@ report's denominator grows and that no shape loses fields.
 
 _Origin: a review of PR #2166. No file in `src/` triggers it today._
 
-`exportedFields` in `scripts/unread-fields/scan.ts` names a field by its shape
+`exportedFields` in `scripts/unread-fields/fields.ts` names a field by its shape
 and its own name, as `Item.value`. A namespace above the shape is left out. One
 file with `namespace A { export interface Item }` and
 `namespace B { export interface Item }` gives both fields the key `Item.value`,
@@ -81,10 +114,10 @@ and the file-wide `counted` set drops the second before the scan asks who reads
 it. A probe reproduces it. `src/` holds one namespace today, `JSX` in
 `src/shared/jsx/jsx-runtime.ts`, so nothing in this repository hits it.
 
-Put the namespace path into the owner. The owner is built in `exportedShapes`,
-which already walks a namespace to find the shapes inside it, so it can carry
-the name of the namespace down with it. That also makes the report say which
-`Item` a line means.
+Put the namespace path into the owner. The owner starts from the shape's own
+name in `exportedFields`, and `exportedShapes` beside it already walks a
+namespace to find the shapes inside it, so it can hand the name of the namespace
+down with each one. That also makes the report say which `Item` a line means.
 
 ---
 

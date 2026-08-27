@@ -39,7 +39,7 @@ const probing =
   };
 
 /** A file's text, or nothing when the repository does not have that path. */
-export const textOrNothing = (file: string): string | undefined =>
+const textOrNothing = (file: string): string | undefined =>
   probing<string | undefined>(undefined)(() => Deno.readTextFileSync(file));
 
 /** Whether a path is a file, or is a directory. A path that is not there is

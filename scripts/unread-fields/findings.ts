@@ -16,6 +16,17 @@ export interface Finding {
   verdict: Verdict;
 }
 
+const IS_A_PLAIN_WORD = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+/** How a reader reaches one more name from where they already are. A plain
+ * word goes after a dot. Any other name needs brackets and quotes, exactly as
+ * the code that reads it does, so a name that holds a dot cannot read like a
+ * path of its own. */
+export const reaching = (path: string, name: string): string =>
+  IS_A_PLAIN_WORD.test(name)
+    ? `${path}.${name}`
+    : `${path}[${JSON.stringify(name)}]`;
+
 /** Folders that hold tests. `scripts/email-sandbox-e2e/` and `e2e-payments/`
  * are live end-to-end harnesses, so a field only one of them reads is kept
  * alive by a test like any other. */
@@ -40,7 +51,7 @@ export const worthReporting = (findings: Finding[]): Finding[] =>
     .filter((finding) => finding.verdict !== "read")
     .sort((a, b) =>
       a.file === b.file
-        ? `${a.owner}.${a.field}`.localeCompare(`${b.owner}.${b.field}`)
+        ? reaching(a.owner, a.field).localeCompare(reaching(b.owner, b.field))
         : a.file.localeCompare(b.file),
     );
 
@@ -62,7 +73,7 @@ export const reportLines = (findings: Finding[]): string[] => {
   ];
   for (const finding of worth) {
     lines.push(
-      `  ${finding.verdict.padEnd(19)} ${finding.owner}.${finding.field}` +
+      `  ${finding.verdict.padEnd(19)} ${reaching(finding.owner, finding.field)}` +
         `  ${finding.file}`,
     );
   }

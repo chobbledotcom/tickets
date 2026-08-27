@@ -221,18 +221,49 @@ describe("the shapes the scan finds", () => {
     // `Extract<T, { picked: true }>` and `Exclude<T, { picked: true }>` say
     // which arms of T to keep. The argument is a filter, and no value of the
     // shape has its fields.
-    const leaked = scanned.all.filter(
-      (f) =>
-        f.field.endsWith("OnlyNamedByAFilter") || f.field.endsWith("ByAFilter"),
-    );
+    const leaked = scanned.all.filter((f) => f.field.endsWith("ByAFilter"));
     expect(leaked).toEqual([]);
   });
 
   test("sees a static a class declares itself", () => {
-    expect(verdictOf("HasAStaticAndAccessors", "madeOnTheClass")).toBe(
+    // A static belongs to the class object, which TypeScript calls `typeof C`.
+    expect(verdictOf("typeof HasAStaticAndAccessors", "madeOnTheClass")).toBe(
       "never read",
     );
-    expect(verdictOf("HasAStaticAndAccessors", "make")).toBe("never read");
+    expect(verdictOf("typeof HasAStaticAndAccessors", "make")).toBe(
+      "never read",
+    );
+  });
+
+  test("keeps a class's static side apart from a value of it", () => {
+    // Only the class side is read. One line for both would call the field on
+    // a value read, and send nobody to the dead one.
+    expect(verdictOf("typeof BothSides", "heldByTheClass")).toBe("read");
+    expect(verdictOf("BothSides", "heldByAValue")).toBe("never read");
+  });
+
+  test("leaves out the arm a conditional does not answer with", () => {
+    // `true extends true ? A : B` is only ever A, so no value holds a B field.
+    expect(verdictOf("ResolvedByItsCheck", "keptByTheAnswer")).toBe(
+      "never read",
+    );
+    expect(
+      verdictOf("ResolvedByItsCheck", "droppedByTheAnswer"),
+    ).toBeUndefined();
+  });
+
+  test("counts a shape exported under two names once", () => {
+    const lines = scanned.all.filter((f) => f.owner === "OneShape");
+    expect(lines.map((f) => f.field)).toEqual(["namedTwiceOverAllTheSame"]);
+  });
+
+  test("leaves out a local inside a static block", () => {
+    expect(
+      verdictOf("RunsABlockWhenMade", "hiddenInsideTheBlock"),
+    ).toBeUndefined();
+    expect(verdictOf("RunsABlockWhenMade", "reachedOnAValue")).toBe(
+      "never read",
+    );
   });
 
   test("gives a getter and its setter one line, and counts the read", () => {

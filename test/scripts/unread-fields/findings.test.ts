@@ -83,4 +83,24 @@ describe("reportLines", () => {
       "  never read          Sum.total  src/a.ts",
     );
   });
+
+  test("puts a name that is not a plain word in brackets", () => {
+    // `Row.hasADot.name` reads like a path down to a `name`. A field really
+    // called `"hasADot.name"` has to read as one name, or an operator cannot
+    // tell the two apart.
+    expect(
+      reportLines([finding({ field: "hasADot.name", owner: "Row" })]).at(-1),
+    ).toBe('  never read          Row["hasADot.name"]  src/a.ts');
+  });
+
+  test("sorts two fields of one file by how a reader reaches them", () => {
+    const lines = reportLines([
+      finding({ field: "second" }),
+      finding({ field: "first" }),
+    ]);
+    expect(lines.slice(2)).toEqual([
+      "  never read          Sum.first  src/a.ts",
+      "  never read          Sum.second  src/a.ts",
+    ]);
+  });
 });
