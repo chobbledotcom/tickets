@@ -162,6 +162,14 @@ interface NotExported {
   hidden: number;
 }
 
+interface IntersectedBase {
+  fromAnIntersection: number;
+}
+
+export type Intersects = IntersectedBase & {
+  ofItsOwnAgain: number;
+};
+
 interface ListExported {
   onlyInAList: number;
 }
@@ -216,6 +224,8 @@ describe("scanUnreadFields", () => {
       "FarBase.paddingSoTheOffsetIsWrongInAnotherFile",
       "FarBase.readFromFarAway",
       "Inner.onlyInsideNamespace",
+      "Intersects.fromAnIntersection",
+      "Intersects.ofItsOwnAgain",
       "ListExported.onlyInAList",
       "Passed.carriedBySpread",
       "Passed.kept",
@@ -255,6 +265,10 @@ describe("scanUnreadFields", () => {
         (f) => f.owner === "ExtendsFarBase" && f.field === "readFromFarAway",
       )?.file,
     ).toBe("src/inner/index.ts");
+  });
+
+  test("finds a field an exported alias takes from an intersection", () => {
+    expect(verdictOf("Intersects", "fromAnIntersection")).toBe("never read");
   });
 
   test("finds a shape exported by a list at the foot of the file", () => {

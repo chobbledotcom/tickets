@@ -91,16 +91,25 @@ const fieldNameOf = (node: ts.Node): ts.Identifier | undefined => {
   return name && ts.isIdentifier(name) ? name : undefined;
 };
 
-/** The fields an exported shape gets from a base it extends.
+/** Whether a shape takes fields from somewhere else: an interface that
+ * extends, or an alias that intersects. A union alias is left out, because its
+ * common fields belong to the shapes it is made of. */
+const inheritsFrom = (shape: Shape): boolean =>
+  ts.isInterfaceDeclaration(shape)
+    ? shape.heritageClauses !== undefined
+    : ts.isIntersectionTypeNode(shape.type);
+
+/** The fields an exported shape gets from somewhere else.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
- * to itself, and a reader of the exported shape reaches it like any other
- * field. A field the shape declares again is already counted. */
+ * to itself, and `CheckoutIntent` intersects one. A reader of either reaches
+ * those fields like any other. A field the shape declares again is already
+ * counted. */
 const inheritedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
   own: Set<ts.Identifier>,
 ): OwnedField[] => {
-  if (!ts.isInterfaceDeclaration(shape) || !shape.heritageClauses) return [];
+  if (!inheritsFrom(shape)) return [];
   const found: OwnedField[] = [];
   const type = checker.getTypeAtLocation(shape.name);
   for (const property of checker.getPropertiesOfType(type)) {
