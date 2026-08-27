@@ -613,11 +613,12 @@ also exists: `scripts/test-quality-audit.ts`.
   behind a flag or with a tighter changed-set bound) only if the per-commit
   mutation cost comes down.
 
-- **Property-based tests (item 5).** `fast-check` is a dependency in `deno.json`
-  that no test imports any more, so it is dead weight until this lands. Add
-  properties for: slug generation, CSV round-trips (commas / quotes / CRLF),
-  date formatting across timezones, token parsers, and URL safety — or drop the
-  dependency.
+- **Property-based tests (item 5).** Add properties for: slug generation, CSV
+  round-trips (commas / quotes / CRLF), date formatting across timezones, token
+  parsers, and URL safety. Whoever takes this adds the property-testing library
+  back: `fast-check` sat in `deno.json` with no importer for long enough that it
+  was dropped, so the dependency arrives with its first real test rather than
+  ahead of it.
 - **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired
   into CI. Escalate it: informational → CI warning → review gate for touched
   files.
