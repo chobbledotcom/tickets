@@ -37,3 +37,10 @@ export const mergeListingFields = (
   }
   return CONTACT_FIELDS.filter((f) => allFields.has(f)).join(",");
 };
+
+/** The merged contact-fields setting for a page's listings: every listing's
+ * own setting, folded into one. Takes anything with a listing that names its
+ * contact fields, so this module stays free of booking-model imports. */
+export const getTicketFieldsSetting = (
+  listings: ReadonlyArray<{ listing: { fields: ListingFields } }>,
+): ListingFields => mergeListingFields(listings.map((e) => e.listing.fields));
