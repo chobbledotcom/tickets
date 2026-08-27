@@ -82,6 +82,7 @@ describe("shapeOf", () => {
   test("keeps a dot that opens no number as punctuation", () => {
     expect(shapeOf("a.b")).toEqual(["ID", ".", "ID"]);
     expect(shapeOf("f(...a)")).toEqual(["ID", "(", ".", ".", ".", "ID", ")"]);
+    expect(shapeOf(".")).toEqual(["."]);
   });
 
   test("keeps the code inside a template's interpolation", () => {
@@ -147,6 +148,16 @@ describe("shapeOf", () => {
       ")",
       ":",
       "false",
+    ]);
+  });
+
+  test("reads a step operator inside an interpolation, so the slash divides", () => {
+    expect(shapeOf(template(interpolated("i++ / n")))).toEqual([
+      "STR",
+      "ID",
+      "++",
+      "/",
+      "ID",
     ]);
   });
 

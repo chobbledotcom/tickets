@@ -31,8 +31,10 @@ const isAstNode = (value: unknown): value is AstNode =>
 
 /** The text a node is named or keyed by. A plain name carries it in `name`; a
  * literal key — the route strings in `src/features/static.ts` — carries it in
- * `value`, so `{ "GET /health": … }` names the handler it holds. */
-const keyText = (named: AstNode): string | null => {
+ * `value`, so `{ "GET /health": … }` names the handler it holds. Anything that
+ * is not a node has no name, which is how the walk below ends. */
+const keyText = (named: unknown): string | null => {
+  if (!isAstNode(named)) return null;
   if (typeof named.name === "string") return named.name;
   const { value } = named;
   const literal = typeof value === "string" || typeof value === "number";
@@ -43,11 +45,8 @@ const keyText = (named: AstNode): string | null => {
  * `id`; a property, a class member and an object method carry a `key`, so
  * `{ save: () => … }`, `{ save() {} }` and `class A { save() {} }` all name
  * the function they hold. */
-const declaredName = (node: AstNode): string | null => {
-  const named = isAstNode(node.id) ? node.id : node.key;
-  const own = isAstNode(named) ? keyText(named) : null;
-  return own ?? assignedTo(node);
-};
+const declaredName = (node: AstNode): string | null =>
+  keyText(node.id) ?? keyText(node.key) ?? assignedTo(node);
 
 /** Nodes that put their name in scope for the function they hold. */
 const NAMING_TYPES = new Set([
@@ -59,17 +58,15 @@ const NAMING_TYPES = new Set([
   "VariableDeclarator",
 ]);
 
-/** The name an assignment installs a function under. `script.onload = …` and
- *  `handlers.save = …` both name the function on their left. */
-const assignedTo = (node: AstNode): string | null => {
-  if (node.type !== "AssignmentExpression") return null;
-  const target = node.left;
-  if (!isAstNode(target)) return null;
-  const own = keyText(target);
-  if (own !== null) return own;
-  const property = target.property;
-  return isAstNode(property) ? keyText(property) : null;
-};
+/** The name a target is installed under: its own, or the property it writes.
+ *  `handlers = …` names by the target, `script.onload = …` by the property. A
+ *  target with no name anywhere — `handlers[pick()] = …` — has none. */
+const nameOfTarget = (target: unknown): string | null =>
+  keyText(target) ?? (isAstNode(target) ? nameOfTarget(target.property) : null);
+
+/** The name an assignment installs a function under. */
+const assignedTo = (node: AstNode): string | null =>
+  node.type === "AssignmentExpression" ? nameOfTarget(node.left) : null;
 
 /** Counts the newlines before an offset, so a finding can name a line. */
 const lineAt = (source: string, offset: number): number => {

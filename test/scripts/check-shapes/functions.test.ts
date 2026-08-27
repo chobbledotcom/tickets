@@ -84,6 +84,10 @@ describe("namedFunctions", () => {
     ]);
   });
 
+  test("leaves an assignment with no name anywhere alone", () => {
+    expect(names("handlers[pick()] = (a) => a + 1;")).toEqual([]);
+  });
+
   test("names a function expression by its own name as well as the variable's", () => {
     expect(names("const outer = function inner() { return 1; };")).toEqual([
       "outer.inner",

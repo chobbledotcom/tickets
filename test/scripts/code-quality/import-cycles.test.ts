@@ -177,6 +177,14 @@ describe("importCycles", () => {
     expect(backwards).toEqual(forwards);
   });
 
+  test("walks past a module that loads something the list does not hold", () => {
+    expect(
+      importCycles([
+        { loads: ["src/shared/gone.ts"], path: "src/shared/a.ts" },
+      ]),
+    ).toEqual([]);
+  });
+
   test("finds a module that reaches a ring without joining it", () => {
     expect(
       ringsIn({
