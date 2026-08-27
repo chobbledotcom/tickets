@@ -6,6 +6,7 @@ import {
   type RowOnList,
   rowsOnList,
 } from "#test/specs/support/form-controls/reading.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   fillInAndSend,
   type SendingAForm,
@@ -157,6 +158,43 @@ export const writesOneMessage =
     await organiserSendsAndIsTold(world, page, { message }, await button());
   };
 
+/** The organiser sends one particular form on one of their pages, and is left
+ * with whatever the site said back. The form is chosen by where it posts,
+ * because a settings page carries a dozen of them whose buttons all say Save
+ * and no button's words can tell those apart. */
+export const organiserSendsTheFormAt: SendingOnAPage<void> = async (
+  world,
+  path,
+  action,
+  values = {},
+) => {
+  const browser = await withAdminPage(world, path, async (page) => {
+    // Picking the form by where it posts says a form goes there; it says
+    // nothing about the boxes. Every value still has to be one that form
+    // really offers, so a page that stopped offering a box fails here rather
+    // than the send carrying a value no person could have typed.
+    expectCanReallySend(page.formBodyAt(action), values);
+    await page.submitFormAt(action, values);
+    return page;
+  });
+  keepsWhatTheOrganiserSaw(world, browser);
+};
+
+/** The organiser presses one named button on a page, and is left with whatever
+ * the site said back. The sibling of the helper above for pages whose forms
+ * their buttons can tell apart. */
+export const organiserPressesOnPage: SendingOnAPage<void> = async (
+  world,
+  path,
+  buttonText,
+  values = {},
+) => {
+  keepsWhatTheOrganiserSaw(
+    world,
+    await submitRenderedAdminForm(world, path, buttonText, values),
+  );
+};
+
 /** Where one remembered record lives under an admin section. Every "take this
  * one down from the list" step resolves its address this way. */
 export const recordPageUnder =
@@ -302,12 +340,23 @@ export const withAdminPage = async <Answer>(
   act: (browser: TestBrowser) => Promise<Answer>,
 ): Promise<Answer> => act(await openAdminPage(world, path));
 
-export const submitRenderedAdminForm = (
+/** Sending one form on one of the owner's pages: which page, which form —
+ * named by where it posts or by the words on its button — and what to fill in.
+ * The three senders differ only in how the form is picked and in what they
+ * hand back, so the shape is written once. */
+type SendingOnAPage<Answer> = (
   world: TicketsWorld,
   path: string,
-  buttonText: string,
-  values: Record<string, string> = {},
-): Promise<TestBrowser> =>
+  picked: string,
+  values?: Record<string, string>,
+) => Promise<Answer>;
+
+export const submitRenderedAdminForm: SendingOnAPage<TestBrowser> = (
+  world,
+  path,
+  buttonText,
+  values = {},
+) =>
   withAdminPage(world, path, async (browser) => {
     // Every value has to be one the page could really carry, so a form that
     // stopped offering a box fails here rather than the send going through

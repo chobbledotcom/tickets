@@ -15,7 +15,7 @@ the setting every config in this repository uses. A count is the number of clone
 pairs the scan reports, not the number of places to edit: one merge usually
 clears several pairs.
 
-## The five scans, and why there are five
+## The six scans, and why there are six
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is. It sets the shortest run of tokens that counts as a clone, so a
@@ -28,6 +28,11 @@ lower number is a tighter net.
 | `.jscpd.support.json` | `test/specs/support`             | 18        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
+| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+
+The last one holds no tests, so the rest of this document leaves it out. Its
+number is high because design-token CSS repeats short declaration runs by
+design, and those runs are not duplication.
 
 Two trees hold reusable helpers. `test/specs/support` holds 76 files and 11,673
 lines behind the Cucumber steps. `test/test-utils` holds 160 helper files and

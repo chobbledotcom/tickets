@@ -71,7 +71,6 @@
     "npm:auto-console-group@^1.3.0": "1.3.0",
     "npm:esbuild@0.28": "0.28.0",
     "npm:esbuild@0.28.0": "0.28.0",
-    "npm:fast-check@^3.23.0": "3.23.2",
     "npm:fflate@~0.8.2": "0.8.2",
     "npm:happy-dom@15": "15.11.7",
     "npm:happy-dom@20.0.11": "20.0.11",
@@ -1533,12 +1532,6 @@
     "estraverse@5.3.0": {
       "integrity": "sha512-MMdARuVEQziNTeJD8DgMqmhwR11BRQ/cBP+pLtYdSTnf3MIO8fFeiINEbX36ZdNlfU/7A9f3gUw49B3oQsvwBA=="
     },
-    "fast-check@3.23.2": {
-      "integrity": "sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==",
-      "dependencies": [
-        "pure-rand"
-      ]
-    },
     "fast-sha256@1.3.0": {
       "integrity": "sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ=="
     },
@@ -2077,9 +2070,6 @@
     "punycode.js@2.3.1": {
       "integrity": "sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA=="
     },
-    "pure-rand@6.1.0": {
-      "integrity": "sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA=="
-    },
     "read-package-up@12.0.0": {
       "integrity": "sha512-Q5hMVBYur/eQNWDdbF4/Wqqr9Bjvtrw2kjGxxBbKLbx8bVCL8gcArjTy8zDUuLGQicftpMuU0riQNcAsbtOVsw==",
       "dependencies": [
@@ -2442,7 +2432,6 @@
       "npm:@sentry/deno@^10.60.0",
       "npm:auto-console-group@^1.3.0",
       "npm:esbuild@0.28",
-      "npm:fast-check@^3.23.0",
       "npm:fflate@~0.8.2",
       "npm:happy-dom@^15.11.7",
       "npm:intl-messageformat@10",

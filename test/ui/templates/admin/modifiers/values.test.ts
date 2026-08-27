@@ -60,6 +60,25 @@ describe("modifierToFieldValues", () => {
     expect(values.stock).toBe(8);
   });
 
+  test("prefills the max times per order, blank when uncapped", () => {
+    const capped = modifierToFieldValues(
+      testModifier({ max_per_order: 2, trigger: "answer" }),
+    );
+    expect(capped.max_per_order).toBe(2);
+
+    const uncapped = modifierToFieldValues(
+      testModifier({ max_per_order: null, trigger: "answer" }),
+    );
+    expect(uncapped.max_per_order).toBe("");
+  });
+
+  test("keeps an explicit zero max_per_order as 0, not blank", () => {
+    // max_per_order is `?? ""` (nullish), like stock — a stored 0 (refused at
+    // the form, but possible by direct repair) must survive a re-render.
+    const values = modifierToFieldValues(testModifier({ max_per_order: 0 }));
+    expect(values.max_per_order).toBe(0);
+  });
+
   test("renders a zero min_subtotal and absent stock as blank", () => {
     const values = modifierToFieldValues(
       testModifier({ min_subtotal: 0, min_visits: 0, stock: null }),

@@ -18,7 +18,7 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
 
   /** The two ways a row's own arrow can be one nobody could press: nothing on
    * it submits at all, or what does submit would not post to this address. */
-  const NOTHING_TO_PRESS = `The form posting to "${SECOND_ROW}" cannot be submitted`;
+  const NOTHING_TO_PRESS = `The form that posts to "${SECOND_ROW}" cannot be submitted`;
   const NOT_A_POST = `No button on the form at "${SECOND_ROW}" posts there`;
 
   /** What the page renders as the second row's arrow, and what pressing that
@@ -132,6 +132,69 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
 
     expect(body).toContain('name="elsewhere"');
     expect(body).not.toContain('name="only_here"');
+  });
+
+  it("gives back only the body of the form that posts to an address", () => {
+    const browser = new TestBrowser();
+    browser.currentHtml = arrows(pressable);
+
+    const body = browser.formBodyAt(SECOND_ROW);
+
+    // The second row's own hidden field, and not the first row's, so a caller
+    // checking what it may fill in is held to that one form.
+    expect(body).toContain('value="tok2"');
+    expect(body).not.toContain('value="tok"><');
+  });
+
+  describe("what one box of that form would really send", () => {
+    /** A page whose select renders every choice but marks one, the shape that
+     * makes reading the raw HTML useless: the unchosen names are all there. */
+    const withChosen = (chosen: string) => {
+      const browser = new TestBrowser();
+      const option = (value: string) =>
+        `<option${value === chosen ? " selected" : ""} value="${value}">${value}</option>`;
+      browser.currentHtml = `
+        <form action="${SECOND_ROW}" method="POST">
+          <select name="provider">${["", "resend", "postmark"].map(option).join("")}</select>
+          <input name="csrf" value="tok2">
+          ${pressable}
+        </form>
+      `;
+      return browser;
+    };
+
+    it("gives back the option a browser would submit, not every option", () => {
+      expect(withChosen("postmark").wouldSendAt(SECOND_ROW, "provider")).toBe(
+        "postmark",
+      );
+    });
+
+    it("gives back the first choice when the page marks none", () => {
+      // What a browser really sends for a select with nothing selected, so a
+      // page that forgot to mark the stored choice reads as the empty one.
+      expect(
+        withChosen("none of them").wouldSendAt(SECOND_ROW, "provider"),
+      ).toBe("");
+    });
+
+    it("gives back null for a box that form does not offer", () => {
+      expect(withChosen("resend").wouldSendAt(SECOND_ROW, "elsewhere")).toBe(
+        null,
+      );
+    });
+  });
+
+  it("refuses to read a form nobody could send, in the same words", async () => {
+    const browser = new TestBrowser();
+    browser.currentHtml = arrows('<button disabled type="submit">▲</button>');
+
+    // Reading the form and sending it refuse alike, so a caller that reads
+    // first is told what is wrong with the page rather than that a form is
+    // missing when it is really switched off.
+    expect(() => browser.formBodyAt(SECOND_ROW)).toThrow(NOTHING_TO_PRESS);
+    await expect(browser.submitFormAt(SECOND_ROW)).rejects.toThrow(
+      NOTHING_TO_PRESS,
+    );
   });
 
   it("refuses an address no form on the page posts to", async () => {

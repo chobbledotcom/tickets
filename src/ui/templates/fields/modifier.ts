@@ -130,6 +130,13 @@ const getModifierFields = () =>
       type: "number",
     },
     {
+      hint: t("modifiers.max_per_order.hint"),
+      label: t("modifiers.max_per_order.label"),
+      min: 1,
+      name: "max_per_order",
+      type: "number",
+    },
+    {
       label: "Status",
       name: "active",
       options: [{ label: "Active (apply at checkout)", value: "1" }],

@@ -94,7 +94,7 @@ export const textsPathFor = (world: TicketsWorld, who: string): string => {
 export const organiserOpensSomebodysTexts = organiserReads(textsPathFor);
 
 /** The page with nobody chosen: the queue, and no way to write. */
-export const organiserOpensTheTextsPage = organiserReads(() => TEXTS_PATH);
+export const organiserOpensTheTextsPage = organiserReads(TEXTS_PATH);
 
 /** What the gateway will answer this scenario. Recorded rather than stubbed
  * here: the send is the only moment a reply is needed, and stubbing twice
