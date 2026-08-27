@@ -1,15 +1,12 @@
 /**
  * Epoch-time helpers. The ones that read the clock return fresh values on
- * every call.
+ * every call: Bunny Edge gives each request a fresh isolate, but in
+ * Deno.serve and tests the process lives across many, so a module-level
+ * constant would go stale.
  *
- * On Bunny Edge each request spins up a fresh isolate, so module-level
- * constants used to work. In Deno.serve (dev) and tests the process
- * lives across many requests, so functions avoid stale timestamps.
- *
- * This module imports nothing, which is why the foundation modules can read
- * it. `#shared/env.ts` is one of them, and a helper it needs must live here
- * rather than in `#shared/dates.ts`, which reaches the database for a site's
- * timezone.
+ * This module imports nothing, which is why `#shared/env.ts` and the crypto
+ * modules can read it. A helper one of them needs belongs here rather than in
+ * `#shared/dates.ts`, which reaches the database for a site's timezone.
  */
 
 /** Milliseconds in one day — for whole-day arithmetic on epoch times. */

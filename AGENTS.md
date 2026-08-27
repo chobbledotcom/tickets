@@ -1091,6 +1091,18 @@ rules, with their reference implementations:
   (`src/edge.ts`); app boot runs `once()` on the _first request_
   (`src/serve-app.ts`). Module-load work is fine only when pure and cheap (for
   example `defineTable` building its schemas once).
+- **A foundation module must not reach the database.** `#shared/env.ts`,
+  `#shared/now.ts` and the crypto modules load before anything else, so a new
+  import in one of them can close a ring back to itself. Whichever module the
+  runtime then evaluates second reads a name the first has not reached yet, and
+  the app dies at startup with "Cannot access X before initialization". Which
+  module loses that race depends on the entry point, so such a ring can pass the
+  whole Deno suite and take every Cucumber Feature down. When a foundation
+  module needs a helper, put the helper in a module that imports nothing, the
+  way `parseDateMs` sits in `#shared/now.ts` rather than in `#shared/dates.ts`,
+  which reads a site's timezone from the database.
+  `test/integration/import-cycles.test.ts` holds `src/` at the rings it already
+  carries, and that list only shrinks.
 - **Lazy singletons via `once`/`lazyRef` from `#fp`.** The DB client (`getDb` in
   `src/shared/db/client.ts`), the dynamically imported Stripe SDK
   (`src/shared/stripe.ts`), the Liquid email engine, crypto key material — all
