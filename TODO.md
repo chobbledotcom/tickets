@@ -47,12 +47,14 @@ _Origin: found while migrating `test/integration/admin/sms.test.ts` to
 from the route, because there is no catalog key to read them from._
 
 Twenty files under `src/features/` build a flash message from a string literal
-rather than `t(...)`, 41 literals in all. Count them again before you start,
-because a `redirect(...)` call often runs over several lines and a same-line
-`grep` misses most of them:
+rather than `t(...)`, 42 literals in all. Count them again before you start.
+Three helpers in `src/features/response.ts` carry a flash message — `redirect`,
+`errorRedirect`, and `infoRedirect` — so a count that names only one or two of
+them comes up short. A call also runs over several lines often, which a
+same-line `grep` misses:
 
 ```bash
-rg -U --multiline -o '\b(errorRedirect|redirect)\((?:[^()"]|"[^"]*"|\([^()]*\))*\)' src/features/ |
+rg -U --multiline -o '\b(errorRedirect|infoRedirect|redirect)\((?:[^()"]|"[^"]*"|\([^()]*\))*\)' src/features/ |
   grep -E '"[A-Z][^"]{6,}"'
 ```
 
@@ -61,12 +63,13 @@ rg -U --multiline -o '\b(errorRedirect|redirect)\((?:[^()"]|"[^"]*"|\([^()]*\))*
 configured`, `Message cannot be empty`,
 `Attendee has no phone number on file`, `Text message queued`, and
 `Message could not be queued`. `attributes.ts` holds five,
-`questions/answers.ts` four, and `attendees-merge.ts`, `questions.ts`,
-`public/pages.ts`, and `public/unsubscribe.ts` three each. `update.ts` holds
-two, and there is one each in `auth.ts`, `builder.ts`, `bulk-actions.ts`,
-`bulk-email.ts`, `calendar.ts`, `listings-parents.ts`, `modifiers.ts`,
-`money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`, `support.ts`, and
-`join.ts`. Two of these files are public surfaces, not admin ones.
+`questions/answers.ts` and `public/unsubscribe.ts` four each, and
+`attendees-merge.ts`, `questions.ts`, and `public/pages.ts` three each.
+`update.ts` holds two, and there is one each in `auth.ts`, `builder.ts`,
+`bulk-actions.ts`, `bulk-email.ts`, `calendar.ts`, `listings-parents.ts`,
+`modifiers.ts`, `money-adjust.ts`, `sessions.ts`, `settings-logistics.ts`,
+`support.ts`, and `join.ts`. Two of these files are public surfaces, not admin
+ones.
 
 The `i18n-coverage` test only fails a hard-coded string in a **template**
 (`test/scripts/i18n-coverage.test.ts`), so a route escapes it. Two things

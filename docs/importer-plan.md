@@ -205,7 +205,7 @@ Two consequences that drive importer design:
 2. **String interning splits into a pure half and a database half.**
    `prepareStringRows(texts)` does the HMAC and the hybrid encryption and holds
    no statement; `internStringRows(rows, tx)` writes them, on an open
-   transaction when it is given one. `getOrCreateStringIds` is the two in one
+   transaction when it is given one. `getOrCreateStringIds` is the two-in-one
    call, for a caller that opens no transaction of its own. A caller that wraps
    its save in `withTransaction` must call `prepareStringRows` **before** it
    opens the transaction, then `internStringRows` on the tx, so the CPU-bound
