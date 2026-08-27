@@ -114,4 +114,10 @@ describe("how a field is named", () => {
     // part writes a field of that name down too.
     expect(verdictOf("Pair", "sharedByTupleParts")).toBe("read");
   });
+
+  test("counts a read of the field two arms of four write down", () => {
+    // `QuantityRule.qty` in `src/shared/booking/tree.ts` is this shape, and
+    // the report called it never read while one line away production reads it.
+    expect(verdictOf("OneArmOrTheOther", "declaredByTwoArms")).toBe("read");
+  });
 });

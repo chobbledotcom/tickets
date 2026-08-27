@@ -1,9 +1,9 @@
 /**
  * Fields that share one place, and fields a word puts out of reach.
  *
- * Two call signatures, and the two parts of a tuple, can each write a field of
- * the same name down. One line covers both, so it carries both names or it
- * misses the readers of the second.
+ * Two call signatures, the two parts of a tuple, and two arms of a union can
+ * each write a field of the same name down. One line covers them all, so it
+ * carries every name or it misses the readers of the rest.
  */
 export const REACHING = `
 export interface Formatter {
@@ -52,4 +52,16 @@ export const readTheSecondOverload = (format: Formatter): string => {
 
 export const readTheSecondTuplePart = (pair: Pair): string =>
   pair[1].sharedByTupleParts;
+
+export type OneArmOrTheOther =
+  | { readonly pickedArm: "first"; readonly declaredByTwoArms: number }
+  | { readonly pickedArm: "second"; readonly declaredByTwoArms: number }
+  | { readonly pickedArm: "third"; readonly onlyOnTheThirdArm: number }
+  | { readonly pickedArm: "fourth" };
+
+// Narrowed to the second arm, so the read points at the second declaration.
+// Four arms is what makes this differ from InlineArmsShareIt: the compiler
+// relates two near-identical arms and stops relating four.
+export const readTheSecondArm = (rule: OneArmOrTheOther): number =>
+  rule.pickedArm === "second" ? rule.declaredByTwoArms : 1;
 `;
