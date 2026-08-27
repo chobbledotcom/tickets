@@ -1,6 +1,7 @@
 import { afterAll, beforeAll } from "@std/testing/bdd";
 import type { Finding } from "#scripts/unread-fields/findings.ts";
 import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
+import { REACHING } from "./reaching.ts";
 import { READERS } from "./readers.ts";
 import { SHAPES } from "./shapes.ts";
 
@@ -88,6 +89,8 @@ export const report: Report = {
   nested: { deep: 3 },
 };
 `,
+
+  "src/reaching.ts": REACHING,
 
   "src/shapes.ts": SHAPES,
 

@@ -169,4 +169,14 @@ describe("what the walk goes into", () => {
     );
     expect(lines.map((f) => f.field)).toEqual(["show"]);
   });
+
+  test("goes into the type of a parameter the class keeps to itself", () => {
+    // The word hides the field, and the constructor stays everyone's to call,
+    // so a caller still has to supply what the parameter holds.
+    expect(verdictOf("Holder.options", "suppliedByCallers")).toBe("never read");
+  });
+
+  test("stays out of the type of a property the class keeps to itself", () => {
+    expect(verdictOf("Keeps.held", "keptInsideToo")).toBeUndefined();
+  });
 });

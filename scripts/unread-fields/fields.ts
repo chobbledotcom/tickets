@@ -97,6 +97,13 @@ const isHidden = (node: ts.Node): boolean => {
   return keepsItToItself(node);
 };
 
+/** A member that hands nothing out, so a type written inside it is out of
+ * reach too. `constructor(private options: { url: string })` is not one: the
+ * word hides the field, and the parameter stays part of the constructor
+ * everyone calls, so `url` is still a caller's to supply. */
+const handsNothingOut = (node: ts.Node): boolean =>
+  isHidden(node) && !ts.isParameter(node);
+
 /** A member the class carries rather than a value of it. `C.made` and
  * `held.made` are two fields, so the class object gets a name of its own:
  * `typeof C` is what TypeScript calls it. */
@@ -170,40 +177,16 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
     ),
   );
 
-/** The fields an exported shape gets from somewhere else.
+/** Where a shape's borrowed fields are written down.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
  * to itself, and `CheckoutIntent` intersects one. A reader of either reaches
- * those fields like any other. A field the shape declares again is already
- * counted. */
-type NamesByField = Map<string, [FieldName, ...FieldName[]]>;
-
-/** Remember one more place a field is written down. */
-const rememberName = (byField: NamesByField, name: FieldName): void => {
-  const found = byField.get(name.text);
-  if (found) found.push(name);
-  else byField.set(name.text, [name]);
-};
-
-const inheritedFields = (
-  checker: ts.TypeChecker,
-  shape: Shape,
-  own: Set<string>,
-): OwnedField[] => {
-  if (!inheritsFrom(shape)) return [];
-  const written = partsOf(checker.getTypeAtLocation(shape.name))
-    .flatMap((part) => checker.getPropertiesOfType(part))
-    .flatMap(writtenNames)
-    .filter((name) => !own.has(name.text));
-  // One field deserves one line, because two could disagree. Both arms of a
-  // union write the shared field down, and a read points at one arm, so the
-  // line carries every arm or it misses the readers of the others.
-  const byField: NamesByField = new Map();
-  for (const name of written) rememberName(byField, name);
-  return [...byField.values()].map((names) => ({
-    names,
-    owner: shape.name.text,
-  }));
-};
+ * those fields like any other. */
+const inheritedNames = (checker: ts.TypeChecker, shape: Shape): FieldName[] =>
+  inheritsFrom(shape)
+    ? partsOf(checker.getTypeAtLocation(shape.name))
+        .flatMap((part) => checker.getPropertiesOfType(part))
+        .flatMap(writtenNames)
+    : [];
 
 /** Four built-in types that keep some of the first argument and drop the
  * rest. `Extract` and `Exclude` choose arms of a union; `Pick` and `Omit`
@@ -315,47 +298,38 @@ export const exportedFields = (
 ): OwnedField[] => {
   const container = checker.getSymbolAtLocation(source);
   if (!container) return [];
-  const found: OwnedField[] = [];
-  // Both arms of `{ ok: true } | { ok: false }` write `ok` down, and the two
-  // are one field of the shape. A second line for it could reach a different
-  // verdict, and a reader could not tell which one to act on.
-  const counted = new Set<string>();
-  /** Write one field down, and say what its own parts belong to. A shape
-   * that already carries the line keeps the one it has. The path stays a list
-   * of names, because a field can be called `"a.b"` and joining first would
-   * make it one field with the `b` of an `a` beside it. */
+  const found = new Map<string, OwnedField>();
+  /** Write one field down, and say what its own parts belong to. One field
+   * deserves one line, because two lines could disagree, so a field already
+   * written down keeps its line and gains the new place. The path stays a
+   * list of names, because a field can be called `"a.b"` and joining first
+   * would make it one field with the `b` of an `a` beside it. */
   const remember = (path: readonly string[], name: FieldName): string[] => {
     const inside = [...path, name.text];
     const key = JSON.stringify(inside);
-    if (counted.has(key)) return inside;
-    counted.add(key);
-    found.push({ names: [name], owner: path.reduce(reaching) });
+    const line = found.get(key);
+    if (!line) found.set(key, { names: [name], owner: path.reduce(reaching) });
+    // For every field a shape writes down itself, the checker hands back the
+    // very declaration the walk already saw. One lookup answers for both.
+    else if (!line.names.includes(name)) line.names.push(name);
     return inside;
   };
 
   const partsOf = membersOf(checker);
   const collect = (path: readonly string[], node: ts.Node): void => {
-    // A member a class keeps to itself hands nothing out. A type written
-    // inside it is out of reach for the same reason.
-    if (isHidden(node)) return;
+    if (handsNothingOut(node)) return;
     const here = isStatic(node) ? [`typeof ${path.reduce(reaching)}`] : path;
     const name = fieldNameOf(node);
     const inside = name ? remember(here, name) : underAnUnnamedPart(here, node);
     for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
-    const before = found.length;
     for (const part of shapeBody(shape)) collect([shape.name.text], part);
-    // Only what the shape writes down itself. A field of an object type nested
-    // inside it is a different field with the same name, and counting it here
-    // would hide the one the shape takes from somewhere else.
-    const own = new Set(
-      found
-        .slice(before)
-        .filter((found) => found.owner === shape.name.text)
-        .map((found) => found.names[0].text),
-    );
-    found.push(...inheritedFields(checker, shape, own));
+    // A borrowed field goes under the shape's own name, so a field the shape
+    // declares again already holds the line and only gains the other place.
+    for (const name of inheritedNames(checker, shape)) {
+      remember([shape.name.text], name);
+    }
   }
-  return found;
+  return [...found.values()];
 };

@@ -100,4 +100,18 @@ describe("how a field is named", () => {
     expect(verdictOf("NameHoldsADot", "hasADotInIts")).toBe("never read");
     expect(verdictOf("NameHoldsADot.hasADotInIts", "name")).toBe("never read");
   });
+
+  test("counts a read of the field the second call signature writes", () => {
+    // Two signatures write `sharedByOverloads` down. `Parameters` answers with
+    // the last one, so the read points at the second of the two.
+    expect(verdictOf('Formatter["()"].input', "sharedByOverloads")).toBe(
+      "read",
+    );
+  });
+
+  test("counts a read of the field the second tuple part writes", () => {
+    // `pair[1].sharedByTupleParts` points at the second part, and the first
+    // part writes a field of that name down too.
+    expect(verdictOf("Pair", "sharedByTupleParts")).toBe("read");
+  });
 });

@@ -234,4 +234,22 @@ describe("the reads the scan counts", () => {
       "never read",
     );
   });
+
+  test("does not count a name in an interface's brackets as a reader", () => {
+    // The compiler works the name out while it checks the file, and nothing
+    // looks at the value when the program runs.
+    expect(verdictOf("typeof Registry", "onlyNamesAKey")).toBe("never read");
+  });
+
+  test("does not count a described class's brackets as a reader", () => {
+    expect(verdictOf("typeof Registry", "namesAKeyOfADescribedClass")).toBe(
+      "never read",
+    );
+  });
+
+  test("counts a real class's brackets as a reader", () => {
+    // A class the program builds works its member names out as it runs, so it
+    // takes the value out of the field the brackets name.
+    expect(verdictOf("typeof Registry", "namesAKeyThatRuns")).toBe("read");
+  });
 });

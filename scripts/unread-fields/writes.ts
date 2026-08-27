@@ -84,9 +84,8 @@ const WAYS_TO_WRITE = [
 ];
 
 /** Whether a declaration was written with one of these words. `static`,
- * `declare`, `private` and `protected` are all modifiers, and the compiler
- * answers for a node and everything above it at once, so a class inside a
- * `declare namespace` counts as declared. */
+ * `declare`, `private` and `protected` are all modifiers. The answer covers
+ * the declaration alone, so a `declare` above it does not travel down. */
 export const carriesAModifier =
   (flags: ts.ModifierFlags): ((node: ts.Node) => boolean) =>
   (node) =>
@@ -251,11 +250,21 @@ const isRuntimeHeritage = (node: ts.Node): boolean =>
   ts.isClassLike(node.parent.parent) &&
   !isAmbient(node.parent.parent);
 
+/** A name in brackets that the compiler works out and the program never runs.
+ * `interface Uses { [Registry.key]: string }` is one, and so is a member of a
+ * class the program never builds. An object literal and a real class both work
+ * their key out when they run, so neither is one. */
+const namesAMemberNothingRuns = (node: ts.Node): boolean =>
+  ts.isComputedPropertyName(node) &&
+  (ts.isTypeElement(node.parent) || isAmbient(node));
+
 /** A mention inside a type names the field to borrow its type, and no value
  * moves when the program runs. `Config["execute"]` is one. The compiler counts
  * a heritage clause as a type, so the climb stops before it. */
 const isTypeOnly: AskAboutAMention = anywhereAbove((at) =>
-  isRuntimeHeritage(at) ? "quit" : ts.isTypeNode(at),
+  isRuntimeHeritage(at)
+    ? "quit"
+    : ts.isTypeNode(at) || namesAMemberNothingRuns(at),
 );
 
 /** True when this mention takes the value out of the field. `row.total` and

@@ -128,10 +128,11 @@ sit on the write side of it.
 does. The brackets change nothing, so the scan puts its question to the brackets
 and to the thing that holds them.
 
-`row.total! = 1` is the wrapper case. Four wrappers can sit between the field
-and the `=`: parentheses, a `!`, an `as`, and a `satisfies`. None of them
-changes what the program does, so all four write the field. A delete allows only
-parentheses, because its operand must be a property reference.
+`row.total! = 1` is the wrapper case. Five wrappers can sit between the field
+and the `=`: parentheses, a `!`, an `as`, a `satisfies`, and an angle-bracket
+assertion written as `(<number> row.total) = 1`. None of them changes what the
+program does, so all five write the field. A delete allows only parentheses,
+because its operand must be a property reference.
 
 `class C extends r.total {}` is the odd one. The compiler counts the clause it
 sits in as a type. The program still reads the field when it runs, to find the
