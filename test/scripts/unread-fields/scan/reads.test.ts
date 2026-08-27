@@ -128,6 +128,14 @@ describe("the reads the scan counts", () => {
     );
   });
 
+  test("counts a read through one arm of an inline union", () => {
+    // The arms of an inline union are one shape to the compiler, so a read
+    // narrowed to the second arm still points at the field the first
+    // declares. A union of *named* arms does not work that way, which is why
+    // `BothArmsWriteIt` above needs every declaration on its line.
+    expect(verdictOf("InlineArmsShareIt", "sharedByInlineArms")).toBe("read");
+  });
+
   test("counts a field written through parentheses as supplied", () => {
     expect(verdictOf("WrittenThroughParens", "filledInsideParens")).toBe(
       "never read",
