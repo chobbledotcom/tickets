@@ -20,14 +20,12 @@ import { sum } from "./src/produce.ts";
 export const ignored = sum.noOneReadsThis;
 `,
 
-  // The JSX runtime lives under scripts/ so its own fields are not findings.
+  // Reached by the prefix form of an alias, "#jsx/*". It lives under scripts/
+  // so its own fields are not findings.
   "scripts/jsx/jsx-runtime.ts": `
 export namespace JSX {
   export type Element = { tag: string };
 }
-export const Fragment = "fragment";
-export const jsx = (tag: unknown): JSX.Element => ({ tag: String(tag) });
-export const jsxs = jsx;
 `,
 
   "src/badge.tsx": `
@@ -38,6 +36,12 @@ export type BadgeProps = { label: string; supplied: string };
 export const Badge = ({ label }: BadgeProps): JSX.Element => ({ tag: label });
 
 export const badge = <Badge label="hi" supplied="nothing reads this" />;
+`,
+
+  // A barrel. Its re-exports belong to the file that declares them, so nothing
+  // here is counted twice.
+  "src/barrel.ts": `
+export type { Report, Sum } from "#shapes";
 `,
 
   "src/consume.ts": `
@@ -116,6 +120,12 @@ interface NotExported {
   hidden: number;
 }
 
+interface ListExported {
+  onlyInAList: number;
+}
+
+export type { ListExported };
+
 export const hide = (n: NotExported): number => n.hidden;
 `,
 
@@ -157,6 +167,7 @@ describe("scanUnreadFields", () => {
       "BadgeProps.label",
       "BadgeProps.supplied",
       "Inner.onlyInsideNamespace",
+      "ListExported.onlyInAList",
       "Passed.carriedBySpread",
       "Passed.kept",
       "Reached.total",
@@ -172,6 +183,17 @@ describe("scanUnreadFields", () => {
 
   test("leaves alone a shape the file does not export", () => {
     expect(findings.some((f) => f.owner === "NotExported")).toBe(false);
+  });
+
+  test("finds a shape exported by a list at the foot of the file", () => {
+    expect(verdictOf("ListExported", "onlyInAList")).toBe("never read");
+  });
+
+  test("counts a re-exported shape once, where it is declared", () => {
+    const totals = findings.filter(
+      (f) => f.owner === "Sum" && f.field === "total",
+    );
+    expect(totals.map((f) => f.file)).toEqual(["src/shapes.ts"]);
   });
 
   test("finds a shape declared inside a namespace", () => {

@@ -59,8 +59,8 @@ and nothing downstream looks. So the scan counts reads only:
 
 The last two lines are the pair that catches people out. Both take `row.total`
 out, but the second is built from the same nodes as `{ total: 1 }`. The scan
-tells them apart by what the object literal around them is for: a pattern on the
-left of an `=` reads, and a value anywhere else writes.
+tells them apart by what the object literal around them is for. A pattern on the
+left of an `=` reads. A value anywhere else writes.
 
 A field is reported when nothing reads it, or when only `test/` does. A field
 its tests alone read is kept alive by the tests themselves, which is the same

@@ -24,13 +24,13 @@ export const nodeAt = (
   return ts.forEachChild(source, descend);
 };
 
-/** `row.total = 1`, where the field sits on the left of an assignment. */
+/** A field an assignment writes into: `row.total = 1`, and the slot a pattern
+ * fills, as in `({ value: row.total } = source)`. Both put a value in, so both
+ * ask the same question of the field's own property access. */
 const isAssignedProperty = (node: ts.Node, parent: ts.Node): boolean =>
   ts.isPropertyAccessExpression(parent) &&
   parent.name === node &&
-  ts.isBinaryExpression(parent.parent) &&
-  parent.parent.left === parent &&
-  parent.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken;
+  isAssignedTo(parent);
 
 type Holder = ts.Node & { name?: ts.Node };
 
@@ -67,8 +67,8 @@ const onParent =
     return parent ? ask(node, parent) : false;
   };
 
-/** Whether this literal is what an assignment writes into, following the
- * nesting of `({ inner: { total } } = row)` out to the `=`. */
+/** Whether an assignment writes into this node, following the nesting of
+ * `({ inner: { total } } = row)` out to the `=`. */
 const isAssignedTo: (node: ts.Node) => boolean = onParent((node, parent) => {
   if (ts.isBinaryExpression(parent)) {
     return (

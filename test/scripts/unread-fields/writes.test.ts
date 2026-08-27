@@ -57,6 +57,14 @@ describe("isWrite", () => {
     expect(writesAt("s.total = 1;", "total")).toBe(true);
   });
 
+  test("counts the slot a destructuring pattern fills", () => {
+    expect(writesAt("({ value: row.total } = source);", "total")).toBe(true);
+  });
+
+  test("counts the slot an array pattern fills", () => {
+    expect(writesAt("[row.total] = pair;", "total")).toBe(true);
+  });
+
   test("counts a field supplied as a JSX attribute", () => {
     expect(writesAt("const b = <Meter total={1} />;", "total")).toBe(true);
   });

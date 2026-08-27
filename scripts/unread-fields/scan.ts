@@ -83,18 +83,39 @@ const serviceHost = (
   };
 };
 
-/** An exported interface or type alias: the two ways this repository writes
- * down a shape whose fields other files can reach. */
-const isExportedShape = (
-  node: ts.Node,
-): node is ts.InterfaceDeclaration | ts.TypeAliasDeclaration => {
-  if (!ts.isInterfaceDeclaration(node) && !ts.isTypeAliasDeclaration(node)) {
-    return false;
+type Shape = ts.InterfaceDeclaration | ts.TypeAliasDeclaration;
+
+/** Every shape a file lets other files reach. Asking the checker, rather than
+ * reading `export` off the declaration, also catches the seven aliases of
+ * `settings-helpers.ts`, which are declared plainly and exported in a list at
+ * the foot of the file. A namespace is a module too, so it is asked in turn. */
+const exportedShapes = (
+  checker: ts.TypeChecker,
+  container: ts.Symbol,
+  file: string,
+): Shape[] => {
+  const shapes: Shape[] = [];
+  for (const exported of checker.getExportsOfModule(container)) {
+    // An export list names a symbol that stands for the declaration, so ask
+    // what it stands for before looking at where it was written down.
+    const symbol =
+      (exported.flags & ts.SymbolFlags.Alias) === 0
+        ? exported
+        : checker.getAliasedSymbol(exported);
+    for (const declaration of symbol.declarations ?? []) {
+      // A re-export belongs to the file that declares it, not to this one.
+      if (declaration.getSourceFile().fileName !== file) continue;
+      if (
+        ts.isInterfaceDeclaration(declaration) ||
+        ts.isTypeAliasDeclaration(declaration)
+      ) {
+        shapes.push(declaration);
+      } else if (ts.isModuleDeclaration(declaration)) {
+        shapes.push(...exportedShapes(checker, symbol, file));
+      }
+    }
   }
-  const modifiers = ts.getModifiers(node);
-  return (
-    modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true
-  );
+  return shapes;
 };
 
 /** Every field an exported shape declares, including the fields of object
@@ -102,8 +123,11 @@ const isExportedShape = (
  * owner carries the path down to the field, so the two `dbConfigured` fields
  * of `DebugPageState` do not report as one line. */
 const exportedFields = (
+  checker: ts.TypeChecker,
   source: ts.SourceFile,
 ): { owner: string; field: ts.Identifier }[] => {
+  const container = checker.getSymbolAtLocation(source);
+  if (!container) return [];
   const found: { owner: string; field: ts.Identifier }[] = [];
   const collect = (owner: string, node: ts.Node): void => {
     const name = ts.isTypeElement(node) ? node.name : undefined;
@@ -115,11 +139,9 @@ const exportedFields = (
     }
     ts.forEachChild(node, (child) => collect(owner, child));
   };
-  const visit = (node: ts.Node): void => {
-    if (isExportedShape(node)) collect(node.name.text, node);
-    else ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(source, visit);
+  for (const shape of exportedShapes(checker, container, source.fileName)) {
+    collect(shape.name.text, shape);
+  }
   return found;
 };
 
@@ -156,12 +178,13 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   );
   const program = service.getProgram();
   if (!program) throw new Error("TypeScript built no program for the scan");
+  const checker = program.getTypeChecker();
 
   const findings: Finding[] = [];
   for (const file of files.filter((f) => f.startsWith(`${root}/src/`))) {
     const source = program.getSourceFile(file);
     if (!source) continue;
-    for (const { owner, field } of exportedFields(source)) {
+    for (const { owner, field } of exportedFields(checker, source)) {
       findings.push({
         field: field.text,
         file: file.replace(`${root}/`, ""),
