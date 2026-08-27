@@ -202,11 +202,16 @@ Two consequences that drive importer design:
    admin-authenticated, but it does not need the unwrapped private key to
    _write_ imported answers. Reading them back (e.g. in tests, or the attendee
    edit form) does need the private key.
-2. **`getOrCreateStringIds` takes an optional `TxScope`**, so the string rows
-   can be interned on an open transaction rather than in a batch of their own.
-   `saveAttendeeAnswers` already runs its delete, interning, and insert inside
-   one `withTransaction`. The importer's whole-file transaction threads the same
-   handle — see [All-Or-Nothing Write Strategy](#all-or-nothing-write-strategy).
+2. **String interning splits into a pure half and a database half.**
+   `prepareStringRows(texts)` does the HMAC and the hybrid encryption and holds
+   no statement; `internStringRows(rows, tx)` writes them, on an open
+   transaction when it is given one. `getOrCreateStringIds` is the two in one
+   call, for a caller that opens no transaction of its own. A caller that wraps
+   its save in `withTransaction` must call `prepareStringRows` **before** it
+   opens the transaction, then `internStringRows` on the tx, so the CPU-bound
+   crypto never holds the SQLite writer while no statement is running.
+   `saveAttendeeAnswers` is the worked example. The importer follows the same
+   split — see [All-Or-Nothing Write Strategy](#all-or-nothing-write-strategy).
 
 ## Current CSV Shape
 
@@ -1086,9 +1091,10 @@ Writing (in the whole-file transaction — see
   separately from the importer's, so it would break whole-file atomicity (the
   answer-equivalent of the existing "don't call `createAttendeeAtomic` per row"
   rule). Resolving the string ids and then doing direct `attendee_answers`
-  inserts mirrors what `ticket-submit` does on the paid path. Pass the
-  importer's own `TxScope` to `getOrCreateStringIds`, so the string upserts roll
-  back with everything else. See the
+  inserts mirrors what `ticket-submit` does on the paid path. Call
+  `prepareStringRows` before the transaction opens, then `internStringRows` on
+  the importer's own `TxScope`, so the string upserts roll back with everything
+  else and the crypto stays outside the write-lock window. See the
   [write-strategy notes](#all-or-nothing-write-strategy).
 - The `string_id` insert trigger maintains `strings.used_count`; the importer
   writes nothing to that column.
@@ -1337,20 +1343,22 @@ Implementation notes:
   - batch statements that deliberately abort the transaction when any expected
     insert did not happen.
 - **`strings` writes must be atomic with the import — do not leave orphans.**
-  `getOrCreateStringIds` runs its `INSERT OR IGNORE` _before_ any
-  `attendee_answers` insert, and it takes an optional `TxScope`. Called
-  **without** that handle it commits on its own, so it would persist every
-  distinct imported answer (notes, addresses, invoice fields — encrypted source
-  PII) even when the main transaction later rolls back. Those rows are created
-  with `used_count = 0` and never referenced by `attendee_answers`; the delete
-  trigger only **decrements** `used_count`, so they linger until the
-  **age-based** `pruneUnusedStrings` sweep
+  The `INSERT OR IGNORE` runs _before_ any `attendee_answers` insert, and
+  `internStringRows` takes an optional `TxScope`. Run **without** that handle —
+  which is what the one-call `getOrCreateStringIds` does — it commits on its
+  own, so it would persist every distinct imported answer (notes, addresses,
+  invoice fields — encrypted source PII) even when the main transaction later
+  rolls back. Those rows are created with `used_count = 0` and never referenced
+  by `attendee_answers`; the delete trigger only **decrements** `used_count`, so
+  they linger until the **age-based** `pruneUnusedStrings` sweep
   (`used_count = 0 AND created < cutoff`) eventually reaps them. A failed
   "all-or-nothing" import would therefore leave imported PII sitting in
   `strings` until that sweep — breaking both atomicity and the privacy stance,
   so it is **not** acceptable. The writer must do one of:
-  - pass the guarded transaction's `TxScope` to `getOrCreateStringIds` and
-    resolve the ids within it, so a rollback unwinds them too (preferred); or
+  - call `prepareStringRows` before the transaction opens and pass its rows plus
+    the guarded transaction's `TxScope` to `internStringRows`, so the ids
+    resolve within the transaction and a rollback unwinds them too (preferred);
+    or
   - on any failure/rollback, explicitly delete the strings it newly created that
     are still at `used_count = 0`. Either way, a rolled-back import must leave
     **zero** new `strings` rows.
@@ -1807,9 +1815,11 @@ the importer-specific additions in item 6 remain.
      guards — all in main, so imported ghost rows stay out of `tickets_count`
      and the token/calendar/email/logistics surfaces. Build the
      importer-specific additions in item 6 alongside the writer.
-   - Resolve candidate text answers to string ids **inside the guarded
-     transaction** by passing it the `TxScope` `getOrCreateStringIds` accepts,
-     so a rolled-back file leaves no `used_count = 0` strings behind.
+   - Encrypt and index the candidate text answers with `prepareStringRows`
+     **before** the guarded transaction opens, then resolve them to string ids
+     **inside** it with `internStringRows(prepared, tx)`, so a rolled-back file
+     leaves no `used_count = 0` strings behind and the crypto never holds the
+     write lock.
    - Convert the import plan into attendee / listing_attendee / attendee_answers
      (text) / audit / import-map writes in one guarded transaction, wiring child
      rows to each attendee via its generated `ticket_token_index`, not

@@ -24,12 +24,24 @@ every section's audience and its landing pattern
 `src/shared/admin-pages.ts`), so the same fact is written twice and only care
 keeps the two together.
 
-**Plan.** Derive the landing path from the first section a role can see, and
-delete the hand-written map. A role whose first visible section moves then lands
-in the right place without an edit here.
+**One obstacle to clear first.** The existing navigation folds cannot answer
+this on their own. `visibleAdminSections` keeps a section only when the
+section's own **landing** route admits the viewer, and `visibleSections` then
+drops every section with a single link. An agent's only page,
+`/admin/deliveries`, is a nav child of the Calendar section, whose landing is
+staff-only, so an agent sees no section at all through those folds. Deriving the
+landing from "the first visible section" would therefore leave an agent with
+nowhere to go.
 
-**Exemplar:** `visibleSections` in `src/shared/admin-pages.ts` — the fold that
-already answers "what may this viewer see, in order".
+**Plan.** Give the declaration the fact it is missing, then delete the
+hand-written map. Either mark a preferred landing per role on the section, or
+make Deliveries its own section whose landing admits agents. Keep a test that
+every role lands somewhere it may open — that is the property the map holds
+today by hand.
+
+**Exemplar:** `visibleAdminSections` / `visibleSections` in
+`src/shared/admin-pages.ts` for the fold to extend, and `sectionVisible` for the
+audience rule the new fact has to sit beside.
 
 ---
 
