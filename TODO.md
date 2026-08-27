@@ -3012,12 +3012,12 @@ and must be judged on its own.
 
 ## The merge queue does not gate on `checks` or `test`
 
-_Origin: #2158 merged with `checks` red, and so did the two merges before it.
-Found while tracing why main stopped linting._
+_Origin: #2158 merged with `checks` red, and so did the two merges before it. I
+found this while I traced why main stopped linting._
 
 `test.yml` runs on `merge_group`, so the queue does run the `checks` job, and
-that job's first step is `deno task lint:ci`. The queue runs it, reads the
-failure, and merges anyway. Three consecutive merges did this:
+that job runs `deno task lint:ci` before its other checks. The queue runs it,
+reads the failure, and merges anyway. Three consecutive merges did this:
 
 | Queue run     | PR    | `checks`        |
 | ------------- | ----- | --------------- |
@@ -3034,11 +3034,15 @@ ref. `checks` and `test` are not in that list for `main`, so both are advisory
 in the queue. The comment at the top of `test.yml` used to state the opposite,
 and that belief is why nothing looked.
 
-The fix is a repository setting, not a file here: Settings, then Rules, then the
-ruleset for `main`, then add `checks` and `test` to the merge queue's required
-status checks. No settings-as-code file exists in this repository, so nobody can
-make this change through a pull request.
+The fix is a repository setting, not a file here. Open Settings, then Rules.
+Edit the ruleset for `main`. Add `checks` and `test` to the merge queue's
+required status checks. No settings-as-code file exists in this repository, so
+no pull request can make this change.
+
+Note what the gap is NOT. The failure is already detected: the `checks` job
+runs, fails, and reports. Nothing acts on that report. A new detector therefore
+fixes nothing, and the work belongs in the ruleset.
 
 Until that changes, a red `checks` never blocks a merge, and main can break
-again the same way. `deno task precommit` before merge is the only thing that
-catches it, and it depends on a person running it.
+again the same way. Only a person who runs `deno task precommit` before the
+merge stops it.

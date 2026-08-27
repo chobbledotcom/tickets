@@ -7,10 +7,10 @@ name: Test
 # queue out.
 #
 # The queue does NOT gate on these two checks. GitHub waits for the checks a
-# ruleset marks REQUIRED, and `checks` and `test` are not in that list for
-# `main`, so a red run here never blocks a merge. Runs 33021228000, 33022892823
-# and 33024444803 each failed `checks` in the queue and merged anyway. See
-# TODO.md, "The merge queue does not gate on `checks` or `test`".
+# ruleset marks REQUIRED. `checks` and `test` are not in that list for `main`,
+# so a red run here never blocks a merge. Runs 33021228000, 33022892823 and
+# 33024444803 each failed `checks` in the queue and merged anyway. See TODO.md,
+# "The merge queue does not gate on `checks` or `test`".
 on:
   push:
     branches-ignore: [main, "gh-readonly-queue/**"]
