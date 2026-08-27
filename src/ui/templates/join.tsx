@@ -11,8 +11,7 @@ import { AuthFormPage } from "#templates/setup.tsx";
 /* jscpd:ignore-end */
 
 /**
- * Join page - set password for invited user. The route renders the password
- * form and passes its HTML in, so this template imports nothing from it.
+ * Join page - set password for invited user
  */
 export const joinPage = (
   code: string,
