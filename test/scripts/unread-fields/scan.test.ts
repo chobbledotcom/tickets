@@ -114,6 +114,20 @@ export type Report = {
   [key: string]: unknown;
 };
 
+class BaseClass {
+  fromAClass = 1;
+}
+
+interface HiddenBase extends BaseClass {
+  fromABaseNobodySees: number;
+  shadowed: number;
+}
+
+export interface Extends extends HiddenBase {
+  ofItsOwn: number;
+  shadowed: number;
+}
+
 export namespace Wrapped {
   export interface Inner {
     onlyInsideNamespace: number;
@@ -175,6 +189,9 @@ describe("scanUnreadFields", () => {
     expect(findings.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "BadgeProps.label",
       "BadgeProps.supplied",
+      "Extends.fromABaseNobodySees",
+      "Extends.ofItsOwn",
+      "Extends.shadowed",
       "Inner.onlyInsideNamespace",
       "ListExported.onlyInAList",
       "Passed.carriedBySpread",
@@ -192,6 +209,16 @@ describe("scanUnreadFields", () => {
 
   test("leaves alone a shape the file does not export", () => {
     expect(findings.some((f) => f.owner === "NotExported")).toBe(false);
+  });
+
+  test("finds a field an exported shape takes from a hidden base", () => {
+    expect(verdictOf("Extends", "fromABaseNobodySees")).toBe("never read");
+  });
+
+  test("counts a field the shape declares again only once", () => {
+    expect(
+      findings.filter((f) => f.owner === "Extends" && f.field === "shadowed"),
+    ).toHaveLength(1);
   });
 
   test("finds a shape exported by a list at the foot of the file", () => {

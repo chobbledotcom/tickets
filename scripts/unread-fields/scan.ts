@@ -66,6 +66,32 @@ const exportedShapes = (
   return shapes;
 };
 
+/** The fields an exported shape gets from a base it extends.
+ * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
+ * to itself, and a reader of the exported shape reaches it like any other
+ * field. A field the shape declares again is already counted. */
+const inheritedFields = (
+  checker: ts.TypeChecker,
+  shape: Shape,
+  own: Set<ts.Identifier>,
+): { owner: string; field: ts.Identifier }[] => {
+  if (!ts.isInterfaceDeclaration(shape) || !shape.heritageClauses) return [];
+  const found: { owner: string; field: ts.Identifier }[] = [];
+  const type = checker.getTypeAtLocation(shape.name);
+  for (const property of checker.getPropertiesOfType(type)) {
+    for (const declaration of answered(
+      property.declarations,
+      `declarations for ${property.name}`,
+    )) {
+      const name = ts.isTypeElement(declaration) ? declaration.name : undefined;
+      if (name && ts.isIdentifier(name) && !own.has(name)) {
+        found.push({ field: name, owner: shape.name.text });
+      }
+    }
+  }
+  return found;
+};
+
 /** Every field an exported shape declares, including the fields of object
  * types nested inside it, since `shape.inner.total` reaches those too. The
  * owner carries the path down to the field, so the two `dbConfigured` fields
@@ -88,7 +114,10 @@ const exportedFields = (
     ts.forEachChild(node, (child) => collect(owner, child));
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
+    const before = found.length;
     collect(shape.name.text, shape);
+    const own = new Set(found.slice(before).map((f) => f.field));
+    found.push(...inheritedFields(checker, shape, own));
   }
   return found;
 };
