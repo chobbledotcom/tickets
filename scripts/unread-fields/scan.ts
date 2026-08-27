@@ -27,6 +27,23 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
 
 type Shape = ts.InterfaceDeclaration | ts.TypeAliasDeclaration;
 
+const isShape = (node: ts.Node): node is Shape =>
+  ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node);
+
+/** An export list names a symbol that stands for the declaration, so ask what
+ * it stands for before looking at where it was written down. */
+const standsFor = (checker: ts.TypeChecker, exported: ts.Symbol): ts.Symbol =>
+  (exported.flags & ts.SymbolFlags.Alias) === 0
+    ? exported
+    : checker.getAliasedSymbol(exported);
+
+/** Where a symbol was written down, keeping this file only, because a
+ * re-export belongs to the file that declares it. */
+const declaredIn = (symbol: ts.Symbol, file: string): ts.Declaration[] =>
+  (symbol.declarations ?? []).filter(
+    (declaration) => declaration.getSourceFile().fileName === file,
+  );
+
 /** Every shape a file lets other files reach. Asking the checker, rather than
  * reading `export` off the declaration, also catches the seven aliases of
  * `settings-helpers.ts`, which are declared plainly and exported in a list at
@@ -38,21 +55,10 @@ const exportedShapes = (
 ): Shape[] => {
   const shapes: Shape[] = [];
   for (const exported of checker.getExportsOfModule(container)) {
-    // An export list names a symbol that stands for the declaration, so ask
-    // what it stands for before looking at where it was written down.
-    const symbol =
-      (exported.flags & ts.SymbolFlags.Alias) === 0
-        ? exported
-        : checker.getAliasedSymbol(exported);
-    for (const declaration of symbol.declarations ?? []) {
-      // A re-export belongs to the file that declares it, not to this one.
-      if (declaration.getSourceFile().fileName !== file) continue;
-      if (
-        ts.isInterfaceDeclaration(declaration) ||
-        ts.isTypeAliasDeclaration(declaration)
-      ) {
-        shapes.push(declaration);
-      } else if (ts.isModuleDeclaration(declaration)) {
+    const symbol = standsFor(checker, exported);
+    for (const declaration of declaredIn(symbol, file)) {
+      if (isShape(declaration)) shapes.push(declaration);
+      else if (ts.isModuleDeclaration(declaration)) {
         shapes.push(...exportedShapes(checker, symbol, file));
       }
     }
