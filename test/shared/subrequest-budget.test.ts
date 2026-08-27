@@ -11,6 +11,18 @@ import {
   withSubrequestReserve,
 } from "#shared/subrequest-budget.ts";
 
+/**
+ * Run `work` in a request that has spent every subrequest it had.
+ *
+ * The migration runner stops its batch and continues on the next request when
+ * the budget runs out, and reads the type rather than the message to tell that
+ * refusal from a real defect. Both refusals below are raised from this state.
+ */
+const withNothingLeft = (work: () => void): void =>
+  runWithSubrequestBudget(() =>
+    withSubrequestAllowance({ database: 0, external: 0, total: 0 }, work),
+  );
+
 describe("combined subrequest budget", () => {
   test("reports the full allowance outside a request scope", async () => {
     expect(getSubrequestRemaining()).toEqual({
@@ -157,27 +169,21 @@ describe("combined subrequest budget", () => {
     });
   });
 
-  test("raises one type for both refusals, so a caller can stop on either", async () => {
-    // The migration runner stops its batch and continues on the next request
-    // when the budget runs out. It reads the type, not the message, so a call
-    // blocked at the cap and a reserve that no longer fits both reach it.
-    await runWithSubrequestBudget(async () => {
-      await withSubrequestAllowance(
-        { database: 0, external: 0, total: 0 },
-        async () => {
-          expect(() => countSubrequest("database", "blocked call")).toThrow(
-            SubrequestBudgetError,
-          );
-          expect(() =>
-            withSubrequestReserve(
-              { database: 1, external: 0, total: 1 },
-              () => {
-                throw new Error("reserved work must not run");
-              },
-            ),
-          ).toThrow(SubrequestBudgetError);
-        },
+  test("a call blocked at the cap raises the type a caller stops on", () => {
+    withNothingLeft(() => {
+      expect(() => countSubrequest("database", "blocked call")).toThrow(
+        SubrequestBudgetError,
       );
+    });
+  });
+
+  test("a reserve that no longer fits raises the type a caller stops on", () => {
+    withNothingLeft(() => {
+      expect(() =>
+        withSubrequestReserve({ database: 1, external: 0, total: 1 }, () => {
+          throw new Error("reserved work must not run");
+        }),
+      ).toThrow(SubrequestBudgetError);
     });
   });
 
