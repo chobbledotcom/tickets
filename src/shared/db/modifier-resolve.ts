@@ -128,11 +128,28 @@ const stockedQuantity = (
   return Math.max(0, Math.min(requested, remaining));
 };
 
+/** A stored `max_per_order` the resolve path may apply, read only when the
+ * modifier is actually requested. The column has no CHECK constraint, so a
+ * repaired or imported row can carry a cap the admin form refuses. A cap of
+ * 0 would silently drop the charge from the order, so refuse it loudly — but
+ * only on the orders the cap would charge, so one corrupt row cannot break
+ * pricing for carts that picked no linked answer. */
+const checkedPerOrderCap = (modifier: Modifier, cap: number): number => {
+  if (!Number.isInteger(cap) || cap < 1) {
+    throw new Error(
+      `Modifier "${modifier.name}" (id ${modifier.id}) stores max_per_order ${cap}. The column must hold a whole number of 1 or more`,
+    );
+  }
+  return cap;
+};
+
 /** How many times a modifier is requested for a cart: automatic modifiers
  * apply once, a "code" modifier applies once when the entered code matches, an
  * opt-in add-on applies as many times as the buyer chose, and an "answer"
- * modifier applies once per selected answer linked to it (0 = none chosen).
- * A result below 1 means the modifier doesn't trigger at all. */
+ * modifier applies once per selected answer linked to it (0 = none chosen) —
+ * capped at `max_per_order` when set, so a once-per-order answer surcharge
+ * such as a delivery fee applies however many tickets picked the answer. A
+ * result below 1 means the modifier doesn't trigger at all. */
 const triggerQuantity = (
   modifier: Modifier,
   codeIndex: string | null,
@@ -144,7 +161,10 @@ const triggerQuantity = (
   }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
   if (modifier.trigger === "answer") {
-    return answerQuantities.get(modifier.id) ?? 0;
+    const requested = answerQuantities.get(modifier.id) ?? 0;
+    const cap = modifier.max_per_order;
+    if (requested < 1 || cap === null) return requested;
+    return Math.min(requested, checkedPerOrderCap(modifier, cap));
   }
   return 1;
 };
@@ -304,6 +324,13 @@ const eligibleCandidates = async (
     await Promise.all(
       activeModifiers.map(async (modifier): Promise<Candidate | null> => {
         if (modifier.min_visits > ctx.visits) return null;
+        const listingIds = scopes.get(modifier.id)!;
+        const base = inScopeSubtotal(items, listingIds);
+        // A scoped modifier only applies alongside its listings/groups.
+        if (listingIds !== null && base === 0) return null;
+        if (base < modifier.min_subtotal) return null;
+        // The quantity runs last: its corrupt-cap refusal must only fire for
+        // a modifier the gates say this cart will really apply.
         const quantity = triggerQuantity(
           modifier,
           codeIndex,
@@ -311,13 +338,7 @@ const eligibleCandidates = async (
           answerQuantities,
         );
         if (quantity < 1) return null;
-        const listingIds = scopes.get(modifier.id)!;
-        const base = inScopeSubtotal(items, listingIds);
-        // A scoped modifier only applies alongside its listings/groups.
-        if (listingIds !== null && base === 0) return null;
-        return base >= modifier.min_subtotal
-          ? { listingIds, modifier, quantity }
-          : null;
+        return { listingIds, modifier, quantity };
       }),
     )
   ).filter((c): c is Candidate => c !== null);

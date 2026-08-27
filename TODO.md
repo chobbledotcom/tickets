@@ -40,25 +40,6 @@ wins.
 
 ---
 
-## Add a once-per-order option for answer-triggered modifiers
-
-_Origin: Codex review of PR #2150 (the delivery-area pricing guide entry). The
-guide documents the honest workaround; this entry is the real mechanism. The
-owner approved building it as a follow-up PR._
-
-A `Question answer` modifier charges per ticket booked, not once per order
-(`answerModifierQuantities` in `src/shared/db/modifier-resolve.ts` adds the
-listing's ticket quantity for each selected answer). That suits per-person
-extras such as "Large size +£5", but a delivery-area fee is per booking. The
-guide tells operators to set "Max tickets per purchase" to 1 on delivered
-listings, which caps what one order can hold. Add a per-modifier "charge once
-per order" choice so area pricing works on multi-ticket listings, then relax the
-guide wording to match. Design note: the quantity also feeds the sold-out check
-and stock clamping, so a once-per-order mode must decide what its "quantity"
-means there before it ships.
-
----
-
 ## Move the routes' flash messages into the message catalog
 
 _Origin: found while migrating `test/integration/admin/sms.test.ts` to
