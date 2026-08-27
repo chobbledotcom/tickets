@@ -1,13 +1,14 @@
 /**
- * Data loaders for the listing entity page's read-only tabs — Overview,
- * Attendees (roster), and Activity. Each gathers exactly what its own tab
- * renders: per-tab loading means the expensive decrypted-attendee fetch only
- * runs for the two tabs that show the roster, never for Edit / Questions / QR.
+ * Data loaders for the listing entity page. Most serve the read-only tabs —
+ * Overview, Attendees (roster), and Activity. Each one gathers exactly what
+ * its own tab renders, so the expensive decrypted-attendee fetch runs for the
+ * two tabs that show the roster and for no other.
  *
- * The panels themselves (ListingOverviewPanel / ListingRosterPanel) live in the
- * listings template; these loaders assemble their props from the DB. The
- * gathering mirrors the pre-migration detail handler (listings-view.ts) so the
- * tabs render the same data the single detail page used to.
+ * `getListingAndGroups` is the exception, because the edit form and the edit
+ * tab's panels both need it. It sits here rather than inside either of them.
+ *
+ * The panels themselves (ListingOverviewPanel / ListingRosterPanel) live in
+ * the listings template. These loaders assemble their props from the DB.
  */
 
 import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
