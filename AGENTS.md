@@ -1305,6 +1305,36 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
+### The renamed copy jscpd cannot see
+
+jscpd compares the tokens as written, so **renaming one copy hides it**. Two
+functions that do the same job under different names, over differently named
+values, match no token run and pass every scan above at 0%.
+`deno task check:shapes` reads the other half. It reduces each named function's
+body to its _shape_ — every name, number and string becomes one symbol — and
+reports two functions that share one.
+
+It reports whole named functions, not runs of tokens inside them. That is what
+keeps it readable: a config object handed to a shared factory is the shape this
+codebase wants more of, and it never looks like a function body.
+
+The accepted list at `scripts/check-shapes/accepted/` records every match this
+tree already carries, one per line with the reason it stands, split in two:
+
+- `merges-to-make.txt` — the same thing written twice. Every line is work
+  somebody still has to do. Make the merge, delete the line.
+- `coincidences.txt` — two functions with one shape and no shared step to lift.
+  A line earns this file only after somebody tried to write the curry.
+
+**The list only shrinks.** A match that is not on it fails the check, and an
+entry that matches nothing any more fails too, so a merge has to take its entry
+with it. `MIN_TOKENS` in `scripts/check-shapes/run.ts` ratchets downward the
+same way the numbers in `check:comments` do.
+
+A key is every site as `path::name`, sorted. Moving code does not change it, so
+an entry goes stale only when a name or a body changes — which is when somebody
+has to look again anyway.
+
 ### The six scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
@@ -1492,6 +1522,9 @@ query logging and table-scoped cache invalidation stay automatic.
   confirms by typed site name before changing anything, and prints the new
   `DB_URL`/`DB_TOKEN` so they can be set by hand if the secret update fails. The
   site keeps its existing `DB_ENCRYPTION_KEY`.
+- `deno task check:shapes` - Report two named functions that share a shape under
+  different names — the duplication jscpd cannot see (see
+  [The renamed copy jscpd cannot see](#the-renamed-copy-jscpd-cannot-see))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The precommit mutation gate, runnable on its
   own: mutation-test every `src/` file this branch changed and demand a 100%

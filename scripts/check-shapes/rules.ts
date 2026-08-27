@@ -1,0 +1,75 @@
+/**
+ * Pure rules for the shape check: group bodies that share a shape, and say
+ * which groups are worth reporting.
+ */
+
+/** One function, named by the file it lives in. */
+export interface ShapeSite {
+  body: string;
+  file: string;
+  line: number;
+  name: string;
+}
+
+/** Two or more functions that share one shape. */
+export interface ShapeMatch {
+  /** The durable name for this group, which the accepted list is keyed by. */
+  key: string;
+  sites: ShapeSite[];
+  tokens: number;
+}
+
+/**
+ * How a group is named, and how the accepted list finds it again: every site
+ * as `path::name`, sorted, joined by a comma. Moving the code does not change
+ * it, so an entry only goes stale when a name or a body changes — which is
+ * when somebody has to look again anyway.
+ */
+export const matchKey = (sites: readonly ShapeSite[]): string =>
+  sites
+    .map((site) => `${site.file}::${site.name}`)
+    .sort()
+    .join(",");
+
+/** One site as a reader sees it in the report. */
+const formatSite = (site: ShapeSite): string =>
+  `    ${site.file}:${site.line}  ${site.name}`;
+
+/** One group, ready to print: what it is, then where each copy lives. */
+export const formatMatch = (match: ShapeMatch): string =>
+  [
+    `${match.sites.length} functions share one shape (${match.tokens} tokens):`,
+    ...match.sites.map(formatSite),
+  ].join("\n");
+
+/**
+ * Group the bodies that share a shape. A group needs at least `minTokens`, so
+ * a one-line wrapper is not a finding, and at least two spellings, because
+ * two bodies written the same way are already `deno task cpd`'s to report.
+ */
+export const shapeMatches = (
+  sites: readonly ShapeSite[],
+  shapeOf: (body: string) => string[],
+  minTokens: number,
+): ShapeMatch[] => {
+  const byShape = new Map<string, ShapeSite[]>();
+  const sizes = new Map<string, number>();
+  for (const site of sites) {
+    const shape = shapeOf(site.body);
+    if (shape.length < minTokens) continue;
+    const shapeKey = shape.join(" ");
+    sizes.set(shapeKey, shape.length);
+    byShape.set(shapeKey, [...(byShape.get(shapeKey) ?? []), site]);
+  }
+  const matches: ShapeMatch[] = [];
+  for (const [shapeKey, group] of byShape) {
+    if (group.length < 2) continue;
+    if (new Set(group.map((site) => site.body)).size < 2) continue;
+    matches.push({
+      key: matchKey(group),
+      sites: group,
+      tokens: sizes.get(shapeKey) as number,
+    });
+  }
+  return matches.sort((left, right) => left.key.localeCompare(right.key));
+};

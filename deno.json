@@ -30,6 +30,7 @@
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "check:imports": "deno run --allow-read=deno.json,src,test,scripts,cli scripts/check-imports.ts",
+    "check:shapes": "deno run -A scripts/check-shapes.ts",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",

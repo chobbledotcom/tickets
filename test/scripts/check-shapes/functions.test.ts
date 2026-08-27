@@ -1,0 +1,54 @@
+import { parseSync } from "npm:oxc-parser@0.132.0";
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { namedFunctions } from "#scripts/check-shapes/functions.ts";
+
+const found = (source: string) =>
+  namedFunctions(parseSync("sample.ts", source).program, source);
+
+const names = (source: string) => found(source).map((entry) => entry.name);
+
+describe("namedFunctions", () => {
+  test("names a function declared with the function keyword", () => {
+    expect(names("function total(a) { return a; }")).toEqual(["total"]);
+  });
+
+  test("names an arrow by the variable it is assigned to", () => {
+    expect(names("const total = (a) => a + 1;")).toEqual(["total"]);
+  });
+
+  test("names an exported arrow", () => {
+    expect(names("export const total = (a) => a + 1;")).toEqual(["total"]);
+  });
+
+  test("names a curried factory once, by its outer name", () => {
+    expect(names("const at = (a) => (b) => a + b;")).toEqual(["at"]);
+  });
+
+  test("leaves an inline callback alone, having nothing to call it", () => {
+    expect(names("run(() => 1);")).toEqual([]);
+  });
+
+  test("takes the body of an arrow with no braces", () => {
+    const [entry] = found("const total = (a) => a + 1;");
+    expect(entry?.start).toBeLessThan(entry?.end as number);
+  });
+
+  test("reports the line the body starts on", () => {
+    const [entry] = found("\n\nconst total = (a) => a + 1;");
+    expect(entry?.line).toBe(3);
+  });
+
+  test("finds every named function in the file", () => {
+    expect(names("const a = () => 1;\nfunction b() { return 2; }")).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  test("names a function expression by its own name over the variable's", () => {
+    expect(names("const outer = function inner() { return 1; };")).toEqual([
+      "inner",
+    ]);
+  });
+});

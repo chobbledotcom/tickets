@@ -172,6 +172,10 @@ export const sort =
 export const sortStrings = (array: string[]): string[] =>
   sort((a: string, b: string) => a.localeCompare(b))(array);
 
+/** The numbers, each once, smallest first. */
+export const sortedNumbers = (array: readonly number[]): number[] =>
+  unique([...array]).sort((a: number, b: number) => a - b);
+
 /**
  * Remove duplicate values (by reference/value equality), keeping first
  * occurrences in order. Curried adapter over `@std/collections.distinct`.

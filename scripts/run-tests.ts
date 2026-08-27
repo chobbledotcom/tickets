@@ -7,6 +7,7 @@
  * harness once the run completes.
  */
 
+import { sortedNumbers } from "#fp";
 import { requireValue } from "#shared/required-value.ts";
 import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
 import { denoCommand } from "./process.ts";
@@ -51,11 +52,8 @@ const extractUncoveredBranchLines = (record: string): number[] => [
   ...new Set(capturedLineNumbers(record, /^BRDA:(\d+),\d+,\d+,(-|0)$/gm)),
 ];
 
-const uniqueSorted = (nums: number[]): number[] =>
-  [...new Set(nums)].sort((a, b) => a - b);
-
 const formatRanges = (nums: number[]): string => {
-  const sorted = uniqueSorted(nums);
+  const sorted = sortedNumbers(nums);
   if (sorted.length === 0) return "unknown";
 
   const ranges: string[] = [];
@@ -205,7 +203,7 @@ const findCoverageFailures = (lcov: string): CoverageFailure[] | null => {
 };
 
 const snippetLineNumbers = (failure: CoverageFailure): number[] =>
-  uniqueSorted([
+  sortedNumbers([
     ...(failure.lines?.uncovered ?? []),
     ...(failure.branches?.uncovered ?? []),
   ]);
