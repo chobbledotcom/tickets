@@ -21,7 +21,7 @@ import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
@@ -61,21 +61,11 @@ const ApiKeyLink = ({ apiKey }: { apiKey: ApiKeyDisplay }): JSX.Element => (
 );
 
 const apiKeyColumns: readonly TableColumn<ApiKeyDisplay>[] = [
-  {
-    cell: (apiKey) => <ApiKeyLink apiKey={apiKey} />,
-    header: translatedTableHeader("common.name"),
-    key: "name",
-  },
-  {
-    cell: createdCell,
-    header: translatedTableHeader("common.created"),
-    key: "created",
-  },
-  {
-    cell: lastUsedCell,
-    header: translatedTableHeader("api_keys.col.last_used"),
-    key: "last_used",
-  },
+  translatedTableColumn("name", "common.name", (apiKey) => (
+    <ApiKeyLink apiKey={apiKey} />
+  )),
+  translatedTableColumn("created", "common.created", createdCell),
+  translatedTableColumn("last_used", "api_keys.col.last_used", lastUsedCell),
 ];
 
 const apiKeyTable = defineTable(apiKeyColumns);

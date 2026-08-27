@@ -16,7 +16,6 @@ import {
   syncListingPrices,
   writeListingDayCounts,
 } from "#db/listing-prices.ts";
-import type { ListingAggregateValues } from "#db/listings/aggregates.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { computeSlugIndex } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
@@ -211,13 +210,6 @@ const extractListingUpdateInput = async (
     slugIndex,
   };
 };
-
-export const extractListingAggregateValues = (
-  values: ListingAggregateValues,
-): ListingAggregateValues => ({
-  booked_quantity: values.booked_quantity,
-  tickets_count: values.tickets_count,
-});
 
 /** Persist the listing's group memberships AND its per-day-count prices in the
  * row write's transaction. extractCommonFields always sets groupIds (parseGroupIds

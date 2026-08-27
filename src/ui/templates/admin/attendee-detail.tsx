@@ -26,7 +26,10 @@ import { HeaderRow } from "#templates/components/header-row.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 
 /** One key/value row of a detail table: a header cell plus a value cell. */
 const DetailTableRow = ({
@@ -93,59 +96,50 @@ const bookingColumns: readonly TableColumn<
   AttendeeBooking,
   BookingTableContext
 >[] = [
-  {
-    cell: (booking, context) => (
-      <>
-        <a href={`/admin/listing/${booking.listingId}`}>
-          {booking.listingName}
-        </a>
-        <InactiveNote active={booking.listingActive} leadingSpace />
-        {booking.parentListingId > 0 ? (
-          <div class="muted small">
-            {t("attendee_detail.addon_under", {
-              parent:
-                context.nameByListingId.get(booking.parentListingId) ??
-                `#${booking.parentListingId}`,
-            })}
-          </div>
-        ) : null}
-        {context.childNamesByParentId.has(booking.listingId) ? (
-          <div class="muted small">
-            {t("attendee_detail.includes_addon", {
-              children: context.childNamesByParentId
-                .get(booking.listingId)!
-                .join(", "),
-            })}
-          </div>
-        ) : null}
-      </>
-    ),
-    header: translatedTableHeader("terms.listing"),
-    key: "listing",
-  },
-  {
-    cell: (booking) =>
-      booking.startAt
-        ? formatDateRangeLabel(booking.startAt, booking.endAt)
-        : "—",
-    header: translatedTableHeader("common.date"),
-    key: "date",
-  },
+  translatedTableColumn("listing", "terms.listing", (booking, context) => (
+    <>
+      <a href={`/admin/listing/${booking.listingId}`}>{booking.listingName}</a>
+      <InactiveNote active={booking.listingActive} leadingSpace />
+      {booking.parentListingId > 0 ? (
+        <div class="muted small">
+          {t("attendee_detail.addon_under", {
+            parent:
+              context.nameByListingId.get(booking.parentListingId) ??
+              `#${booking.parentListingId}`,
+          })}
+        </div>
+      ) : null}
+      {context.childNamesByParentId.has(booking.listingId) ? (
+        <div class="muted small">
+          {t("attendee_detail.includes_addon", {
+            children: context.childNamesByParentId
+              .get(booking.listingId)!
+              .join(", "),
+          })}
+        </div>
+      ) : null}
+    </>
+  )),
+  translatedTableColumn("date", "common.date", (booking) =>
+    booking.startAt
+      ? formatDateRangeLabel(booking.startAt, booking.endAt)
+      : "—",
+  ),
   {
     cell: (booking) => booking.quantity,
     class: "quantity",
     header: translatedTableHeader("common.quantity"),
     key: "quantity",
   },
-  {
-    cell: (booking) =>
+  translatedTableColumn(
+    "status",
+    "common.status",
+    (booking) =>
       BookingStatusBadges({
         checkedIn: booking.checkedIn,
         refunded: booking.refunded,
       }) ?? "—",
-    header: translatedTableHeader("common.status"),
-    key: "status",
-  },
+  ),
 ];
 
 const bookingsTable = defineTable(bookingColumns);

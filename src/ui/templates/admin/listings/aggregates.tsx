@@ -13,8 +13,7 @@ import {
   ExpectedActualNotice,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
-import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
-import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
+import { recalculateRowsFor } from "#templates/admin/recalculate-rows.ts";
 import {
   bindRecalculatePage,
   recalculatePageRenderer,
@@ -35,27 +34,9 @@ export {
 export const nearCapacity = (listing: ListingWithCount): boolean =>
   capacityLevel(listing.attendee_count, listing.max_attendees).nearLimit;
 
-const listingAggregateFormatters: Record<
-  ListingAggregateField,
-  (value: number) => string
-> = {
-  booked_quantity: String,
-  tickets_count: String,
-};
-
-const formatListingAggregateValue = (
-  name: ListingAggregateField,
-  value: number,
-): string => listingAggregateFormatters[name](value);
-
-const listingRecalculateRows = (
-  snapshot: ListingAggregateRecalculation,
-): RecalculateRow[] =>
-  buildRecalculateRows(
-    getListingAggregateFields(),
-    formatListingAggregateValue,
-    snapshot,
-  );
+const listingRecalculateRows = recalculateRowsFor<ListingAggregateField>(
+  getListingAggregateFields,
+);
 
 /** The drift-notice copy plus the drifted running totals; the "fix it" link is
  * included only when a recalculate page is reachable. Shared by the inline

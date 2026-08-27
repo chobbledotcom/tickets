@@ -128,12 +128,19 @@ export const getEmbedHosts = async (): Promise<string[]> => {
   return parseEmbedHosts(raw);
 };
 
+/** True only when every named environment variable carries a value. Each
+ * "is this integration set up" answer below is one of these, so a new one
+ * names its variables rather than writing the check again. */
+const allEnvSet =
+  (...names: string[]): (() => boolean) =>
+  (): boolean =>
+    names.every((name) => !!getEnv(name));
+
 /**
  * Check if Bunny CDN pull zone management is enabled
  * Requires both BUNNY_API_KEY and BUNNY_SCRIPT_ID to be set
  */
-export const isBunnyCdnEnabled = (): boolean =>
-  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_SCRIPT_ID");
+export const isBunnyCdnEnabled = allEnvSet("BUNNY_API_KEY", "BUNNY_SCRIPT_ID");
 
 /**
  * Get the Bunny CDN API key from environment
@@ -144,11 +151,13 @@ export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
  * Check if Bunny DNS subdomain feature is enabled.
  * Requires BUNNY_API_KEY and BUNNY_DNS_ZONE_ID to be set.
  */
-export const isBunnyDnsEnabled = (): boolean =>
-  !!getEnv("BUNNY_API_KEY") && !!getEnv("BUNNY_DNS_ZONE_ID");
+export const isBunnyDnsEnabled = allEnvSet(
+  "BUNNY_API_KEY",
+  "BUNNY_DNS_ZONE_ID",
+);
 
 /** Check if the Bunny hosted database provider is enabled (requires BUNNY_API_KEY). */
-export const isBunnyDbEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
+export const isBunnyDbEnabled = allEnvSet("BUNNY_API_KEY");
 
 /** Check if this instance can build other sites. */
 export const isBuilderEnabled = (): boolean =>
@@ -193,8 +202,10 @@ export const getBotpoisonSecretKey = (): string =>
  * Requires both BOTPOISON_PUBLIC_KEY and BOTPOISON_SECRET_KEY to be set.
  * This gates the public contact form feature.
  */
-export const isBotpoisonEnabled = (): boolean =>
-  !!getBotpoisonPublicKey() && !!getBotpoisonSecretKey();
+export const isBotpoisonEnabled = allEnvSet(
+  "BOTPOISON_PUBLIC_KEY",
+  "BOTPOISON_SECRET_KEY",
+);
 
 /**
  * Whether the inter-instance site-credentials endpoint is enabled. Off unless
@@ -202,17 +213,17 @@ export const isBotpoisonEnabled = (): boolean =>
  * is a high-entropy shared secret the operator passes to the upgrade workflow at
  * trigger time (it is never stored in GitHub).
  */
-export const isInstanceApiEnabled = (): boolean =>
-  !!getEnv("MAIN_INSTANCE_KEY");
+export const isInstanceApiEnabled = allEnvSet("MAIN_INSTANCE_KEY");
 
 /** The shared secret authorizing the inter-instance site-credentials endpoint. */
 export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");
 
 /** Check if Deno Deploy hosting has its token, organization ID, and domain slug. */
-export const isDenoDeployEnabled = (): boolean =>
-  !!getEnv("DENO_DEPLOY_TOKEN") &&
-  !!getEnv("DENO_DEPLOY_ORG_ID") &&
-  !!getEnv("DENO_DEPLOY_ORG_SLUG");
+export const isDenoDeployEnabled = allEnvSet(
+  "DENO_DEPLOY_TOKEN",
+  "DENO_DEPLOY_ORG_ID",
+  "DENO_DEPLOY_ORG_SLUG",
+);
 
 /** Get the Deno Deploy API token from environment. */
 export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
@@ -230,10 +241,11 @@ export const getDefaultDbProvider = (): "bunny" | "turso" =>
   getEnv("DEFAULT_DB_HOST") === "turso" ? "turso" : "bunny";
 
 /** Whether Turso hosting has its API token, organization, and group set. */
-export const isTursoEnabled = (): boolean =>
-  !!getEnv("TURSO_API_TOKEN") &&
-  !!getEnv("TURSO_ORGANIZATION") &&
-  !!getEnv("TURSO_GROUP");
+export const isTursoEnabled = allEnvSet(
+  "TURSO_API_TOKEN",
+  "TURSO_ORGANIZATION",
+  "TURSO_GROUP",
+);
 
 /** Get the Turso API token from environment. */
 export const getTursoApiToken = (): string => requireEnv("TURSO_API_TOKEN");

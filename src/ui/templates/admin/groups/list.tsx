@@ -8,7 +8,7 @@ import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, Group } from "#types";
 
 /* jscpd:ignore-end */
@@ -19,16 +19,8 @@ const groupLink = (group: Group): JSX.Element => (
 
 const groupColumns: readonly TableColumn<Group, AdminSession["adminLevel"]>[] =
   [
-    {
-      cell: groupLink,
-      header: translatedTableHeader("common.name"),
-      key: "name",
-    },
-    {
-      cell: (group) => group.slug,
-      header: translatedTableHeader("common.slug"),
-      key: "slug",
-    },
+    translatedTableColumn("name", "common.name", groupLink),
+    translatedTableColumn("slug", "common.slug", (group) => group.slug),
   ];
 
 const groupsTable = defineTable(groupColumns);

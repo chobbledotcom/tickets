@@ -18,7 +18,7 @@ import {
   getListingAggregateRecalculation,
   type ListingAggregateRecalculation,
   type ListingAggregateValues,
-  updateListingAggregateValues,
+  listingAggregates,
 } from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
@@ -76,7 +76,6 @@ import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
-  extractListingAggregateValues,
   parseGroupIds,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
@@ -429,7 +428,7 @@ const handleListingEditSuccess = async (
   id: number,
 ): Promise<Response> => {
   if (aggregateValues) {
-    await updateListingAggregateValues(id, aggregateValues);
+    await listingAggregates.update(id, aggregateValues);
   }
   const durationWarning = await reconcileDurationChange(
     row,
@@ -459,10 +458,10 @@ const parseAggregatesForRole = (
   | { ok: false; error: string } =>
   session.adminLevel === "editor"
     ? { input: null, ok: true }
-    : parseEditableAggregateForm<
-        ListingAggregateValues,
-        ListingAggregateValues
-      >(form, getListingAggregateFields(), extractListingAggregateValues);
+    : parseEditableAggregateForm<ListingAggregateValues>(
+        form,
+        getListingAggregateFields(),
+      );
 
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<

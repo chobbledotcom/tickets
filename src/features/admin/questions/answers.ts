@@ -12,11 +12,10 @@ import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import {
   ANSWER_AGGREGATE_FIELDS,
   type AnswerAggregateValues,
+  answerAggregates,
   getAnswerAggregateRecalculation,
   getAnswerModifierId,
-  resetAnswerAggregateFields,
   setAnswerModifier,
-  updateAnswerAggregateValues,
 } from "#db/questions/aggregates.ts";
 import { deleteAnswer } from "#db/questions/delete.ts";
 import { findAnswerById } from "#db/questions/parsing.ts";
@@ -195,13 +194,6 @@ export const handleEditAnswerGet: ParamsRoute<AnswerRouteParams> =
     );
   });
 
-/** Map the validated aggregate form values onto the stored aggregate columns. */
-const extractAnswerAggregateValues = (
-  values: AnswerAggregateValues,
-): AnswerAggregateValues => ({
-  times_selected: values.times_selected,
-});
-
 /** Handle POST /admin/questions/:id/answers/:answerId/edit (text + modifier) */
 export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
   createAuthedFormRoute<{ text: string }, AnswerRouteParams, AnswerContext>({
@@ -224,10 +216,10 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       ) {
         return errorRedirect(editAnswerPath(params), "Invalid modifier");
       }
-      const aggregates = parseEditableAggregateForm<
-        AnswerAggregateValues,
-        AnswerAggregateValues
-      >(form, getAnswerAggregateFields(), extractAnswerAggregateValues);
+      const aggregates = parseEditableAggregateForm<AnswerAggregateValues>(
+        form,
+        getAnswerAggregateFields(),
+      );
       if (!aggregates.ok) {
         return errorRedirect(editAnswerPath(params), aggregates.error);
       }
@@ -237,7 +229,7 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       });
       await setAnswerModifier(answer.id, modifierId);
       if (aggregates.input) {
-        await updateAnswerAggregateValues(answer.id, aggregates.input);
+        await answerAggregates.update(answer.id, aggregates.input);
       }
       await logActivity(`Answer '${text}' updated in question ${question.id}`);
       return redirect(
@@ -290,7 +282,7 @@ export const handleAnswerRecalculatePost: ParamsRoute<AnswerRouteParams> =
           session,
           t("questions.recalculate.choose"),
         ),
-      reset: (selected) => resetAnswerAggregateFields(answer.id, selected),
+      reset: (selected) => answerAggregates.reset(answer.id, selected),
       successMessage: t("questions.recalculate.success"),
       successPath: editAnswerPath(params),
     }),

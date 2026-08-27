@@ -2776,3 +2776,43 @@ fixes nothing, and the work belongs in the ruleset.
 Until that changes, a red `checks` never blocks a merge, and main can break
 again the same way. Only a person who runs `deno task precommit` before the
 merge stops it.
+
+---
+
+## The renamed copies jscpd cannot see
+
+_Origin: the type-2 duplication pass (PR #2172). These are the sites that pass
+left behind, and the scan that finds them._
+
+jscpd compares exact runs of tokens, so two blocks that do the same work with
+different names, numbers, or field counts never match. A second scan finds them:
+replace every identifier and every literal with one symbol, hash a sliding
+window of the result, and report a window that repeats with more than one
+original spelling. Drop import statements and runs that are mostly string
+literals first, or data files and import blocks bury the real answers. At a
+45-token window over `src/` this reported about 40 sites, and reading them found
+eleven merges. The scan is not in the repository, because it needs a person to
+read every hit. Write it again from this paragraph.
+
+These hits were read and left. Each is a real merge, and none is urgent.
+
+- **One way for a test helper to post a form.** `submitNewAttendeeForm`
+  (`test/test-utils/attendee-form/helpers.ts`) and `postLogistics`
+  (`test/test-utils/logistics-tab.ts`) both open a session, take its CSRF token,
+  and post one form. `adminFormPost` in `test/test-utils/session.ts` is a third
+  spelling that also sends `settings_version` and returns the cookie and the
+  token beside the response. Decide whether every admin form post must carry
+  `settings_version`, then make one helper and migrate all three.
+- **The table columns the fold could not take.** 32 hand-rolled columns became
+  `translatedTableColumn` calls in #2172. Eleven more carry an extra property —
+  `class`, `cellAttrs`, an alignment — so they stayed object literals. They are
+  in `bulk-actions.tsx`, `built-sites/renewal-summary.tsx`,
+  `availability-checker.tsx`, `attendee-form/listing-editor.tsx`, and
+  `attendee-detail.tsx`. Widen the curry to take the extras, or give the common
+  ones their own named column builders.
+- **The form-definition trailer.** Every form in `src/ui/templates/fields/` ends
+  with the same two declarations: a type alias over
+  `FormDefinition<ReturnType<...>>`, then a `getXForm` that calls `defineForm`
+  with those fields. About eight forms repeat it. A curry takes it, but the type
+  alias is what `FormValues<XForm>` reads, so check every reader before changing
+  the shape.

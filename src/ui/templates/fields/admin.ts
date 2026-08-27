@@ -299,33 +299,42 @@ const secretField = ({
   type,
 });
 
+/** One credential, named by the locale key its wording lives under: `<key>` is
+ * the label, `<key>_hint` the hint, and `<key>_placeholder` the placeholder
+ * when the catalog carries one. A credential with no example to show says so
+ * with `noPlaceholder`. */
+const credentialField = (
+  key: string,
+  name: string,
+  extra: { noPlaceholder?: true; type?: "text" } = {},
+): Field =>
+  secretField({
+    hint: t(`${key}_hint`),
+    label: t(key),
+    name,
+    ...(extra.noPlaceholder ? {} : { placeholder: t(`${key}_placeholder`) }),
+    ...(extra.type && { type: extra.type }),
+  });
+
 /**
  * Stripe key settings form field definitions (per-request builder)
  */
 export const getStripeKeyFields = (): Field[] => [
-  secretField({
-    hint: t("fields.stripe.secret_key_hint"),
-    label: t("fields.stripe.secret_key"),
-    name: PAYMENT_PROVIDERS.stripe.secretField,
-    placeholder: t("fields.stripe.secret_key_placeholder"),
-  }),
+  credentialField(
+    "fields.stripe.secret_key",
+    PAYMENT_PROVIDERS.stripe.secretField,
+  ),
 ];
 
 /**
  * Square access token and location form field definitions (per-request builder)
  */
 export const getSquareAccessTokenFields = (): Field[] => [
-  secretField({
-    hint: t("fields.square.access_token_hint"),
-    label: t("fields.square.access_token"),
-    name: PAYMENT_PROVIDERS.square.secretField,
-    placeholder: t("fields.square.access_token_placeholder"),
-  }),
-  secretField({
-    hint: t("fields.square.location_id_hint"),
-    label: t("fields.square.location_id"),
-    name: "square_location_id",
-    placeholder: t("fields.square.location_id_placeholder"),
+  credentialField(
+    "fields.square.access_token",
+    PAYMENT_PROVIDERS.square.secretField,
+  ),
+  credentialField("fields.square.location_id", "square_location_id", {
     type: "text",
   }),
 ];
@@ -334,10 +343,8 @@ export const getSquareAccessTokenFields = (): Field[] => [
  * Square webhook settings form field definitions (per-request builder)
  */
 export const getSquareWebhookFields = (): Field[] => [
-  secretField({
-    hint: t("fields.square.webhook_key_hint"),
-    label: t("fields.square.webhook_key"),
-    name: "square_webhook_signature_key",
+  credentialField("fields.square.webhook_key", "square_webhook_signature_key", {
+    noPlaceholder: true,
   }),
 ];
 
@@ -345,17 +352,8 @@ export const getSquareWebhookFields = (): Field[] => [
  * SumUp API key and merchant code form field definitions (per-request builder)
  */
 export const getSumupFields = (): Field[] => [
-  secretField({
-    hint: t("fields.sumup.api_key_hint"),
-    label: t("fields.sumup.api_key"),
-    name: PAYMENT_PROVIDERS.sumup.secretField,
-    placeholder: t("fields.sumup.api_key_placeholder"),
-  }),
-  secretField({
-    hint: t("fields.sumup.merchant_code_hint"),
-    label: t("fields.sumup.merchant_code"),
-    name: "sumup_merchant_code",
-    placeholder: t("fields.sumup.merchant_code_placeholder"),
+  credentialField("fields.sumup.api_key", PAYMENT_PROVIDERS.sumup.secretField),
+  credentialField("fields.sumup.merchant_code", "sumup_merchant_code", {
     type: "text",
   }),
 ];

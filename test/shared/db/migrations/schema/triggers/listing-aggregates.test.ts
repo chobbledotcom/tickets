@@ -6,8 +6,7 @@ import { getDb } from "#db/client.ts";
 import {
   adjustListingIncome,
   getListingAggregateRecalculation,
-  resetListingAggregateFields,
-  updateListingAggregateValues,
+  listingAggregates,
 } from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
@@ -190,7 +189,7 @@ describeWithEnv(
       expect(recalc.tickets_count).toEqual({ current: 1, recalculated: 1 });
       expect(recalc.booked_quantity).toEqual({ current: 3, recalculated: 3 });
 
-      await resetListingAggregateFields(listing.id, [
+      await listingAggregates.reset(listing.id, [
         "booked_quantity",
         "tickets_count",
       ]);
@@ -377,7 +376,7 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 50 });
       await insertAttendee(listing.id, 1, 3);
 
-      await updateListingAggregateValues(listing.id, {
+      await listingAggregates.update(listing.id, {
         booked_quantity: 8,
         tickets_count: 4,
       });
@@ -392,7 +391,7 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 50 });
       await insertAttendee(listing.id, 1, 3);
       await insertAttendee(listing.id, 2, 2);
-      await updateListingAggregateValues(listing.id, {
+      await listingAggregates.update(listing.id, {
         booked_quantity: 8,
         tickets_count: 4,
       });
@@ -403,7 +402,7 @@ describeWithEnv(
         tickets_count: { current: 4, recalculated: 2 },
       });
 
-      await resetListingAggregateFields(listing.id, ["booked_quantity"]);
+      await listingAggregates.reset(listing.id, ["booked_quantity"]);
 
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 5,

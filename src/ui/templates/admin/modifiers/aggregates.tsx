@@ -9,8 +9,7 @@ import type {
   ModifierAggregateRecalculation,
 } from "#db/modifiers.ts";
 import { t } from "#i18n";
-import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
-import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
+import { recalculateRowsFor } from "#templates/admin/recalculate-rows.ts";
 import {
   bindRecalculatePage,
   type RunningTotalsConfig,
@@ -48,27 +47,9 @@ export const ModifierRunningTotalsSection = (
     config: modifierRunningTotalsConfig(props.modifier, props.values),
   });
 
-const modifierAggregateFormatters: Record<
-  ModifierAggregateField,
-  (value: number) => string
-> = {
-  total_uses: String,
-  usage_count: String,
-};
-
-const formatModifierAggregateValue = (
-  name: ModifierAggregateField,
-  value: number,
-): string => modifierAggregateFormatters[name](value);
-
-const modifierRecalculateRows = (
-  snapshot: ModifierAggregateRecalculation,
-): RecalculateRow[] =>
-  buildRecalculateRows(
-    getModifierAggregateFields(),
-    formatModifierAggregateValue,
-    snapshot,
-  );
+const modifierRecalculateRows = recalculateRowsFor<ModifierAggregateField>(
+  getModifierAggregateFields,
+);
 
 /** Renders the static config bits of the modifier recalculate page (action,
  *  labels, rows). The exported `adminModifierRecalculatePage` then binds the

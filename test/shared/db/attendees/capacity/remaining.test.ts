@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { getDb } from "#db/client.ts";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 /* jscpd:ignore-start -- imports */
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
@@ -64,7 +64,7 @@ describeWithEnv(
 
     test("standard listing: remaining uses editable booked quantity", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
-      await updateListingAggregateValues(listing.id, {
+      await listingAggregates.update(listing.id, {
         booked_quantity: 4,
         tickets_count: 0,
       });
