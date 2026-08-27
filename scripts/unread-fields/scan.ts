@@ -269,11 +269,12 @@ const exportedFields = (
     // A member a class keeps to itself hands nothing out. A type written
     // inside it is out of reach for the same reason.
     if (isHidden(node)) return;
-    const name = fieldNameOf(node);
     // `Extract<Result, { ok: true }>` names a filter, not a member. The walk
     // must not read `ok` off it, because the checker path already resolves
-    // what the reference hands on.
-    if (!name && ts.isTypeReferenceNode(node)) return;
+    // what the reference hands on. Such a reference is no field itself, so
+    // this asks nothing about the name below.
+    if (ts.isTypeReferenceNode(node)) return;
+    const name = fieldNameOf(node);
     const inside = name ? remember(owner, name) : owner;
     for (const child of membersOf(node)) collect(inside, child);
   };
