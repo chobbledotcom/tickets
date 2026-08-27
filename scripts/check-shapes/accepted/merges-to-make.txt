@@ -38,11 +38,7 @@ src/shared/payment-helpers.ts::listingAnswerIdsField,src/shared/payment-helpers.
 src/shared/update.ts::getEffectiveBuildCommit,src/shared/update.ts::getEffectiveBuildTimestamp  # same file, differing only in which override and constant they read
 src/shared/validation/email.ts::parseEmail,src/shared/validation/parse.ts::parseOrNull,src/shared/validation/string.ts::parseNonEmptyString  # parse.ts::parseOrNull is this function; the other two never adopted it
 src/ui/client/admin/manual-checkin.ts::hideList,src/ui/client/admin/manual-checkin.ts::showList  # same file, one showing and one hiding, differing only in the two values
-src/ui/templates/admin/admin-page.tsx::AdminListingLink,src/ui/templates/admin/users.tsx::cell  # an admin link cell, one of five; see the ApiKeyLink group
-src/ui/templates/admin/api-keys.tsx::ApiKeyLink,src/ui/templates/admin/attendee-logistics-tab.tsx::cell,src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteNameCell  # three more admin link cells rendering a path and a name; one component serves every one
-src/ui/templates/admin/attributes.tsx::cell,src/ui/templates/admin/questions.tsx::cell  # the same admin link cell through adminPath; part of the link-cell family
 src/ui/templates/admin/debug.tsx::Row,src/ui/templates/components/labelled-row.tsx::LabelledRow  # two table-row components with the same shape; one belongs in the other
 src/ui/templates/admin/ledger/formatting.tsx::modifierDescription,src/ui/templates/admin/ledger/formatting.tsx::serviceCostDescription  # same file, both pick one of two message keys then render the same sentence
 src/ui/templates/admin/listing-defaults.tsx::number,src/ui/templates/admin/listing-defaults.tsx::url  # same file, one control each, differing only in the component and the cast
-src/ui/templates/checkin.tsx::checkinPublicPage,src/ui/templates/public/balance.tsx::balanceInvalidPage,src/ui/templates/public/balance.tsx::balanceNoItemsPage,src/ui/templates/public/balance.tsx::balanceSettledPage,src/ui/templates/public/errors.tsx::rateLimitedPage  # five pages that are one simplePublicPage call with two keys and a paragraph
 src/ui/templates/fields/validators.ts::validateAddress,src/ui/templates/fields/validators.ts::validateDescription  # same file, both safeParse then return one message; differ only in schema and key

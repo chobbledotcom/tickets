@@ -14,7 +14,7 @@ import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
-import { AdminListingLink, AdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage, adminListingLink } from "#templates/admin/admin-page.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
@@ -169,7 +169,7 @@ export const ListingQrPanel = ({
     <article>
       <div class="prose">
         <h1>
-          {t("listing_qr.page_title")} <AdminListingLink listing={listing} />
+          {t("listing_qr.page_title")} {adminListingLink(listing)}
         </h1>
         <p>
           {t("listing_qr.page_description_start")}{" "}

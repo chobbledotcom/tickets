@@ -13,7 +13,7 @@ import { Flash } from "#shared/forms/flash.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AttendeeTableRow } from "#types";
-import { simplePublicPage } from "./public/prose-page.tsx";
+import { messagePublicPage } from "./public/prose-page.tsx";
 import { SubmitWithHidden } from "./public/unsubscribe.tsx";
 
 /** Alias export used by check-in templates */
@@ -91,8 +91,8 @@ export const checkinAdminPage = (
 /**
  * Non-admin check-in page - simple message telling the user to show this to an admin
  */
-export const checkinPublicPage = (): string =>
-  simplePublicPage(
-    t("admin.checkin.public_title"),
-    t("admin.checkin.public_heading"),
-  )(<p>{t("admin.checkin.public_instructions")}</p>);
+export const checkinPublicPage = messagePublicPage(
+  "admin.checkin.public_title",
+  "admin.checkin.public_heading",
+  "admin.checkin.public_instructions",
+);

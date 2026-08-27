@@ -8,7 +8,7 @@ import {
   RawParagraph,
 } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { simplePublicPage } from "./prose-page.tsx";
+import { messagePublicPage, simplePublicPage } from "./prose-page.tsx";
 
 /* jscpd:ignore-end */
 
@@ -112,11 +112,11 @@ export const qrBookCheckoutErrorPage = (
 /**
  * Rate limit page shown on 429 responses for token URLs
  */
-export const rateLimitedPage = (): string =>
-  simplePublicPage(
-    t("public.rate_limited.title"),
-    t("public.rate_limited.heading"),
-  )(<p>{t("public.rate_limited.message")}</p>);
+export const rateLimitedPage = messagePublicPage(
+  "public.rate_limited.title",
+  "public.rate_limited.heading",
+  "public.rate_limited.message",
+);
 
 /**
  * Inline styles for error dialog pages — self-contained so the page renders

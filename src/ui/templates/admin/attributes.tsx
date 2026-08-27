@@ -19,6 +19,7 @@ import {
   FormSections,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import {
   itemsOrEmptyNote,
   reorderableListPage,
@@ -38,23 +39,15 @@ import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 export const attributeNameFlat = (name: string): string =>
   name.replace(/\r?\n/g, " / ");
 
-const AttributeListingLink = ({
-  listing,
-}: {
-  listing: AttributeListingRow;
-}): JSX.Element => (
-  <a
-    class={listing.active ? undefined : "muted"}
-    href={adminPath("listing", { id: listing.id })}
-  >
-    {listing.name}
-  </a>
+/** A listing an attribute belongs to. A listing nobody can book is dimmed. */
+const attributeListingLink = linkCell(
+  (listing: AttributeListingRow) => adminPath("listing", { id: listing.id }),
+  (listing) => listing.name,
+  (listing) => (listing.active ? undefined : "muted"),
 );
 
 const attributeListingColumns: readonly TableColumn<AttributeListingRow>[] = [
-  translatedTableColumn("listing", "terms.listing", (listing) => (
-    <AttributeListingLink listing={listing} />
-  )),
+  translatedTableColumn("listing", "terms.listing", attributeListingLink),
   translatedTableColumn("options", "attributes.options_column", (listing) =>
     listing.optionTexts.join(", "),
   ),
@@ -80,10 +73,10 @@ export const adminAttributesPage = (
     basePath: adminPattern("attributes"),
     columns: [
       {
-        cell: (attribute) => (
-          <a href={adminPath("attribute", { id: attribute.id })}>
-            {attributeNameFlat(attribute.name)}
-          </a>
+        cell: linkCell(
+          (attribute: AttributeWithOptions) =>
+            adminPath("attribute", { id: attribute.id }),
+          (attribute) => attributeNameFlat(attribute.name),
         ),
         header: t("attributes.attribute_column"),
         key: "attribute",
