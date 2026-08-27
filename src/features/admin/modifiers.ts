@@ -83,12 +83,12 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
 /* jscpd:ignore-end */
 
-/** Build modifier input from validated form values. The value is stored as the
- * positive magnitude the owner typed; converting it to the signed engine value
- * happens where modifiers are applied to a checkout. A promo code is kept only
- * for "code" modifiers, with its blind index computed for public lookup; the
- * per-order cap is kept only for "answer" modifiers, so switching a modifier
- * away from that trigger clears a stale cap. */
+/** Build modifier input from validated form values. The value is stored as
+ * the positive magnitude the owner typed. The signed engine value is
+ * computed where modifiers are applied to a checkout. A promo code is kept
+ * only for "code" modifiers, with its blind index computed for public
+ * lookup. The per-order cap is kept only for "answer" modifiers, so a
+ * modifier moved away from that trigger loses its stale cap. */
 const extractModifierInput = async (
   values: ModifierFormValues,
 ): Promise<ModifierInput> => {

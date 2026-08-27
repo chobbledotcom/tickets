@@ -6,58 +6,11 @@ import {
   oversubscribedAnswerTiers,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
-import {
-  getModifierAnswerIds,
-  type ModifierInput,
-  setModifierAnswers,
-} from "#db/modifiers.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import type { ModifierSpec } from "#shared/payments.ts";
+import type { ModifierInput } from "#db/modifiers.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  insertModifier,
-  insertModifierUsage,
-  linkModifierListing,
-  patchModifier,
-} from "#test-utils/modifiers.ts";
-
-/** Create a question with `count` answers, returning their real ids (answer
- * ids are real rows now that the link is a modifier_id column on answers). */
-const createAnswers = async (count: number): Promise<number[]> => {
-  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
-  const ids: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const a = await answersTable.insert({
-      questionId: q.id,
-      sortOrder: i,
-      text: `A${i + 1}`,
-    });
-    ids.push(a.id);
-  }
-  return ids;
-};
-
-/** Create an answer-triggered modifier linked to `count` fresh answers. */
-const setUpAnswerModifier = async (
-  count: number,
-  input: Partial<ModifierInput> = {},
-): Promise<{ answerIds: number[]; modifierId: number }> => {
-  const answerIds = await createAnswers(count);
-  const m = await insertModifier(input);
-  await patchModifier(m.id, { trigger: "answer" });
-  await setModifierAnswers(m.id, answerIds);
-  return { answerIds, modifierId: m.id };
-};
-
-/** Resolve a one-item cart where each listed listing picked answers. */
-const resolveAnswerPicks = async (
-  picks: Record<string, number[]>,
-  quantities: Map<number, number>,
-): Promise<ModifierSpec[]> =>
-  resolveModifiers([checkoutItem()], {
-    answerQuantities: await answerModifierQuantities(picks, quantities),
-  });
+import { insertModifierUsage, patchModifier } from "#test-utils/modifiers.ts";
+import { resolveAnswerPicks, setUpAnswerModifier } from "./answer-setup.ts";
 
 /** Register one cap scenario as its own test: five tickets picked the answer,
  * and one limit decides how many times the modifier applies. */
@@ -102,9 +55,8 @@ const refusesStoredCap = (
   });
 
 /**
- * The question-answer trigger end to end: how a linked answer turns into a
- * quantity, how the per-order cap and stock clamp that quantity, and how the
- * answer links themselves are stored and read.
+ * How a linked answer turns into a quantity, and how the per-order cap and
+ * the eligibility gates clamp that quantity before stock does.
  */
 describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
   describe("resolveModifiers", () => {
@@ -145,29 +97,6 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
       1,
     );
 
-    refusesStoredCap("refuses a stored per-order cap of zero", 0);
-
-    refusesStoredCap("refuses a fractional stored per-order cap", 2.5);
-
-    refusesStoredCap(
-      "refuses a corrupt cap when one ticket picked the answer",
-      0,
-      1,
-    );
-
-    test("does not read the cap of an answer modifier no order picked", async () => {
-      // The same corrupt row, but this cart picked no linked answer: the cap
-      // decides nothing here, so the order prices normally without it.
-      const { modifierId } = await setUpAnswerModifier(1, {
-        maxPerOrder: 1,
-        name: "Zone 2 delivery",
-      });
-      await patchModifier(modifierId, { max_per_order: 0 });
-
-      const specs = await resolveModifiers([checkoutItem()]);
-      expect(specs.map((s) => s.name)).not.toContain("Zone 2 delivery");
-    });
-
     test("applies a once-per-order answer modifier once across several linked answers", async () => {
       const { answerIds } = await setUpAnswerModifier(2, {
         maxPerOrder: 1,
@@ -185,6 +114,49 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
       );
       expect(specs.find((s) => s.name === "Delivery")?.quantity).toBe(1);
     });
+
+    test("does not read the cap of an answer modifier no order picked", async () => {
+      // The same corrupt row, but this cart picked no linked answer: the cap
+      // decides nothing here, so the order prices normally without it.
+      const { modifierId } = await setUpAnswerModifier(1, {
+        maxPerOrder: 1,
+        name: "Zone 2 delivery",
+      });
+      await patchModifier(modifierId, { max_per_order: 0 });
+
+      const specs = await resolveModifiers([checkoutItem()]);
+      expect(specs.map((s) => s.name)).not.toContain("Zone 2 delivery");
+    });
+
+    test("does not read the cap of a modifier the cart is too small for", async () => {
+      // Same corrupt row behind a minimum subtotal this cart does not meet:
+      // the gates run first, so the modifier never applies and its cap is
+      // never read.
+      const { answerIds, modifierId } = await setUpAnswerModifier(1, {
+        maxPerOrder: 1,
+        name: "Big spenders only",
+      });
+      await patchModifier(modifierId, {
+        max_per_order: 0,
+        min_subtotal: 999999,
+      });
+
+      const specs = await resolveAnswerPicks(
+        { "1": [answerIds[0]!] },
+        new Map([[1, 2]]),
+      );
+      expect(specs.map((s) => s.name)).not.toContain("Big spenders only");
+    });
+
+    refusesStoredCap("refuses a stored per-order cap of zero", 0);
+
+    refusesStoredCap("refuses a fractional stored per-order cap", 2.5);
+
+    refusesStoredCap(
+      "refuses a corrupt cap when one ticket picked the answer",
+      0,
+      1,
+    );
   });
 
   describe("oversubscribedAnswerTiers with a per-order cap", () => {
@@ -232,204 +204,6 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
           answerQuantities: quantities,
         }),
       ).toEqual(["Last van"]);
-    });
-  });
-
-  describe("answer modifier links", () => {
-    test("setModifierAnswers saves a modifier's answer links idempotently", async () => {
-      const [a1, a2] = await createAnswers(2);
-      const m = await insertModifier({ name: "Tier" });
-      await setModifierAnswers(m.id, [a1!, a2!]);
-      expect((await getModifierAnswerIds(m.id)).sort((a, b) => a - b)).toEqual(
-        [a1!, a2!].sort((a, b) => a - b),
-      );
-
-      // Re-saving replaces the whole set (the editor posts the full selection).
-      await setModifierAnswers(m.id, [a2!]);
-      expect(await getModifierAnswerIds(m.id)).toEqual([a2!]);
-    });
-
-    test("answerModifierQuantities sums a whole-order modifier's selections across listings", async () => {
-      // A whole-order (scope=all) tier linked to two answers, each picked on a
-      // different listing — the counts sum across both listings.
-      const [a1, a2] = await createAnswers(2);
-      const m = await insertModifier({ name: "Premium tier" });
-      await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [a1!, a2!]);
-
-      const quantities = await answerModifierQuantities(
-        { "1": [a1!], "2": [a2!] },
-        new Map([
-          [1, 2],
-          [2, 3],
-        ]),
-      );
-      expect(quantities).toEqual(new Map([[m.id, 5]]));
-    });
-
-    test("answerModifierQuantities counts only selections on a scoped modifier's listings", async () => {
-      // Scoped to listing 1, but the linked answer is also picked on listing 2
-      // (out of scope). Only the listing-1 selection counts, so the modifier
-      // isn't inflated to quantity 2.
-      const [answerId] = await createAnswers(1);
-      const m = await insertModifier({ name: "L1 tier" });
-      await patchModifier(m.id, { scope: "listings", trigger: "answer" });
-      await linkModifierListing(m.id, 1);
-      await setModifierAnswers(m.id, [answerId!]);
-
-      const quantities = await answerModifierQuantities(
-        { "1": [answerId!], "2": [answerId!] },
-        new Map([
-          [1, 1],
-          [2, 1],
-        ]),
-      );
-      expect(quantities).toEqual(new Map([[m.id, 1]]));
-    });
-
-    test("oversubscribedAnswerTiers flags an answer tier requested beyond its stock", async () => {
-      const m = await insertModifier({ name: "VIP tier", stock: 2 });
-      await patchModifier(m.id, { trigger: "answer" });
-      const items = [checkoutItem()];
-      // Requested 3 > stock 2 → over-subscribed; 2 <= 2 → fine.
-      expect(
-        await oversubscribedAnswerTiers(items, {
-          answerQuantities: new Map([[m.id, 3]]),
-        }),
-      ).toEqual(["VIP tier"]);
-      expect(
-        await oversubscribedAnswerTiers(items, {
-          answerQuantities: new Map([[m.id, 2]]),
-        }),
-      ).toEqual([]);
-    });
-
-    test("oversubscribedAnswerTiers accounts for stock already consumed", async () => {
-      const m = await insertModifier({ name: "Limited", stock: 5 });
-      await patchModifier(m.id, { trigger: "answer" });
-      await insertModifierUsage(m.id, 1, 4, 0);
-      const items = [checkoutItem()];
-      // 1 remaining: requesting 2 over-subscribes, 1 is fine.
-      expect(
-        await oversubscribedAnswerTiers(items, {
-          answerQuantities: new Map([[m.id, 2]]),
-        }),
-      ).toEqual(["Limited"]);
-      expect(
-        await oversubscribedAnswerTiers(items, {
-          answerQuantities: new Map([[m.id, 1]]),
-        }),
-      ).toEqual([]);
-    });
-
-    test("oversubscribedAnswerTiers ignores empty, unlimited, non-answer, and inactive", async () => {
-      const items = [checkoutItem()];
-      expect(await oversubscribedAnswerTiers(items, {})).toEqual([]);
-      const unlimited = await insertModifier({ name: "Unlimited" });
-      await patchModifier(unlimited.id, { trigger: "answer" });
-      const automatic = await insertModifier({ name: "Auto", stock: 1 });
-      const inactive = await insertModifier({ name: "Inactive", stock: 1 });
-      await patchModifier(inactive.id, { active: 0, trigger: "answer" });
-      expect(
-        await oversubscribedAnswerTiers(items, {
-          answerQuantities: new Map([
-            [unlimited.id, 9],
-            [automatic.id, 9],
-            [inactive.id, 9],
-          ]),
-        }),
-      ).toEqual([]);
-    });
-
-    test("oversubscribedAnswerTiers ignores a tier the cart is too small for", async () => {
-      // Stock 1, requested 3 — over-subscribed on stock alone — but the tier's
-      // minimum subtotal isn't met, so resolveModifiers wouldn't apply it and
-      // the booking must not be blocked.
-      const m = await insertModifier({ name: "Big spenders", stock: 1 });
-      await patchModifier(m.id, { min_subtotal: 999999, trigger: "answer" });
-      expect(
-        await oversubscribedAnswerTiers([checkoutItem({ unitPrice: 1000 })], {
-          answerQuantities: new Map([[m.id, 3]]),
-        }),
-      ).toEqual([]);
-    });
-
-    test("oversubscribedAnswerTiers respects the returning-buyer visit gate", async () => {
-      const m = await insertModifier({ name: "Loyalty tier", stock: 1 });
-      await patchModifier(m.id, { min_visits: 1, trigger: "answer" });
-      const items = [checkoutItem()];
-      const answerQuantities = new Map([[m.id, 3]]);
-      // No visits → the gate blocks the tier, so it can't be over-subscribed.
-      expect(
-        await oversubscribedAnswerTiers(items, { answerQuantities }),
-      ).toEqual([]);
-      // Enough visits → the tier applies, and 3 > stock 1 over-subscribes it.
-      expect(
-        await oversubscribedAnswerTiers(items, {
-          answerQuantities,
-          ctx: { visits: 1 },
-        }),
-      ).toEqual(["Loyalty tier"]);
-    });
-
-    test("oversubscribedAnswerTiers ignores a tier scoped to listings not in the cart", async () => {
-      const m = await insertModifier({ name: "L9 tier", stock: 1 });
-      await patchModifier(m.id, { scope: "listings", trigger: "answer" });
-      await linkModifierListing(m.id, 9);
-      // The cart is listing 1; the tier is scoped to listing 9, so it can't
-      // apply and isn't reported sold out despite the over-subscription.
-      expect(
-        await oversubscribedAnswerTiers([checkoutItem({ listingId: 1 })], {
-          answerQuantities: new Map([[m.id, 3]]),
-        }),
-      ).toEqual([]);
-    });
-
-    test("answerModifierQuantities ignores an unlinked answer picked alongside a linked one", async () => {
-      const [linked, unlinked] = await createAnswers(2);
-      const m = await insertModifier({ name: "Tier" });
-      await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [linked!]);
-      // The other answer has no modifier link; picking it alongside the linked
-      // answer must contribute nothing.
-      const quantities = await answerModifierQuantities(
-        { "1": [linked!, unlinked!] },
-        new Map([[1, 2]]),
-      );
-      expect(quantities).toEqual(new Map([[m.id, 2]]));
-    });
-
-    test("answerModifierQuantities ignores links to inactive or non-answer modifiers", async () => {
-      // A link can outlive the modifier being deactivated or re-triggered; such
-      // a link must never contribute a quantity.
-      const [a1, a2] = await createAnswers(2);
-      const inactive = await insertModifier({ name: "Inactive tier" });
-      await patchModifier(inactive.id, { active: 0, trigger: "answer" });
-      await setModifierAnswers(inactive.id, [a1!]);
-      const automatic = await insertModifier({ name: "Automatic" });
-      await setModifierAnswers(automatic.id, [a2!]);
-
-      const quantities = await answerModifierQuantities(
-        { "1": [a1!, a2!] },
-        new Map([[1, 1]]),
-      );
-      expect(quantities).toEqual(new Map());
-    });
-
-    test("answerModifierQuantities is empty when no answers were selected", async () => {
-      expect(await answerModifierQuantities(undefined, new Map())).toEqual(
-        new Map(),
-      );
-      expect(await answerModifierQuantities({}, new Map([[1, 2]]))).toEqual(
-        new Map(),
-      );
-    });
-
-    test("answerModifierQuantities ignores answers with no linked modifier", async () => {
-      const [answerId] = await createAnswers(1);
-      expect(
-        await answerModifierQuantities({ "1": [answerId!] }, new Map([[1, 4]])),
-      ).toEqual(new Map());
     });
   });
 });

@@ -324,6 +324,13 @@ const eligibleCandidates = async (
     await Promise.all(
       activeModifiers.map(async (modifier): Promise<Candidate | null> => {
         if (modifier.min_visits > ctx.visits) return null;
+        const listingIds = scopes.get(modifier.id)!;
+        const base = inScopeSubtotal(items, listingIds);
+        // A scoped modifier only applies alongside its listings/groups.
+        if (listingIds !== null && base === 0) return null;
+        if (base < modifier.min_subtotal) return null;
+        // The quantity runs last: its corrupt-cap refusal must only fire for
+        // a modifier the gates say this cart will really apply.
         const quantity = triggerQuantity(
           modifier,
           codeIndex,
@@ -331,13 +338,7 @@ const eligibleCandidates = async (
           answerQuantities,
         );
         if (quantity < 1) return null;
-        const listingIds = scopes.get(modifier.id)!;
-        const base = inScopeSubtotal(items, listingIds);
-        // A scoped modifier only applies alongside its listings/groups.
-        if (listingIds !== null && base === 0) return null;
-        return base >= modifier.min_subtotal
-          ? { listingIds, modifier, quantity }
-          : null;
+        return { listingIds, modifier, quantity };
       }),
     )
   ).filter((c): c is Candidate => c !== null);

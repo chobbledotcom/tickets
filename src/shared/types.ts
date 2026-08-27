@@ -805,8 +805,8 @@ export interface Modifier {
   id: number;
   /** Cap on how many times this modifier may apply within one order, or null
    * for no cap. Set to 1 ("charge once per order") so a question-answer
-   * surcharge such as a delivery fee is charged per booking, not per ticket;
-   * stock for such a modifier then counts orders. Answer triggers only. */
+   * surcharge such as a delivery fee is charged per booking, not per ticket.
+   * Stock for such a modifier then counts orders. Answer triggers only. */
   max_per_order: number | null;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;
