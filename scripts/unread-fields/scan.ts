@@ -21,18 +21,27 @@ import {
   readsTheValue,
 } from "./writes.ts";
 
-/** Folders whose code ships. `test/` is scanned too, so the scan can tell a
- * field only its tests read from one nothing reads, and so are the two live
+/** The folder the report is about. Without it there is nothing to say, and a
+ * run that says every one of no fields is read reads like a clean bill. */
+const REPORTED = "src";
+
+/** Folders that only add readers, so the scan can tell a field only its tests
+ * read from one nothing reads. `test/` is one, and so are the two live
  * end-to-end harnesses, which read production fields the same way. A
- * repository without one of these folders is normal, so the walk skips it. */
-const SCANNED = ["src", "test", "scripts", "cli", "e2e-payments/src"];
+ * repository without one of these is normal, so the walk skips it. */
+const ALSO_READ = ["test", "scripts", "cli", "e2e-payments/src"];
 
 const isDirectory = pathIs("isDirectory");
 
 const sourceFilesIn = async (root: string): Promise<string[]> => {
-  const here = SCANNED.filter((folder) => isDirectory(`${root}/${folder}`));
+  if (!isDirectory(`${root}/${REPORTED}`)) {
+    throw new Error(`The repository at ${root} has no ${REPORTED} folder`);
+  }
+  const here = ALSO_READ.filter((folder) => isDirectory(`${root}/${folder}`));
   const perFolder = await Promise.all(
-    here.map((folder) => collectSourceFiles(`${root}/${folder}`)),
+    [REPORTED, ...here].map((folder) =>
+      collectSourceFiles(`${root}/${folder}`),
+    ),
   );
   return perFolder.flat();
 };
@@ -210,6 +219,19 @@ const inheritedFields = (
   }));
 };
 
+/** `Extract<Result, { ok: true }>` and `Exclude<Result, { ok: true }>` take a
+ * filter, not a shape: the second argument picks which arms of the first to
+ * keep, and its fields are nobody's to read. Every other type argument holds
+ * a type the shape hands on, as `Array<{ childId: number }>` does. */
+const NARROWS_BY_A_FILTER = new Set(["Extract", "Exclude"]);
+
+const filterArgumentOf = (node: ts.Node): ts.Node | undefined =>
+  ts.isTypeReferenceNode(node) &&
+  ts.isIdentifier(node.typeName) &&
+  NARROWS_BY_A_FILTER.has(node.typeName.text)
+    ? node.typeArguments?.[1]
+    : undefined;
+
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
   ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.KeyOfKeyword;
@@ -220,6 +242,8 @@ const isKeyOf = (node: ts.Node): boolean =>
  * hands back. Its body holds a type that never leaves it, and its type
  * parameters describe themselves, exactly as a shape's own ones do. */
 const worthWalking = (node: ts.Node): ((part: ts.Node) => boolean) => {
+  const filter = filterArgumentOf(node);
+  if (filter) return (part) => part !== filter;
   // `keyof { paid: number }` is the one word "paid", not a shape with a
   // field, so nothing under it is a field either. `readonly` is a type
   // operator too, and `readonly { paid: number }[]` does hand `paid` out.
@@ -269,11 +293,6 @@ const exportedFields = (
     // A member a class keeps to itself hands nothing out. A type written
     // inside it is out of reach for the same reason.
     if (isHidden(node)) return;
-    // `Extract<Result, { ok: true }>` names a filter, not a member. The walk
-    // must not read `ok` off it, because the checker path already resolves
-    // what the reference hands on. Such a reference is no field itself, so
-    // this asks nothing about the name below.
-    if (ts.isTypeReferenceNode(node)) return;
     const name = fieldNameOf(node);
     const inside = name ? remember(owner, name) : owner;
     for (const child of membersOf(node)) collect(inside, child);
@@ -382,7 +401,9 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
 
   // The program also holds every locale JSON that `src/` imports, and every
   // file it reached outside `src/`. Only the TypeScript the walk found counts.
-  const scanned = new Set(files.filter((f) => f.startsWith(`${root}/src/`)));
+  const scanned = new Set(
+    files.filter((f) => f.startsWith(`${root}/${REPORTED}/`)),
+  );
   const findings: Finding[] = [];
   for (const source of program.getSourceFiles()) {
     const file = source.fileName;

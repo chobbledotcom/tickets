@@ -12,6 +12,7 @@ import {
   type FromAShorthand,
   type HandsAnObjectOver,
   type HoldsAClass,
+  type HoldsThingsInGenerics,
   type InlineArmsShareIt,
   type NamedByALiteral,
   NamedItsParameter,
@@ -71,6 +72,9 @@ export const throughTheSecondArm = (either: BothArmsWriteIt): number =>
     : 0;
 
 export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
+
+export const readInsideAnArray = (h: HoldsThingsInGenerics): number =>
+  h.inAnArray[0].insideAnArray;
 
 export const throughOneInlineArm = (u: InlineArmsShareIt): number =>
   u.whichInlineArm === "second"

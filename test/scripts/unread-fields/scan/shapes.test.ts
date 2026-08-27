@@ -1,10 +1,25 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
 import { scannedFixture } from "./fixture.ts";
 
 /**
  * Which shapes the scan looks at, and which of their fields it counts.
  */
+describe("the folders the scan reads", () => {
+  test("refuses a repository with no src folder", async () => {
+    // A run that says every one of no fields is read reads like a clean bill,
+    // so a checkout without the folder the report is about has to fail.
+    const root = await Deno.makeTempDir({ prefix: "unread-fields-bare-" });
+    await Deno.writeTextFile(`${root}/deno.json`, JSON.stringify({}));
+    try {
+      await expect(scanUnreadFields(root)).rejects.toThrow("has no src folder");
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+});
+
 describe("the shapes the scan finds", () => {
   const scanned = scannedFixture();
   const verdictOf = scanned.verdictOf;
@@ -190,6 +205,28 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("StillHandsOneOut", "keptByReadonly")).toBe("never read");
   });
 
+  test("sees a field of an object type a generic holds", () => {
+    // `Array<{ id }>` and `Record<string, { id }>` both hand the inner shape
+    // on, and a reader reaches it as `rows.inAnArray[0].insideAnArray`.
+    expect(verdictOf("HoldsThingsInGenerics.inAnArray", "insideAnArray")).toBe(
+      "read",
+    );
+    expect(verdictOf("HoldsThingsInGenerics.inARecord", "insideARecord")).toBe(
+      "never read",
+    );
+  });
+
+  test("leaves out a field only a filter's argument names", () => {
+    // `Extract<T, { picked: true }>` and `Exclude<T, { picked: true }>` say
+    // which arms of T to keep. The argument is a filter, and no value of the
+    // shape has its fields.
+    const leaked = scanned.all.filter(
+      (f) =>
+        f.field.endsWith("OnlyNamedByAFilter") || f.field.endsWith("ByAFilter"),
+    );
+    expect(leaked).toEqual([]);
+  });
+
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "AnsweredAgain.answeredTwice",
@@ -231,6 +268,10 @@ describe("the shapes the scan finds", () => {
       "HandsAnObjectOver.takesAnObject.insideAParameter",
       "HoldsAClass.builtOnByAChild",
       "HoldsAClass.builtOnByAChild.madeByTheChild",
+      "HoldsThingsInGenerics.inARecord",
+      "HoldsThingsInGenerics.inARecord.insideARecord",
+      "HoldsThingsInGenerics.inAnArray",
+      "HoldsThingsInGenerics.inAnArray.insideAnArray",
       "InlineArmsShareIt.onlyOnTheSecondInlineArm",
       "InlineArmsShareIt.sharedByInlineArms",
       "InlineArmsShareIt.whichInlineArm",
@@ -238,6 +279,9 @@ describe("the shapes the scan finds", () => {
       "Intersects.fromAnIntersection",
       "Intersects.ofItsOwnAgain",
       "KeepsSecretsInside.read",
+      "KeptByAFilter.onlyOnTheFirst",
+      "KeptByAFilter.onlyOnTheSecond",
+      "KeptByAFilter.sharedByBothArms",
       "ListExported.onlyInAList",
       "NamedByALiteral.1",
       "NamedByALiteral.plainName",

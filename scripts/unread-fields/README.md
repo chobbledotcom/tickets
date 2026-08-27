@@ -18,10 +18,14 @@ search cannot find that: `.failed` appears on `RegistrationDelivery`, on a
 webhook result, and inside the translation key `address_lookup.failed`. A name
 match calls the dead field alive.
 
-The scan asks TypeScript instead. It builds a program over `src`, `test`,
-`scripts` and `cli`, translates the import map's `#` aliases into what the
-compiler expects, and asks the language service who refers to each field. The
-answer is per symbol, so the four other `failed` mentions do not count.
+The scan asks TypeScript instead. It builds a program over `src`, and over
+`test`, `scripts`, `cli` and `e2e-payments/src` for the readers they hold. It
+translates the import map's `#` aliases into what the compiler expects, and asks
+the language service who refers to each field. The answer is per symbol, so the
+four other `failed` mentions do not count.
+
+The report is about `src`, so a checkout without it fails rather than reports. A
+run that says every one of no fields is read reads like a clean bill.
 
 ## What counts as a shape
 
@@ -39,8 +43,12 @@ export class Badge {
 ```
 
 An object type nested inside one counts too, because `report.nested.deep`
-reaches it. A shape the file keeps to itself does not, and neither does a member
-a class keeps to itself.
+reaches it. A generic that holds one hands it on, so `Array<{ id: number }>` and
+`Record<string, { id: number }>` both count. `Extract<Row, { kind: "one" }>` is
+different. Its second argument says which arms of `Row` to keep, so it is a
+filter, and no value of the shape has a field of it. `Exclude` works the same
+way. A shape the file keeps to itself does not count, and neither does a member
+a class keeps to itself, nor a type written inside one.
 
 A shape also hands on the fields it takes from somewhere else. That means a base
 it extends, an intersection, another type it simply names, or every arm of a

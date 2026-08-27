@@ -158,6 +158,16 @@ export type OnlyWhenItFits<R> = R extends { checkedNotDeclared: number }
 
 export type PickedByAFilter = Extract<EitherWay, { sharedByBothArms: true }>;
 
+// The two filters below name a field nothing else in the repository declares,
+// so a leak from the filter argument shows up as that name and nothing else.
+export type NarrowedByAFilter = Extract<EitherWay, { onlyNamedByAFilter: true }>;
+export type KeptByAFilter = Exclude<EitherWay, { alsoOnlyByAFilter: true }>;
+
+export interface HoldsThingsInGenerics {
+  inAnArray: Array<{ insideAnArray: number }>;
+  inARecord: Record<string, { insideARecord: number }>;
+}
+
 export type InlineArmsShareIt =
   | { whichInlineArm: "first"; sharedByInlineArms: number }
   | {
