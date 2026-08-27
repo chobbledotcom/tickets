@@ -278,14 +278,9 @@ src/shared/payment/row-state.ts::SortedAttendeeIdsSchema~1d17kt9  Refund claim a
 # types.ts: every write path validates day-count keys as whole numbers of
 # 1 or more before they are stored (the DayPriceKeySchema regex [1-9]\d*,
 # parseDayPrices, and the fail-closed admin API parser), so no reachable
-# input carries a day count below 1 or a fractional stored key. Each mutant
-# below only changes behavior for such an input: a sub-1 or non-integer
-# lookup falls through to day_prices[days], which is undefined for every
-# stored map, and `?? null` returns the same null the guard returns.
+# input carries a day count below 1. The schema's own minimum check agrees
+# with the regex on every string that reaches it.
 src/shared/types.ts::DayPriceKeySchema~0yvxbbw 1 → 0   # the regex already admits only keys >= 1, so >= 1 and >= 0 agree on every string that reaches the check
-src/shared/types.ts::availableDayCounts~0u9ypmp 1 → 0   # stored keys are >= 1 by the write paths; only the upper bound (a later duration edit) can drift
-src/shared/types.ts::dayPriceFor~15weaj3 || → &&   # differs only for a non-integer days that the narrowed guard lets through; no stored key is non-integer, so the lookup is undefined either way
-src/shared/types.ts::dayPriceFor~0rxgtw9 1 → 0   # differs only for days 0, which can only matter via a stored "0" key; no write path can store one
 
 # seeds.ts — two thresholds no seeded value can fall between.
 src/shared/seeds.ts::prepareAttendee.paymentId~01ncynu  0 → 1   # a seeded listing's unit price is 0 or one of the demo prices (500 and up), so no listing sits between the two thresholds
