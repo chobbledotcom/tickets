@@ -58,6 +58,14 @@ describe("the compiler's view of a repository", () => {
       );
     });
 
+    test("names every refused option, not only the first", () => {
+      // Two bad options give two diagnostics, and both have to reach the
+      // person reading the failure, told apart.
+      expect(() =>
+        compilerOptions(root, {}, { jsx: "nope", target: "nonsense" }),
+      ).toThrow(/Argument for '--jsx'.*; Argument for '--target'/);
+    });
+
     test("keeps the settings that say where the files are", () => {
       const options = compilerOptions(
         root,
