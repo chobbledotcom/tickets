@@ -96,10 +96,4 @@ export type PickedByAKey = {
   keptByTheKey: { keptInsideTheKey: number };
   droppedByTheKey: { droppedInsideTheKey: number };
 }["keptByTheKey"];
-
-interface HandsOnAShape {
-  borrowedHolder: { deepInsideABorrowedField: number };
-}
-
-export interface TakesTheShape extends HandsOnAShape {}
 `;

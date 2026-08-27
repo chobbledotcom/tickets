@@ -1,5 +1,48 @@
 # TODO — remaining follow-ups
 
+## Walk the shape a borrowed field holds
+
+_Origin: a review of PR #2166. The gap is real and the plain fix leaks._
+
+`exportedFields` in `scripts/unread-fields/fields.ts` remembers a borrowed field
+and stops. A field the shape writes down itself gives two lines, `Report.nested`
+and `Report.nested.deep`, because `collect` walks its type. A field the shape
+takes from a base, an alias or an intersection gives one, so the report is short
+by every nested field under a borrowed one. The README says a nested field
+counts.
+
+The plain fix is two lines, after `remember` hands back the path:
+
+```typescript
+for (const part of partsOf(name.parent)) collect(inside, part);
+```
+
+That fix leaks. `Extract<T, Filter>` names fields inside its filter, and the
+checker hands those declarations back beside the real ones. Over this repository
+it added two lines that no value of the shape holds:
+`SettingsFormFor.fields.stateField` and `.configuredStateField`, both declared
+at `src/shared/settings/forms.ts:328` and `:329`, inside the filter argument
+that runs from line 325 to line 331. The syntax walk already refuses a filter's
+arguments through `holdsNoAnswer`, and the checker path goes around it.
+
+`if (ts.findAncestor(name, holdsNoAnswer)) continue;` before the walk removes
+both lines and changes nothing else in the report. It did not ship because no
+small program reproduced the leak, so the branch would arrive with no test and
+no coverage. Five shapes failed: a plain filter, a generic filter, a union
+filter over a union source, a filter naming a field the source does not, and a
+three-arm union closest to the real one. Each either resolved the `Extract` away
+or put the nested names in the real declaration rather than in the filter.
+
+Start by reproducing the leak, not by writing the guard. Build a program with
+`ts.createProgram`, call `exportedFields` over it, and print every line with the
+line number of each of its names. Look for a nested name whose only declaration
+sits inside the filter. Add the guard and its fixture together.
+
+Over `src/` the whole change adds five fields to the denominator and no finding,
+because production reads all five. The value is the rule, not the report.
+
+---
+
 ## The stale-claim touch test failed once on a loaded runner
 
 _Origin: CI on PR #2166, commit `8f31a8c`,

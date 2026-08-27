@@ -130,8 +130,6 @@ export const EVERY_FIELD: readonly string[] = [
   "TakesObjectsInMethods.post.value.sameNameInBoth",
   "TakesObjectsInMethods.send",
   "TakesObjectsInMethods.send.value.sameNameInBoth",
-  "TakesTheShape.borrowedHolder",
-  "TakesTheShape.borrowedHolder.deepInsideABorrowedField",
   "TakesTwoObjects.send",
   "TakesTwoObjects.send.first.sameNameInBothParameters",
   "TakesTwoObjects.send.second.sameNameInBothParameters",

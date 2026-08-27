@@ -191,12 +191,4 @@ describe("what the walk goes into", () => {
     expect(verdictOf("PickedByAKey", "keptInsideTheKey")).toBe("never read");
     expect(verdictOf("PickedByAKey", "droppedByTheKey")).toBeUndefined();
   });
-
-  test("goes into the shape a borrowed field holds", () => {
-    // `takesTheShape.borrowedHolder.deepInsideABorrowedField` reaches it, as
-    // it does for a field the shape writes down itself.
-    expect(
-      verdictOf("TakesTheShape.borrowedHolder", "deepInsideABorrowedField"),
-    ).toBe("never read");
-  });
 });

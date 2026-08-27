@@ -341,10 +341,7 @@ export const exportedFields = (
     // declares itself already holds the line. It gains a second name only
     // where the checker hands back a second declaration, as `A & B` does.
     for (const name of inheritedNames(checker, shape)) {
-      const inside = remember([shape.name.text], name);
-      // A borrowed field holds a shape of its own as readily as one the shape
-      // writes down, and `public.inner.deep` reaches it the same way.
-      for (const part of partsOf(name.parent)) collect(inside, part);
+      remember([shape.name.text], name);
     }
   }
   return [...found.values()];
