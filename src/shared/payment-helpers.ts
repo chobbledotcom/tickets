@@ -236,20 +236,16 @@ const optionalFields = (
   ...(intent.dayCount ? { day_count: String(intent.dayCount) } : {}),
 });
 
-/** Serialize per-listing answer IDs for metadata (only if non-empty) */
-const listingAnswerIdsField = (
-  listingAnswerIds?: Record<string, number[]>,
-): Record<string, string> =>
-  listingAnswerIds && Object.keys(listingAnswerIds).length > 0
-    ? { answer_ids: JSON.stringify(listingAnswerIds) }
-    : {};
+/** Serialize a per-listing answer map for metadata, or nothing when it is empty. */
+const answerIdsField =
+  (name: string) =>
+  (byListing?: Record<string, unknown>): Record<string, string> =>
+    byListing && Object.keys(byListing).length > 0
+      ? { [name]: JSON.stringify(byListing) }
+      : {};
 
-const listingTextAnswerIdsField = (
-  listingTextAnswerIds?: BookingIntent["listingTextAnswerIds"],
-): Record<string, string> =>
-  listingTextAnswerIds && Object.keys(listingTextAnswerIds).length > 0
-    ? { text_answer_ids: JSON.stringify(listingTextAnswerIds) }
-    : {};
+const listingAnswerIdsField = answerIdsField("answer_ids");
+const listingTextAnswerIdsField = answerIdsField("text_answer_ids");
 
 /** Convert single-listing answerIds to the per-listing format used in metadata */
 export const singleListingAnswerIds = (
