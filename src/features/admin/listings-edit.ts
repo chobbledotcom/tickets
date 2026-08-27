@@ -76,7 +76,6 @@ import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
-  extractListingAggregateValues,
   parseGroupIds,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
@@ -459,10 +458,10 @@ const parseAggregatesForRole = (
   | { ok: false; error: string } =>
   session.adminLevel === "editor"
     ? { input: null, ok: true }
-    : parseEditableAggregateForm<
-        ListingAggregateValues,
-        ListingAggregateValues
-      >(form, getListingAggregateFields(), extractListingAggregateValues);
+    : parseEditableAggregateForm<ListingAggregateValues>(
+        form,
+        getListingAggregateFields(),
+      );
 
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<

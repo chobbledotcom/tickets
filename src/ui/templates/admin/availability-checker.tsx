@@ -19,7 +19,10 @@ import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
 /* jscpd:ignore-end */
 
@@ -64,11 +67,9 @@ const availabilityColumns: readonly TableColumn<AvailabilityRow>[] = [
     ),
     key: "select",
   },
-  {
-    cell: (row) => <a href={`/admin/listing/${row.id}`}>{row.name}</a>,
-    header: translatedTableHeader("availability.listing"),
-    key: "listing",
-  },
+  translatedTableColumn("listing", "availability.listing", (row) => (
+    <a href={`/admin/listing/${row.id}`}>{row.name}</a>
+  )),
   {
     cell: (row) => `${row.remaining}/${row.total}`,
     cellAttrs: (row) => ({ class: row.remaining <= 0 ? "danger" : undefined }),

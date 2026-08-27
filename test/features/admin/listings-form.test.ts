@@ -7,7 +7,6 @@ import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
-  extractListingAggregateValues,
   parseGroupIds,
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
@@ -61,17 +60,6 @@ describeWithEnv("listings form", { db: true }, () => {
 
     test("is empty when no group is ticked", () => {
       expect(parseGroupIds(testFormParams({}))).toEqual([]);
-    });
-  });
-
-  describe("extractListingAggregateValues", () => {
-    test("keeps exactly the two aggregate columns", () => {
-      expect(
-        extractListingAggregateValues({
-          booked_quantity: 7,
-          tickets_count: 3,
-        }),
-      ).toEqual({ booked_quantity: 7, tickets_count: 3 });
     });
   });
 

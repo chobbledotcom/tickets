@@ -194,13 +194,6 @@ export const handleEditAnswerGet: ParamsRoute<AnswerRouteParams> =
     );
   });
 
-/** Map the validated aggregate form values onto the stored aggregate columns. */
-const extractAnswerAggregateValues = (
-  values: AnswerAggregateValues,
-): AnswerAggregateValues => ({
-  times_selected: values.times_selected,
-});
-
 /** Handle POST /admin/questions/:id/answers/:answerId/edit (text + modifier) */
 export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
   createAuthedFormRoute<{ text: string }, AnswerRouteParams, AnswerContext>({
@@ -223,10 +216,10 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       ) {
         return errorRedirect(editAnswerPath(params), "Invalid modifier");
       }
-      const aggregates = parseEditableAggregateForm<
-        AnswerAggregateValues,
-        AnswerAggregateValues
-      >(form, getAnswerAggregateFields(), extractAnswerAggregateValues);
+      const aggregates = parseEditableAggregateForm<AnswerAggregateValues>(
+        form,
+        getAnswerAggregateFields(),
+      );
       if (!aggregates.ok) {
         return errorRedirect(editAnswerPath(params), aggregates.error);
       }

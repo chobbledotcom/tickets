@@ -109,13 +109,6 @@ const extractModifierInput = async (
   };
 };
 
-const extractModifierAggregateValues = (
-  values: ModifierAggregateValues,
-): ModifierAggregateValues => ({
-  total_uses: values.total_uses,
-  usage_count: values.usage_count,
-});
-
 const resolveAddOnScope = (
   scope: ModifierScope | undefined,
   listingIds: number[],
@@ -359,10 +352,10 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   withAuth(request, AUTH_FORM, async (_session, form) => {
     const modifier = await getModifier(id);
     if (!modifier) return notFoundResponse();
-    const aggregates = parseEditableAggregateForm<
-      ModifierAggregateValues,
-      ModifierAggregateValues
-    >(form, getModifierAggregateFields(), extractModifierAggregateValues);
+    const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
+      form,
+      getModifierAggregateFields(),
+    );
     if (!aggregates.ok) {
       return modifierPage.renderEditError(id, _session, form, aggregates.error);
     }

@@ -20,17 +20,16 @@ type AggregateParseResult<T> =
   | { input: T | null; ok: true }
   | { error: string; ok: false };
 
-export const parseEditableAggregateForm = <TValues, TInput>(
+export const parseEditableAggregateForm = <TValues>(
   form: FormParams,
   fields: Field[],
-  toInput: (values: TValues) => TInput,
-): AggregateParseResult<TInput> => {
+): AggregateParseResult<TValues> => {
   if (!fields.some((field) => form.has(field.name))) {
     return { input: null, ok: true };
   }
   const result: ValidationResult<TValues> = validateForm<TValues>(form, fields);
   return result.valid
-    ? { input: toInput(result.values), ok: true }
+    ? { input: result.values, ok: true }
     : errorResult(result.error);
 };
 

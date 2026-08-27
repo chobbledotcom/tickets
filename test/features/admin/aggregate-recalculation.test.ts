@@ -45,19 +45,28 @@ describe("parseEditableAggregateForm", () => {
       parseEditableAggregateForm(
         new FormParams({ other: "value" }),
         editableFields,
-        (values) => values,
       ),
     ).toEqual({ input: null, ok: true });
   });
 
   test("parses an aggregate when one of its fields was submitted", () => {
     expect(
-      parseEditableAggregateForm<{ name: string }, string>(
+      parseEditableAggregateForm<{ name: string }>(
         new FormParams({ name: "New name" }),
         editableFields,
-        (values) => values.name,
       ),
-    ).toEqual({ input: "New name", ok: true });
+    ).toEqual({ input: { name: "New name" }, ok: true });
+  });
+
+  // The declared fields decide the columns, so a stray form value can never
+  // reach a write.
+  test("keeps only the declared fields", () => {
+    expect(
+      parseEditableAggregateForm<{ name: string }>(
+        new FormParams({ name: "New name", other: "value" }),
+        editableFields,
+      ),
+    ).toEqual({ input: { name: "New name" }, ok: true });
   });
 });
 

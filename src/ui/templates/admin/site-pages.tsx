@@ -25,7 +25,10 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 import type {
   AdminSession,
   SitePage,
@@ -109,11 +112,11 @@ const nestedPageColumns = pageColumns(nestedPage);
 
 const nestedPageTable = defineTable<NestedPageRow>([
   nestedPageColumns.name,
-  {
-    cell: ({ parentName }) => parentName,
-    header: translatedTableHeader("site.pages.parent_column"),
-    key: "parent",
-  },
+  translatedTableColumn(
+    "parent",
+    "site.pages.parent_column",
+    ({ parentName }) => parentName,
+  ),
   nestedPageColumns.actions,
 ]);
 

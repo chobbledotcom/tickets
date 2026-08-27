@@ -1,12 +1,14 @@
 /** Listing aggregate inspection, correction, and rebuilding. */
 
 import { inOwnTx, ledgerTx } from "#accounting/ledger-tx.ts";
+/* jscpd:ignore-start */
 import { requireOne } from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
   aggregateRepairs,
 } from "#db/common-schema.ts";
+/* jscpd:ignore-end */
 import {
   ticketCountPredicateFor,
   ticketCountSumExpr,

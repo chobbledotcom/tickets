@@ -20,22 +20,19 @@ import {
 import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 
-/** One plain-text credential on a wallet form: the form field it comes from,
- * the error shown when the operator leaves it blank, and where it is stored. */
+/** One credential on a wallet form: the form field it comes from, the error
+ * shown when the operator leaves it blank, and where it is stored. */
 type WalletTextField = {
   missingKey: string;
   name: string;
   save: (value: string) => Promise<void>;
 };
 
-/** One uploaded secret on a wallet form: how to read it back, how to tell it is
- * the right kind of file, and what to say when it is missing or wrong. */
-type WalletSecretField = {
+/** One uploaded secret on a wallet form: a credential that also knows how to
+ * read its stored value back, and how to tell it is the right kind of file. */
+type WalletSecretField = WalletTextField & {
   invalidKey: string;
   looksValid: (value: string) => boolean | Promise<boolean>;
-  missingKey: string;
-  name: string;
-  save: (value: string) => Promise<void>;
   savedValue: () => string;
 };
 

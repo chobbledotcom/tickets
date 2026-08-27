@@ -33,7 +33,7 @@ import {
 } from "#templates/components/linked-items.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import {
   type AdminSession,
   type Image,
@@ -126,26 +126,21 @@ const imageLinkedItemGroups = (
 };
 
 const imageColumns: readonly TableColumn<Image>[] = [
-  {
-    cell: (image) => thumbnail(image),
-    header: translatedTableHeader("images.column.thumbnail"),
-    key: "thumbnail",
-  },
-  {
-    cell: (image) =>
-      isReadOnly() ? (
-        image.name
-      ) : (
-        <a href={`/admin/images/${image.id}/edit`}>{image.name}</a>
-      ),
-    header: translatedTableHeader("common.name"),
-    key: "name",
-  },
-  {
-    cell: (image) => image.alt_text,
-    header: translatedTableHeader("images.field.alt_text"),
-    key: "alt_text",
-  },
+  translatedTableColumn("thumbnail", "images.column.thumbnail", (image) =>
+    thumbnail(image),
+  ),
+  translatedTableColumn("name", "common.name", (image) =>
+    isReadOnly() ? (
+      image.name
+    ) : (
+      <a href={`/admin/images/${image.id}/edit`}>{image.name}</a>
+    ),
+  ),
+  translatedTableColumn(
+    "alt_text",
+    "images.field.alt_text",
+    (image) => image.alt_text,
+  ),
 ];
 
 const imageTable = defineTable(imageColumns);
