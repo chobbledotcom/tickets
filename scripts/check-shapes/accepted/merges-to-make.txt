@@ -11,18 +11,13 @@
 # Format: the match, two spaces, then `# why it is still here`.
 e2e-payments/src/cucumber/steps/pages.ts::submitRenderedRefundForm,e2e-payments/src/providers/stripe.ts::saveStripeKey  # both fill one named box then press one named button; a fillsAndSubmits curry takes both
 scripts/bench/cold-start/support.ts::sampleMap,src/shared/db/modifiers.ts::emptyModifierScopeMap  # both build a Map of empty lists from ids; #fp wants an emptyListsFor
-scripts/safe-upgrade.ts::printErrors,scripts/safe-upgrade.ts::printUpToDate  # same file, differing only in the heading and the list to print
 scripts/static-assets/cache.ts::sameList,src/shared/crypto/der.ts::bytesEqual  # same length-then-every comparison over two sequences
-src/features/admin/actions.ts::getDateFilter,src/features/admin/actions.ts::getMonthFilter  # same file, differing only in the query key and the validator
 src/features/admin/attendee-notes.ts::withLoadedAttendee,src/features/api/helpers.ts::withApiBody  # both load, hand back a Response as-is, and otherwise call on
 src/features/admin/attendees-merge.ts::extractSourcePii,src/features/admin/attendees-merge.ts::extractTargetPii,src/features/admin/content-form-fields.ts::contentFieldValues  # the two PII readers are one function; the third site only shares object construction, so merge the pair and this entry goes with it
 src/features/admin/attendees-merge.ts::parseBookingDecisions,src/features/admin/attendees-merge.ts::parseMoneyDecisions  # same file, differing only in the field prefix and the choice reader
 src/features/admin/attendees-merge.ts::toAnswerChoice,src/features/admin/attendees-merge.ts::toBookingChoice,src/features/auth.ts::adminLandingPath  # the two merge-choice readers are one if-chain over a picklist; the landing path is not, and leaves the group when they merge
-src/features/admin/debug.ts::resolveGoogleWalletIssuerId,src/features/admin/debug.ts::resolveWalletPassTypeId  # same file, one per wallet, differing only in which settings they read
 src/features/admin/refunds/readiness.ts::providerIdentity,src/shared/payment/validated-session.ts::rejectedChargeReference  # both build the same tagged provider reference
 src/features/api/payment-processing/snapshot/build.ts::signedModifierValue,src/shared/db/modifier-resolve.ts::signedValue  # one pricing rule written twice, once over snake_case columns and once over camelCase fields; the pair can drift
-src/features/app/read-only.ts::isAllowedAdminOperation,src/features/app/read-only.ts::matches  # same file, both ask whether one method matches a pattern list
-src/features/feeds.ts::handleIcs,src/features/feeds.ts::handleRss  # same file, differing only in the builder and the response wrapper
 src/shared/crypto/keys.ts::unwrapKeyWithToken,src/shared/crypto/keys.ts::wrapKeyWithToken  # same file, differing only in the direction of the key derivation
 src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delete.ts::deleteAnswer  # both cascade a delete over the same two shapes of table
 src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers

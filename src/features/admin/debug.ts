@@ -134,21 +134,15 @@ const resolveWalletSource = (
   return EMPTY_DEBUG_VALUE;
 };
 
-/** Resolve the effective Apple Wallet pass-type id (db config takes priority). */
-const resolveWalletPassTypeId = (
-  appleWallet: typeof settings.appleWallet,
+/** The name a wallet goes by: what the database holds when the wallet is set
+ *  up there, else what the host set, else nothing. */
+const resolveWalletName = <THost>(
+  wallet: { hasDbConfig: boolean; hostConfig: THost | null },
+  fromDb: () => string,
+  fromHost: (host: THost) => string,
 ): string => {
-  if (appleWallet.hasDbConfig) return appleWallet.passTypeId;
-  if (appleWallet.hostConfig) return appleWallet.hostConfig.passTypeId;
-  return EMPTY_DEBUG_VALUE;
-};
-
-/** Resolve the effective Google Wallet issuer id (db config takes priority). */
-const resolveGoogleWalletIssuerId = (
-  googleWallet: typeof settings.googleWallet,
-): string => {
-  if (googleWallet.hasDbConfig) return googleWallet.issuerId;
-  if (googleWallet.hostConfig) return googleWallet.hostConfig.issuerId;
+  if (wallet.hasDbConfig) return fromDb();
+  if (wallet.hostConfig) return fromHost(wallet.hostConfig);
   return EMPTY_DEBUG_VALUE;
 };
 
@@ -218,7 +212,11 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ),
       dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
-      passTypeId: resolveWalletPassTypeId(settings.appleWallet),
+      passTypeId: resolveWalletName(
+        settings.appleWallet,
+        () => settings.appleWallet.passTypeId,
+        (host) => host.passTypeId,
+      ),
       source: resolveWalletSource(
         settings.appleWallet.hasDbConfig,
         appleWalletEnvConfigured,
@@ -259,7 +257,11 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     googleWallet: {
       dbConfigured: settings.googleWallet.hasDbConfig,
       envConfigured: googleWalletEnvConfigured,
-      issuerId: resolveGoogleWalletIssuerId(settings.googleWallet),
+      issuerId: resolveWalletName(
+        settings.googleWallet,
+        () => settings.googleWallet.issuerId,
+        (host) => host.issuerId,
+      ),
       privateKeyValid: await validateGooglePrivateKey(
         settings.googleWallet.config,
       ),
