@@ -129,8 +129,11 @@ A name in brackets can borrow a type the same way.
 `interface Uses {
 [Registry.key]: string }` works its name out while the file
 compiles, and nothing evaluates it when the program runs. So does a member of a
-class the program never builds. An object literal and a real class both work
-their key out as they run, so both read.
+class that is only described: a `declare class`, one inside a
+`declare
+namespace`, or any declaration in a `.d.ts` file. An object literal
+works its key out as it runs. A real class works its member names out as its
+declaration runs, even where nothing ever makes one, so both read.
 
 `{ ["total"]: 1 }` supplies the field exactly as `{ total: 1 }` does, and
 `({ ["total"]: held } = row)` takes it out exactly as `({ total: held } = row)`
@@ -146,9 +149,9 @@ because its operand must be a property reference.
 `class C extends r.total {}` is the odd one. The compiler counts the clause it
 sits in as a type. The program still reads the field when it runs, to find the
 class to build on. An interface's `extends`, and every `implements`, read
-nothing. Neither does a class the program never builds. A `declare class`, a
-class inside a `declare namespace`, and every declaration in a `.d.ts` file
-describe a class that exists somewhere else.
+nothing. Neither does a class that is only described. A `declare class`, a class
+inside a `declare namespace`, and every declaration in a `.d.ts` file describe a
+class that exists somewhere else.
 
 Two ways of writing a field give it a namesake, and the compiler answers a
 lookup for either name with both. `constructor(public total: number)` declares a

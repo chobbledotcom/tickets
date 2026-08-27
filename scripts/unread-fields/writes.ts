@@ -230,8 +230,8 @@ export const isInside = (whole: ts.Node): AskAboutAMention =>
 
 const saysDeclare = carriesAModifier(ts.ModifierFlags.Ambient);
 
-/** A class the program never builds, because the declaration only describes
- * one that exists somewhere else. `declare class` is the plain form. A class
+/** A class that is only described, because the declaration names one that
+ * exists somewhere else. `declare class` is the plain form. A class
  * inside a `declare namespace` is one too, and so is every declaration in a
  * `.d.ts` file. The walk up is what catches those two: a modifier flag is
  * combined with the declaration's own list and with nothing above it, so the
@@ -254,8 +254,9 @@ const isRuntimeHeritage = (node: ts.Node): boolean =>
 
 /** A name in brackets that the compiler works out and the program never runs.
  * `interface Uses { [Registry.key]: string }` is one, and so is a member of a
- * class the program never builds. An object literal and a real class both work
- * their key out when they run, so neither is one. */
+ * class that is only described. An object literal works its key out as it
+ * runs, and a real class works its member names out as its declaration runs,
+ * even where nothing ever makes one, so neither is one. */
 const namesAMemberNothingRuns = (node: ts.Node): boolean =>
   ts.isComputedPropertyName(node) &&
   (ts.isTypeElement(node.parent) || isAmbient(node));
