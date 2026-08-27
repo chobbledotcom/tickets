@@ -19,15 +19,19 @@ const storedTotals = (listingId: number) =>
     [listingId],
   );
 
+/** The listing's row with its counts, refused loudly when it is not there —
+ * a listing the test just created must always come back. */
+const recalculationFor = async (listingId: number) => {
+  const listing = await getListingWithCount(listingId);
+  if (!listing) throw new Error(`No listing ${listingId} to recalculate`);
+  return getListingAggregateRecalculation(listing);
+};
+
 describeWithEnv("db > listing aggregates", { db: true }, () => {
   describe("getListingAggregateRecalculation", () => {
     test("pairs each stored total with the one rebuilt from bookings", async () => {
       const listing = await createListingWithDriftedTotals();
-      const withCount = await getListingWithCount(listing.id);
-      const recalculation = await getListingAggregateRecalculation(
-        // biome-ignore lint/style/noNonNullAssertion: the listing was just created
-        withCount!,
-      );
+      const recalculation = await recalculationFor(listing.id);
       expect(recalculation).toEqual({
         booked_quantity: { current: 9, recalculated: 1 },
         tickets_count: { current: 5, recalculated: 1 },
@@ -36,9 +40,7 @@ describeWithEnv("db > listing aggregates", { db: true }, () => {
 
     test("reads zero from a listing nobody booked", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const withCount = await getListingWithCount(listing.id);
-      // biome-ignore lint/style/noNonNullAssertion: the listing was just created
-      const recalculation = await getListingAggregateRecalculation(withCount!);
+      const recalculation = await recalculationFor(listing.id);
       expect(recalculation.booked_quantity.recalculated).toBe(0);
       expect(recalculation.tickets_count.recalculated).toBe(0);
     });
