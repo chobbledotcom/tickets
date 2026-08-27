@@ -2605,7 +2605,7 @@ written once in the admin surface declaration.
   link" rule in `AGENTS.md`. Replace `ActionDef.href` with
   `destination: AdminDestinationId` and derive both the address and the
   visibility from the declaration. About 30 lines. This one does not need the
-  98-route work.
+  97-route work.
 
 ---
 
