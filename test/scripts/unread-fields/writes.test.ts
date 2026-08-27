@@ -57,6 +57,10 @@ describe("isWrite", () => {
     expect(writesAt("s.total = 1;", "total")).toBe(true);
   });
 
+  test("counts an assignment through a fixed key in brackets", () => {
+    expect(writesAt('row["total"] = 1;', "total")).toBe(true);
+  });
+
   test("counts the slot a destructuring pattern fills", () => {
     expect(writesAt("({ value: row.total } = source);", "total")).toBe(true);
   });
@@ -103,6 +107,10 @@ describe("isWrite", () => {
 
   test("does not count a field taken out by destructuring", () => {
     expect(writesAt("const { total } = s;", "total")).toBe(false);
+  });
+
+  test("does not count a read through a fixed key in brackets", () => {
+    expect(writesAt('use(row["total"]);', "total")).toBe(false);
   });
 
   test("does not count a field compared against something", () => {

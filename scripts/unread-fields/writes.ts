@@ -24,13 +24,17 @@ export const nodeAt = (
   return ts.forEachChild(source, descend);
 };
 
+/** The two ways a mention can name the field it reaches: after a dot, and
+ * inside brackets. `row["total"]` reaches the same member as `row.total`. */
+const reachesTheField = (node: ts.Node, parent: ts.Node): boolean =>
+  (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+  (ts.isElementAccessExpression(parent) && parent.argumentExpression === node);
+
 /** A field an assignment writes into: `row.total = 1`, and the slot a pattern
  * fills, as in `({ value: row.total } = source)`. Both put a value in, so both
- * ask the same question of the field's own property access. */
+ * ask the same question of the access that reaches the field. */
 const isAssignedProperty = (node: ts.Node, parent: ts.Node): boolean =>
-  ts.isPropertyAccessExpression(parent) &&
-  parent.name === node &&
-  isAssignedTo(parent);
+  reachesTheField(node, parent) && isAssignedTo(parent);
 
 type Holder = ts.Node & { name?: ts.Node };
 

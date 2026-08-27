@@ -6,10 +6,9 @@ Reports exported fields that nothing reads. Run it with:
 nix develop -c deno task unread-fields
 ```
 
-The scan takes a few minutes and prints a line per reported field. It reports;
-it does not gate. Roughly one exported field in seven is reported, and most of
-those are the false positives below, so read the list as somewhere to start
-looking.
+The scan takes a few minutes. It prints a line per reported field, and it does
+not gate. It reports about one exported field in seven. Most of those are the
+false positives listed below, so the report is a place to start.
 
 ## Why the type checker
 
@@ -72,8 +71,8 @@ A field reached without naming it has no reference to find, so the scan calls it
 unread. Four cases do that in this repository:
 
 - A field carried by a spread. `({ title, ...props }) => ({ ...props })` moves
-  every other field of the shape without naming one of them, so the six fields
-  of `WarningDeleteProps` that travel that way all report as unread.
+  every other field of the shape, and names none of them. Six fields of
+  `WarningDeleteProps` travel that way, and all six report as unread.
 - A row written and read through the table machinery, where the column is named
   by a `dbKey` string rather than by the field.
 - A shape that crosses a boundary as JSON. The reader is another program, or a

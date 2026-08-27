@@ -17,11 +17,20 @@ export const answered = <T>(value: T | undefined, what: string): T => {
   return value;
 };
 
+/** The two ways a probe can find nothing: no such path, or a path whose parent
+ * is a file. Any other failure is a broken checkout or a permission the scan
+ * does not have, and a file dropped for one of those would shrink the report
+ * without saying so. */
+const isAbsence = (error: unknown): boolean =>
+  error instanceof Deno.errors.NotFound ||
+  error instanceof Deno.errors.NotADirectory;
+
 /** A file's text, or nothing when the repository does not have that path. */
 export const textOrNothing = (file: string): string | undefined => {
   try {
     return Deno.readTextFileSync(file);
-  } catch {
+  } catch (error) {
+    if (!isAbsence(error)) throw error;
     return;
   }
 };
@@ -29,11 +38,12 @@ export const textOrNothing = (file: string): string | undefined => {
 /** Whether a path is a file, or is a directory. A path that is not there is
  * neither, which is what lets the compiler move on to its next candidate. */
 export const pathIs =
-  (kind: "isFile" | "isDirectory") =>
-  (path: string): boolean => {
+  (kind: "isFile" | "isDirectory"): ((path: string) => boolean) =>
+  (path) => {
     try {
       return Deno.statSync(path)[kind];
-    } catch {
+    } catch (error) {
+      if (!isAbsence(error)) throw error;
       return false;
     }
   };

@@ -50,6 +50,14 @@ describe("the compiler's view of a repository", () => {
     test("answers nothing for a path that is not there", () => {
       expect(textOrNothing(NOWHERE)).toBeUndefined();
     });
+
+    test("answers nothing when a file stands where a folder should", () => {
+      expect(textOrNothing(`${file}/probe.ts`)).toBeUndefined();
+    });
+
+    test("raises anything that is not the path being absent", () => {
+      expect(() => textOrNothing(root)).toThrow(Deno.errors.IsADirectory);
+    });
   });
 
   describe("pathIs", () => {
@@ -66,6 +74,14 @@ describe("the compiler's view of a repository", () => {
     test("does not claim a path that is not there", () => {
       expect(pathIs("isFile")(NOWHERE)).toBe(false);
       expect(pathIs("isDirectory")(NOWHERE)).toBe(false);
+    });
+
+    test("does not claim a path below a file", () => {
+      expect(pathIs("isFile")(`${file}/probe.ts`)).toBe(false);
+    });
+
+    test("raises anything that is not the path being absent", () => {
+      expect(() => pathIs("isFile")("a\u0000b")).toThrow(TypeError);
     });
   });
 
