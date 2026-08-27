@@ -164,6 +164,14 @@ describe("contact-fields", () => {
       ).toBe(true);
     });
 
+    test("a package's one-penny price pays the member too", () => {
+      // The smallest charge a listing can make is still a charge.
+      const member = pageListing({ id: 1 });
+      expect(pagePaid(paidInput([member], [packageOver([1], { 1: 1 })]))).toBe(
+        true,
+      );
+    });
+
     test("a package's explicit free price makes the bundled path free", () => {
       const member = pageListing({ id: 1, unit_price: 500 });
       expect(pagePaid(paidInput([member], [packageOver([1], { 1: 0 })]))).toBe(
@@ -178,17 +186,27 @@ describe("contact-fields", () => {
       ).toBe(true);
     });
 
-    test("a day-price override pays a customisable member", () => {
-      const member = pageListing({
-        customisable_days: true,
-        day_prices: { 2: 0 },
-        id: 1,
-      });
-      expect(
-        pagePaid(
-          paidInput([member], [packageOver([1], {}, { 1: { 2: 300 } })]),
+    /** A customisable member beside a package that overrides one day price. */
+    const dayOverridePays = (dayPrice: number): boolean =>
+      pagePaid(
+        paidInput(
+          [
+            pageListing({
+              customisable_days: true,
+              day_prices: { 2: 0 },
+              id: 1,
+            }),
+          ],
+          [packageOver([1], {}, { 1: { 2: dayPrice } })],
         ),
-      ).toBe(true);
+      );
+
+    test("a day-price override pays a customisable member", () => {
+      expect(dayOverridePays(300)).toBe(true);
+    });
+
+    test("a one-penny day price pays a customisable member too", () => {
+      expect(dayOverridePays(1)).toBe(true);
     });
 
     test("a paid add-on pays the page on its own", () => {

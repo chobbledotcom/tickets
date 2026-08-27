@@ -133,7 +133,7 @@ export const ticketResponse =
  * so the visitor keeps everything they entered. */
 export const ticketFormErrorResponse = (ctx: TicketCtx) => {
   const url = ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`;
-  return (error: string, _status = 400) => errorRedirect(url, error);
+  return (error: string) => errorRedirect(url, error);
 };
 
 /** Parse quantity values from ticket form */

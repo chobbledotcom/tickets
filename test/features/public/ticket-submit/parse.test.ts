@@ -155,6 +155,19 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         validateFormState(quantityForm({ [second.id]: 1 }), halfClosed),
       ).toBeNull();
     });
+
+    test("reads a quantity box that carries no number as zero", async () => {
+      // A crafted or half-cleared POST must not read as a chosen quantity.
+      const { ctx, first } = await twoListingContext();
+      const halfClosed = withListings(ctx, [
+        buildTicketListing(ctx.listings[0]!.listing, true, undefined),
+        ctx.listings[1]!,
+      ]);
+      const form = quantityForm({});
+      form.set(`quantity_${first.id}`, "abc");
+
+      expect(validateFormState(form, halfClosed)).toBeNull();
+    });
   });
 
   describe("validateTicketFields", () => {
@@ -236,6 +249,17 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         await signedTokenFor(listing.slug),
       );
       expect(prices.get(listing.id)).toBe(2500);
+    });
+
+    test("applies a free-price token as a zero-price override", async () => {
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const ctx = await ticketContext([listing.id]);
+
+      const prices = await pricesAfterOverride(
+        ctx,
+        await signQrBookToken(listing.slug, buildQrBookPayload({ value: 0 })),
+      );
+      expect(prices.get(listing.id)).toBe(0);
     });
 
     test("leaves prices alone when no token is posted", async () => {
@@ -360,7 +384,8 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       expect(quantities.get(listing.id)).toBe(3);
     });
 
-    test("multiplies one package count across the package's member", async () => {
+    /** A hidden package and one member it can book. */
+    const mysteryBoxMember = async () => {
       const group = await createHiddenPackageGroup("Mystery Box");
       const member = await createTestListing({
         groupId: group.id,
@@ -368,11 +393,37 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         maxQuantity: 5,
         name: "Secret Contents",
       });
-      const form = new FormParams();
-      form.set(packageQuantityFieldName(group.id), "2");
+      return {
+        form: (count: string) => {
+          const form = new FormParams();
+          form.set(packageQuantityFieldName(group.id), count);
+          return form;
+        },
+        group,
+        member,
+      };
+    };
 
-      const { quantities } = await resolvedQuantities([member.id], form, group);
-      expect(quantities.get(member.id)).toBe(2);
+    test("multiplies one package count across the package's member", async () => {
+      const box = await mysteryBoxMember();
+
+      const { quantities } = await resolvedQuantities(
+        [box.member.id],
+        box.form("2"),
+        box.group,
+      );
+      expect(quantities.get(box.member.id)).toBe(2);
+    });
+
+    test("books nothing when the package count carries no number", async () => {
+      const box = await mysteryBoxMember();
+
+      const { quantities } = await resolvedQuantities(
+        [box.member.id],
+        box.form("abc"),
+        box.group,
+      );
+      expect(quantities.get(box.member.id) ?? 0).toBe(0);
     });
   });
 });
