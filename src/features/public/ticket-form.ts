@@ -11,11 +11,9 @@ import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { filter, map } from "#fp";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { mergeListingFields } from "#shared/listing-fields.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import type { ListingFields } from "#types";
 import type { ListingQty, TicketCtx } from "./types.ts";
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -135,7 +133,7 @@ export const ticketResponse =
  * so the visitor keeps everything they entered. */
 export const ticketFormErrorResponse = (ctx: TicketCtx) => {
   const url = ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`;
-  return (error: string, _status = 400) => errorRedirect(url, error);
+  return (error: string) => errorRedirect(url, error);
 };
 
 /** Parse quantity values from ticket form */
@@ -188,10 +186,5 @@ export const parseAddOnSelections = (
   }
   return selections;
 };
-
-/** Determine merged fields setting for selected listings */
-export const getTicketFieldsSetting = (
-  listings: TicketListing[],
-): ListingFields => mergeListingFields(listings.map((e) => e.listing.fields));
 
 export { extractContact };

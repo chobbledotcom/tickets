@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  getTicketFieldsSetting,
   mergeListingFields,
   parseListingFields,
   withRequiredEmail,
@@ -55,6 +56,25 @@ describe("listing-fields", () => {
       expect(mergeListingFields(["", "email,bogus", "phone"])).toBe(
         "email,phone",
       );
+    });
+  });
+
+  describe("getTicketFieldsSetting", () => {
+    // The parameter is structural: anything with a listing that names its
+    // contact fields, so this module stays free of booking-model imports.
+    const listingWith = (fields: string) => ({ listing: { fields } });
+
+    test("is empty when the page has no listings", () => {
+      expect(getTicketFieldsSetting([])).toBe("");
+    });
+
+    test("folds every listing's own setting into one", () => {
+      expect(
+        getTicketFieldsSetting([
+          listingWith("email"),
+          listingWith("phone,address"),
+        ]),
+      ).toBe("email,phone,address");
     });
   });
 

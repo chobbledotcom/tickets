@@ -10,18 +10,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildTicketListing } from "#booking/model.ts";
-import { quantityFieldName } from "#booking/tree.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { questionListings } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { getTicketContext } from "#routes/public/ticket-payment.ts";
 import {
   prepareOrder,
   singleListingThankYouUrl,
 } from "#routes/public/ticket-submit/prepare.ts";
-import type { TicketCtx } from "#routes/public/types.ts";
-import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -29,31 +22,12 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import type { Group } from "#types";
-
-const ticketContext = async (
-  listingIds: number[],
-  group?: Group,
-): Promise<TicketCtx> => {
-  const listings = await Promise.all(
-    listingIds.map(async (id) =>
-      buildTicketListing((await getListingWithCount(id))!, false, undefined),
-    ),
-  );
-  return {
-    ...(await getTicketContext(listings, group)),
-    listings,
-    slugs: listings.map((info) => info.listing.slug),
-  };
-};
-
-const quantityForm = (counts: Record<number, number>): FormParams => {
-  const form = new FormParams();
-  for (const [listingId, quantity] of Object.entries(counts)) {
-    form.set(quantityFieldName(Number(listingId)), String(quantity));
-  }
-  return form;
-};
+import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import {
+  quantityForm,
+  ticketContext,
+  twoListingContext,
+} from "#test-utils/ticket-ctx.ts";
 
 /** The order's lines and the answer scope prepareOrder settled on. */
 const preparedOrder = async (
@@ -191,16 +165,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
   describe("questions the buyer must answer", () => {
     test("refuses an order that left an active question unanswered", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
-      const question = await questionsTable.insert({
-        displayType: "radio",
-        text: "Choose one",
-      });
-      await answersTable.insert({
-        questionId: question.id,
-        sortOrder: 0,
-        text: "Chosen",
-      });
-      await questionListings.setIds(question.id, [listing.id]);
+      await createQuestionWithAnswer([listing.id]);
       const ctx = await ticketContext([listing.id]);
 
       const result = await prepareOrder(ctx, quantityForm({ [listing.id]: 1 }));
@@ -232,9 +197,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
     });
 
     test("uses none when the cart holds more than one listing", async () => {
-      const first = await createTestListing({ maxAttendees: 5 });
-      const second = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([first.id, second.id]);
+      const { ctx } = await twoListingContext();
 
       expect(singleListingThankYouUrl(ctx)).toBeNull();
     });

@@ -8,9 +8,11 @@
 import type { TicketListing } from "#booking/model.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
-import { getTicketFieldsSetting } from "#routes/public/ticket-form.ts";
 import type { Field } from "#shared/forms/field.ts";
-import { mergeListingFields } from "#shared/listing-fields.ts";
+import {
+  getTicketFieldsSetting,
+  mergeListingFields,
+} from "#shared/listing-fields.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { isPaidListing } from "#types";
 
