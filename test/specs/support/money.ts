@@ -21,8 +21,8 @@ import {
   soleBookingOn,
   visitorBooks,
 } from "#test/specs/support/public-booking.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
-  emailFor,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";

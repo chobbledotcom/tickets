@@ -6,8 +6,8 @@ import {
   listingIdNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
-  emailFor,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";

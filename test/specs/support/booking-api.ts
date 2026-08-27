@@ -8,12 +8,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
-
 import { listingNamed } from "#test/specs/support/listings.ts";
-import {
-  emailFor,
-  type ReadAboutOneThing,
-  type TicketsWorld,
+import { emailFor } from "#test/specs/support/tickets.ts";
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
