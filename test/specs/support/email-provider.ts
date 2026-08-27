@@ -17,6 +17,7 @@ import {
 import { copyFrom } from "#test/specs/support/copy.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { settingsAsStored } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -54,9 +55,7 @@ export const howTheSiteSends = async (): Promise<{
   from: string;
   provider: string;
 }> => {
-  const { ALL_SETTINGS_KEYS } = await import("#db/settings.ts");
-  settings.invalidateCache();
-  await settings.loadKeys(ALL_SETTINGS_KEYS);
+  await settingsAsStored();
   return {
     apiKey: settings.email.apiKey,
     from: settings.email.fromAddress,
