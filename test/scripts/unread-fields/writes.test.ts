@@ -153,6 +153,12 @@ describe("readsTheValue", () => {
     expect(readsAt("const s = { sum = total };", "total")).toBe(true);
   });
 
+  test("does not read a field a for-in loop assigns each key to", () => {
+    // `for (row.total in source)` puts a key in without looking at the old
+    // value, exactly as the for-of form does.
+    expect(readsAt("for (row.total in source) use(row);", "total")).toBe(false);
+  });
+
   test("does not read a field a delete takes away", () => {
     expect(readsAt("delete row.total;", "total")).toBe(false);
   });

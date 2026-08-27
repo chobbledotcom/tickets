@@ -28,6 +28,14 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("Carrier", "heldByTheConstructor")).toBe("never read");
   });
 
+  test("does not count the constructor's own use of a parameter field", () => {
+    // `super(value)` names the parameter, not the field. Counting it would
+    // keep every parameter property of an Error subclass looking alive.
+    expect(verdictOf("NamedItsParameter", "onlyTheConstructorNamesIt")).toBe(
+      "never read",
+    );
+  });
+
   test("leaves out a plain constructor parameter", () => {
     expect(verdictOf("Carrier", "plainParameter")).toBeUndefined();
   });
@@ -135,6 +143,7 @@ describe("the shapes the scan finds", () => {
       "Intersects.fromAnIntersection",
       "Intersects.ofItsOwnAgain",
       "ListExported.onlyInAList",
+      "NamedItsParameter.onlyTheConstructorNamesIt",
       "OnlyWhenItFits.answeredByTheBranch",
       "Passed.carriedBySpread",
       "Passed.kept",

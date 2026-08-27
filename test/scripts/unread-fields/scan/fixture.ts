@@ -193,6 +193,12 @@ interface AnsweredOnce {
 
 export type AnsweredAgain = AnsweredOnce & { answeredTwice: boolean };
 
+export class NamedItsParameter extends Error {
+  constructor(public onlyTheConstructorNamesIt: string) {
+    super(onlyTheConstructorNamesIt);
+  }
+}
+
 export class Carrier {
   onlyOnAClass = 1;
   private notForOutside = 2;

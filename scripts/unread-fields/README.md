@@ -42,13 +42,13 @@ An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A shape the file keeps to itself does not, and neither does a member
 a class keeps to itself.
 
-A shape also hands on the fields it takes from somewhere else: a base it
-extends, an intersection, another type it simply names, as
-`StripeRefund = StripeRefundFields` does, or every arm of a union. A reader of
-`Success | Failure` reaches every field of both arms once it knows which arm it
-holds, and the arms are often types the file keeps to itself. A field written
-down in a library, such as the `toFixed` that `number` carries, is not a field
-this repository exports.
+A shape also hands on the fields it takes from somewhere else. That means a base
+it extends, an intersection, another type it simply names, or every arm of a
+union. `StripeRefund = StripeRefundFields` names one type, and
+`Success | Failure` names two. A reader of a union reaches every field of both
+arms, once it knows which arm it holds. The arms are often types the file keeps
+to itself. A field written down in a library, such as the `toFixed` that
+`number` carries, is not a field this repository exports.
 
 ## Reads, not mentions
 

@@ -13,7 +13,7 @@ import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { type Finding, verdictFor } from "./findings.ts";
 import { answered, compilerOptions, serviceHost } from "./host.ts";
-import { nodeAt, readsTheValue } from "./writes.ts";
+import { namesAMember, nodeAt, readsTheValue } from "./writes.ts";
 
 /** Folders whose code ships. `test/` is scanned too, so the scan can tell a
  * field only its tests read from one nothing reads. */
@@ -240,6 +240,24 @@ const exportedFields = (
   return found;
 };
 
+/** Whether one reference takes the field's value out. */
+const readsHere = (
+  program: ts.Program,
+  reference: ts.ReferencedSymbolEntry,
+  onlyThroughAMember: boolean,
+): boolean => {
+  if (reference.isDefinition) return false;
+  const source = program.getSourceFile(reference.fileName);
+  const node = source && nodeAt(source, reference.textSpan.start);
+  if (!node || !readsTheValue(node)) return false;
+  return !onlyThroughAMember || namesAMember(node);
+};
+
+/** Whether a field is written down as a constructor parameter. */
+const isParameterProperty = (field: ts.Identifier): boolean =>
+  ts.isParameter(field.parent) &&
+  ts.isParameterPropertyDeclaration(field.parent, field.parent.parent);
+
 /** Ask the service who reads one field, and say where those readers live. A
  * position means nothing without the file it counts from, and an inherited
  * field was written down in the base's file, not in the shape's. */
@@ -253,14 +271,16 @@ const readersOf = (
     service.findReferences(field.getSourceFile().fileName, field.getStart()),
     `references for ${field.text}`,
   );
+  // `constructor(public value: string)` declares a parameter and a field with
+  // one name, and the compiler answers a lookup with both. `super(value)` in
+  // that constructor names the parameter, and no value leaves the field.
+  const onlyThroughAMember = isParameterProperty(field);
   const readers: string[] = [];
   for (const group of references) {
     for (const reference of group.references) {
-      if (reference.isDefinition) continue;
-      const source = program.getSourceFile(reference.fileName);
-      const node = source && nodeAt(source, reference.textSpan.start);
-      if (!node || !readsTheValue(node)) continue;
-      readers.push(reference.fileName.replace(`${root}/`, ""));
+      if (readsHere(program, reference, onlyThroughAMember)) {
+        readers.push(reference.fileName.replace(`${root}/`, ""));
+      }
     }
   }
   return readers;

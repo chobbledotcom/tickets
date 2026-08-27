@@ -92,7 +92,9 @@ const isAssignedTo: (node: ts.Node) => boolean = onParent((node, parent) => {
       parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
     );
   }
-  if (ts.isForOfStatement(parent)) return parent.initializer === node;
+  if (ts.isForOfStatement(parent) || ts.isForInStatement(parent)) {
+    return parent.initializer === node;
+  }
   if (ts.isPropertyAssignment(parent)) return isAssignedTo(parent.parent);
   if (ts.isArrayLiteralExpression(parent)) return isAssignedTo(parent);
   return false;
@@ -114,6 +116,11 @@ const isWrite: (node: ts.Node) => boolean = onParent((node, parent) =>
 );
 
 const isDeleted: (node: ts.Node) => boolean = onParent(isDeletedProperty);
+
+/** True when this mention names a member of something, after a dot or inside
+ * brackets, rather than standing on its own as a plain name. */
+export const namesAMember: (node: ts.Node) => boolean =
+  onParent(reachesTheField);
 
 /** A mention inside a type names the field to borrow its type, and no value
  * moves when the program runs. `Config["execute"]` is one. */
