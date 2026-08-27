@@ -6,12 +6,10 @@
  * surfaces as a refused request.
  */
 
-import * as v from "valibot";
 import { toBase64 } from "#crypto/utils.ts";
 import { randomId } from "#e2e/config.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
-  type BulkBatchResponse,
   type BulkEmailPayload,
   sendBulkEmails,
 } from "#shared/email/bulk.ts";
@@ -83,63 +81,38 @@ const oneLine = (text: string): string =>
     .trim()
     .slice(0, 160);
 
-// The bulk probe sends one message, so an accepted reply must carry
-// exactly one per-message result.
-const PostmarkBatchSchema = v.pipe(
-  v.array(v.looseObject({ ErrorCode: v.number(), Message: v.string() })),
-  v.length(1),
-);
-
-/** Postmark can accept a batch with HTTP 200 and still refuse a message
- * inside it (a nonzero per-message ErrorCode, for example a suppressed
- * recipient), so read each accepted reply's per-message results. */
-const postmarkReplyProblems = (responses: BulkBatchResponse[]): string[] =>
-  responses.flatMap((response) => {
-    if (!response.ok) return [];
-    const results = v.safeParse(PostmarkBatchSchema, JSON.parse(response.body));
-    if (!results.success) {
-      return ["Postmark batch reply does not carry the probe's one result"];
-    }
-    return results.output
-      .filter((result) => result.ErrorCode !== 0)
-      .map((result) =>
-        oneLine(`Postmark ErrorCode ${result.ErrorCode}: ${result.Message}`),
-      );
-  });
-
-type BulkReplyCheck = (responses: BulkBatchResponse[]) => string[];
-
-/** For most providers the HTTP status is the whole verdict. */
-const acceptedByStatus: BulkReplyCheck = () => [];
-
-/** Providers whose accepted bulk reply needs a second read. */
-const BULK_REPLY_CHECKS: Record<EmailProvider, BulkReplyCheck> = {
-  "mailgun-eu": acceptedByStatus,
-  "mailgun-us": acceptedByStatus,
-  postmark: postmarkReplyProblems,
-  resend: acceptedByStatus,
-  sendgrid: acceptedByStatus,
-};
-
 const runReadyLeg = async (
   config: EmailConfig,
   to: ValidEmail,
+  signal: AbortSignal,
 ): Promise<EmailLegOutcome> => {
   const runId = randomId();
-  const single = await sendEmail(config, probeMessage(config, to, runId));
+  const single = await sendEmail(
+    config,
+    probeMessage(config, to, runId),
+    signal,
+  );
   const bulk = await sendBulkEmails(
     config,
     bulkProbePayload(config.provider, to, runId),
+    signal,
   );
-  const replyProblems = BULK_REPLY_CHECKS[config.provider](bulk.responses);
-  const sent =
-    single.delivered && bulk.failed === 0 && replyProblems.length === 0;
+  const sent = single.delivered && bulk.failed === 0 && bulk.unconfirmed === 0;
   const refusals = [
     // sendEmail already parses, redacts, and caps the single reply's reason.
     ...(single.delivered ? [] : [oneLine(single.reason)]),
     ...bulk.responses
       .filter((response) => !response.ok)
       .map((response) => oneLine(response.body)),
+    // sendBulkEmails reads each accepted reply for messages refused inside
+    // it. Its reasons are redacted but not table-safe, so they still pass
+    // through oneLine before reaching the report's Markdown table.
+    ...bulk.responses.flatMap((response) =>
+      response.outcome.reasons.map(oneLine),
+    ),
+    ...(bulk.unconfirmed === 0
+      ? []
+      : [`${bulk.unconfirmed} message(s) left unconfirmed`]),
     // A refusal can come with an empty body; the status already says it.
   ].filter((text) => text !== "");
   // A thrown single send has no status; sendEmail reports it as undefined.
@@ -147,21 +120,32 @@ const runReadyLeg = async (
     .map((response) => response.status)
     .join(", ")}`;
   return {
-    detail: [statuses, ...refusals, ...replyProblems].join(" — "),
+    detail: [statuses, ...refusals].join(" — "),
     provider: config.provider,
     state: sent ? "sent" : "failed",
   };
 };
 
-const legTimeout = (): { cancel: () => void; expired: Promise<never> } => {
+const legTimeout = (): {
+  cancel: () => void;
+  expired: Promise<never>;
+  signal: AbortSignal;
+} => {
+  const controller = new AbortController();
   const timer = { id: 0 };
   const expired = new Promise<never>((_, reject) => {
-    timer.id = setTimeout(
-      () => reject(new Error(`leg timed out after ${LEG_TIMEOUT_MS / 1000}s`)),
-      LEG_TIMEOUT_MS,
-    );
+    timer.id = setTimeout(() => {
+      // Cancel the request still in flight, so a stalled provider leaves
+      // nothing running once its leg has reported.
+      controller.abort();
+      reject(new Error(`leg timed out after ${LEG_TIMEOUT_MS / 1000}s`));
+    }, LEG_TIMEOUT_MS);
   });
-  return { cancel: () => clearTimeout(timer.id), expired };
+  return {
+    cancel: () => clearTimeout(timer.id),
+    expired,
+    signal: controller.signal,
+  };
 };
 
 /** Resolve and run one provider's leg, and say what happened. */
@@ -180,7 +164,7 @@ export const runEmailLeg = async (
     // finally() cancels the timer on both settlements, so a finished leg
     // leaves no pending timeout behind.
     return await Promise.race([
-      runReadyLeg(plan.config, plan.to),
+      runReadyLeg(plan.config, plan.to, timeout.signal),
       timeout.expired,
     ]).finally(timeout.cancel);
   } catch (error) {

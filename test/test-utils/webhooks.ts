@@ -67,10 +67,10 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
   assertions?: (json: T) => void,
   signature = "sig_valid",
 ): Promise<T> => {
-  const { handleRequest } = await import("#routes");
+  const { sendToApp } = await import("#test-utils/mocks.ts");
   try {
     return await assertJson<T>(
-      handleRequest(mockWebhookRequest({}, { "stripe-signature": signature })),
+      sendToApp(mockWebhookRequest({}, { "stripe-signature": signature })),
       status,
       assertions,
     );
@@ -85,13 +85,11 @@ export const expectWebhookRejected = async (
   event: Parameters<typeof stubWebhookVerify>[0],
   message: string,
 ): Promise<void> => {
-  const { handleRequest } = await import("#routes");
+  const { sendToApp } = await import("#test-utils/mocks.ts");
   const verify = await stubWebhookVerify(event);
   try {
     await expect(
-      handleRequest(
-        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-      ),
+      sendToApp(mockWebhookRequest({}, { "stripe-signature": "sig_valid" })),
     ).rejects.toThrow(message);
   } finally {
     verify.restore();
@@ -168,6 +166,15 @@ export const expectRefundedWithNote = async (
   expect((await getNoteRows("attendee", [attendeeId])).length).toBe(1);
 };
 
+/** The listing's one and only attendee, asserted to be alone. Every webhook
+ * aftermath check below starts from it. */
+const onlyAttendee = async (listingId: number): Promise<Attendee> => {
+  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+  const attendees = await getAttendeesRaw(listingId);
+  expect(attendees.length).toBe(1);
+  return attendees[0]!;
+};
+
 /**
  * Assert the standard "kept and refunded" aftermath: the order survives as a
  * single quantity-0 placeholder attendee on `listingId` (never dropped), the
@@ -179,11 +186,9 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
   sessionId: string,
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-  const attendees = await getAttendeesRaw(listingId);
-  expect(attendees.length).toBe(1);
-  expect(attendees[0]!.quantity).toBe(0);
-  await expectRefundedWithNote(attendees[0]!.id, mockRefund);
+  const attendee = await onlyAttendee(listingId);
+  expect(attendee.quantity).toBe(0);
+  await expectRefundedWithNote(attendee.id, mockRefund);
   await expectSessionFailed(sessionId);
 };
 
@@ -199,14 +204,11 @@ export const expectMergedMultiListingAttendee = async (
   listing1Id: number,
   listing2Id: number,
 ): Promise<{ id: number }> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-  const attendees1 = await getAttendeesRaw(listing1Id);
-  const attendees2 = await getAttendeesRaw(listing2Id);
-  expect(attendees1.length).toBe(1);
-  expect(attendees2.length).toBe(1);
-  expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
-  expect(attendees1[0]!.quantity).toBe(0);
-  return attendees1[0]!;
+  const first = await onlyAttendee(listing1Id);
+  const second = await onlyAttendee(listing2Id);
+  expect(first.id).toBe(second.id);
+  expect(first.quantity).toBe(0);
+  return first;
 };
 
 /**
@@ -216,20 +218,28 @@ export const expectMergedMultiListingAttendee = async (
  * the "received" check out of `expectWebhookIgnored`/`expectWebhookPending`
  * so the two differ only in that one assertion.
  */
-const expectWebhookAcknowledged = async (
+type ExpectsAWebhookOutcome = (
   event: Parameters<typeof stubWebhookVerify>[0],
-  assertOutcome: (json: Record<string, unknown>) => void,
   extraCleanup?: () => void,
-): Promise<void> => {
-  await stubAndPostWebhook(
-    event,
-    (json) => {
-      expect(json.received).toBe(true);
-      assertOutcome(json);
-    },
-    extraCleanup,
-  );
-};
+) => Promise<void>;
+
+const expectWebhookAcknowledged =
+  (
+    assertOutcome: (json: Record<string, unknown>) => void,
+  ): ExpectsAWebhookOutcome =>
+  async (
+    event: Parameters<typeof stubWebhookVerify>[0],
+    extraCleanup?: () => void,
+  ): Promise<void> => {
+    await stubAndPostWebhook(
+      event,
+      (json) => {
+        expect(json.received).toBe(true);
+        assertOutcome(json);
+      },
+      extraCleanup,
+    );
+  };
 
 /**
  * The third canonical webhook outcome alongside "processed" and "kept and
@@ -237,15 +247,8 @@ const expectWebhookAcknowledged = async (
  * established. It is acknowledged without processing or refunding. A valid
  * proof whose booking will not parse is a different, retryable outcome.
  */
-export const expectWebhookIgnored = (
-  event: Parameters<typeof stubWebhookVerify>[0],
-  extraCleanup?: () => void,
-): Promise<void> =>
-  expectWebhookAcknowledged(
-    event,
-    (json) => expect(json.processed).toBeUndefined(),
-    extraCleanup,
-  );
+export const expectWebhookIgnored: ExpectsAWebhookOutcome =
+  expectWebhookAcknowledged((json) => expect(json.processed).toBeUndefined());
 
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares
@@ -255,10 +258,8 @@ export const expectAttendeeWithPricePaid = async (
   listingId: number,
   pricePaid: number,
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-  const attendees = await getAttendeesRaw(listingId);
-  expect(attendees.length).toBe(1);
-  expect((attendees[0] as unknown as Record<string, unknown>).price_paid).toBe(
+  const attendee = await onlyAttendee(listingId);
+  expect((attendee as unknown as Record<string, unknown>).price_paid).toBe(
     pricePaid,
   );
 };
@@ -269,11 +270,9 @@ export const expectAttendeeWithPricePaid = async (
 export const expectAttendeeCreatedWithPiiBlob = async (
   listingId: number,
 ): Promise<Attendee> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-  const attendees = await getAttendeesRaw(listingId);
-  expect(attendees.length).toBe(1);
-  expect(attendees[0]?.pii_blob).not.toBe("");
-  return attendees[0]!;
+  const attendee = await onlyAttendee(listingId);
+  expect(attendee.pii_blob).not.toBe("");
+  return attendee;
 };
 
 /**
@@ -282,12 +281,5 @@ export const expectAttendeeCreatedWithPiiBlob = async (
  * status), so the webhook acknowledges it as a pending retry rather than
  * processing, refunding, or dropping it.
  */
-export const expectWebhookPending = (
-  event: Parameters<typeof stubWebhookVerify>[0],
-  extraCleanup?: () => void,
-): Promise<void> =>
-  expectWebhookAcknowledged(
-    event,
-    (json) => expect(json.status).toBe("pending"),
-    extraCleanup,
-  );
+export const expectWebhookPending: ExpectsAWebhookOutcome =
+  expectWebhookAcknowledged((json) => expect(json.status).toBe("pending"));

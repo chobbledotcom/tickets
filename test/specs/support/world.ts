@@ -3,6 +3,7 @@ import type { World } from "@cucumber/cucumber";
 import type { ChargeMoney } from "#payment/resources.ts";
 import type { CleanupTask } from "#scripts/cleanup.ts";
 import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
@@ -38,6 +39,9 @@ export type ActOnOneThing = (
   world: TicketsWorld,
   name: string,
 ) => Promise<void>;
+/** A step that names nothing at all: it acts on the story as it stands. */
+export type ActOnTheStory = (world: TicketsWorld) => Promise<void>;
+
 export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
@@ -163,6 +167,9 @@ export interface TicketsWorld extends World, EvidencePages {
   orderSent?: BookingAttempt;
   placeholderId?: number;
   providerCharges: Map<string, ChargeMoney>;
+  /** What the email provider answers in this story, when it is not the
+   * ordinary "it took the message" — a refusal, or a network failure. */
+  providerReply?: Response | Error;
   questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
   raceListing?: string;
@@ -181,6 +188,9 @@ export interface TicketsWorld extends World, EvidencePages {
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;
+  /** The three parts of an email's wording the owner last saved, kept so a
+   * later step can prove those exact words are what the site stored. */
+  wordingWritten?: EmailContent;
   wordsWritten?: string;
   writeoffBefore?: number;
 }

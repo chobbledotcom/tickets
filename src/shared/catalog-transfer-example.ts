@@ -1,17 +1,12 @@
 /**
- * Example catalog-transfer blobs for documentation.
+ * Example catalog-transfer blobs for the admin guide.
  *
- * The import/export JSON is one shared format (see
- * `src/features/admin/catalog-transfer/schema.ts`): the same shape a site
- * downloads on export is the shape it accepts on import. These constants render
- * that shape in the admin guide, and `test/lib/catalog-transfer-example.test.ts`
- * parses each one with the real {@link CatalogTransferSchema} — so a format
- * change breaks the test and forces this example (and the guide) to be updated,
- * keeping a single source of truth rather than a hand-maintained second copy.
+ * A test parses each one with the real {@link CatalogTransferSchema}, so a
+ * format change breaks the test and forces this example and the guide to be
+ * updated. That is what stops a second, hand-maintained copy.
  *
  * The two examples are cross-consistent: the listing belongs to the "Weekend
- * Pass" package group, and that group lists the same listing as a member — so
- * the two blobs read as the two halves of one small catalog.
+ * Pass" group, and that group lists it as a member.
  */
 
 import {

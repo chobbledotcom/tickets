@@ -1,14 +1,9 @@
 /**
- * Payment-provider metadata registry.
+ * Provider *behaviour* is loaded on demand, because it carries the SDK. Every
+ * provider fact that does NOT need that SDK lives here, so a caller can ask
+ * what a provider is like without paying to load it.
  *
- * Provider *behaviour* lives behind the `PaymentProvider` interface, which is
- * loaded on demand because it carries the provider SDK. Every provider fact
- * that does not need that SDK lives here instead, so a caller can ask what a
- * provider is like without paying to load it.
- *
- * One exhaustive `Record<PaymentProviderType, …>` means adding a provider is a
- * single compile error here rather than a hunt through scattered literals.
- * Nothing outside this file may branch on a provider name: a fact that differs
+ * Nothing outside this file may branch on a provider name. A fact that differs
  * between providers is a column here, and the caller reads the column.
  */
 

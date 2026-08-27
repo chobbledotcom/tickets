@@ -281,24 +281,16 @@ const orphanedAddOnAfterChange = async (
 };
 
 /**
- * Block a DEACTIVATION (of one listing, or a whole group at once) that would
- * leave a child-scoped opt-in add-on a dead end — reachable only through a
- * suppressed child once the would-be-inactive listings stop serving a public
- * page (generalised to a SET for the group-bulk path).
+ * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks
+ * edges that touch a listing, so it MISSES this case. A deactivated listing may
+ * have no edge of its own, and still be the ordinary page keeping a
+ * child-scoped add-on reachable.
  *
- * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks edges
- * that touch a listing, so it MISSES the case here: a deactivated listing may
- * have no parent/child edge of its own — it is just an ordinary page whose scope
- * happens to include a child-scoped add-on, keeping that add-on reachable. So
- * re-run the reachability for EVERY active opt-in add-on against an in-memory
- * listing set with ALL the target listings marked inactive AT ONCE (so an add-on
- * rescued only by several group members going inactive together is still caught);
- * if any add-on is then reachable only through a suppressed child, block the
- * deactivation. Contained: only opt-in add-ons are scanned (the shared
- * {@link firstChildUnreachableAddOnForListings} core), never unrelated modifiers.
+ * So every active opt-in add-on is re-checked against an in-memory set with ALL
+ * the targets marked inactive AT ONCE. An add-on rescued only by several group
+ * members together is then still caught.
  *
- * Callers only invoke this for DEACTIVATION — activating or leaving a listing
- * active can only ADD reachable pages, never orphan an add-on.
+ * DEACTIVATION only. An activation can only ADD reachable pages.
  */
 /**
  * Run the shared child-scoped-add-on reachability over a would-be listing set:
@@ -353,17 +345,14 @@ const leavesAGroup = async (
   );
 
 /**
- * Re-check add-on reachability when a listing save takes away a page that could
- * rescue a child-scoped opt-in add-on. Three transitions can do that: a
- * deactivation (the page goes offline), clearing "can be booked by itself" on a
- * child (the child loses its own booking page), and leaving a group (the page
- * drops out of that group's add-on scope while staying live — an edge-less page
- * has no touching edge, so the edge walk above never sees the move). Each
- * re-runs the shared reachability guard over the save's PENDING state — the
- * edited listing at its would-be group set and active state. A page-stripping
- * transition leaves the stored row reading `bookable_alone = 1` until the save
- * commits, so a flagged child with parents is forced into the suppressed set by
- * hand.
+ * Three transitions take away a page that can rescue a child-scoped add-on: a
+ * deactivation, an unset of "can be booked by itself" on a child, and a group
+ * removal. The last is the subtle one, because an edge-less page has no
+ * touching edge, so the edge walk never sees the move.
+ *
+ * Each re-runs the guard over the save's PENDING state. The stored row still
+ * reads `bookable_alone = 1` until the save commits, so a flagged child with
+ * parents is forced into the suppressed set by hand.
  */
 const lostPageOrphanedAddOn = async (
   input: ListingInput,
@@ -465,19 +454,13 @@ export const validateListingInput = async (
 };
 
 /**
- * Block a DELETE that would leave a child-scoped opt-in add-on a dead end —
- * reachable only through a suppressed child once the deleted listing stops
- * serving a public page. The delete path prunes the listing's
- * parent/child edges but otherwise bypasses the reachability guard the
- * deactivate paths run, so deleting the only active non-child page in a
+ * The delete path prunes the listing's edges but otherwise bypasses the guard
+ * the deactivate paths run, so deleting the only active non-child page in a
  * child-scoped add-on's scope would orphan it.
  *
- * A deleted listing no longer serves a page (exactly like a deactivated one), so
- * this reuses the same shared guard ({@link deactivationOrphanedAddOnError}) with
- * the deleted id in the would-be-removed set — the booking-page reachability is
- * computed against the active, non-child listings, and a deleted listing drops
- * out of that set just as a deactivated one does. Returns the error to surface,
- * or null when the delete is safe.
+ * A deleted listing no longer serves a page, exactly like a deactivated one, so
+ * this reuses {@link deactivationOrphanedAddOnError} with the deleted id in the
+ * would-be-removed set.
  */
 export const deleteOrphanedAddOnError = (
   listingId: number,

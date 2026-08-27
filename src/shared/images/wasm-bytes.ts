@@ -1,15 +1,10 @@
 /**
- * Raw bytes of the jSquash codec WebAssembly modules.
+ * Development and tests read the `.wasm` sidecars from the npm packages. A
+ * single-file deploy bundle has no filesystem, so THE BUILD REPLACES THIS
+ * MODULE with base64 literals from the same sidecars.
  *
- * The JS glue comes from `@jsquash/*`, but those packages also ship matching
- * `.wasm` sidecars. Development and tests resolve those sidecars through Deno's
- * locked npm resolver and read the package files directly. Single-file deploy
- * bundles have no filesystem, so the build replaces this module with base64
- * literals produced from the same package sidecars.
- *
- * Either way the exported interface is identical: five `Uint8Array` getters,
- * read lazily so importing this module does no filesystem work until a codec is
- * actually initialised.
+ * Either way the exported interface is identical, and the getters are lazy, so
+ * importing this module does no filesystem work until a codec initialises.
  */
 
 import { ASSETS, readAsset } from "./wasm-assets.ts";

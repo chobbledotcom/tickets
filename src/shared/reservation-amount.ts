@@ -1,16 +1,12 @@
 /**
- * The reservation-amount mini-language.
- *
- * Owners set a per-status `reservation_amount` string that determines the
- * deposit a public reservation pays up front. Three forms are supported:
+ * The deposit a public reservation pays up front. Three forms:
  *
  *   "10%"  → 10% of the full order total
  *   "10"   → 10 currency units (NOT minor units) for the whole order
- *   "10x"  → 10 currency units per item booked (× total quantity)
+ *   "10x"  → 10 currency units per item booked
  *
- * `"0"` is valid (no deposit — reserve now, pay the full balance later) and is
- * the default. Decimals are allowed (e.g. "33.33%", "10.50"). The value is
- * validated before it is stored, so the calculation path can assume it parses.
+ * `"0"` is valid and is the default: reserve now, pay the balance later. The
+ * value is validated before storage, so the calculation path assumes it parses.
  */
 
 import { settings } from "#db/settings.ts";

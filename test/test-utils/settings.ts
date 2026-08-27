@@ -2,7 +2,12 @@ import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { execute, executeBatch, queryOne } from "#db/client.ts";
-import { CONFIG_KEYS, type SettingsData, settings } from "#db/settings.ts";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  type SettingsData,
+  settings,
+} from "#db/settings.ts";
 import {
   type AdminFeatureKey,
   type EnabledFeatures,
@@ -13,6 +18,14 @@ import {
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
 import { withMocks } from "./mocks.ts";
+
+/** Read every setting back off disk, throwing away what this process last
+ * cached. A test that saved through a route and then asks what the site holds
+ * has to cross that boundary, or it reads its own stale snapshot back. */
+export const settingsAsStored = async (): Promise<void> => {
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
+};
 
 /** The standard outer describe for admin-settings tests: scoped to
  *  `"server (admin settings)"` with a fresh test DB per spec and an

@@ -55,23 +55,16 @@ export const dropHiddenPackageMembers = async <T extends { id: number }>(
 };
 
 /**
- * How a discovery surface should treat each listing:
- * - `childIds` — every child of some parent, the structural set. The
- *   group-liveness gate treats a flagged child as a non-member, so a group whose
- *   only members are `bookable_alone` children is not advertised live: its
- *   `/ticket/<group>` page still folds them away, and such a child's own page
- *   and card are its surfaces instead.
- * - `nonStandaloneChildIds` — those not sold on their own, the gate set. A
- *   booking can never start from one, so its standalone call to action is
- *   suppressed, matching what the booking entry point rejects. A
- *   `bookable_alone` child is excluded, so its own card renders normally.
- * - `addOnChildIds` — those with at least one bookable parent, so a live parent
- *   page can offer and fold them and the card shows "available as an add-on". A
- *   child whose every parent is inactive, sold out or closed is a dead end, so
- *   it renders unavailable rather than pointing at nothing.
- * - `soldOutParentIds` — parents with no bookable child, on combined
- *   parent-and-child demand; their card renders sold out and leaves the feeds,
- *   since the booking gate would reject the order.
+ * Four sets, because a child is treated differently by structure, by whether it
+ * sells alone, and by whether any parent can still offer it:
+ *
+ * - `childIds` is structural. The group-liveness gate treats a flagged child as
+ *   a non-member, so a group of only `bookable_alone` children is not live.
+ * - `nonStandaloneChildIds` suppresses a call to action the booking entry point
+ *   would reject anyway.
+ * - `addOnChildIds` has at least one bookable parent. A child whose every
+ *   parent is dead renders unavailable and never points at nothing.
+ * - `soldOutParentIds` is judged on combined parent-and-child demand.
  */
 export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
@@ -292,23 +285,15 @@ export const applyParentSoldOut = (
   );
 
 /**
- * Show the booking page's own listings as sold out for any parent whose
- * children are all unavailable, reusing the page's `childrenByParentId` rather
- * than re-querying. This matches the discovery and feed surfaces, so a parent
- * with no bookable child renders sold out instead of offering a form that could
- * only fail at submit. A listing with no child edge is left untouched, and the
- * authoritative date-specific rejection still happens in the submit fold.
+ * A parent with no bookable child renders sold out, rather than a form that can
+ * only fail at submit. The authoritative date-specific rejection still happens
+ * in the submit fold.
  *
- * `caps` carries the facts a parent and child share, so the test uses their
- * combined demand: two of them in one capped group consume two spots, so a
- * parent with a single spot left reads sold out here exactly as submit-time
- * `checkBatchAvailability` would reject it. That shared cap is
- * date-independent, so a group too small to ever hold both reads sold out even
- * for a daily child.
- *
- * `holidays` lets a daily child's bookability be judged by its own calendar
- * rather than the date-less aggregate (see {@link childCanBeBooked}), so a
- * child full on one date does not force its parent sold out for every date.
+ * The test uses combined parent-and-child demand: two of them in one capped
+ * group consume two spots. That cap is date-independent, so a group too small
+ * to hold both reads sold out even for a daily child. `holidays` judges a daily
+ * child on its own calendar, so a child full on one date does not force its
+ * parent sold out for every date.
  */
 export const applyBookingPageParentSoldOut = (
   listings: readonly TicketListing[],

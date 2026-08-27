@@ -1277,6 +1277,63 @@ merge waiting to happen, and the whole point of this exercise. So:
   just wrote subsumes three more call sites, or that it and an older helper are
   the same thing wearing two names. Keep pulling the thread until the merges are
   genuinely exhausted.
+- **A curry almost always exists — "these two cannot be merged" is nearly always
+  wrong.** Two functions that differ only in a value, a path, a field name, a
+  message, or a callback are one function that has not been given its parameter
+  yet. Lift what differs into a factory's argument and let the returned function
+  take the data. This holds even when the two bodies look nothing alike at a
+  glance, because the shared part is often a _tail_ ("…and then keep what they
+  were told") or an _opening_ ("open this page, and then…"), and a curry takes
+  either. So treat every flagged pair as mergeable until you have actually
+  written the curry and found what the parameter would have to be. "This pair is
+  noise" is a conclusion you earn by trying, never a first reading — and if you
+  reach for that phrase about a whole band of results, you are almost certainly
+  looking at a factory nobody has written yet.
+
+  Before you write one, look for the factory that already exists. An
+  under-adopted curry reads exactly like unavoidable duplication: the pairs pile
+  up at the call sites that never adopted it, so the check looks like it is
+  flagging noise when it is really flagging the gap. The Cucumber page openers
+  are the reference. `opensAdminPageAt(path)` in `test/specs/support/browser.ts`
+  turns any "open this one fixed admin page" wrapper into a single line, and
+  four support files hand-rolled the wrapper anyway.
+- **The one honest exception is a shared _signature_ with nothing behind it.**
+  When two functions match only on their parameter list and return type, and
+  share no call at all, there is nothing to lift and a curry cannot help. Give
+  that signature a named type instead and let both sides declare it —
+  `ActOnOneThing` in `test/specs/support/world.ts` is the house example. Be
+  strict about which case you are in: if the two bodies call even one function
+  in common, you are in the curry case, not this one.
+
+### The six scans, and how hard each looks
+
+The 0% threshold is not the number that decides how hard jscpd looks.
+`minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
+lower number is a tighter net. Six configs divide the tree, because helper code,
+test bodies and stylesheets each deserve a different net.
+
+| Config                | Scans                            | minTokens |
+| --------------------- | -------------------------------- | --------- |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
+| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
+| `.jscpd.support.json` | `test/specs/support`             | 18        |
+| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
+| `.jscpd.test.json`    | `test`                           | 48        |
+| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+
+Both helper trees are scanned **alongside `src/`**, so a helper that
+reimplements production logic is flagged against the source it copied. A
+separate run could never see that pair. Where a helper tree can be held tighter
+than `src/` can, it gets a second scan of its own — the support helpers are at
+18 that way, because the scan they share with `src/` cannot go below 19 without
+dragging `src/` down too. A test body is different: it repeats by design, and
+the shared mechanism is the test framework itself, so the whole of `test/` stays
+at the loose 48.
+
+**Every helper number ratchets downward** — lower it, bring the tree to it,
+repeat — the same way `check:comments` works. `docs/test-duplication.md`
+measures what each remaining step costs. Read its counts as work to do, not as a
+floor: the counts fall as the curries land.
 
 ## Database Queries
 
@@ -1700,6 +1757,23 @@ journey never supplies the only coverage of a production line or branch.
 categories, the authored Feature hierarchy and tags, how specs are run, the
 checklist for migrating an existing test into a story, and the pitfalls that
 have caught people out before.
+
+One rule from that checklist is repeated here, because it is the rule that
+people skip. A skipped check lost real coverage more than once. **A test that
+moves into a story is a replacement, so prove that it replaced everything. Build
+the list of the old test's claims from the diff, never from the new file.** Name
+the merge base and the file once, as `base` and `file`, then read
+`git diff "$base" HEAD -- "$file"` and `git show "$base:$file"`. Both names stay
+quoted, and neither command reads from main's tip. Audit only a file that the
+base holds, which
+`git diff --name-only --no-renames --diff-filter=a "$base" HEAD` lists. A file
+that the change adds has no earlier claims, and `git show` exits 128 on it. A
+finished story feels like a check of the work, but it is not one. A good story
+reads as though it covers everything, so only the old file says what is missing.
+This applies to a file that you rewrote in place as much as to one that you
+deleted. The rewrites are where the real losses occurred. Every claim then lands
+in one of three places. It lands in the story, in a direct test that you keep,
+or in a drop that you state out loud.
 
 ## Test Quality Standards
 

@@ -24,7 +24,7 @@ import {
   checkboxValueOffered,
   optionsOffered,
 } from "#test/specs/support/form-controls/reading.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
@@ -76,7 +76,7 @@ const expectControlCanSend = (
   field: string,
   chosen: string,
 ): void => {
-  expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
+  expectCanReallySend(html, { [field]: chosen });
 };
 
 /** An order filled in and waiting on the visitor to press Continue. Splitting
@@ -215,12 +215,18 @@ export const visitorBooks = async (
 /** The visitor was turned away because the listing had no room — not because
  * of some other error. Any page without the thank-you text would otherwise
  * count as "refused", including a validation or server error. */
+/** The booking did not go through, and the window they are left looking at is
+ * handed back for the caller's own check. */
+export const expectNotBooked = (attempt: BookingAttempt): TestBrowser => {
+  expect(attempt.wasBooked).toBe(false);
+  return attempt.browser;
+};
+
 export const expectRefusedForWantOfRoom = (
   attempt: BookingAttempt,
   listingName: string,
 ): void => {
-  expect(attempt.wasBooked).toBe(false);
-  expect(attempt.browser.pageText).toContain(
+  expect(expectNotBooked(attempt).pageText).toContain(
     bookingError.withName(listingName),
   );
 };

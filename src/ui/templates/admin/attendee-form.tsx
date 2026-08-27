@@ -1,19 +1,11 @@
 /**
- * The editable attendee form (create + edit).
+ * The editable attendee form (create and edit).
  *
- * An attendee has ONE shared date range — a start date plus a length —
- * applied to every daily listing they book. The listing editor is a fixed
- * table with one quantity box per bookable listing (plus any inactive
- * listing the attendee already booked); quantity ≥ 1 books it, 0 leaves it
- * out, so there are no add/remove-line buttons. When something is already
- * booked (an edit, or a create pre-filled from the calendar) the not-booked
- * rows hide behind a "Show all listings" toggle (pure CSS); a bare create
- * form has nothing booked, so it drops the toggle and shows every listing.
- * The form works without JavaScript.
- *
- * `attendeeFormPage` is the standalone /admin/attendees/new page;
- * {@link AttendeeFormPanel} is the same warnings + errors + form block the
- * attendee entity page's Edit tab embeds.
+ * An attendee has ONE shared date range — a start date plus a length — applied
+ * to every daily listing they book. The listing editor is a fixed table with
+ * one quantity box per bookable listing. A quantity of 1 or more books it, and
+ * 0 leaves it out. There are no add-line or remove-line buttons, and the form
+ * works without JavaScript.
  */
 
 /* jscpd:ignore-start */

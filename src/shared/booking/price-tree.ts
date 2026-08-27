@@ -22,19 +22,17 @@ export type PriceRuleKind = PriceRule["kind"];
  * over these line prices — this module only decides the per-ticket line price.
  */
 
-/** The per-ticket unit price (minor units) a node's `priceRule` resolves to:
- * `OVERRIDE` is the flat package price (including an explicit free `0`);
- * `DAY_PRICE` is the customisable day-count price — a package member's per-day
+/** `DAY_PRICE` is NEVER base × days. It is the package member's per-day
  * override for the chosen count when one is set, else the listing's own entered
- * day price, NEVER base × days; `PAY_MORE` and `BASE` both read the
- * `customPrices` map (falling back to `unit_price`, honouring a genuine `0`).
- * `customPrices` carries the buyer's pay-more input for a `PAY_MORE` listing AND a
- * signed QR-token override for a fixed-price `BASE` listing
- * (`applyQrTokenOverride` seeds it), so a fixed listing under a QR token is priced
- * by the override — exactly the checkout's old non-customisable
- * `customPrices ?? unit_price`. A listing is never both `customisable_days` and
- * `can_pay_more` (mutually exclusive at save — `listings-actions.ts`), so this
- * matches the customisable-first `itemUnitPrice` for every reachable config. */
+ * day price.
+ *
+ * An explicit free `0` counts everywhere, so a zero price is honoured rather
+ * than treated as absent.
+ *
+ * `customPrices` carries two different things: the buyer's pay-more input, and
+ * a signed QR-token override for a fixed-price `BASE` listing. A listing is
+ * never both `customisable_days` and `can_pay_more`, which `listings-actions.ts`
+ * enforces at save. */
 /** The listing facts {@link effectivePrice} prices from — a structural subset of
  * `ListingWithCount`, so the webhook/email pipeline's narrower listing rows can
  * be priced by the same evaluation the checkout uses. */

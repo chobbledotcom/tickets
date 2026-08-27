@@ -1,16 +1,11 @@
 /**
- * Reading a table's own rows, with the filter written as the row.
- *
- * A table already declares its columns, their types, and how to open them. A
- * read of that table should not have to say any of it again — so it doesn't:
- * `table.read` knows what to select, what shape comes back, and how to decrypt
- * it. Every ordinary read of a table's own rows goes through it.
- *
  * The filter is the row's own shape, so a column that does not exist, or a
  * value of the wrong type, is a mistake the compiler catches rather than the
- * database. A read that joins, or that selects something SQL invents, has no
- * table to infer from — those say their read with `readRows` instead, and open
- * their rows with the same chosen set (`table.read.pick([...])`).
+ * database.
+ *
+ * A read that joins, or selects something SQL invents, has no table to infer
+ * from. Those use `readRows` instead, and open their rows with the same chosen
+ * set via `table.read.pick([...])`.
  */
 
 import type { InValue } from "@libsql/client";

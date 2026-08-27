@@ -279,8 +279,9 @@ export const buildTemplateData = async (
   };
 };
 
-/** Render a single Liquid template string with the given data */
-export const renderTemplate = async (
+/** Render a single Liquid template string with the given data. Module-private:
+ * `renderEmailContent` is how a template reaches the outside world. */
+const renderTemplate = async (
   template: string,
   data: TemplateData,
 ): Promise<string> => {

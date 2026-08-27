@@ -23,18 +23,14 @@ export interface NamedSortOrderInput {
 }
 
 /**
- * Wire a keyed cache to an id-table in one step: build the cache, register it
- * for the debug-footer stats, and register it with the table→cache invalidation
- * registry so any write to the table (or to a `dependsOn` table whose triggers
- * feed it — e.g. listings depend on listing_attendees) clears the cache
- * automatically at the db-client layer. Centralises the create-cache + register
- * trio that listings and groups would otherwise each repeat. `Cached` lets the
- * cache hold a richer row than the table writes (e.g. listings cached with
- * attendee counts).
+ * A write to the table, or to a `dependsOn` table whose triggers feed it,
+ * clears the cache automatically at the db-client layer.
  *
- * `dependsOn` entries may carry `whenColumns` to narrow the `listing_attendees`
- * → `listings` dependency: the cache is only cleared on UPDATEs that touch one
- * of those columns. INSERT / DELETE always clear.
+ * `Cached` lets the cache hold a richer row than the table writes, such as
+ * listings cached with attendee counts.
+ *
+ * A `whenColumns` gate narrows the UPDATE case only. INSERT and DELETE always
+ * clear.
  */
 export const cachedEntityTable = <Row, Input, Cached = Row>(
   name: string,

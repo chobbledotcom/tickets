@@ -1,22 +1,11 @@
 /**
- * Square credential format validation.
+ * Catches a Square credential pasted into the wrong settings field. Only the
+ * Test Connection button can prove that a credential is correct.
  *
- * These are cheap, offline "is this clearly the wrong value" checks run before
- * saving Square settings. They cannot prove a credential is correct (only a
- * live API / webhook round-trip via the Test Connection button can), but they
- * catch the common setup mistakes — most often pasting a value into the wrong
- * field, e.g. an access token into the webhook signature key box, which
- * surfaces later as an E_SQUARE_SIGNATURE webhook rejection.
- *
- * Square has used several access-token formats and advises against validating
- * by format, so the regex below is a deliberately permissive allowlist of every
- * known prefix with no length bound, rejecting only values matching none.
- * Location ids and webhook signature keys are opaque, so they are checked only
- * against the application id namespace they can never occupy — their own shape
- * is never asserted, and a valid value is never blocked.
- *
- * All functions return a human-readable error string, or null when the value
- * passes the format check.
+ * Square used several access-token formats and advises against validation by
+ * format, so the prefix allowlist is deliberately permissive and sets no length
+ * bound. Location ids and signature keys are opaque, so they are checked only
+ * against the application id namespace they can never occupy.
  */
 
 /**

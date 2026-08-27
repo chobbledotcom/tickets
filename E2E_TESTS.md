@@ -156,6 +156,49 @@ request description is a good place, because a reviewer can then check it too. A
 claim is anything the old test asserted: a status code, a count, a rendered
 figure, a stored row, a ledger balance, a log entry, an absence.
 
+**Build that list from the diff, never from the new file.** Read the old test as
+it stood on the base branch. Enumerate its assertions one by one. This is the
+step that people skip. A finished story feels like a check of the work, but it
+is not one. A good story reads as though it covers everything, so it never says
+what is missing. Only the old file says that.
+
+```bash
+git fetch origin main
+base=$(git merge-base origin/main HEAD)      # where this branch left main
+
+# the files to audit: every one the base holds
+git diff --name-only --no-renames --diff-filter=a "$base" HEAD
+
+file=test/features/admin/settings-email.test.ts   # one name from that list
+
+git diff "$base" HEAD -- "$file"             # every removed line
+git show "$base:$file"                       # the old file whole
+git diff "$base" HEAD -- "$file" | grep '^-' | grep -E 'expect|assert'
+```
+
+Change the `file=` line and run the block as it stands. Both names are quoted,
+because a bare `<file>` placeholder is redirection to a shell, not a hole to
+fill in.
+
+Name the merge base once and read every command from it. If you read from
+`origin/main` instead, the command takes main's tip. A branch that started
+before the newest main commits then compares two different bases. An upstream
+change reads as a claim that this branch lost, or hides one that it did.
+
+The last command finds most claims, not all of them. A helper such as
+`testRequiresAuth` carries a claim with neither word on the line, so the
+unfiltered diff above it stays the authority.
+
+Do this for **every** file in that list, not only the ones that you deleted
+outright. A file that you rewrote in place hides its losses the same way, and
+the rewrites are where the real losses occurred.
+
+The list holds the files that the base holds. It leaves out the files that the
+change adds, for two reasons. A new file carries no earlier claims. And
+`git show "$base:$file"` exits 128 for a path that the base does not hold, which
+stops the audit before the later files. `--no-renames` keeps a file that moved,
+under the name it had at the base.
+
 Each claim ends up in exactly one of three places, and you must be able to say
 which:
 
@@ -182,6 +225,22 @@ problem:
 - that a booking still exists, as opposed to merely having no refund against it,
 - that a race was settled by capacity rather than by one request simply failing,
 - the exact reason a refusal was given, where only its absence was checked.
+
+One batch (PR #2154) lost three more claims **after** this checklist existed.
+The author built that list from the new files instead of the old ones. A
+reviewer found each loss, not the checklist:
+
+- the stored contact record's last subject, so a text filed under the wrong
+  words still passed,
+- the journey that takes the public site back down again, which left only the
+  journey that puts it up,
+- six markup claims out of one rewritten template test, among them the only link
+  out of a warning that tells the owner to change a setting.
+
+The second and third losses are the instructive ones. Nobody deleted either
+file. The author rewrote both, both read well afterwards, and both lost claims
+that nothing else covered. The diff takes a minute to read, and it names all
+three.
 
 Then finish the job:
 

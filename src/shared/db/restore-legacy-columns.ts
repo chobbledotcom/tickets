@@ -1,22 +1,14 @@
 /**
- * Reconcile an older backup's dump with the current schema before replaying it.
+ * Reconcile an older backup's dump with the current schema before it replays.
+ * Pure. A restore rebuilds at the current schema, and the backup's
+ * schema_migrations rows make the next boot replay whatever it predates. A
+ * column a later migration dropped breaks the replay, because the dump still
+ * writes to it. A re-add rebuilds the backup-era table, so the pending
+ * migration reshapes the data as a live upgrade would.
  *
- * A restore rebuilds the database at the current schema then replays the
- * backup's INSERTs, and its schema_migrations rows make the next boot replay
- * whatever it predates. Columns added since round-trip fine; one a later
- * migration dropped breaks the replay, because the dump still writes to it.
- * Re-adding those first rebuilds the backup-era table, and the pending
- * migration then reshapes the data as a live upgrade would.
- *
- * Direction matters. Re-adding is only legitimate for a dump older than this
- * build, where a pending migration exists to consume the re-added columns. A
- * dump recording migrations newer than ours would silently lose data on replay,
- * since restoreFromZip skips tables the current schema lacks, so the restore
- * refuses it rather than making the rollback look successful. And with nothing
- * pending, an unknown column is corruption rather than history: nothing is
- * re-added and the INSERT fails loudly. `dumpMigrationState` answers both
- * questions from the dump itself. This module is pure: dump statements in,
- * ALTER statements and analysis out.
+ * A dump recording NEWER migrations is refused instead, because restoreFromZip
+ * silently skips tables the current schema lacks. With nothing pending, an
+ * unknown column is corruption, so nothing is re-added and the INSERT throws.
  */
 
 import { SCHEMA } from "#db/migrations/schema/index.ts";

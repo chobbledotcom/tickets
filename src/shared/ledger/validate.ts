@@ -57,17 +57,15 @@ const transferChecks: readonly TransferCheck[] = [
 ];
 
 /**
- * Validate a {@link TransferInput}. Returns `ok` with the value, or every reason
- * it was rejected (so the caller sees all problems at once, not just the first).
+ * Returns every reason it was rejected, so a caller sees all the problems at
+ * once rather than only the first.
  *
- * Enforced invariants: amount is a positive, safe integer (so summing balances
- * as JS numbers can't lose pennies); source and destination differ; account
- * parts are non-empty and free of the reserved key separator; occurredAt is a
- * real ISO-8601 instant ({@link isInstant} — any offset/precision, but not an
- * impossible date like Feb 30, normalised to canonical epoch-millis on write);
- * a reversesId, if present, is a positive safe integer; reference and eventGroup
- * are non-empty. (Currency is not a ledger concern: a site has one currency,
- * fixed at setup, so every transfer shares it.)
+ * Each amount must be a SAFE integer, so no single amount loses pennies as a JS
+ * number. Nothing bounds their sum, which {@link allBalances} accumulates as a
+ * plain number. An account part must not carry the reserved key separator.
+ *
+ * Currency is not a ledger concern: a site has one, fixed at setup, so every
+ * transfer shares it.
  */
 export const validateTransfer = (
   t: TransferInput,

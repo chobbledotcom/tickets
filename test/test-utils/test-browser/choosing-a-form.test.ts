@@ -4,6 +4,18 @@ import { TestBrowser } from "#test-utils/test-browser.ts";
 import { postedPathBrowser, setupFormSubmit, useHandler } from "./helpers.ts";
 
 describe("TestBrowser choosing which form a press belongs to", () => {
+  it("refuses a page that renders no form at all", async () => {
+    // Sending without naming a button takes the first form on the page. With
+    // no form there is nothing to take, and a silent no-op would let a story
+    // pass while the send never happened.
+    const browser = new TestBrowser();
+    browser.currentHtml = "<p>Nothing to fill in here.</p>";
+
+    await expect(browser.submitForm({ name: "Jane" })).rejects.toThrow(
+      "No forms found on the current page",
+    );
+  });
+
   it("presses a usable button in a later form, not the switched-off one", async () => {
     const { browser, postedPath } = postedPathBrowser();
     // A person reading this page can press the second Publish, so naming it

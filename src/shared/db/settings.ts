@@ -1,15 +1,8 @@
 /**
  * Settings — sync reads, async writes.
  *
- * Call `settings.loadKeys(keys)` before a request to populate the snapshot.
- * After that every setting is a plain sync property, and writes go through
- * `settings.update.*`:
- *
- *   settings.theme                      // "light"
- *   await settings.update.theme("dark");
- *
- * This entry file assembles the {@link settings} namespace over the helpers in
- * `./settings/`, each file named for the job it does.
+ * `settings.loadKeys(keys)` must run before a request reads anything. After
+ * that every setting is a plain sync property, so a read needs no await.
  */
 
 import {

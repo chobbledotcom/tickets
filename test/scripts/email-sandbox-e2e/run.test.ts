@@ -225,7 +225,25 @@ describe("runEmailLeg failure containment", () => {
       state: "failed",
     });
   });
+
+  test("cancels the stalled request when the leg times out", async () => {
+    using _env = withEnv(resendEnv);
+    using time = new FakeTime();
+    const aborted = { signals: [] as AbortSignal[] };
+    using _fetched = stubFetch((_url, init) => {
+      if (init?.signal) aborted.signals.push(init.signal);
+      return new Promise<Response>(() => {});
+    });
+    const pending = runEmailLeg("resend");
+    await time.tickAsync(120_000);
+    await pending;
+
+    expect(aborted.signals).toHaveLength(1);
+    expect(aborted.signals[0]?.aborted).toBe(true);
+  });
 });
+
+const UNCONFIRMED = "1 message(s) left unconfirmed";
 
 describe("runEmailLeg on a ready postmark leg", () => {
   const acceptedBatch = '[{"ErrorCode":0,"Message":"OK"}]';
@@ -247,49 +265,45 @@ describe("runEmailLeg on a ready postmark leg", () => {
       new Response('[{"ErrorCode":406,"Message":"Inactive recipient"}]'),
     );
     expect(await runEmailLeg("postmark")).toEqual({
-      detail:
-        "single 200, bulk 200 — Postmark ErrorCode 406: Inactive recipient",
+      detail: "single 200, bulk 200 — Postmark error 406: Inactive recipient",
       provider: "postmark",
       state: "failed",
     });
   });
 
-  test("fails when an accepted batch reply has no per-message results", async () => {
-    using _env = withEnv(postmarkEnv);
-    using _fetched = stubFetch(okJson(), new Response("{}"));
+  /** The provider took the batch but said nothing about the probe, so the
+   * leg cannot claim it sent. */
+  const expectUnconfirmed = async () => {
     expect(await runEmailLeg("postmark")).toEqual({
-      detail:
-        "single 200, bulk 200 — Postmark batch reply does not carry the probe's one result",
+      detail: `single 200, bulk 200 — ${UNCONFIRMED}`,
       provider: "postmark",
       state: "failed",
     });
+  };
+
+  test("fails when an accepted batch reply has no per-message results", async () => {
+    using _env = withEnv(postmarkEnv);
+    using _fetched = stubFetch(okJson(), new Response("{}"));
+    await expectUnconfirmed();
   });
 
   test("fails when an accepted batch reply is an empty list", async () => {
     using _env = withEnv(postmarkEnv);
     using _fetched = stubFetch(okJson(), new Response("[]"));
-    expect(await runEmailLeg("postmark")).toEqual({
-      detail:
-        "single 200, bulk 200 — Postmark batch reply does not carry the probe's one result",
-      provider: "postmark",
-      state: "failed",
-    });
+    await expectUnconfirmed();
   });
 
-  test("fails loudly when an accepted batch reply is not JSON", async () => {
+  test("fails when an accepted batch reply is not JSON", async () => {
     using _env = withEnv(postmarkEnv);
     using _fetched = stubFetch(okJson(), new Response("not json"));
-    const outcome = await runEmailLeg("postmark");
-    expect(outcome.state).toBe("failed");
-    expect(outcome.detail).toContain("JSON");
+    await expectUnconfirmed();
   });
 
-  test("blanks an address a malformed batch reply quotes", async () => {
+  test("keeps an address out of the report when the reply is unreadable", async () => {
     using _env = withEnv(postmarkEnv);
     using _fetched = stubFetch(okJson(), new Response("to@example.com"));
     const outcome = await runEmailLeg("postmark");
     expect(outcome.state).toBe("failed");
-    expect(outcome.detail).toContain("[redacted]");
     expect(outcome.detail).not.toContain("to@example.com");
   });
 

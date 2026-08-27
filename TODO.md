@@ -1,24 +1,42 @@
 # TODO — remaining follow-ups
 
-## Convert the remaining journey-style direct tests to Cucumber stories
+## Remove the alias exports in the test helpers
 
-_Origin: the e2e→Cucumber migration survey behind the five-story batch (support
-page, owner password, removing access, booking closes, terms agreement). Those
-five shipped with stories beside slimmed direct remnants. The sections below are
-the next candidates the survey ranked, in order._
+_Origin: the test-helper duplication pass (`docs/test-duplication.md`). Found
+while reading the helper tree; too many call sites to fold into that change._
 
-Each is a file whose claims read as actor-facing rules no existing `@story:`
-covers. A migration is a replacement: move the journey to the Feature, keep a
-slimmed direct remnant with a header naming the story for branch cover (Cucumber
-runs do not count towards coverage), and record where every old claim went — the
-story, the remnant, or a deliberate drop.
+Three helper names are second names for a call that already exists, which "No
+alias exports" in AGENTS.md forbids.
 
-- `test/features/admin/settings-email.test.ts` and
-  `test/integration/server/settings/email-templates.test.ts` — connecting a
-  provider and editing email templates. Keep encryption-at-rest, Liquid-syntax,
-  and length contracts direct. This list named
-  `test/integration/server/settings/email.test.ts`, which does not exist; the
-  email settings tests live at the first path above.
+- `errorLogged` and `debugLogged` in `test/test-utils/debug-log.ts` are both
+  `logLogged` with no change at all. Export `logLogged` and migrate the 52 call
+  sites across `test/`, then delete both aliases.
+- `getAdminLoginCsrfToken`, `getJoinCsrfToken`, `getSetupCsrfToken` and
+  `getTicketCsrfToken` in `test/test-utils/csrf.ts` are each `extractCsrfToken`
+  with no change. Callers must use `extractCsrfToken`.
+
+Neither is flagged by jscpd, because an alias is too short to reach any
+`minTokens` setting we can use. Both are found by reading.
+
+---
+
+## One way for a test helper to reach the app
+
+_Origin: the test-helper duplication pass (`docs/test-duplication.md`). The
+merges landed; this is the design question they left behind._
+
+`test/test-utils` reaches `handleRequest` two ways. 11 helper modules import it
+statically from `#routes`. The rest go through `sendToApp`, `awaitTestRequest`
+or `testPageHtml` in `mocks.ts`, which import `#routes` lazily so that loading
+the helper module never pulls the app graph in.
+
+Decide which is right and make every helper do it. The lazy seam costs one
+dynamic import for each call and keeps the graph out of an isolate that does not
+need it. The static import is plainer to read. Every test isolate evaluates the
+app graph anyway when it loads a helper that needs it, so measure the cold cost
+of an isolate that does not, before you choose. `test-browser.ts` caches
+`handleRequest` in a private field and is a third way; fold it into whichever
+wins.
 
 ---
 
@@ -63,24 +81,6 @@ Left out of the migration that found it, because it changes production copy
 across twenty files rather than the tests being moved.
 
 ---
-## Thread an abort signal through the email send APIs (from PR #2140)
-
-`runEmailLeg` (`scripts/email-sandbox-e2e/run.ts`) races each leg against a
-two-minute timer. The timer only settles the race: an in-flight provider request
-keeps running, so a stalled request can fire one orphan probe after its leg
-reported failed. The harness exits right after the report, and the orphan cannot
-change the summary or the exit status, so the harm today is one duplicate probe
-to a discard or authorized address. Codex and CodeRabbit both asked for a real
-abort on PR #2140. It was declined there because it threads `AbortSignal`
-through `sendEmail`, `deliverRegistrationEmail`, `sendBulkEmails`, and
-`fetchText` for a parameter no production caller passes. If cancellable sends
-ever earn a production caller, add an optional `signal` to those APIs, abort it
-in `legTimeout`, and pass it to both probes.
-
-Review threads:
-<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856012838>
-<https://github.com/chobbledotcom/tickets/pull/2140#discussion_r3856612016>
-
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
 `logError` sends one `detail` string to the console, the activity log, and
@@ -103,19 +103,6 @@ Start at `logErrorLocal`, `formatErrorMessage`, and `captureServerError` in
 Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2139#discussion_r3855944310>
 ---
-
-## Count Postmark per-message batch errors in `sendBulkEmails` (from PR #2140)
-
-`sendBulkEmails` (`src/shared/email/bulk.ts`) counts a batch as failed only when
-the HTTP response is not ok. Postmark's `/email/batch` can answer 200 with a
-nonzero per-message `ErrorCode` (for example a suppressed or inactive
-recipient), so such a message counts as sent in the bulk report. Codex raised
-this on PR #2140. The email sandbox harness now reads the per-message results
-itself (`postmarkReplyProblems` in `scripts/email-sandbox-e2e/run.ts`), and that
-is the shape to lift into the shared boundary: parse each accepted Postmark
-reply, add the nonzero `ErrorCode` entries to `failed`, and surface them in the
-bulk send report. PR #2140 only adds the harness, so a change to production bulk
-accounting was out of its scope.
 
 ## Name the culprit per date in a multi-date refusal (from PR #2127)
 
@@ -1945,76 +1932,6 @@ of the test.
 
 ---
 
-## Two people setting a site up at the same moment can both succeed
-
-Raised on #1988 by both automated reviewers, and confirmed against the code. It
-is a production bug, not a test gap, and it is deliberately left out of that
-pull request because that branch changes no production code and this sits in the
-most security-critical path we have.
-
-**What happens.** `handleSetupPost` (`src/features/setup.ts`) asks
-`isSetupComplete()` and then calls `settings.setup.complete`. Nothing holds
-between the asking and the doing, so two requests that arrive together can both
-be told the site is empty. `completeSetup` (`src/shared/db/settings/setup.ts`)
-then runs its batch twice.
-
-The unique index on `username_index` saves us only when both people pick the
-_same_ name. Two different names both insert, and the second batch's
-`settingUpsert` calls overwrite `PUBLIC_KEY` and `WRAPPED_PRIVATE_KEY` with a
-second keypair. The first owner is left holding a wrapped data key for a data
-key the site no longer uses — they can sign in and read nothing.
-
-**Why it is not simply "add a guard".** The batch cannot decide anything
-mid-flight, so making the owner insert conditional still leaves the four setting
-upserts landing unconditionally. Whatever fixes it has to make the whole
-ceremony refuse to run twice — an interactive transaction that re-reads
-`setup_complete` inside the write lock, or a single conditional write that every
-other statement hangs off. That is a design decision in the code that holds
-everybody's encryption keys, so it wants its own change and its own review, not
-a corner of a test PR.
-
-**Where to start.** `completeSetup` in `src/shared/db/settings/setup.ts` —
-`withTransaction` from `src/shared/db/client.ts` is the tool, and the header
-comment on the current batch explains why it is a plain batch today (all values
-are computed up front). The guard in `handleSetupPost` at
-`src/features/setup.ts:114` stays useful as the cheap first check.
-
-**Proving it.** A story cannot show this today: Cucumber awaits each step, so
-the two posts never overlap. #1988 covers the neighbouring case it _can_ reach
-honestly — a person who had the setup page open before somebody else finished,
-sending their stale form afterwards. A real test for this one needs both posts
-started together behind a barrier, and it should be written with the fix.
-
----
-
-## An answer filed under a listing nobody booked
-
-_Origin: review of PR #1990 (the booking-check slice), 2026-07-29._
-
-Free-text answers travel through checkout filed under the listing they belong
-to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
-`src/shared/booking-intent.ts` checks that the key is written the way a listing
-id is written, so a key of any other shape stops the booking rather than losing
-the answers under it after the buyer has paid.
-
-What it cannot check is whether that listing was one of the ones actually
-bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
-and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
-looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
-answers. The buyer answered a question and the answer quietly goes nowhere.
-
-The schema is the wrong place for the check: it validates one booking's metadata
-on its own, and the listings that were bought are decided later, once the items
-have been priced and loaded. The natural home is next to `saveSessionAnswers`,
-which already has both the answer map and the booked listings — compare the two
-sets and raise any key that matches no booked listing, the same way an
-unreadable booking is raised.
-
-Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
-where the shape rule is covered and the "names a booked listing" rule is not.
-
----
-
 ## A create whose row can't be read back should not look retryable
 
 _Origin: Codex review on PR #2002, which added the loud failure for a create
@@ -2978,3 +2895,113 @@ tests call `reverseOf`, because the `{@link reverseOf}` in the JSDoc of that
 module reads as a production use. `isInverseOf` beside it has a live caller in
 `accounting/conflicts.ts`, so the module stays exempt either way. See
 "Dead-export scanner matches raw text" above.
+
+---
+
+## A checker for Simplified Technical English in `src/` comments
+
+_Origin: Codex review of PR #2158 (the comment-length ratchet). That PR rewrote
+222 comments and fixed every rule break it introduced, across three review
+rounds. The breaks below predate it._
+
+`AGENTS.md` holds code comments to ASD-STE100. No checker enforces that section,
+so `src/` carries a stock of prose that breaks it, and a review bot is the only
+thing that catches a new break. That is the wrong place for the check. Anyone
+who rewrites comments at volume trips it repeatedly, and each round costs a
+push.
+
+A sweep of the first 84 comments PR #2158 rewrote counted 137 descriptive
+sentences above the 25-word limit and 26 uses of a banned modal. The whole tree
+holds more, because the sweep only read comments that one PR touched.
+
+The mechanical half of the rule is checkable, and it is the half that keeps
+being broken. Each of these is a regular expression over comment prose:
+
+- a contraction, a semicolon, or a banned modal (`should`, `would`, `may`,
+  `might`, `could`);
+- a present perfect form, such as `has been` or `have grown`;
+- an `-ing` verb form after a comma, which is the shape that produced most of
+  the breaks;
+- a sentence above 25 words in descriptive text, or above 20 in a procedural
+  one.
+
+Build it beside `scripts/check-comments/`, which already has the lexer, the
+exempt list, and the ratchet shape. The word limits ratchet downward the same
+way the line and column limits do. Bullets, table rows, and code examples must
+be exempt from the sentence limits, as they are in the length checker.
+
+A starting point exists. The sweep script is about 60 lines over `readComments`
+from `scripts/check-comments/rules.ts`. It reads each comment, drops bullet,
+table, and code-example lines, splits the rest into sentences, and counts words.
+It is not committed.
+
+The judgement half of the rule stays with the person. A checker cannot tell
+whether a word is too fancy, or whether a sentence says the wrong thing.
+
+---
+
+## The dead-export scanner cannot credit same-file usage
+
+_Origin: PR #2158, where a comment edit that removed a `{@link}` broke the
+`exports from src/ should be used in production code` test._
+
+`test/scripts/code-quality/detectors.ts` decides whether an export is used by
+matching import clauses across the tree. A production export whose only caller
+sits in its own file therefore reads as dead, and `ALLOWED_TEST_HOOKS` in
+`test/integration/code-quality.test.ts` carries an entry for each one. Fourteen
+of its entries say so in as many words, and their comments name the shapes the
+matcher misses: a same-file throw, a same-file call, and same-file arithmetic
+such as `X * DAY_MS`, because `*` is not in the usage character class.
+
+`AGENTS.md` says that an allow-list entry is a signal that an export is dead.
+These fourteen are the opposite. The export is live and the scanner cannot see
+it, so the list carries the scanner's blind spot, and a reader cannot tell the
+two kinds of entry apart without reading each comment.
+
+The fix is a same-file usage pass that reads the file's own body after the
+export declaration. It pairs with the code-only preprocessing pass in
+"Dead-export scanner matches raw text" above, because both want the same lexer.
+Do them together. Deletion of the fourteen entries is the proof that it works.
+
+Do not start with the deletion. Removal of the blind spot can unmask a genuinely
+dead export that a phantom same-file match was hiding, which is separate work
+and must be judged on its own.
+
+---
+
+## The merge queue does not gate on `checks` or `test`
+
+_Origin: #2158 merged with `checks` red, and so did the two merges before it. I
+found this while I traced why lint failed on main._
+
+`test.yml` runs on `merge_group`, so the queue does run the `checks` job, and
+that job runs `deno task lint:ci` before its other checks. The queue runs it,
+reads the failure, and merges anyway. Three consecutive merges did this:
+
+| Queue run     | PR    | `checks`        |
+| ------------- | ----- | --------------- |
+| `33021228000` | #2157 | failure, merged |
+| `33022892823` | #2155 | failure, merged |
+| `33024444803` | #2158 | failure, merged |
+
+The run before those, for #2156, passed. #2157 is the merge that put the
+duplicate `PageAddress` declaration on main, so the first ignored failure is
+also the one that broke main.
+
+GitHub waits for the checks a ruleset marks REQUIRED, not for every check on the
+ref. `checks` and `test` are not in that list for `main`, so both are advisory
+in the queue. The comment at the top of `test.yml` used to state the opposite,
+and that belief is why nothing looked.
+
+The fix is a repository setting, not a file here. Open Settings, then Rules.
+Edit the ruleset for `main`. Add `checks` and `test` to the merge queue's
+required status checks. No settings-as-code file exists in this repository, so
+no pull request can make this change.
+
+Note what the gap is NOT. The failure is already detected: the `checks` job
+runs, fails, and reports. Nothing acts on that report. A new detector therefore
+fixes nothing, and the work belongs in the ruleset.
+
+Until that changes, a red `checks` never blocks a merge, and main can break
+again the same way. Only a person who runs `deno task precommit` before the
+merge stops it.

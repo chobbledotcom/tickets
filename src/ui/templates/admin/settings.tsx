@@ -55,20 +55,11 @@ export type SettingsPageState = {
 };
 
 /**
- * Admin settings page
+ * Admin settings page. The forms run from most to least commonly configured, so
+ * a new form goes in by how often an operator touches it.
  *
- * Forms ordered from most to least commonly configured:
- * 1. Business Email - basic setup
- * 2. Header Image - branding
- * 3. Site Theme - appearance
- * 4. Payment Provider + Stripe/Square/Webhook/Booking Fee
- * 5. Terms and Conditions
- * 6. Embed Hosts - niche
- * 7. Change Password - rare maintenance
- * 8. Calendar Feeds - niche read-only feed
- *
- * Country/locale is intentionally absent: it is set once during /setup and is
- * write-once thereafter (only an admin editing the database can change it).
+ * Country and locale are deliberately absent. They are set once during /setup
+ * and are write-once after that, so only an edit to the database changes them.
  */
 export const adminSettingsPage = (
   session: AdminSession,

@@ -1,15 +1,12 @@
 /**
- * Typed, keyed table column: the one declaration every rectangular admin
- * table renders from.
+ * Typed, keyed table column: the one declaration every rectangular admin table
+ * renders from.
  *
- * The key is the column's identity — it stays stable across renders, drives
- * the configurable layout keys (e.g. the listing/attendee "column order"
- * Liquid template), and labels the column in the guide reference table.
+ * The key is the column's identity outside this file. It names the column in
+ * the configurable layout keys (the listing/attendee "column order" Liquid
+ * template) and in the guide reference table, so a rename breaks both.
  *
- * The cell renderer takes a row and the per-table context (default `undefined`),
- * so an ordinary column with no context can ignore both. Cells return JSX
- * children. JSX escapes text values while explicit `Raw` nodes carry trusted
- * markup.
+ * JSX escapes a cell's text. An explicit `Raw` node carries trusted markup.
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";

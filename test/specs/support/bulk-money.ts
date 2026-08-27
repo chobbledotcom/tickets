@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { execute } from "#db/client.ts";
+import type { ChargeMoney } from "#payment/resources.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
@@ -23,6 +24,7 @@ import {
 import { openListedRefundCase } from "#test/specs/support/refund-safety/journeys.ts";
 import {
   type ActOnSomeMoney,
+  type ActOnTheStory,
   requiredWorldValue,
   type TicketsWorld,
   theListing,
@@ -84,9 +86,7 @@ const firstAttendeeId = (world: TicketsWorld): number => {
 };
 
 /** Reproduce an old PII-only deposit followed by one modern balance payment. */
-export const leaveOnlyLaterIndexedPayment = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const leaveOnlyLaterIndexedPayment: ActOnTheStory = async (world) => {
   const attendeeId = firstAttendeeId(world);
   await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
     attendeeId,
@@ -153,18 +153,20 @@ const refundEveryone = async (
   world.bulkRefundMessage = browser.pageText;
 };
 
+/** Refund All, with one provider behaviour behind it. */
+const refundingEveryone =
+  (answer: RefundAnswer) =>
+  (world: TicketsWorld): Promise<void> =>
+    refundEveryone(world, answer);
+
 /** Submit one bounded Refund All step that the provider refuses. */
-export const refuseNextRefund = (world: TicketsWorld): Promise<void> =>
-  refundEveryone(world, refundIsRejected);
+export const refuseNextRefund = refundingEveryone(refundIsRejected);
 
 /** Try Refund All with a provider that would return every payment it receives. */
-export const tryToRefundEveryone = (world: TicketsWorld): Promise<void> =>
-  refundEveryone(world, refundCompletes);
+export const tryToRefundEveryone = refundingEveryone(refundCompletes);
 
 /** Open the listing-wide refund page without reaching around a missing form. */
-export const openRefundEveryone = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const openRefundEveryone: ActOnTheStory = async (world) => {
   await withRefundMock(refundCompletes, async (mockRefund) => {
     const browser = await openAdminPage(
       world,
@@ -185,9 +187,9 @@ export const expectRefundEveryoneUnavailable = (world: TicketsWorld): void => {
 };
 
 /** Prove the reviewed payment is the final member of the complete command. */
-export const firstPaymentIsLastRefundCandidate = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const firstPaymentIsLastRefundCandidate: ActOnTheStory = async (
+  world,
+) => {
   const candidates = await getCompleteRefundCandidatesForListing(
     theListing(world),
   );
@@ -197,14 +199,29 @@ export const firstPaymentIsLastRefundCandidate = async (
   expect(candidates.at(-1)?.attendee.id).toBe(firstAttendeeId(world));
 };
 
+/** Replace what the provider says about the first charge, worked out from
+ * what it says now. */
+const reportFirstChargeAs = (
+  world: TicketsWorld,
+  report: (charge: ChargeMoney) => ChargeMoney,
+): void => {
+  world.providerCharges.set(FIRST_PAYMENT, report(firstProviderCharge(world)));
+};
+
+/** One step that changes what the provider says about the first charge. */
+const reportingFirstChargeAs =
+  (report: (charge: ChargeMoney) => ChargeMoney) =>
+  (world: TicketsWorld): void => {
+    reportFirstChargeAs(world, report);
+  };
+
 /** Give the first charge a provider report that cannot be true. */
-export const contradictFirstPayment = (world: TicketsWorld): void => {
-  const charge = firstProviderCharge(world);
+export const contradictFirstPayment = reportingFirstChargeAs((charge) => {
   const returned = {
     amount: charge.captured.amount + 1,
     currency: charge.captured.currency,
   };
-  world.providerCharges.set(FIRST_PAYMENT, {
+  return {
     ...charge,
     confirmedRefunded: returned,
     refunds: [
@@ -218,13 +235,11 @@ export const contradictFirstPayment = (world: TicketsWorld): void => {
         },
       }),
     ],
-  });
-};
+  };
+});
 
 /** Use the real single-refund form and leave its canonical owner case open. */
-export const leaveFirstRefundCaseForOwner = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const leaveFirstRefundCaseForOwner: ActOnTheStory = async (world) => {
   const browser = await sendRefundForm(
     world,
     "attendee",
@@ -245,13 +260,9 @@ export const leaveFirstRefundCaseForOwner = async (
 };
 
 /** Replace the contradictory report with an untouched charge. */
-export const correctFirstPayment = (world: TicketsWorld): void => {
-  const charge = firstProviderCharge(world);
-  world.providerCharges.set(
-    FIRST_PAYMENT,
-    chargeMoney(charge.captured.amount, 0, charge.captured.currency),
-  );
-};
+export const correctFirstPayment = reportingFirstChargeAs((charge) =>
+  chargeMoney(charge.captured.amount, 0, charge.captured.currency),
+);
 
 /** A listing that asks one price but lets a customer pay more. */
 export const payMoreListing = async (

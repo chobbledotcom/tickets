@@ -1,16 +1,12 @@
 /**
- * Shared "ledger" renderer — the one read-only view of the `transfers` ledger,
- * used across three admin surfaces (decision 15):
- * the historical transfer list (`/admin/ledger`), a single account's
- * running-balance statement (`/admin/ledger/:type/:id`), and the per-attendee
- * statement panel embedded on the edit-attendee page.
+ * Shared read-only view of the `transfers` ledger. Three admin surfaces use it:
+ * the transfer list, a single account's running-balance statement, and the
+ * per-attendee statement panel on the edit-attendee page.
  *
- * Like the activity log, the template is render-only: the feature layer builds a
- * {@link LedgerNames} id→name lookup (decrypting attendee names with the session
- * key, reading listing/modifier names from their loaders) so an account leg can
- * be shown as a link without this module touching the database. An id absent
- * from the map (a deleted entity that still keeps its ledger rows) falls back to
- * plain "<Entity> #<id>" text with no link, mirroring the activity log.
+ * Render-only: the feature layer builds the {@link LedgerNames} lookup, and
+ * decrypts attendee names with the session key, so this module never touches
+ * the database. An id absent from that map is a deleted entity that still keeps
+ * its ledger rows, so it renders as plain text with no link.
  */
 
 import {

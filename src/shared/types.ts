@@ -128,32 +128,16 @@ export type ListingType = v.InferOutput<typeof ListingTypeSchema>;
 /** Type guard: check if an arbitrary string is a valid ListingType */
 export const isListingType = guardFor(ListingTypeSchema);
 
-/** Schema for the persisted email template types: the attendee confirmation and
- *  the admin notification. The single source of truth for the template
- *  discriminator used by the renderer, settings store, and admin forms. */
-export const EmailTemplateTypeSchema = v.picklist(["confirmation", "admin"]);
+/** The persisted email template types: the attendee confirmation and the admin
+ *  notification. The discriminator the renderer, the settings store, and the
+ *  admin forms all key on. A plain union rather than a picklist schema,
+ *  because nothing validates a string against it — every value comes from a
+ *  typed call, never from a form or a stored row. */
+export type EmailTemplateType = "confirmation" | "admin";
 
-/** Persisted email template type */
-export type EmailTemplateType = v.InferOutput<typeof EmailTemplateTypeSchema>;
-
-/** Type guard: check if a string is a valid EmailTemplateType */
-export const isEmailTemplateType = guardFor(EmailTemplateTypeSchema);
-
-/** Schema for the parts of an email template: the subject line, the html
- *  body, and the plain-text body. */
-export const EmailTemplateFormatSchema = v.picklist([
-  "subject",
-  "html",
-  "text",
-]);
-
-/** A single part of an email template */
-export type EmailTemplateFormat = v.InferOutput<
-  typeof EmailTemplateFormatSchema
->;
-
-/** Type guard: check if a string is a valid EmailTemplateFormat */
-export const isEmailTemplateFormat = guardFor(EmailTemplateFormatSchema);
+/** A single part of an email template: the subject line, the html body, or the
+ *  plain-text body. A plain union for the same reason. */
+export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Whether an listing can accept payments: a flat price, pay-what-you-want, or
  * a customisable-days listing with at least one non-zero day-count price. */
@@ -330,21 +314,15 @@ const sharedCappedGroupIds = (
   parentGroupIds.filter((g) => childGroupIds.includes(g) && byGroup.has(g));
 
 /**
- * The remaining spots of the **capped group a parent and one of its children
- * share**, or `undefined` when they don't share a capped group. A parent and its
- * required child in the same capped group consume two group spots per order,
- * so callers must reason about combined demand, not each row in
- * isolation.
+ * The remaining spots of the capped group a parent and one of its children
+ * share, or `undefined` when they share no capped group. Such a parent and
+ * child take two group spots per order, so a caller must reason about the
+ * combined demand, not each row alone.
  *
- * `remainingByGroupId` is the PER-GROUP remaining (groupId → free spots; uncapped
- * groups omitted), so the result is the tightest SHARED group's remaining — the
- * group the parent and child actually contend over — NOT the child's tightest
- * group overall. A child also in a tighter NON-shared group must not drag the
- * shared-pool calc down to that unrelated cap.
- *
- * The single source of truth for both discovery (does the minimum order fit?) and
- * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
- * can never disagree about a shared-group parent's availability.
+ * The value is the tightest SHARED group's remaining, never the child's
+ * tightest group overall — a child that is also in a tighter unshared group
+ * must not drag this down to an unrelated cap. Discovery and the booking-page
+ * quantity ceiling both read it, so the two surfaces cannot disagree.
  */
 export const sharedGroupRemaining = (
   parentGroupIds: readonly number[],
@@ -361,18 +339,14 @@ export const sharedGroupRemaining = (
 };
 
 /**
- * The capacity a parent and one of its children share, as two orthogonal facts:
- * - `staticCap` — the group's structural ceiling (`groups.max_attendees`),
- *   date-INDEPENDENT. A share whose static cap is below
- *   {@link PARENT_CHILD_GROUP_UNITS} can NEVER fit a parent+child order, on any
- *   date — so date-less surfaces can mark it sold out without a date.
- * - `remaining` — the group's currently-free spots in the caller's context
- *   (date-less cumulative for standard listings; per-date when a date is known;
- *   `undefined` when not computable, e.g. a daily child with no submitted date).
+ * The capacity a parent and one of its children share, as two separate facts:
+ * - `staticCap` — `groups.max_attendees`, date-INDEPENDENT. Below
+ *   {@link PARENT_CHILD_GROUP_UNITS} a parent+child order can never fit on any
+ *   date, so a date-less surface can mark it sold out.
+ * - `remaining` — free spots in the caller's context, `undefined` when it is
+ *   not computable, such as a daily child with no submitted date.
  *
- * Both are `undefined` when the parent and child do not share a capped group.
- * This is the single capacity vocabulary the bookability evaluator reasons over,
- * so every surface answers "does the combined demand fit?" the same way.
+ * Both are `undefined` when the two share no capped group.
  */
 export type SharedGroupCapacity = {
   staticCap: number | undefined;
@@ -384,17 +358,13 @@ export type SharedGroupCapacity = {
 export type GroupIdsByListingId = ReadonlyMap<number, number[]>;
 
 /**
- * Build the {@link SharedGroupCapacity} for a parent/child pair from the PER-GROUP
- * capacity maps (groupId → spots; uncapped groups omitted). They are co-grouped
- * when their group sets intersect in at least one CAPPED group; when they are not,
- * there is no shared cap (both facts `undefined`).
+ * Build the {@link SharedGroupCapacity} for a parent/child pair. The two are
+ * co-grouped when their group sets meet in at least one capped group.
  *
- * Both facts are the tightest value over the groups they SHARE — the pool(s) the
- * combined demand actually contends for — NOT the child's tightest group overall.
- * A child also in a tighter non-shared group must not pull the shared cap down to
- * an unrelated group's value; the static cap and remaining are taken
- * from the SAME shared groups so date-less surfaces reject a share too small to
- * ever hold both even when a daily child's per-date remaining is unknown.
+ * Both facts come from the SAME shared groups, and are the tightest value over
+ * those — never the child's tightest group overall. That is what lets a
+ * date-less surface reject a share too small to hold both, even when a daily
+ * child's per-date remaining is unknown.
  */
 export const sharedGroupCapacity = (
   parentGroupIds: readonly number[],

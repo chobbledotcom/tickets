@@ -1,19 +1,12 @@
 /**
- * Capacity rules — the single declarative table of which capacity checks
- * apply to which kind of listing.
+ * Capacity is enforced in three places: the JS preflight, the inline SQL guard
+ * in the booking write, and the booking-page limits.
  *
- * Capacity is enforced in several places: the JS preflight
- * (`#shared/db/attendees/capacity/checks.ts`), the inline SQL guard embedded in the
- * booking INSERT/UPDATE (`#shared/db/capacity.ts`), and the booking-page
- * limits (`#shared/booking/model.ts`, `#shared/booking/package-cap.ts`).
- * Each of those used to branch on `listing_type === "daily"` by hand. This
- * table is the one reference they all consult instead: every rule declares
- * which listings it applies to, and both the JS branches and the SQL
- * fragments derive from the same declaration — so the preflight and the
- * write-time guard can never disagree about which check applies.
+ * Both the JS branches and the SQL fragments derive from this one table, so the
+ * preflight and the write-time guard can never disagree about which check
+ * applies.
  *
- * This module is pure: it declares rules and derives answers from them, and
- * never touches the database.
+ * This module is pure and never touches the database.
  */
 
 import { type ListingType, ListingTypeSchema } from "#types";
@@ -59,17 +52,15 @@ export const allCapacityFacets = (): CapacityFacet[] =>
   );
 
 /**
- * Check a rule table is coherent before anything derives from it:
- * - Every known rule key must be declared exactly once — a missing key would
- *   make its lookups dereference nothing, and a duplicate would let two
- *   declarations silently disagree about the same check.
- * - A listing's own cap (`listings.max_attendees`) is counted exactly one of
- *   two ways, so every facet must have exactly one of
- *   `dateLessCap`/`perDateCap`. Both would double-count the same cap;
- *   neither would leave a listing with no own-cap check at all.
- * - Every rule must apply to at least one facet — a rule nothing can ever
- *   match is dead, and it would have no SQL type predicate.
- * Exported so the invariants are unit-testable; runs once at module load.
+ * Check the rule table is coherent before anything derives from it. Each check
+ * exists because of what its absence would cost:
+ *
+ * - A duplicate rule key lets two declarations silently disagree.
+ * - A facet with both `dateLessCap` and `perDateCap` double-counts the same
+ *   cap. A facet with neither leaves a listing with no own-cap check at all.
+ * - A rule that matches no facet is dead, and has no SQL type predicate.
+ *
+ * Exported so the invariants are unit-testable. Runs once at module load.
  */
 export const assertCapacityRulesCoherent = (
   rules: readonly CapacityRule[],

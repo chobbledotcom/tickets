@@ -1,20 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
-import { groups } from "#db/groups.ts";
+
 import {
   concealLineNames,
   concealMemberNames,
   ctxStandInNames,
-  memberStandInName,
   namesConcealed,
+  namesConcealedIn,
   packagePrivacy,
   packagePrivacyOfDisplay,
   packageStandIns,
-  resolveNamesConcealed,
 } from "#shared/package-privacy.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { treePackage } from "#test-utils/package-cap-fixtures.ts";
 
@@ -24,22 +22,11 @@ const SHOWN = packagePrivacy(false, "Welcome Pack");
 describe("package privacy (pure)", () => {
   test("a hidden package conceals member names behind the package name", () => {
     expect(namesConcealed(HIDDEN)).toBe(true);
-    expect(memberStandInName(HIDDEN)).toBe("Welcome Pack");
   });
 
   test("a visible package (and a non-package) names members as usual", () => {
     expect(namesConcealed(SHOWN)).toBe(false);
-    expect(memberStandInName(SHOWN)).toBeUndefined();
     expect(packagePrivacyOfDisplay(null)).toEqual({ kind: "visible" });
-  });
-
-  test("never reads a stale packageName off a visible privacy value", () => {
-    // A visible PackagePrivacy has no packageName field, but nothing stops a
-    // caller from holding a value that still carries one under the hood (e.g.
-    // built by spreading a once-hidden value and overwriting `kind`). The
-    // "visible" branch must ignore it rather than leak it.
-    const staleVisible = { ...HIDDEN, kind: "visible" as const };
-    expect(memberStandInName(staleVisible)).toBeUndefined();
   });
 
   test("a display resolves through the same constructor", () => {
@@ -163,33 +150,29 @@ describe("per-path stand-in names (several bundles per page)", () => {
   });
 });
 
-describeWithEnv("resolveNamesConcealed (fail-safe)", { db: true }, () => {
-  test("an order booking no packages never conceals", async () => {
-    expect(await resolveNamesConcealed([])).toBe(false);
+describe("namesConcealedIn (fail-safe)", () => {
+  const DISPLAYS = new Map([
+    [1, { hideListings: false, name: "Open Kit" }],
+    [2, { hideListings: true, name: "Box Kit" }],
+  ]);
+
+  test("an order booking no packages never conceals", () => {
+    expect(namesConcealedIn(DISPLAYS, [])).toBe(false);
   });
 
-  test("a live package resolves its own hide flag", async () => {
-    const shown = await createTestGroup({ isPackage: true, name: "Open Kit" });
-    expect(await resolveNamesConcealed([shown.id])).toBe(false);
-
-    const hidden = await createTestGroup({ isPackage: true, name: "Box Kit" });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
-    expect(await resolveNamesConcealed([hidden.id])).toBe(true);
+  test("a live package resolves its own hide flag", () => {
+    expect(namesConcealedIn(DISPLAYS, [1])).toBe(false);
+    expect(namesConcealedIn(DISPLAYS, [2])).toBe(true);
   });
 
-  test("hidden when ANY of several booked packages hides its listings", async () => {
-    const shown = await createTestGroup({ isPackage: true, name: "Kit A" });
-    const hidden = await createTestGroup({ isPackage: true, name: "Kit B" });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
-    expect(await resolveNamesConcealed([shown.id, hidden.id])).toBe(true);
+  test("hidden when ANY of several booked packages hides its listings", () => {
+    expect(namesConcealedIn(DISPLAYS, [1, 2])).toBe(true);
   });
 
-  test("a package id that no longer resolves fails SAFE as hidden", async () => {
-    // The stale group may have been hidden; the refund path must not name its
-    // members either way.
-    const gone = await createTestGroup({ isPackage: true, name: "Gone Kit" });
-    await groups.table.deleteById(gone.id);
-    expect(await resolveNamesConcealed([gone.id])).toBe(true);
+  test("a package id that no longer resolves fails SAFE as hidden", () => {
+    // The stale group may have been hidden, and the refund path must not name
+    // its members either way.
+    expect(namesConcealedIn(DISPLAYS, [99])).toBe(true);
   });
 });
 

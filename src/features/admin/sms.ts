@@ -2,18 +2,13 @@
 import { defineRoutes } from "#routes/router.ts";
 
 /**
- * Admin SMS page — text an attendee via the gateway queue.
- *
- * Reached at `/admin/sms?listing=:id&attendee=:id` (mirroring the email page,
- * with which it will eventually reach parity). The page shows the current
- * queue size and, when an attendee is targeted, a compose form plus the
- * conversation history.
+ * Admin SMS page, reached at `/admin/sms?listing=:id&attendee=:id`.
  *
  * The attendee's phone number is decrypted transiently under the owner's
- * session key, immediately re-encrypted under the SMS Gate E2E key, and only
- * that ciphertext is transmitted — plaintext PII is never persisted. History
- * lives in the (encrypted) activity log; the sms_messages table only maps
- * gateway ids to attendees for status webhooks.
+ * session key, re-encrypted under the SMS Gate E2E key, and only that
+ * ciphertext leaves us. Plaintext PII is never persisted. History lives in the
+ * encrypted activity log, and `sms_messages` only maps gateway ids to attendees
+ * for status webhooks.
  */
 
 import { getAttendeeActivityLog, logActivity } from "#db/activity-log.ts";

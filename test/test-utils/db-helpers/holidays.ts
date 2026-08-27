@@ -27,14 +27,19 @@ export const createTestHoliday = (
   );
 };
 
+/** The holiday as it is stored now. Editing and deleting both need it: the
+ * edit form re-sends the fields it does not change, and the delete form
+ * confirms by name. */
+const storedHoliday = async (holidayId: number): Promise<Holiday> => {
+  const { holidays } = await import("#db/holidays.ts");
+  return (await holidays.table.read.one({ id: holidayId })) as Holiday;
+};
+
 export const updateTestHoliday = async (
   holidayId: number,
   updates: Partial<HolidayInput>,
 ): Promise<Holiday> => {
-  const { holidays } = await import("#db/holidays.ts");
-  const existing = (await holidays.table.read.one({
-    id: holidayId,
-  })) as Holiday;
+  const existing = await storedHoliday(holidayId);
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
@@ -43,19 +48,13 @@ export const updateTestHoliday = async (
       name: updates.name ?? existing.name,
       start_date: updates.startDate ?? existing.start_date,
     },
-    async () => {
-      const updated = await holidays.table.read.one({ id: holidayId });
-      return updated as Holiday;
-    },
+    () => storedHoliday(holidayId),
     "update holiday",
   );
 };
 
 export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
-  const { holidays } = await import("#db/holidays.ts");
-  const existing = (await holidays.table.read.one({
-    id: holidayId,
-  })) as Holiday;
+  const existing = await storedHoliday(holidayId);
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/delete`,

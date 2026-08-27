@@ -1,3 +1,4 @@
+import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -74,6 +75,23 @@ const capsQuantityAt = (
     expect(specs.find((s) => s.name === input.name)?.quantity).toBe(expected);
   });
 
+/** Register one corrupt-cap scenario as its own test: a repaired or imported
+ * row carries a cap no admin form could save, and resolving must refuse it
+ * loudly rather than silently drop the charge from the order. */
+const refusesStoredCap = (description: string, badCap: number): void =>
+  test(description, async () => {
+    const { answerIds, modifierId } = await setUpAnswerModifier(1, {
+      maxPerOrder: 1,
+      name: "Zone 2 delivery",
+    });
+    await patchModifier(modifierId, { max_per_order: badCap });
+    await assertRejects(
+      () => resolveAnswerPicks({ "1": [answerIds[0]!] }, new Map([[1, 5]])),
+      Error,
+      "max_per_order",
+    );
+  });
+
 /**
  * The question-answer trigger end to end: how a linked answer turns into a
  * quantity, how the per-order cap and stock clamp that quantity, and how the
@@ -117,6 +135,10 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
       { maxPerOrder: 1, name: "Zone 2 delivery" },
       1,
     );
+
+    refusesStoredCap("refuses a stored per-order cap of zero", 0);
+
+    refusesStoredCap("refuses a fractional stored per-order cap", 2.5);
 
     test("applies a once-per-order answer modifier once across several linked answers", async () => {
       const { answerIds } = await setUpAnswerModifier(2, {

@@ -279,17 +279,13 @@ const submitTicket = ticketFormRoute(
 );
 
 /**
- * Build the running-total fragment for a parsed-and-priced quote, matching what
- * the submit path would actually collect:
- * - a sold-out answer tier is rejected (as submit would), run at zero visits
- *   since a quote strips the PII needed to look the buyer's count up;
- * - with no payment provider configured the booking is taken without charging,
- *   but a paid order still owes its full value (see {@link handleFreePath}), so
- *   the quote surfaces that amount owed rather than implying the order is free.
+ * A quote strips the PII needed to look up a buyer's visit count, so it runs at
+ * zero visits. A returning buyer's `min_visits` modifiers are therefore absent.
+ * The submit path reprices with the real count before it charges.
  *
- * A returning buyer's `min_visits` modifiers are not reflected — that needs the
- * stripped contact details — so the quote is a zero-visits estimate; the submit
- * path reprices with the real count before charging.
+ * With no payment provider the booking is taken without charging, but a paid
+ * order still owes its full value, so the quote surfaces the amount owed and
+ * never implies that the order is free.
  */
 const renderQuote = async (
   ctx: TicketCtx,
@@ -534,17 +530,11 @@ export const handleBySlugs: BySlugsHandler<Promise<Response>> = (
   );
 
 /**
- * The booking-page framework entrypoint: render a booking page for an arbitrary
- * set of listings, letting {@link getTicketContext} derive the fields, dates,
- * questions and terms from the listings themselves. Every booking scenario
- * funnels through here — single listing, multi-listing, group, and the order
- * page — so they share one rendering and submission path.
+ * The booking-page framework entrypoint. Every booking scenario funnels through
+ * here — single listing, multi-listing, group, and the order page — so they
+ * share one rendering and submission path.
  *
- * Caller supplies the listings; `group` flows into getTicketContext, `overrides`
- * win over its result (e.g. renewal's actionUrl/siteToken, or the order page's
- * header + action), and `prefill` pre-selects per-listing quantities (the order
- * cart's selected products). `mode` carries through to {@link handleTicket} so a
- * group quote prices via the same flow as a group booking.
+ * `overrides` win over whatever {@link getTicketContext} derives.
  */
 export const renderTicketFlow =
   (

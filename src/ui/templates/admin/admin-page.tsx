@@ -1,16 +1,7 @@
 /**
- * Shared admin-page scaffolding: Layout + AdminNav, with the page title set
- * and the page body (children) inside.
- *
- * Several admin templates open with the same
- *   String(<Layout title={...}><AdminNav active="..." session={...} />
- *         ...body... </Layout>)
- * shape; this helper factors that out so it lives in one place.
- *
- * The optional `flash` prop is rendered immediately after <AdminNav> — most
- * admin pages open with `<Flash error=.../>` or `<Flash success=.../>`, and
- * passing it here collapses the per-page `<Flash>` line into the AdminPage
- * call so the opener boilerplate can't drift across pages.
+ * Shared admin-page scaffolding: Layout plus AdminNav, with the page title set
+ * and the page body inside. The optional `flash` prop renders straight after
+ * the nav, so one call opens a page and no opener can drift.
  */
 
 /* jscpd:ignore-start */

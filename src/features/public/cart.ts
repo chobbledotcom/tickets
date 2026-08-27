@@ -1,16 +1,10 @@
 /**
- * Multi-item cart booking pages: `/ticket/<slug>+<slug>+…` where a slug may
- * name a PACKAGE group as well as a listing (slugs are unique across both).
- * The order page's cart redirects here, so one booking can carry several
- * packages alongside ordinary listings.
+ * Multi-item cart pages: `/ticket/<slug>+<slug>+…`, where a slug can name a
+ * PACKAGE group as well as a listing. Slugs are unique across both.
  *
- * Slugs resolve in URL order. A slug that names neither an active listing nor
- * a complete package is dropped — exactly how unknown slugs have always been
- * dropped from multi-slug URLs — and so is an exact repeat of an item already
- * in the cart. OVERLAP is allowed: two packages sharing a listing, or a
- * package plus that listing's own row, book together in one order (each path
- * its own line and row), capacity permitting — the cart never restricts what
- * can be booked beyond stock.
+ * An unresolvable slug is dropped, as is an exact repeat. OVERLAP is allowed:
+ * two packages sharing a listing book together in one order, each path its own
+ * line and row. The cart never restricts what can be booked beyond stock.
  */
 
 import { getListingsBySlugs } from "#db/listings/records.ts";

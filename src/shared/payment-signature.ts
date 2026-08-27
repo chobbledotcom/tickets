@@ -1,22 +1,14 @@
 /**
  * Tamper-evident signature over a checkout's agreed price and the metadata it
- * was agreed under.
+ * was agreed under, keyed on the server's encryption key. The provider sees
+ * only the digest, so the webhook trusts the total and never derives it again.
+ * The proof binds the whole logical metadata, so a field that feeds pricing
+ * indirectly, such as a visit-gated modifier's email, cannot change under it.
  *
- * The public checkout signs the total the buyer agreed, bound to the booking
- * fields in provider metadata, with an HMAC keyed on the server's encryption
- * key. The provider only sees the digest, which it cannot forge, so the webhook
- * trusts the total and its surrounding fields rather than re-deriving them.
- *
- * It binds the whole logical metadata, not just the price-determining subset,
- * so a field feeding pricing indirectly — email or phone, via visit-gated
- * modifiers — or feeding fulfilment cannot change while the proof stays valid.
- *
- * Three keys are excluded: `price_proof`, which cannot sign itself; `b`, the
- * wire-only packed entry, since both sides work on the unpacked shape; and
- * `_origin`, left unsigned so the webhook's foreign-session detection can read
- * it — binding it would push a tampered-origin session down the no-refund
- * foreign path and strand a paying customer. `canonicalPricePayload` is the one
- * place both sides derive the signed bytes, so they cannot drift apart.
+ * Three keys are excluded: `price_proof`, which cannot sign itself, `b`, the
+ * wire-only packed entry, and `_origin`, left unsigned so foreign-session
+ * detection can read it and send a tampered session down the no-refund foreign
+ * path. `canonicalPricePayload` derives the signed bytes for both sides.
  */
 
 import { constantTimeEqualBytes, hmacHashSync } from "#crypto/hashing.ts";

@@ -1,4 +1,5 @@
-import type { Row } from "@libsql/client";
+import type { InValue } from "@libsql/client";
+import type { WrappedKey } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { createApiKey } from "#db/api-keys.ts";
 import { getSession } from "#db/sessions.ts";
@@ -28,21 +29,18 @@ export const loginAsAdmin = async (
   cookie: string;
   csrfToken: string;
 }> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest, mockAdminLoginRequest } = await import(
+  const { mockAdminLoginRequest, sendToApp, testPageHtml } = await import(
     "#test-utils/mocks.ts"
   );
   const { extractCsrfToken } = await import("#test-utils/csrf.ts");
 
-  const loginPageResponse = await handleRequest(mockRequest("/admin/"));
-  const loginHtml = await loginPageResponse.text();
-  const loginCsrfToken = extractCsrfToken(loginHtml);
+  const loginCsrfToken = extractCsrfToken(await testPageHtml("/admin/"));
 
   if (!loginCsrfToken) {
     throw new Error("Failed to get CSRF token for admin login");
   }
 
-  const loginResponse = await handleRequest(
+  const loginResponse = await sendToApp(
     await mockAdminLoginRequest({ password, username }, loginCsrfToken),
   );
   const cookie = loginResponse.headers
@@ -126,62 +124,62 @@ export const reloginAsAdmin = async (
   setTestSession(await loginAsAdmin(username, password));
 };
 
+/** Insert a user row and open a live session for it. The role helpers below
+ * differ only in the row they store and the key the session carries. */
+const createUserWithSession = async (
+  username: string,
+  row: Record<string, InValue>,
+  session: {
+    token: string;
+    csrfToken: string;
+    wrappedKey: WrappedKey | null;
+  },
+): Promise<number> => {
+  const { getDb, insert } = await import("#db/client.ts");
+  const { createSession } = await import("#db/sessions.ts");
+  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
+    await import("#db/users.ts");
+  await getDb().execute(insert("users", row));
+  invalidateUsers();
+  const userId = (await getUserByUsername(username))!.id;
+  await createSession(
+    session.token,
+    session.csrfToken,
+    Date.now() + 60_000,
+    session.wrappedKey,
+    userId,
+  );
+  return userId;
+};
+
 export const createTestManagerSession = async (
   token = "mgr-session",
-  username = "testmanager",
+  rawUsername = "testmanager",
 ): Promise<string> => {
+  // Production stores usernames lower-cased (buildUserInsert), and the login
+  // lookup hashes them lower-cased to match, so the row this writes has to be
+  // indexed the same way or nothing can find it again.
+  const username = rawUsername.toLowerCase();
   const { encrypt: enc } = await import("#crypto/encryption.ts");
   const { hmacHash } = await import("#crypto/hashing.ts");
-  const { deriveKEKFromPassword, unwrapKey, wrapKeyWithToken } = await import(
-    "#crypto/keys.ts"
-  );
-  const { getDb } = await import("#db/client.ts");
-  const { insert } = await import("#db/client.ts");
-  const { createSession } = await import("#db/sessions.ts");
-  const {
-    getUserByUsername,
-    invalidateUsersCache: invalidateUsers,
-    verifyUserPassword,
-  } = await import("#db/users.ts");
+  const { wrapKeyWithToken } = await import("#crypto/keys.ts");
+  const { getOwnerDataKey } = await import("#test-utils/owner-key.ts");
 
-  // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
-  // is salted with the owner's stored password hash.
-  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user?.wrapped_data_key) {
-    throw new Error("Admin user has no wrapped data key");
-  }
-  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
-  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
-
-  const managerIdx = await hmacHash(username);
-  const managerWrappedKey = await wrapKeyWithToken(
-    dataKey,
-    "user-key-placeholder",
-  );
-  await getDb().execute(
-    insert("users", {
+  const dataKey = await getOwnerDataKey();
+  await createUserWithSession(
+    username,
+    {
       admin_level: await enc("manager"),
       password_hash: "",
       username_hash: await enc(username),
-      username_index: managerIdx,
-      wrapped_data_key: managerWrappedKey,
-    }),
-  );
-  invalidateUsers();
-
-  const result = await getDb().execute(
-    "SELECT id FROM users ORDER BY id DESC LIMIT 1",
-  );
-  const userId = (result.rows[0] as Row).id as number;
-
-  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
-  await createSession(
-    token,
-    "mgr-csrf",
-    Date.now() + 60_000,
-    wrappedDataKey,
-    userId,
+      username_index: await hmacHash(username),
+      wrapped_data_key: await wrapKeyWithToken(dataKey, "user-key-placeholder"),
+    },
+    {
+      csrfToken: "mgr-csrf",
+      token,
+      wrappedKey: await wrapKeyWithToken(dataKey, token),
+    },
   );
 
   return `${getSessionCookieName()}=${token}`;
@@ -203,33 +201,17 @@ export const createTestAgentSession = async (
   } = {},
 ): Promise<{ cookie: string; userId: number }> => {
   const token = opts.token ?? "agent-session";
-  const username = opts.username ?? "testagent";
+  // Lower-cased for the same reason as the manager and editor helpers: the
+  // login lookup hashes lower-cased, so the stored index must match.
+  const username = (opts.username ?? "testagent").toLowerCase();
   const { encrypt: enc } = await import("#crypto/encryption.ts");
   const { hashPassword, hmacHash } = await import("#crypto/hashing.ts");
-  const {
-    deriveKEK,
-    deriveKEKFromPassword,
-    unwrapKey,
-    wrapKey,
-    wrapKeyWithToken,
-  } = await import("#crypto/keys.ts");
-  const { getDb, insert } = await import("#db/client.ts");
-  const { createSession } = await import("#db/sessions.ts");
-  const {
-    getUserByUsername,
-    invalidateUsersCache: invalidateUsers,
-    verifyUserPassword,
-  } = await import("#db/users.ts");
-
-  // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
-  // is salted with the owner's stored password hash.
-  const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!owner?.wrapped_data_key) throw new Error("Admin user not set up");
-  const ownerHash = (await verifyUserPassword(owner, TEST_ADMIN_PASSWORD))!;
-  const dataKey = await unwrapKey(
-    owner.wrapped_data_key,
-    await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash),
+  const { deriveKEK, wrapKey, wrapKeyWithToken } = await import(
+    "#crypto/keys.ts"
   );
+  const { getOwnerDataKey } = await import("#test-utils/owner-key.ts");
+
+  const dataKey = await getOwnerDataKey();
 
   // When given a password the agent is wrapped at the legacy v1 scheme with
   // kek_version defaulting to 1, so logging in as the agent exercises the
@@ -244,31 +226,27 @@ export const createTestAgentSession = async (
     userWrappedKey = await wrapKeyWithToken(dataKey, "user-key-placeholder");
   }
 
-  await getDb().execute(
-    insert("users", {
+  const userId = await createUserWithSession(
+    username,
+    {
       admin_level: await enc("agent"),
       password_hash: passwordHashEnc,
       username_hash: await enc(username),
       username_index: await hmacHash(username),
       wrapped_data_key: userWrappedKey,
-    }),
+    },
+    {
+      csrfToken: "agent-csrf",
+      token,
+      wrappedKey: await wrapKeyWithToken(dataKey, token),
+    },
   );
-  invalidateUsers();
-  const userId = (await getUserByUsername(username))!.id;
 
   if (opts.agentIds && opts.agentIds.length > 0) {
     const { userAgents } = await import("#db/user-agents.ts");
     await userAgents.setIds(userId, opts.agentIds);
   }
 
-  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
-  await createSession(
-    token,
-    "agent-csrf",
-    Date.now() + 60_000,
-    wrappedDataKey,
-    userId,
-  );
   return { cookie: `${getSessionCookieName()}=${token}`, userId };
 };
 
@@ -289,25 +267,19 @@ export const createTestEditorSession = async (
   const password = opts.password ?? "editorpass123";
   const { encrypt: enc } = await import("#crypto/encryption.ts");
   const { hashPassword, hmacHash } = await import("#crypto/hashing.ts");
-  const { getDb, insert } = await import("#db/client.ts");
-  const { createSession } = await import("#db/sessions.ts");
-  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
-    await import("#db/users.ts");
 
-  await getDb().execute(
-    insert("users", {
+  const userId = await createUserWithSession(
+    username,
+    {
       admin_level: await enc("editor"),
       kek_version: 2,
       password_hash: await enc(await hashPassword(password)),
       username_hash: await enc(username),
       username_index: await hmacHash(username),
       wrapped_data_key: null,
-    }),
+    },
+    { csrfToken: "editor-csrf", token, wrappedKey: null },
   );
-  invalidateUsers();
-  const userId = (await getUserByUsername(username))!.id;
-
-  await createSession(token, "editor-csrf", Date.now() + 60_000, null, userId);
   return { cookie: `${getSessionCookieName()}=${token}`, userId };
 };
 
@@ -340,28 +312,36 @@ export const getTestDataKeyForApiKey = async (): Promise<CryptoKey> => {
   return getTestDataKey();
 };
 
+/** A request to `path` carrying the headers that say who is asking, plus the
+ * host header the app needs. */
+const requestWithProof = (
+  proof: Record<string, string>,
+  path: string,
+  opts: RequestInit,
+): Request => {
+  const headers = new Headers(opts.headers);
+  for (const [name, value] of Object.entries(proof)) headers.set(name, value);
+  if (!headers.has("host")) headers.set("host", "localhost");
+  return new Request(`http://localhost${path}`, { ...opts, headers });
+};
+
 export const requestAsApiKey = (
   path: string,
   apiKey: string,
   opts: RequestInit = {},
-): Request => {
-  const headers = new Headers(opts.headers);
-  headers.set("authorization", `Bearer ${apiKey}`);
-  if (!headers.has("host")) headers.set("host", "localhost");
-  return new Request(`http://localhost${path}`, { ...opts, headers });
-};
+): Request =>
+  requestWithProof({ authorization: `Bearer ${apiKey}` }, path, opts);
 
 export const requestAsSession = (
   path: string,
   session: { cookie: string; csrfToken: string },
   opts: RequestInit = {},
-): Request => {
-  const headers = new Headers(opts.headers);
-  headers.set("cookie", session.cookie);
-  headers.set("x-csrf-token", session.csrfToken);
-  if (!headers.has("host")) headers.set("host", "localhost");
-  return new Request(`http://localhost${path}`, { ...opts, headers });
-};
+): Request =>
+  requestWithProof(
+    { cookie: session.cookie, "x-csrf-token": session.csrfToken },
+    path,
+    opts,
+  );
 
 export const apiRequest = async (
   path: string,
@@ -371,7 +351,7 @@ export const apiRequest = async (
     apiKey?: string;
   } = {},
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
+  const { sendToApp } = await import("#test-utils/mocks.ts");
   const apiKey = options.apiKey ?? (await createTestApiKeyToken());
   const method = options.method ?? "GET";
   const headers: HeadersInit =
@@ -381,7 +361,7 @@ export const apiRequest = async (
     headers,
     method,
   };
-  return handleRequest(requestAsApiKey(path, apiKey, init));
+  return sendToApp(requestAsApiKey(path, apiKey, init));
 };
 
 export const setupListingAndLogin = async (
@@ -406,19 +386,15 @@ export const adminFormPost = async (
   const { settings } = await import("#db/settings.ts");
   await settings.loadKeys([]);
   const { cookie, csrfToken } = await getTestSession();
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  const response = await handleRequest(
-    mockFormRequest(
-      path,
-      {
-        csrf_token: csrfToken,
-        settings_version: String(settings.version),
-        ...data,
-      },
-      cookie,
-    ),
-  );
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+  const response = await awaitTestRequest(path, {
+    cookie,
+    data: {
+      csrf_token: csrfToken,
+      settings_version: String(settings.version),
+      ...data,
+    },
+  });
   return { cookie, csrfToken, response };
 };
 
@@ -433,9 +409,10 @@ export const adminMultipartPost = async (
   },
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
-  const { handleRequest } = await import("#routes");
-  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
-  const response = await handleRequest(
+  const { mockMultipartRequest, sendToApp } = await import(
+    "#test-utils/mocks.ts"
+  );
+  const response = await sendToApp(
     mockMultipartRequest(
       path,
       { csrf_token: csrfToken, ...data },
@@ -492,38 +469,42 @@ export const setupAdminTest = async (
   return { attendee, cookie, csrfToken, listing };
 };
 
-export const adminAttendeeAction =
-  (action: string, scope: "listing" | "attendee" = "attendee") =>
-  (formData: Record<string, string> = {}) =>
+type AdminFixtureResult = AdminTestContext & { response: Response };
+
+/** Set up the standard admin fixture, send one request built from it, and
+ * hand back the fixture together with the response. */
+const onAdminFixture =
+  (send: (ctx: AdminTestContext) => Promise<Response>) =>
   async (
     listingOverrides: TestListingOverrides = {},
-  ): Promise<AdminTestContext & { response: Response }> => {
+  ): Promise<AdminFixtureResult> => {
     const ctx = await setupAdminTest(listingOverrides);
-    const { handleRequest } = await import("#routes");
-    const { mockFormRequest } = await import("#test-utils/mocks.ts");
-    const url =
-      scope === "listing"
-        ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
-        : `/admin/attendees/${ctx.attendee.id}/${action}`;
-    const response = await handleRequest(
-      mockFormRequest(
-        url,
-        { csrf_token: ctx.csrfToken, ...formData },
-        ctx.cookie,
-      ),
-    );
-    return { ...ctx, response };
+    return { ...ctx, response: await send(ctx) };
   };
 
-export const adminListingPage =
-  (pathFn: (ctx: AdminTestContext) => string) =>
-  async (
-    listingOverrides: TestListingOverrides = {},
-  ): Promise<AdminTestContext & { response: Response }> => {
-    const ctx = await setupAdminTest(listingOverrides);
-    const { awaitTestRequest } = await import("#test-utils/mocks.ts");
-    const response = await awaitTestRequest(pathFn(ctx), {
-      cookie: ctx.cookie,
+export const adminAttendeeAction =
+  (action: string, scope: "listing" | "attendee" = "attendee") =>
+  (
+    formData: Record<string, string> = {},
+  ): ((
+    listingOverrides?: TestListingOverrides,
+  ) => Promise<AdminFixtureResult>) =>
+    onAdminFixture(async (ctx) => {
+      const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+      const url =
+        scope === "listing"
+          ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
+          : `/admin/attendees/${ctx.attendee.id}/${action}`;
+      return awaitTestRequest(url, {
+        cookie: ctx.cookie,
+        data: { csrf_token: ctx.csrfToken, ...formData },
+      });
     });
-    return { ...ctx, response };
-  };
+
+export const adminListingPage = (
+  pathFn: (ctx: AdminTestContext) => string,
+): ((listingOverrides?: TestListingOverrides) => Promise<AdminFixtureResult>) =>
+  onAdminFixture(async (ctx) => {
+    const { awaitTestRequest } = await import("#test-utils/mocks.ts");
+    return awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
+  });

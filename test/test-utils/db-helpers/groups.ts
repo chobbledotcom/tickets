@@ -59,8 +59,11 @@ export const createHiddenPackageGroup = async (
 ): Promise<Group> => {
   const group = await createTestGroup({ isPackage: true, name });
   const { groups } = await import("#db/groups.ts");
-  await groups.table.update(group.id, { hidePackageListings: true });
-  return group;
+  // Return the updated row. The object from before the update still says the
+  // package shows its members, so a caller reading the flag reads a stale one.
+  return (await groups.table.update(group.id, {
+    hidePackageListings: true,
+  })) as Group;
 };
 
 export const updateTestGroup = async (

@@ -1,15 +1,11 @@
 /**
- * The one HTTP boundary every payment provider is asked through.
+ * A provider call fails three ways, and each means something different: we
+ * never reached the provider, the provider refused, or the answer cannot be
+ * read. All three get the shared {@link ProviderTransportError} vocabulary, so
+ * no adapter classifies a raw `TypeError` for itself.
  *
- * A provider call can fail in three ways, and each way means something
- * different to the caller: we never reached the provider, the provider
- * answered and refused, or the answer cannot be read. This module gives all
- * three the shared {@link ProviderTransportError} vocabulary, so no adapter
- * has to classify a raw `TypeError` or a `SyntaxError` for itself.
- *
- * A provider that asks again after a failure declares its own
- * {@link ProviderRetries} rules. The ladder that spends them is here, so every
- * provider waits, counts, and gives up the same way.
+ * A provider declares its own {@link ProviderRetries}. The ladder that spends
+ * them is here, so every provider waits, counts, and gives up the same way.
  */
 
 /* jscpd:ignore-start -- imports */
