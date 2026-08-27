@@ -100,6 +100,13 @@ describe("runShapeCheck", () => {
     );
   });
 
+  test("refuses a file the parser cannot read whole", async () => {
+    await inTempTree(
+      { "broken.ts": "export const half = (a) => a.(" },
+      (root) => expect(collectSites([root])).rejects.toThrow("does not parse"),
+    );
+  });
+
   test("walks the browser scripts we ship as plain .js", async () => {
     const sites = await collectSites(SOURCE_DIRS);
     expect(sites.some((site) => site.file.endsWith("client/scanner.js"))).toBe(

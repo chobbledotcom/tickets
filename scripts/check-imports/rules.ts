@@ -146,7 +146,11 @@ export const topLevelImports = (content: string): ImportLine[] => {
       /^import\s+["'][^"']*["']/.test(line) ||
       /;\s*$/.test(line);
     if (!isEnd) continue;
-    const specifier = line.match(/from\s+["']([^"']+)["']/)?.[1];
+    // A side-effect `import "./x.ts"` names its module without a `from`, and
+    // loads it for what it does rather than for what it hands back.
+    const specifier =
+      line.match(/from\s+["']([^"']+)["']/)?.[1] ??
+      line.match(/^import\s+["']([^"']+)["']/)?.[1];
     if (specifier !== undefined) {
       found.push({
         line: open.line,

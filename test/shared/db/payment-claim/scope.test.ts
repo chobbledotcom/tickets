@@ -1,17 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { claimRequestFor } from "#db/payment-claim/scope.ts";
-import type { LoadedRefundAttendee } from "#db/payment-claim/take.ts";
+import {
+  type ClaimableAttendee,
+  claimRequestFor,
+} from "#db/payment-claim/scope.ts";
 
 /** An attendee whose loaded references carry these matching indexes. */
 const attendee = (
   attendeeId: number,
   ...matchingIndexes: string[]
-): LoadedRefundAttendee =>
-  ({
-    attendeeId,
-    references: matchingIndexes.map((index) => ({ matchingIndexes: [index] })),
-  }) as unknown as LoadedRefundAttendee;
+): ClaimableAttendee => ({
+  attendeeId,
+  references: matchingIndexes.map((index) => ({ matchingIndexes: [index] })),
+});
 
 const row = { referenceIndex: "idx-1", sessionId: "cs_1" };
 

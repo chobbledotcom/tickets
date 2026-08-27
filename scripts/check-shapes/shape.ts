@@ -275,9 +275,19 @@ const startsNumber = (body: string, index: number): boolean =>
   /[0-9]/.test(body[index] as string) ||
   (body[index] === "." && /[0-9]/.test(body[index + 1] ?? ""));
 
+/**
+ * Just past the number that opens at `start`. A number carries at most one
+ * dot, which is what keeps a member access off the end of one: `1.5.toFixed(2)`
+ * reads its second dot as reaching into the number, not as part of it.
+ */
 const readNumber = (body: string, start: number): Step => {
   let index = start;
+  let dots = 0;
   while (index < body.length) {
+    if (body[index] === ".") {
+      if (dots > 0) break;
+      dots++;
+    }
     NUMBER_PART.lastIndex = index;
     const part = NUMBER_PART.exec(body);
     if (part === null) break;

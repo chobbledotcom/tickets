@@ -79,6 +79,11 @@ describe("shapeOf", () => {
     expect(shapeOf(".5")).toEqual(shapeOf("0.5"));
   });
 
+  test("leaves a member access off the end of a number", () => {
+    expect(shapeOf("1.5._(2)")).toEqual(["NUM", ".", "ID", "(", "NUM", ")"]);
+    expect(shapeOf("1.._()")).toEqual(["NUM", ".", "ID", "(", ")"]);
+  });
+
   test("keeps a dot that opens no number as punctuation", () => {
     expect(shapeOf("a.b")).toEqual(["ID", ".", "ID"]);
     expect(shapeOf("f(...a)")).toEqual(["ID", "(", ".", ".", ".", "ID", ")"]);

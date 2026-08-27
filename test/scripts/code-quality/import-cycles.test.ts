@@ -89,6 +89,18 @@ describe("modulesOf", () => {
     ).toEqual([]);
   });
 
+  test("follows a side-effect import, which loads its module for what it does", () => {
+    expect(
+      loadsOf(
+        {
+          "src/shared/a.ts": 'import "#shared/b.ts";',
+          "src/shared/b.ts": "",
+        },
+        "src/shared/a.ts",
+      ),
+    ).toEqual(["src/shared/b.ts"]);
+  });
+
   test("drops an import of a package, which is outside the tree", () => {
     expect(
       loadsOf(
@@ -166,6 +178,15 @@ describe("importCycles", () => {
     expect(
       ringsIn({
         "src/shared/a.ts": 'export { b } from "#shared/b.ts";',
+        "src/shared/b.ts": 'import { a } from "#shared/a.ts";',
+      }),
+    ).toEqual([["src/shared/a.ts", "src/shared/b.ts"]]);
+  });
+
+  test("finds a ring that closes through a side-effect import", () => {
+    expect(
+      ringsIn({
+        "src/shared/a.ts": 'import "#shared/b.ts";',
         "src/shared/b.ts": 'import { a } from "#shared/a.ts";',
       }),
     ).toEqual([["src/shared/a.ts", "src/shared/b.ts"]]);

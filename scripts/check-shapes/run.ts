@@ -69,7 +69,13 @@ export const collectSites = async (
     for (const file of await collectScriptFiles(root)) {
       if (isFrozen(file)) continue;
       const source = await Deno.readTextFile(file);
-      const { program } = parseSync(file, source);
+      // A file the parser could not read whole leaves a recovered tree, whose
+      // missing functions would read as nothing to report rather than as a
+      // fault. Say so loudly instead.
+      const { errors, program } = parseSync(file, source);
+      if (errors.length > 0) {
+        throw new Error(`${file} does not parse: ${errors[0]?.message}`);
+      }
       const runs = maskedRuns(program, source);
       const found = namedFunctions(program, source);
       const names = distinctNames(found);
@@ -88,16 +94,21 @@ export const collectSites = async (
   return sites;
 };
 
-/** Read every `.txt` in the accepted directory as one list. */
+/** Read every `.txt` in the accepted directory as one list. The files are read
+ * in name order, because a directory hands them over in whatever order it
+ * holds them and a report must read the same on every machine. */
 export const readAccepted = async (
   directory: string,
 ): Promise<ReturnType<typeof parseAccepted>> => {
+  const names: string[] = [];
+  for await (const file of Deno.readDir(directory)) {
+    if (file.name.endsWith(".txt")) names.push(file.name);
+  }
   const entries = [];
   const malformed = [];
-  for await (const file of Deno.readDir(directory)) {
-    if (!file.name.endsWith(".txt")) continue;
+  for (const name of names.sort()) {
     const parsed = parseAccepted(
-      await Deno.readTextFile(`${directory}/${file.name}`),
+      await Deno.readTextFile(`${directory}/${name}`),
     );
     entries.push(...parsed.entries);
     malformed.push(...parsed.malformed);

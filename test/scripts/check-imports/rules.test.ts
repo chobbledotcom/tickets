@@ -130,6 +130,12 @@ describe("topLevelImports", () => {
     );
   });
 
+  test("records a side-effect import, which names its module without a from", () => {
+    const [entry] = topLevelImports('import "#types";');
+    expect(entry?.specifier).toBe("#types");
+    expect(entry?.namesOnly).toBe(false);
+  });
+
   test("records a re-export, which loads its module just as an import does", () => {
     const [entry] = topLevelImports('export { a } from "#types";');
     expect(entry?.reExport).toBe(true);
