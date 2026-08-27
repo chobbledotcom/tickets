@@ -93,6 +93,11 @@ const isWordStart = (character: string): boolean =>
 const isWordPart = (character: string): boolean =>
   /[A-Za-z0-9_$]/.test(character);
 
+/** Whether a character doubles into a step operator, `++` or `--`. Written out
+ * one of those ends a value, so a slash after it divides. */
+const isStepChange = (character: string): boolean =>
+  character === "+" || character === "-";
+
 /** Where a quoted run ends, given the quote that opened it. Escapes are
  * skipped whole, so a quote inside the text does not close it early. */
 const endOfQuoted = (text: string, start: number, quote: string): number => {
@@ -102,6 +107,11 @@ const endOfQuoted = (text: string, start: number, quote: string): number => {
   }
   return index + 1;
 };
+
+/** Whether a comment opens at `index`. Neither `//` nor `/*` can open a valid
+ * pattern, so this is the first question every reader of a `/` asks. */
+const opensComment = (text: string, index: number): boolean =>
+  text[index] === "/" && /[/*]/.test(text[index + 1] ?? "");
 
 /** Where a comment ends. A line comment runs to the newline, a block comment
  * to its closing pair. */
@@ -115,13 +125,24 @@ const endOfComment = (text: string, start: number): number => {
 };
 
 /**
- * What the character before a slash counts as, when the boundary scan has to
- * tell a divide from a pattern. Only the end offset comes out of that scan, so
- * reading every word as a value is close enough: a `${…}` never opens with a
- * keyword that a pattern could follow.
+ * What the token before a slash counts as, when the boundary scan has to tell
+ * a divide from a pattern. Whitespace keeps whatever came before it, and
+ * anything that ends no value clears it, so an operator puts a pattern back in
+ * reach. Only the end offset comes out of that scan, so reading every word as
+ * a value is close enough: a `${…}` never opens with a keyword that a pattern
+ * could follow.
  */
-const valueEndingAt = (character: string): string | undefined => {
+const valueEndingAt = (
+  text: string,
+  index: number,
+  before: string | undefined,
+): string | undefined => {
+  const character = text[index] as string;
+  if (/\s/.test(character)) return before;
   if (isWordPart(character)) return "ID";
+  if (isStepChange(character) && text[index - 1] === character) {
+    return character + character;
+  }
   return ")]}".includes(character) ? character : undefined;
 };
 
@@ -138,8 +159,8 @@ const endOfNested = (
     return endOfQuoted(text, index + 1, character);
   }
   if (character === "`") return endOfTemplate(text, index + 1);
+  if (opensComment(text, index)) return endOfComment(text, index);
   if (character !== "/") return null;
-  if (/[/*]/.test(text[index + 1] ?? "")) return endOfComment(text, index);
   return ENDS_A_VALUE.has(before ?? "") ? null : endOfRegExp(text, index + 1);
 };
 
@@ -152,13 +173,13 @@ const endOfInterpolation = (text: string, start: number): number => {
   while (index < text.length && depth > 0) {
     const nested = endOfNested(text, index, before);
     if (nested !== null) {
-      before = "RE";
+      if (!opensComment(text, index)) before = "RE";
       index = nested;
       continue;
     }
     if (text[index] === "{") depth++;
     if (text[index] === "}") depth--;
-    before = valueEndingAt(text[index] as string) ?? before;
+    before = valueEndingAt(text, index, before);
     index++;
   }
   return index;
@@ -219,6 +240,8 @@ const endOfRegExp = (text: string, start: number): number => {
  */
 const ENDS_A_VALUE = new Set([
   ")",
+  "++",
+  "--",
   "]",
   "}",
   "ID",
@@ -296,7 +319,7 @@ const readTemplate = (body: string, start: number): Step => {
 const stepAt = (body: string, index: number, before?: string): Step => {
   const character = body[index] as string;
   if (/\s/.test(character)) return { next: index + 1, tokens: [] };
-  if (character === "/" && /[/*]/.test(body[index + 1] ?? "")) {
+  if (opensComment(body, index)) {
     return { next: endOfComment(body, index), tokens: [] };
   }
   if (character === "/" && !ENDS_A_VALUE.has(before ?? "")) {
@@ -308,6 +331,9 @@ const stepAt = (body: string, index: number, before?: string): Step => {
   }
   if (startsNumber(body, index)) return readNumber(body, index);
   if (isWordStart(character)) return readWord(body, index);
+  if (isStepChange(character) && body[index + 1] === character) {
+    return { next: index + 2, tokens: [character + character] };
+  }
   return { next: index + 1, tokens: [character] };
 };
 

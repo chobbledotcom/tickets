@@ -132,6 +132,42 @@ describe("shapeOf", () => {
     ]);
   });
 
+  test("keeps a pattern's brace from closing an interpolation early", () => {
+    expect(
+      shapeOf(template(interpolated(" _ ? /}/.test(_) : false "))),
+    ).toEqual([
+      "STR",
+      "ID",
+      "?",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+      ":",
+      "false",
+    ]);
+  });
+
+  test("still reads a slash after a value in an interpolation as dividing", () => {
+    expect(shapeOf(template(interpolated("a / b")))).toEqual([
+      "STR",
+      "ID",
+      "/",
+      "ID",
+    ]);
+  });
+
+  test("leaves a comment in an interpolation to divide the value before it", () => {
+    expect(shapeOf(template(interpolated("a /* note */ / b")))).toEqual([
+      "STR",
+      "ID",
+      "/",
+      "ID",
+    ]);
+  });
+
   test("gives one shape to two templates that differ only in names", () => {
     expect(shapeOf(template("x ", interpolated("a.map(b)"), " y"))).toEqual(
       shapeOf(template("q ", interpolated("rows.map(fn)"), " z")),
@@ -194,6 +230,17 @@ describe("shapeOf reading a pattern", () => {
   test("still reads a slash after a value as dividing", () => {
     expect(shapeOf("a / b")).toEqual(["ID", "/", "ID"]);
     expect(shapeOf("total() / 2")).toEqual(["ID", "(", ")", "/", "NUM"]);
+  });
+
+  test("reads a step operator as one token, the way JavaScript does", () => {
+    expect(shapeOf("_++")).toEqual(["ID", "++"]);
+    expect(shapeOf("_--")).toEqual(["ID", "--"]);
+    expect(shapeOf("_ + _")).toEqual(["ID", "+", "ID"]);
+  });
+
+  test("still reads a slash after a step operator as dividing", () => {
+    expect(shapeOf("count++ / divisor")).toEqual(["ID", "++", "/", "ID"]);
+    expect(shapeOf("count-- / divisor")).toEqual(["ID", "--", "/", "ID"]);
   });
 
   test("still reads a comment opening with a slash as a comment", () => {

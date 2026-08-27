@@ -12,7 +12,6 @@
 # Format: the match, two spaces, then `# why they are not one thing`.
 
 e2e-payments/src/cucumber/steps/pages.ts::bookingIdentity,src/features/admin/refunds/candidates.ts::loadedRefundAttendee  # each builds an object from another object's fields, one in the app and one in the live-payment harness
-e2e-payments/src/cucumber/steps/setup.ts::requireProvider,e2e-payments/src/providers/shared.ts::expectProvider  # both refuse a mismatched provider, but one guards the harness target and the other narrows a checkout type, so neither can take the other
 scripts/specs/evidence/resolve.ts::stableItem,src/features/admin/holidays.ts::extractHolidayInput,src/features/public/group-liveness.ts::publicGroupSummary,src/shared/db/attendees/tokens.ts::previousBookingLineWithoutAttendee,src/shared/db/attributes.ts::rowAttribute,src/shared/listing-details.ts::listingDetails,src/shared/provider-refunds/state.ts::receipt  # seven functions that each build an object from another object's fields; that is construction, not a shared step
 src/features/admin/content-form-fields.ts::seoContentInput,src/shared/db/contact-preferences.ts::statsToBlob,src/shared/db/logistics.ts::rowToAssignment  # three functions that each build an object from another object's fields
 src/features/admin/listing-qr.ts::loadQrFormContext,src/shared/db/payment-anchor/reference.ts::paymentAnchorReference  # both destructure a Promise.all of two unrelated loads

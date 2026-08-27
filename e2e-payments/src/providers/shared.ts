@@ -78,6 +78,24 @@ export const requiredField = <T>(
   return value;
 };
 
+/**
+ * Refuses when the provider in hand is not the one being asked for. The caller
+ * says what the two are, because a scenario running against the wrong target
+ * and a checkout paid by the wrong provider need different words. The name
+ * type is the caller's, so a harness target — which can also be "free" — is
+ * held to its own vocabulary rather than to a payment provider's.
+ */
+export const refuseOtherProvider =
+  <Name extends string>(say: (wanted: Name, inHand: Name) => string) =>
+  (wanted: Name, inHand: Name): void => {
+    if (inHand !== wanted) throw new Error(say(wanted, inHand));
+  };
+
+const refuseAnotherPayer = refuseOtherProvider(
+  (wanted, paidWith) =>
+    `this checkout was not paid with ${wanted}: ${paidWith}`,
+);
+
 /** Refuse a checkout that was not paid by the provider being asked about,
  * narrowing it to that provider's checkout shape. */
 export function expectProvider<
@@ -89,11 +107,7 @@ export function expectProvider<
   import("./types.ts").PaidSandboxCheckout,
   { provider: P }
 > {
-  if (checkout.provider !== provider) {
-    throw new Error(
-      `this checkout was not paid with ${provider}: ${checkout.provider}`,
-    );
-  }
+  refuseAnotherPayer(provider, checkout.provider);
 }
 
 /** The honest observation for a refund that may have landed but is not yet
