@@ -85,9 +85,9 @@ export const getListingAndGroups = async (
   selectedGroupIds: number[];
 } | null> => {
   const [listing, allGroups, selectedGroupIds] = await Promise.all([
-    // The edit form reads the listing's *stored* values, not the resolved view,
-    // so editing an inheriting listing can't bake the current defaults into its
-    // row (and the editor webhook lock below preserves the real stored URL).
+    // The edit form reads the listing's *stored* values, not the resolved
+    // view. An edit to an inheriting listing must not bake the current
+    // defaults into its row.
     getStoredListingWithCount(listingId),
     groups.cache.getAll(),
     listingGroups.getIds(listingId),
