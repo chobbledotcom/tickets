@@ -12,6 +12,7 @@ import {
   type ExtendsFarBase,
   type FromAShorthand,
   type HandsAnObjectOver,
+  HasAStaticAndAccessors,
   type HoldsAClass,
   type HoldsThingsInGenerics,
   type InlineArmsShareIt,
@@ -79,6 +80,12 @@ export const readInsideAnArray = (h: HoldsThingsInGenerics): number =>
 
 export const dropInParens = (d: DeletedInParens): void => {
   delete (d.takenAwayInParens);
+};
+
+export const roundTrip = (h: HasAStaticAndAccessors): string => {
+  h.writeOnly = "x";
+  h.bothWays = "y";
+  return h.bothWays;
 };
 
 export const throughOneInlineArm = (u: InlineArmsShareIt): number =>

@@ -215,6 +215,35 @@ export interface NamedByALiteral {
   plainName: string;
 }
 
+export class HasAStaticAndAccessors {
+  static madeOnTheClass = 1;
+  #held = "";
+
+  static make(): number {
+    return 2;
+  }
+
+  get bothWays(): string {
+    return this.#held;
+  }
+
+  set bothWays(next: string) {
+    this.#held = next;
+  }
+
+  set writeOnly(next: string) {
+    this.#held = next;
+  }
+}
+
+export type DroppedByAFilter = Extract<
+  { whichArm: "kept"; keptByTheFilter: number } | {
+    whichArm: "gone";
+    droppedByTheFilter: number;
+  },
+  { whichArm: "kept" }
+>;
+
 export class TakesObjectsInMethods {
   send(value: { sameNameInBoth: string }): void {
     console.log(value);

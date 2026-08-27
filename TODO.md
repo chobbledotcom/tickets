@@ -1,18 +1,22 @@
 # TODO — remaining follow-ups
 
-## Scan the static side of an exported class
+## Scan the static side a class inherits
 
 _Origin: a review of PR #2166. No file in `src/` triggers it today._
 
-`inheritedFields` in `scripts/unread-fields/scan.ts` asks
-`checker.getTypeAtLocation(shape.name)`, which is the **instance** type of a
-class. A static member lives on the constructor type instead, so
-`export class C { static make() {} }` contributes no `make`. The syntax walk
-does not catch it either, because `holdsAField` accepts a property declaration
-and not a method. A probe reproduces it.
+A class's own static members are scanned. The syntax walk reaches them, because
+`holdsAField` in `scripts/unread-fields/fields.ts` accepts every
+`ts.ClassElement`, and a probe over `export class C { static make() {} }`
+reports `C.make`.
 
-`src/` declares no static class member today, so no line in the report is
-missing because of this.
+An **inherited** static is still missing. `inheritedFields` asks
+`checker.getTypeAtLocation(shape.name)`, which is the instance type, and the
+syntax walk sees only the class's own members. So
+`class Base { static baseStatic = 1 }` with `export class C extends Base {}`
+gives no `C.baseStatic`. A probe reproduces that much.
+
+`src/` declares no static class member at all, inherited or own, so no line in
+the report is missing because of this.
 
 Ask `checker.getTypeOfSymbolAtLocation` for the class symbol as well, and put
 the two sets of properties together. Decide first how the report names a static

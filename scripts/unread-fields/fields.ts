@@ -115,9 +115,12 @@ const isFieldName = (node: ts.Node): node is FieldName =>
   ts.isStringLiteral(node) ||
   ts.isNumericLiteral(node);
 
-/** The name a declaration is written down by. An index signature has none. */
+/** The name a declaration is written down by. An index signature has none.
+ * A setter has none either, for a different reason: `row.total = 1` calls it,
+ * and the scan asks whether a value comes out. A getter beside it gives the
+ * pair its one line, and a set-only accessor has no value to take out. */
 const nameOf = (node: ts.Node): FieldName | undefined => {
-  if (isHidden(node)) return;
+  if (isHidden(node) || ts.isSetAccessorDeclaration(node)) return;
   const { name } = node as ts.NamedDeclaration;
   return name && isFieldName(name) ? name : undefined;
 };
@@ -190,18 +193,18 @@ const inheritedFields = (
   }));
 };
 
-/** `Extract<Result, { ok: true }>` and `Exclude<Result, { ok: true }>` take a
- * filter, not a shape: the second argument picks which arms of the first to
- * keep, and its fields are nobody's to read. Every other type argument holds
- * a type the shape hands on, as `Array<{ childId: number }>` does. */
+/** `Extract<Result, { ok: true }>` and `Exclude<Result, { ok: true }>` keep
+ * some arms of the first argument and drop others. Neither argument is the
+ * answer: the filter's fields are nobody's to read, and the arms it dropped
+ * are no longer fields of the shape. Only the checker knows what is left, and
+ * it resolves the reference for the shape it belongs to. Every other type
+ * argument holds a type the shape hands on, as `Array<{ id: number }>` does. */
 const NARROWS_BY_A_FILTER = new Set(["Extract", "Exclude"]);
 
-const filterArgumentOf = (node: ts.Node): ts.Node | undefined =>
+const narrowsByAFilter = (node: ts.Node): boolean =>
   ts.isTypeReferenceNode(node) &&
   ts.isIdentifier(node.typeName) &&
-  NARROWS_BY_A_FILTER.has(node.typeName.text)
-    ? node.typeArguments?.[1]
-    : undefined;
+  NARROWS_BY_A_FILTER.has(node.typeName.text);
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
@@ -213,8 +216,7 @@ const isKeyOf = (node: ts.Node): boolean =>
  * hands back. Its body holds a type that never leaves it, and its type
  * parameters describe themselves, exactly as a shape's own ones do. */
 const worthWalking = (node: ts.Node): ((part: ts.Node) => boolean) => {
-  const filter = filterArgumentOf(node);
-  if (filter) return (part) => part !== filter;
+  if (narrowsByAFilter(node)) return () => false;
   // `keyof { paid: number }` is the one word "paid", not a shape with a
   // field, so nothing under it is a field either. `readonly` is a type
   // operator too, and `readonly { paid: number }[]` does hand `paid` out.

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { scannedFixture } from "./fixture/build.ts";
+import { EVERY_FIELD } from "./fixture/every-field.ts";
 
 /**
  * Which shapes the scan looks at, and which of their fields it counts.
@@ -212,6 +213,30 @@ describe("the shapes the scan finds", () => {
     expect(leaked).toEqual([]);
   });
 
+  test("sees a static a class declares itself", () => {
+    expect(verdictOf("HasAStaticAndAccessors", "madeOnTheClass")).toBe(
+      "never read",
+    );
+    expect(verdictOf("HasAStaticAndAccessors", "make")).toBe("never read");
+  });
+
+  test("gives a getter and its setter one line, and counts the read", () => {
+    expect(verdictOf("HasAStaticAndAccessors", "bothWays")).toBe("read");
+  });
+
+  test("leaves out an accessor that only takes a value in", () => {
+    // `h.writeOnly = next` calls the setter, and the scan asks whether a
+    // value comes out. A set-only accessor has none, so it is no field.
+    expect(verdictOf("HasAStaticAndAccessors", "writeOnly")).toBeUndefined();
+  });
+
+  test("leaves out an arm a filter dropped", () => {
+    // `Extract<A | B, { whichArm: "kept" }>` keeps one arm, so the other's
+    // fields are no longer fields of the shape.
+    expect(verdictOf("DroppedByAFilter", "keptByTheFilter")).toBe("never read");
+    expect(verdictOf("DroppedByAFilter", "droppedByTheFilter")).toBeUndefined();
+  });
+
   test("puts a field a method takes under that method", () => {
     // Two methods can take an object with the same field name, and the two
     // are different fields. Under the class they would read as one.
@@ -240,103 +265,9 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("NameHoldsADot.hasADotInIts", "name")).toBe("never read");
   });
 
-  // `NameHoldsADot.hasADotInIts.name` is listed twice on purpose. One is the
-  // field written `"hasADotInIts.name"`, the other is the `name` of the
-  // `hasADotInIts` beside it. They are two fields that read the same once the
-  // path is joined with dots, which is why the scan keys them on the list.
   test("reports every field of every exported shape, and only those", () => {
     expect(scanned.all.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
-      "AnsweredAgain.answeredTwice",
-      "Answerer.answersAQuestion",
-      "Answerer.readsLikeAField",
-      "BadgeProps.label",
-      "BadgeProps.supplied",
-      "Borrowed.onlyItsTypeIsUsed",
-      "Borrowed.takenAwayByDelete",
-      "BothArmsWriteIt.onlyOnTheSecondArm",
-      "BothArmsWriteIt.whichArm",
-      "BothArmsWriteIt.writtenByBothArms",
-      "Carrier.heldByTheConstructor",
-      "Carrier.keep",
-      "Carrier.onlyOnAClass",
-      "Carrier.readByThisInside",
-      "DeclaresATypeInAMethod.measure",
-      "DeletedInParens.takenAwayInParens",
-      "EitherNamed.onlyWhenItWentBadly",
-      "EitherNamed.onlyWhenItWentWell",
-      "EitherNamed.sharedByTheNames",
-      "EitherWay.onlyOnTheFirst",
-      "EitherWay.onlyOnTheSecond",
-      "EitherWay.sharedByBothArms",
-      "Extends.fromABaseNobodySees",
-      "Extends.fromAClass",
-      "Extends.ofItsOwn",
-      "Extends.shadowed",
-      "ExtendsFarBase.paddingSoTheOffsetIsWrongInAnotherFile",
-      "ExtendsFarBase.readFromFarAway",
-      "FarBase.paddingSoTheOffsetIsWrongInAnotherFile",
-      "FarBase.readFromFarAway",
-      "FromAList.writtenInAList",
-      "FromAShorthand.namedByALocal",
-      "FromAShorthand.readInItsOwnFile",
-      "FromAShorthand.readsLikeAField",
-      "FromAShorthand.writtenInFull",
-      "HandsAnObjectOver.mapped",
-      "HandsAnObjectOver.takesAnObject",
-      "HandsAnObjectOver.takesAnObject.insideAParameter",
-      "HoldsAClass.builtOnByAChild",
-      "HoldsAClass.builtOnByAChild.madeByTheChild",
-      "HoldsThingsInGenerics.inARecord",
-      "HoldsThingsInGenerics.inARecord.insideARecord",
-      "HoldsThingsInGenerics.inAnArray",
-      "HoldsThingsInGenerics.inAnArray.insideAnArray",
-      "InlineArmsShareIt.onlyOnTheSecondInlineArm",
-      "InlineArmsShareIt.sharedByInlineArms",
-      "InlineArmsShareIt.whichInlineArm",
-      "Inner.onlyInsideNamespace",
-      "Intersects.fromAnIntersection",
-      "Intersects.ofItsOwnAgain",
-      "KeepsAHashPrivate.show",
-      "KeepsSecretsInside.read",
-      "KeptByAFilter.onlyOnTheFirst",
-      "KeptByAFilter.onlyOnTheSecond",
-      "KeptByAFilter.sharedByBothArms",
-      "ListExported.onlyInAList",
-      "NameHoldsADot.hasADotInIts",
-      "NameHoldsADot.hasADotInIts.name",
-      "NameHoldsADot.hasADotInIts.name",
-      "NamedByALiteral.1",
-      "NamedByALiteral.plainName",
-      "NamedByALiteral.quoted-name",
-      "NamedItsParameter.onlyTheConstructorNamesIt",
-      "NamedItsParameter.takenOutByADestructure",
-      "NamedItsParameter.takenOutByAnAssignment",
-      "NestsTheSameName.inside",
-      "NestsTheSameName.inside.sharedNameDifferentField",
-      "NestsTheSameName.sharedNameDifferentField",
-      "OnlyWhenItFits.answeredByTheBranch",
-      "Passed.carriedBySpread",
-      "Passed.kept",
-      "PickedByAFilter.onlyOnTheFirst",
-      "PickedByAFilter.sharedByBothArms",
-      "Reached.total",
-      "Renamed.reachedThroughAnAlias",
-      "Report.headline",
-      "Report.nested",
-      "Report.nested.deep",
-      "Report.onlyTestsRead",
-      "StillHandsOneOut.keptByReadonly",
-      "Sum.noOneReadsThis",
-      "Sum.readOnlyFromOutside",
-      "Sum.takenOutByPattern",
-      "Sum.total",
-      "TakesObjectsInMethods.post",
-      "TakesObjectsInMethods.post.sameNameInBoth",
-      "TakesObjectsInMethods.send",
-      "TakesObjectsInMethods.send.sameNameInBoth",
-      "WrittenByARest.filledByAnArrayRest",
-      "WrittenByARest.filledByAnObjectRest",
-      "WrittenThroughParens.filledInsideParens",
+      ...EVERY_FIELD,
     ]);
   });
 
