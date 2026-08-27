@@ -13,7 +13,13 @@ import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { type Finding, verdictFor } from "./findings.ts";
 import { answered, compilerOptions, serviceHost } from "./host.ts";
-import { namesAMember, nodeAt, readsTheValue } from "./writes.ts";
+import {
+  type AskAboutAMention,
+  isInside,
+  namesAMember,
+  nodeAt,
+  readsTheValue,
+} from "./writes.ts";
 
 /** Folders whose code ships. `test/` is scanned too, so the scan can tell a
  * field only its tests read from one nothing reads. */
@@ -252,37 +258,30 @@ const exportedFields = (
 const readsHere = (
   program: ts.Program,
   reference: ts.ReferencedSymbolEntry,
-  namesTheParameter: (at: ts.ReferencedSymbolEntry, node: ts.Node) => boolean,
+  namesTheParameter: AskAboutAMention,
 ): boolean => {
   if (reference.isDefinition) return false;
   const source = program.getSourceFile(reference.fileName);
   const node = source && nodeAt(source, reference.textSpan.start);
   if (!node || !readsTheValue(node)) return false;
-  return !namesTheParameter(reference, node);
+  return !namesTheParameter(node);
 };
 
 /** `constructor(public value: string)` declares a parameter and a field with
  * one name, and the compiler answers a lookup with both. Inside that
  * constructor a plain `value` is the parameter, and no value leaves the field.
  * `this.value` there is the field, and so is every mention outside. */
-const namesTheParameterOf = (
-  field: ts.Identifier,
-): ((at: ts.ReferencedSymbolEntry, node: ts.Node) => boolean) => {
+const namesTheParameterOf = (field: ts.Identifier): AskAboutAMention => {
   if (!ts.isParameterPropertyDeclaration(field.parent, field.parent.parent)) {
     return () => false;
   }
-  const declaredIn = field.parent.parent;
-  const file = field.getSourceFile().fileName;
-  return (at, node) =>
-    at.fileName === file &&
-    at.textSpan.start >= declaredIn.getStart() &&
-    at.textSpan.start < declaredIn.getEnd() &&
-    !namesAMember(node);
+  const insideTheConstructor = isInside(field.parent.parent);
+  return (node) => insideTheConstructor(node) && !namesAMember(node);
 };
 
-/** Ask the service who reads one field, and say where those readers live. A
- * position means nothing without the file it counts from, and an inherited
- * field was written down in the base's file, not in the shape's. */
+/** Ask the service who reads one field, and say where those readers live. An
+ * inherited field was written down in the base's file, not in the shape's, so
+ * the lookup starts from the file that declares it. */
 const readersOf = (
   service: ts.LanguageService,
   program: ts.Program,
