@@ -67,6 +67,7 @@ describe("shapeOf", () => {
       "1e+3",
       "2E-4",
       "9n",
+      ".5",
     ]) {
       expect(shapeOf(written)).toEqual(["NUM"]);
     }
@@ -75,6 +76,12 @@ describe("shapeOf", () => {
   test("gives two numbers written differently the same shape", () => {
     expect(shapeOf("1e+3")).toEqual(shapeOf("1000"));
     expect(shapeOf("0XFF")).toEqual(shapeOf("255"));
+    expect(shapeOf(".5")).toEqual(shapeOf("0.5"));
+  });
+
+  test("keeps a dot that opens no number as punctuation", () => {
+    expect(shapeOf("a.b")).toEqual(["ID", ".", "ID"]);
+    expect(shapeOf("f(...a)")).toEqual(["ID", "(", ".", ".", ".", "ID", ")"]);
   });
 
   test("keeps the code inside a template's interpolation", () => {

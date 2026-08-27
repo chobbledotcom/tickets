@@ -29,14 +29,24 @@ const isAstNode = (value: unknown): value is AstNode =>
   value !== null &&
   typeof (value as { type?: unknown }).type === "string";
 
+/** The text a node is named or keyed by. A plain name carries it in `name`; a
+ * literal key — the route strings in `src/features/static.ts` — carries it in
+ * `value`, so `{ "GET /health": … }` names the handler it holds. */
+const keyText = (named: AstNode): string | null => {
+  if (typeof named.name === "string") return named.name;
+  const { value } = named;
+  const literal = typeof value === "string" || typeof value === "number";
+  return literal ? String(value) : null;
+};
+
 /** The name a node declares or is keyed by. A declaration carries its own
  * `id`; a property, a class member and an object method carry a `key`, so
  * `{ save: () => … }`, `{ save() {} }` and `class A { save() {} }` all name
  * the function they hold. */
 const declaredName = (node: AstNode): string | null => {
   const named = isAstNode(node.id) ? node.id : node.key;
-  if (isAstNode(named) && typeof named.name === "string") return named.name;
-  return assignedTo(node);
+  const own = isAstNode(named) ? keyText(named) : null;
+  return own ?? assignedTo(node);
 };
 
 /** Nodes that put their name in scope for the function they hold. */
@@ -55,11 +65,10 @@ const assignedTo = (node: AstNode): string | null => {
   if (node.type !== "AssignmentExpression") return null;
   const target = node.left;
   if (!isAstNode(target)) return null;
-  if (typeof target.name === "string") return target.name;
+  const own = keyText(target);
+  if (own !== null) return own;
   const property = target.property;
-  return isAstNode(property) && typeof property.name === "string"
-    ? property.name
-    : null;
+  return isAstNode(property) ? keyText(property) : null;
 };
 
 /** Counts the newlines before an offset, so a finding can name a line. */

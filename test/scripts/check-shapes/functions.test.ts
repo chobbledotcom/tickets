@@ -66,6 +66,24 @@ describe("namedFunctions", () => {
     expect(names("class A { save = (a) => a; }")).toEqual(["A.save"]);
   });
 
+  test("names a handler keyed by a route string", () => {
+    expect(names('const routes = { "GET /health": (a) => a + 1 };')).toEqual([
+      "routes.GET /health",
+    ]);
+  });
+
+  test("names a handler keyed by a number", () => {
+    expect(names("const pages = { 404: (a) => a + 1 };")).toEqual([
+      "pages.404",
+    ]);
+  });
+
+  test("names a handler assigned under a route string", () => {
+    expect(names('routes["GET /health"] = (a) => a + 1;')).toEqual([
+      "GET /health",
+    ]);
+  });
+
   test("names a function expression by its own name as well as the variable's", () => {
     expect(names("const outer = function inner() { return 1; };")).toEqual([
       "outer.inner",

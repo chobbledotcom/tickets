@@ -245,6 +245,13 @@ interface Step {
  * an exponent belongs to the number; a `+` anywhere else does not. */
 const NUMBER_PART = /[eE][+-]|[0-9a-fA-FoOxXbBnE._]/y;
 
+/** Whether a number opens at `index`. A leading dot belongs to the number it
+ * opens, so `.5` reads as one NUM the way `0.5` does. Nothing else in a masked
+ * body puts a digit straight after a dot, because every name is `_` by then. */
+const startsNumber = (body: string, index: number): boolean =>
+  /[0-9]/.test(body[index] as string) ||
+  (body[index] === "." && /[0-9]/.test(body[index + 1] ?? ""));
+
 const readNumber = (body: string, start: number): Step => {
   let index = start;
   while (index < body.length) {
@@ -299,7 +306,7 @@ const stepAt = (body: string, index: number, before?: string): Step => {
   if (character === '"' || character === "'") {
     return { next: endOfQuoted(body, index + 1, character), tokens: ["STR"] };
   }
-  if (/[0-9]/.test(character)) return readNumber(body, index);
+  if (startsNumber(body, index)) return readNumber(body, index);
   if (isWordStart(character)) return readWord(body, index);
   return { next: index + 1, tokens: [character] };
 };
