@@ -125,6 +125,31 @@ export const BOXES_WITH_A_DEFAULT = [
   which: EmailTemplateType;
 }>;
 
+/** The subject the page shows behind one email's empty subject box, read from
+ * that email's own form. Both subjects sit on the same page, so a page-wide
+ * search would pass with the two swapped. */
+export const subjectShownBehindTheBox = async (
+  world: TicketsWorld,
+  which: EmailTemplateType,
+): Promise<string | null> => {
+  const form = (await openAdminPage(world, ADVANCED_PATH)).formBodyAt(
+    savePathFor(which),
+  );
+  const box = form.match(/<input\b[^>]*(?<=\s)name="subject"[^>]*>/i)?.[0];
+  const shown = box?.match(/(?<=\s)placeholder="([^"]*)"/)?.[1];
+  return shown === undefined ? null : decodeEntities(shown);
+};
+
+/** The fixed words of a template: everything outside its `{{ }}` and `{% %}`
+ * holes. A render only fills the holes, so the first run of fixed words has to
+ * survive into the email whatever data went in — and the two emails' defaults
+ * start with different words, so it says which default was used. */
+export const firstFixedWordsOf = (template: string): string =>
+  template
+    .split(/\{\{[^}]*\}\}|\{%[^%]*%\}/)
+    .map((part) => part.trim())
+    .find((part) => part.length > 3) ?? "";
+
 /** What one body box carries for the owner: the wording the link would fill
  * in, and the hint shown while the box is empty. Both live on the same tag, so
  * one read answers for both. Null means the page renders no such box. */

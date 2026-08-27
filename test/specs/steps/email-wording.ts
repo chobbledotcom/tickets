@@ -9,9 +9,11 @@ import { settingsCopy } from "#test/specs/support/email-provider.ts";
 import {
   BOXES_WITH_A_DEFAULT,
   emailTheSiteWouldSend,
+  firstFixedWordsOf,
   ownerAlreadyWrote,
   ownerWrites,
   SITES_OWN_WORDING,
+  subjectShownBehindTheBox,
   whatTheBoxCarries,
   wordingKeptFor,
   wordingTheBoxesWouldSend,
@@ -94,11 +96,13 @@ Then(
 Then(
   "the site's own wording shows through the empty boxes",
   async function (this: TicketsWorld): Promise<void> {
-    const page = whatTheyWereTold(this, ORGANISER);
     for (const which of ["confirmation", "admin"] as const) {
-      // The site's real defaults, read from the module that supplies them, so
-      // a page showing some other wording behind the boxes fails here.
-      expect(page).toContain(DEFAULT_TEMPLATES[which].subject);
+      // Read from that email's own form. Both subjects sit on the same page,
+      // so a page-wide search passes with the two swapped, and each owner
+      // reads the wrong default behind their subject box.
+      expect(await subjectShownBehindTheBox(this, which)).toBe(
+        DEFAULT_TEMPLATES[which].subject,
+      );
       // "Behind" and not "in": every box is empty until the owner writes in
       // it. A page that filled one in would store the site's own wording as
       // the owner's the first time they pressed Save.
@@ -151,6 +155,12 @@ Then(
     const sent = await emailTheSiteWouldSend(email);
     for (const part of ["subject", "html", "text"] as const) {
       expect(sent[part]).not.toBe("");
+      // And the site's own wording for THIS email. The two emails' defaults
+      // open with different words, so a blank render, the other email's
+      // wording, or a mixed-up part all fail here.
+      expect(sent[part]).toContain(
+        firstFixedWordsOf(DEFAULT_TEMPLATES[email][part]),
+      );
     }
   },
 );
