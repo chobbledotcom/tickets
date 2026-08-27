@@ -8,7 +8,7 @@ import {
 import {
   attributeNameForm,
   attributeOptionForm,
-} from "#routes/admin/attributes.ts";
+} from "#templates/fields/attribute.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
