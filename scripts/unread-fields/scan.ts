@@ -125,14 +125,20 @@ const nameOf = (node: ts.Node): ts.Identifier | undefined => {
 const fieldNameOf = (node: ts.Node): ts.Identifier | undefined =>
   holdsAField(node) ? nameOf(node) : undefined;
 
-/** Whether a shape takes fields from somewhere else. An alias does whenever
- * it is not a list of its own members: `StripeRefund = StripeRefundFields`
- * names one type, and `Omit<Row, "id">` reshapes one. A union alias is left
- * out, because its common fields belong to the shapes it is made of. */
-const inheritsFrom = (shape: Shape): boolean => {
-  if (ts.isTypeAliasDeclaration(shape)) return !ts.isUnionTypeNode(shape.type);
-  return ts.isClassDeclaration(shape) || shape.heritageClauses !== undefined;
-};
+/** Whether a shape takes fields from somewhere else. An alias always does,
+ * because anything it is made of can be a type it only names:
+ * `StripeRefund = StripeRefundFields` names one, `Omit<Row, "id">` reshapes
+ * one, and `PaymentSuccess | PaymentFailure` names two. */
+const inheritsFrom = (shape: Shape): boolean =>
+  ts.isTypeAliasDeclaration(shape) ||
+  ts.isClassDeclaration(shape) ||
+  shape.heritageClauses !== undefined;
+
+/** The types a shape hands fields on from. A union hands on the fields of
+ * every arm, not the few they share: a reader of `Success | Failure` reaches
+ * all of them once it knows which arm it holds. */
+const partsOf = (type: ts.Type): readonly ts.Type[] =>
+  type.isUnion() ? type.types : [type];
 
 /** Where one borrowed field is written down, or nothing when the shape names
  * it itself. A field can be written down more than once — `PaymentFailureResult`
@@ -166,9 +172,14 @@ const inheritedFields = (
   if (!inheritsFrom(shape)) return [];
   const found: OwnedField[] = [];
   const type = checker.getTypeAtLocation(shape.name);
-  for (const property of checker.getPropertiesOfType(type)) {
-    const field = borrowedName(property, own);
-    if (field) found.push({ field, owner: shape.name.text });
+  for (const part of partsOf(type)) {
+    for (const property of checker.getPropertiesOfType(part)) {
+      const field = borrowedName(property, own);
+      if (field) {
+        own.add(field.text);
+        found.push({ field, owner: shape.name.text });
+      }
+    }
   }
   return found;
 };

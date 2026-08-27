@@ -232,6 +232,18 @@ const MADE_UP_LIST = [{ writtenInAList: 1 }] as const;
 
 export type FromAList = (typeof MADE_UP_LIST)[number];
 
+interface WentWell {
+  sharedByTheNames: true;
+  onlyWhenItWentWell: string;
+}
+
+interface WentBadly {
+  sharedByTheNames: false;
+  onlyWhenItWentBadly: string;
+}
+
+export type EitherNamed = WentWell | WentBadly;
+
 export type OnlyWhenItFits<R> = R extends { checkedNotDeclared: number }
   ? { answeredByTheBranch: string }
   : never;

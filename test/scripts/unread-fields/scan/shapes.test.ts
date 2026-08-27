@@ -72,6 +72,17 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("OnlyWhenItFits", "checkedNotDeclared")).toBeUndefined();
   });
 
+  test("sees the fields of a union whose arms are named types", () => {
+    // `PaymentResult = PaymentSuccess | PaymentFailure` names two types its
+    // own file keeps to itself, so nothing else reports their fields.
+    const lines = scanned.all.filter((f) => f.owner === "EitherNamed");
+    expect(lines.map((f) => f.field).sort()).toEqual([
+      "onlyWhenItWentBadly",
+      "onlyWhenItWentWell",
+      "sharedByTheNames",
+    ]);
+  });
+
   test("gives a filtered shape one line per field, not two", () => {
     // `Extract<Result, { ok: true }>` writes the discriminant down as a
     // filter. Read as a member, it becomes a second line that disagrees with
@@ -105,6 +116,9 @@ describe("the shapes the scan finds", () => {
       "Carrier.heldByTheConstructor",
       "Carrier.keep",
       "Carrier.onlyOnAClass",
+      "EitherNamed.onlyWhenItWentBadly",
+      "EitherNamed.onlyWhenItWentWell",
+      "EitherNamed.sharedByTheNames",
       "EitherWay.onlyOnTheFirst",
       "EitherWay.onlyOnTheSecond",
       "EitherWay.sharedByBothArms",

@@ -43,11 +43,12 @@ reaches it. A shape the file keeps to itself does not, and neither does a member
 a class keeps to itself.
 
 A shape also hands on the fields it takes from somewhere else: a base it
-extends, an intersection, or another type it simply names, as
-`StripeRefund = StripeRefundFields` does. A union alias is left out, because its
-common fields belong to the shapes it is made of. A field written down in a
-library, such as the `toFixed` that `number` carries, is not a field this
-repository exports.
+extends, an intersection, another type it simply names, as
+`StripeRefund = StripeRefundFields` does, or every arm of a union. A reader of
+`Success | Failure` reaches every field of both arms once it knows which arm it
+holds, and the arms are often types the file keeps to itself. A field written
+down in a library, such as the `toFixed` that `number` carries, is not a field
+this repository exports.
 
 ## Reads, not mentions
 
