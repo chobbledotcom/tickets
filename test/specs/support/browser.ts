@@ -199,8 +199,10 @@ export type OpensOneFixedPage = (world: TicketsWorld) => Promise<TestBrowser>;
 
 /** The organiser opens one page of their own, named once. Every "the owner
  * looks at X" step is this with a different address, so the address is the
- * only thing each caller says. The window comes back for a caller that reads
- * it, and a step that only needs the page open can ignore it. */
+ * only thing each caller says. An address that never changes is given as it
+ * is; one worked out from the story so far is given as a `PageAddress`. The
+ * window comes back for a caller that reads it, and a step that only needs
+ * the page open can ignore it. */
 export const opensAdminPageAt =
   (where: string | PageAddress<[]>): OpensOneFixedPage =>
   (world) =>
