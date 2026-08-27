@@ -1552,12 +1552,17 @@ deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-
 #### Lower-level alternative
 
 For a pure unit test that imports neither the app nor Stripe, you can skip the
-harness and run `deno test` directly on the file (fastest, but it fails on a
-missing `src/ui/static/*.js` asset or an unstarted stripe-mock if the test does
-import them):
+harness and run `deno test` directly on the file. This is the fastest way. It
+fails on a missing `src/ui/static/*.js` asset, or on an unstarted stripe-mock,
+when the test imports them.
+
+Always keep `--preload ./test/test-utils/preload.ts`. The preload puts the
+complete message catalog in the isolate. The runner tasks do this for you.
+Without the preload, every `t()` call throws `Missing translation for key "…"`
+for copy that is already in the catalog.
 
 ```bash
-deno test --no-check --allow-all test/shared/dates.test.ts
+deno test --no-check --allow-all --preload ./test/test-utils/preload.ts test/shared/dates.test.ts
 ```
 
 To do this for a test that depends on stripe-mock (anything importing Stripe),
@@ -1566,7 +1571,7 @@ you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars
 to the port you chose:
 
 ```bash
-STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/scripts/stripe-mock/ports.test.ts
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all --preload ./test/test-utils/preload.ts test/scripts/stripe-mock/ports.test.ts
 ```
 
 ## Environment Variables

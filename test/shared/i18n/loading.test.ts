@@ -221,4 +221,23 @@ describe("lazy message groups", () => {
         expect(t("common.icu_apostrophe")).toBe("It's ready");
       },
     ));
+
+  test("names the group that holds a key this scope did not declare", () =>
+    withColdMessages(async () => {
+      await ensureMessageGroups(MESSAGE_GROUPS);
+
+      await withMessageGroups(["common"], () => {
+        expect(() => t("admin.dashboard.guide_link")).toThrow(
+          'Group "dashboard" holds the key, but this scope does not declare it.',
+        );
+      });
+    }));
+
+  test("says no group holds a key whose catalog never loaded", () =>
+    withColdMessages(() => {
+      expect(() => t("common.yes")).toThrow(
+        "No loaded message group holds the key. The key is wrong, or its group is not loaded.",
+      );
+      return Promise.resolve();
+    }));
 });
