@@ -11,15 +11,19 @@ export interface Alias {
   target: string;
 }
 
-/** Where one import statement sits, and what shape it has. */
+/** Where one statement that names a module sits, and what shape it has. */
 export interface ImportLine {
   line: number;
   /** True when the statement only brings in names inside `{ }`. */
   namesOnly: boolean;
+  /** True when the statement re-exports rather than imports. Both load the
+   *  module at run time, but only two imports can merge into one statement. */
+  reExport: boolean;
   specifier: string;
-  /** True when the statement opens `import type`, so nothing it brings in
-   *  survives to run time. A statement whose every name instead carries an
-   *  inline `type` is erased too, and reads here as a run-time import. */
+  /** True when the statement opens `import type` or `export type`, so nothing
+   *  it names survives to run time. A statement whose every name instead
+   *  carries an inline `type` is erased too, and reads here as a run-time
+   *  import. */
   typeOnly: boolean;
 }
 
@@ -116,31 +120,40 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null =>
       (spelling.length === best.length && spelling < best),
   );
 
+/** Where a statement that names a module opens. A re-export names one as
+ * surely as an import does, and loads it just the same. */
+const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
+
 /**
- * Every top-level import in `content`. A line that starts in column 0 is the
- * only one that counts, so an example import quoted inside a string is not
- * mistaken for the real thing. The module name is read from the line that ends
- * the statement, which is the line carrying `from`, and the shape from the line
- * that opens it.
+ * Every top-level statement in `content` that names a module — an import or a
+ * re-export. A line that starts in column 0 is the only one that counts, so an
+ * example import quoted inside a string is not mistaken for the real thing. The
+ * module name is read from the line that ends the statement, which is the line
+ * carrying `from`, and the shape from the line that opens it. A statement that
+ * ends without a `from`, such as `export { getRawCached };`, names no module
+ * and is dropped.
  */
 export const topLevelImports = (content: string): ImportLine[] => {
   const found: ImportLine[] = [];
   let open: { head: string; line: number } | null = null;
   for (const [index, line] of content.split("\n").entries()) {
-    if (open === null && /^import[\s{"']/.test(line)) {
+    if (open === null && OPENS_A_MODULE_STATEMENT.test(line)) {
       open = { head: line, line: index + 1 };
     }
     if (open === null) continue;
     const isEnd =
-      /from\s+["']/.test(line) || /^import\s+["'][^"']*["']/.test(line);
+      /from\s+["']/.test(line) ||
+      /^import\s+["'][^"']*["']/.test(line) ||
+      /;\s*$/.test(line);
     if (!isEnd) continue;
     const specifier = line.match(/from\s+["']([^"']+)["']/)?.[1];
     if (specifier !== undefined) {
       found.push({
         line: open.line,
         namesOnly: /^import\s+(type\s+)?\{/.test(open.head),
+        reExport: /^export\b/.test(open.head),
         specifier,
-        typeOnly: /^import\s+type\b/.test(open.head),
+        typeOnly: /^(?:import|export)\s+type\b/.test(open.head),
       });
     }
     open = null;
@@ -156,6 +169,7 @@ export const topLevelImports = (content: string): ImportLine[] => {
 const findSplitImports = (imports: ImportLine[]): ImportIssue[] => {
   const bySpecifier = new Map<string, ImportLine[]>();
   for (const entry of imports) {
+    if (entry.reExport) continue;
     const found = bySpecifier.get(entry.specifier);
     if (found) found.push(entry);
     else bySpecifier.set(entry.specifier, [entry]);

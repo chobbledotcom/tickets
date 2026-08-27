@@ -314,15 +314,49 @@ const readTemplate = (body: string, start: number): Step => {
   return { next, tokens };
 };
 
-/** What sits at `index`, and where whatever follows it begins. The token
- *  before it decides whether a `/` divides or opens a pattern. */
-const stepAt = (body: string, index: number, before?: string): Step => {
+/** The words whose header sits in brackets. The `)` that closes one of these
+ * ends no value, because what follows is a statement, not more of a sum. */
+const HEADER_WORDS = new Set(["for", "if", "while"]);
+
+/**
+ * Whether the `)` that ends `shape` closed an `if`, `while` or `for` header.
+ * Walks back to the `(` it matches and reads the word in front of it, which is
+ * the only way to tell that bracket from the one that ends a call or a sum.
+ */
+const closesAHeader = (shape: readonly string[]): boolean => {
+  let depth = 0;
+  for (let at = shape.length - 1; at >= 0; at--) {
+    if (shape[at] === ")") depth++;
+    if (shape[at] !== "(") continue;
+    depth--;
+    if (depth === 0) return HEADER_WORDS.has(shape[at - 1] ?? "");
+  }
+  return false;
+};
+
+/**
+ * Whether the token before a slash ends a value, so the slash divides it. A
+ * `)` is the one token that depends on what came before it: `total() / 2`
+ * divides, but `if (ready) /foo/.test(value)` opens a pattern.
+ */
+const endsAValue = (shape: readonly string[]): boolean => {
+  const before = shape[shape.length - 1] ?? "";
+  return before === ")" ? !closesAHeader(shape) : ENDS_A_VALUE.has(before);
+};
+
+/** What sits at `index`, and where whatever follows it begins. The tokens
+ *  before it decide whether a `/` divides or opens a pattern. */
+const stepAt = (
+  body: string,
+  index: number,
+  shape: readonly string[],
+): Step => {
   const character = body[index] as string;
   if (/\s/.test(character)) return { next: index + 1, tokens: [] };
   if (opensComment(body, index)) {
     return { next: endOfComment(body, index), tokens: [] };
   }
-  if (character === "/" && !ENDS_A_VALUE.has(before ?? "")) {
+  if (character === "/" && !endsAValue(shape)) {
     return { next: endOfRegExp(body, index + 1), tokens: ["RE"] };
   }
   if (character === "`") return readTemplate(body, index);
@@ -346,7 +380,7 @@ export const shapeOf = (body: string): string[] => {
   const shape: string[] = [];
   let index = 0;
   while (index < body.length) {
-    const step = stepAt(body, index, shape[shape.length - 1]);
+    const step = stepAt(body, index, shape);
     shape.push(...step.tokens);
     index = step.next;
   }

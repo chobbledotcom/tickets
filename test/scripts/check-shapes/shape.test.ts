@@ -254,6 +254,87 @@ describe("shapeOf reading a pattern", () => {
     expect(shapeOf("count-- / divisor")).toEqual(["ID", "--", "/", "ID"]);
   });
 
+  test("opens a pattern after a control header's bracket", () => {
+    expect(shapeOf("if (ready) /foo/.test(value)")).toEqual(
+      shapeOf("if (ok) /bar-baz/.test(text)"),
+    );
+    expect(shapeOf("if (ready) /foo/.test(value)")).toEqual([
+      "if",
+      "(",
+      "ID",
+      ")",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+  });
+
+  test("opens a pattern after a while or for header too", () => {
+    expect(shapeOf("while (a) /x/.test(b)")).toEqual([
+      "while",
+      "(",
+      "ID",
+      ")",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+    expect(shapeOf("for (const a of b) /x/.test(a)")).toEqual([
+      "for",
+      "(",
+      "const",
+      "ID",
+      "of",
+      "ID",
+      ")",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+  });
+
+  test("reads a bracket that closes nothing as ending a value", () => {
+    // Nothing says what such a bracket belongs to, so it takes the reading
+    // that all but a control header wants, and the slash divides.
+    expect(shapeOf(") / 2")).toEqual([")", "/", "NUM"]);
+  });
+
+  test("still divides after a bracket that ends a call or a sum", () => {
+    expect(shapeOf("f(g(a)) / 2")).toEqual([
+      "ID",
+      "(",
+      "ID",
+      "(",
+      "ID",
+      ")",
+      ")",
+      "/",
+      "NUM",
+    ]);
+    expect(shapeOf("(a + b) / 2")).toEqual([
+      "(",
+      "ID",
+      "+",
+      "ID",
+      ")",
+      "/",
+      "NUM",
+    ]);
+  });
+
+  test("still divides inside a braced control body", () => {
+    expect(shapeOf("if (a) { b = c() / 2; }")).toContain("/");
+  });
+
   test("still reads a comment opening with a slash as a comment", () => {
     expect(shapeOf("/* gone */ value")).toEqual(["ID"]);
     expect(shapeOf("value // gone")).toEqual(["ID"]);

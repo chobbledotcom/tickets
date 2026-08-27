@@ -65,6 +65,30 @@ describe("modulesOf", () => {
     ).toEqual(["src/shared/b.ts"]);
   });
 
+  test("follows a re-export, which loads its module at run time", () => {
+    expect(
+      loadsOf(
+        {
+          "src/shared/a.ts": 'export { b } from "#shared/b.ts";',
+          "src/shared/b.ts": "",
+        },
+        "src/shared/a.ts",
+      ),
+    ).toEqual(["src/shared/b.ts"]);
+  });
+
+  test("drops a type-only re-export, which is erased before anything runs", () => {
+    expect(
+      loadsOf(
+        {
+          "src/shared/a.ts": 'export type { B } from "#shared/b.ts";',
+          "src/shared/b.ts": "",
+        },
+        "src/shared/a.ts",
+      ),
+    ).toEqual([]);
+  });
+
   test("drops an import of a package, which is outside the tree", () => {
     expect(
       loadsOf(
@@ -136,6 +160,15 @@ describe("importCycles", () => {
         "src/shared/c.ts": 'import { a } from "#shared/a.ts";',
       }),
     ).toEqual([["src/shared/a.ts", "src/shared/b.ts", "src/shared/c.ts"]]);
+  });
+
+  test("finds a ring that closes through a re-export", () => {
+    expect(
+      ringsIn({
+        "src/shared/a.ts": 'export { b } from "#shared/b.ts";',
+        "src/shared/b.ts": 'import { a } from "#shared/a.ts";',
+      }),
+    ).toEqual([["src/shared/a.ts", "src/shared/b.ts"]]);
   });
 
   test("keeps two separate rings apart", () => {

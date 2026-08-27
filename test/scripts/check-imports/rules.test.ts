@@ -89,14 +89,26 @@ describe("bestSpelling", () => {
 describe("topLevelImports", () => {
   test("records the line, specifier, and names-only shape", () => {
     expect(topLevelImports('import { a } from "#types";\n')).toEqual([
-      { line: 1, namesOnly: true, specifier: "#types", typeOnly: false },
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#types",
+        typeOnly: false,
+      },
     ]);
   });
 
   test("reports a wrapped import at the line it starts on", () => {
     const source = 'const x = 1;\nimport {\n  a,\n  b,\n} from "#types";\n';
     expect(topLevelImports(source)).toEqual([
-      { line: 2, namesOnly: true, specifier: "#types", typeOnly: false },
+      {
+        line: 2,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#types",
+        typeOnly: false,
+      },
     ]);
   });
 
@@ -114,6 +126,39 @@ describe("topLevelImports", () => {
 
   test("marks an import that brings in a value as surviving to run time", () => {
     expect(topLevelImports('import { a } from "#types";')[0]?.typeOnly).toBe(
+      false,
+    );
+  });
+
+  test("records a re-export, which loads its module just as an import does", () => {
+    const [entry] = topLevelImports('export { a } from "#types";');
+    expect(entry?.reExport).toBe(true);
+    expect(entry?.specifier).toBe("#types");
+  });
+
+  test("records a star re-export", () => {
+    expect(topLevelImports('export * from "#types";')[0]?.specifier).toBe(
+      "#types",
+    );
+  });
+
+  test("marks a type-only re-export as erased before anything runs", () => {
+    expect(
+      topLevelImports('export type { A } from "#types";')[0]?.typeOnly,
+    ).toBe(true);
+  });
+
+  test("names no module for an export that has no from", () => {
+    expect(topLevelImports("export { a };\n")).toEqual([]);
+  });
+
+  test("reads the import after an export that names no module", () => {
+    const source = 'export { a };\nimport { b } from "#types";\n';
+    expect(topLevelImports(source)[0]?.line).toBe(2);
+  });
+
+  test("marks an import as not a re-export", () => {
+    expect(topLevelImports('import { a } from "#types";')[0]?.reExport).toBe(
       false,
     );
   });
@@ -147,6 +192,11 @@ describe("topLevelImports", () => {
 });
 
 describe("findImportIssues", () => {
+  test("leaves an import beside a re-export of the same module alone", () => {
+    const source = 'import { a } from "#types";\nexport { b } from "#types";\n';
+    expect(messages(source)).toEqual([]);
+  });
+
   test("flags one module imported by two statements", () => {
     const source =
       'import type { A } from "#types";\nimport { b } from "#types";\n';
