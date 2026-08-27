@@ -3,10 +3,11 @@
  * {@link EXPECTED_MOVES} must refuse.
  *
  * Two production truths are kept as-is rather than smoothed over. When the
- * machine retires a review the row does not hold, or records books that were
- * never behind, the move is a silent no-op that STILL releases the claim. A
- * terminal outcome can also replace an earlier one, the conservative-then-final
- * write, so `settled × write_outcome` is a declared self-move, not a refusal.
+ * machine retires a review the row does not hold, or settles `books:
+ * "recorded"` on a row carrying no `unrecorded` marker, the move is a silent
+ * no-op that STILL releases the claim. A terminal outcome can also replace an
+ * earlier one, the conservative-then-final write, so `settled × write_outcome`
+ * is a declared self-move, not a refusal.
  *
  * A review acknowledgement belongs to the payment-review machine. */
 
