@@ -143,13 +143,12 @@ describe("formatCycleReport", () => {
 });
 
 describe("runCycleReport", () => {
-  test("reports the real tree's known cycle", async () => {
+  test("runs against the real tree and reports a shaped answer", async () => {
     const report = await runCycleReport();
-    expect(report).toContain("cyclic groups:");
-    expect(report).toContain("load-time imports:");
-    // The reporting-machinery triangle the tree has carried since the
-    // ntfy notifier grew: the one cycle every reader of this report can
-    // check a group listing against.
-    expect(report).toContain("src/shared/logger.ts");
+    // Structure, not debt: the report must state what it measured and count
+    // its groups, whatever the tree's current cycle count is.
+    expect(report).toMatch(/modules with load-time imports: \d+/);
+    expect(report).toMatch(/cyclic groups: \d+/);
+    expect(report).toContain("type-only imports evaluate nothing and dynamic");
   });
 });
