@@ -378,7 +378,7 @@ export type GroupIdsByListingId = ReadonlyMap<number, number[]>;
  * co-grouped when their group sets meet in at least one capped group.
  *
  * Both facts come from the SAME shared groups, and are the tightest value over
- * those — never the child's tightest group overall. That pairing is what lets a
+ * those — never the child's tightest group overall. That is what lets a
  * date-less surface reject a share too small to hold both, even when a daily
  * child's per-date remaining is unknown.
  */

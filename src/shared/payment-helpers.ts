@@ -266,8 +266,8 @@ export const singleListingAnswerIds = (
  *
  * `thank_you_url` can break session creation two ways: a long URL exceeds the
  * per-value cap, or even a short one tips a full payload over the entry cap. It
- * is only a post-completion redirect, so an over-cap URL is dropped BEFORE
- * signing. That order keeps the signed payload and the wire identical, so the
+ * is only a post-completion redirect, so an over-cap URL is dropped BEFORE the
+ * code signs it. That order keeps the signed payload and the wire identical, so
  * webhook never sees a covered key the wire omitted and reads it as tampering.
  */
 /**
@@ -567,9 +567,9 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
 };
 
 /**
- * Only the fields growing with what the buyer selected can realistically exceed
- * the per-value limit. Form validation already holds every other field well
- * below the smallest provider limit of 255.
+ * Only the fields that grow with what the buyer selected can realistically
+ * exceed the per-value limit. Form validation already holds every other field
+ * well below the smallest provider limit of 255.
  *
  * `thank_you_url` is deliberately NOT handled here. It must never fail a
  * checkout, so an over-cap URL is dropped before signing, in

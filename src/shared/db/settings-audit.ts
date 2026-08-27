@@ -1,8 +1,8 @@
 /**
- * Dev and test only. A route reading a setting it never declared in its prefix
- * bundle gets a default or stale value SILENTLY, which is the failure mode the
- * on-demand system trades for. This proves the bundles are honest by asserting
- * reads ⊆ loaded at the end of each request.
+ * Dev and test only. A route that reads a setting it never declared in its
+ * prefix bundle gets a default or stale value SILENTLY, which is the failure
+ * mode the on-demand system trades for. This proves the bundles are honest: at
+ * the end of each request it asserts reads ⊆ loaded.
  *
  * It is a strict no-op in production: `runWithSettingsAudit` only enters the
  * AsyncLocalStorage scope when explicitly enabled (the test harness turns it

@@ -22,10 +22,10 @@ import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
 
 /** The retry link for a cancelled checkout. Returns null whenever the target
- * page would no longer serve, so a "Try again" link never dead-ends. A listing
- * can lose its own page mid-checkout, and a bundle can stop being bookable.
- * The gate is {@link groupBookable}, the same one `/ticket/<group>` applies, so
- * the link matches what that page would render. */
+ * page no longer serves, so a "Try again" link never dead-ends. A listing can
+ * lose its own page mid-checkout, and a bundle can cease to be bookable. The
+ * gate is {@link groupBookable}, the same one `/ticket/<group>` applies, so the
+ * link matches what that page renders. */
 const retryHrefFor = async (
   intent: BookingIntent,
   listing: { id: number; slug: string },

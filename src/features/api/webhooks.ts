@@ -1,6 +1,6 @@
 /**
  * The success redirect and the webhook race each other, so both go through
- * two-phase locking: the first handler reserves the session under a DB lock,
+ * two-phase locking. The first handler reserves the session under a DB lock,
  * creates the attendee, then finalizes. A later handler sees the reserved or
  * finalized session and returns the existing attendee.
  *

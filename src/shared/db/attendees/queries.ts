@@ -174,8 +174,8 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
  * `listingIds` decides WHICH attendees match, and the returned rows still cover
  * all of a matched attendee's listings.
  *
- * Ordering by id works because AUTOINCREMENT rises with the registration date
- * but stays unique, which keeps paging deterministic and index-backed. One
+ * An order by id works because AUTOINCREMENT rises with the registration date
+ * but stays unique, which keeps each page deterministic and index-backed. One
  * extra attendee is read to report `hasNext` without a second count query. PII
  * stays encrypted, so decrypt with decryptAttendees first.
  */

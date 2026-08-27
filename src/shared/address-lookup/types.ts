@@ -1,8 +1,8 @@
 /**
  * Every dispatcher is an exhaustive `Record` over
- * {@link AddressLookupProvider}, so adding a provider is one picklist entry
- * plus one definition, and a missing definition is a compile error rather than
- * a silent fallthrough.
+ * {@link AddressLookupProvider}. A new provider is therefore one picklist entry
+ * plus one definition. A missing definition is a compile error, not a silent
+ * fallthrough.
  *
  * This module is pure: definitions carry i18n keys, not rendered copy, and the
  * fetch functions receive their API key as an argument.

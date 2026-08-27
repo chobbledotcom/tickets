@@ -1,7 +1,7 @@
 /**
  * A sealed string is an ordinary string whose TYPE names which helper made it.
- * Handing a function plaintext, or a value sealed under the wrong scheme, is
- * then a compile error instead of unreadable data at rest.
+ * A function that receives plaintext, or a value sealed under the wrong scheme,
+ * is then a compile error instead of unreadable data at rest.
  *
  * Only the crypto helpers produce sealed values, so never build one with a cast
  * in application code. The one sanctioned cast is `col.encrypted`'s read

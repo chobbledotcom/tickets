@@ -25,9 +25,9 @@ import { type TxScope, withTransaction } from "#db/client.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 
 /**
- * Reading and posting through the same `tx` makes re-submitting the same target
- * a no-op, and serialises concurrent submits on the write lock instead of both
- * appending the delta and overshooting.
+ * The read and the post go through the same `tx`, so a re-submit of the same
+ * target is a no-op. Concurrent submits then serialise on the write lock. Both
+ * append the delta and overshoot the target without it.
  *
  * `toCredit` exists because the two figure kinds move in opposite directions. A
  * figure that IS the account balance moves with `target − current`. What an

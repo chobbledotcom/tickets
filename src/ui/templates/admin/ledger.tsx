@@ -1,7 +1,7 @@
 /**
- * Shared read-only view of the `transfers` ledger, used by the transfer list,
- * a single account's running-balance statement, and the per-attendee statement
- * panel on the edit-attendee page.
+ * Shared read-only view of the `transfers` ledger. Three admin surfaces use it:
+ * the transfer list, a single account's running-balance statement, and the
+ * per-attendee statement panel on the edit-attendee page.
  *
  * Render-only: the feature layer builds the {@link LedgerNames} lookup, and
  * decrypts attendee names with the session key, so this module never touches

@@ -2,8 +2,8 @@
  * "Absent" means ONE thing here: a documented resource the provider did not
  * send. Never a provider that is not configured, and never a malformed answer.
  *
- * The judging step is a ladder of refusals rather than a chain of `if`s, so
- * each refusal sits beside the reason it returns, and a new rung is one entry
+ * The judgement is a ladder of refusals, not a chain of `if`s. Each refusal
+ * therefore sits beside the reason it returns, and a new rung is one entry
  * rather than one more arm.
  */
 

@@ -2,13 +2,13 @@
  * outcome on a row that ended clean. A cell missing from
  * {@link EXPECTED_MOVES} must refuse.
  *
- * Two production truths are kept as-is rather than smoothed over. Retiring a
- * review the row does not hold, and recording books that were never behind,
- * are silent no-ops that STILL release the claim. And a terminal outcome may
+ * Two production truths are kept as-is rather than smoothed over. A retire of a
+ * review the row does not hold, and a record of books that were never behind,
+ * are silent no-ops that STILL release the claim. A terminal outcome can also
  * replace an earlier one, the conservative-then-final write, so
  * `settled × write_outcome` is a declared self-move rather than a refusal.
  *
- * Acknowledging a review belongs to the payment-review machine. */
+ * A review acknowledgement belongs to the payment-review machine. */
 
 import { acknowledgePaymentReview } from "#payment/review.ts";
 import type { PaymentRowState, RefundClaim } from "#payment/row-state.ts";

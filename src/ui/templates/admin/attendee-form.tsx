@@ -3,9 +3,9 @@
  *
  * An attendee has ONE shared date range — a start date plus a length — applied
  * to every daily listing they book. The listing editor is a fixed table with
- * one quantity box per bookable listing, so a quantity of 1 or more books it
- * and 0 leaves it out. There are no add-line or remove-line buttons, and the
- * form works without JavaScript.
+ * one quantity box per bookable listing. A quantity of 1 or more books it, and
+ * 0 leaves it out. There are no add-line or remove-line buttons, and the form
+ * works without JavaScript.
  */
 
 /* jscpd:ignore-start */

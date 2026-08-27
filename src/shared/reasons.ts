@@ -1,9 +1,9 @@
 /**
  * "Refuse this if any of these reasons holds, and say which."
  *
- * A list of reasons rather than an if/else chain means ONE list serves every
- * consumer: a save picks the first refusal, a summary lists them all, and a
- * picker asks each candidate why it would be blocked before offering it.
+ * A list of reasons, not an if/else chain, so ONE list serves every consumer. A
+ * save picks the first refusal. A summary lists them all. A picker asks each
+ * candidate why it is blocked, then offers the rest.
  *
  * The sibling for "one check over many items" is `firstProblem` in `#fp`.
  */
