@@ -252,19 +252,33 @@ const exportedFields = (
 const readsHere = (
   program: ts.Program,
   reference: ts.ReferencedSymbolEntry,
-  onlyThroughAMember: boolean,
+  namesTheParameter: (at: ts.ReferencedSymbolEntry, node: ts.Node) => boolean,
 ): boolean => {
   if (reference.isDefinition) return false;
   const source = program.getSourceFile(reference.fileName);
   const node = source && nodeAt(source, reference.textSpan.start);
   if (!node || !readsTheValue(node)) return false;
-  return !onlyThroughAMember || namesAMember(node);
+  return !namesTheParameter(reference, node);
 };
 
-/** Whether a field is written down as a constructor parameter. The answer
- * already requires a constructor above it, so it needs no second question. */
-const isParameterProperty = (field: ts.Identifier): boolean =>
-  ts.isParameterPropertyDeclaration(field.parent, field.parent.parent);
+/** `constructor(public value: string)` declares a parameter and a field with
+ * one name, and the compiler answers a lookup with both. Inside that
+ * constructor a plain `value` is the parameter, and no value leaves the field.
+ * `this.value` there is the field, and so is every mention outside. */
+const namesTheParameterOf = (
+  field: ts.Identifier,
+): ((at: ts.ReferencedSymbolEntry, node: ts.Node) => boolean) => {
+  if (!ts.isParameterPropertyDeclaration(field.parent, field.parent.parent)) {
+    return () => false;
+  }
+  const declaredIn = field.parent.parent;
+  const file = field.getSourceFile().fileName;
+  return (at, node) =>
+    at.fileName === file &&
+    at.textSpan.start >= declaredIn.getStart() &&
+    at.textSpan.start < declaredIn.getEnd() &&
+    !namesAMember(node);
+};
 
 /** Ask the service who reads one field, and say where those readers live. A
  * position means nothing without the file it counts from, and an inherited
@@ -279,14 +293,11 @@ const readersOf = (
     service.findReferences(field.getSourceFile().fileName, field.getStart()),
     `references for ${field.text}`,
   );
-  // `constructor(public value: string)` declares a parameter and a field with
-  // one name, and the compiler answers a lookup with both. `super(value)` in
-  // that constructor names the parameter, and no value leaves the field.
-  const onlyThroughAMember = isParameterProperty(field);
+  const namesTheParameter = namesTheParameterOf(field);
   const readers: string[] = [];
   for (const group of references) {
     for (const reference of group.references) {
-      if (readsHere(program, reference, onlyThroughAMember)) {
+      if (readsHere(program, reference, namesTheParameter)) {
         readers.push(reference.fileName.replace(`${root}/`, ""));
       }
     }

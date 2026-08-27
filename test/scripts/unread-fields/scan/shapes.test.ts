@@ -36,6 +36,14 @@ describe("the shapes the scan finds", () => {
     );
   });
 
+  test("counts a parameter field a destructure takes out", () => {
+    // `const { field } = held` never names a member, so the guard above must
+    // not read it as the constructor's own mention of its parameter.
+    expect(verdictOf("NamedItsParameter", "takenOutByADestructure")).toBe(
+      "read",
+    );
+  });
+
   test("leaves out a plain constructor parameter", () => {
     expect(verdictOf("Carrier", "plainParameter")).toBeUndefined();
   });
@@ -162,6 +170,7 @@ describe("the shapes the scan finds", () => {
       "Intersects.ofItsOwnAgain",
       "ListExported.onlyInAList",
       "NamedItsParameter.onlyTheConstructorNamesIt",
+      "NamedItsParameter.takenOutByADestructure",
       "NestsTheSameName.inside",
       "NestsTheSameName.inside.sharedNameDifferentField",
       "NestsTheSameName.sharedNameDifferentField",

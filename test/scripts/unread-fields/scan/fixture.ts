@@ -48,7 +48,12 @@ export type { Gone } from "./nowhere.ts";
   "src/consume.ts": `
 import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
-import type { Borrowed, ExtendsFarBase, Passed } from "./shapes.ts";
+import {
+  type Borrowed,
+  type ExtendsFarBase,
+  NamedItsParameter,
+  type Passed,
+} from "./shapes.ts";
 
 export type ItsType = Borrowed["onlyItsTypeIsUsed"];
 
@@ -57,6 +62,11 @@ export const drop = (b: Borrowed): void => {
 };
 
 export const shown = String(sum.total) + report.headline;
+
+export const unpack = (held: NamedItsParameter): string => {
+  const { takenOutByADestructure } = held;
+  return takenOutByADestructure;
+};
 
 export const reach = (r: Reached): number => r.total;
 
@@ -194,7 +204,10 @@ interface AnsweredOnce {
 export type AnsweredAgain = AnsweredOnce & { answeredTwice: boolean };
 
 export class NamedItsParameter extends Error {
-  constructor(public onlyTheConstructorNamesIt: string) {
+  constructor(
+    public onlyTheConstructorNamesIt: string,
+    public takenOutByADestructure: string,
+  ) {
     super(onlyTheConstructorNamesIt);
   }
 }
