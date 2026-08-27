@@ -11,6 +11,7 @@
  * and writes too.
  */
 
+import { parseDateMs } from "#shared/dates.ts";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { DAY_MS } from "#shared/now.ts";
 
@@ -47,16 +48,10 @@ export const parseWarnDays = (
   return n;
 };
 
-/** The cutoff's time in milliseconds, or null when it doesn't parse as a date. */
-const parseCutoffMs = (cutoff: string): number | null => {
-  const parsed = Date.parse(cutoff);
-  return Number.isNaN(parsed) ? null : parsed;
-};
-
 const withCutoffMs =
   (cutoff: string) =>
   (predicate: (cutoffMs: number) => boolean): boolean => {
-    const cutoffMs = parseCutoffMs(cutoff);
+    const cutoffMs = parseDateMs(cutoff);
     return cutoffMs === null ? false : predicate(cutoffMs);
   };
 
@@ -78,7 +73,7 @@ export const isInWarningWindow = (
 export const isReadOnly = (): boolean => {
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
-  if (parseCutoffMs(cutoff) === null) {
+  if (parseDateMs(cutoff) === null) {
     void withLazyLogger(({ ErrorCode, logError }) =>
       logError({
         code: ErrorCode.DATA_INVALID,
@@ -103,7 +98,7 @@ export const isReadOnlyWarning = (): boolean => {
 export const getReadOnlyCutoffIso = (): string | null => {
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return null;
-  return parseCutoffMs(cutoff) === null ? null : cutoff;
+  return parseDateMs(cutoff) === null ? null : cutoff;
 };
 
 /** Get the RENEWAL_URL, or null if not set */

@@ -20,13 +20,10 @@ src/features/admin/attendees-merge.ts::parseBookingDecisions,src/features/admin/
 src/features/admin/attendees-merge.ts::toAnswerChoice,src/features/admin/attendees-merge.ts::toBookingChoice,src/features/auth.ts::adminLandingPath  # the two merge-choice readers are one if-chain over a picklist; the landing path is not, and leaves the group when they merge
 src/features/admin/debug.ts::resolveGoogleWalletIssuerId,src/features/admin/debug.ts::resolveWalletPassTypeId  # same file, one per wallet, differing only in which settings they read
 src/features/admin/refunds/readiness.ts::providerIdentity,src/shared/payment/validated-session.ts::rejectedChargeReference  # both build the same tagged provider reference
-src/features/api/folded-booking.ts::parseApiChildSelections,src/shared/sumup-observation.ts::knownStatus  # both safeParse then take the output or null; validation/parse.ts::parseOrNull is that already
 src/features/api/payment-processing/snapshot/build.ts::signedModifierValue,src/shared/db/modifier-resolve.ts::signedValue  # one pricing rule written twice, once over snake_case columns and once over camelCase fields; the pair can drift
 src/features/app/read-only.ts::isAllowedAdminOperation,src/features/app/read-only.ts::matches  # same file, both ask whether one method matches a pattern list
 src/features/feeds.ts::handleIcs,src/features/feeds.ts::handleRss  # same file, differing only in the builder and the response wrapper
-src/features/response.ts::htmlResponse,src/features/response.ts::plainResponse  # same file, differing only in the content type
 src/shared/crypto/keys.ts::unwrapKeyWithToken,src/shared/crypto/keys.ts::wrapKeyWithToken  # same file, differing only in the direction of the key derivation
-src/shared/dates.ts::parseDateMs,src/shared/env.ts::parseCutoffMs  # the same Date.parse-or-null, written twice
 src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delete.ts::deleteAnswer  # both cascade a delete over the same two shapes of table
 src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers
 src/shared/db/listings/records.ts::getListingsById,src/shared/db/modifier-resolve.ts::activeModifiersById  # both key a loaded list by id; one byId helper serves both
@@ -35,8 +32,6 @@ src/shared/db/settings.ts::provider,src/shared/db/settings.ts::superuserChoice  
 src/shared/email.ts::getHostEmailConfig,src/shared/wallets/wallet-settings-types.ts::getHostConfig  # both prefer an override and fall back to the environment
 src/shared/jsx/escape-html.ts::escapeHtml,src/ui/templates/admin/footer.tsx::escapeFooterHtml  # the same HTML escaper, written twice
 src/shared/payment-helpers.ts::listingAnswerIdsField,src/shared/payment-helpers.ts::listingTextAnswerIdsField  # same file, differing only in the field name and the source map
-src/shared/update.ts::getEffectiveBuildCommit,src/shared/update.ts::getEffectiveBuildTimestamp  # same file, differing only in which override and constant they read
-src/shared/validation/email.ts::parseEmail,src/shared/validation/parse.ts::parseOrNull,src/shared/validation/string.ts::parseNonEmptyString  # parse.ts::parseOrNull is this function; the other two never adopted it
 src/ui/client/admin/manual-checkin.ts::hideList,src/ui/client/admin/manual-checkin.ts::showList  # same file, one showing and one hiding, differing only in the two values
 src/ui/templates/admin/debug.tsx::Row,src/ui/templates/components/labelled-row.tsx::LabelledRow  # two table-row components with the same shape; one belongs in the other
 src/ui/templates/admin/ledger/formatting.tsx::modifierDescription,src/ui/templates/admin/ledger/formatting.tsx::serviceCostDescription  # same file, both pick one of two message keys then render the same sentence

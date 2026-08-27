@@ -27,13 +27,19 @@ export const encodeBody = (text: string): ArrayBuffer =>
   encoder.encode(text).buffer as ArrayBuffer;
 
 /**
- * Create HTML response
+ * A response of one kind, ready to take a body. Every kind we send is text we
+ * built ourselves, so the charset is always UTF-8.
  */
-export const htmlResponse = (html: string, status = 200): Response =>
-  new Response(encodeBody(html), {
-    headers: { "content-type": "text/html; charset=utf-8" },
-    status,
-  });
+const encodedResponse =
+  (contentType: string): ((body: string, status?: number) => Response) =>
+  (body, status = 200) =>
+    new Response(encodeBody(body), {
+      headers: { "content-type": `${contentType}; charset=utf-8` },
+      status,
+    });
+
+/** Create HTML response */
+export const htmlResponse = encodedResponse("text/html");
 
 /**
  * Create 404 not found response
@@ -194,39 +200,20 @@ export const errorRedirect = (
 export const infoRedirect = (url: string, message: string): Response =>
   redirect(url, message, true, { level: "info" });
 
-/**
- * Create JSON response
- */
+const jsonBody = encodedResponse("application/json");
+
+/** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
-  new Response(encodeBody(JSON.stringify(data)), {
-    headers: { "content-type": "application/json; charset=utf-8" },
-    status,
-  });
+  jsonBody(JSON.stringify(data), status);
 
-/**
- * Create plain text response
- */
-export const plainResponse = (text: string, status = 200): Response =>
-  new Response(encodeBody(text), {
-    headers: { "content-type": "text/plain; charset=utf-8" },
-    status,
-  });
+/** Create plain text response */
+export const plainResponse = encodedResponse("text/plain");
 
-/**
- * Create iCalendar response
- */
-export const icsResponse = (ics: string): Response =>
-  new Response(encodeBody(ics), {
-    headers: { "content-type": "text/calendar; charset=utf-8" },
-  });
+/** Create iCalendar response */
+export const icsResponse = encodedResponse("text/calendar");
 
-/**
- * Create RSS/XML response
- */
-export const rssResponse = (xml: string): Response =>
-  new Response(encodeBody(xml), {
-    headers: { "content-type": "application/rss+xml; charset=utf-8" },
-  });
+/** Create RSS/XML response */
+export const rssResponse = encodedResponse("application/rss+xml");
 
 /**
  * Build a file-download response: the body, a fixed content-type, and a
