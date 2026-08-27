@@ -128,10 +128,12 @@ const stockedQuantity = (
   return Math.max(0, Math.min(requested, remaining));
 };
 
-/** A stored `max_per_order` the resolve path may apply. The column has no
- * CHECK constraint, so a repaired or imported row can carry a cap the admin
- * form refuses. A cap of 0 would silently drop the charge from every order,
- * so refuse it loudly instead. */
+/** A stored `max_per_order` the resolve path may apply, read only when the
+ * modifier is actually requested. The column has no CHECK constraint, so a
+ * repaired or imported row can carry a cap the admin form refuses. A cap of
+ * 0 would silently drop the charge from the order, so refuse it loudly — but
+ * only on the orders the cap would charge, so one corrupt row cannot break
+ * pricing for carts that picked no linked answer. */
 const checkedPerOrderCap = (modifier: Modifier, cap: number): number => {
   if (!Number.isInteger(cap) || cap < 1) {
     throw new Error(
@@ -161,9 +163,8 @@ const triggerQuantity = (
   if (modifier.trigger === "answer") {
     const requested = answerQuantities.get(modifier.id) ?? 0;
     const cap = modifier.max_per_order;
-    return cap === null
-      ? requested
-      : Math.min(requested, checkedPerOrderCap(modifier, cap));
+    if (requested < 1 || cap === null) return requested;
+    return Math.min(requested, checkedPerOrderCap(modifier, cap));
   }
   return 1;
 };

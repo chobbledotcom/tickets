@@ -83,7 +83,9 @@ describe("childUnreachableAddOnError", () => {
       ),
     ).toBeNull();
   });
+});
 
+describe("reachablePageIds", () => {
   test("reachable pages are the active listings that are not children", () => {
     expect(
       reachablePageIds(

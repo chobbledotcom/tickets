@@ -76,9 +76,14 @@ const capsQuantityAt = (
   });
 
 /** Register one corrupt-cap scenario as its own test: a repaired or imported
- * row carries a cap no admin form could save, and resolving must refuse it
- * loudly rather than silently drop the charge from the order. */
-const refusesStoredCap = (description: string, badCap: number): void =>
+ * row carries a cap no admin form could save, and resolving an order that
+ * picked the answer must refuse it loudly rather than silently drop the
+ * charge from the order. */
+const refusesStoredCap = (
+  description: string,
+  badCap: number,
+  ticketsPicked = 5,
+): void =>
   test(description, async () => {
     const { answerIds, modifierId } = await setUpAnswerModifier(1, {
       maxPerOrder: 1,
@@ -86,7 +91,11 @@ const refusesStoredCap = (description: string, badCap: number): void =>
     });
     await patchModifier(modifierId, { max_per_order: badCap });
     await assertRejects(
-      () => resolveAnswerPicks({ "1": [answerIds[0]!] }, new Map([[1, 5]])),
+      () =>
+        resolveAnswerPicks(
+          { "1": [answerIds[0]!] },
+          new Map([[1, ticketsPicked]]),
+        ),
       Error,
       "max_per_order",
     );
@@ -139,6 +148,25 @@ describeWithEnv("modifier-resolve answer triggers", { db: true }, () => {
     refusesStoredCap("refuses a stored per-order cap of zero", 0);
 
     refusesStoredCap("refuses a fractional stored per-order cap", 2.5);
+
+    refusesStoredCap(
+      "refuses a corrupt cap when one ticket picked the answer",
+      0,
+      1,
+    );
+
+    test("does not read the cap of an answer modifier no order picked", async () => {
+      // The same corrupt row, but this cart picked no linked answer: the cap
+      // decides nothing here, so the order prices normally without it.
+      const { modifierId } = await setUpAnswerModifier(1, {
+        maxPerOrder: 1,
+        name: "Zone 2 delivery",
+      });
+      await patchModifier(modifierId, { max_per_order: 0 });
+
+      const specs = await resolveModifiers([checkoutItem()]);
+      expect(specs.map((s) => s.name)).not.toContain("Zone 2 delivery");
+    });
 
     test("applies a once-per-order answer modifier once across several linked answers", async () => {
       const { answerIds } = await setUpAnswerModifier(2, {
