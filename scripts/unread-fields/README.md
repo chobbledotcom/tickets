@@ -52,8 +52,8 @@ this repository exports.
 
 ## Reads, not mentions
 
-A field can be mentioned often and still never be read, because every one of
-those mentions puts a value in and none takes one out. So the scan sorts each
+A field can be mentioned often and still never be read. Every one of its
+mentions can put a value in, and none take one out. So the scan sorts each
 mention by the syntax around it, and counts the reads:
 
 | Mention                 | Counts as |
@@ -71,14 +71,14 @@ mention by the syntax around it, and counts the reads:
 | `const { total } = row` | read      |
 | `({ total } = row)`     | read      |
 
-The last two lines are the pair that catches people out. Both take `row.total`
-out, but the second is built from the same nodes as `{ total: 1 }`. The scan
-tells them apart by what the object literal around them is for. An object
-literal on the left of an `=` is a pattern, and its members read. The same
-literal anywhere else is a value, and its members write.
+`const { total } = row` and `({ total } = row)` are the pair that catches people
+out. Both take `row.total` out, but the second is built from the same nodes as
+`{ total: 1 }`. The scan tells them apart by what the object literal around them
+is for. An object literal on the left of an `=` is a pattern, and its members
+read. The same literal anywhere else is a value, and its members write.
 
-The last two rows above the reads are not writes in the ordinary sense. A delete
-takes the field away, and `Config["total"]` names the field to borrow its type.
+`delete row.total` and `Config["total"]` are not writes in the ordinary sense. A
+delete takes the field away, and the second names the field to borrow its type.
 Neither takes the value out, which is the only question the scan asks, so both
 sit on the write side of it.
 
