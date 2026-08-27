@@ -18,7 +18,7 @@ import {
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { ticketContext } from "#test-utils/ticket-ctx.ts";
+import { ticketContext, twoListingContext } from "#test-utils/ticket-ctx.ts";
 
 const question = (
   id: number,
@@ -220,13 +220,13 @@ describe("parseAddOnSelections", () => {
     new FormParams(new URLSearchParams(record));
 
   test("reads each selected add-on's quantity, clamped to its ceiling", () => {
-    const result = parseAddOnSelections(form({ addon_5: "2", addon_6: "99" }), [
+    const result = parseAddOnSelections(form({ addon_5: "1", addon_6: "99" }), [
       addOn(5, 10),
       addOn(6, 3),
     ]);
     expect(result).toEqual(
       new Map([
-        [5, 2],
+        [5, 1],
         [6, 3],
       ]),
     );
@@ -283,6 +283,11 @@ describe("parseQuantities", () => {
     const form = new FormParams(new URLSearchParams({ quantity_2: "abc" }));
     expect(parseQuantities(form, [tl(1, {}), tl(2, {})])).toEqual(new Map());
   });
+
+  test("keeps a listing the buyer chose exactly one ticket for", () => {
+    const form = new FormParams(new URLSearchParams({ quantity_1: "1" }));
+    expect(parseQuantities(form, [tl(1, {})])).toEqual(new Map([[1, 1]]));
+  });
 });
 
 describe("parseQuantityValue", () => {
@@ -310,11 +315,11 @@ describe("listingsWithQuantity", () => {
       listingsWithQuantity(
         [chosen, declined],
         new Map([
-          [1, 2],
+          [1, 1],
           [2, 0],
         ]),
       ),
-    ).toEqual([{ listing: { id: 1 }, qty: 2 }]);
+    ).toEqual([{ listing: { id: 1 }, qty: 1 }]);
   });
 
   test("reads a listing the quantities map omits as zero", () => {
@@ -369,12 +374,12 @@ describeWithEnv("ticket responses", { db: true }, () => {
   });
 
   test("redirects a form error back to the page the form lives on", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const ctx = await ticketContext([listing.id]);
+    const { ctx, first, second } = await twoListingContext();
 
     const response = ticketFormErrorResponse(ctx)("Pick one");
+    // Two listings share one page address, joined by a plus.
     expect(response.headers.get("Location")).toContain(
-      `/ticket/${listing.slug}`,
+      `/ticket/${first.slug}+${second.slug}`,
     );
   });
 });
