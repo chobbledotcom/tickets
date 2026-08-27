@@ -17,7 +17,7 @@ scripts/specs/evidence/resolve.ts::stableItem,src/features/admin/holidays.ts::ex
 src/features/admin/content-form-fields.ts::seoContentInput,src/shared/db/contact-preferences.ts::statsToBlob,src/shared/db/logistics.ts::rowToAssignment  # three functions that each build an object from another object's fields
 src/features/admin/listing-qr.ts::loadQrFormContext,src/shared/db/payment-anchor/reference.ts::paymentAnchorReference  # both destructure a Promise.all of two unrelated loads
 src/features/admin/settings-general.ts::handleThemePost.extract,src/features/admin/settings-square.ts::squareRoutes.extraFields  # both read a settings form into an object; the fields differ and nothing else is shared
-src/shared/db/chosen-columns.ts::chooseColumns.columnsSql,src/shared/markdown.ts::rewriteTokens  # a map then a join, over columns and over markdown tokens
+src/shared/db/chosen-columns.ts::chooseColumns.columnsSql,src/shared/markdown.ts::rewriteTokens  # both are `xs.map(fn).join(sep)` over unrelated data. What they share is two language built-ins and no call at all, so a mapJoin helper would only put a name in front of syntax every reader knows
 src/shared/ledger/reverse.ts::isInverseOf,src/shared/provider-refunds/state.ts::sameConflictDecision  # both compare three fields with &&, over a ledger leg and over a refund decision
 src/shared/payment/refund-machine-spec.ts::family,src/ui/templates/fields/aggregate.ts::buildAggregateFields  # a map with a destructured entry, over machine states and over field specs
 src/ui/templates/admin/settings/schema-form.tsx::renderField,src/ui/templates/admin/settings/schema-form.tsx::settingsForm  # two switch statements over unrelated unions in one file
