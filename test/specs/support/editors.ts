@@ -14,14 +14,14 @@ import {
   browserSeenBy,
   EDITOR,
   type OpensAPage,
-  openAdminPage,
   opensPagesAs,
+  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   listingIdNamed,
   listingNamed,
-  organiserSavesListing,
+  organiserSavesFields,
   putsPlainThingOnSale,
   saveListingEdit,
 } from "#test/specs/support/listings.ts";
@@ -33,7 +33,9 @@ import {
 import {
   type ActOnOnePerson,
   type ActOnOneThing,
+  type ActOnTheStory,
   type ChangeOneThing,
+  type ReadAboutOneThing,
   requiredWorldValue,
   stillThere,
   type TicketsWorld,
@@ -89,9 +91,7 @@ export const ownerInvitesEditor: ActOnOnePerson = async (world, who) => {
 
 /** The invited person opens their link, chooses a password, and is now an
  * editor with an account of their own. */
-export const editorFollowsInvite = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const editorFollowsInvite: ActOnTheStory = async (world) => {
   await rememberAcceptedStaffInvite(
     world,
     EDITOR,
@@ -167,12 +167,8 @@ export const somethingSoldAndPaidFor: ActOnOneThing = async (world, name) => {
 /** What the owner sees on the same list of things for sale. Reading it proves
  * the figure is really there to leak before the story says the editor is not
  * shown it. */
-export const ownersListingsPage = async (
-  world: TicketsWorld,
-): Promise<string> => {
-  const browser = await openAdminPage(world, "/admin/listings");
-  return browser.pageText;
-};
+export const ownersListingsPage = (world: TicketsWorld): Promise<string> =>
+  withAdminPage(world, "/admin/listings", async (browser) => browser.pageText);
 
 /** The editor starts a new listing, picks what kind it is from the kinds the
  * site offers, fills the form in and saves it. */
@@ -193,10 +189,10 @@ export const listingSoldAsOrNull = async (
 
 /** Where a listing forwards its bookings now, or nothing when it forwards them
  * nowhere. */
-export const forwardingAddressOrNull = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string | null> => {
+export const forwardingAddressOrNull: ReadAboutOneThing<string | null> = async (
+  world,
+  name,
+) => {
   const found = await getListingWithCount(listingIdNamed(world, name));
   return stillThere(found, name).webhook_url;
 };
@@ -227,7 +223,7 @@ export const editorCraftsForwardingTo: ChangeOneThing<string> = (
   name,
   address,
 ) =>
-  // The save being accepted is what organiserSavesListing checks for us. A whole edit
+  // The save being accepted is what organiserSavesFields checks for us. A whole edit
   // turned away would leave the address alone too, and prove nothing about this
   // one field.
   saveListingEdit(editorBrowser(world), listingIdNamed(world, name), () => ({
@@ -241,10 +237,7 @@ export const ownerSetsForwardingTo: ChangeOneThing<string> = async (
   name,
   address,
 ) => {
-  await organiserSavesListing(world, name, (served) => {
-    expectCanReallySend(served, { webhook_url: address });
-    return { webhook_url: address };
-  });
+  await organiserSavesFields(world, name, { webhook_url: address });
 };
 
 /** The listing's edit form as the editor is served it. */

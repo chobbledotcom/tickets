@@ -144,18 +144,20 @@ export const visitorWrites = async (
 export const whatVisitorWasTold = (world: TicketsWorld): string =>
   whatTheyWereTold(world, VISITOR);
 
+/** The watch on what left the site. Every read of what was sent starts here,
+ * and it refuses a Scenario that never set the watch up. */
+const outgoing = (world: TicketsWorld) =>
+  requiredWorldValue(world.messagesOut, "the outgoing watch");
+
 /** Whether the site asked the spam checker anything at all. */
 export const spamCheckWasAsked = (world: TicketsWorld): boolean =>
-  requiredWorldValue(world.messagesOut, "the outgoing watch").calls.some(
-    ({ url }) => url.includes("api.botpoison.com"),
-  );
+  outgoing(world).calls.some(({ url }) => url.includes("api.botpoison.com"));
 
 /** Whether the site sent an email at all. Kept apart from reading the message
  * itself, so "nothing reached the owner" cannot be satisfied by a send whose
  * contents the story merely failed to read. */
 export const anEmailWasSent = (world: TicketsWorld): boolean =>
-  requiredWorldValue(world.messagesOut, "the outgoing watch").emailCall() !==
-  undefined;
+  outgoing(world).emailCall() !== undefined;
 
 /** The message the site sent. A send with nothing readable in it is a broken
  * watch rather than an answer, so it fails loudly instead of reading as

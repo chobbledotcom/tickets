@@ -19,6 +19,7 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
+  type ActOnOneThing,
   keepWhatTheyWereTold,
   requiredWorldValue,
   type TicketsWorld,
@@ -77,6 +78,9 @@ export const followsChoicesLink = async (
 export const asksNotToHearAboutPromotions = async (
   email: string,
 ): Promise<TestBrowser> => {
+  // Not newcomerSends: the button's wording only exists once the choices page
+  // has been served, because serving it is what loads that group of copy. A
+  // caller that named the button as an argument would name it too early.
   const browser = await openAsNewcomer(await choicesPathFor(email));
   await fillInAndSend(browser, {}, t("unsubscribe.unsubscribe_button"));
   return browser;
@@ -84,33 +88,31 @@ export const asksNotToHearAboutPromotions = async (
 
 /** The Given form of the ask: the reader has already been to their page and
  * pressed the button, and the story keeps their window and address. */
-export const hasAskedNotToHear = async (
-  world: TicketsWorld,
-  email: string,
-): Promise<void> => {
+export const hasAskedNotToHear: ActOnOneThing = async (world, email) => {
   readerAddresses.set(world, email);
   rememberBrowser(world, READER, await asksNotToHearAboutPromotions(email));
 };
 
 /** The reader presses one button on the page they are looking at, and the
  * story keeps what the site told them. */
-const pressesOnTheirPage = async (
-  world: TicketsWorld,
-  label: string,
-): Promise<void> => {
+const pressesOnTheirPage: ActOnOneThing = async (world, label) => {
   const browser = browserSeenBy(world, READER);
   await fillInAndSend(browser, {}, label);
   keepWhatTheyWereTold(world, READER, browser.pageText);
 };
 
-export const asksToStopHearing = (world: TicketsWorld): Promise<void> =>
-  pressesOnTheirPage(world, t("unsubscribe.unsubscribe_button"));
+/** One of the presses the reader's page offers, named by its button. The
+ * wording is looked up at the moment of the press, not when this file loads. */
+const pressing =
+  (buttonKey: string) =>
+  (world: TicketsWorld): Promise<void> =>
+    pressesOnTheirPage(world, t(buttonKey));
 
-export const changesTheirMind = (world: TicketsWorld): Promise<void> =>
-  pressesOnTheirPage(world, t("unsubscribe.resubscribe_button"));
+export const asksToStopHearing = pressing("unsubscribe.unsubscribe_button");
 
-export const deletesTheirData = (world: TicketsWorld): Promise<void> =>
-  pressesOnTheirPage(world, t("unsubscribe.forget_button"));
+export const changesTheirMind = pressing("unsubscribe.resubscribe_button");
+
+export const deletesTheirData = pressing("unsubscribe.forget_button");
 
 /** Whether the reader's page offers one of its presses — a live button in a
  * form that would send the named choice, not just words on the page. */

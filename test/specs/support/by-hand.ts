@@ -7,7 +7,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { openAdminPage } from "#test/specs/support/browser.ts";
+import { openAdminPage, withAdminPage } from "#test/specs/support/browser.ts";
 import {
   csvDateColumn,
   csvEvidencePage,
@@ -27,30 +27,30 @@ const rosterPath = (world: TicketsWorld, name: string): string =>
 
 /** The organiser adds a booking through the form on the listing's roster. Keeps
  * the page they land on, so a story can read what they were told. */
-export const organiserAddsBooking = async (
+export const organiserAddsBooking = (
   world: TicketsWorld,
   name: string,
   booking: BookingChoices,
-): Promise<void> => {
-  const browser = await openAdminPage(world, rosterPath(world, name));
-  // The form must offer a day, or the organiser could not say when the stay
-  // starts and the booking would silently land on the wrong days.
-  if (booking.day !== undefined) {
-    expect(browser.currentHtml).toContain('name="date"');
-  }
-  await browser.submitForm(
-    {
-      email: booking.email,
-      name: booking.who,
-      quantity: String(booking.places ?? 1),
-      ...(booking.day === undefined ? {} : { date: booking.day }),
-      ...(booking.dayCount === undefined
-        ? {}
-        : { day_count: String(booking.dayCount) }),
-    },
-    "Add Attendee",
-  );
-};
+): Promise<void> =>
+  withAdminPage(world, rosterPath(world, name), async (browser) => {
+    // The form must offer a day, or the organiser could not say when the stay
+    // starts and the booking would silently land on the wrong days.
+    if (booking.day !== undefined) {
+      expect(browser.currentHtml).toContain('name="date"');
+    }
+    await browser.submitForm(
+      {
+        email: booking.email,
+        name: booking.who,
+        quantity: String(booking.places ?? 1),
+        ...(booking.day === undefined ? {} : { date: booking.day }),
+        ...(booking.dayCount === undefined
+          ? {}
+          : { day_count: String(booking.dayCount) }),
+      },
+      "Add Attendee",
+    );
+  });
 
 /** The attendee list the organiser downloads from the listing's roster, as the
  * text of the file itself. Followed from the link on the page, so a story can

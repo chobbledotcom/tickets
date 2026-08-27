@@ -21,6 +21,7 @@ import {
   soleBookingOn,
   visitorBooks,
 } from "#test/specs/support/public-booking.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -62,7 +63,7 @@ export const buyOnePlace = async (
     world,
     listingId,
     who,
-    `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    emailFor(who),
     minorUnits(pounds),
     `cs_${name.toLowerCase().replaceAll(" ", "_")}`,
     `pi_${name.toLowerCase().replaceAll(" ", "_")}`,
@@ -102,7 +103,7 @@ export const buyPlaceWithExtra = async (
   const listingId = listing.id;
   const price = minorUnits(pounds);
   world.attendeeId = await runStripeSuccess(world, {
-    email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    email: emailFor(who),
     items: JSON.stringify([{ e: listingId, p: price, q: 1 }]),
     ...(modifierId === undefined
       ? {}

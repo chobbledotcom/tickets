@@ -154,8 +154,12 @@ const createUserWithSession = async (
 
 export const createTestManagerSession = async (
   token = "mgr-session",
-  username = "testmanager",
+  rawUsername = "testmanager",
 ): Promise<string> => {
+  // Production stores usernames lower-cased (buildUserInsert), and the login
+  // lookup hashes them lower-cased to match, so the row this writes has to be
+  // indexed the same way or nothing can find it again.
+  const username = rawUsername.toLowerCase();
   const { encrypt: enc } = await import("#crypto/encryption.ts");
   const { hmacHash } = await import("#crypto/hashing.ts");
   const { wrapKeyWithToken } = await import("#crypto/keys.ts");
@@ -197,7 +201,9 @@ export const createTestAgentSession = async (
   } = {},
 ): Promise<{ cookie: string; userId: number }> => {
   const token = opts.token ?? "agent-session";
-  const username = opts.username ?? "testagent";
+  // Lower-cased for the same reason as the manager and editor helpers: the
+  // login lookup hashes lower-cased, so the stored index must match.
+  const username = (opts.username ?? "testagent").toLowerCase();
   const { encrypt: enc } = await import("#crypto/encryption.ts");
   const { hashPassword, hmacHash } = await import("#crypto/hashing.ts");
   const { deriveKEK, wrapKey, wrapKeyWithToken } = await import(

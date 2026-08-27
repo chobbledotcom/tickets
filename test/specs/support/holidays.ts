@@ -6,20 +6,18 @@
 
 import {
   makesRecordThroughForm,
+  recordPageUnder,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
 import { putsOnSaleByTheDay } from "#test/specs/support/listings.ts";
 import { daysOfferedFor } from "#test/specs/support/public-booking.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 
 /** Something bookable by the day, every day, so any day a story finds gone
  * can only be gone because of the holiday. */
-export const sellsDayPlaces = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const sellsDayPlaces: ActOnOneThing = async (world, name) => {
   await putsOnSaleByTheDay(world, name);
 };
 
@@ -41,8 +39,7 @@ export const organiserAddsHoliday = (
 /** The organiser answers the type-the-name check behind the holiday's
  * Actions tab with its exact name. */
 export const organiserDeletesHoliday: TakesOneThingDown = takesDownFromList(
-  (world, name) =>
-    Promise.resolve(`/admin/holidays/${world.things.require("record", name)}`),
+  recordPageUnder("/admin/holidays"),
   {
     deleteLinkKey: "holidays.delete.heading",
     submitKey: "holidays.delete.submit",

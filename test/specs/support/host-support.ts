@@ -16,7 +16,6 @@ import {
   type PutsAWatchInPlace,
 } from "#test/specs/support/outgoing.ts";
 import { scenarioEnv, type TicketsWorld } from "#test/specs/support/world.ts";
-import { withEnv } from "#test-utils/env.ts";
 import { connectResendProvider } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
@@ -41,12 +40,10 @@ const hostWithinReach = (
   world: TicketsWorld,
   putAWatchInPlace: PutsAWatchInPlace,
 ): void => {
-  world.cleanup.add(
-    withEnv({
-      ADMIN_EMAIL_ADDRESS: HOST_ADDRESS,
-      SUPPORT_PAGE_TEXT: undefined,
-    }),
-  );
+  scenarioEnv(world, {
+    ADMIN_EMAIL_ADDRESS: HOST_ADDRESS,
+    SUPPORT_PAGE_TEXT: undefined,
+  });
   putAWatchInPlace(world);
 };
 
