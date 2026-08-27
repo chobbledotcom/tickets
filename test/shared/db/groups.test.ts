@@ -28,7 +28,7 @@ import {
   resetGroupListings,
   setGroupPackageMembers,
 } from "#db/groups.ts";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -497,7 +497,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         5,
         "manual-remaining",
       );
-      await updateListingAggregateValues(e1.id, {
+      await listingAggregates.update(e1.id, {
         booked_quantity: 4,
         tickets_count: 0,
       });

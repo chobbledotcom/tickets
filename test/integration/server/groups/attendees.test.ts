@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { expectHtmlResponse, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -63,7 +63,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         "actual-group@test.com",
         2,
       );
-      await updateListingAggregateValues(listing.id, {
+      await listingAggregates.update(listing.id, {
         booked_quantity: 9,
         tickets_count: 1,
       });

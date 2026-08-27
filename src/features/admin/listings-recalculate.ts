@@ -9,7 +9,7 @@ import { logActivity } from "#db/activity-log.ts";
 import {
   getListingAggregateRecalculation,
   LISTING_AGGREGATE_FIELDS,
-  resetListingAggregateFields,
+  listingAggregates,
 } from "#db/listings/aggregates.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
@@ -36,7 +36,7 @@ const listingRecalculateHandlers = createRecalculateHandlers({
   log: (listing) =>
     logActivity(`Listing '${listing.name}' totals recalculated`, listing),
   render: renderListingRecalculatePage,
-  reset: resetListingAggregateFields,
+  reset: listingAggregates.reset,
   successMessage: t("listings_table.recalculate_success"),
   successPath: (listing) => `/admin/listing/${listing.id}/edit`,
   withEntity: (id: string | number | undefined) => (handler) =>

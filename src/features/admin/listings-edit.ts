@@ -18,7 +18,7 @@ import {
   getListingAggregateRecalculation,
   type ListingAggregateRecalculation,
   type ListingAggregateValues,
-  updateListingAggregateValues,
+  listingAggregates,
 } from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
@@ -429,7 +429,7 @@ const handleListingEditSuccess = async (
   id: number,
 ): Promise<Response> => {
   if (aggregateValues) {
-    await updateListingAggregateValues(id, aggregateValues);
+    await listingAggregates.update(id, aggregateValues);
   }
   const durationWarning = await reconcileDurationChange(
     row,

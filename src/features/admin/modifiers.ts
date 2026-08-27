@@ -23,12 +23,11 @@ import {
   type ModifierAggregateValues,
   type ModifierInput,
   type ModifierRow,
+  modifierAggregates,
   modifierGroups,
   modifierListings,
   modifiersTable,
-  resetModifierAggregateFields,
   setModifierAnswers,
-  updateModifierAggregateValues,
 } from "#db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { once } from "#fp";
@@ -370,7 +369,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     const result = await getModifiersResource().update(id, form);
     if (result.ok) {
       if (aggregates.input) {
-        await updateModifierAggregateValues(id, aggregates.input);
+        await modifierAggregates.update(id, aggregates.input);
       }
       await logActivity(`Modifier '${result.row.name}' updated`);
       return redirect("/admin/modifiers", "Modifier updated", true);
@@ -411,7 +410,7 @@ const modifierRecalculateHandlers = createRecalculateHandlers({
   log: (modifier) =>
     logActivity(`Modifier '${modifier.name}' totals recalculated`),
   render: renderModifierRecalculatePage,
-  reset: resetModifierAggregateFields,
+  reset: modifierAggregates.reset,
   successMessage: t("modifiers.recalculate.success"),
   successPath: (modifier) => `/admin/modifiers/${modifier.id}/edit`,
   withEntity: withModifier,

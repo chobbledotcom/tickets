@@ -26,12 +26,24 @@ export interface ImportIssue {
 
 const isFolder = (alias: Alias): boolean => alias.name.endsWith("/");
 
+/**
+ * Read `text` on one side of an alias and write it out on the other. A folder
+ * alias keeps whatever followed the prefix; a plain alias only matches the
+ * whole thing. Reading a specifier and writing a spelling are this one
+ * translation, run in opposite directions.
+ */
+const across =
+  (from: keyof Alias, to: keyof Alias) =>
+  (alias: Alias, text: string): string | null => {
+    if (!isFolder(alias)) return text === alias[from] ? alias[to] : null;
+    if (!text.startsWith(alias[from])) return null;
+    return alias[to] + text.slice(alias[from].length);
+  };
+
 /** The file an alias points at, or null when the alias does not cover it. */
-const pathFor = (alias: Alias, specifier: string): string | null => {
-  if (!isFolder(alias)) return specifier === alias.name ? alias.target : null;
-  if (!specifier.startsWith(alias.name)) return null;
-  return alias.target + specifier.slice(alias.name.length);
-};
+const pathFor = across("name", "target");
+
+const nameFor = across("target", "name");
 
 /**
  * Whether an alias is one we ask people to write. A folder alias and a one-word
@@ -43,11 +55,26 @@ const isSpellable = (alias: Alias): boolean =>
   isFolder(alias) || !alias.name.includes("/");
 
 /** How an alias would spell `path`, or null when it cannot reach it. */
-const spellingFor = (alias: Alias, path: string): string | null => {
-  if (!isSpellable(alias)) return null;
-  if (!isFolder(alias)) return path === alias.target ? alias.name : null;
-  if (!path.startsWith(alias.target)) return null;
-  return alias.name + path.slice(alias.target.length);
+const spellingFor = (alias: Alias, path: string): string | null =>
+  isSpellable(alias) ? nameFor(alias, path) : null;
+
+/**
+ * The winning answer the alias table gives, or null when no alias reaches.
+ * `answerFrom` reads one alias, and `beats` says which of two answers wins.
+ * Both lookups below are this one walk over the table.
+ */
+const bestFromAliases = <T>(
+  aliases: Alias[],
+  answerFrom: (alias: Alias) => T | null,
+  beats: (answer: T, best: T) => boolean,
+): T | null => {
+  let best: T | null = null;
+  for (const alias of aliases) {
+    const answer = answerFrom(alias);
+    if (answer === null) continue;
+    if (best === null || beats(answer, best)) best = answer;
+  }
+  return best;
 };
 
 /**
@@ -58,14 +85,14 @@ export const resolveSpecifier = (
   aliases: Alias[],
   specifier: string,
 ): string | null => {
-  let best: { length: number; path: string } | null = null;
-  for (const alias of aliases) {
-    const path = pathFor(alias, specifier);
-    if (path === null) continue;
-    if (best === null || alias.name.length > best.length) {
-      best = { length: alias.name.length, path };
-    }
-  }
+  const best = bestFromAliases(
+    aliases,
+    (alias) => {
+      const path = pathFor(alias, specifier);
+      return path === null ? null : { length: alias.name.length, path };
+    },
+    (answer, best) => answer.length > best.length,
+  );
   return best === null ? null : best.path;
 };
 
@@ -73,20 +100,14 @@ export const resolveSpecifier = (
  * The one spelling we want for `path`: the shortest, then the alphabetically
  * first so two equally short aliases still give one answer.
  */
-export const bestSpelling = (aliases: Alias[], path: string): string | null => {
-  let best: string | null = null;
-  for (const alias of aliases) {
-    const spelling = spellingFor(alias, path);
-    if (spelling === null) continue;
-    if (
-      best === null ||
+export const bestSpelling = (aliases: Alias[], path: string): string | null =>
+  bestFromAliases(
+    aliases,
+    (alias) => spellingFor(alias, path),
+    (spelling, best) =>
       spelling.length < best.length ||
-      (spelling.length === best.length && spelling < best)
-    )
-      best = spelling;
-  }
-  return best;
-};
+      (spelling.length === best.length && spelling < best),
+  );
 
 /**
  * Every top-level import in `content`. A line that starts in column 0 is the

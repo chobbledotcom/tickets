@@ -12,11 +12,10 @@ import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import {
   ANSWER_AGGREGATE_FIELDS,
   type AnswerAggregateValues,
+  answerAggregates,
   getAnswerAggregateRecalculation,
   getAnswerModifierId,
-  resetAnswerAggregateFields,
   setAnswerModifier,
-  updateAnswerAggregateValues,
 } from "#db/questions/aggregates.ts";
 import { deleteAnswer } from "#db/questions/delete.ts";
 import { findAnswerById } from "#db/questions/parsing.ts";
@@ -237,7 +236,7 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       });
       await setAnswerModifier(answer.id, modifierId);
       if (aggregates.input) {
-        await updateAnswerAggregateValues(answer.id, aggregates.input);
+        await answerAggregates.update(answer.id, aggregates.input);
       }
       await logActivity(`Answer '${text}' updated in question ${question.id}`);
       return redirect(
@@ -290,7 +289,7 @@ export const handleAnswerRecalculatePost: ParamsRoute<AnswerRouteParams> =
           session,
           t("questions.recalculate.choose"),
         ),
-      reset: (selected) => resetAnswerAggregateFields(answer.id, selected),
+      reset: (selected) => answerAggregates.reset(answer.id, selected),
       successMessage: t("questions.recalculate.success"),
       successPath: editAnswerPath(params),
     }),

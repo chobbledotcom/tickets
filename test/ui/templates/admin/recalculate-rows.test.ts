@@ -1,35 +1,41 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
+import { recalculateRowsFor } from "#templates/admin/recalculate-rows.ts";
 
-describe("buildRecalculateRows", () => {
+describe("recalculateRowsFor", () => {
   const fields = [
     { label: "Booked", name: "booked" },
     { label: "Tickets", name: "tickets" },
   ];
-  const snapshot = {
-    booked: { current: 3, recalculated: 5 },
-    tickets: { current: 10, recalculated: 10 },
-  };
-  const format = (name: "booked" | "tickets", value: number): string =>
-    `${name}=${value}`;
+  const buildRows = recalculateRowsFor<"booked" | "tickets">(() => fields);
 
-  test("formats the stored and recounted value for each field", () => {
-    const rows = buildRecalculateRows(fields, format, snapshot);
+  test("shows the stored and recounted value for each field", () => {
+    const rows = buildRows({
+      booked: { current: 3, recalculated: 5 },
+      tickets: { current: 10, recalculated: 10 },
+    });
     expect(rows).toEqual([
+      { current: "3", label: "Booked", name: "booked", recalculated: "5" },
       {
-        current: "booked=3",
-        label: "Booked",
-        name: "booked",
-        recalculated: "booked=5",
-      },
-      {
-        current: "tickets=10",
+        current: "10",
         label: "Tickets",
         name: "tickets",
-        recalculated: "tickets=10",
+        recalculated: "10",
       },
     ]);
+  });
+
+  // The field labels come from t(), so they must be read per request rather
+  // than frozen when the module loads.
+  test("reads the field list again on every call", () => {
+    let label = "First";
+    const rows = recalculateRowsFor<"booked">(() => [
+      { label, name: "booked" },
+    ]);
+    const snapshot = { booked: { current: 1, recalculated: 2 } };
+    expect(rows(snapshot)[0]?.label).toBe("First");
+    label = "Second";
+    expect(rows(snapshot)[0]?.label).toBe("Second");
   });
 
   test("throws, naming the field, when the snapshot is missing one", () => {
@@ -37,7 +43,7 @@ describe("buildRecalculateRows", () => {
       "booked" | "tickets",
       { current: number; recalculated: number }
     >;
-    expect(() => buildRecalculateRows(fields, format, missing)).toThrow(
+    expect(() => buildRows(missing)).toThrow(
       'Recalculate snapshot is missing the "tickets" field',
     );
   });

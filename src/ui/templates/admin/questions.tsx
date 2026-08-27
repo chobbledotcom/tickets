@@ -27,11 +27,8 @@ import {
   type ExpectedActualItem,
   ExpectedActualNotice,
 } from "#templates/admin/expected-actual.tsx";
-import {
-  adminRecalculatePage,
-  type RecalculateRow,
-} from "#templates/admin/recalculate.tsx";
-import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
+import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
+import { recalculateRowsFor } from "#templates/admin/recalculate-rows.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxForm,
@@ -314,14 +311,9 @@ const answerRecalculatePath = (questionId: number, answerId: number): string =>
 
 /** Build the recalculate table rows comparing the stored selection total with
  * the value rebuilt from attendee answers. */
-const answerRecalculateRows = (
-  snapshot: AnswerAggregateRecalculation,
-): RecalculateRow[] =>
-  buildRecalculateRows(
-    getAnswerAggregateFields(),
-    (_name: AnswerAggregateField, value) => String(value),
-    snapshot,
-  );
+const answerRecalculateRows = recalculateRowsFor<AnswerAggregateField>(
+  getAnswerAggregateFields,
+);
 
 /** Drifted answer aggregate columns as expected/actual items (expected = the
  * value rebuilt from attendee answers, actual = the stored running total). */

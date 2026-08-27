@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -49,7 +49,7 @@ describeWithEnv(
           "counted@example.com",
           2,
         );
-        await updateListingAggregateValues(listing.id, {
+        await listingAggregates.update(listing.id, {
           booked_quantity: 9,
           tickets_count: 5,
         });
@@ -89,7 +89,7 @@ describeWithEnv(
           gross: 9000,
           listingId: listing.id,
         });
-        await updateListingAggregateValues(listing.id, {
+        await listingAggregates.update(listing.id, {
           booked_quantity: 9,
           tickets_count: 5,
         });

@@ -22,11 +22,19 @@ const providers = new Set<CacheStatProvider>();
  * it, tests must call it so their entries never outlive the test). */
 export type Unregister = () => void;
 
+/** Build the "join this set, and here is how to leave it" register function a
+ * set of load-time registrations needs. Both registries below are one. */
+const registrar =
+  <T>(members: Set<T>) =>
+  (member: T): Unregister => {
+    members.add(member);
+    return () => {
+      members.delete(member);
+    };
+  };
+
 /** Register a cache stat provider (called at module load time) */
-export const registerCache = (provider: CacheStatProvider): Unregister => {
-  providers.add(provider);
-  return () => providers.delete(provider);
-};
+export const registerCache = registrar(providers);
 
 /** Collect stats from all registered caches */
 export const getAllCacheStats = (): CacheStat[] =>
@@ -73,10 +81,7 @@ const resetHooks = new Set<Invalidator>();
 /** Register an extra full-clear to run with a write cause when every cache is
  * reset. Only needed by caches without a table registration;
  * `resetAllCaches` already fires every table-registered invalidator. */
-export const registerCacheReset = (reset: Invalidator): Unregister => {
-  resetHooks.add(reset);
-  return () => resetHooks.delete(reset);
-};
+export const registerCacheReset = registrar(resetHooks);
 
 /**
  * Clear every registered cache: each table-registered invalidator once (a
