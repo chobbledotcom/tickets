@@ -18,6 +18,12 @@ describe("adminSeedsPage", () => {
     expect(html).toContain('action="/admin/seeds"');
   });
 
+  test("carries the page title and the create button's icon", () => {
+    const html = adminSeedsPage(OWNER_SESSION);
+    expect(html).toContain("<title>Example data</title>");
+    expect(html).toContain("#plus");
+  });
+
   test("offers the way back to the dashboard", () => {
     expect(adminSeedsPage(OWNER_SESSION)).toContain('href="/admin"');
   });

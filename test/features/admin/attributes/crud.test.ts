@@ -50,6 +50,13 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/attributes", () => {
+    test("serves the attributes collection page", async () => {
+      const response = await adminGet("/admin/attributes");
+      expect(response.status).toBe(200);
+    });
+  });
+
   describe("POST /admin/attributes", () => {
     testRequiresAuth("/admin/attributes", {
       body: { name: "Auth attribute" },

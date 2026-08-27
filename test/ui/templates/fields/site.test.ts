@@ -20,14 +20,21 @@ describe("site editor forms", () => {
     ]);
     const title = siteHomeForm.fields[0]!;
     expect(title.maxlength).toBe(MAX_WEBSITE_TITLE_LENGTH);
-    expect(siteHomeForm.render()).toContain("Website title");
+    const html = siteHomeForm.render();
+    expect(html).toContain("Website title");
+    // The id ties the label to the box, and the browser must not offer
+    // saved site-login values for a page title.
+    expect(html).toContain('id="website_title"');
+    expect(html).toContain('autocomplete="off"');
   });
 
-  test("the contact and order forms each offer their one text box", () => {
+  test("the contact and order forms each offer their one markdown text box", () => {
     expect(fieldNames(siteContactForm)).toEqual(["contact_page_text"]);
     expect(fieldNames(siteOrderForm)).toEqual(["order_intro_text"]);
     for (const form of [siteContactForm, siteOrderForm]) {
       expect(form.fields[0]!.maxlength).toBe(MAX_TEXTAREA_LENGTH);
+      // Markdown boxes carry the live preview control plain text areas lack.
+      expect(form.render()).toContain("data-markdown-preview");
     }
   });
 });

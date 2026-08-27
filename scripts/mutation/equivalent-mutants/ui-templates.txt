@@ -57,3 +57,9 @@ src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? �
 # schema-atlas.tsx: formatTimeAgo returns a formatted string or null, never
 # "", so ?? and || pick the same side for every input.
 src/ui/templates/admin/schema-atlas.tsx::UnansweredMoneySection~15crpim ??→||   # formatTimeAgo → string|null, never ""
+
+# builder.tsx: the built-sites table renders every column with no columnKeys
+# or hiddenKeys passed, so a column's key reaches no rendered output.
+src/ui/templates/admin/builder.tsx::builtSitesTable~0ytajae name→""   # renderTable(builtSitesTable, sites) filters by key only when columnKeys/hiddenKeys are passed, and this page passes neither
+src/ui/templates/admin/builder.tsx::builtSitesTable~1mp2mcy url→""   # same: the key reaches no rendered output on this page
+src/ui/templates/admin/builder.tsx::builtSitesTable~0w4j3rw built→""   # same: the key reaches no rendered output on this page

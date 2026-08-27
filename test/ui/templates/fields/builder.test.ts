@@ -11,11 +11,15 @@ describe("builder form", () => {
     const name = builderForm.fields[0]!;
     expect(name.required).toBe(true);
     expect(name.maxlength).toBe(64);
+    expect(name.minlength).toBe(1);
   });
 
-  test("renders the provider wording from the catalog", () => {
+  test("renders every provider choice with the value its route reads", () => {
     const html = builderForm.render();
-    expect(html).toContain("Site name");
-    expect(html).toContain("db_url");
+    for (const value of ["bunny", "turso", "manual"]) {
+      expect(html).toContain(`value="${value}"`);
+    }
+    // The name box refuses to submit empty, so the route never sees "".
+    expect(html).toContain('name="site_name"');
   });
 });
