@@ -131,11 +131,11 @@ plan was first written and have **since merged into main**:
   **consumer** of it (it writes `quantity = 0` lines); only the
   _importer-specific_ additions remain to build (see Phase 6). The feature's
   surface-by-surface behaviour is locked in by its own test suite
-  (`test/lib/no-quantity-audit.test.ts`, `test/e2e/no-quantity.test.ts`, and the
-  shared-predicate guard tests). One shipped gap matters here: the **merge
-  writer has no whole-result owed-leg reversal** (the edit path reconciles a
-  no-real-lines attendee's owed balance to £0 with a `writeoff` leg; the merge
-  does not) — see the merge notes below.
+  (`test/integration/no-quantity-audit.test.ts`, the
+  `attendees.no-quantity-tickets` story, and the shared-predicate guard tests).
+  One shipped gap matters here: the **merge writer has no whole-result owed-leg
+  reversal** (the edit path reconciles a no-real-lines attendee's owed balance
+  to £0 with a `writeoff` leg; the merge does not) — see the merge notes below.
 - **Contact/attendee notes rework** landed as a per-attendee **`system_notes`**
   table (owner-public-key-encrypted `owner` notes + DB-key `system` notes) plus
   per-contact `/admin/history/:hmac` records. The original plan's single
@@ -180,7 +180,7 @@ What #1335 provides, and the importer reuses verbatim:
   - text answer: `answer_id` NULL, `question_id` set, `string_id` set. A new
     unique index `(attendee_id, question_id)` means **at most one free-text
     answer per question per attendee**.
-- **Helpers** (all in `src/shared/db/questions.ts`):
+- **Helpers** (all under `src/shared/db/questions/`):
   - `getOrCreateStringIds(texts: string[]): Promise<Map<string, number>>` —
     dedupes, encrypts each unique text with the owner public key,
     `INSERT OR
@@ -202,10 +202,11 @@ Two consequences that drive importer design:
    admin-authenticated, but it does not need the unwrapped private key to
    _write_ imported answers. Reading them back (e.g. in tests, or the attendee
    edit form) does need the private key.
-2. **`getOrCreateStringIds` writes `strings` rows in its own batch**, separately
-   from any `attendee_answers` insert. The importer's whole-file transaction
-   must account for this — see
-   [All-Or-Nothing Write Strategy](#all-or-nothing-write-strategy).
+2. **`getOrCreateStringIds` takes an optional `TxScope`**, so the string rows
+   can be interned on an open transaction rather than in a batch of their own.
+   `saveAttendeeAnswers` already runs its delete, interning, and insert inside
+   one `withTransaction`. The importer's whole-file transaction threads the same
+   handle — see [All-Or-Nothing Write Strategy](#all-or-nothing-write-strategy).
 
 ## Current CSV Shape
 
@@ -795,11 +796,12 @@ is **not** an orphan and its products stay structured/matched.
 ## Quantity-0 Sentinel: Reader/Writer Audit
 
 Shipped with the no-quantity feature (#1366); the code and its tests
-(`test/lib/no-quantity-audit.test.ts`, `test/e2e/no-quantity.test.ts`) are the
-source of truth. Rule of thumb: operational, public, and capacity surfaces
-exclude `quantity = 0`; admin record/detail views keep the rows but guard their
-per-row actions (check-in, refund, resend). This importer plan intentionally
-does not duplicate the surface list.
+(`test/integration/no-quantity-audit.test.ts` and the
+`attendees.no-quantity-tickets` story) are the source of truth. Rule of thumb:
+operational, public, and capacity surfaces exclude `quantity = 0`; admin
+record/detail views keep the rows but guard their per-row actions (check-in,
+refund, resend). This importer plan intentionally does not duplicate the surface
+list.
 
 ## Financial Mapping
 
@@ -1080,16 +1082,13 @@ Writing (in the whole-file transaction — see
 - Emit `INSERT ... attendee_answers (attendee_id, question_id, string_id)` rows
   into the importer's single batch, using the resolved `stringId` and the
   matched `question_id`. Do **not** call `saveAttendeeAnswers` — even once for
-  the whole file: it commits **three separate batches** (a `DELETE` batch across
-  all its attendees, then `getOrCreateStringIds`' string batch, then the insert
-  batch), **none** inside the importer's transaction, so it would break
-  whole-file atomicity (the answer-equivalent of the existing "don't call
-  `createAttendeeAtomic` per row" rule). Resolving the string ids and then doing
-  direct `attendee_answers` inserts mirrors what `ticket-submit` does on the
-  paid path — but the string upserts themselves must be unwound on failure
-  (in-transaction upsert, or cleanup of newly-created `used_count = 0` rows),
-  since the stock `getOrCreateStringIds` writes `strings` in its own batch
-  outside the guarded transaction. See the
+  the whole file: it opens a transaction **of its own**, which commits
+  separately from the importer's, so it would break whole-file atomicity (the
+  answer-equivalent of the existing "don't call `createAttendeeAtomic` per row"
+  rule). Resolving the string ids and then doing direct `attendee_answers`
+  inserts mirrors what `ticket-submit` does on the paid path. Pass the
+  importer's own `TxScope` to `getOrCreateStringIds`, so the string upserts roll
+  back with everything else. See the
   [write-strategy notes](#all-or-nothing-write-strategy).
 - The `string_id` insert trigger maintains `strings.used_count`; the importer
   writes nothing to that column.
@@ -1338,19 +1337,20 @@ Implementation notes:
   - batch statements that deliberately abort the transaction when any expected
     insert did not happen.
 - **`strings` writes must be atomic with the import — do not leave orphans.**
-  The stock `getOrCreateStringIds` runs its own `INSERT OR IGNORE` batch
-  _before_ any `attendee_answers` insert, so a naive call there would persist
-  every distinct imported answer (notes, addresses, invoice fields — encrypted
-  source PII) even when the main transaction later rolls back. Those rows are
-  created with `used_count = 0` and never referenced by `attendee_answers`; the
-  delete trigger only **decrements** `used_count`, so they linger until the
+  `getOrCreateStringIds` runs its `INSERT OR IGNORE` _before_ any
+  `attendee_answers` insert, and it takes an optional `TxScope`. Called
+  **without** that handle it commits on its own, so it would persist every
+  distinct imported answer (notes, addresses, invoice fields — encrypted source
+  PII) even when the main transaction later rolls back. Those rows are created
+  with `used_count = 0` and never referenced by `attendee_answers`; the delete
+  trigger only **decrements** `used_count`, so they linger until the
   **age-based** `pruneUnusedStrings` sweep
   (`used_count = 0 AND created < cutoff`) eventually reaps them. A failed
   "all-or-nothing" import would therefore leave imported PII sitting in
   `strings` until that sweep — breaking both atomicity and the privacy stance,
   so it is **not** acceptable. The writer must do one of:
-  - fold the `strings` upserts into the same guarded transaction and resolve the
-    ids within it, so a rollback unwinds them too (preferred); or
+  - pass the guarded transaction's `TxScope` to `getOrCreateStringIds` and
+    resolve the ids within it, so a rollback unwinds them too (preferred); or
   - on any failure/rollback, explicitly delete the strings it newly created that
     are still at `used_count = 0`. Either way, a rolled-back import must leave
     **zero** new `strings` rows.
@@ -1694,9 +1694,10 @@ Semantic-correctness tests (verified against live behaviour):
   aggregate change (insert/update/delete + recalc-drift), exclusion from the
   operational/public/marketing surfaces, and the public-form + JSON API guard —
   is covered by the shipped feature's own suite
-  (`test/lib/no-quantity-audit.test.ts`, `test/e2e/no-quantity.test.ts`, the
-  shared-predicate guard tests) and not retested here. The importer tests assume
-  that feature and assert imports flow through it:
+  (`test/integration/no-quantity-audit.test.ts`, the
+  `attendees.no-quantity-tickets` story, the shared-predicate guard tests) and
+  not retested here. The importer tests assume that feature and assert imports
+  flow through it:
 - An imported cancelled/quoted attendee (quantity-0 only) is absent from the
   daily calendar, ICS feed, bulk email, logistics, and ticket/check-in flows,
   yet still shows in the admin per-listing and group-detail rosters with the "no
@@ -1807,8 +1808,8 @@ the importer-specific additions in item 6 remain.
      and the token/calendar/email/logistics surfaces. Build the
      importer-specific additions in item 6 alongside the writer.
    - Resolve candidate text answers to string ids **inside the guarded
-     transaction** (or clean up newly-created `used_count = 0` strings on
-     failure) — not via the stock out-of-transaction `getOrCreateStringIds`.
+     transaction** by passing it the `TxScope` `getOrCreateStringIds` accepts,
+     so a rolled-back file leaves no `used_count = 0` strings behind.
    - Convert the import plan into attendee / listing_attendee / attendee_answers
      (text) / audit / import-map writes in one guarded transaction, wiring child
      rows to each attendee via its generated `ticket_token_index`, not

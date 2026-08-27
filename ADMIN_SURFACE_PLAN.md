@@ -375,13 +375,15 @@ Two measured gaps, recorded rather than left implicit.
    the role matrix now compares every one of them with its declaration.
    Migrating them is de-duplication, not a safety fix. Use `pageGuardFor` and
    `formPolicyFor`, which take the route a handler serves.
-2. **Ninety-eight write routes sit at a path no route declares** — mostly the
+2. **Ninety-seven write routes sit at a path no route declares** — mostly the
    settings sub-forms, the reorder moves, and the image uploads. Their roles are
    in the handler alone, and nothing compares them with anything.
    `test/integration/admin-role-matrix.test.ts` states the number, so the gap
    cannot widen unnoticed. Closing it means declaring those routes, which is a
    slice of its own. The same slice can let every tab of a record page declare
    its own audience, in place of the `visible` predicate that hides it today.
+   `TODO.md`, "Fold B, one source of route facts", holds the rest of that slice:
+   what the declarations then unlock, and what each part costs.
 
 ## The shortlist — other rooms the survey found
 

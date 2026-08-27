@@ -44,12 +44,15 @@ _On `main` today:_ `tryRefund` treats a payment the provider reports as already
 refunded as success, and each charge carries a `provider_refunded_at` marker so
 a later attempt skips the provider call. This must stay.
 
-> **Known gap (provider switching).** `main` does not record which provider
-> captured a charge — only the opaque `payment_reference`. So after an operator
-> switches providers (Stripe → Square) and then selects "none", the last-active
-> fallback resolves every existing payment through Square, and an older Stripe
-> charge cannot be refunded. This predates this PR. Per-charge provider tracking
-> is future aggregate work; recorded in TODO.md.
+> **Provider switching.** M4 closed the gap this rule used to name. A refund now
+> loads exactly the adapter its own reference names: the canonical
+> `payment_charges` authority carries a provider-tagged identity, and
+> `loadRefundProvider` (`src/shared/provider-refunds.ts`) refuses an adapter
+> that does not match the tag. The last-active fallback
+> (`getPaymentProviderForExistingPayments`) therefore never decides which
+> provider takes a refund. An older untagged reference is a typed permanent
+> refusal, not a guess — the owner refunds it in the provider's own dashboard.
+> See TODO.md, "Historical refund references deliberately remain manual".
 
 ## 3. Multiple captured charges require owner review
 

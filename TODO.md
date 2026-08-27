@@ -99,6 +99,14 @@ and widen the i18n-coverage check to `src/features/` so a new one cannot appear.
 Left out of the migration that found it, because it changes production copy
 across twenty files rather than the tests being moved.
 
+`public/unsubscribe.ts` is the worked example of what the keys buy. Its four
+messages ("You've unsubscribed from our marketing emails.", "You've resubscribed
+to our marketing emails.", "Your contact record has been deleted.", and "That
+link is invalid.") belong in `src/locales/en/unsubscribe.json` with the rest of
+the page's words. The `attendees.asking-to-be-left-alone` story steps and the
+direct pins in `test/integration/routes/unsubscribe.test.ts` can then read them
+through `t()` instead of copying the wording.
+
 ---
 ## Keep provider reply text out of the console and Sentry (from PR #2139)
 
@@ -184,6 +192,8 @@ Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2123#discussion_r3839410505>
 
 ---
+
+## Highlight the nav chain on a booking page (from PR #2051)
 
 PR #2051 shows the public site menu on booking pages (dropped in iframe mode and
 when the public site is off). It builds the menu with `publicNavProps(null)`
@@ -310,15 +320,6 @@ including the two files that first needed mirror direct suites built
 _Origin: Codex Security scan completed on 2026-07-29 at
 `/home/user/.codex/state/plugins/codex-security/scans/tickets/codex-security-tickets-qkJ7hC/`._
 
-Findings 2 and 4 are active worktree jobs:
-
-- `work/security-finding-2-setup-race` for concurrent first-run setup.
-- `work/security-finding-4-bunny-deploy-action` for the mutable Bunny deploy
-  action reference.
-
-Finding 1 (delivery-agent access to check-in attendee details) shipped on PR
-#1995.
-
 These are the remaining scan items that still look worth doing under the current
 trust model. They assume Bunny Edge remains the production runtime, site owners
 are trusted with their own content and integrations, and deployment operators
@@ -351,19 +352,16 @@ own the risk of choosing deliberately hostile third-party endpoints.
   markup working, but escape user-supplied field values before they reach
   `src/shared/email-renderer.ts` or `src/shared/liquid-engine.ts`. Test a
   booking field containing HTML and a script-like value.
-- **Pin or verify CI tools downloaded with credentials present.** Outside the
-  deploy-action worktree, the scan flagged `cloudflared` in
-  `.github/workflows/payment-sandbox-e2e.yml`, the opencode release archive in
-  `.github/workflows/opencode.yml`, and the Sentry CLI range in
-  `.github/actions/sentry-sourcemaps/action.yml`. Pin exact versions and verify
-  checksums or signatures before those binaries run with secrets.
+- **Pin or verify CI tools downloaded with credentials present.** `cloudflared`
+  in `.github/workflows/payment-sandbox-e2e.yml` still takes
+  `releases/latest/download`, and `.github/actions/sentry-sourcemaps/action.yml`
+  still takes the `@sentry/cli@^2` range. The opencode release archive in
+  `.github/workflows/opencode.yml` names an exact version but verifies no
+  checksum. Pin exact versions and verify checksums or signatures before those
+  binaries run with secrets.
 - **Require encrypted transport for remote Uptime Kuma.** Keep `http://` only
   for an explicitly local Uptime Kuma URL. Remote hosts should require HTTPS so
   the WebSocket login does not send monitoring credentials over cleartext.
-- **Randomize public payment-test admin credentials.** The public payment e2e
-  tunnel is test-only, but it uses repository-known admin credentials while the
-  app is reachable through a quick tunnel. Generate per-run credentials and keep
-  them out of ordinary logs before broadening that harness further.
 
 ## Marketing screenshot visual cleanup
 
@@ -371,9 +369,12 @@ _Origin: visual audit of the mobile Retina screenshots generated from
 `../tickets-site/scripts/screenshots/` on 2026-07-18._
 
 The screenshots use real application pages with scenario-specific custom CSS.
-Keep fixes in those scenarios unless the same problem also appears in the normal
-application UI. Regenerate each affected PNG and inspect the final image at its
-actual size before marking an item complete.
+Every `scripts/screenshots/*.js` file named below lives in the **`tickets-site`
+repository**, not this one; this repository holds only the runner that loads
+them (`scripts/screenshots.ts` and `scripts/screenshots/`). Keep fixes in those
+scenarios unless the same problem also appears in the normal application UI.
+Regenerate each affected PNG and inspect the final image at its actual size
+before marking an item complete.
 
 **High priority:**
 
@@ -628,10 +629,11 @@ also exists: `scripts/test-quality-audit.ts`.
   behind a flag or with a tighter changed-set bound) only if the per-commit
   mutation cost comes down.
 
-- **Property-based tests (item 5).** `fast-check` is currently used in only one
-  test (`test/shared/booking/fold-tree.test.ts`). Add properties for: slug
-  generation, CSV round-trips (commas / quotes / CRLF), date formatting across
-  timezones, token parsers, and URL safety.
+- **Property-based tests (item 5).** `fast-check` is a dependency in `deno.json`
+  that no test imports any more, so it is dead weight until this lands. Add
+  properties for: slug generation, CSV round-trips (commas / quotes / CRLF),
+  date formatting across timezones, token parsers, and URL safety — or drop the
+  dependency.
 - **Weak-assertion audit lifecycle (item 6).** The script exists but isn't wired
   into CI. Escalate it: informational → CI warning → review gate for touched
   files.
@@ -691,50 +693,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
   parent-quantity distribution); and a group-edit "add choice slot" affordance
   that mints the chooser listing plus its child edges in one step with sensible
   default caps.
-
-## Listings offered under multiple parents / "can be booked by itself"
-
-- No outstanding items — the row-identity fix (per-parent attendee rows, paid
-  mapping by listing id, remainder rows) and the `bookable_alone` flag shipped.
-
-## Test-suite speed — remaining opportunities
-
-_Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
-migration-suite sharding, `withVirtualBackoff`, `cachedAdminPage`; see the Fast
-Tests section of AGENTS.md). These were identified during profiling but
-deliberately left for later:_
-
-- **Per-file module-graph evaluation.** Every test file re-evaluates the app's
-  module graph (~0.35s each after the lazy-Sentry fix, ~250 files ≈ 80-90s of
-  CPU per run). The biggest remaining import-time chunks are `@libsql/client`
-  (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
-  import-time work moved behind `once()`/dynamic import pays for itself ~250×
-  per run — profile with a `performance.now()` probe around
-  `import("#test-utils")` under `deno test` before and after.
-- **`test/scripts/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
-  to test the harness's port handling; each spawn is inherently slow. If it
-  grows, the port-conflict cases could stub the child-process layer the same way
-  the supervisor tests do.
-
----
-
-## Capacity rules — feature-layer adoption (stage 3)
-
-_Origin: the capacity-rules consolidation (`src/shared/capacity-rules.ts`)._
-Stages 1–2 shipped: the declarative `CAPACITY_RULES` table exists, and the SQL
-guard (`src/shared/db/capacity.ts`), the JS preflight
-(`src/shared/db/attendees/capacity.ts`, `update.ts`), and the booking-page
-limits (`booking/model.ts`, `booking/package-cap.ts`) all derive their
-per-date-vs-running-total decisions from it. Stage 3 shipped too: the
-feature-layer capacity-date call sites (`ticket-payment.ts` `bookingDateFields`,
-`qr-book.ts` `buildCheckoutIntent`, `api/listings.ts` child availability,
-`api/booking.ts` `resolveBookingDate`) consult `capacityDateFor`/`countsPerDate`
-instead of branching on `listing_type === "daily"` by hand. Only the
-_capacity-date_ decisions belong to the table — the remaining calendar/UI daily
-branches (date pickers, sorting, display, duration spans) are date-selection
-logic and should stay as they are. Nothing further planned here.
-
----
 
 ## Payment aggregate — safety behaviour (PR 1)
 
@@ -925,14 +883,6 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
 
 ### Keep the rule — stop the user hitting it blind
 
-- ~~**SumUp is offered on a currency it can't use.**~~ **Done.** The provider
-  registry (`src/shared/payment-providers.ts`) now records each provider's
-  currencies (`null` = takes them all), and
-  `providerCurrencyBlock(id, currency)` turns that into the one sentence every
-  surface shows. The settings page renders an unusable provider switched off
-  with the reason beside it, the provider choice refuses to save, and the SumUp
-  credentials save keeps its refusal.
-
 - **An answer's price-modifier dropdown silently omits the operator's
   modifier.** `src/features/admin/questions.ts` (`answerTriggerModifiers`) only
   lists `trigger === "answer"` modifiers, so a "+£5" built as _Automatic_ or an
@@ -957,12 +907,6 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
   ~line 69) — both checkboxes render side by side. Fix: mutually disable the
   paired controls client-side with a one-line "why", turning a save-time error
   into an obvious affordance.
-
-- ~~**A multi-item cart with no shared date/length dies silently.**~~ **Done.**
-  `src/shared/booking/cart-conflicts.ts` names the clashing items on the ticket
-  page — an item with no dates at all, items whose dates never overlap, and
-  items with no shared booking length — and tells the buyer to book them
-  separately. (See "The shared reasons shape" section below.)
 
 - **A manager hits a bare "Forbidden" on owner-only pages.**
   `src/features/
@@ -1077,7 +1021,8 @@ and each costs more machinery than the defect it would catch._
   therefore passes, while `API_BODY_FIELD_RULES` requires a safe integer and the
   real endpoint answers 400. Fixing it properly means running each request
   example through the endpoint's own field rules rather than a hand-written
-  check. Starting point: `API_BODY_FIELD_RULES` in `src/features/admin/api.ts`.
+  check. Starting point: `API_BODY_FIELD_RULES` in
+  `src/features/admin/api-listing-body.ts`.
 
 - **Derive the documented create slug from what a create really does.**
   `crudDocs` in `src/shared/admin-api-example.ts` builds the create response
@@ -1087,55 +1032,6 @@ and each costs more machinery than the defect it would catch._
   request. Left alone because the honest fix — showing `a7f3k` — makes the page
   harder for a person to read, which is a documentation judgement rather than a
   correctness one. Starting point: `generateUniqueSlug` in `src/shared/slug.ts`.
-
-## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
-
-_Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing
-db-module tests into `test/shared/db/attendees/servicing/` (plus a 4-line cwd
-fix in `code-quality.test.ts`). CodeRabbit reviewed the moved content as if new
-and raised 13 findings; every one is on **pre-existing** test code carried over
-unchanged from `main`, so they were out of scope for a rename-only PR and
-recorded here._
-
-**Done — the two vacuous tests + the corruption-repair cleanups (a follow-up
-PR).** Both suspects were confirmed and fixed:
-
-- `corruption-repair.test.ts` — the `UPDATE … kind = 'staff'` did throw under
-  the CHECK and was swallowed by `catch { return }`, so the exclusion assertions
-  never ran (confirmed empirically). Now the corrupt row is written past the
-  CHECK via `PRAGMA ignore_check_constraints` (libsql supports it), so the
-  reader predicates are genuinely exercised — and a separate test asserts the
-  CHECK rejects the write directly. The dead `queryOne` import, the
-  `string | null` param on `insertRowWithKind`, and the redundant dynamic
-  imports were removed.
-- `lifecycle-concurrency.test.ts` (~87-110) — the raw SQL deletes were replaced
-  with the production `deleteListing`, and the orphan assertion strengthened
-  (attendee row survives; its booking on the deleted listing is gone).
-
-**Done — assertion-strengthening in
-`test/shared/db/attendees/servicing/ledger.test.ts` (a follow-up PR).** All
-seven were applied: `expectCostFormError` now asserts an error flash and that no
-leg of any kind was posted (total-transfer snapshot); idempotency keys are fixed
-strings, not `crypto.randomUUID()`; the memo-only replay test asserts the error
-flash; the `recordServiceCost` replay test asserts the exact
-`COST_REPLAY_MISMATCH` message (via `expectRejects` now accepting an exact
-string); the ordering test seeds a same-`occurredAt` pair to exercise the
-`(occurred_at, transfer_id)` tie-break; the encrypted-memo test asserts the full
-plaintext memo is absent; and the `visibleTransfers` filter test adds a second
-listing and asserts the result is scoped to the requested listing.
-
-**Done — split the file (a follow-up PR).** The 826-line `ledger.test.ts` was
-split into five focused files under `test/shared/db/attendees/servicing/`
-(`ledger-accounts`, `ledger-idempotency`, `ledger-cost-editing`,
-`ledger-validation`, `ledger-reader`), each well under 400 lines. The shared
-fixtures (`recordBoilerCost`, `postCustomerSale`, `listingProfitOf`,
-`expectCostFormError`, `transfersOfKind`, `SERVICE_DATE`) moved to a new
-`#test-utils/servicing-ledger.ts`, and the generic non-empty flash assertions
-(`expectFlashError`/`expectFlashSuccess`) moved to `#test-utils/assertions.ts`
-next to `parseFlashCookie`. A pure reorganisation — the same 40 tests run, no
-test behaviour changed.
-
-_Nothing remains open in this section._
 
 ## Logistics run sheet — should servicing events appear?
 
@@ -1173,6 +1069,17 @@ genuinely long suites, which now bound the slowest groups:
 - **Slow-test report entries >2s** (printed after every full run): the
   migration/legacy-migration suites and a few e2e journeys dominate. Each one
   fixed shortens the longest group directly.
+- **Import-time work in the app graph.** Grouping means the graph is evaluated
+  once per group rather than once per file, so the old per-file figures no
+  longer hold — but every group still pays it. The biggest remaining import-time
+  chunks are `@libsql/client` (~65ms, needed) and the `#routes` feature tree
+  (~150ms). Work moved behind `once()`/dynamic import pays for itself once per
+  group — profile with a `performance.now()` probe around
+  `import("#test-utils")` under `deno test` before and after.
+- **`test/scripts/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+  to test the harness's port handling; each spawn is inherently slow. If it
+  grows, the port-conflict cases could stub the child-process layer the same way
+  the supervisor tests do.
 
 Starting point: run `deno task test`, read the slow-test report at the end, and
 profile the top entry.
@@ -1243,19 +1150,6 @@ they were left out of that PR's scope.
   `<code>`-bearing ones via `Raw`. Out of scope for a dedup PR (pre-existing
   copy).
 
-- **The `/api/*/book` docs show a free response for a priced sample**
-  (`src/shared/admin-api-example.ts`). Both `POST /api/listings/:slug/book` and
-  `POST /api/packages/:slug/book` document their response as
-  `API_BOOK_FREE_EXAMPLE_JSON` (`amountOwed: 0`, a ticket token), even though
-  the package sample request is a priced bundle whose real response would carry
-  a `checkoutUrl` (`API_BOOK_PAID_EXAMPLE_JSON` already exists). Pre-existing:
-  on `main` both endpoints used a local `API_EXAMPLE_BOOKING_RESPONSE` const
-  that is byte-identical to `API_BOOK_FREE_EXAMPLE_JSON`, and this dedup only
-  merged that duplicate into the shared constant — it did not change which
-  example shows. Fix (a doc-accuracy pass, not a dedup): pick the example per
-  endpoint — a paid response for the priced package bundle, or document both
-  free and paid shapes — so the sample response matches the sample request.
-
 ## Bunny subrequest budget follow-ups
 
 _Origin: request-fan-out audit for PR #1820._
@@ -1279,14 +1173,6 @@ a claim, or calling a provider. The paths below still have data-dependent
 fan-out or need resumable work; counting them makes an overrun loud, but does
 not itself make a large operation finish.
 
-- ~~**Package carts and payment completion.**~~ Done. `resolveCartSlugs` now
-  resolves every package slug through `loadCartPackagesBySlugs`
-  (`src/features/public/groups.ts`) in four reads however long the cart is, and
-  `loadPackagePricingByGroup` loads every booked package through
-  `loadPackageMemberPricingByGroupIds` in three. `validateAllItems`
-  (`src/features/api/payment-processing/items.ts`) reads every order line's
-  listing in one batch instead of one call per line. `getPackageDisplaysByIds`
-  was already a single query.
 - **Outgoing webhook fan-out.** The database side is done:
   `logAndNotifyRegistration` writes every booking's activity row in one batch
   (`logActivities`), and `loadPackageOverrides` prices every booked package in
@@ -1312,9 +1198,9 @@ not itself make a large operation finish.
 - **Large in-app backups and storage cleanup.** After the first-page batch,
   `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per
   later page; a 25,000-row table at the default page size needs about 50 pages
-  by itself. `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
-  `pruneOldBackups` make one storage delete per stale object. Send large backups
-  through the existing out-of-band workflow and cap cleanup work per request.
+  by itself. `pruneOldBackups` in `src/shared/db/backup-storage.ts` makes one
+  storage delete per stale object. Send large backups through the existing
+  out-of-band workflow and cap cleanup work per request.
 - **Bulk email.** `sendBulkEmails` in `src/shared/email.ts` can create more than
   50 provider batches for very large audiences. Queue bulk sends out of band or
   stop at a fixed aggregate request budget and resume the remainder later.
@@ -1326,12 +1212,6 @@ not itself make a large operation finish.
   attendee batch per 50 rows; 2,501 attendees exceed 50 calls, while the form
   permits far more. Move seed generation to CLI/background work or cap the total
   from the request budget.
-- ~~**Remaining group admin reads.**~~ Done. `validateListingTypesForGroup`
-  (`src/features/admin/groups.ts`) reads the group's members once and judges
-  every candidate against that list with `groupListingTypeError`, and
-  `loadGroupContext` (`src/features/admin/listings-view.ts`) resolves the
-  listing's groups from the shared cache and asks for every capped group's
-  remaining spots in one call.
 
 A finished item keeps a database-call budget test, so the next per-item loop
 trips the subrequest counter in a test rather than in an audit: wrap the call in
@@ -1395,22 +1275,6 @@ the edge subrequest budget, and use the same snapshot for every later page. Add
 a regression test in `test/shared/db/backup-snapshot.test.ts` that changes rows
 between page reads and proves the exported rows all come from one database
 state.
-
----
-
-## Checkout stage attendee cleanup
-
-_Origin: Codex review of PR #1840._
-
-Before any runtime path writes `checkout_stages`, include those rows in attendee
-deletion, purge, and merge handling. The table has no foreign key, so leaving
-the current hard-coded dependent-table lists unchanged would keep a stage linked
-to an attendee that no longer exists. Start with
-`src/shared/db/attendees/delete.ts` and `src/shared/merge/attendee-merge.ts`.
-Add direct regressions proving deletion removes a stage and merging repoints it
-without losing the unique attendee invariant. If both attendees have stages,
-require an explicit conflict decision instead of silently choosing or deleting
-one.
 
 ---
 
@@ -1605,15 +1469,6 @@ it ever reads that row.
 
 ---
 
-## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
-
-Direct tests at `test/features/api/folded-booking.test.ts` and
-`test/features/api/folded-booking/parent-booking.test.ts` kill every
-non-equivalent mutant on the unchanged `folded-booking.ts`. Five equivalents
-(lines 87, 118, 176, 301, 381) are recorded in
-`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors
-remain.
-
 ## Split `test/shared/db/settings.test.ts` by what each part covers
 
 _Noticed while moving the payment provider settings out of
@@ -1730,7 +1585,7 @@ and the per-site loop in `.github/workflows/deploy-clients.yml`.
 
 _Origin: reviewer suggestion on PR #1945._
 
-`keys.ts` is 499 lines and holds three separate jobs: KEK derivation, symmetric
+`keys.ts` is 493 lines and holds three separate jobs: KEK derivation, symmetric
 key wrapping, and hybrid RSA+AES encryption. The hybrid section is the natural
 one to lift out — `hybridEncrypt`, `hybridDecrypt`, their TTL decrypt cache,
 `encryptWithOwnerKey` / `decryptWithOwnerKey`, and the RSA key import pair. That
@@ -1790,7 +1645,7 @@ Starting point: `attendeesApi.hasAvailableSpots` and the per-day capacity SQL in
 _Origin: reviewer suggestion (Codex) on PR #1952._
 
 The site refuses to stop selling an add-on on its own when doing so would leave
-another add-on with no way to be bought — `strippedPageOrphanedAddOn` in
+another add-on with no way to be bought — `lostPageOrphanedAddOn` in
 `src/shared/listings-actions.ts` re-runs the reachability guard and blocks the
 save. The story `bookings.add-ons-sold-on-their-own` covers only the plain
 cases, where nothing depends on the page, and its rule is worded to say so.
@@ -1800,7 +1655,7 @@ and told which add-on would be stranded. It was left out of that PR because
 setting it up needs a child-scoped optional modifier, which no story support
 builds yet — a bigger piece of scaffolding than the migration it sat in.
 
-Starting point: `strippedPageOrphanedAddOn` and
+Starting point: `lostPageOrphanedAddOn` and
 `firstChildUnreachableAddOnForListings` in `src/shared/db/modifier-resolve.ts`,
 plus whichever direct test already covers the guard, for the shape of the
 fixture.
@@ -2095,40 +1950,6 @@ This belongs to the atomic whole-checkout outcome work. Add the copy only from
 that engine's exhaustive buyer outcome; do not bolt a parallel response state
 onto the legacy rejection path.
 
-## Split the form-control rules into files about one thing each
-
-_Origin: Codex review on PR #2025. Attempted on that branch and backed out — see
-below._
-
-`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo asks
-for, and holds four separate jobs:
-
-- reading a page's attributes (`attribute`, `hasFlag`, `usableInputsOfKind`)
-- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox and
-  question readers)
-- why a value could not be sent (`whyValueCannotBeSent` and the rules under it,
-  plus the insisted-control machinery)
-- the story-facing helpers (`fillInAndSend`, `takeDownFromActions`)
-
-The first three are pure and the last does the sending, so the natural shape is
-`form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
-`form-controls.ts` — the same split already done for `test-browser.ts`.
-
-The churn is smaller than it looks: `fillInAndSend` has 15 importers and stays
-put, and every reader that would move has between one and five
-(`checkboxValueOffered` 5, `tickedCheckboxes` 4, `whyValueCannotBeSent` 3,
-`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So about
-a dozen import lines change. Do not add a re-export layer in `form-controls.ts`
-to avoid touching them — that is the alias-export smell the repo rules out;
-point each caller at the file that owns what it uses.
-
-**Why it was backed out:** attempted by slicing the file on line ranges, which
-produced an unterminated comment, duplicated imports and several unresolved
-symbols. Reverted rather than pushed half-done. Whoever picks this up should
-move whole declarations (or use an editor that understands the syntax) rather
-than cutting on line numbers, and lean on `deno task precommit` — the 214 specs
-and the coverage gate both exercise this module hard.
-
 ## A form found by its words alone can be sent with no button to press
 
 _Origin: Codex review on PR #2025. Real, and deliberately left for its own
@@ -2247,21 +2068,6 @@ deletions. Settling it means choosing between (a) keeping a bare
 as is, deliberately. Starting points: `forgetContact`, the forget branch in
 `src/features/public/unsubscribe.ts`, and the story's
 `@rule:attendees.the-record-under-their-code-can-be-deleted`.
-
-## Move the unsubscribe flash wording into the message catalog
-
-_Origin: the same story migration._
-
-The three flash messages the `/unsubscribe` POST sends back ("You've
-unsubscribed from our marketing emails.", "You've resubscribed to our marketing
-emails.", "Your contact record has been deleted.", plus "That link is invalid.")
-are string literals in `src/features/public/unsubscribe.ts`. The `i18n-coverage`
-gate only scans templates, so nothing flags them, but they are user-facing copy
-and belong in `src/locales/en/unsubscribe.json` like the rest of the page's
-words — then the story steps and the direct pins in
-`test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
-instead of pinning copied wording. Out of scope for the migration, which does
-not touch `src/`.
 
 ## Make Refund All a durable, resumable intention
 
@@ -2661,7 +2467,7 @@ it in that pull request:
 
 | File                                         | Lines |
 | -------------------------------------------- | ----- |
-| `e2e-payments/src/cucumber/steps/booking.ts` | 484   |
+| `e2e-payments/src/cucumber/steps/booking.ts` | 492   |
 | `e2e-payments/src/browser.ts`                | 430   |
 | `e2e-payments/src/flow.ts`                   | 404   |
 
@@ -2687,46 +2493,6 @@ list; only the pure helpers stay covered. The durable fix is the one Codex names
 — push the env/config parsing behind injectable seams so those branches get
 direct in-process tests. The twelve behaviour findings from the same review
 round are fixed; this remaining item is the test-architecture half.
-
-## Deleting your own contact record also deletes your promotions opt-out
-
-_Origin: found while writing the `attendees.asking-to-be-left-alone` story (the
-reader-side unsubscribe journey)._
-
-The "Delete my data" press on `/unsubscribe` calls `forgetContact`
-(`src/shared/db/contact-preferences.ts`), which deletes the whole
-`contact_preferences` row — including the `unsubscribed` flag. The bookings that
-carry the person's (encrypted) address survive, so someone who first
-unsubscribed and then asked to be forgotten becomes reachable by the next
-promotion again: the send path (`getUnsubscribedHashSet`) no longer finds their
-hash.
-
-The story states what the product does today — "the site keeps no record under
-that code at all — including the choices they had made on this page" — rather
-than softening it. Whether that is the right product behaviour is a real
-question with pull in both directions: erasure means erasure, but suppression
-lists exist precisely because a marketing opt-out has to survive other
-deletions. Settling it means choosing between (a) keeping a bare
-`{hash, unsubscribed}` row behind on forget, (b) wording the page's
-`unsubscribe.forget_explainer` to say promotions may resume, or (c) leaving it
-as is, deliberately. Starting points: `forgetContact`, the forget branch in
-`src/features/public/unsubscribe.ts`, and the story's
-`@rule:attendees.the-record-under-their-code-can-be-deleted`.
-
-## Move the unsubscribe flash wording into the message catalog
-
-_Origin: the same story migration._
-
-The four flash messages the `/unsubscribe` POST sends back ("You've unsubscribed
-from our marketing emails.", "You've resubscribed to our marketing emails.",
-"Your contact record has been deleted.", plus "That link is invalid.") are
-string literals in `src/features/public/unsubscribe.ts`. The `i18n-coverage`
-gate only scans templates, so nothing flags them, but they are user-facing copy
-and belong in `src/locales/en/unsubscribe.json` like the rest of the page's
-words — then the story steps and the direct pins in
-`test/integration/routes/unsubscribe.test.ts` can assert them through `t()`
-instead of pinning copied wording. Out of scope for the migration, which does
-not touch `src/`.
 
 ## Pin the mirror pair with a table check when processed_payments is next rebuilt
 
@@ -2769,7 +2535,7 @@ helpers, rather than leaving one operation with three names. Do it in its own
 pull request, because a form that starts sending `settings_version` can change
 what a version-guarded save does.
 
-Starting points: `test/test-utils/session.ts:402`,
+Starting points: `test/test-utils/session.ts:382`,
 `test/features/admin/groups/helpers.ts:19`, `test/test-utils/servicing.ts`.
 
 ---
@@ -2780,7 +2546,7 @@ _Origin: the consolidation review of recent provider and admin work._
 
 The roster page and its CSV export read the same address bar through
 `readAttendeeListState`, but only the page acts on the `sort` it finds.
-`listingRosterView` in `src/ui/templates/admin/listings/roster.tsx:52` orders
+`listingRosterView` in `src/ui/templates/admin/listings/roster.tsx:54` orders
 the rows with `inRegistrationOrder(sort)`, and hands the table `presorted: true`
 so the table keeps that order. The export goes through
 `filteredAttendeesHandler` in `src/features/admin/listings-view.ts:104`, whose
@@ -2806,10 +2572,10 @@ regression test that exports with a chosen order and pins the row order.
 
 _Origin: the consolidation review._
 
-`runPendingMigrations` in `src/shared/db/migrations/runner.ts:196` decides
+`runPendingMigrations` in `src/shared/db/migrations/runner.ts:177` decides
 whether to cap the run with `isDatabaseRoundTripLimited()`, which reports
 whether the **query-log** scope is open (`queryLogScope.current() !== undefined`
-in `src/shared/db/query-log.ts:77`). It then computes the cap from
+in `src/shared/db/query-log.ts:73`). It then computes the cap from
 `getSubrequestRemaining()`, which reads the **budget** scope in
 `src/shared/subrequest-budget.ts:40`. The two are separate `createScope` stores.
 
@@ -2835,8 +2601,8 @@ The mechanism exists and is proven. `formGuardAt` and `pageGuardAt` in
 `adminDestinationAt` in `src/shared/admin-surface.ts:62`, so the roles are
 written once in the admin surface declaration.
 
-- **Declare the 98 undeclared write routes.** Every GET route declares who may
-  reach it, and a test enforces the declaration. 98 write routes take their
+- **Declare the 97 undeclared write routes.** Every GET route declares who may
+  reach it, and a test enforces the declaration. 97 write routes take their
   roles from the handler alone, and nothing compares the two. This is the one
   item on the list that adds lines, about 110 of them, because it buys the role
   matrix a way to check 98 permission gates it cannot see today. Do it first in
@@ -2863,7 +2629,7 @@ written once in the admin surface declaration.
 
 _Origin: the consolidation review. PR #2128 closed the rest of this entry._
 
-`readSourceRows` in `src/shared/db/listing-prices.ts:349` ends with
+`readSourceRows` in `src/shared/db/listing-prices.ts:346` ends with
 `rows.rows as unknown as ListingPriceSourceRow[]`. The cast claims a shape the
 code never checks, so a column renamed in the SELECT above it reaches its two
 callers as `undefined` rather than failing at the read. Parse the rows instead,
@@ -2967,20 +2733,21 @@ _Origin: PR #2158, where a comment edit that removed a `{@link}` broke the
 `test/scripts/code-quality/detectors.ts` decides whether an export is used by
 matching import clauses across the tree. A production export whose only caller
 sits in its own file therefore reads as dead, and `ALLOWED_TEST_HOOKS` in
-`test/integration/code-quality.test.ts` carries an entry for each one. Fourteen
+`test/integration/code-quality.test.ts` carries an entry for each one. Seventeen
 of its entries say so in as many words, and their comments name the shapes the
 matcher misses: a same-file throw, a same-file call, and same-file arithmetic
 such as `X * DAY_MS`, because `*` is not in the usage character class.
 
 `AGENTS.md` says that an allow-list entry is a signal that an export is dead.
-These fourteen are the opposite. The export is live and the scanner cannot see
+These seventeen are the opposite. The export is live and the scanner cannot see
 it, so the list carries the scanner's blind spot, and a reader cannot tell the
 two kinds of entry apart without reading each comment.
 
 The fix is a same-file usage pass that reads the file's own body after the
 export declaration. It pairs with the code-only preprocessing pass in
 "Dead-export scanner matches raw text" above, because both want the same lexer.
-Do them together. Deletion of the fourteen entries is the proof that it works.
+Do them together. Deletion of those seventeen entries is the proof that it
+works.
 
 Do not start with the deletion. Removal of the blind spot can unmask a genuinely
 dead export that a phantom same-file match was hiding, which is separate work
