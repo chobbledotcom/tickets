@@ -124,7 +124,11 @@ const readersOf = (
 export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   const config = JSON.parse(await Deno.readTextFile(`${root}/deno.json`));
   const files = await sourceFilesIn(root);
-  const options = compilerOptions(root, aliasPaths(config.imports));
+  const options = compilerOptions(
+    root,
+    aliasPaths(config.imports),
+    config.compilerOptions,
+  );
   const service = ts.createLanguageService(
     serviceHost(root, files, options),
     ts.createDocumentRegistry(),

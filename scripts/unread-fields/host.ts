@@ -52,12 +52,31 @@ export const pathIs =
 /** The scan never emits and never reads a diagnostic, so only parsing and
  * module resolution matter. `jsx` is set because a `.tsx` file must parse as
  * JSX. The rest tells the compiler how to find a file. */
+/** What the repository asks the compiler for, out of its own `deno.json`.
+ * Strictness changes what a type means, so a scan that leaves it out reads a
+ * different repository from the one Deno checks. */
+const asDeclared = (root: string, declared: unknown): ts.CompilerOptions => {
+  const { errors, options } = ts.convertCompilerOptionsFromJson(declared, root);
+  if (errors.length > 0) {
+    const said = errors
+      .map((error) => ts.flattenDiagnosticMessageText(error.messageText, " "))
+      .join("; ");
+    throw new Error(`The compiler refused the options in deno.json: ${said}`);
+  }
+  return options;
+};
+
+/** The repository's own options, with the ones the scan needs on top. Only
+ * these last few are the scan's to choose: they say where the files are and
+ * how to reach one from another, which is the part `deno.json` leaves to the
+ * runtime. */
 export const compilerOptions = (
   root: string,
   paths: Record<string, string[]>,
+  declared: unknown,
 ): ts.CompilerOptions => ({
+  ...asDeclared(root, declared),
   baseUrl: root,
-  jsx: ts.JsxEmit.ReactJSX,
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   paths,

@@ -10,7 +10,10 @@ import { SHAPES } from "./shapes.ts";
  * verdict out of the answer.
  */
 const FIXTURE: Record<string, string> = {
+  // The compiler options are read as well as the imports, because strictness
+  // changes what a type means.
   "deno.json": JSON.stringify({
+    compilerOptions: { strict: true },
     imports: { "#jsx/": "./scripts/jsx/", "#shapes": "./src/shapes.ts" },
   }),
 

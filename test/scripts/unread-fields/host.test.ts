@@ -41,6 +41,36 @@ describe("the compiler's view of a repository", () => {
     });
   });
 
+  describe("compilerOptions", () => {
+    test("takes the options the repository asks for", () => {
+      // Strictness changes what a type means, so a scan that left this out
+      // would read a different repository from the one Deno checks.
+      expect(compilerOptions(root, {}, { strict: true }).strict).toBe(true);
+    });
+
+    test("asks for nothing of its own when the repository asks for nothing", () => {
+      expect(compilerOptions(root, {}, undefined).strict).toBeUndefined();
+    });
+
+    test("says which option the compiler refused", () => {
+      expect(() => compilerOptions(root, {}, { target: "nonsense" })).toThrow(
+        "The compiler refused the options in deno.json",
+      );
+    });
+
+    test("keeps the settings that say where the files are", () => {
+      const options = compilerOptions(
+        root,
+        { "#a": ["./a.ts"] },
+        {
+          baseUrl: "/somewhere/else",
+        },
+      );
+      expect(options.baseUrl).toBe(root);
+      expect(options.paths).toEqual({ "#a": ["./a.ts"] });
+    });
+  });
+
   describe("pathIs", () => {
     test("knows a file from a directory", () => {
       expect(pathIs("isFile")(file)).toBe(true);
@@ -68,7 +98,7 @@ describe("the compiler's view of a repository", () => {
 
   describe("serviceHost", () => {
     const hostFor = (): ReturnType<typeof serviceHost> =>
-      serviceHost(root, [file], compilerOptions(root, {}));
+      serviceHost(root, [file], compilerOptions(root, {}, undefined));
 
     test("offers a snapshot of a file that is there", () => {
       const snapshot = hostFor().getScriptSnapshot(file);

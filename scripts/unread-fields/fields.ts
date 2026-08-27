@@ -275,6 +275,36 @@ const membersOf =
     return filter(worthWalking(checker)(node))(parts);
   };
 
+/** How a reader reaches through a member that has no name to give. None of
+ * these can be a field's name, so none can be mistaken for one. */
+const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
+  [ts.SyntaxKind.CallSignature, "()"],
+  [ts.SyntaxKind.ConstructSignature, "new ()"],
+]);
+
+/** The step a member with no name of its own adds to the path. A shape can
+ * hold more than one of them, and each can carry a field of the same name, so
+ * a step that tells them apart is what keeps the two fields two.
+ * `send(first: { id: string }, second: { id: string })` is the plain case: the
+ * parameter's own name does it. A destructured parameter has no name, so its
+ * place in the list stands in. A call or construct signature has neither, so
+ * the way a reader reaches through it does. */
+const underAnUnnamedPart = (
+  path: readonly string[],
+  node: ts.Node,
+): readonly string[] => {
+  if (ts.isParameter(node)) {
+    return [
+      ...path,
+      ts.isIdentifier(node.name)
+        ? node.name.text
+        : String(node.parent.parameters.indexOf(node)),
+    ];
+  }
+  const through = REACHED_THROUGH.get(node.kind);
+  return through === undefined ? path : [...path, through];
+};
+
 /** Every field an exported shape declares, including the fields of object
  * types nested inside it, since `shape.inner.total` reaches those too. The
  * owner carries the path down to the field, so the two `dbConfigured` fields
@@ -303,23 +333,6 @@ export const exportedFields = (
     return inside;
   };
 
-  /** A plain parameter is no field of the shape, but the object type inside
-   * it holds fields, and one method can take two of them.
-   * `send(first: { id: string }, second: { id: string })` declares two `id`
-   * fields, so the parameter's name keeps them apart. A parameter that is
-   * destructured has no name of its own, and its place in the list says
-   * which one it is. */
-  const underTheParameter = (
-    path: readonly string[],
-    node: ts.Node,
-  ): readonly string[] => {
-    if (!ts.isParameter(node)) return path;
-    const called = ts.isIdentifier(node.name)
-      ? node.name.text
-      : String(node.parent.parameters.indexOf(node));
-    return [...path, called];
-  };
-
   const partsOf = membersOf(checker);
   const collect = (path: readonly string[], node: ts.Node): void => {
     // A member a class keeps to itself hands nothing out. A type written
@@ -327,7 +340,7 @@ export const exportedFields = (
     if (isHidden(node)) return;
     const here = isStatic(node) ? [`typeof ${path.reduce(reaching)}`] : path;
     const name = fieldNameOf(node);
-    const inside = name ? remember(here, name) : underTheParameter(here, node);
+    const inside = name ? remember(here, name) : underAnUnnamedPart(here, node);
     for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {

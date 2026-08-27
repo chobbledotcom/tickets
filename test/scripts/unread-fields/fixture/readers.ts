@@ -9,6 +9,7 @@ import {
   type Borrowed,
   type BothArmsWriteIt,
   BothSides,
+  type Callable,
   type DeletedInParens,
   type ExtendsFarBase,
   type FromAShorthand,
@@ -112,6 +113,9 @@ export const takeOutByAComputedKey = (
   ({ [k.namesAKeyInAPattern]: held } = source);
   return held;
 };
+
+export const readTheCallableProperty = (c: Callable): string =>
+  c.sharedByBothWays;
 
 export const fillBehindAngles = (w: WrappedInAngles): void => {
   (<number> w.filledBehindAngles) = 1;

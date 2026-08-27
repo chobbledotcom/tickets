@@ -316,6 +316,21 @@ export class RunsABlockWhenMade {
   reachedOnAValue = 1;
 }
 
+export interface Callable {
+  sharedByBothWays: string;
+  (): { sharedByBothWays: string };
+}
+
+export interface Constructable {
+  new (): { handedBackByNew: string };
+}
+
+// Under strict, undefined does not extend string. Without it, it does. So
+// the arm this answers with says whether the scan read deno.json.
+export type StrictnessDecides = undefined extends string
+  ? { onlyWhenLoose: number }
+  : { onlyWhenStrict: number };
+
 export interface TakesTwoObjects {
   send(
     first: { sameNameInBothParameters: string },
@@ -355,10 +370,10 @@ export interface SuppliedInBrackets {
 }
 
 export interface WrittenThroughParens {
-  filledInsideParens: number;
   filledBehindABang: number;
   filledBehindACast: number;
   filledBehindSatisfies: number;
+  filledInsideParens: number;
 }
 
 interface FirstArm {
@@ -367,9 +382,9 @@ interface FirstArm {
 }
 
 interface SecondArm {
+  onlyOnTheSecondArm: number;
   whichArm: "second";
   writtenByBothArms: number;
-  onlyOnTheSecondArm: number;
 }
 
 export type BothArmsWriteIt = FirstArm | SecondArm;
@@ -385,6 +400,5 @@ export type FromAShorthand = (typeof SHORTHANDS)[number];
 
 export const useTheLocal = (): number => namedByALocal + 1;
 
-export const readItHere = (one: FromAShorthand): number =>
-  one.readInItsOwnFile;
+export const readItHere = (one: FromAShorthand): number => one.readInItsOwnFile;
 `;
