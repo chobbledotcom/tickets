@@ -13,6 +13,13 @@ const FIXTURE: Record<string, string> = {
     imports: { "#jsx/": "./scripts/jsx/", "#shapes": "./src/shapes.ts" },
   }),
 
+  // Outside the four scanned folders, so its read does not count.
+  "outside.ts": `
+import { sum } from "./src/produce.ts";
+
+export const ignored = sum.noOneReadsThis;
+`,
+
   // The JSX runtime lives under scripts/ so its own fields are not findings.
   "scripts/jsx/jsx-runtime.ts": `
 export namespace JSX {
@@ -44,7 +51,10 @@ export const takeDeepOut = (): number => {
   return deep;
 };
 
+import type { Reached } from "./inner";
 import type { Passed } from "#shapes";
+
+export const reach = (r: Reached): number => r.total;
 
 export const forward = ({ kept, ...rest }: Passed): Passed => ({
   ...rest,
@@ -56,6 +66,14 @@ export const takePatternOut = (): number => {
   ({ takenOutByPattern } = sum);
   return takenOutByPattern;
 };
+`,
+
+  // Reached by a directory import, which the compiler only finds after being
+  // told truthfully that "src/inner.ts" is not a file.
+  "src/inner/index.ts": `
+export interface Reached {
+  total: number;
+}
 `,
 
   // Every field written, none read: on its own this file proves nothing.
@@ -84,6 +102,12 @@ export type Report = {
   [key: string]: unknown;
 };
 
+export namespace Wrapped {
+  export interface Inner {
+    onlyInsideNamespace: number;
+  }
+}
+
 export interface Passed {
   kept: number;
   carriedBySpread: number;
@@ -104,7 +128,7 @@ export const seen = report.onlyTestsRead;
 };
 
 const buildFixture = async (root: string): Promise<void> => {
-  for (const folder of ["cli", "scripts/jsx", "src", "test"]) {
+  for (const folder of ["cli", "scripts/jsx", "src/inner", "test"]) {
     await Deno.mkdir(`${root}/${folder}`, { recursive: true });
   }
   for (const [path, text] of Object.entries(FIXTURE)) {
@@ -133,8 +157,10 @@ describe("scanUnreadFields", () => {
     expect(findings.map((f) => `${f.owner}.${f.field}`).sort()).toEqual([
       "BadgeProps.label",
       "BadgeProps.supplied",
+      "Inner.onlyInsideNamespace",
       "Passed.carriedBySpread",
       "Passed.kept",
+      "Reached.total",
       "Report.headline",
       "Report.nested",
       "Report.nested.deep",
@@ -149,10 +175,22 @@ describe("scanUnreadFields", () => {
     expect(findings.some((f) => f.owner === "NotExported")).toBe(false);
   });
 
+  test("finds a shape declared inside a namespace", () => {
+    expect(verdictOf("Inner", "onlyInsideNamespace")).toBe("never read");
+  });
+
+  test("sees a field read through a directory import", () => {
+    expect(verdictOf("Reached", "total")).toBe("read");
+  });
+
+  test("ignores a reader outside the folders it scans", () => {
+    expect(verdictOf("Sum", "noOneReadsThis")).toBe("never read");
+  });
+
   test("names the file that declares each field", () => {
-    expect(findings.find((f) => f.field === "total")?.file).toBe(
-      "src/shapes.ts",
-    );
+    expect(
+      findings.find((f) => f.owner === "Sum" && f.field === "total")?.file,
+    ).toBe("src/shapes.ts");
   });
 
   test("sees a field read through an import map alias", () => {
