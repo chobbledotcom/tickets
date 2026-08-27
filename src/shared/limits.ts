@@ -626,7 +626,7 @@ type Rung = readonly [size: number, suffix: string];
  * rounded to a whole number of them, and falls back to `baseSuffix` below the
  * smallest rung. Every human-readable size and duration below is one of these. */
 const laddered =
-  (rungs: readonly Rung[], baseSuffix: string) =>
+  (rungs: readonly Rung[], baseSuffix: string): ((value: number) => string) =>
   (value: number): string => {
     for (const [size, suffix] of rungs) {
       if (value >= size) return `${Math.round(value / size)}${suffix}`;

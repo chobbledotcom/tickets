@@ -271,7 +271,9 @@ export const deleteImageStorageFilesStrict = async (
 /** Turn a "delete one record's files" function into the whole-table sweep the
  * database reset runs. Both sweeps below are this one loop. */
 const deletesEveryFileFor =
-  <Record>(deleteOne: (record: Record, reason: string) => Promise<void>) =>
+  <Record>(
+    deleteOne: (record: Record, reason: string) => Promise<void>,
+  ): ((records: readonly Record[]) => Promise<void>) =>
   async (records: readonly Record[]): Promise<void> => {
     for (const record of records) await deleteOne(record, "database reset");
   };

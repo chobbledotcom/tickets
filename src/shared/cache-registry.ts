@@ -25,7 +25,7 @@ export type Unregister = () => void;
 /** Build the "join this set, and here is how to leave it" register function a
  * set of load-time registrations needs. Both registries below are one. */
 const registrar =
-  <T>(members: Set<T>) =>
+  <T>(members: Set<T>): ((member: T) => Unregister) =>
   (member: T): Unregister => {
     members.add(member);
     return () => {

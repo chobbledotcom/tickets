@@ -10,7 +10,7 @@ type SnapshotValue = { current: number; recalculated: number };
 export const recalculateRowsFor =
   <Name extends string>(
     getFields: () => readonly { name: string; label: string }[],
-  ) =>
+  ): ((snapshot: Record<Name, SnapshotValue>) => RecalculateRow[]) =>
   (snapshot: Record<Name, SnapshotValue>): RecalculateRow[] =>
     getFields().map((field) => {
       const name = field.name as Name;

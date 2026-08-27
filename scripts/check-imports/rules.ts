@@ -33,7 +33,10 @@ const isFolder = (alias: Alias): boolean => alias.name.endsWith("/");
  * translation, run in opposite directions.
  */
 const across =
-  (from: keyof Alias, to: keyof Alias) =>
+  (
+    from: keyof Alias,
+    to: keyof Alias,
+  ): ((alias: Alias, text: string) => string | null) =>
   (alias: Alias, text: string): string | null => {
     if (!isFolder(alias)) return text === alias[from] ? alias[to] : null;
     if (!text.startsWith(alias[from])) return null;

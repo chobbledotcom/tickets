@@ -132,7 +132,7 @@ export const getEmbedHosts = async (): Promise<string[]> => {
  * "is this integration set up" answer below is one of these, so a new one
  * names its variables rather than writing the check again. */
 const allEnvSet =
-  (...names: string[]) =>
+  (...names: string[]): (() => boolean) =>
   (): boolean =>
     names.every((name) => !!getEnv(name));
 
