@@ -226,6 +226,18 @@ describe("what the walk goes into", () => {
     expect(verdictOf('HoldsManyOtherWays.inAMap["[]"]', "insideAMap")).toBe(
       "never read",
     );
+    expect(
+      verdictOf(
+        'HoldsManyOtherWays.inAReadonlySet["[]"]',
+        "insideAReadonlySet",
+      ),
+    ).toBe("never read");
+    expect(
+      verdictOf(
+        'HoldsManyOtherWays.inAReadonlyMap["[]"]',
+        "insideAReadonlyMap",
+      ),
+    ).toBe("never read");
   });
 
   test("gives a Record the step its index signature spelling takes", () => {

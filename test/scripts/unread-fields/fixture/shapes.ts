@@ -175,10 +175,13 @@ export type HoldsAListOfTheSameName = { sharedWithAList: string } & Array<{
   sharedWithAList: number;
 }>;
 
-// A set and a map hold many the same way a list does.
+// A set and a map hold many the same way a list does. Each spelling needs
+// its own field, or a name can leave the list of them unnoticed.
 export interface HoldsManyOtherWays {
   inASet: Set<{ insideASet: number }>;
   inAMap: Map<string, { insideAMap: number }>;
+  inAReadonlySet: ReadonlySet<{ insideAReadonlySet: number }>;
+  inAReadonlyMap: ReadonlyMap<string, { insideAReadonlyMap: number }>;
 }
 
 // Every other way to write something reached one member at a time. All of
