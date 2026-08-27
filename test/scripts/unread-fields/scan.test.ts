@@ -39,9 +39,11 @@ export const badge = <Badge label="hi" supplied="nothing reads this" />;
 `,
 
   // A barrel. Its re-exports belong to the file that declares them, so nothing
-  // here is counted twice.
+  // here is counted twice. The last name is not there to be re-exported, so
+  // the compiler stands in a symbol that was never written down anywhere.
   "src/barrel.ts": `
 export type { Report, Sum } from "#shapes";
+export type { Gone } from "./nowhere.ts";
 `,
 
   "src/consume.ts": `
@@ -77,6 +79,13 @@ export const takePatternOut = (): number => {
 export interface Reached {
   total: number;
 }
+`,
+
+  // No import and no export, so this file is a script and not a module. It
+  // offers nothing for other files to reach.
+  "src/plain.ts": `
+const kept = 1;
+console.log(kept);
 `,
 
   // Every field written, none read: on its own this file proves nothing.

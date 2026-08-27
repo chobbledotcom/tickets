@@ -11,6 +11,7 @@ import ts from "typescript";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
 import { type Finding, verdictFor } from "./findings.ts";
+import { answered, compilerOptions, serviceHost } from "./host.ts";
 import { isWrite, nodeAt } from "./writes.ts";
 
 /** Folders whose code ships. `test/` is scanned too, so the scan can tell a
@@ -22,65 +23,6 @@ const sourceFilesIn = async (root: string): Promise<string[]> => {
     SCANNED.map((folder) => collectSourceFiles(`${root}/${folder}`)),
   );
   return perFolder.flat();
-};
-
-/** The scan never emits and never reads a diagnostic, so only parsing and
- * module resolution matter. `jsx` is set because a `.tsx` file must parse as
- * JSX. The rest tells the compiler how to find a file. */
-const compilerOptions = (
-  root: string,
-  paths: Record<string, string[]>,
-): ts.CompilerOptions => ({
-  baseUrl: root,
-  jsx: ts.JsxEmit.ReactJSX,
-  module: ts.ModuleKind.ESNext,
-  moduleResolution: ts.ModuleResolutionKind.Bundler,
-  paths,
-  target: ts.ScriptTarget.ESNext,
-});
-
-const serviceHost = (
-  root: string,
-  files: string[],
-  options: ts.CompilerOptions,
-): ts.LanguageServiceHost => {
-  const texts = new Map<string, string>();
-  const read = (file: string): string | undefined => {
-    if (!texts.has(file)) {
-      try {
-        texts.set(file, Deno.readTextFileSync(file));
-      } catch {
-        // A path the compiler probes but the repository does not have.
-        return;
-      }
-    }
-    return texts.get(file);
-  };
-  const isKind = (path: string, kind: "isFile" | "isDirectory"): boolean => {
-    try {
-      return Deno.statSync(path)[kind];
-    } catch {
-      return false;
-    }
-  };
-  return {
-    directoryExists: (dir) => isKind(dir, "isDirectory"),
-    fileExists: (file) => isKind(file, "isFile"),
-    getCompilationSettings: () => options,
-    getCurrentDirectory: () => root,
-    getDefaultLibFileName: (o) => ts.getDefaultLibFilePath(o),
-    getDirectories: ts.sys.getDirectories,
-    getScriptFileNames: () => files,
-    getScriptSnapshot: (file) => {
-      const text = read(file);
-      return text === undefined
-        ? undefined
-        : ts.ScriptSnapshot.fromString(text);
-    },
-    getScriptVersion: () => "1",
-    readDirectory: ts.sys.readDirectory,
-    readFile: read,
-  };
 };
 
 type Shape = ts.InterfaceDeclaration | ts.TypeAliasDeclaration;
@@ -153,7 +95,10 @@ const readersOf = (
   file: string,
   field: ts.Identifier,
 ): string[] => {
-  const references = service.findReferences(file, field.getStart()) ?? [];
+  const references = answered(
+    service.findReferences(file, field.getStart()),
+    `references for ${field.text}`,
+  );
   const readers: string[] = [];
   for (const group of references) {
     for (const reference of group.references) {
@@ -176,14 +121,13 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
     serviceHost(root, files, options),
     ts.createDocumentRegistry(),
   );
-  const program = service.getProgram();
-  if (!program) throw new Error("TypeScript built no program for the scan");
+  const program = answered(service.getProgram(), "program for the scan");
   const checker = program.getTypeChecker();
 
   const findings: Finding[] = [];
-  for (const file of files.filter((f) => f.startsWith(`${root}/src/`))) {
-    const source = program.getSourceFile(file);
-    if (!source) continue;
+  for (const source of program.getSourceFiles()) {
+    const file = source.fileName;
+    if (!file.startsWith(`${root}/src/`)) continue;
     for (const { owner, field } of exportedFields(checker, source)) {
       findings.push({
         field: field.text,
