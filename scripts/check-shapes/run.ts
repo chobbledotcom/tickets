@@ -6,11 +6,16 @@
 
 import { parseSync } from "npm:oxc-parser@0.132.0";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
-import { collectSourceFiles } from "#scripts/walk-files.ts";
+import { collectScriptFiles } from "#scripts/walk-files.ts";
 import { acceptedProblems, formatProblem, parseAccepted } from "./accepted.ts";
-import { namedFunctions } from "./functions.ts";
-import { formatMatch, type ShapeSite, shapeMatches } from "./rules.ts";
-import { shapeOf } from "./shape.ts";
+import { jsxTextSpans, namedFunctions } from "./functions.ts";
+import {
+  formatMatch,
+  outsideSharedMechanism,
+  type ShapeSite,
+  shapeMatches,
+} from "./rules.ts";
+import { maskJsxText, shapeOf } from "./shape.ts";
 
 /**
  * The shortest body that counts. This number ratchets downward: lower it,
@@ -26,14 +31,18 @@ export const SOURCE_DIRS = ["src", "scripts", "e2e-payments"];
 export const ACCEPTED_DIR = "scripts/check-shapes/accepted";
 
 /**
- * Files whose repetition is not ours to remove, matching `.jscpd.json`:
- * `#fp`'s curried pairs are the shared mechanism itself, and a shipped
- * migration is history that must never change.
+ * Files this check never reads, matching what `.jscpd.json` skips: a shipped
+ * migration is history that must never change, and `src/ui/static` holds built
+ * bundles rather than code anybody wrote.
  */
-const isExempt = (file: string): boolean =>
-  /(^|\/)fp\.ts$/.test(file) ||
+const isFrozen = (file: string): boolean =>
   /(^|\/)migrations\/2\d/.test(file) ||
-  /(^|\/)migrations\/schema\/columns\.ts$/.test(file);
+  /(^|\/)migrations\/schema\/columns\.ts$/.test(file) ||
+  /(^|\/)ui\/static\//.test(file);
+
+/** The one file whose repetition is the point. See {@link outsideSharedMechanism}. */
+export const isSharedMechanism = (file: string): boolean =>
+  /(^|\/)fp\.ts$/.test(file);
 
 /** Every named function body under the given roots. */
 export const collectSites = async (
@@ -41,15 +50,17 @@ export const collectSites = async (
 ): Promise<ShapeSite[]> => {
   const sites: ShapeSite[] = [];
   for (const root of roots) {
-    for (const file of await collectSourceFiles(root)) {
-      if (isExempt(file)) continue;
+    for (const file of await collectScriptFiles(root)) {
+      if (isFrozen(file)) continue;
       const source = await Deno.readTextFile(file);
       const { program } = parseSync(file, source);
+      const jsxText = jsxTextSpans(program);
       for (const found of namedFunctions(program, source)) {
         sites.push({
           body: source.slice(found.start, found.end),
           file,
           line: found.line,
+          masked: maskJsxText(source, found, jsxText),
           name: found.name,
         });
       }
@@ -84,7 +95,9 @@ export const runShapeCheck = async (
   acceptedDir: string,
   output: CheckOutput,
 ): Promise<number> => {
-  const matches = shapeMatches(await collectSites(roots), shapeOf, MIN_TOKENS);
+  const matches = outsideSharedMechanism(isSharedMechanism)(
+    shapeMatches(await collectSites(roots), shapeOf, MIN_TOKENS),
+  );
   const { entries, malformed } = await readAccepted(acceptedDir);
   const accepted = new Set(entries.map((entry) => entry.key));
   const matchedKeys = new Set(matches.map((match) => match.key));

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   formatMatch,
   matchKey,
+  outsideSharedMechanism,
   type ShapeSite,
   shapeMatches,
 } from "#scripts/check-shapes/rules.ts";
@@ -12,6 +13,7 @@ const site = (name: string, body: string, file = "src/a.ts"): ShapeSite => ({
   body,
   file,
   line: 1,
+  masked: body,
   name,
 });
 
@@ -116,5 +118,31 @@ describe("formatMatch", () => {
         "    src/z.ts:1  b",
       ].join("\n"),
     );
+  });
+});
+
+describe("outsideSharedMechanism", () => {
+  const inFp = (file: string) => file === "src/fp.ts";
+  const group = (...sites: ShapeSite[]) => ({ key: "k", sites, tokens: 30 });
+
+  test("drops a group whose every site is the shared mechanism", () => {
+    const only = group(
+      site("map", LONG_A, "src/fp.ts"),
+      site("filter", LONG_B, "src/fp.ts"),
+    );
+    expect(outsideSharedMechanism(inFp)([only])).toEqual([]);
+  });
+
+  test("keeps a group where one site copies the shared mechanism", () => {
+    const mixed = group(
+      site("map", LONG_A, "src/fp.ts"),
+      site("mapAgain", LONG_B, "src/elsewhere.ts"),
+    );
+    expect(outsideSharedMechanism(inFp)([mixed])).toEqual([mixed]);
+  });
+
+  test("keeps a group that never touches the shared mechanism", () => {
+    const plain = group(site("a", LONG_A), site("b", LONG_B, "src/z.ts"));
+    expect(outsideSharedMechanism(inFp)([plain])).toEqual([plain]);
   });
 });

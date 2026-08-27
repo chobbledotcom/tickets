@@ -52,6 +52,34 @@ const KEPT_WORDS = new Set([
   "yield",
 ]);
 
+/** Where a run of text sits in a file, as offsets. */
+export interface Span {
+  end: number;
+  start: number;
+}
+
+/**
+ * One body with every run of JSX text replaced by an empty string, so the words
+ * a component renders read as one literal rather than as names. Text that is
+ * only whitespace goes altogether: JSX drops it, and keeping it would make the
+ * shape change when `deno fmt` rewraps the markup.
+ */
+export const maskJsxText = (
+  source: string,
+  body: Span,
+  spans: readonly Span[],
+): string => {
+  let masked = "";
+  let cursor = body.start;
+  for (const span of spans) {
+    if (span.start < cursor || span.end > body.end) continue;
+    const text = source.slice(span.start, span.end);
+    masked += source.slice(cursor, span.start) + (/\S/.test(text) ? '""' : "");
+    cursor = span.end;
+  }
+  return masked + source.slice(cursor, body.end);
+};
+
 const isWordStart = (character: string): boolean =>
   /[A-Za-z_$#]/.test(character);
 

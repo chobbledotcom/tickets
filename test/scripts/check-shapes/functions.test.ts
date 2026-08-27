@@ -1,7 +1,10 @@
 import { parseSync } from "npm:oxc-parser@0.132.0";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { namedFunctions } from "#scripts/check-shapes/functions.ts";
+import {
+  jsxTextSpans,
+  namedFunctions,
+} from "#scripts/check-shapes/functions.ts";
 
 const found = (source: string) =>
   namedFunctions(parseSync("sample.ts", source).program, source);
@@ -68,5 +71,35 @@ describe("namedFunctions", () => {
     expect(names("const outer = function inner() { return 1; };")).toEqual([
       "inner",
     ]);
+  });
+});
+
+/** The text each JSX run covers, so a test reads words rather than offsets. */
+const jsxText = (source: string): string[] =>
+  jsxTextSpans(parseSync("sample.tsx", source).program).map((span) =>
+    source.slice(span.start, span.end),
+  );
+
+describe("jsxTextSpans", () => {
+  test("finds the words a component renders", () => {
+    expect(jsxText("const A = () => <b>Save changes</b>;")).toEqual([
+      "Save changes",
+    ]);
+  });
+
+  test("finds the runs on both sides of a nested element", () => {
+    expect(jsxText("const A = () => <p>Hi <b>you</b> there</p>;")).toEqual([
+      "Hi ",
+      "you",
+      " there",
+    ]);
+  });
+
+  test("finds nothing in a file with no JSX", () => {
+    expect(jsxText("const add = (a: number) => a + 1;")).toEqual([]);
+  });
+
+  test("leaves an interpolated value alone, because it is code", () => {
+    expect(jsxText("const A = ({ n }) => <b>{n.toFixed(2)}</b>;")).toEqual([]);
   });
 });

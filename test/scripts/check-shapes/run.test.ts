@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   ACCEPTED_DIR,
   collectSites,
+  isSharedMechanism,
   MIN_TOKENS,
   readAccepted,
   runShapeCheck,
@@ -99,10 +100,22 @@ describe("runShapeCheck", () => {
     );
   });
 
-  test("leaves #fp and the shipped migrations out of the walk", async () => {
+  test("walks the browser scripts we ship as plain .js", async () => {
     const sites = await collectSites(SOURCE_DIRS);
-    expect(sites.some((site) => /(^|\/)fp\.ts$/.test(site.file))).toBe(false);
+    expect(sites.some((site) => site.file.endsWith("client/scanner.js"))).toBe(
+      true,
+    );
+  });
+
+  test("leaves the shipped migrations and the built bundles out of the walk", async () => {
+    const sites = await collectSites(SOURCE_DIRS);
     expect(sites.some((site) => /migrations\/2\d/.test(site.file))).toBe(false);
+    expect(sites.some((site) => /ui\/static\//.test(site.file))).toBe(false);
+  });
+
+  test("compares #fp, so a body that copies one of its helpers is seen", async () => {
+    const sites = await collectSites(SOURCE_DIRS);
+    expect(sites.some((site) => isSharedMechanism(site.file))).toBe(true);
   });
 
   test("holds this repository at its accepted list", async () => {

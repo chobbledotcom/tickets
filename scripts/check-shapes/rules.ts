@@ -5,9 +5,13 @@
 
 /** One function, named by the file it lives in. */
 export interface ShapeSite {
+  /** The body as written. Two of these that match exactly are already
+   * `deno task cpd`'s to report, so this check leaves them to it. */
   body: string;
   file: string;
   line: number;
+  /** The body with its JSX text masked, which is what gets shaped. */
+  masked: string;
   name: string;
 }
 
@@ -55,7 +59,7 @@ export const shapeMatches = (
   const byShape = new Map<string, ShapeSite[]>();
   const sizes = new Map<string, number>();
   for (const site of sites) {
-    const shape = shapeOf(site.body);
+    const shape = shapeOf(site.masked);
     if (shape.length < minTokens) continue;
     const shapeKey = shape.join(" ");
     sizes.set(shapeKey, shape.length);
@@ -73,3 +77,16 @@ export const shapeMatches = (
   }
   return matches.sort((left, right) => left.key.localeCompare(right.key));
 };
+
+/**
+ * Drops a group that sits entirely inside the shared mechanism. `#fp`'s curried
+ * pairs match each other by design, and merging them would remove the helpers
+ * everything else calls. A body outside `#fp` that matches one of them is still
+ * a finding, because there the merge is to call the helper.
+ */
+export const outsideSharedMechanism =
+  (isShared: (file: string) => boolean) =>
+  (matches: readonly ShapeMatch[]): ShapeMatch[] =>
+    matches.filter(
+      (match) => !match.sites.every((site) => isShared(site.file)),
+    );

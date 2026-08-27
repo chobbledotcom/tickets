@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { shapeOf } from "#scripts/check-shapes/shape.ts";
+import { maskJsxText, shapeOf } from "#scripts/check-shapes/shape.ts";
 
 /** A `${…}` group, written so the linter does not read this test's data as a
  * template somebody forgot to tag. */
@@ -156,5 +156,47 @@ describe("shapeOf", () => {
 
   test("keeps an unterminated string from swallowing the rest twice", () => {
     expect(shapeOf('"a')).toEqual(["STR"]);
+  });
+});
+
+describe("maskJsxText", () => {
+  /** Masks the whole of `source`, given the runs a caller says are JSX text.
+   * Each run is found after the one before it, so a repeated run still lands
+   * where it was written. */
+  const maskAll = (source: string, ...runs: string[]): string => {
+    let cursor = 0;
+    const spans = runs.map((run) => {
+      const start = source.indexOf(run, cursor);
+      cursor = start + run.length;
+      return { end: cursor, start };
+    });
+    return maskJsxText(source, { end: source.length, start: 0 }, spans);
+  };
+
+  test("turns the words a component renders into one string", () => {
+    expect(maskAll("<b>Save changes</b>", "Save changes")).toBe('<b>""</b>');
+  });
+
+  test("drops a run that is only whitespace, so wrapping cannot change a shape", () => {
+    expect(maskAll("<p>\n  <b/>\n</p>", "\n  ", "\n")).toBe("<p><b/></p>");
+  });
+
+  test("leaves a body with no JSX exactly as it was", () => {
+    expect(maskAll("(a) => a + 1")).toBe("(a) => a + 1");
+  });
+
+  test("ignores a run outside the body it is asked for", () => {
+    const source = "<b>one</b><i>two</i>";
+    const spans = [
+      { end: 6, start: 3 },
+      { end: 17, start: 14 },
+    ];
+    expect(maskJsxText(source, { end: 10, start: 0 }, spans)).toBe('<b>""</b>');
+  });
+
+  test("gives two components that differ only in wording one shape", () => {
+    const first = maskAll("<b>Yes please</b>", "Yes please");
+    const second = maskAll("<b>No thanks</b>", "No thanks");
+    expect(shapeOf(first)).toEqual(shapeOf(second));
   });
 });
