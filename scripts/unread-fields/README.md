@@ -45,10 +45,11 @@ a class keeps to itself.
 A shape also hands on the fields it takes from somewhere else. That means a base
 it extends, an intersection, another type it simply names, or every arm of a
 union. `StripeRefund = StripeRefundFields` names one type, and
-`Success | Failure` names two. A reader of a union reaches every field of both
-arms, once it knows which arm it holds. The arms are often types the file keeps
-to itself. A field written down in a library, such as the `toFixed` that
-`number` carries, is not a field this repository exports.
+`Success | Failure` names two. The scan looks at the fields of every arm. A
+reader reaches the fields of one arm, after it narrows the value to that arm.
+The arms are often types the file keeps to itself, so no other shape reports
+them. A field written down in a library, such as the `toFixed` that `number`
+carries, is not a field this repository exports.
 
 ## Reads, not mentions
 

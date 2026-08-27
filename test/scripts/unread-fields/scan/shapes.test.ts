@@ -80,6 +80,24 @@ describe("the shapes the scan finds", () => {
     expect(verdictOf("OnlyWhenItFits", "checkedNotDeclared")).toBeUndefined();
   });
 
+  test("keeps a borrowed field a nested one shares a name with", () => {
+    // The nested field and the borrowed one are different fields that happen
+    // to share a name. Counting the nested one as the shape's own would hide
+    // the borrowed one, which a reader reaches straight off the shape.
+    const lines = scanned.all.filter((f) => f.owner === "NestsTheSameName");
+    expect(lines.map((f) => f.field).sort()).toEqual([
+      "inside",
+      "sharedNameDifferentField",
+    ]);
+    expect(
+      scanned.all.some(
+        (f) =>
+          f.owner === "NestsTheSameName.inside" &&
+          f.field === "sharedNameDifferentField",
+      ),
+    ).toBe(true);
+  });
+
   test("sees the fields of a union whose arms are named types", () => {
     // `PaymentResult = PaymentSuccess | PaymentFailure` names two types its
     // own file keeps to itself, so nothing else reports their fields.
@@ -144,6 +162,9 @@ describe("the shapes the scan finds", () => {
       "Intersects.ofItsOwnAgain",
       "ListExported.onlyInAList",
       "NamedItsParameter.onlyTheConstructorNamesIt",
+      "NestsTheSameName.inside",
+      "NestsTheSameName.inside.sharedNameDifferentField",
+      "NestsTheSameName.sharedNameDifferentField",
       "OnlyWhenItFits.answeredByTheBranch",
       "Passed.carriedBySpread",
       "Passed.kept",

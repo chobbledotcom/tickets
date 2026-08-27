@@ -238,6 +238,14 @@ const MADE_UP_LIST = [{ writtenInAList: 1 }] as const;
 
 export type FromAList = (typeof MADE_UP_LIST)[number];
 
+interface HasAnIdOfItsOwn {
+  sharedNameDifferentField: number;
+}
+
+export type NestsTheSameName = HasAnIdOfItsOwn & {
+  inside: { sharedNameDifferentField: string };
+};
+
 interface WentWell {
   sharedByTheNames: true;
   onlyWhenItWentWell: string;

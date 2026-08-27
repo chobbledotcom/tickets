@@ -234,7 +234,15 @@ const exportedFields = (
   for (const shape of exportedShapes(checker, container, source.fileName)) {
     const before = found.length;
     for (const part of shapeBody(shape)) collect(shape.name.text, part);
-    const own = new Set(found.slice(before).map((f) => f.field.text));
+    // Only what the shape writes down itself. A field of an object type nested
+    // inside it is a different field with the same name, and counting it here
+    // would hide the one the shape takes from somewhere else.
+    const own = new Set(
+      found
+        .slice(before)
+        .filter((found) => found.owner === shape.name.text)
+        .map((found) => found.field.text),
+    );
     found.push(...inheritedFields(checker, shape, own));
   }
   return found;
