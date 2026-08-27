@@ -73,6 +73,11 @@ describe("reportLines", () => {
     );
   });
 
+  test("puts a blank line between the count and the list", () => {
+    const lines = reportLines([finding()]);
+    expect(lines[1]).toBe("");
+  });
+
   test("names each field with its verdict and its file", () => {
     expect(reportLines([finding()]).at(-1)).toBe(
       "  never read          Sum.total  src/a.ts",
