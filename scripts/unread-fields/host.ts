@@ -49,9 +49,6 @@ export const pathIs =
   (path) =>
     probing(false)(() => Deno.statSync(path)[kind]);
 
-/** The scan never emits and never reads a diagnostic, so only the parse and
- * the module resolution matter. `jsx` is set because a `.tsx` file must parse as
- * JSX. The rest tells the compiler how to find a file. */
 /** What the repository asks the compiler for, out of its own `deno.json`.
  * Strictness changes what a type means, so a scan that leaves it out reads a
  * different repository from the one Deno checks. */

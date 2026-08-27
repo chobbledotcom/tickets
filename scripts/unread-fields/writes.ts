@@ -3,7 +3,7 @@
  *
  * This is the whole point of the scan. A field can be mentioned often and
  * still never be read: every mention writes it, and nothing downstream ever
- * looks. Counting mentions cannot see that. Counting reads can.
+ * looks. A count of mentions cannot see that. A count of reads can.
  */
 
 import ts from "typescript";
@@ -253,14 +253,18 @@ const isRuntimeHeritage = (node: ts.Node): boolean =>
   ts.isClassLike(node.parent.parent) &&
   !isAmbient(node.parent.parent);
 
+const isAbstract = carriesAModifier(ts.ModifierFlags.Abstract);
+
 /** A name in brackets that the compiler works out and the program never runs.
  * `interface Uses { [Registry.key]: string }` is one, and so is a member of a
- * class that is only described. An object literal works its key out as it
- * runs, and a real class works its member names out as its declaration runs,
- * even where nothing ever makes one, so neither is one. */
+ * class that is only described. An abstract member is a third: the compiler
+ * erases it, so `abstract [Registry.key](): void` leaves nothing that could
+ * work the name out. An object literal works its key out as it runs, and a
+ * real class works its member names out as its declaration runs, even where
+ * nothing ever makes one, so neither of those is one. */
 const namesAMemberNothingRuns = (node: ts.Node): boolean =>
   ts.isComputedPropertyName(node) &&
-  (ts.isTypeElement(node.parent) || isAmbient(node));
+  (ts.isTypeElement(node.parent) || isAmbient(node) || isAbstract(node.parent));
 
 /** A mention inside a type names the field to borrow its type, and no value
  * moves when the program runs. `Config["execute"]` is one. The compiler counts

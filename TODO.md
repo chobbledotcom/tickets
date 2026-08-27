@@ -197,6 +197,74 @@ down with each one. That also makes the report say which `Item` a line means.
 
 ---
 
+## Keep the fields a repository declaration file writes down
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`writtenNames` in `scripts/unread-fields/fields.ts` drops a declaration whose
+source file has `isDeclarationFile` set. The rule is right for a library: the
+`toFixed` that `number` carries is not a field this repository exports. The test
+is too wide, because a `.d.ts` file inside `src/` sets the same flag. An
+exported shape that extends a base declared in a repository `.d.ts` therefore
+loses every borrowed field, and the base itself is no exported shape, so nothing
+else reports them.
+
+`src/` holds one declaration file, `src/static.d.ts`. It declares the ambient
+modules for `*.svg` and `*.css`, and no shape extends anything in it, so no
+field is lost today.
+
+The fix asks a different question: does the declaration belong to this
+repository? The program already knows the root, so a path check against it
+answers. Take care that a `node_modules` or Deno cache path under the root still
+counts as a library.
+
+---
+
+## Tell a shadowed container name from the built-in one
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`holdsElements` in `scripts/unread-fields/fields.ts` matches a type reference by
+its spelling alone. A module that declares `type Array<T> = { direct: T }`
+shadows the built-in, and an exported `Array<{ id: number }>` then takes an
+element step it must not take. A probe shows the report gains a path no reader
+can follow:
+
+```
+UsesLocalArray["[]"].id     <- the phantom
+UsesLocalArray.direct       <- the real field
+```
+
+`src/` declares no type named `Array`, `ReadonlyArray`, `Record`, `Set`,
+`ReadonlySet`, `Map` or `ReadonlyMap`, so nothing hits it.
+
+`checker.getSymbolAtLocation(node.typeName)` answers with the symbol, and a
+built-in resolves to a declaration in a `lib.*.d.ts` file. Make the check ask
+the symbol rather than the word. A fixture for this needs its own file: a
+`type Array<T>` shadows the built-in for every shape beside it.
+
+---
+
+## Read the fields an object literal gives a class field
+
+_Origin: a review of PR #2166. No file in `src/` triggers it today._
+
+`class Holder { config = { dead: 1 } }` puts `dead` in the public type, and a
+caller reaches `holder.config.dead`. The walk reports `Holder.config` and stops.
+`holdsAField` rejects a `PropertyAssignment`, because the walk reads type
+syntax, and the checker pass sees only `config`.
+
+`src/` has no exported class with an object literal for a field, so the report
+loses nothing today.
+
+The fix widens what the walk goes into, from a type to a value expression that
+gives a type. Weigh that against the walk's one rule: today every part it enters
+is type syntax, and a value expression is a second kind of thing. Look at the
+report diff first, because a class field that holds a large literal adds a line
+for every key.
+
+---
+
 ## Find the readers of a negative numeric field name
 
 _Origin: a review of PR #2166. No file in `src/` triggers it today._

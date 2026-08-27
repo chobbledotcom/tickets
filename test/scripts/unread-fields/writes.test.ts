@@ -311,6 +311,14 @@ describe("readsTheValue", () => {
     // A class the program builds works its member names out as it runs.
     expect(readsAt('class Runs { [Registry.key] = "x" }', "key")).toBe(true);
   });
+
+  test("does not read a field an abstract member's brackets name", () => {
+    // The compiler erases an abstract member, so the class it sits in is
+    // built with nothing that could work the name out.
+    expect(
+      readsAt("abstract class Plan { abstract [Registry.key](): void }", "key"),
+    ).toBe(false);
+  });
 });
 
 describe("namesAMember", () => {

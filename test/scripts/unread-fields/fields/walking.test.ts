@@ -217,6 +217,17 @@ describe("what the walk goes into", () => {
     ).toBe("never read");
   });
 
+  test("gives a set and a map the step a list takes", () => {
+    // Each holds many, so a field of the shape and a field of what it holds
+    // are two fields, exactly as with a list.
+    expect(verdictOf('HoldsManyOtherWays.inASet["[]"]', "insideASet")).toBe(
+      "never read",
+    );
+    expect(verdictOf('HoldsManyOtherWays.inAMap["[]"]', "insideAMap")).toBe(
+      "never read",
+    );
+  });
+
   test("gives a Record the step its index signature spelling takes", () => {
     // `Record<string, T>` and `{ [k: string]: T }` are one type written two
     // ways, so a reader writes `rec[key].inside` for both.

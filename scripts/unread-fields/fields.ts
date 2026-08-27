@@ -209,8 +209,20 @@ const narrowsByAFilter = namedOneOf(NARROWS_BY_A_FILTER);
 
 /** The generics a reader reaches one member at a time. `Array<Row>` and
  * `Row[]` are one type written two ways, and `Record<string, Row>` is the
- * index signature written as a generic, which already takes this step. */
-const holdsElements = namedOneOf(new Set(["Array", "ReadonlyArray", "Record"]));
+ * index signature written as a generic, which already takes this step. A set
+ * and a map hold many the same way, so a field of the shape and a field of
+ * what one of them holds stay two fields. */
+const holdsElements = namedOneOf(
+  new Set([
+    "Array",
+    "ReadonlyArray",
+    "Record",
+    "Set",
+    "ReadonlySet",
+    "Map",
+    "ReadonlyMap",
+  ]),
+);
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
