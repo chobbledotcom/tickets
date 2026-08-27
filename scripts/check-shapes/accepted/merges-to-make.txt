@@ -20,9 +20,7 @@ src/shared/db/attributes.ts::deleteAttributeOption,src/shared/db/questions/delet
 src/shared/db/groups/membership.ts::requirePackageGroupMembersTx,src/shared/db/listing-parents.ts::requireCurrentRelationshipRules  # both run a check and throw the same error when it answers
 src/shared/db/listings/records.ts::getListingsById,src/shared/db/modifier-resolve.ts::activeModifiersById  # both key a loaded list by id; one byId helper serves both
 src/shared/db/notes/queries.ts::noteOfTarget,src/shared/db/site-page-items.ts::itemOnPage  # both build the same where-clause pair from a record target
-src/shared/db/settings.ts::provider,src/shared/db/settings.ts::superuserChoice  # same file, both read a setting then keep it only when it is a known value
 src/shared/email.ts::getHostEmailConfig,src/shared/wallets/wallet-settings-types.ts::getHostConfig  # both prefer an override and fall back to the environment
-src/shared/jsx/escape-html.ts::escapeHtml,src/ui/templates/admin/footer.tsx::escapeFooterHtml  # the same HTML escaper, written twice
 src/shared/payment-helpers.ts::listingAnswerIdsField,src/shared/payment-helpers.ts::listingTextAnswerIdsField  # same file, differing only in the field name and the source map
 src/ui/client/admin/manual-checkin.ts::hideList,src/ui/client/admin/manual-checkin.ts::showList  # same file, one showing and one hiding, differing only in the two values
 src/ui/templates/admin/debug.tsx::Row,src/ui/templates/components/labelled-row.tsx::LabelledRow  # two table-row components with the same shape; one belongs in the other

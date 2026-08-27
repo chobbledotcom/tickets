@@ -2,6 +2,7 @@
  * Admin attendee merge routes
  */
 
+import { pick } from "@std/collections";
 import { logActivity } from "#db/activity-log.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { decryptAttendeeOrNull, decryptAttendees } from "#db/attendees/pii.ts";
@@ -110,14 +111,19 @@ const collectListingIds = (
 type MergeSource = NonNullable<Awaited<ReturnType<typeof loadMergeSource>>>;
 type MergeSummary = Awaited<ReturnType<typeof applyAttendeeMerge>>["summary"];
 
+/** The five values a merge compares, whichever attendee they are read off. */
+const PII_FIELDS = [
+  "address",
+  "email",
+  "name",
+  "phone",
+  "special_instructions",
+] as const;
+
+type MergePii = Pick<Attendee, (typeof PII_FIELDS)[number]>;
+
 /** The values a merge compares, read off either attendee. */
-const extractPii = (person: MergeSource | Attendee) => ({
-  address: person.address,
-  email: person.email,
-  name: person.name,
-  phone: person.phone,
-  special_instructions: person.special_instructions,
-});
+const extractPii = (person: MergePii): MergePii => pick(person, PII_FIELDS);
 
 /** Build merge diff from source + target */
 const buildMergeDiffFor = async (
