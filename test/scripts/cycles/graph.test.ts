@@ -6,14 +6,18 @@ import {
   loadTimeEdges,
 } from "#scripts/cycles/graph.ts";
 import { runCycleReport } from "#scripts/cycles/run.ts";
-import type { Dependency, ModuleGraph } from "#scripts/module-graph.ts";
+import type { ModuleGraph } from "#scripts/module-graph.ts";
 
 const ROOT = "/repo";
+
+/** One dependency as the graph reader parses it — derived from the graph
+ * type, so the fixture follows the reader's own shape. */
+type Dep = NonNullable<ModuleGraph["modules"][number]["dependencies"]>[number];
 
 /** A module in the graph: local unless its specifier says otherwise. */
 const moduleOf = (
   path: string,
-  deps: Partial<Dependency>[],
+  deps: Partial<Dep>[],
 ): ModuleGraph["modules"][number] => ({
   dependencies: deps.map((dep) => ({
     specifier: dep.specifier ?? "",

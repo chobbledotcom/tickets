@@ -44,8 +44,8 @@ const ModuleGraphSchema = v.object({
 });
 
 export type ModuleGraph = v.InferOutput<typeof ModuleGraphSchema>;
-export type Dependency = v.InferOutput<typeof DependencySchema>;
-export type GraphModule = ModuleGraph["modules"][number];
+type Dependency = v.InferOutput<typeof DependencySchema>;
+type GraphModule = ModuleGraph["modules"][number];
 
 /** Run `deno info --json` for `entry` from `cwd`, failing loudly on errors. */
 export const readModuleGraph = async (
@@ -127,10 +127,10 @@ export const reachableSpecifiers = (
 };
 
 /**
- * A module's runtime edges, dynamic imports included — the walk for
- * questions about what can ever evaluate.
+ * A module's runtime edges, dynamic imports included — the relation behind
+ * the runtime-reachability walk.
  */
-export const runtimeEdgesOf = (module: GraphModule): readonly string[] =>
+const runtimeEdgesOf = (module: GraphModule): readonly string[] =>
   codeSpecifiers(module.dependencies ?? [], true);
 
 /** A module's static edges only — the walk the cold-start question uses. */

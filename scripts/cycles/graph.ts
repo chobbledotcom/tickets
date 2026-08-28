@@ -5,6 +5,7 @@
  */
 
 import { fromFileUrl, relative, SEPARATOR } from "@std/path";
+import { requiredMapValue } from "#fp";
 import {
   type ModuleGraph,
   runtimeReachableSpecifiers,
@@ -126,12 +127,18 @@ export const cyclicGroups = (edges: Map<string, Set<string>>): string[][] => {
   const importsOf = nodes.map((node) =>
     [...(edges.get(node) ?? [])]
       .filter((target) => index.has(target))
-      .map((target) => index.get(target)!),
+      .map((target) =>
+        requiredMapValue(
+          index,
+          target,
+          `Module index has no entry for ${target}`,
+        ),
+      ),
   );
   const importersOf = nodes.map(() => [] as number[]);
-  importsOf.forEach((targets, from) => {
+  for (const [from, targets] of importsOf.entries()) {
     for (const to of targets) importersOf[to]!.push(from);
-  });
+  }
   return groupsFromFinishOrder(finishOrderOf(nodes, importsOf), importersOf)
     .filter((group) => group.length > 1)
     .map((group) => group.map((node) => nodes[node]!).sort())
