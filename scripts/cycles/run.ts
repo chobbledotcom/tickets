@@ -11,7 +11,7 @@ const ROOT_MODULE = "src/serve-app.ts";
 
 /** Reads the module graph for `entry` from `cwd` — injectable so tests run
  * the report over fixtures without a `deno info` subprocess. */
-export type GraphReader = (entry: string, cwd: string) => Promise<ModuleGraph>;
+type GraphReader = (entry: string, cwd: string) => Promise<ModuleGraph>;
 
 /** The full import-cycle report for the production entry point's graph. */
 export const runCycleReport = async (
