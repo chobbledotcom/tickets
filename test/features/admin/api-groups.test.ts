@@ -177,6 +177,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.name).toBe("New Group");
           expect(body.group.id).toBeGreaterThan(0);
           expect(body.group.slug).toBeDefined();
+          expect(body.group.max_attendees).toBe(0);
           expect(body.group.slug_index).toBeUndefined();
           expect(body.group.max_attendees).toBe(0);
         },
@@ -375,6 +376,21 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         (body) => {
           expect(body.group.name).toBe("New Group Name");
           expect(body.group.slug).toBe(group.slug);
+        },
+      );
+    });
+
+    test("refuses a malformed catalog field, naming the field", async () => {
+      const group = await createTestGroup({ name: "Catalog Guard" });
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: { hidden: "maybe", name: "Catalog Guard" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("hidden has an invalid value");
         },
       );
     });

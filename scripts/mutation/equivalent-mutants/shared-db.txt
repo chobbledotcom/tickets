@@ -231,3 +231,6 @@ src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3 The unanswered SumUp count returned no result→""   # unreachable: one ResultSet per batch statement
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w The unanswered SumUp count returned no row→""   # unreachable: COUNT(*) always returns one row
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn The unanswered SumUp listing returned no result→""   # unreachable: one ResultSet per batch statement
+src/shared/db/listings/records.ts::withDayPrices~12esd4i  ?? → ||   # a provided DayPrices is a Record object (always truthy), and undefined takes the fetch under either operator
+src/shared/db/listings/records.ts::withDayPrices~0jasiuh  ?? → ||   # a projected image column set is an object (always truthy), so the fetch fallback runs only when it is undefined
+src/shared/db/listings/records.ts::getStoredListingWithCount~0s7oh7g  ?? → ||   # the array element is a listing object or undefined; a present listing is truthy

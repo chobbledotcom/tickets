@@ -12,6 +12,7 @@ import {
   sitePages,
   updateSitePage,
 } from "#db/site-pages.ts";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -193,6 +194,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       sitePages.invalidate();
       const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
       expect(row?.sort_order).toBe(0);
+    });
+
+    test("cache stats identify the site pages cache by name", () => {
+      expect(getAllCacheStats().map((stat) => stat.name)).toContain(
+        "site_pages_nav",
+      );
     });
   });
 });
