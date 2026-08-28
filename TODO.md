@@ -1,5 +1,27 @@
 # TODO — remaining follow-ups
 
+## Hold the payment e2e's connection-test lines to one source (from PR #2179)
+
+`testProviderConnection` in `e2e-payments/src/providers/shared.ts` asserts
+answer lines such as "API Key: Valid (test mode)" and "Events:
+checkout.session.completed". The app builds those lines in
+`src/ui/client/admin/payment-test-buttons.ts` from hard-coded strings, not from
+the message catalog. A wording change there breaks the schedule-only run a day
+later, exactly as #2152 did.
+
+The `check:e2e-labels` gate cannot catch this class. It scans the literals that
+`clickButton`, `clickLink` and `requirePageText` receive, and a connection
+check's `require` array is plain data outside those calls.
+
+To close it, move the connection-answer wording into the message catalog (the
+same migration as "Move the routes' flash messages into the message catalog"
+below). Then derive the specs' `require` lines with `t()`, as `saveCredentials`
+derives its button label. Starting points:
+`src/ui/client/admin/payment-test-buttons.ts` and the `ConnectionCheck` callers
+in `e2e-payments/src/providers/{stripe,sumup}.ts`.
+
+---
+
 ## Remove the alias exports in the test helpers
 
 _Origin: the test-helper duplication pass (`docs/test-duplication.md`). Found
