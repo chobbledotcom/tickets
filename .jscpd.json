@@ -6,14 +6,15 @@
     "json"
   ],
   "output": ".jscpd-report",
-  "_comment_ignore": "Migrations are append-only immutable history: every one is a schemaMigration(id, description, config, async ({ getDb, \u2026 }) => { \u2026 }) call, so the ~20-token call scaffold repeats by design and cannot be refactored (a shipped migration must never change). That shared scaffold IS the schemaMigration factory \u2014 the dedup already exists. Each migration's up() body is unique per change, so this is unavoidable infrastructure boilerplate, the one sanctioned non-import ignore.",
+  "_comment_ignore": "Migrations are append-only immutable history: every one is a schemaMigration(id, description, config, async ({ getDb, \u2026 }) => { \u2026 }) call, so the ~20-token call scaffold repeats by design and cannot be refactored (a shipped migration must never change). That shared scaffold IS the schemaMigration factory \u2014 the dedup already exists. Each migration's up() body is unique per change, so this is unavoidable infrastructure boilerplate, the one sanctioned non-import ignore. The cpd-renamed registry (allowed.json) is a data file: one shape-identical entry per reviewed pair, by design, and its own scan reads it as input.",
   "ignore": [
     "**/node_modules/**",
     "**/package-lock.json",
     "**/deno.lock",
     "**/fp.ts",
     "**/db/migrations/2*.ts",
-    "**/db/migrations/schema/columns.ts"
+    "**/db/migrations/schema/columns.ts",
+    "**/cpd-renamed/**"
   ],
   "format": [
     "javascript",

@@ -217,6 +217,42 @@ Each step down is a separate job. Take the number in `.jscpd.helpers.json` down,
 bring the tree to it, and repeat, the way the comment caps in
 `scripts/check-comments/run.ts` come down.
 
+## The renamed-clone scan: same code with different words
+
+jscpd matches literal token runs, so a rename hides a copy: every renamed word
+breaks the run, and two spellings of one operation sit below `minTokens` 19. The
+worked example was the slug-index family — `computeGroupSlugIndex`,
+`computeNewsSlugIndex`, `computeSitePageSlugIndex`, and `computeSlugIndex` were
+four spellings of `(slug) => hmacHash(slug)`, each one identifier short of
+detection. All four were deleted and every caller now uses `hmacHash` directly.
+
+`deno task cpd:renamed` (`scripts/cpd-renamed.ts`) catches that class. It runs
+jscpd at 17 tokens over `src`, `e2e-payments`, and `scripts`, then keeps only
+the pairs whose two sides share their whole punctuation shape — identical text,
+or the same shape with different words. Import spans are skipped (the one
+sanctioned repeat), and the registry itself is excluded from its own input.
+
+The scan holds 114 pairs today, recorded in `scripts/cpd-renamed/allowed.json`:
+
+| Kind          | Pairs | Meaning                                                               |
+| ------------- | ----- | --------------------------------------------------------------------- |
+| declared data | 24    | schema columns, machine edges, nav rows — one row per kind, by design |
+| pending merge | 90    | the same code with different words — unify, then delete the entry     |
+
+A pair leaves the registry one way: merge it (extract a helper, or curry the
+parts that differ) and delete the entry. A registry entry is allowed to stay
+only for a repeat that is by design, with the reason written in the entry. A new
+word-only copy anywhere in the scanned trees fails the gate, which is the point:
+the slug-index class of drift cannot regrow silently.
+
+**Every count ratchets downward** — merge a family, run
+`deno task cpd:renamed --update` to drop its entries, and repeat. The
+`pending merge` list is the work order; the largest families at the time of
+writing are the route-handler twins (`answerFlashRoute` in
+`src/features/admin/questions/answers.ts`), the cascade-delete pair
+(`deleteAttribute`/`deleteListing`), and the per-provider slugify pair
+(`slugifyForDeno`/`slugifyForTurso`).
+
 ## What was measured and rejected
 
 **A tighter scan for the whole of `test/`.** The tree is clean at 48 tokens and
