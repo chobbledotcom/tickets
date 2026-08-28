@@ -28,6 +28,8 @@ import { topLevelCommas } from "#shared/top-level-commas.ts";
 
 /** The catalog, flattened to what a label or key is checked against. */
 export interface CatalogCopy {
+  /** Which message group holds each key, for example "settings". */
+  readonly groupOf: ReadonlyMap<string, string>;
   /** Every message key, for example "settings.provider.update_credentials". */
   readonly keys: ReadonlySet<string>;
   /** Every message value. Controls must equal one. Page text may be part. */
@@ -69,9 +71,9 @@ const LABEL_CALLS: Record<string, LabelCall> = {
 const T_KEY_CALL = /(?<![.\w$])t\s*\(\s*(["'])([a-z0-9_.-]+)\1/g;
 
 /** A `catalogWords("group", "key", …)` call in either quote style. Group 2
- * is the key's quote, group 3 the key. */
+ * is the group's name, group 4 the key. */
 const CATALOG_WORDS_CALL =
-  /(?<![.\w$])catalogWords\s*\(\s*(["'])[a-z0-9_-]+\1\s*,\s*(["'])([a-z0-9_.-]+)\2/g;
+  /(?<![.\w$])catalogWords\s*\(\s*(["'])([a-z0-9_-]+)\1\s*,\s*(["'])([a-z0-9_.-]+)\3/g;
 
 /**
  * The top-level argument texts of the call whose "(" sits at `open`, in
@@ -201,7 +203,8 @@ const opensAString = (
 
 /** Issues from every `t("key")` or `catalogWords("group", "key")` call whose
  * key the catalog dropped, in either quote style. A call named inside a
- * string literal is prose, not code, so its quoted words do not count. */
+ * string literal is prose, not code, so its quoted words do not count. A
+ * catalogWords call must also name the group that holds its key. */
 const keyIssues = (
   code: string,
   spans: readonly LexicalSpan[],
@@ -225,11 +228,24 @@ const keyIssues = (
   };
   const droppedTKey = (match: RegExpExecArray): LabelIssue | null =>
     droppedKey(match, 1, 2);
-  const droppedCatalogKey = (match: RegExpExecArray): LabelIssue | null =>
-    droppedKey(match, 2, 3);
+  const wrongGroup = (match: RegExpExecArray): LabelIssue | null => {
+    const issue = droppedKey(match, 3, 4);
+    if (issue !== null) return issue;
+    const key = match[4]!;
+    const holder = catalog.groupOf.get(key);
+    return holder === match[2]
+      ? null
+      : {
+          line: lineOf(match.index),
+          message:
+            `loads group "${match[2]}", but "${key}" lives in ` +
+            `"${holder === undefined ? "no group" : holder}". Name the group ` +
+            "that holds the key.",
+        };
+  };
   return [
     ...mapNotNullish(droppedTKey)([...code.matchAll(T_KEY_CALL)]),
-    ...mapNotNullish(droppedCatalogKey)([...code.matchAll(CATALOG_WORDS_CALL)]),
+    ...mapNotNullish(wrongGroup)([...code.matchAll(CATALOG_WORDS_CALL)]),
   ];
 };
 

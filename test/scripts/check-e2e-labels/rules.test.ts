@@ -6,7 +6,12 @@ import {
 } from "#scripts/check-e2e-labels/rules.ts";
 
 /** A catalog from bare values (and keys when a case exercises them). */
-const catalog = (values: string[], keys: string[] = []): CatalogCopy => ({
+const catalog = (
+  values: string[],
+  keys: string[] = [],
+  groupOf: Record<string, string> = {},
+): CatalogCopy => ({
+  groupOf: new Map(Object.entries(groupOf)),
   keys: new Set(keys),
   values,
 });
@@ -36,6 +41,11 @@ describe("e2e label rules", () => {
         "admin.ledger.human.payment",
         "admin.attendees.delete_submit",
       ],
+      {
+        "admin.attendees.delete_submit": "attendees",
+        "admin.ledger.event.sale": "ledger",
+        "admin.ledger.human.payment": "ledger",
+      },
     );
 
     expect(findLabelIssues(source, copy)).toEqual([]);
@@ -85,6 +95,41 @@ describe("e2e label rules", () => {
     expect(
       issues.map((issue) => issue.message.match(/"([^"]+)"/)?.[1]),
     ).toEqual(["settings.gone_one", "common.gone_two"]);
+  });
+
+  test("flags a catalogWords call that names the wrong group", () => {
+    const source = `await catalogWords("common", "settings.save_payment_provider")`;
+    const copy = catalog([], ["settings.save_payment_provider"], {
+      "settings.save_payment_provider": "settings",
+    });
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toBe(
+      'loads group "common", but "settings.save_payment_provider" lives in ' +
+        '"settings". Name the group that holds the key.',
+    );
+  });
+
+  test("accepts a catalogWords call that names the holding group", () => {
+    const source = `await catalogWords("settings", "settings.save_payment_provider")`;
+    const copy = catalog([], ["settings.save_payment_provider"], {
+      "settings.save_payment_provider": "settings",
+    });
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
+  test("says no group holds a key the catalog carries without one", () => {
+    const source = `await catalogWords("settings", "orphan.key")`;
+    const copy = catalog([], ["orphan.key"]);
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toBe(
+      'loads group "settings", but "orphan.key" lives in ' +
+        '"no group". Name the group that holds the key.',
+    );
   });
 
   test("ignores a key call quoted inside a string literal", () => {

@@ -275,7 +275,12 @@ export const attendeeOverviewFacts = async (
 ): Promise<{ overview: string; paymentDetails: string }> => {
   const overview = await attendeeTabOf(world, "");
   const paymentDetails = await ownerOf(world)
-    .page.locator(".prose", { hasText: "Payment Details" })
+    .page.locator(".prose", {
+      hasText: await catalogWords(
+        "attendees",
+        "admin.attendees.payment_details",
+      ),
+    })
     .first()
     .innerText();
   return { overview, paymentDetails };

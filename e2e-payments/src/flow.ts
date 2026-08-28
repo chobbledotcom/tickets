@@ -316,7 +316,9 @@ export const openListing = async (
   await session.clickLink(listingName);
   if (tab === "overview") return await session.bodyText();
   const attendeesTabLink = session.page
-    .locator("nav.entity-tabs a", { hasText: "Attendees" })
+    .locator("nav.entity-tabs a", {
+      hasText: await catalogWords("entity-pages", "entity.tab.attendees"),
+    })
     .first();
   const attendeesHref = await hrefOf(
     attendeesTabLink,

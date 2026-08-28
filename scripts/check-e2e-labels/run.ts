@@ -41,15 +41,18 @@ export const readCatalog = async (dir: string): Promise<CatalogCopy | null> => {
   if (files.length === 0) return null;
   const keys = new Set<string>();
   const values: string[] = [];
+  const groupOf = new Map<string, string>();
   for (const path of files) {
     const messages = await readJsonOrNull(path, CatalogFileSchema);
     if (messages === null) return null;
+    const group = path.slice(dir.length + 1).replace(/\.json$/, "");
     for (const [key, message] of Object.entries(messages)) {
       keys.add(key);
       values.push(message);
+      groupOf.set(key, group);
     }
   }
-  return { keys, values };
+  return { groupOf, keys, values };
 };
 
 /**
