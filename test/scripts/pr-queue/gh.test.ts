@@ -33,10 +33,12 @@ if (result.code !== 0) {
 }
 `;
 
-/** A `gh` that always succeeds, on a PATH the child owns alone. The Nix
- * shell ships no gh, and the permission and loader-path checks this test
- * exists for fire in Deno before any gh binary runs, so a stub answers the
- * spawn as well as the real one would. */
+/** A `gh` that always succeeds, on a PATH the child owns alone. The dev
+ * shell ships gh for the report task itself, but the regression this test
+ * exists for is in Deno's spawn, not in gh: the permission and loader-path
+ * checks fire before any gh binary runs, so a stub answers the spawn as
+ * well as the real one would — and the test stays green wherever `deno
+ * test` runs, nix shell or not. */
 const stubGhOn = async (dir: string): Promise<string> => {
   const bin = `${dir}/gh-bin`;
   await Deno.mkdir(bin);
