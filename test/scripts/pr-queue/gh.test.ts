@@ -58,6 +58,7 @@ describe("running the gh command itself", () => {
     });
     expect(captured.commands[0]?.command).toBe("gh");
     expect(captured.commands[0]?.options.args).toEqual(["pr", "list"]);
+    expect(captured.commands[0]?.options.env).toEqual({ LD_LIBRARY_PATH: "" });
     expect(captured.commands[0]?.options.stdout).toBe("piped");
     expect(captured.commands[0]?.options.stderr).toBe("piped");
   });
