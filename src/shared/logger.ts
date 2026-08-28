@@ -12,7 +12,6 @@ import {
   makeSuppressibleLogFlag,
   shouldSuppressDebugLogs,
 } from "#shared/log-settings.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   addPendingWork,
   hasPendingWorkScope,
@@ -24,7 +23,6 @@ import {
   createScopedValue,
   type ScopeRunner,
 } from "#shared/request-scoped.ts";
-import { captureServerError } from "#shared/sentry.ts";
 
 /** Request-scoped random ID for correlating log entries ("" outside a request). */
 const requestId = createScopedValue(() => "");
@@ -296,11 +294,28 @@ export const logErrorLocal = (context: ErrorContext): void => {
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 };
 
+/** Deliver a reporter's copy of an error. The reporter modules are imported
+ * on first error, not at module load: each reporter reports its own delivery
+ * failure through `logErrorLocal`, so a static import here would close a
+ * cycle (logger → reporter → logger) with no sound cut point — the same
+ * reason the activity-log persistence defers its import below. */
 const fanOutError = (context: ErrorContext): void => {
   if (!hasPendingWorkScope()) return;
-  addPendingWork(sendNtfyError(context.code));
+  addPendingWork(sendNtfyCopy(context));
   addPendingWork(persistErrorToActivityLog(context));
-  addPendingWork(captureServerError(context));
+  addPendingWork(sentryCopy(context));
+};
+
+/** Send the ntfy notification for an error, loading the sender on first use. */
+const sendNtfyCopy = async (context: ErrorContext): Promise<void> => {
+  const { sendNtfyError } = await import("#shared/ntfy.ts");
+  await sendNtfyError(context.code);
+};
+
+/** Send the Sentry report for an error, loading the sender on first use. */
+const sentryCopy = async (context: ErrorContext): Promise<void> => {
+  const { captureServerError } = await import("#shared/sentry.ts");
+  await captureServerError(context);
 };
 
 /**
