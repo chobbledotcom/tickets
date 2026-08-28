@@ -4,7 +4,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { joinForm } from "#routes/join.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { simplePublicPage } from "#templates/public/prose-page.tsx";
@@ -17,13 +16,14 @@ import { AuthFormPage } from "#templates/setup.tsx";
 export const joinPage = (
   code: string,
   username: string,
+  formHtml: string,
   error?: string,
 ): string =>
   AuthFormPage({
     action: `/join/${code}`,
     children: [<button type="submit">{t("join.set_password.submit")}</button>],
     error,
-    formHtml: joinForm.render(),
+    formHtml,
     heading: t("join.set_password.welcome", { username }),
     intro: t("join.set_password.instructions"),
     title: t("join.set_password.title"),
