@@ -1,17 +1,18 @@
 /**
- * Reading the local module graph with `deno info --json`. Shared by every
+ * Read the local module graph with `deno info --json`. Shared by every
  * tool that needs to know what imports what: the mutation state graph and
  * the import-cycle report.
  *
  * The two distinctions that matter to every reader:
- * - a dependency with no `code` specifier is type-only, and types never
- *   evaluate, so they belong to no runtime graph;
+ * - a dependency with no `code` specifier is type-only. Types never
+ *   evaluate, so they belong to no runtime graph.
  * - a dependency marked `isDynamic` is deferred to first use, so it costs
  *   no cold start and creates no load-order cycle.
  */
 
 import { fromFileUrl } from "@std/path";
 import * as v from "valibot";
+import { requiredMapValue } from "#fp";
 import { runCommand } from "#scripts/precommit/git.ts";
 
 // `deno info --json` emits a richer per-module object; only the fields used
@@ -55,7 +56,7 @@ const ModuleGraphSchema = v.object({
 export type ModuleGraph = v.InferOutput<typeof ModuleGraphSchema>;
 type Dependency = v.InferOutput<typeof DependencySchema>;
 
-/** Run `deno info --json` for `entry` from `cwd`, failing loudly on errors. */
+/** Run `deno info --json` for `entry` from `cwd`. Fail loudly on errors. */
 export const readModuleGraph = async (
   entry: string,
   cwd: string,
@@ -126,7 +127,11 @@ const reachableModules = (
       continue;
     }
     seen.add(specifier);
-    const module = bySpecifier.get(specifier)!;
+    const module = requiredMapValue(
+      bySpecifier,
+      specifier,
+      `Module list lost the entry for ${specifier}`,
+    );
     const runtimeImports = codeSpecifiers(module.dependencies, followDynamic);
     for (const resolved of runtimeImports) {
       if (!seen.has(resolved)) queue.push(resolved);
