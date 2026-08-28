@@ -306,11 +306,15 @@ describe("e2e label rules", () => {
     const lf = `await session.clickButton("Save \\\nChanges");`;
     const crlf = `await session.clickButton("Save \\\r\nChanges");`;
     const cr = `await session.clickButton("Save \\\rChanges");`;
+    const lineSep = `await session.clickButton("Save \\\u2028Changes");`;
+    const paraSep = `await session.clickButton("Save \\\u2029Changes");`;
     const copy = catalog(["Save Changes"]);
 
     expect(findLabelIssues(lf, copy)).toEqual([]);
     expect(findLabelIssues(crlf, copy)).toEqual([]);
     expect(findLabelIssues(cr, copy)).toEqual([]);
+    expect(findLabelIssues(lineSep, copy)).toEqual([]);
+    expect(findLabelIssues(paraSep, copy)).toEqual([]);
   });
 
   test("reports issues in source order", () => {

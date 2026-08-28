@@ -112,14 +112,24 @@ const ESCAPES: Record<string, string> = {
 };
 
 /** One whole escape sequence: the text between the backslash and its end. A
- * backslash before a line terminator is a continuation and decodes to
- * nothing. */
+ * backslash before an ECMAScript line terminator is a continuation and
+ * decodes to nothing. */
 const ESCAPE =
-  /\\(x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|u[0-9a-fA-F]{4}|\r\n|\r|\n|[\s\S])/g;
+  /\\(x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|u[0-9a-fA-F]{4}|\r\n|[\n\r\u2028\u2029]|[\s\S])/g;
 
-/** Decode one escape body: a named escape, \xHH, \uHHHH, or \u{H+}. */
+/** Decode one escape body: a named escape, \xHH, \uHHHH, or \u{H+}. A line
+ * terminator is a continuation: LF, CR, line separator, or paragraph
+ * separator, and CRLF whole. */
 const decodeEscape = (body: string): string => {
-  if (body === "\r\n" || body === "\r" || body === "\n") return "";
+  if (
+    body === "\r\n" ||
+    body === "\n" ||
+    body === "\r" ||
+    body === "\u2028" ||
+    body === "\u2029"
+  ) {
+    return "";
+  }
   if (body.startsWith("x") || body.startsWith("u")) {
     const hex = body.startsWith("u{") ? body.slice(2, -1) : body.slice(1);
     return String.fromCodePoint(Number.parseInt(hex, 16));

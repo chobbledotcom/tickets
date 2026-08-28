@@ -158,16 +158,21 @@ const regexTester = (
  * is literal, so the scan tracks whether it is inside one. A newline means the
  * `/` was division after all, so the caller gets back just past it.
  */
+/** The four ECMAScript line terminators: LF, CR, line separator,
+ * paragraph separator. */
+const isLineTerminator = (char: string | undefined): boolean =>
+  char === "\n" || char === "\r" || char === "\u2028" || char === "\u2029";
+
 const regexBodyEnd = (content: string, start: number): number => {
   let index = start + 1;
   let inClass = false;
   while (index < content.length) {
     const char = content[index];
+    if (isLineTerminator(char)) return start + 1;
     if (char === "\\") {
       index += 2;
       continue;
     }
-    if (char === "\n") return start + 1;
     if (char === "/" && !inClass) return index + 1;
     if (char === "[") inClass = true;
     if (char === "]") inClass = false;

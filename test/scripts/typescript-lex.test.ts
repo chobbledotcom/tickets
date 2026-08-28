@@ -192,6 +192,20 @@ describe("lexicalSpans over regular expressions", () => {
       { kind: "string", text: '"after"' },
     ]);
   });
+
+  test("stops a candidate regex at every ECMAScript line terminator", () => {
+    // CR alone, the line separator, and the paragraph separator all end a
+    // candidate body the way LF does: the slash divided.
+    expect(spans('x = (a) ? /b\rconst s = "after";')).toEqual([
+      { kind: "string", text: '"after"' },
+    ]);
+    expect(spans('x = (a) ? /b\u2028const s = "after";')).toEqual([
+      { kind: "string", text: '"after"' },
+    ]);
+    expect(spans('x = (a) ? /b\u2029const s = "after";')).toEqual([
+      { kind: "string", text: '"after"' },
+    ]);
+  });
 });
 
 describe("commentSpans", () => {
