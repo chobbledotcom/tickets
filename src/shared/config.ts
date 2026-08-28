@@ -263,3 +263,38 @@ export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
  */
 export const slugifyForProvider = (name: string, maxLength: number): string =>
   slugify(name).slice(0, maxLength).replace(/-+$/, "");
+
+/** A provider's resource-name rule: the provider slug capped at `maxLength`,
+ * padded with `pad` when it lands under `minLength` (a provider that only
+ * needs a non-empty name sets `minLength` to 1 and reads `pad` as the
+ * empty-name fallback). */
+export const providerSlugRule =
+  ({
+    maxLength,
+    minLength,
+    pad,
+  }: {
+    maxLength: number;
+    minLength: number;
+    pad: string;
+  }): ((name: string) => string) =>
+  (name) => {
+    const slug = slugifyForProvider(name, maxLength);
+    return slug.length >= minLength
+      ? slug
+      : `${slug}${pad}`.slice(0, maxLength);
+  };
+
+/** Deno Deploy app names: 3–32 chars, lowercase letters, numbers, hyphens. */
+export const denoDeployAppSlug = providerSlugRule({
+  maxLength: 32,
+  minLength: 3,
+  pad: "app",
+});
+
+/** Turso database names: non-empty, at most 63 chars. */
+export const tursoDatabaseSlug = providerSlugRule({
+  maxLength: 63,
+  minLength: 1,
+  pad: "db",
+});

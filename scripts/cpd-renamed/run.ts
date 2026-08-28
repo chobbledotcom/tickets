@@ -181,7 +181,9 @@ export const runRenamedCloneCheck = async (
       options.registryFile,
       `${JSON.stringify(next, null, 2)}\n`,
     );
-    const pending = next.filter((entry) => entry.reason === PENDING).length;
+    const pending = next.filter((entry) =>
+      entry.reason.startsWith("pending"),
+    ).length;
     options.output.log(
       `registry rewritten: ${next.length} entries (${pending} pending review)`,
     );

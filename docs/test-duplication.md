@@ -232,12 +232,13 @@ the pairs whose two sides share their whole punctuation shape — identical text
 or the same shape with different words. Import spans are skipped (the one
 sanctioned repeat), and the registry itself is excluded from its own input.
 
-The scan holds 114 pairs today, recorded in `scripts/cpd-renamed/allowed.json`:
+The scan holds 111 pairs today, recorded in `scripts/cpd-renamed/allowed.json`:
 
-| Kind          | Pairs | Meaning                                                               |
-| ------------- | ----- | --------------------------------------------------------------------- |
-| declared data | 24    | schema columns, machine edges, nav rows — one row per kind, by design |
-| pending merge | 90    | the same code with different words — unify, then delete the entry     |
+| Kind          | Pairs | Meaning                                                                   |
+| ------------- | ----- | ------------------------------------------------------------------------- |
+| declared data | 24    | schema columns, machine edges, nav rows — one row per kind, by design     |
+| by design     | 4     | deliberate API pairs and factory-call twins, each with its reason written |
+| pending merge | 83    | the same code with different words — unify, then delete the entry         |
 
 A pair leaves the registry one way: merge it (extract a helper, or curry the
 parts that differ) and delete the entry. A registry entry is allowed to stay
@@ -248,10 +249,10 @@ the slug-index class of drift cannot regrow silently.
 **Every count ratchets downward** — merge a family, run
 `deno task cpd:renamed --update` to drop its entries, and repeat. The
 `pending merge` list is the work order; the largest families at the time of
-writing are the route-handler twins (`answerFlashRoute` in
-`src/features/admin/questions/answers.ts`), the cascade-delete pair
-(`deleteAttribute`/`deleteListing`), and the per-provider slugify pair
-(`slugifyForDeno`/`slugifyForTurso`).
+writing are the cascade-delete pair (`deleteAttribute`/`deleteListing`), the
+route-table twins in `src/features/admin/api.ts`
+(`handleToggleActive(…, false/true)`), and the checksum-style upload twins in
+`src/shared/storage.ts` (`downloadRaw`/`downloadImage`).
 
 ## What was measured and rejected
 

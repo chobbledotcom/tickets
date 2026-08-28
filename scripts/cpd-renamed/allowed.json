@@ -2,913 +2,889 @@
   {
     "first": "src/browser.ts",
     "firstStart": 259,
-    "second": "src/entry.ts",
-    "secondStart": 12,
     "hash": "3d19c91a0c2d95a1778bbb2b2bd468300be63250f87be3c774a2a63dc272e7f6",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/entry.ts",
+    "secondStart": 12
   },
   {
     "first": "src/browser.ts",
     "firstStart": 259,
-    "second": "shared/logger.ts",
-    "secondStart": 350,
     "hash": "f79977b338d9825e79b0c27b46308ab6912b98864fc2e55c1bf63146c01548ab",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/logger.ts",
+    "secondStart": 350
   },
   {
     "first": "src/cucumber/support/hooks.ts",
     "firstStart": 170,
-    "second": "src/cucumber/support/hooks.ts",
-    "secondStart": 178,
     "hash": "1f75a148dcb6d78611376a21bfc9da4b83b17c35800541e7af3f62ace24fcd49",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/cucumber/support/hooks.ts",
+    "secondStart": 178
   },
   {
     "first": "src/providers/card.ts",
     "firstStart": 45,
-    "second": "src/providers/card.ts",
-    "secondStart": 83,
     "hash": "b41c99ee02803d18c33779c5e66af60dfad1029f41b9c9cbf3c516f652e2ce6a",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/providers/card.ts",
+    "secondStart": 83
   },
   {
     "first": "src/providers/types.ts",
     "firstStart": 23,
-    "second": "src/providers/types.ts",
-    "secondStart": 100,
     "hash": "b300419511b20f321e9ceb5f79e11d413b22b65e60025852758da7cda4d0bc4e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/providers/types.ts",
+    "secondStart": 100
   },
   {
     "first": "bench/cold-start/spawn-child.ts",
     "firstStart": 24,
-    "second": "compact-test-reporter.ts",
-    "secondStart": 535,
     "hash": "de7bbe4674d4b2fab194b2e4725b8ad46127a8943502a43f86383225228ab256",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "compact-test-reporter.ts",
+    "secondStart": 535
   },
   {
     "first": "deploy-edge-lib.ts",
     "firstStart": 33,
-    "second": "deploy-edge-lib.ts",
-    "secondStart": 39,
     "hash": "5728efe9822f02057d812eced598b6eb1aed2b6b6c73cc502526e6accfb8aa91",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "deploy-edge-lib.ts",
+    "secondStart": 39
   },
   {
     "first": "find-unused-src.ts",
     "firstStart": 289,
-    "second": "find-unused-src.ts",
-    "secondStart": 309,
     "hash": "7a9f6d32fdda39ce3b6e4e44492a43c9c5707c587d4d985f91bc2984fa778532",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "find-unused-src.ts",
+    "secondStart": 309
   },
   {
     "first": "mutation/generate.ts",
     "firstStart": 227,
-    "second": "mutation/generate.ts",
-    "secondStart": 239,
     "hash": "7551a3f4e3336a73f7232edc736f6b373ee8f361df7d021699b1e24014eff933",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "mutation/generate.ts",
+    "secondStart": 239
   },
   {
     "first": "mutation/isolation-state.ts",
     "firstStart": 245,
-    "second": "mutation/isolation-state.ts",
-    "secondStart": 267,
     "hash": "e3f0c97aa3b23d3912c8e1258a09fb1a69faee02923b1bf479258adfba920079",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "mutation/isolation-state.ts",
+    "secondStart": 267
   },
   {
     "first": "mutation/run-file.ts",
     "firstStart": 33,
-    "second": "shared/db/query-log.ts",
-    "secondStart": 292,
     "hash": "bcd54a44067c392e8470ccc78888ed84881613c72e51bb718a03a99167497505",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/query-log.ts",
+    "secondStart": 292
   },
   {
     "first": "not-found.ts",
     "firstStart": 50,
-    "second": "not-found.ts",
-    "secondStart": 54,
     "hash": "4be113803edf5999a1bff48b1fdd12ef590d9e3bc5fdd8a2258e8dc2075d972e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "thin wrappers over two different platform calls, Deno.stat vs Deno.lstat; the shared shape is the OrNull convention, already one mechanism",
+    "second": "not-found.ts",
+    "secondStart": 54
   },
   {
     "first": "run-tests.ts",
     "firstStart": 223,
-    "second": "shared/order-select.ts",
-    "secondStart": 37,
     "hash": "7bd4046b2a34879a8608972c4bcf44fe90a9f7d7f8ffd0db6cead8933fa731f1",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/order-select.ts",
+    "secondStart": 37
   },
   {
     "first": "typescript-lex.ts",
     "firstStart": 46,
-    "second": "typescript-lex.ts",
-    "secondStart": 206,
     "hash": "ef984f8e4d5635fa42f87e11fa9b2dc3dc7477bc42598ccae7afab23452c753a",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "typescript-lex.ts",
+    "secondStart": 206
   },
   {
     "first": "unit-tests-report-imports.ts",
     "firstStart": 180,
-    "second": "unit-tests-report-lib.ts",
-    "secondStart": 219,
     "hash": "b6137655acfce3b185e5958d6d67439bb2cf482f087d2ac1688a27f29c1fd60f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "unit-tests-report-lib.ts",
+    "secondStart": 219
   },
   {
     "first": "features/admin/api.ts",
     "firstStart": 139,
-    "second": "features/admin/api.ts",
-    "secondStart": 143,
     "hash": "8d19f0efc5f61bba5d9a66ca2a44ff10c58cc09abe2995209458fd8eecf21fd9",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/admin/api.ts",
+    "secondStart": 143
   },
   {
     "first": "features/admin/attendee-page-data.ts",
     "firstStart": 244,
-    "second": "features/admin/attendee-page-data.ts",
-    "secondStart": 295,
     "hash": "f32c2770dd558289769da93a06f548931d165114cee5cc5f38e65cf93210b479",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
-  },
-  {
-    "first": "features/admin/attendee-page-data.ts",
-    "firstStart": 345,
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "features/admin/attendee-page-data.ts",
-    "secondStart": 351,
-    "hash": "8dd24398c9d421b080cd3734b692cb4a8c5516ae9d98f1e5ecdab70ac5e7c410",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "secondStart": 295
   },
   {
     "first": "features/admin/attendees-csv.ts",
     "firstStart": 180,
-    "second": "features/admin/calendar-csv.ts",
-    "secondStart": 166,
     "hash": "bd4a6b31af8a5963b942e7d54760e6f74b24b89c394aabf7bad7505e0d57d894",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/admin/calendar-csv.ts",
+    "secondStart": 166
   },
   {
     "first": "features/admin/bulk-email.ts",
     "firstStart": 53,
-    "second": "shared/bulk-email.ts",
-    "secondStart": 48,
     "hash": "d181e3469f125abebf7f590a03db806c6d23de2e8f69755addd65caeba8197f5",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/bulk-email.ts",
+    "secondStart": 48
   },
   {
     "first": "features/admin/content-form-fields.ts",
     "firstStart": 151,
-    "second": "shared/types.ts",
-    "secondStart": 739,
     "hash": "2611366156782b4914984a45cde43db18603c540cb17d3b33523defb8f3adcbd",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/types.ts",
+    "secondStart": 739
   },
   {
     "first": "features/admin/listings-parents.ts",
     "firstStart": 258,
-    "second": "shared/db/groups/membership.ts",
-    "secondStart": 181,
     "hash": "0c9b70dfde58c6297fd559d06f7a83d0c61ab82bad877857451e8cd9b57e6b87",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/groups/membership.ts",
+    "secondStart": 181
   },
   {
     "first": "features/admin/questions.ts",
     "firstStart": 213,
-    "second": "features/admin/settings-statuses.ts",
-    "secondStart": 127,
     "hash": "c79d2efc4aeffb272b8553677b3b24496e97ef4a93fb4818d68b1e2496d5a69f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/admin/settings-statuses.ts",
+    "secondStart": 127
   },
   {
     "first": "features/admin/questions/answers.ts",
     "firstStart": 137,
-    "second": "features/admin/questions/answers.ts",
-    "secondStart": 259,
     "hash": "4c334c0e5b758b8fc1d3ac3b4e681097297d3134415691b1257e5f20c627f7b4",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "two route handlers delegating to the shared answerFlashRoute with different page renderers; the factory is the shared mechanism, and the bodies differ because two different pages render",
+    "second": "features/admin/questions/answers.ts",
+    "secondStart": 259
   },
   {
     "first": "features/admin/refunds/ledger-findings.ts",
     "firstStart": 38,
-    "second": "features/admin/refunds/ledger-findings.ts",
-    "secondStart": 74,
     "hash": "5154a3fc04284cdd2331b8b50c80ee28276aabbdac84bfb81b9338608963bb6a",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/admin/refunds/ledger-findings.ts",
+    "secondStart": 74
   },
   {
     "first": "features/admin/refunds/readiness-run.ts",
     "firstStart": 196,
-    "second": "features/admin/refunds/readiness-run.ts",
-    "secondStart": 236,
     "hash": "569805dccafc907b4754049b5f29ed7bb90cb1a624b5df1339d6ddf7731671a0",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/admin/refunds/readiness-run.ts",
+    "secondStart": 236
   },
   {
     "first": "features/admin/refunds/refresh.ts",
     "firstStart": 176,
-    "second": "features/admin/refunds/refresh.ts",
-    "secondStart": 179,
     "hash": "7fb6640a913b34ef582944852a6fb92eea24bc31905c48dc9fb7b13aec9a06f2",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
-  },
-  {
-    "first": "features/admin/site-pages.ts",
-    "firstStart": 106,
-    "second": "features/admin/site-pages.ts",
-    "secondStart": 143,
-    "hash": "360bac66ceb8a2c64e8dea1b9e3c8d808bc828dd88f76a57dd5d66e32417565d",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/admin/refunds/refresh.ts",
+    "secondStart": 179
   },
   {
     "first": "features/api/booking.ts",
     "firstStart": 81,
-    "second": "features/api/packages.ts",
-    "secondStart": 278,
     "hash": "03347e8a3fa6a8b3d793648a42349005e2eb4817cac562a181aa83413d25a899",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/api/packages.ts",
+    "secondStart": 278
   },
   {
     "first": "features/api/helpers.ts",
     "firstStart": 91,
-    "second": "features/public/qr-book.ts",
-    "secondStart": 180,
     "hash": "c4e1f419e1f89adcee70bade15a33ee118a093152b4b6c3c04e58dd32064c052",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/public/qr-book.ts",
+    "secondStart": 180
   },
   {
     "first": "features/app/request.ts",
     "firstStart": 204,
-    "second": "features/app/request.ts",
-    "secondStart": 212,
     "hash": "368f6efac17c82a54d2a198db38f126406d8c8b72af3120d62e01b97f5049ea0",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/app/request.ts",
+    "secondStart": 212
   },
   {
     "first": "features/public/group-liveness.ts",
     "firstStart": 270,
-    "second": "features/public/groups.ts",
-    "secondStart": 107,
     "hash": "0271820478666ffc6f31908b42cceb01c6edc215ffa5bd3655d43fd16c570ee4",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/public/groups.ts",
+    "secondStart": 107
   },
   {
     "first": "features/public/ticket-form.ts",
     "firstStart": 160,
-    "second": "features/public/ticket-payment.ts",
-    "secondStart": 178,
     "hash": "e6ca8134c023cad0788ecaf33c531b1d1909b7ad6b20220d302f74303974a4a9",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "features/public/ticket-payment.ts",
+    "secondStart": 178
   },
   {
     "first": "shared/accounting/mappers.ts",
     "firstStart": 68,
-    "second": "shared/checkout-ledger.ts",
-    "secondStart": 22,
     "hash": "f5bb441b205897a5cb53570105a1846c740eed8f149c9482b55d5398aaff565c",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/checkout-ledger.ts",
+    "secondStart": 22
   },
   {
     "first": "shared/admin-surface/sections.ts",
     "firstStart": 86,
-    "second": "shared/admin-surface/sections.ts",
-    "secondStart": 112,
     "hash": "a14e3a4bba1675289a2f80dc3229eaa0801d7ec5e53b70d359deaea3c4f08d59",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/admin-surface/sections.ts",
+    "secondStart": 112
   },
   {
     "first": "shared/booking/package-cap.ts",
     "firstStart": 133,
-    "second": "shared/booking/package-cap.ts",
-    "secondStart": 138,
     "hash": "56619977ec6a680c1b6ff6354ac18177b83bce7d1ed6677fed12bce8f0ce8126",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/booking/package-cap.ts",
+    "secondStart": 138
   },
   {
     "first": "shared/bunny-cdn.ts",
     "firstStart": 415,
-    "second": "shared/bunny-cdn.ts",
-    "secondStart": 424,
     "hash": "f933a76e398bc697dc4278bd62ea75f9e03982cd476035817371d776ea413c4c",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/bunny-cdn.ts",
+    "secondStart": 424
   },
   {
     "first": "shared/catalog-fields/fields.ts",
     "firstStart": 85,
-    "second": "shared/catalog-fields/fields.ts",
-    "secondStart": 160,
     "hash": "9c67cfd7df30f165ae54274f746fa09656f122418363528347064ef966e54c59",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/catalog-fields/fields.ts",
+    "secondStart": 160
   },
   {
     "first": "shared/catalog-fields/fields.ts",
     "firstStart": 112,
-    "second": "shared/catalog-fields/fields.ts",
-    "secondStart": 165,
     "hash": "c967a223c6ac04af6c5b20f8f19392cb0e91d0ded3d4e15795b4775a8fabd6d8",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/catalog-fields/fields.ts",
+    "secondStart": 165
   },
   {
     "first": "shared/crypto/keys.ts",
     "firstStart": 55,
-    "second": "shared/payment-crypto.ts",
-    "secondStart": 24,
     "hash": "76df1c7fa19d4102a8f367899b5040f4fb0138e27c49cea8c58a554d4e7dcd4a",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/payment-crypto.ts",
+    "secondStart": 24
   },
   {
     "first": "shared/db/activity-log.ts",
     "firstStart": 210,
-    "second": "shared/db/listing-relationship-validation.ts",
-    "secondStart": 63,
     "hash": "6c56b1ea4dc97c27fe7f4c02a640c6f4f7fa6bec2809a378c3a77a826773e4b2",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/listing-relationship-validation.ts",
+    "secondStart": 63
   },
   {
     "first": "shared/db/attendee-types.ts",
     "firstStart": 133,
-    "second": "shared/db/attendees/update.ts",
-    "secondStart": 104,
     "hash": "bcea2c5fb5d76bf263669bbc0926ec91662335e7467c7346ea1b73a80c603b9a",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/attendees/update.ts",
+    "secondStart": 104
   },
   {
     "first": "shared/db/attendees/capacity/checks.ts",
     "firstStart": 73,
-    "second": "shared/db/attendees/capacity/checks.ts",
-    "secondStart": 108,
     "hash": "0f30167ae84936063a6a5aba1ea5a23297cfd8e498d0d5b53a456b70f4638fd0",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/attendees/capacity/checks.ts",
+    "secondStart": 108
   },
   {
     "first": "shared/db/attendees/dependent-data.ts",
     "firstStart": 5,
-    "second": "shared/db/attendees/dependent-data.ts",
-    "secondStart": 11,
     "hash": "95e3a4f6d0c634ac6a3ff085ad2dbea1c165fd40d89b7dc81366577269342296",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/attendees/dependent-data.ts",
+    "secondStart": 11
   },
   {
     "first": "shared/db/attendees/dependent-data.ts",
     "firstStart": 5,
-    "second": "shared/db/attendees/dependent-data.ts",
-    "secondStart": 17,
     "hash": "fc61d231a929abb8fb10363ec5c10a0bfc548488eef6e675e0cad8d1ec1e2d11",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/attendees/dependent-data.ts",
+    "secondStart": 17
   },
   {
     "first": "shared/db/attendees/dependent-data.ts",
     "firstStart": 61,
-    "second": "shared/db/attendees/dependent-data.ts",
-    "secondStart": 67,
     "hash": "d73bf0bd724e39d8698ca313c2d670e9d6f666141850f1ed6c07477ad6bc535b",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/attendees/dependent-data.ts",
+    "secondStart": 67
   },
   {
     "first": "shared/db/attendees/dependent-data.ts",
     "firstStart": 61,
-    "second": "shared/db/attendees/dependent-data.ts",
-    "secondStart": 73,
     "hash": "e07643a83408e2ca5cce0290cd53b6f3b5ac3e822c2b8f566f543ca250305429",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/attendees/dependent-data.ts",
+    "secondStart": 73
   },
   {
     "first": "shared/db/attendees/dependent-data.ts",
     "firstStart": 61,
-    "second": "shared/db/attendees/dependent-data.ts",
-    "secondStart": 79,
     "hash": "2ad5f574fba06230128dc49c8311553278d5d045f7106f1f57feea1734e5bb83",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/attendees/dependent-data.ts",
+    "secondStart": 79
   },
   {
     "first": "shared/db/attendees/dependent-data.ts",
     "firstStart": 101,
-    "second": "shared/db/attendees/dependent-data.ts",
-    "secondStart": 107,
     "hash": "c868b301d6b4d8bfba7a3fb9282b33f0ba7e6abcb1e1db6b3060ea0e58972460",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/attendees/dependent-data.ts",
+    "secondStart": 107
   },
   {
     "first": "shared/db/attendees/servicing.ts",
     "firstStart": 554,
-    "second": "shared/db/attendees/servicing.ts",
-    "secondStart": 735,
     "hash": "79a8eaf5578d5f019ce761a5b6a835757817cf2df5f4eee9eab0859745673ff8",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/attendees/servicing.ts",
+    "secondStart": 735
   },
   {
     "first": "shared/db/attendees/tokens.ts",
     "firstStart": 245,
-    "second": "shared/db/attendees/tokens.ts",
-    "secondStart": 278,
     "hash": "a0f38da332b8913ff63faffe287ee37b448dd55c756bc9b0bc79a1ce727f5160",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/attendees/tokens.ts",
+    "secondStart": 278
   },
   {
     "first": "shared/db/attributes.ts",
     "firstStart": 76,
-    "second": "shared/db/questions/tables.ts",
-    "secondStart": 20,
     "hash": "86e3df436a4c3d9c398ecb26b672d5c2a1cdd48d40cbaf98ce5233da40cb70b4",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/questions/tables.ts",
+    "secondStart": 20
   },
   {
     "first": "shared/db/attributes.ts",
     "firstStart": 311,
-    "second": "shared/db/listings/delete.ts",
-    "secondStart": 9,
     "hash": "07c2a9ba66f98f688faafc9634d8f8b9435ba893696a0fb850928fb01b4b94e8",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/listings/delete.ts",
+    "secondStart": 9
   },
   {
     "first": "shared/db/groups.ts",
     "firstStart": 500,
-    "second": "shared/db/link-table.ts",
-    "secondStart": 140,
     "hash": "27c1425ac0324ff6f545e4fece96c716e035a6f94dcaa4e2ebf5823c66a1ea70",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/link-table.ts",
+    "secondStart": 140
   },
   {
     "first": "shared/db/keyed-cache.ts",
     "firstStart": 129,
-    "second": "shared/db/keyed-cache.ts",
-    "secondStart": 138,
     "hash": "e1367d00ba271b197fb239a9a0b13d112bca1f16eb6d00bb431b230eb71d0c26",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/keyed-cache.ts",
+    "secondStart": 138
   },
   {
     "first": "shared/db/listing-prices.ts",
     "firstStart": 306,
-    "second": "shared/db/migrations/schema-sync.ts",
-    "secondStart": 629,
     "hash": "717ff03f9b6288a72fdf933568d5ac127c4ee7830c136d144616f1020f75b9f2",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/migrations/schema-sync.ts",
+    "secondStart": 629
   },
   {
     "first": "shared/db/logistics-run-sheet.ts",
     "firstStart": 209,
-    "second": "shared/db/logistics-run-sheet.ts",
-    "secondStart": 262,
     "hash": "a20d1c5c2dc400754f5645ad107cfcfae2fd10998a0f08fe6684d99ca6a86c68",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/logistics-run-sheet.ts",
+    "secondStart": 262
   },
   {
     "first": "shared/db/migrations/rename-utils.ts",
     "firstStart": 98,
-    "second": "shared/db/migrations/rename-utils.ts",
-    "secondStart": 153,
     "hash": "6f2da59f8fc0263327d74a67e49a1271abe468866e0b998d7292eb3c732099f6",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/migrations/rename-utils.ts",
+    "secondStart": 153
   },
   {
     "first": "shared/db/migrations/schema-sync.ts",
     "firstStart": 434,
-    "second": "shared/db/migrations/schema-sync.ts",
-    "secondStart": 599,
     "hash": "f6a6fcc6f7e41e91ac280f9890ec041d61a918219bf0139564cf158ca91c74fa",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/migrations/schema-sync.ts",
+    "secondStart": 599
   },
   {
     "first": "shared/db/migrations/schema/payments/cases.ts",
     "firstStart": 31,
-    "second": "shared/db/migrations/schema/payments/completion-deliveries.ts",
-    "secondStart": 16,
     "hash": "36771e1569c4d9c8a2d8ae5c4331f966458bd90b386e62abc5f497243f54fe87",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/payments/completion-deliveries.ts",
+    "secondStart": 16
   },
   {
     "first": "shared/db/migrations/schema/payments/refund-confirmations.ts",
     "firstStart": 11,
-    "second": "shared/db/migrations/schema/tables-attendees.ts",
-    "secondStart": 176,
     "hash": "47ec838a75fb41cc7c623182f02ab43b746d4426bd68a88e356e1f5559184242",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-attendees.ts",
+    "secondStart": 176
   },
   {
     "first": "shared/db/migrations/schema/tables-attendees.ts",
     "firstStart": 75,
-    "second": "shared/db/migrations/schema/tables-questions.ts",
-    "secondStart": 80,
     "hash": "18247e20d1080d21dbcab0d955a1273a6c7d3aee65324fd9062a02ec20768829",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-questions.ts",
+    "secondStart": 80
   },
   {
     "first": "shared/db/migrations/schema/tables-attendees.ts",
     "firstStart": 252,
-    "second": "shared/db/migrations/schema/tables-questions.ts",
-    "secondStart": 195,
     "hash": "4130f81be2dbd2bb3334c6f8487f64fe2d099beae70efbffecd81b64c016ca82",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-questions.ts",
+    "secondStart": 195
   },
   {
     "first": "shared/db/migrations/schema/tables-catalog.ts",
     "firstStart": 17,
-    "second": "shared/db/migrations/schema/tables-core.ts",
-    "secondStart": 109,
     "hash": "d27f395f743c475103eb61d5e24387fcaea4a89f7421d06902b15e8955239030",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
-  },
-  {
-    "first": "shared/db/migrations/schema/tables-catalog.ts",
-    "firstStart": 58,
-    "second": "shared/db/migrations/schema/tables-catalog.ts",
-    "secondStart": 168,
-    "hash": "792b312941f17a6ece2fa99b9ff1364373bc8efdc034fe315d2f661b30a69e66",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
-  },
-  {
-    "first": "shared/db/migrations/schema/tables-catalog.ts",
-    "firstStart": 58,
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
     "second": "shared/db/migrations/schema/tables-core.ts",
-    "secondStart": 155,
-    "hash": "d702c795e798f4b61101b000a10b80989050a95563598a27f0815d979e4bdcba",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "secondStart": 109
   },
   {
     "first": "shared/db/migrations/schema/tables-catalog.ts",
     "firstStart": 58,
-    "second": "shared/db/migrations/schema/tables-questions.ts",
-    "secondStart": 103,
+    "hash": "792b312941f17a6ece2fa99b9ff1364373bc8efdc034fe315d2f661b30a69e66",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-catalog.ts",
+    "secondStart": 168
+  },
+  {
+    "first": "shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 58,
+    "hash": "d702c795e798f4b61101b000a10b80989050a95563598a27f0815d979e4bdcba",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-core.ts",
+    "secondStart": 155
+  },
+  {
+    "first": "shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 58,
     "hash": "29f9869ef16097adb549a16cb5340685c30f22471bc31173d85eab1ef26f644f",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-questions.ts",
+    "secondStart": 103
   },
   {
     "first": "shared/db/migrations/schema/tables-catalog.ts",
     "firstStart": 180,
-    "second": "shared/db/migrations/schema/tables-core.ts",
-    "secondStart": 255,
     "hash": "06b50227c7426d0bb30049ed18deab91508a8a406b7abafb50f59c7fbde95d95",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/db/migrations/schema/tables-core.ts",
+    "secondStart": 255
   },
   {
     "first": "shared/db/payment-references.ts",
     "firstStart": 268,
-    "second": "shared/db/payment-references.ts",
-    "secondStart": 271,
     "hash": "74e9dc90997cab44a71c767b3cbbea3ace29113d4dfbadc479adbf9c77e2d162",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/payment-references.ts",
+    "secondStart": 271
   },
   {
     "first": "shared/db/questions/attendee-answers/save.ts",
     "firstStart": 139,
-    "second": "shared/db/questions/attendee-answers/save.ts",
-    "secondStart": 300,
     "hash": "b20859a6418490e2efaed683ee5aae23299597c36d3a4ce6d55ccb1f9be0b7c6",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/questions/attendee-answers/save.ts",
+    "secondStart": 300
   },
   {
     "first": "shared/db/settings/payment-provider.ts",
     "firstStart": 297,
-    "second": "shared/db/settings/payment-provider.ts",
-    "secondStart": 306,
     "hash": "b1ca820ff07a46bd88f40a5f42ca5139803bca93a3ed736777df39296decffaf",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
-  },
-  {
-    "first": "shared/deno-deploy-api.ts",
-    "firstStart": 61,
-    "second": "shared/turso-api.ts",
-    "secondStart": 77,
-    "hash": "41c79997686f6277aae90530cb5bdcfb89899708cbed5d200a10980da4dce5c0",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/db/settings/payment-provider.ts",
+    "secondStart": 306
   },
   {
     "first": "shared/forms/field.ts",
     "firstStart": 111,
-    "second": "shared/forms/field.ts",
-    "secondStart": 136,
     "hash": "d06bf09add2d04fd386a28b648940e71f22149561d3592336c9c522edc15e685",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/forms/field.ts",
+    "secondStart": 136
   },
   {
     "first": "shared/ledger/project.ts",
     "firstStart": 41,
-    "second": "shared/ledger/project.ts",
-    "secondStart": 47,
     "hash": "06115e5048a627c1ef75703a30fde7f90db1c8c2770bf8386c812cf9e0e18ee4",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "the curried tail is the ledger projection convention; both bodies already read through the one balanceOf fold, and the negation is the cost operation itself, not a liftable parameter",
+    "second": "shared/ledger/project.ts",
+    "secondStart": 47
   },
   {
     "first": "shared/payment-idempotency.ts",
     "firstStart": 15,
-    "second": "shared/payment/refund-request-identity.ts",
-    "secondStart": 13,
     "hash": "9b1c6a172a6b036bdab08800a0834c42ef1ef844157fa24287071f0607d7896f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/payment/refund-request-identity.ts",
+    "secondStart": 13
   },
   {
     "first": "shared/payment/joint-state.ts",
     "firstStart": 121,
-    "second": "shared/payment/row-transitions.ts",
-    "secondStart": 147,
     "hash": "19a0f48e4cdd4c1550da465addabe89accbbadae15f99d689a68c7582d377fff",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/payment/row-transitions.ts",
+    "secondStart": 147
   },
   {
     "first": "shared/payment/refund-authority-choice.ts",
     "firstStart": 123,
-    "second": "shared/payment/refund-authority-choice.ts",
-    "secondStart": 131,
     "hash": "ec7fa5f37c846bc4c42f02eebf9a94f09cfb5b45663cbe073d2e0cc63af56928",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/payment/refund-authority-choice.ts",
+    "secondStart": 131
   },
   {
     "first": "shared/payment/refund-authority-choice.ts",
     "firstStart": 149,
-    "second": "shared/payment/refund-authority-choice.ts",
-    "secondStart": 155,
     "hash": "977442326dc94507a4851d43dc19f7100c50c83fd7f97cc9bf04a7f698c88302",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/payment/refund-authority-choice.ts",
+    "secondStart": 155
   },
   {
     "first": "shared/payment/refund-machine-spec.ts",
     "firstStart": 132,
-    "second": "shared/payment/refund-machine-spec.ts",
-    "secondStart": 138,
     "hash": "2d5c0215085bf11ae85de39799bd11723663bd4587a0ea612d01d0468aa1b51e",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/payment/refund-machine-spec.ts",
+    "secondStart": 138
   },
   {
     "first": "shared/payment/refund-machine-spec.ts",
     "firstStart": 359,
-    "second": "shared/payment/refund-machine-spec.ts",
-    "secondStart": 367,
     "hash": "e751476b9f60c8c884cde32667acb832c11790ba0662eee6c032d00107c7a3e6",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/payment/refund-machine-spec.ts",
+    "secondStart": 367
   },
   {
     "first": "shared/payment/refund-machine-spec.ts",
     "firstStart": 359,
-    "second": "shared/payment/refund-machine-spec.ts",
-    "secondStart": 375,
     "hash": "ea09b09e8a369c1c464ef5ee338cb2eb388613172970fb6438258ec6cd8d1b55",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/payment/refund-machine-spec.ts",
+    "secondStart": 375
   },
   {
     "first": "shared/payment/refund-machine-spec.ts",
     "firstStart": 359,
-    "second": "shared/payment/refund-machine-spec.ts",
-    "secondStart": 383,
     "hash": "7fdc48561518666598c12be376cf3991562c922a74b0a2e6ead17429fa37afb7",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/payment/refund-machine-spec.ts",
+    "secondStart": 383
   },
   {
     "first": "shared/payment/refund-machine-spec.ts",
     "firstStart": 390,
-    "second": "shared/payment/refund-machine-spec.ts",
-    "secondStart": 397,
     "hash": "3649f93d1d4b3550e2d3bf440f82ca9765bbe4c5725e5b82db92949887b53955",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/payment/refund-machine-spec.ts",
+    "secondStart": 397
   },
   {
     "first": "shared/payment/refund-machine-spec.ts",
     "firstStart": 390,
-    "second": "shared/payment/refund-machine-spec.ts",
-    "secondStart": 404,
     "hash": "77918df159eaf657b792991dac8ea6d01e21ff91b9007c3bce9b7e7ff8415e97",
-    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)"
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "shared/payment/refund-machine-spec.ts",
+    "secondStart": 404
   },
   {
     "first": "shared/provider-refunds/send.ts",
     "firstStart": 178,
-    "second": "shared/provider-refunds/target.ts",
-    "secondStart": 118,
     "hash": "b34037d735f0b66dccfec37a215d7447e757b88a65d377dacd64f5f37e9baf30",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/provider-refunds/target.ts",
+    "secondStart": 118
   },
   {
     "first": "shared/sms/e2e.ts",
     "firstStart": 59,
-    "second": "shared/sms/gateway.ts",
-    "secondStart": 76,
     "hash": "2d62437dafadaad4894a87b942e9b706227c09f92f49029dd5a4c25432d638f6",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/sms/gateway.ts",
+    "secondStart": 76
   },
   {
     "first": "shared/square/connection.ts",
     "firstStart": 47,
-    "second": "shared/stripe/endpoints.ts",
-    "secondStart": 168,
     "hash": "ec751eb731dccb01514529f05d991c35b83a3228b39acc9c0ab7e8952060adf2",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/stripe/endpoints.ts",
+    "secondStart": 168
   },
   {
     "first": "shared/square/order.ts",
     "firstStart": 13,
-    "second": "shared/square/payment-outcomes.ts",
-    "secondStart": 65,
     "hash": "5501c0bb65e0d2c06dc3f2ed46da6d7a08936ceb5a30512af4df1a51ce6e3545",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/square/payment-outcomes.ts",
+    "secondStart": 65
   },
   {
     "first": "shared/storage.ts",
     "firstStart": 431,
-    "second": "shared/storage.ts",
-    "secondStart": 452,
     "hash": "8d59db46505ce6d61e96fde0d330e2f6df7d4aed8c7b6077e220e7204cf0f585",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/storage.ts",
+    "secondStart": 452
   },
   {
     "first": "shared/stripe/schemas.ts",
     "firstStart": 190,
-    "second": "shared/stripe/schemas.ts",
-    "secondStart": 196,
     "hash": "815b8e1d978368c26c1f617021d703a580c02ba92ca2b6ee7efadde703e93e2e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/stripe/schemas.ts",
+    "secondStart": 196
   },
   {
     "first": "shared/tables/layout.ts",
     "firstStart": 114,
-    "second": "shared/tables/layout.ts",
-    "secondStart": 130,
     "hash": "0262890133b18773dc93fdece11455f83b9b7b509b12e9895386c0c686a312b5",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "shared/tables/layout.ts",
+    "secondStart": 130
   },
   {
     "first": "shared/validation/parse.ts",
     "firstStart": 9,
-    "second": "shared/validation/parse.ts",
-    "secondStart": 18,
     "hash": "3e8716d775f6a735d1cb1c1506ce5026b76515bebd421984f8766175ada73a17",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "a deliberate API pair: the null-returning and throwing parses of one schema differ in behavior, which is each function's whole contract",
+    "second": "shared/validation/parse.ts",
+    "secondStart": 18
   },
   {
     "first": "ui/templates/admin/activity-log.tsx",
     "firstStart": 169,
-    "second": "ui/templates/admin/attendee-logistics-tab.tsx",
-    "secondStart": 116,
     "hash": "bf03c59b4729d3e54917f9c0800bdf7a096c590081cd06ccfcfc4d344365f7d8",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/attendee-logistics-tab.tsx",
+    "secondStart": 116
   },
   {
     "first": "ui/templates/admin/admin-page.tsx",
     "firstStart": 121,
-    "second": "ui/templates/admin/admin-page.tsx",
-    "secondStart": 143,
     "hash": "6d5595cadcf68ca148a6d347bd07d310db71480f1e5207c9089559d4b4b6116e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/admin-page.tsx",
+    "secondStart": 143
   },
   {
     "first": "ui/templates/admin/attendees.tsx",
     "firstStart": 231,
-    "second": "ui/templates/admin/attendees.tsx",
-    "secondStart": 236,
     "hash": "84c47e91c8399bbd3266ee269163ac34e6250d9e67eb22ef6c9519d5066ed317",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/attendees.tsx",
+    "secondStart": 236
   },
   {
     "first": "ui/templates/admin/attributes.tsx",
     "firstStart": 143,
-    "second": "ui/templates/admin/questions.tsx",
-    "secondStart": 218,
     "hash": "dce2436e80f1157cda54730202f37ba235ee4886be72b6301a741ce4cccbe914",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/questions.tsx",
+    "secondStart": 218
   },
   {
     "first": "ui/templates/admin/attributes.tsx",
     "firstStart": 220,
-    "second": "ui/templates/admin/questions.tsx",
-    "secondStart": 382,
     "hash": "0e62dc5fbfea8efd8693120fcdfd1c85e3c22ed6d2deb9b8af7eb2a112b63e18",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/questions.tsx",
+    "secondStart": 382
   },
   {
     "first": "ui/templates/admin/backup.tsx",
     "firstStart": 113,
-    "second": "ui/templates/admin/backup.tsx",
-    "secondStart": 177,
     "hash": "128a3025802306e406f5826ac2ab155b7d7c060fb6472b95e47641be166c4c73",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/backup.tsx",
+    "secondStart": 177
   },
   {
     "first": "ui/templates/admin/bulk-email.tsx",
     "firstStart": 40,
-    "second": "ui/templates/admin/listings/form-pages.tsx",
-    "secondStart": 39,
     "hash": "e6705e3cd40c80aa989e73e3e6f129a9f858d80c80f98b889ed87644a597845a",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/listings/form-pages.tsx",
+    "secondStart": 39
   },
   {
     "first": "ui/templates/admin/contact-history.tsx",
     "firstStart": 126,
-    "second": "ui/templates/admin/provider-refund-cases.tsx",
-    "secondStart": 255,
     "hash": "38a3202a8ed820b13d313f8e55ff20b322bb55f63834fddf441bf9e01ae6558c",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/provider-refund-cases.tsx",
+    "secondStart": 255
   },
   {
     "first": "ui/templates/admin/entity-pages.tsx",
     "firstStart": 86,
-    "second": "ui/templates/admin/entity-pages.tsx",
-    "secondStart": 103,
     "hash": "6a6a29c39fe2606b122c905f1aed546132a32db733103f7adf95e0fcc46c76b2",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/entity-pages.tsx",
+    "secondStart": 103
   },
   {
     "first": "ui/templates/admin/entity-pages.tsx",
     "firstStart": 86,
-    "second": "ui/templates/admin/entity-pages.tsx",
-    "secondStart": 165,
     "hash": "73b9b242f21999d19242b1ec5106f23897e66aa2d8a69816e342b63a65b8b29f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/entity-pages.tsx",
+    "secondStart": 165
   },
   {
     "first": "ui/templates/admin/guide/integrations.tsx",
     "firstStart": 243,
-    "second": "ui/templates/admin/guide/integrations.tsx",
-    "secondStart": 249,
     "hash": "fc0669a26e9f459a92f03bdc521ffed902c7324830cd5a3073c7163e9c88869c",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/guide/integrations.tsx",
+    "secondStart": 249
   },
   {
     "first": "ui/templates/admin/holidays.tsx",
     "firstStart": 120,
-    "second": "ui/templates/admin/settings-statuses.tsx",
-    "secondStart": 164,
     "hash": "f480f1ba3cad90b60b5e4cdf2971fff99e45cc390da2df44df7b930e3cdb632c",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/settings-statuses.tsx",
+    "secondStart": 164
   },
   {
     "first": "ui/templates/admin/listings/details.tsx",
     "firstStart": 237,
-    "second": "ui/templates/admin/listings/details.tsx",
-    "secondStart": 284,
     "hash": "4ba1c4fe523882a17fc3ebaee71e7f1b56c7db357fbf641f9e0401ab374aa0eb",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/listings/details.tsx",
+    "secondStart": 284
   },
   {
     "first": "ui/templates/admin/listings/lifecycle.tsx",
     "firstStart": 54,
-    "second": "ui/templates/admin/listings/lifecycle.tsx",
-    "secondStart": 70,
     "hash": "c55bef76e338edbdbffe5d1feb204ff91daca0fbc96e0d89706dc156d2a0d139",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/listings/lifecycle.tsx",
+    "secondStart": 70
   },
   {
     "first": "ui/templates/admin/listings/lifecycle.tsx",
     "firstStart": 54,
-    "second": "ui/templates/admin/listings/lifecycle.tsx",
-    "secondStart": 92,
     "hash": "93d665d48937ede5c545676acb901254713c8a6760ac4958fd88e1ebd97676af",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/listings/lifecycle.tsx",
+    "secondStart": 92
   },
   {
     "first": "ui/templates/admin/settings/email-tpl-admin.tsx",
     "firstStart": 13,
-    "second": "ui/templates/admin/settings/email-tpl-confirmation.tsx",
-    "secondStart": 33,
     "hash": "bf96fa5bb70da613e64ef64ac3875e735fd426849ccbf081e0388e86142e2405",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/admin/settings/email-tpl-confirmation.tsx",
+    "secondStart": 33
   },
   {
     "first": "ui/templates/components/labelled-row.tsx",
     "firstStart": 9,
-    "second": "ui/templates/components/prose-heading.tsx",
-    "secondStart": 27,
     "hash": "327534ef3f9bb16946cf0f394e14633c13ca6cc05fd15835f20cc0fba3fe3b6e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/components/prose-heading.tsx",
+    "secondStart": 27
   },
   {
     "first": "ui/templates/fields/listing.ts",
     "firstStart": 208,
-    "second": "ui/templates/fields/listing.ts",
-    "secondStart": 233,
     "hash": "3d3e46c415efd23038507807eca7d0085df80e7e69b568101d0e5943becfdc4b",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/fields/listing.ts",
+    "secondStart": 233
   },
   {
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
-    "second": "ui/templates/setup.tsx",
-    "secondStart": 33,
     "hash": "70883c154e8b3f9d7acdd5364b15efe22a641b0dd1d1ef5315c4aabdf2e40f80",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/setup.tsx",
+    "secondStart": 33
   },
   {
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
-    "second": "ui/templates/setup.tsx",
-    "secondStart": 37,
     "hash": "d9fc19a94e6abbcb1e1e2740f549ffd6fb1eeb1c38a0a112df068c4a1de6ed9d",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/setup.tsx",
+    "secondStart": 37
   },
   {
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
-    "second": "ui/templates/setup.tsx",
-    "secondStart": 41,
     "hash": "47cd1eaed8906a244f879fd92dc5cd2f04879b38e028eb73f474a096d193685e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/setup.tsx",
+    "secondStart": 41
   },
   {
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
-    "second": "ui/templates/setup.tsx",
-    "secondStart": 45,
     "hash": "66af757e0da0419f41cf427cc95f570698ca9d7749c9959e5f2e2f11e14aff60",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry"
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "ui/templates/setup.tsx",
+    "secondStart": 45
   }
 ]

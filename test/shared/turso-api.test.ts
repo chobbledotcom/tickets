@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  slugifyForTurso,
-  tursoDbProvider as tursoApi,
-} from "#shared/turso-api.ts";
+import { tursoDatabaseSlug } from "#shared/config.ts";
+import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
 import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -44,27 +42,27 @@ const stubTursoFetch = (
     return new Response("unexpected", { status: 500 });
   });
 
-test("slugifyForTurso lowercases and replaces non-slug chars with hyphens", () => {
-  expect(slugifyForTurso("My Site")).toBe("my-site");
-  expect(slugifyForTurso("Test_DB 123")).toBe("test-db-123");
+test("tursoDatabaseSlug lowercases and replaces non-slug chars with hyphens", () => {
+  expect(tursoDatabaseSlug("My Site")).toBe("my-site");
+  expect(tursoDatabaseSlug("Test_DB 123")).toBe("test-db-123");
 });
 
-test("slugifyForTurso collapses consecutive hyphens and trims leading/trailing", () => {
-  expect(slugifyForTurso("--My--Site--")).toBe("my-site");
+test("tursoDatabaseSlug collapses consecutive hyphens and trims leading/trailing", () => {
+  expect(tursoDatabaseSlug("--My--Site--")).toBe("my-site");
 });
 
-test("slugifyForTurso truncates to 63 characters", () => {
-  expect(slugifyForTurso("a".repeat(100))).toBe("a".repeat(63));
+test("tursoDatabaseSlug truncates to 63 characters", () => {
+  expect(tursoDatabaseSlug("a".repeat(100))).toBe("a".repeat(63));
 });
 
-test("slugifyForTurso does not produce trailing hyphen when truncation lands on separator", () => {
-  const result = slugifyForTurso(`${"a".repeat(62)}-b`);
+test("tursoDatabaseSlug does not produce trailing hyphen when truncation lands on separator", () => {
+  const result = tursoDatabaseSlug(`${"a".repeat(62)}-b`);
   expect(result.endsWith("-")).toBe(false);
   expect(result.length).toBeLessThanOrEqual(63);
 });
 
-test("slugifyForTurso returns db for names that reduce to empty", () => {
-  expect(slugifyForTurso("---")).toBe("db");
+test("tursoDatabaseSlug returns db for names that reduce to empty", () => {
+  expect(tursoDatabaseSlug("---")).toBe("db");
 });
 
 /** Returns a `stubTursoFetch` `onRequest` callback that captures the create-database POST body into `out.body`. */

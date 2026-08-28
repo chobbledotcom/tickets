@@ -4,31 +4,28 @@
 
 _Origin: the cpd investigation. jscpd matches literal tokens, so a rename hides
 a copy; `deno task cpd:renamed` now catches that class, and its registry
-(`scripts/cpd-renamed/allowed.json`) holds 90 `pending merge` pairs._
+(`scripts/cpd-renamed/allowed.json`) holds 83 `pending merge` pairs._
 
 Each entry is two sites that spell one code shape with different words. Merge
 the pair (helper or curry), then run `deno task cpd:renamed --update` to drop
-the entry. Starting families, easiest first:
+the entry. Do not silence an entry without either merging or writing the
+by-design reason.
 
-- `slugifyForDeno` (`src/shared/deno-deploy-api.ts`) and `slugifyForTurso`
-  (`src/shared/turso-api.ts`) — one shared slug-for-a-provider helper.
-- `loadAttendeeActivity` and `loadAttendeeActivityPreview`
-  (`src/features/admin/attendee-page-data.ts`) — differ only in the limit
-  constant; one curried loader takes the limit.
-- `handleDeleteAnswerGet` and `handleAnswerRecalculateGet`
-  (`src/features/admin/questions/answers.ts`) — the `answerFlashRoute` wrapper
-  family; curry the inner step.
-- The create/update flash twins in `src/features/admin/site-pages.ts`
-  (`site.pages.created` / `site.pages.updated`).
+Merged or judged so far: the provider slug pair (now `providerSlugRule` in
+`src/shared/config.ts`), the activity-log limit pair (now
+`attendeeActivityCappedAt` in `src/features/admin/attendee-page-data.ts`), the
+site-pages flash pair (now `pageWriteWords`), and four judged by-design
+(`answerFlashRoute` twins, `parseOrNull`/`parseOrThrow`,
+`statOrNull`/`lstatOrNull`, `costOfListing`/`profitOfListing`). Remaining
+families, easiest first:
+
 - `deleteAttribute` (`src/shared/db/attributes.ts`) and `deleteListing`
   (`src/shared/db/listings/delete.ts`) — cascade deletes; one helper takes the
   table-specific clear statements.
-- `parseOrNull` / `parseOrThrow`, `statOrNull` / `lstatOrNull`, `costOfListing`
-  / `profitOfListing` — deliberate API twins; judge each as by-design (write the
-  reason) or merge.
+- The route-table twins in `src/features/admin/api.ts`
+  (`handleToggleActive(request, listingId, false/true)`).
 
-Read a pair's snippets with `deno task cpd:renamed` output before merging. Do
-not silence an entry without either merging or writing the by-design reason.
+Read a pair's snippets with `deno task cpd:renamed` output before merging.
 
 ---
 
