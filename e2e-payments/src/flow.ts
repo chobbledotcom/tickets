@@ -10,6 +10,7 @@
 /* jscpd:ignore-start */
 import type { Locator } from "playwright";
 import { type BrowserSession, hrefOf, requirePageText } from "./browser.ts";
+import { catalogWords } from "./catalog-words.ts";
 import {
   type BookerIdentity,
   config,
@@ -42,7 +43,7 @@ export const runSetup = async (
   await session.fill("admin_password_confirm", owner.password);
   await session.select("country", country);
   await session.check("accept_agreement");
-  await session.clickButton("Complete setup");
+  await session.clickButton(await catalogWords("setup", "setup.submit"));
   log(`  setup complete (admin=${owner.username}, country=${country})`);
 };
 
@@ -57,11 +58,13 @@ export const login = async (
   if (/log ?in/i.test(body)) {
     await session.fill("username", owner.username);
     await session.fill("password", owner.password);
-    await session.clickButton("Login");
+    await session.clickButton(await catalogWords("login", "login.submit"));
   }
   // A just-migrated install may show an interstitial.
   if ((await session.bodyText()).includes("Migration complete")) {
-    await session.clickLink("Back to dashboard");
+    await session.clickLink(
+      await catalogWords("seed-data", "admin.seeds.back"),
+    );
   }
   try {
     await session.page.waitForFunction(
@@ -100,7 +103,9 @@ export const createListing = async (
   await session.check("fields", "email");
   // The price field is entered in major units (e.g. "1.00"), not minor.
   await session.fill("unit_price", (priceMinor / 100).toFixed(2));
-  await session.clickButton("Create Listing");
+  await session.clickButton(
+    await catalogWords("listings-table", "listings_table.create_listing"),
+  );
 
   // Open the new listing and read its public booking link.
   await session.goto("/admin/");

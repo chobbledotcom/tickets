@@ -10,8 +10,9 @@ import {
   holdFirstAppReturn,
   requirePageText,
 } from "#e2e/browser.ts";
+// jscpd:ignore-start -- this #e2e import run is structural
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-// jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import {
@@ -320,12 +321,16 @@ Then(
 /** The owner edits the listing's price while the visitor is mid-checkout. */
 const changeListingPrice = async (world: LiveWorld): Promise<void> => {
   await openScenarioListing(world, "overview");
-  await ownerOf(world).clickLink("Edit");
+  await ownerOf(world).clickLink(
+    await catalogWords("entity-pages", "entity.tab.edit"),
+  );
   await ownerOf(world).fill(
     "unit_price",
     ((config.unitPrice + 100) / 100).toFixed(2),
   );
-  await ownerOf(world).clickButton("Save Changes");
+  await ownerOf(world).clickButton(
+    await catalogWords("common", "common.save_changes"),
+  );
   world.recordPhase("listing-price-changed");
 };
 

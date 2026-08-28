@@ -2,12 +2,12 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import type { BrowserSession } from "#e2e/browser.ts";
+import { catalogWords } from "#e2e/catalog-words.ts";
 import type { ProviderName } from "#e2e/config.ts";
 import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
 import { mapNotNullish } from "#fp";
-import { ensureMessageGroups, t } from "#i18n";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-fetch.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { readJson } from "#shared/read-json.ts";
@@ -244,7 +244,9 @@ type ProviderStep = (
 export const selectProvider: ProviderStep = async (session, provider) => {
   await session.goto("/admin/settings");
   await session.check("payment_provider", provider);
-  await session.clickButton("Save Payment Provider");
+  await session.clickButton(
+    await catalogWords("settings", "settings.save_payment_provider"),
+  );
   log(`  selected payment provider: ${provider}`);
 };
 
@@ -260,12 +262,11 @@ export const saveCredentials = async (
   provider: ProviderName,
   values: Record<string, string>,
 ): Promise<void> => {
-  await ensureMessageGroups(["settings"]);
   for (const [field, value] of Object.entries(values)) {
     await session.fill(field, value);
   }
   await session.clickButton(
-    t("settings.provider.update_credentials", {
+    await catalogWords("settings", "settings.provider.update_credentials", {
       provider: PAYMENT_PROVIDERS[provider].label,
     }),
   );

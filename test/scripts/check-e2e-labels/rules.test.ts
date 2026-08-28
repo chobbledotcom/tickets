@@ -20,10 +20,13 @@ describe("e2e label rules", () => {
       `requirePageText(pick(owner, 1), "was automatically refunded", "a", "m");`,
       `if (pageTextIncludes(ledger, "Booking made")) return;`,
       `requireExactly(pageTextCount(ledger, "Payment received for"), 1, "r");`,
+      `requireExactly(await exactLinkCount(owner, "Edit"), 1, "e");`,
+      `await requireNoExactLink(owner, "Delete", "gone");`,
     ].join("\n");
     const copy = catalog([
       "Save Payment Provider",
       "Edit",
+      "Delete",
       "Booking made",
       "Payment received for",
       "The payment was automatically refunded.",

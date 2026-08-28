@@ -6,8 +6,9 @@
 
 import { Then, When } from "@cucumber/cucumber";
 import { requirePageText } from "#e2e/browser.ts";
+// jscpd:ignore-start -- this #e2e import run is structural
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-// jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import { refuseRefundTransfers } from "#e2e/db-fault.ts";
@@ -39,15 +40,15 @@ const requireDeleteReachable = async (world: LiveWorld): Promise<void> => {
   await openAttendeeTabIn(owner, "actions");
   await requireNoExactLink(
     owner,
-    "Refund",
+    await catalogWords("attendees", "attendee_form.action_refund"),
     "Refund action offered after the refund",
   );
   // Prove Delete reachability through the real control: clicking it must open
   // the enabled Delete Attendee confirmation form (which is then abandoned).
-  await owner.clickLink("Delete");
+  await owner.clickLink(await catalogWords("common", "common.delete"));
   const confirm = owner.page.getByRole("button", {
     exact: true,
-    name: "Delete Attendee",
+    name: await catalogWords("attendees", "admin.attendees.delete_submit"),
   });
   if ((await confirm.count()) !== 1 || !(await confirm.first().isEnabled())) {
     throw new Error(
@@ -80,7 +81,9 @@ const refreshPayment = async (
 ): Promise<void> => {
   const owner = ownerOf(world);
   await attendeeTabOf(world, "");
-  await owner.clickButton("Refresh payment status");
+  await owner.clickButton(
+    await catalogWords("attendees", "admin.attendees.refresh_payment"),
+  );
   await requirePageText(
     owner,
     expectedAnswer,
@@ -100,7 +103,9 @@ When(
     await login(second, this.scenario.owner);
     await openAttendeePageIn(second, this);
     await openAttendeeTabIn(second, "actions");
-    await second.clickLink("Refund");
+    await second.clickLink(
+      await catalogWords("attendees", "attendee_form.action_refund"),
+    );
     this.recordPhase("two-refund-windows-open");
   },
 );
@@ -276,7 +281,7 @@ const OBSERVATION_TAB_STEPS: readonly [
     async (world) =>
       await requireNoExactLink(
         ownerOf(world),
-        "Refund",
+        await catalogWords("attendees", "attendee_form.action_refund"),
         "second Refund action",
       ),
   ],
@@ -317,7 +322,7 @@ Then(
     }
     await requireNoExactLink(
       ownerOf(this),
-      "Delete",
+      await catalogWords("common", "common.delete"),
       "Delete action offered while the refund is still observed",
     );
   },

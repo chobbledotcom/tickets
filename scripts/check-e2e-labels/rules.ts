@@ -51,8 +51,10 @@ interface LabelCall {
 const LABEL_CALLS: Record<string, LabelCall> = {
   clickButton: { argument: 1, form: "member", match: "exact" },
   clickLink: { argument: 1, form: "member", match: "exact" },
+  exactLinkCount: { argument: 2, form: "free", match: "exact" },
   pageTextCount: { argument: 2, form: "free", match: "contains" },
   pageTextIncludes: { argument: 2, form: "free", match: "contains" },
+  requireNoExactLink: { argument: 2, form: "free", match: "exact" },
   requirePageText: { argument: 2, form: "free", match: "contains" },
 };
 

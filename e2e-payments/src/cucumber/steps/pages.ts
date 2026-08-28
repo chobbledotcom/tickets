@@ -6,9 +6,10 @@
  * owner session, booker identity, and credentials can never drift apart.
  */
 
+// jscpd:ignore-start -- this #e2e import run is structural
 import type { BrowserSession } from "#e2e/browser.ts";
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-// jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import {
@@ -211,9 +212,17 @@ export const gatherRefundPageFacts = async (
 
   await openAttendeeTabIn(ownerOf(world), "actions");
   return {
-    deleteActionVisible: (await exactLinkCount(ownerOf(world), "Delete")) > 0,
+    deleteActionVisible:
+      (await exactLinkCount(
+        ownerOf(world),
+        await catalogWords("common", "common.delete"),
+      )) > 0,
     refreshReachable,
-    refundActionVisible: (await exactLinkCount(ownerOf(world), "Refund")) > 0,
+    refundActionVisible:
+      (await exactLinkCount(
+        ownerOf(world),
+        await catalogWords("attendees", "attendee_form.action_refund"),
+      )) > 0,
     refundedVisible,
     unfinishedWorkWarningVisible,
   };
@@ -255,7 +264,9 @@ export const attendeeOverviewFacts = async (
 /** Open the attendee's rendered refund confirmation form (not submitted). */
 export const openRefundForm = async (world: LiveWorld): Promise<void> => {
   await attendeeTabOf(world, "actions");
-  await ownerOf(world).clickLink("Refund");
+  await ownerOf(world).clickLink(
+    await catalogWords("attendees", "attendee_form.action_refund"),
+  );
 };
 
 /**
@@ -297,5 +308,7 @@ export const submitRenderedRefundForm = async (
   bookerName: string,
 ): Promise<void> => {
   await session.fill("confirm_identifier", bookerName);
-  await session.clickButton("Refund Attendee");
+  await session.clickButton(
+    await catalogWords("attendees", "admin.attendees.refund_submit"),
+  );
 };
