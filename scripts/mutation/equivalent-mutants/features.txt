@@ -226,3 +226,15 @@ src/features/public/ticket-routes.ts::handleReservedGet.normalizedTokens~10w3ne2
 src/features/public/ticket-routes.ts::handleReservedGet.tokens~09d2xk9  0 → 1   # every real ticket token is far longer than one character, so length > 0 and length > 1 filter the same crafted residue
 src/features/public/ticket-routes.ts::slugHandler~11wceyi  > → <=   # resolveCartSlugs answers null unless a slug names a package, and a single package slug renders the same package form through either path (verified: the package-form test passes under this mutant)
 src/features/public/ticket-routes.ts::slugHandler~11wceyi  1 → 0   # same proof as the > boundary: no non-package single slug reaches the cart handler, and a single package slug renders the same form both ways
+src/features/admin/attendee-page-data.ts::loadPackagePaths.memberPrices~1xcdymp  ?? → ||   # the price loader answers an array or undefined, and arrays (including []) are truthy, so the [] fallback fires only on undefined
+src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups~183l51m  ?? → ||   # byListing.get answers a Map or undefined, and Maps are truthy
+src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks~11c4q19  ?? → ||   # the fallback is 0 and the stored preselected quantities are non-negative counts, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::listingBookingFor.durationDays~1vg0u7m  1 → 0   # a standard line carries date null, and addDemandToBucket reads duration only inside the dated branch (expandDailyRange), so the standard branch never reads it
+src/features/admin/attendee-page-data.ts::overbookedListingIds~11ijbqo  ?? → ||   # the fallback is 0 and the running totals are non-negative counts, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0gnct02  ?? → ||   # the fallback is 0 and remaining balances are non-negative money, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0g9qz7c  ?? → ||   # the fallback is 0 and full prices are non-negative money, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  ?? → ||   # the fallback is 0 and deposit amounts are non-negative money, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  0 → 1   # the depositPaid fallback only feeds owed = max(fullPrice, listed) - paid on a path where orderSummary is absent, so fullPrice and listed are both 0 and owed stays ≤ 0 under either value
+src/features/admin/attendee-page-data.ts::assembleTemplateData.questions~0wxrma2  ?? → ||   # opts.questions is an array or undefined, and arrays are truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedTextAnswers~0av0z2p  ?? → ||   # the value is a Map or undefined, and Maps are truthy
+src/features/admin/attendee-page-data.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # the answer map answers an array or undefined, and arrays are truthy

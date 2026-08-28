@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { denoDeployAppSlug } from "#shared/config.ts";
 import { denoDeployApi, denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -33,41 +32,6 @@ const captureRequest =
   };
 
 describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
-  // ── denoDeployAppSlug ─────────────────────────────────────────────────────────
-
-  test("denoDeployAppSlug lowercases and replaces special chars with hyphens", () => {
-    expect(denoDeployAppSlug("My Site Name")).toBe("my-site-name");
-    expect(denoDeployAppSlug("Hello_World!")).toBe("hello-world");
-  });
-
-  test("denoDeployAppSlug collapses consecutive hyphens", () => {
-    expect(denoDeployAppSlug("a  b  c")).toBe("a-b-c");
-  });
-
-  test("denoDeployAppSlug strips leading and trailing hyphens", () => {
-    expect(denoDeployAppSlug("--leading")).toBe("leading");
-    expect(denoDeployAppSlug("trailing--")).toBe("trailing");
-  });
-
-  test("denoDeployAppSlug truncates to 32 chars", () => {
-    const result = denoDeployAppSlug("a".repeat(40));
-    expect(result.length).toBeLessThanOrEqual(32);
-  });
-
-  test("denoDeployAppSlug does not produce trailing hyphen when truncation lands on separator", () => {
-    const result = denoDeployAppSlug("Tickets - 12345678901234567890123 A");
-    expect(result.endsWith("-")).toBe(false);
-    expect(result.length).toBeLessThanOrEqual(32);
-  });
-
-  test("denoDeployAppSlug pads short slugs to at least 3 chars", () => {
-    expect(denoDeployAppSlug("ab")).toBe("abapp");
-  });
-
-  test("denoDeployAppSlug handles single-char input", () => {
-    expect(denoDeployAppSlug("a")).toBe("aapp");
-  });
-
   // ── createApp ──────────────────────────────────────────────────────────────
 
   test("createApp POSTs to /v2/apps with orgId and slug", async () => {

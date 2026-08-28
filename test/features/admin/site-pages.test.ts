@@ -239,6 +239,17 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expectFlash(response, "File storage is not configured.", false);
     });
 
+    test("an upload POST with storage disabled bounces to the edit tab too", async () => {
+      await create("upload-off");
+      const page = await findPage("upload-off");
+      const { response } = await adminFormPost(
+        `${BASE}/${page.id}/images/upload`,
+        { image: "not-a-file" },
+      );
+      expectRedirect(response, new RegExp(`^${BASE}/${page.id}/edit`));
+      expectFlash(response, "File storage is not configured.", false);
+    });
+
     test("updates a page's fields", async () => {
       await create("orig");
       const page = await findPage("orig");

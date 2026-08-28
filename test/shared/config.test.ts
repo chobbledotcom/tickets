@@ -1,17 +1,44 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import {
+  denoDeployAppSlug,
   getBookingFee,
+  getBotpoisonPublicKey,
+  getBotpoisonSecretKey,
+  getBunnyApiKey,
+  getBunnyDnsSubdomainSuffix,
+  getBunnyDnsZoneId,
+  getBunnyScriptId,
+  getDebugKey,
+  getDefaultDbProvider,
+  getDenoDeployOrgId,
+  getDenoDeployOrgSlug,
+  getDenoDeployToken,
   getEffectiveDomain,
   getEmbedHosts,
+  getMainInstanceKey,
+  getTursoApiToken,
+  getTursoGroup,
+  getTursoOrganization,
+  isBotpoisonEnabled,
+  isBuilderEnabled,
+  isBunnyCdnEnabled,
+  isBunnyDbEnabled,
+  isBunnyDnsEnabled,
+  isDenoDeployEnabled,
+  isInstanceApiEnabled,
   isPaymentsEnabled,
+  isSecureMode,
+  isTursoEnabled,
   loadEffectiveDomain,
   resetEffectiveDomain,
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
+  tursoDatabaseSlug,
 } from "#shared/config.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("isPaymentsEnabled", { db: true }, () => {
@@ -206,5 +233,203 @@ describeWithEnv("getEmbedHosts", { db: true }, () => {
       "two.example.com",
       "three.example.com",
     ]);
+  });
+});
+
+describe("secure mode by request host", () => {
+  afterEach(resetEffectiveDomain);
+
+  const secureModeWhenHostedAt = (hostname: string): boolean => {
+    seedEffectiveDomainHost(new URL(`http://${hostname}:3000/`));
+    return isSecureMode();
+  };
+
+  test("a real resolved host turns secure mode on", () => {
+    expect(secureModeWhenHostedAt("tickets.example.com")).toBe(true);
+  });
+
+  test("the default domain, a localhost subdomain, and the IPv6 loopbacks stay off", () => {
+    expect(secureModeWhenHostedAt("localhost")).toBe(false);
+    expect(secureModeWhenHostedAt("shop.localhost")).toBe(false);
+    expect(secureModeWhenHostedAt("[::1]")).toBe(false);
+    setEffectiveDomainForTest("::1");
+    expect(isSecureMode()).toBe(false);
+  });
+
+  test("an IPv4 loopback address stays off across the octet range", () => {
+    expect(secureModeWhenHostedAt("127.0.0.1")).toBe(false);
+    expect(secureModeWhenHostedAt("127.12.34.0")).toBe(false);
+    expect(secureModeWhenHostedAt("127.255.255.255")).toBe(false);
+  });
+
+  test("an address that only looks like an IPv4 loopback keeps secure mode on", () => {
+    // A different first octet is a real host.
+    expect(secureModeWhenHostedAt("128.0.0.1")).toBe(true);
+    // The forged shapes below are not URL-parseable, so seed them directly:
+    // the wrong number of parts is a hostname, not an address.
+    for (const host of [
+      "127.0.1",
+      "127.0.0.1.5",
+      "127.0.0.256",
+      "127.0.1e2.1",
+    ]) {
+      setEffectiveDomainForTest(host);
+      expect(isSecureMode(), host).toBe(true);
+    }
+  });
+});
+
+describe("environment gates and secrets", () => {
+  const GATES: [label: string, gate: () => boolean, vars: string[]][] = [
+    ["bunny cdn", isBunnyCdnEnabled, ["BUNNY_API_KEY", "BUNNY_SCRIPT_ID"]],
+    ["bunny dns", isBunnyDnsEnabled, ["BUNNY_API_KEY", "BUNNY_DNS_ZONE_ID"]],
+    ["bunny db", isBunnyDbEnabled, ["BUNNY_API_KEY"]],
+    [
+      "botpoison",
+      isBotpoisonEnabled,
+      ["BOTPOISON_PUBLIC_KEY", "BOTPOISON_SECRET_KEY"],
+    ],
+    ["the instance api", isInstanceApiEnabled, ["MAIN_INSTANCE_KEY"]],
+    [
+      "deno deploy hosting",
+      isDenoDeployEnabled,
+      ["DENO_DEPLOY_TOKEN", "DENO_DEPLOY_ORG_ID", "DENO_DEPLOY_ORG_SLUG"],
+    ],
+    [
+      "turso hosting",
+      isTursoEnabled,
+      ["TURSO_API_TOKEN", "TURSO_ORGANIZATION", "TURSO_GROUP"],
+    ],
+  ];
+
+  for (const [label, gate, vars] of GATES) {
+    test(`the ${label} gate reads every one of its variables`, () => {
+      const filled = Object.fromEntries(vars.map((name) => [name, "set"]));
+      using _present = withEnv(filled);
+      expect(gate()).toBe(true);
+      for (const missing of vars) {
+        using _absent = withEnv({ ...filled, [missing]: undefined });
+        expect(gate(), `${missing} alone`).toBe(false);
+      }
+    });
+  }
+
+  test("a required secret reads its own variable", () => {
+    using _secrets = withEnv({
+      BUNNY_API_KEY: "bunny-key",
+      BUNNY_DNS_ZONE_ID: "zone-7",
+      BUNNY_SCRIPT_ID: "script-9",
+      DENO_DEPLOY_ORG_ID: "org-id",
+      DENO_DEPLOY_ORG_SLUG: "org-slug",
+      DENO_DEPLOY_TOKEN: "deno-token",
+      MAIN_INSTANCE_KEY: "instance-key",
+      TURSO_API_TOKEN: "turso-token",
+      TURSO_GROUP: "turso-group",
+      TURSO_ORGANIZATION: "turso-org",
+    });
+    expect(getBunnyApiKey()).toBe("bunny-key");
+    expect(getBunnyDnsZoneId()).toBe("zone-7");
+    expect(getBunnyScriptId()).toBe("script-9");
+    expect(getDenoDeployToken()).toBe("deno-token");
+    expect(getDenoDeployOrgId()).toBe("org-id");
+    expect(getDenoDeployOrgSlug()).toBe("org-slug");
+    expect(getMainInstanceKey()).toBe("instance-key");
+    expect(getTursoApiToken()).toBe("turso-token");
+    expect(getTursoOrganization()).toBe("turso-org");
+    expect(getTursoGroup()).toBe("turso-group");
+  });
+
+  test("an optional value reads its variable or the empty string", () => {
+    using _set = withEnv({
+      BOTPOISON_PUBLIC_KEY: "public-key",
+      BOTPOISON_SECRET_KEY: "secret-key",
+      BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
+      DEBUG_KEY: "debug-key",
+    });
+    expect(getBunnyDnsSubdomainSuffix()).toBe(".tickets");
+    expect(getDebugKey()).toBe("debug-key");
+    expect(getBotpoisonPublicKey()).toBe("public-key");
+    expect(getBotpoisonSecretKey()).toBe("secret-key");
+
+    using _unset = withEnv({
+      BOTPOISON_PUBLIC_KEY: undefined,
+      BOTPOISON_SECRET_KEY: undefined,
+      BUNNY_DNS_SUBDOMAIN_SUFFIX: undefined,
+      DEBUG_KEY: undefined,
+    });
+    expect(getBunnyDnsSubdomainSuffix()).toBe("");
+    expect(getDebugKey()).toBe("");
+    expect(getBotpoisonPublicKey()).toBe("");
+    expect(getBotpoisonSecretKey()).toBe("");
+  });
+
+  test("builder mode and the default database provider read their switches", () => {
+    using _builder = withEnv({ CAN_BUILD_SITES: "true" });
+    expect(isBuilderEnabled()).toBe(true);
+    using _notBuilder = withEnv({ CAN_BUILD_SITES: "false" });
+    expect(isBuilderEnabled()).toBe(false);
+
+    using _turso = withEnv({ DEFAULT_DB_HOST: "turso" });
+    expect(getDefaultDbProvider()).toBe("turso");
+    using _unsetSwitches = withEnv({
+      CAN_BUILD_SITES: undefined,
+      DEFAULT_DB_HOST: undefined,
+    });
+    expect(isBuilderEnabled()).toBe(false);
+    expect(getDefaultDbProvider()).toBe("bunny");
+  });
+});
+
+describe("provider resource slugs", () => {
+  test("a deno deploy app slug lowercases and replaces special chars with hyphens", () => {
+    expect(denoDeployAppSlug("My Site Name")).toBe("my-site-name");
+    expect(denoDeployAppSlug("Hello_World!")).toBe("hello-world");
+  });
+
+  test("a deno deploy app slug collapses consecutive hyphens", () => {
+    expect(denoDeployAppSlug("a  b  c")).toBe("a-b-c");
+  });
+
+  test("a deno deploy app slug strips leading and trailing hyphens", () => {
+    expect(denoDeployAppSlug("--leading")).toBe("leading");
+    expect(denoDeployAppSlug("trailing--")).toBe("trailing");
+  });
+
+  test("a deno deploy app slug truncates to 32 chars", () => {
+    expect(denoDeployAppSlug("a".repeat(40)).length).toBeLessThanOrEqual(32);
+  });
+
+  test("a deno deploy app slug ends clean when truncation lands on a separator", () => {
+    const slug = denoDeployAppSlug("Tickets - 12345678901234567890123 A");
+    expect(slug.endsWith("-")).toBe(false);
+    expect(slug.length).toBeLessThanOrEqual(32);
+  });
+
+  test("a deno deploy app slug pads short slugs to at least 3 chars", () => {
+    expect(denoDeployAppSlug("ab")).toBe("abapp");
+    expect(denoDeployAppSlug("a")).toBe("aapp");
+  });
+
+  test("a turso database slug lowercases and replaces non-slug chars", () => {
+    expect(tursoDatabaseSlug("My Site")).toBe("my-site");
+    expect(tursoDatabaseSlug("Test_DB 123")).toBe("test-db-123");
+  });
+
+  test("a turso database slug collapses consecutive hyphens and trims", () => {
+    expect(tursoDatabaseSlug("--My--Site--")).toBe("my-site");
+  });
+
+  test("a turso database slug truncates to 63 characters", () => {
+    expect(tursoDatabaseSlug("a".repeat(100))).toBe("a".repeat(63));
+  });
+
+  test("a turso database slug ends clean when truncation lands on a separator", () => {
+    const slug = tursoDatabaseSlug(`${"a".repeat(62)}-b`);
+    expect(slug.endsWith("-")).toBe(false);
+    expect(slug.length).toBeLessThanOrEqual(63);
+  });
+
+  test("a turso database slug falls back to db for names that reduce to empty", () => {
+    expect(tursoDatabaseSlug("---")).toBe("db");
   });
 });
