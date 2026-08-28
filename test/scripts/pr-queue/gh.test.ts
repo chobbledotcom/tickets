@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
@@ -9,8 +10,28 @@ import {
 } from "#scripts/pr-queue/gh.ts";
 import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
 import { captureCommands } from "#test-utils/command-capture.ts";
+import { withTempDir } from "#test-utils/files.ts";
 import { ghSaying, queueReply } from "./fixtures.ts";
 
+/**
+ * Runs in a child Deno under the report task's exact permissions. The child
+ * inherits a non-empty `LD_LIBRARY_PATH`, which makes Deno refuse to spawn a
+ * subprocess while `--allow-run` permits only `gh` — unless the spawn clears
+ * the variable, which is what the production runner does. The script exits 0
+ * when the real `gh --version` ran; on any other outcome it writes the
+ * failure to stderr and exits 1, so the parent can name what broke.
+ *
+ * The module is imported there by its own resolved URL, because the child
+ * cannot reach the repo's import map for aliases.
+ */
+const spawnScript = (runnerUrl: string): string => `
+import { runGhCommand } from "${runnerUrl}";
+const result = await runGhCommand(["--version"]);
+if (result.code !== 0) {
+  console.error("gh --version exited " + result.code + ": " + result.stderr);
+  Deno.exit(1);
+}
+`;
 /** The failure a call threw, so its message and exit code can be checked. */
 const failureFrom = async (call: Promise<unknown>): Promise<GhFailure> => {
   const error = await call.catch((error: unknown) => error);
@@ -61,6 +82,44 @@ describe("running the gh command itself", () => {
     expect(captured.commands[0]?.options.env).toEqual({ LD_LIBRARY_PATH: "" });
     expect(captured.commands[0]?.options.stdout).toBe("piped");
     expect(captured.commands[0]?.options.stderr).toBe("piped");
+  });
+
+  test("spawns the real gh from a loader-path environment under --allow-run=gh", async () => {
+    // Reproduces the NixOS failure the env clear fixes: the child runs with
+    // only gh permitted, a non-empty loader path inherited, and the production
+    // spawn. Without the clear, Deno refuses the spawn with NotCapable.
+    await withTempDir(async (dir) => {
+      const childPath = `${dir}/spawn-gh.ts`;
+      await Deno.writeTextFile(
+        childPath,
+        spawnScript(import.meta.resolve("#scripts/pr-queue/gh.ts")),
+      );
+      const repoRoot = resolve(import.meta.dirname!, "../../..");
+      const child = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--no-check",
+          "--config",
+          `${repoRoot}/deno.json`,
+          "--allow-run=gh",
+          childPath,
+        ],
+        env: {
+          // Deno injects the run's coverage dir into a spawned deno even
+          // when the env is replaced, and the child would dump a record for
+          // the temp script this test deletes before the merge reads it.
+          // Point the child at a throwaway dir so the run's coverage data
+          // never sees a script whose source is already gone.
+          DENO_COVERAGE_DIR: `${dir}/child-coverage`,
+          LD_LIBRARY_PATH: "/nowhere-useful",
+          PATH: Deno.env.get("PATH") ?? "",
+        },
+        stderr: "piped",
+        stdout: "piped",
+      }).output();
+      expect(new TextDecoder().decode(child.stderr)).toBe("");
+      expect(child.code).toBe(0);
+    });
   });
 });
 
