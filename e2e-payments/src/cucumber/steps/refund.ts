@@ -12,6 +12,7 @@ import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import { refuseRefundTransfers } from "#e2e/db-fault.ts";
 import { login } from "#e2e/flow.ts";
+import { pageTextIncludes } from "#e2e/page-text.ts";
 import {
   classifyReturnedLocalDue,
   classifySubmittedRefund,
@@ -59,8 +60,8 @@ const requireDeleteReachable = async (world: LiveWorld): Promise<void> => {
 const requireRefundStatus = async (world: LiveWorld): Promise<void> => {
   const { paymentDetails } = await attendeeOverviewFacts(world);
   if (
-    !paymentDetails.includes("Refund Status:") ||
-    !paymentDetails.includes("Refunded")
+    !pageTextIncludes(paymentDetails, "Refund Status:") ||
+    !pageTextIncludes(paymentDetails, "Refunded")
   ) {
     throw new Error(
       `the attendee payment details do not say Refunded:\n${paymentDetails.slice(
@@ -154,7 +155,7 @@ When(
     const second = await this.secondOwnerWindow();
     await submitRenderedRefundForm(second, this.scenario.booker.name);
     const landing = await second.bodyText();
-    if (landing.includes("Refund issued")) {
+    if (pageTextIncludes(landing, "Refund issued")) {
       throw new Error(
         "the stale second refund form was accepted as a fresh refund",
       );

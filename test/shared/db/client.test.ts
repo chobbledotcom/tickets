@@ -120,6 +120,17 @@ describe("extractUpdateColumns", () => {
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
+  test("columns after an astral character still split at the comma", () => {
+    // An emoji is two UTF-16 code units. A code-point scan slices into its
+    // middle, reads the next column as ", quantity", and the write sniffs
+    // the wrong table — so its cache is never invalidated.
+    const cols = extractUpdateColumns(
+      "UPDATE t SET note = \u{1F600}, quantity = 1",
+    );
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
   test("depth scan starts at the very first character of the SET clause", () => {
     // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
     // see that first character, otherwise depth goes negative at ")" and the

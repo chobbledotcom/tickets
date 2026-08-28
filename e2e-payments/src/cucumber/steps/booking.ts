@@ -21,6 +21,7 @@ import {
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
+import { pageTextCount, pageTextIncludes } from "#e2e/page-text.ts";
 import { lastLoggedMatch } from "#e2e/providers/shared.ts";
 import {
   deliverGenuineCallbackTwice,
@@ -374,11 +375,11 @@ Then(
   async function (this: LiveWorld): Promise<void> {
     const ledger = await attendeeTabOf(this, "ledger");
     requireExactly(
-      ledger.split("Payment received for").length - 1,
+      pageTextCount(ledger, "Payment received for"),
       1,
       "payment row",
     );
-    requireExactly(ledger.split("Refund paid to").length - 1, 1, "refund row");
+    requireExactly(pageTextCount(ledger, "Refund paid to"), 1, "refund row");
     const balance = await finalBalanceFigure(ownerOf(this));
     if (!/^[^0-9]*0(?:\.00)?$/.test(balance.trim())) {
       throw new Error(
@@ -392,7 +393,7 @@ Then(
  * but no sale was ever recorded for a booking that cannot be honoured. */
 const requireNoSaleForUnfulfilled = async (world: LiveWorld): Promise<void> => {
   const ledger = await attendeeTabOf(world, "ledger");
-  if (ledger.includes("Booking made")) {
+  if (pageTextIncludes(ledger, "Booking made")) {
     throw new Error("the unfulfilled booking recorded a sale");
   }
   await requireMoneyRefunds(world, 1, "Money refund");

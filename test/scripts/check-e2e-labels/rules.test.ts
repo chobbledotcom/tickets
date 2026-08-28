@@ -18,14 +18,29 @@ describe("e2e label rules", () => {
       `await ownerOf(world).clickLink("Edit");`,
       `requirePageText(owner, "was automatically refunded", "a", "m");`,
       `requirePageText(pick(owner, 1), "was automatically refunded", "a", "m");`,
+      `if (pageTextIncludes(ledger, "Booking made")) return;`,
+      `requireExactly(pageTextCount(ledger, "Payment received for"), 1, "r");`,
     ].join("\n");
     const copy = catalog([
       "Save Payment Provider",
       "Edit",
+      "Booking made",
+      "Payment received for",
       "The payment was automatically refunded.",
     ]);
 
     expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
+  test("requires a clicked control to equal a whole catalog message", () => {
+    // "Save" appears inside many messages; a control named "Save" whose
+    // message is "Save Changes" must not pass on that overlap.
+    const source = `await session.clickButton("Save");`;
+    const copy = catalog(["Save Changes", "Save Payment Provider"]);
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toContain("renders exactly");
   });
 
   test("flags a label the catalog renamed underneath the spec", () => {
@@ -39,6 +54,19 @@ describe("e2e label rules", () => {
     expect(issues[0]?.line).toBe(1);
     expect(issues[0]?.message).toContain('"Update Stripe Key"');
     expect(issues[0]?.message).toContain("no message in src/locales/en");
+  });
+
+  test("flags a page-text marker that no message carries", () => {
+    const source = `if (pageTextIncludes(ledger, "Payment gone for")) {}`;
+    const copy = catalog(["Payment received for"]);
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toBe(
+      'uses "Payment gone for", which no message in src/locales/en renders ' +
+        'at all. Match the new copy, or derive it with t("…") as ' +
+        "saveCredentials does.",
+    );
   });
 
   test("flags copy whose capitalisation drifted from the catalog", () => {

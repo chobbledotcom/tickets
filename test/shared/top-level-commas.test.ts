@@ -5,16 +5,14 @@ import { type CommaSplit, topLevelCommas } from "#shared/top-level-commas.ts";
 /** The SQL shape: parens only, whole text, never stops early. */
 const sqlShape = (): CommaSplit => ({
   closers: ")",
-  depth: 0,
   openers: "(",
   start: 0,
   stopWhenClosed: false,
 });
 
-/** The call shape: every bracket, one level in, stops at the closer. */
+/** The call shape: every bracket, stops at the closer. */
 const callShape = (open: number): CommaSplit => ({
   closers: ")]}",
-  depth: 1,
   openers: "([{",
   start: open + 1,
   stopWhenClosed: true,
@@ -81,5 +79,17 @@ describe("top level commas", () => {
 
     expect(pieces(blank, commas, end, open + 1)).toEqual(["a", "b"]);
     expect(end).toBe(blank.length);
+  });
+
+  test("reports UTF-16 code-unit indexes for astral characters", () => {
+    // An emoji is two code units. Indexes that count code points would
+    // slice into the middle of it and shift every later piece.
+    const clause = "note = \u{1F600}, quantity = 1";
+    const { commas, end } = topLevelCommas(clause, sqlShape());
+
+    expect(pieces(clause, commas, end)).toEqual([
+      "note = \u{1F600}",
+      "quantity = 1",
+    ]);
   });
 });

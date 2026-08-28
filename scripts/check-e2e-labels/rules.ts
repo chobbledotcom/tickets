@@ -2,19 +2,19 @@
  * Pure rules for check:e2e-labels — see scripts/check-e2e-labels.ts.
  *
  * The payment e2e drives the app by its visible words (clickButton,
- * clickLink, requirePageText), so every literal it passes is catalog copy
- * that a rename can move underneath it. That run is schedule-only, so the
- * break lands a day late on main. These rules compare each literal with the
- * words the message catalog renders, so the rename fails its own PR.
+ * clickLink, page text), so every literal it passes is catalog copy that a
+ * rename can move underneath it. That run is schedule-only, so the break
+ * lands a day late on main. These rules compare each literal with the words
+ * the message catalog renders, so the rename fails its own PR.
  *
  * A non-literal argument is left alone: it names the scenario's own data
  * (the listing or attendee it just created), which no catalog edit moves.
  * A deliberate literal parked in a variable dodges this check. Accidental
  * drift — the failure class — never does.
  *
- * The match is by substring, case-sensitive: a label passes when some catalog
- * message contains it verbatim. That cannot pin the exact button a phrase
- * came from, but it catches every rename of the words a spec clicks.
+ * A clicked control must equal a catalog message exactly, because its
+ * accessible name is that whole message. Page-text assertions may quote a
+ * fragment, so those match by case-sensitive substring.
  */
 
 import { mapNotNullish } from "#fp";
@@ -26,7 +26,7 @@ import { topLevelCommas } from "#shared/top-level-commas.ts";
 export interface CatalogCopy {
   /** Every message key, for example "settings.provider.update_credentials". */
   readonly keys: ReadonlySet<string>;
-  /** Every message value. A label passes when one contains it verbatim. */
+  /** Every message value. Controls must equal one. Page text may be part. */
   readonly values: readonly string[];
 }
 
@@ -37,12 +37,23 @@ export interface LabelIssue extends LineIssue {
 /** Reports the source line a match index sits on. */
 type LineOf = (index: number) => number;
 
-/** The calls the driver makes against an app page by visible words, and
- * which argument carries those words. */
-const LABEL_CALLS: Record<string, number> = {
-  clickButton: 1,
-  clickLink: 1,
-  requirePageText: 2,
+/** How one scanned call names its words. */
+interface LabelCall {
+  /** Which argument carries the words, counted from one. */
+  readonly argument: number;
+  /** A free call reads `name(…)`. A member call reads `session.name(…)`. */
+  readonly form: "free" | "member";
+  /** A control's name is the whole message. Page text may be a fragment. */
+  readonly match: "exact" | "contains";
+}
+
+/** The calls the driver makes against an app page by visible words. */
+const LABEL_CALLS: Record<string, LabelCall> = {
+  clickButton: { argument: 1, form: "member", match: "exact" },
+  clickLink: { argument: 1, form: "member", match: "exact" },
+  pageTextCount: { argument: 2, form: "free", match: "contains" },
+  pageTextIncludes: { argument: 2, form: "free", match: "contains" },
+  requirePageText: { argument: 2, form: "free", match: "contains" },
 };
 
 /** A message-key call: the word `t` called with a literal key, not a
@@ -58,7 +69,6 @@ const KEY_CALL = /(?<![.\w$])t\s*\(\s*"([a-z0-9_.-]+)"/g;
 const topLevelArgs = (code: string, blank: string, open: number): string[] => {
   const { commas, end } = topLevelCommas(blank, {
     closers: ")]}",
-    depth: 1,
     openers: "([{",
     start: open + 1,
     stopWhenClosed: true,
@@ -83,13 +93,21 @@ const stringLiteral = (arg: string): string | null => {
 };
 
 /** Judge one argument that carries visible words. */
-const argumentIssue = (arg: string, catalog: CatalogCopy): string | null => {
+const argumentIssue = (
+  arg: string,
+  catalog: CatalogCopy,
+  how: LabelCall,
+): string | null => {
   const literal = stringLiteral(arg);
   // A non-literal names the scenario's own data. See the header.
   if (literal === null) return null;
-  if (!catalog.values.some((value) => value.includes(literal))) {
+  const renders = catalog.values.some((value) =>
+    how.match === "exact" ? value === literal : value.includes(literal),
+  );
+  if (!renders) {
     return (
-      `uses "${literal}", which no message in src/locales/en renders. ` +
+      `uses "${literal}", which no message in src/locales/en renders ` +
+      `${how.match === "exact" ? "exactly" : "at all"}. ` +
       `Match the new copy, or derive it with t("…") as saveCredentials does.`
     );
   }
@@ -101,22 +119,22 @@ const callSiteIssues = (
   code: string,
   blank: string,
   method: string,
-  position: number,
+  how: LabelCall,
   match: RegExpExecArray,
   catalog: CatalogCopy,
   lineOf: LineOf,
 ): LabelIssue[] => {
   const open = match.index + match[0].length - 1;
-  const arg = topLevelArgs(code, blank, open)[position - 1];
+  const arg = topLevelArgs(code, blank, open)[how.argument - 1];
   if (arg === undefined) {
     return [
       {
         line: lineOf(match.index),
-        message: `calls ${method} with no argument ${position} to read.`,
+        message: `calls ${method} with no argument ${how.argument} to read.`,
       },
     ];
   }
-  const message = argumentIssue(arg, catalog);
+  const message = argumentIssue(arg, catalog, how);
   return message === null ? [] : [{ line: lineOf(match.index), message }];
 };
 
@@ -150,24 +168,16 @@ export const findLabelIssues = (
   const lineOf: LineOf = (index) => source.slice(0, index).split("\n").length;
 
   const issues: LabelIssue[] = [];
-  for (const [method, position] of Object.entries(LABEL_CALLS)) {
+  for (const [method, how] of Object.entries(LABEL_CALLS)) {
     const call = new RegExp(
-      method === "requirePageText"
+      how.form === "free"
         ? `(?<![.\\w$])${method}\\s*\\(`
         : `\\.${method}\\s*\\(`,
       "g",
     );
     for (const match of code.matchAll(call)) {
       issues.push(
-        ...callSiteIssues(
-          code,
-          blank,
-          method,
-          position,
-          match,
-          catalog,
-          lineOf,
-        ),
+        ...callSiteIssues(code, blank, method, how, match, catalog, lineOf),
       );
     }
   }

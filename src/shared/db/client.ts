@@ -74,7 +74,6 @@ export const extractUpdateColumns = (
   let start = 0;
   const { commas } = topLevelCommas(setClause, {
     closers: ")",
-    depth: 0,
     openers: "(",
     start: 0,
     stopWhenClosed: false,

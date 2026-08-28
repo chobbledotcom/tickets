@@ -10,8 +10,14 @@ the message catalog. A wording change there breaks the schedule-only run a day
 later, exactly as #2152 did.
 
 The `check:e2e-labels` gate cannot catch this class. It scans the literals that
-`clickButton`, `clickLink` and `requirePageText` receive, and a connection
+`clickButton`, `clickLink` and the page-text helpers receive, and a connection
 check's `require` array is plain data outside those calls.
+
+Four page-text assertions quote text the app also builds outside the catalog, so
+they stay on the plain string methods: "Migration complete"
+(`e2e-payments/src/flow.ts`), "kept at quantity 0", "the listing price changed
+while they were paying", and "Refund code: price_changed" (all in
+`e2e-payments/src/cucumber/steps/booking.ts`).
 
 To close it, move the connection-answer wording into the message catalog (the
 same migration as "Move the routes' flash messages into the message catalog"

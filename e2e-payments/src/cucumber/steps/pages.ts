@@ -18,6 +18,7 @@ import {
   requireNoRecognisedIncome,
   submitBooking,
 } from "#e2e/flow.ts";
+import { pageTextIncludes } from "#e2e/page-text.ts";
 import type { SandboxRefundObservation } from "#e2e/providers/types.ts";
 import type { RefundPageFacts } from "#e2e/refund-outcome.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
@@ -203,10 +204,10 @@ export const gatherRefundPageFacts = async (
 
   const { overview, paymentDetails } = await attendeeOverviewFacts(world);
   const refundedVisible =
-    paymentDetails.includes("Refund Status:") &&
-    !paymentDetails.includes("Not refunded") &&
-    paymentDetails.includes("Refunded");
-  const refreshReachable = overview.includes("Refresh payment status");
+    pageTextIncludes(paymentDetails, "Refund Status:") &&
+    !pageTextIncludes(paymentDetails, "Not refunded") &&
+    pageTextIncludes(paymentDetails, "Refunded");
+  const refreshReachable = pageTextIncludes(overview, "Refresh payment status");
 
   await openAttendeeTabIn(ownerOf(world), "actions");
   return {
