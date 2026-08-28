@@ -18,19 +18,25 @@ describe("e2e label rules", () => {
       `await ownerOf(world).clickLink("Edit");`,
       `requirePageText(owner, "was automatically refunded", "a", "m");`,
       `requirePageText(pick(owner, 1), "was automatically refunded", "a", "m");`,
-      `if (pageTextIncludes(ledger, "Booking made")) return;`,
-      `requireExactly(pageTextCount(ledger, "Payment received for"), 1, "r");`,
+      `if (await pageTextIncludes(ledger, "ledger", "admin.ledger.event.sale")) return;`,
+      `requireExactly(\n      await pageTextCount(ledger, "ledger", "admin.ledger.human.payment"),\n      1,\n      "r",\n    );`,
       `requireExactly(await exactLinkCount(owner, "Edit"), 1, "e");`,
       `await requireNoExactLink(owner, "Delete", "gone");`,
+      `const confirm = await attendeeCatalogButtons(owner, "admin.attendees.delete_submit");`,
     ].join("\n");
-    const copy = catalog([
-      "Save Payment Provider",
-      "Edit",
-      "Delete",
-      "Booking made",
-      "Payment received for",
-      "The payment was automatically refunded.",
-    ]);
+    const copy = catalog(
+      [
+        "Save Payment Provider",
+        "Edit",
+        "Delete",
+        "The payment was automatically refunded.",
+      ],
+      [
+        "admin.ledger.event.sale",
+        "admin.ledger.human.payment",
+        "admin.attendees.delete_submit",
+      ],
+    );
 
     expect(findLabelIssues(source, copy)).toEqual([]);
   });
@@ -44,6 +50,34 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
     expect(issues[0]?.message).toContain("renders exactly");
+  });
+
+  test("flags a page-text helper whose key names nothing", () => {
+    const source = `if (await pageTextIncludes(ledger, "ledger", "admin.ledger.gone")) {}`;
+    const copy = catalog([], ["admin.ledger.event.sale"]);
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toBe(
+      'uses key "admin.ledger.gone", which src/locales/en holds nowhere. ' +
+        "Give the group and key the page's template reads.",
+    );
+  });
+
+  test("flags a catalogWords key the catalog holds nowhere", () => {
+    const source = `await catalogWords("attendees", "admin.attendees.gone")`;
+    const copy = catalog([], ["admin.attendees.refund_submit"]);
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toContain('"admin.attendees.gone"');
+  });
+
+  test("ignores a key call quoted inside a string literal", () => {
+    const source = `const note = 'an example: t("gone.key") in prose';`;
+    const copy = catalog([], []);
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
   });
 
   test("flags a label the catalog renamed underneath the spec", () => {
@@ -60,7 +94,7 @@ describe("e2e label rules", () => {
   });
 
   test("flags a page-text marker that no message carries", () => {
-    const source = `if (pageTextIncludes(ledger, "Payment gone for")) {}`;
+    const source = `requirePageText(owner, "Payment gone for", "a", "m")`;
     const copy = catalog(["Payment received for"]);
 
     const issues = findLabelIssues(source, copy);
@@ -181,6 +215,27 @@ describe("e2e label rules", () => {
     expect(findLabelIssues(source, copy)).toEqual([]);
   });
 
+  test("decodes the escapes TypeScript allows in a literal", () => {
+    const source = [
+      `await session.clickButton("Line\\nbreak");`,
+      `await session.clickButton('Tab\\there');`,
+      `await session.clickButton("Code \\x27point\\x27");`,
+      `await session.clickButton("Curly \\u2019 quote");`,
+      `await session.clickButton("Star \\u{2B50} eyes");`,
+      `await session.clickButton("A\\'B\\"C\\\\D\\bE\\fF\\rG\\vH\\0I");`,
+    ].join("\n");
+    const copy = catalog([
+      "Line\nbreak",
+      "Tab\there",
+      "Code 'point'",
+      "Curly \u2019 quote",
+      "Star \u{2B50} eyes",
+      "A'B\"C\\D\bE\fF\rG\vH\0I",
+    ]);
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
   test("reports issues in source order", () => {
     const source = [
       `await session.clickButton("First Gone");`,
@@ -200,5 +255,14 @@ describe("e2e label rules", () => {
     expect(issues[0]?.message).toContain(
       "calls clickButton with no argument 1 to read",
     );
+  });
+
+  test("leaves a spread argument alone, for it hides the positions", () => {
+    const issues = findLabelIssues(
+      "await pageTextCount(...args);",
+      catalog([]),
+    );
+
+    expect(issues).toEqual([]);
   });
 });

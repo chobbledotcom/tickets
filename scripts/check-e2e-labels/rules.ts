@@ -19,7 +19,11 @@
 
 import { mapNotNullish } from "#fp";
 import { byLine, type LineIssue } from "#scripts/check-report.ts";
-import { blankSpans } from "#scripts/typescript-lex.ts";
+import {
+  blankSpans,
+  type LexicalSpan,
+  lexicalSpans,
+} from "#scripts/typescript-lex.ts";
 import { topLevelCommas } from "#shared/top-level-commas.ts";
 
 /** The catalog, flattened to what a label or key is checked against. */
@@ -43,24 +47,29 @@ interface LabelCall {
   readonly argument: number;
   /** A free call reads `name(…)`. A member call reads `session.name(…)`. */
   readonly form: "free" | "member";
-  /** A control's name is the whole message. Page text may be a fragment. */
-  readonly match: "exact" | "contains";
+  /** A control's name is the whole message. Page text may be a fragment.
+   * A key call passes the catalog key itself. */
+  readonly match: "exact" | "contains" | "key";
 }
 
 /** The calls the driver makes against an app page by visible words. */
 const LABEL_CALLS: Record<string, LabelCall> = {
+  attendeeCatalogButtons: { argument: 2, form: "free", match: "key" },
   clickButton: { argument: 1, form: "member", match: "exact" },
   clickLink: { argument: 1, form: "member", match: "exact" },
   exactLinkCount: { argument: 2, form: "free", match: "exact" },
-  pageTextCount: { argument: 2, form: "free", match: "contains" },
-  pageTextIncludes: { argument: 2, form: "free", match: "contains" },
+  pageTextCount: { argument: 3, form: "free", match: "key" },
+  pageTextIncludes: { argument: 3, form: "free", match: "key" },
   requireNoExactLink: { argument: 2, form: "free", match: "exact" },
   requirePageText: { argument: 2, form: "free", match: "contains" },
 };
 
-/** A message-key call: the word `t` called with a literal key, not a
- * property or a longer identifier that merely ends in "t". */
-const KEY_CALL = /(?<![.\w$])t\s*\(\s*"([a-z0-9_.-]+)"/g;
+/** A `t("key", …)` call, not a property or longer identifier ending in "t". */
+const T_KEY_CALL = /(?<![.\w$])t\s*\(\s*"([a-z0-9_.-]+)"/g;
+
+/** A `catalogWords("group", "key", …)` call. The key is its second literal. */
+const CATALOG_WORDS_CALL =
+  /(?<![.\w$])catalogWords\s*\(\s*"[a-z0-9_-]+"\s*,\s*"([a-z0-9_.-]+)"/g;
 
 /**
  * The top-level argument texts of the call whose "(" sits at `open`, in
@@ -86,15 +95,43 @@ const topLevelArgs = (code: string, blank: string, open: number): string[] => {
   return args;
 };
 
-/** The text of a quoted literal argument, or null for any other argument. */
-const stringLiteral = (arg: string): string | null => {
-  const double = arg.match(/^"((?:[^"\\]|\\.)*)"$/);
-  if (double) return JSON.parse(`"${double[1]}"`) as string;
-  const single = arg.match(/^'((?:[^'\\]|\\.)*)'$/);
-  return single ? single[1]!.replace(/\\(['"\\])/g, "$1") : null;
+/** Replacement text for each named escape. Identity escapes (`\'`, `\"`,
+ * `\\`) need no row: the decoder returns the escaped character unchanged. */
+const ESCAPES: Record<string, string> = {
+  "0": "\0",
+  b: "\b",
+  f: "\f",
+  n: "\n",
+  r: "\r",
+  t: "\t",
+  v: "\v",
 };
 
-/** Judge one argument that carries visible words. */
+/** One whole escape sequence: the text between the backslash and its end. */
+const ESCAPE =
+  /\\(x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|u[0-9a-fA-F]{4}|[\s\S])/g;
+
+/** Decode one escape body: a named escape, \xHH, \uHHHH, or \u{H+}. */
+const decodeEscape = (body: string): string => {
+  if (body.startsWith("x") || body.startsWith("u")) {
+    const hex = body.startsWith("u{") ? body.slice(2, -1) : body.slice(1);
+    return String.fromCodePoint(Number.parseInt(hex, 16));
+  }
+  const named = ESCAPES[body];
+  return named === undefined ? body : named;
+};
+
+/** The text of a quoted literal argument, or null for any other argument.
+ * Both quote styles decode the escape sequences TypeScript allows. */
+const stringLiteral = (arg: string): string | null => {
+  const double = arg.match(/^"((?:[^"\\]|\\[\s\S])*)"$/);
+  const single = arg.match(/^'((?:[^'\\]|\\[\s\S])*)'$/);
+  const quoted = double === null ? single : double;
+  if (quoted === null) return null;
+  return quoted[1]!.replace(ESCAPE, (_, body: string) => decodeEscape(body));
+};
+
+/** Judge one argument that carries visible words or a catalog key. */
 const argumentIssue = (
   arg: string,
   catalog: CatalogCopy,
@@ -103,6 +140,12 @@ const argumentIssue = (
   const literal = stringLiteral(arg);
   // A non-literal names the scenario's own data. See the header.
   if (literal === null) return null;
+  if (how.match === "key") {
+    return catalog.keys.has(literal)
+      ? null
+      : `uses key "${literal}", which src/locales/en holds nowhere. ` +
+          `Give the group and key the page's template reads.`;
+  }
   const renders = catalog.values.some((value) =>
     how.match === "exact" ? value === literal : value.includes(literal),
   );
@@ -127,7 +170,10 @@ const callSiteIssues = (
   lineOf: LineOf,
 ): LabelIssue[] => {
   const open = match.index + match[0].length - 1;
-  const arg = topLevelArgs(code, blank, open)[how.argument - 1];
+  const args = topLevelArgs(code, blank, open);
+  // A spread argument hides the positions, so no static read is possible.
+  if (args.some((one) => one.startsWith("..."))) return [];
+  const arg = args[how.argument - 1];
   if (arg === undefined) {
     return [
       {
@@ -140,22 +186,39 @@ const callSiteIssues = (
   return message === null ? [] : [{ line: lineOf(match.index), message }];
 };
 
-/** Issues from every `t("key", …)` call whose key the catalog dropped. */
+/** True when a match's key quote opens a real string span, so the call is
+ * executable and not words quoted inside another string. */
+const opensAString = (
+  spans: readonly LexicalSpan[],
+  quoteAt: number,
+): boolean =>
+  spans.some((span) => span.kind === "string" && span.start === quoteAt);
+
+/** Issues from every `t("key")` or `catalogWords("group", "key")` call whose
+ * key the catalog dropped. A call named inside a string literal is prose,
+ * not code, so its quoted words do not count. */
 const keyIssues = (
   code: string,
+  spans: readonly LexicalSpan[],
   catalog: CatalogCopy,
   lineOf: LineOf,
-): LabelIssue[] =>
-  mapNotNullish((match: RegExpExecArray) =>
-    catalog.keys.has(match[1]!)
-      ? null
-      : {
+): LabelIssue[] => {
+  const droppedKey = (match: RegExpExecArray): LabelIssue | null => {
+    const quoteAt = match.index + match[0].indexOf('"');
+    return opensAString(spans, quoteAt) && !catalog.keys.has(match[1]!)
+      ? {
           line: lineOf(match.index),
           message:
             `asks for message key "${match[1]}", which src/locales/en holds ` +
             "nowhere. Copy renames leave this driver with nothing to click.",
-        },
-  )([...code.matchAll(KEY_CALL)]);
+        }
+      : null;
+  };
+  return [
+    ...mapNotNullish(droppedKey)([...code.matchAll(T_KEY_CALL)]),
+    ...mapNotNullish(droppedKey)([...code.matchAll(CATALOG_WORDS_CALL)]),
+  ];
+};
 
 /** Every way the driver's words and the catalog's words disagree. */
 export const findLabelIssues = (
@@ -183,7 +246,7 @@ export const findLabelIssues = (
       );
     }
   }
-  issues.push(...keyIssues(code, catalog, lineOf));
+  issues.push(...keyIssues(code, [...lexicalSpans(source)], catalog, lineOf));
 
   return issues.sort(byLine);
 };

@@ -380,11 +380,15 @@ Then(
   async function (this: LiveWorld): Promise<void> {
     const ledger = await attendeeTabOf(this, "ledger");
     requireExactly(
-      pageTextCount(ledger, "Payment received for"),
+      await pageTextCount(ledger, "ledger", "admin.ledger.human.payment"),
       1,
       "payment row",
     );
-    requireExactly(pageTextCount(ledger, "Refund paid to"), 1, "refund row");
+    requireExactly(
+      await pageTextCount(ledger, "ledger", "admin.ledger.human.refund_cash"),
+      1,
+      "refund row",
+    );
     const balance = await finalBalanceFigure(ownerOf(this));
     if (!/^[^0-9]*0(?:\.00)?$/.test(balance.trim())) {
       throw new Error(
@@ -398,7 +402,7 @@ Then(
  * but no sale was ever recorded for a booking that cannot be honoured. */
 const requireNoSaleForUnfulfilled = async (world: LiveWorld): Promise<void> => {
   const ledger = await attendeeTabOf(world, "ledger");
-  if (pageTextIncludes(ledger, "Booking made")) {
+  if (await pageTextIncludes(ledger, "ledger", "admin.ledger.event.sale")) {
     throw new Error("the unfulfilled booking recorded a sale");
   }
   await requireMoneyRefunds(world, 1, "Money refund");

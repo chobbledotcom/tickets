@@ -5,7 +5,8 @@
  */
 
 import { Then, When } from "@cucumber/cucumber";
-import { requirePageText } from "#e2e/browser.ts";
+import type { Locator } from "playwright";
+import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
 // jscpd:ignore-start -- this #e2e import run is structural
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
@@ -34,6 +35,17 @@ import {
   submitRenderedRefundForm,
 } from "./pages.ts";
 
+/** The app buttons whose exact accessible name is this attendee-page
+ * message. The gate verifies the key, so the words track the control. */
+const attendeeCatalogButtons = async (
+  session: BrowserSession,
+  key: string,
+): Promise<Locator> =>
+  session.page.getByRole("button", {
+    exact: true,
+    name: await catalogWords("attendees", key),
+  });
+
 /** Refund must be gone and the rendered Delete action must genuinely work. */
 const requireDeleteReachable = async (world: LiveWorld): Promise<void> => {
   const owner = ownerOf(world);
@@ -46,10 +58,10 @@ const requireDeleteReachable = async (world: LiveWorld): Promise<void> => {
   // Prove Delete reachability through the real control: clicking it must open
   // the enabled Delete Attendee confirmation form (which is then abandoned).
   await owner.clickLink(await catalogWords("common", "common.delete"));
-  const confirm = owner.page.getByRole("button", {
-    exact: true,
-    name: await catalogWords("attendees", "admin.attendees.delete_submit"),
-  });
+  const confirm = await attendeeCatalogButtons(
+    owner,
+    "admin.attendees.delete_submit",
+  );
   if ((await confirm.count()) !== 1 || !(await confirm.first().isEnabled())) {
     throw new Error(
       "the Delete action does not open an enabled Delete Attendee confirmation",
@@ -61,8 +73,16 @@ const requireDeleteReachable = async (world: LiveWorld): Promise<void> => {
 const requireRefundStatus = async (world: LiveWorld): Promise<void> => {
   const { paymentDetails } = await attendeeOverviewFacts(world);
   if (
-    !pageTextIncludes(paymentDetails, "Refund Status:") ||
-    !pageTextIncludes(paymentDetails, "Refunded")
+    !(await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.refund_status",
+    )) ||
+    !(await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.refunded",
+    ))
   ) {
     throw new Error(
       `the attendee payment details do not say Refunded:\n${paymentDetails.slice(
@@ -160,7 +180,7 @@ When(
     const second = await this.secondOwnerWindow();
     await submitRenderedRefundForm(second, this.scenario.booker.name);
     const landing = await second.bodyText();
-    if (pageTextIncludes(landing, "Refund issued")) {
+    if (await pageTextIncludes(landing, "attendees", "success.refund_issued")) {
       throw new Error(
         "the stale second refund form was accepted as a fresh refund",
       );
@@ -290,12 +310,12 @@ const OBSERVATION_TAB_STEPS: readonly [
     "",
     async (world) =>
       requireExactly(
-        await ownerOf(world)
-          .page.getByRole("button", {
-            exact: true,
-            name: "Refresh payment status",
-          })
-          .count(),
+        await (
+          await attendeeCatalogButtons(
+            ownerOf(world),
+            "admin.attendees.refresh_payment",
+          )
+        ).count(),
         1,
         "reachable Refresh payment status control",
       ),

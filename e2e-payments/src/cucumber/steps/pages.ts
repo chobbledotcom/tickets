@@ -205,10 +205,26 @@ export const gatherRefundPageFacts = async (
 
   const { overview, paymentDetails } = await attendeeOverviewFacts(world);
   const refundedVisible =
-    pageTextIncludes(paymentDetails, "Refund Status:") &&
-    !pageTextIncludes(paymentDetails, "Not refunded") &&
-    pageTextIncludes(paymentDetails, "Refunded");
-  const refreshReachable = pageTextIncludes(overview, "Refresh payment status");
+    (await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.refund_status",
+    )) &&
+    !(await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.not_refunded",
+    )) &&
+    (await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.refunded",
+    ));
+  const refreshReachable = await pageTextIncludes(
+    overview,
+    "attendees",
+    "admin.attendees.refresh_payment",
+  );
 
   await openAttendeeTabIn(ownerOf(world), "actions");
   return {
@@ -239,7 +255,11 @@ export const attendeeTabOf = async (
 
 /** How many refund transfers the attendee's Money statement carries. */
 export const moneyRefundCount = async (world: LiveWorld): Promise<number> =>
-  pageTextCount(await attendeeTabOf(world, "ledger"), "Refund paid to");
+  await pageTextCount(
+    await attendeeTabOf(world, "ledger"),
+    "ledger",
+    "admin.ledger.human.refund_cash",
+  );
 
 /** The attendee's Money statement must carry exactly this many refunds. */
 export const requireMoneyRefunds = async (

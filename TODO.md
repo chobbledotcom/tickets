@@ -1,5 +1,23 @@
 # TODO — remaining follow-ups
 
+## Skip quoted values in the SET-clause column scan (from PR #2179)
+
+`extractUpdateColumns` (`src/shared/db/client.ts`) splits a SET clause on
+top-level commas through `src/shared/top-level-commas.ts`, but the scan does not
+skip quoted SQL values. A value with an unbalanced bracket, such as
+`SET note = ')'`, shifts the level for the rest of the clause, so later columns
+drop out of the sniff and the write never invalidates their caches. The loop
+this scan replaced had the same behavior, so nothing regressed, but a text-heavy
+table can hit it in production.
+
+To close it, teach the scan (or a SQL-shaped wrapper) to step over single- and
+double-quoted values with their doubling escapes. Add cases with `')'`, `')('`,
+and an escaped quote to `test/shared/db/client.test.ts` and
+`test/shared/top-level-commas.test.ts` first. The balanced `')('` case is pinned
+there today; the unbalanced cases fail by design until this lands.
+
+---
+
 ## Hold the payment e2e's connection-test lines to one source (from PR #2179)
 
 `testProviderConnection` in `e2e-payments/src/providers/shared.ts` asserts
