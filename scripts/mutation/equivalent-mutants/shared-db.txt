@@ -231,3 +231,12 @@ src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3 The unanswered SumUp count returned no result→""   # unreachable: one ResultSet per batch statement
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w The unanswered SumUp count returned no row→""   # unreachable: COUNT(*) always returns one row
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn The unanswered SumUp listing returned no result→""   # unreachable: one ResultSet per batch statement
+
+
+# extractUpdateColumns reads only the commas the shared scan names; it drops
+# the end index. Both config mutants leave the named commas unchanged: a
+# depth of 1 instead of 0 shifts the level scale, and the comma condition
+# moves with it, so the same commas are named. A true stopWhenClosed only
+# changes the end index, which this caller never reads.
+src/shared/db/client.ts::extractUpdateColumns.depth~1so1sg0 0→1 # the base and the comma condition shift together, so the same commas are named
+src/shared/db/client.ts::extractUpdateColumns.stopWhenClosed~0e4p3h6 false→true # only the end index differs, and this caller drops it
