@@ -18,8 +18,8 @@ import { ghSaying, queueReply } from "./fixtures.ts";
  * inherits a non-empty `LD_LIBRARY_PATH`, which makes Deno refuse to spawn a
  * subprocess while `--allow-run` permits only `gh` — unless the spawn clears
  * the variable, which is what the production runner does. The script exits 0
- * when the real `gh --version` ran; on any other outcome it writes the
- * failure to stderr and exits 1, so the parent can name what broke.
+ * when gh ran; on any other outcome it writes the failure to stderr and
+ * exits 1, so the parent can name what broke.
  *
  * The module is imported there by its own resolved URL, because the child
  * cannot reach the repo's import map for aliases.
@@ -32,6 +32,18 @@ if (result.code !== 0) {
   Deno.exit(1);
 }
 `;
+
+/** A `gh` that always succeeds, on a PATH the child owns alone. The Nix
+ * shell ships no gh, and the permission and loader-path checks this test
+ * exists for fire in Deno before any gh binary runs, so a stub answers the
+ * spawn as well as the real one would. */
+const stubGhOn = async (dir: string): Promise<string> => {
+  const bin = `${dir}/gh-bin`;
+  await Deno.mkdir(bin);
+  await Deno.writeTextFile(`${bin}/gh`, "#!/bin/sh\nexit 0\n");
+  await Deno.chmod(`${bin}/gh`, 0o755);
+  return bin;
+};
 /** The failure a call threw, so its message and exit code can be checked. */
 const failureFrom = async (call: Promise<unknown>): Promise<GhFailure> => {
   const error = await call.catch((error: unknown) => error);
@@ -84,7 +96,7 @@ describe("running the gh command itself", () => {
     expect(captured.commands[0]?.options.stderr).toBe("piped");
   });
 
-  test("spawns the real gh from a loader-path environment under --allow-run=gh", async () => {
+  test("spawns gh from a loader-path environment under --allow-run=gh", async () => {
     // Reproduces the NixOS failure the env clear fixes: the child runs with
     // only gh permitted, a non-empty loader path inherited, and the production
     // spawn. Without the clear, Deno refuses the spawn with NotCapable.
@@ -112,7 +124,8 @@ describe("running the gh command itself", () => {
           // never sees a script whose source is already gone.
           DENO_COVERAGE_DIR: `${dir}/child-coverage`,
           LD_LIBRARY_PATH: "/nowhere-useful",
-          PATH: Deno.env.get("PATH") ?? "",
+          // The stub's directory alone, so the test needs no host gh.
+          PATH: await stubGhOn(dir),
         },
         stderr: "piped",
         stdout: "piped",
