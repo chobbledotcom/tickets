@@ -218,6 +218,13 @@ describe("e2e label rules", () => {
     expect(findLabelIssues(source, copy)).toEqual([]);
   });
 
+  test("ignores a call site named inside a regex body", () => {
+    const source = `const gone = /session.clickButton("Gone")/g;`;
+    const copy = catalog([]);
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
   test("still reads arguments whose strings hold brackets and commas", () => {
     const source = [
       `await session.clickButton("Pay (now), please");`,

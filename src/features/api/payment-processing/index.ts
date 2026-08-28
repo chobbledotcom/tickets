@@ -18,6 +18,7 @@ import {
   releaseReservation,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { t } from "#i18n";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { sessionAnswerOf } from "#payment/row-state.ts";
 import { paymentReferenceOf } from "#payment/validated-session.ts";
@@ -371,10 +372,10 @@ export const processPaymentSession: SessionProcessor = async (
  */
 export const formatPaymentError = (result: PaymentFailureResult): string => {
   if (result.refunded === true) {
-    return `${result.error} Your payment has been automatically refunded.`;
+    return `${result.error} ${t("payment.failure.refunded")}`;
   }
   if (result.refunded === false) {
-    return `${result.error} Please contact support for a refund.`;
+    return `${result.error} ${t("payment.failure.contact_support")}`;
   }
   return result.error;
 };

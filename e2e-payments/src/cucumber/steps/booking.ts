@@ -347,7 +347,7 @@ const visitorSeesRefundNotice = async (world: LiveWorld): Promise<void> => {
   await visitorFollowsHeldReturn(world);
   await requirePageText(
     world.resources.visitor,
-    "automatically refunded",
+    await catalogWords("payment", "payment.failure.refunded"),
     "invalidated-visitor-not-told",
     "Expected the visitor to be told their details were saved and the payment refunded; got:",
   );

@@ -72,8 +72,10 @@ describe("lexicalSpans", () => {
 });
 
 describe("lexicalSpans over regular expressions", () => {
-  test("does not read a quote inside a regex as opening a string", () => {
-    expect(spans('const m = svg.match(/viewBox="([^"]+)"/);')).toEqual([]);
+  test("yields the regex itself, not the quotes inside it", () => {
+    expect(spans('const m = svg.match(/viewBox="([^"]+)"/);')).toEqual([
+      { kind: "regex", text: '/viewBox="([^"]+)"/' },
+    ]);
   });
 
   test("stays in step after a regex, so a later URL is still a string", () => {
@@ -84,6 +86,7 @@ describe("lexicalSpans over regular expressions", () => {
       'const svg = `<svg xmlns="http://www.w3.org/2000/svg">`;',
     ].join("\n");
     expect(spans(source)).toEqual([
+      { kind: "regex", text: '/viewBox="([^"]+)"/' },
       { kind: "string", text: '`<svg xmlns="http://www.w3.org/2000/svg">`' },
     ]);
   });
@@ -95,29 +98,35 @@ describe("lexicalSpans over regular expressions", () => {
   });
 
   test("treats a slash after a keyword as a regex", () => {
-    expect(spans('const f = () => { return /a"b/.test(x); };')).toEqual([]);
+    expect(spans('const f = () => { return /a"b/.test(x); };')).toEqual([
+      { kind: "regex", text: '/a"b/' },
+    ]);
   });
 
   test("keeps a slash inside a character class from ending the regex", () => {
     expect(spans('const r = /[/"]+/; const s = "after";')).toEqual([
+      { kind: "regex", text: '/[/"]+/' },
       { kind: "string", text: '"after"' },
     ]);
   });
 
   test("keeps an escaped slash from ending the regex", () => {
     expect(spans('const r = /a\\/"b/; const s = "after";')).toEqual([
+      { kind: "regex", text: '/a\\/"b/' },
       { kind: "string", text: '"after"' },
     ]);
   });
 
   test("consumes trailing flags so they are not read as code", () => {
     expect(spans('const r = /a"b/gi; const s = "after";')).toEqual([
+      { kind: "regex", text: '/a"b/gi' },
       { kind: "string", text: '"after"' },
     ]);
   });
 
   test("still finds a comment that follows a regex", () => {
     expect(spans('const r = /"/; // note\n')).toEqual([
+      { kind: "regex", text: '/"/' },
       { kind: "comment", text: "// note" },
     ]);
   });
@@ -129,12 +138,15 @@ describe("lexicalSpans over regular expressions", () => {
 
   test("reads a regex opening the very first character as a regex", () => {
     expect(spans('/"/.test(x); const s = "after";')).toEqual([
+      { kind: "regex", text: '/"/' },
       { kind: "string", text: '"after"' },
     ]);
   });
 
   test("stops at the end of an unterminated regex rather than looping", () => {
-    expect(spans('const r = /abc"')).toEqual([]);
+    expect(spans('const r = /abc"')).toEqual([
+      { kind: "regex", text: '/abc"' },
+    ]);
   });
 
   test("looks past a comment to the code that decides the regex", () => {
@@ -142,18 +154,21 @@ describe("lexicalSpans over regular expressions", () => {
     // the `;`, so the `/` opens a regex and its quote never starts a string.
     expect(spans('const a = 1; // see x\n/a"b/.test(s)')).toEqual([
       { kind: "comment", text: "// see x" },
+      { kind: "regex", text: '/a"b/' },
     ]);
   });
 
   test("looks past a comment that ends in spaces", () => {
     expect(spans('const a = 1; // see x   \n/a"b/.test(s)')).toEqual([
       { kind: "comment", text: "// see x   " },
+      { kind: "regex", text: '/a"b/' },
     ]);
   });
 
   test("looks past a comment ended by a carriage return", () => {
     expect(spans('const a = 1; // see x\r\n/a"b/.test(s)')).toEqual([
       { kind: "comment", text: "// see x\r" },
+      { kind: "regex", text: '/a"b/' },
     ]);
   });
 
@@ -161,6 +176,7 @@ describe("lexicalSpans over regular expressions", () => {
     expect(spans('// one\n// two\n/a"b/.test(s); const s = "after";')).toEqual([
       { kind: "comment", text: "// one" },
       { kind: "comment", text: "// two" },
+      { kind: "regex", text: '/a"b/' },
       { kind: "string", text: '"after"' },
     ]);
   });
@@ -204,6 +220,11 @@ describe("blankSpans over lexicalSpans", () => {
 
   test("blanks strings too when asked", () => {
     expect(blankSpans('a = "b"; // c', true)).toBe("a =    ;     ");
+  });
+
+  test("blanks a regex body like a comment, either way", () => {
+    expect(blankSpans('a = /b"c/; // d', false)).toBe("a =      ;     ");
+    expect(blankSpans('a = /b"c/; // d', true)).toBe("a =      ;     ");
   });
 
   test("keeps newlines so offsets and line numbers survive", () => {

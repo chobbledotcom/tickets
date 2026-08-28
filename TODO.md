@@ -1,5 +1,24 @@
 # TODO — remaining follow-ups
 
+## Hold typescript-lex.ts to the mutation bar (from PR #2179)
+
+A focused mutation run on `scripts/typescript-lex.ts` froze before any verdict:
+a `+ → -` mutant on the walk's manual index step (`index += 1`) loops forever,
+the documented loop-freezing hazard, and the run sat at the 1-hour deadline. The
+run had also surfaced survivors on lines this branch never touched (the
+`isQuote`/`isIdentifierChar` heuristics, 8:61 and 8:64). The file predates the
+gate and `scripts/` is outside `precommit:mutation`'s changed-`src/` scope, so
+it has never been held to the bar.
+
+To close it: restructure the walk's while-loop with manual stepping into bounded
+iteration the way `src/shared/dates.ts` was (see the "Loop-freezing mutants"
+entry below), then kill the survivors the run named and bring its whole mutant
+set to 100 percent. Starting points: the regex branch added by PR #2179 already
+yields spans; the steps to bound are the comment/string/regex assignments on
+`index`.
+
+---
+
 ## Skip quoted values in the SET-clause column scan (from PR #2179)
 
 `extractUpdateColumns` (`src/shared/db/client.ts`) splits a SET clause on

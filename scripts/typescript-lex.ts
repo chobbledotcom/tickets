@@ -176,9 +176,14 @@ const regexBodyEnd = (content: string, start: number): number => {
   return index;
 };
 
-/** Skip a regular expression literal at `start`, including its flags. */
-const skipRegex = (content: string, start: number): number => {
-  let index = regexBodyEnd(content, start);
+/** Skip a regular expression literal at `start`, including its flags, or
+ * null when the body hit a newline: the slash was division after all. */
+const skipRegex = (content: string, start: number): number | null => {
+  const bodyEnd = regexBodyEnd(content, start);
+  // A closed body always runs past its opening slash and closing slash, so
+  // one past the start alone means the newline rejection fired.
+  if (bodyEnd === start + 1) return null;
+  let index = bodyEnd;
   while (index < content.length && /[a-z]/.test(content.charAt(index))) {
     index += 1;
   }
@@ -188,14 +193,16 @@ const skipRegex = (content: string, start: number): number => {
 /** One stretch of non-executable text, and where it sits in the source. */
 export interface LexicalSpan {
   end: number;
-  kind: "comment" | "string";
+  kind: "comment" | "regex" | "string";
   start: number;
 }
 
 /**
- * Every comment and quoted string, in source order. Walking once from the top
- * is what keeps a `//` inside a string from reading as a comment, and vice
- * versa — so callers that care about only one kind still have to walk both.
+ * Every comment, quoted string, and regular-expression literal, in source
+ * order. Walking once from the top is what keeps a `//` inside a string from
+ * reading as a comment, and vice versa — so callers that care about only one
+ * kind still have to walk them all. A regex body is not executable code, so
+ * text scanners must blank it like a comment.
  */
 export function* lexicalSpans(content: string): Generator<LexicalSpan> {
   // The comments passed so far, which the regex test steps back over.
@@ -222,21 +229,31 @@ export function* lexicalSpans(content: string): Generator<LexicalSpan> {
       continue;
     }
     if (content[index] === "/" && startsRegex(index)) {
-      index = skipRegex(content, index);
+      const end = skipRegex(content, index);
+      if (end !== null) {
+        yield { end, kind: "regex", start: index };
+        index = end;
+      } else {
+        // Null means the body hit a newline and the slash divided: the walk
+        // resumes just past it, and no span is reported.
+        index += 1;
+      }
       continue;
     }
     index += 1;
   }
 }
 
-/** Just the comments, in source order — the strings are walked but not yielded. */
+/** Just the comments, in source order — the other kinds are walked but not
+ * yielded. */
 export function* commentSpans(content: string): Generator<LexicalSpan> {
   for (const span of lexicalSpans(content)) {
     if (span.kind === "comment") yield span;
   }
 }
 
-/** Replace comments and optionally strings with spaces while keeping offsets. */
+/** Replace comments, regex bodies, and optionally strings with spaces while
+ * keeping offsets. */
 export const blankSpans = (content: string, blankStrings: boolean): string => {
   const output = content.split("");
   for (const span of lexicalSpans(content)) {
