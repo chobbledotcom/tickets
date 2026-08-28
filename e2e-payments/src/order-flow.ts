@@ -182,9 +182,9 @@ const fillBookingPage = async (
   await setRowQty(identity.catalog.plain, "2");
   await session.fill("name", identity.booker.name);
   await session.fill("email", identity.booker.email);
-  await session.clickButton(
-    await catalogWords("order", "public.order.continue"),
-  );
+  // This form is the reservations form (reached at /ticket/), whose own
+  // submit renders common.continue — not the gallery's order key.
+  await session.clickButton(await catalogWords("common", "common.continue"));
   log(`  booking submitted; now at ${page.url()}`);
 };
 
