@@ -11,38 +11,31 @@
 
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
-import {
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-  useTransaction,
-} from "#db/client.ts";
+import { resultRows, type SqlStatement, type TxScope } from "#db/client.ts";
 import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import {
+  freshSlugIndexWrites,
+  type UnclaimedSlugCondition,
   unclaimedSiteSlugCondition,
-  updateRowWithUnclaimedSlug,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { cachedTable, col, writeTableRow } from "#db/table.ts";
-import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { cachedTable, col } from "#db/table.ts";
+import type { Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#types";
 /* jscpd:ignore-end */
 
-/** Create/update input (camelCase keys → snake_case columns). */
+/** Create/update input (camelCase keys → snake_case columns). `sortOrder` is
+ * optional only for the update path, which never writes it — create always
+ * supplies it. */
 export type SitePageInput = SluggedContentInput & {
-  sortOrder: number;
+  sortOrder?: number;
 };
-
-/** Compute the blind-index HMAC for a page slug (lookup without decrypting). */
-export const computeSitePageSlugIndex = (slug: string): Promise<BlindIndex> =>
-  hmacHash(slug);
 
 /** Raw table with CRUD — all free text encrypted, `slug_index` is the HMAC. */
 const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
@@ -130,25 +123,30 @@ export type SitePageWriteInput = Omit<
  * serialise on the write lock to get distinct orders (equal orders would make a
  * reorder swap a no-op, leaving the pages unreorderable). Slug availability is
  * part of the INSERT, so a concurrent owner returns `slugTaken`. */
-export const createSitePage = async (
+/** The page's own unclaimed condition: every listing, group, and page slug
+ * namespace, with this page's own row skipped on update. */
+const unclaimedPageSlug: UnclaimedSlugCondition = (slugIndex, id) =>
+  unclaimedSiteSlugCondition(
+    slugIndex,
+    id === undefined ? undefined : { id, table: "site_pages" },
+  );
+
+const sitePageWrites = freshSlugIndexWrites(
+  rawSitePagesTable,
+  unclaimedPageSlug,
+);
+
+export const createSitePage = (
   input: SitePageWriteInput,
   transaction?: TxScope,
-): Promise<Result<SitePage, "slugTaken">> => {
-  const slugIndex = await computeSitePageSlugIndex(input.slug);
-  return useTransaction(transaction, async (tx) => {
-    const nextOrder = await sitePageOrder.next({ transaction: tx });
-    const row = await writeTableRow(tx, rawSitePagesTable, {
-      condition: unclaimedSiteSlugCondition(slugIndex),
-      input: {
-        ...input,
-        slugIndex,
-        sortOrder: nextOrder,
-      },
-      kind: "insert",
-    });
-    return row ? okResult(row) : errorResult("slugTaken");
-  });
-};
+): Promise<Result<SitePage, "slugTaken">> =>
+  sitePageWrites.create(
+    input,
+    async (tx) => ({
+      sortOrder: await sitePageOrder.next({ transaction: tx }),
+    }),
+    transaction,
+  );
 
 /** Update a page's editable fields (all but id/sort_order) — every field, every
  * time (the edit form posts them all), with the blind index recomputed from the
@@ -157,15 +155,7 @@ export const updateSitePage = async (
   id: number,
   input: SitePageWriteInput,
   transaction?: TxScope,
-): Promise<Result<SitePage, "notFound" | "slugTaken">> => {
-  const slugIndex = await computeSitePageSlugIndex(input.slug);
-  return updateRowWithUnclaimedSlug(
-    sitePages.table,
-    id,
-    { ...input, slugIndex },
-    unclaimedSiteSlugCondition(slugIndex, { id, table: "site_pages" }),
-    transaction,
-  );
-};
+): Promise<Result<SitePage, "notFound" | "slugTaken">> =>
+  sitePageWrites.update(id, input, transaction);
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */

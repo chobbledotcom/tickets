@@ -7,6 +7,7 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   resultRows,
   rowExists,
@@ -14,6 +15,7 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { type Table, writeTableRow } from "#db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePageItemType } from "#types";
@@ -69,33 +71,75 @@ export const unclaimedSiteSlugCondition = (
     })),
   );
 
-/** Run a conditional slug update and distinguish a missing row from a slug
- * conflict. The failed UPDATE itself cannot tell those two zero-row outcomes,
- * so only that rejection path performs the narrow id probe. */
-export const updateRowWithUnclaimedSlug = <Row, Input>(
+/** The condition builder every slugged write takes: the fresh blind index
+ * and the row being written, if any. */
+export type UnclaimedSlugCondition = (
+  slugIndex: BlindIndex,
+  id: number | undefined,
+) => SqlStatement;
+
+/** Conditional writes for a slugged content table. The blind index is always
+ * computed here from the body's slug (never caller-supplied), so `slug` and
+ * `slug_index` move together, and every write carries the unclaimed-slug
+ * condition, so a create or a rename stays unique in the namespace that
+ * condition checks. */
+export const freshSlugIndexWrites = <Row, Input extends SluggedContentInput>(
   table: Table<Row, Input>,
-  id: number,
-  input: Partial<Input>,
-  condition: SqlStatement,
-  transaction?: TxScope,
-): Promise<Result<Row, "notFound" | "slugTaken">> =>
-  useTransaction(transaction, async (tx) => {
-    const row = await writeTableRow(tx, table, {
-      condition,
-      id,
-      input,
-      kind: "update",
-    });
-    if (row) return okResult(row);
-    const exists =
-      resultRows(
-        await tx.execute({
-          args: [id],
-          sql: `SELECT ${table.primaryKey} FROM ${table.name} WHERE ${table.primaryKey} = ?`,
-        }),
-      ).length > 0;
-    return errorResult(exists ? "slugTaken" : "notFound");
-  });
+  unclaimed: UnclaimedSlugCondition,
+) => {
+  const write = async (
+    tx: TxScope,
+    rowAt: number | undefined,
+    input: Omit<Input, "slugIndex">,
+    extra: Partial<Input>,
+  ): Promise<Row | null> => {
+    const slugIndex = await hmacHash(input.slug);
+    // The spread rebuilds the table input minus the computed index.
+    const fields = { ...input, ...extra, slugIndex } as Input;
+    return rowAt === undefined
+      ? writeTableRow(tx, table, {
+          condition: unclaimed(slugIndex, undefined),
+          input: fields,
+          kind: "insert",
+        })
+      : writeTableRow(tx, table, {
+          condition: unclaimed(slugIndex, rowAt),
+          id: rowAt,
+          input: fields,
+          kind: "update",
+        });
+  };
+  return {
+    create: async (
+      input: Omit<Input, "slugIndex">,
+      extra: (tx: TxScope) => Promise<Partial<Input>>,
+      transaction?: TxScope,
+    ): Promise<Result<Row, "slugTaken">> =>
+      useTransaction(transaction, async (tx) => {
+        const created = await write(tx, undefined, input, await extra(tx));
+        return created === null ? errorResult("slugTaken") : okResult(created);
+      }),
+    update: async (
+      id: number,
+      input: Omit<Input, "slugIndex">,
+      transaction?: TxScope,
+    ): Promise<Result<Row, "notFound" | "slugTaken">> =>
+      useTransaction(transaction, async (tx) => {
+        const updated = await write(tx, id, input, {});
+        if (updated) return okResult(updated);
+        // The failed UPDATE cannot tell a missing row from a slug conflict,
+        // so only this rejection path performs the narrow id probe.
+        const exists =
+          resultRows(
+            await tx.execute({
+              args: [id],
+              sql: `SELECT ${table.primaryKey} FROM ${table.name} WHERE ${table.primaryKey} = ?`,
+            }),
+          ).length > 0;
+        return errorResult(exists ? "slugTaken" : "notFound");
+      }),
+  };
+};
 
 /**
  * Is `slug` already used by any listing, group, or page? `exclude` skips one row

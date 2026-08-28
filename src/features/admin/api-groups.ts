@@ -2,13 +2,13 @@
  * Admin JSON API routes for groups — accessible via API key or cookie+CSRF.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   type PackageFlags,
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#db/groups/membership.ts";
 import {
-  computeGroupSlugIndex,
   generateUniqueGroupSlug,
   groups,
   loadPackageMemberPricingByGroupIds,
@@ -207,12 +207,7 @@ const toGroupInput = async (
   }
 
   const slug = existing
-    ? await parseUpdateSlug(
-        body,
-        existing.slug,
-        normalizeSlug,
-        computeGroupSlugIndex,
-      )
+    ? await parseUpdateSlug(body, existing.slug, normalizeSlug, hmacHash)
     : await generateUniqueGroupSlug();
   return okResult({
     ...(existing

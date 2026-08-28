@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { listingsTable } from "#db/listings/records.ts";
-import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
@@ -82,7 +82,7 @@ describeWithEnv("name-registry", { db: true }, () => {
       maxPrice: 0,
       name: "   ",
       slug,
-      slugIndex: await computeSlugIndex(slug),
+      slugIndex: await hmacHash(slug),
     });
     const real = await createTestListing({ name: "Named One" });
     const index = await loadCatalogNameIndex();
@@ -111,14 +111,14 @@ describeWithEnv("name-registry", { db: true }, () => {
       maxPrice: 0,
       name: "Twin",
       slug: slugA,
-      slugIndex: await computeSlugIndex(slugA),
+      slugIndex: await hmacHash(slugA),
     });
     await listingsTable.insert({
       maxAttendees: 1,
       maxPrice: 0,
       name: "Twin",
       slug: slugB,
-      slugIndex: await computeSlugIndex(slugB),
+      slugIndex: await hmacHash(slugB),
     });
     const index = await loadCatalogNameIndex();
     expect(matchName(index.listing, "Twin")).toEqual({

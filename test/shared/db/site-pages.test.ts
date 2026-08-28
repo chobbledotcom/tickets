@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { isGroupSlugTaken } from "#db/groups.ts";
 import { isSlugTaken, listingNames } from "#db/listings/records.ts";
 import {
-  computeSitePageSlugIndex,
   getSitePageById,
   getSitePageBySlugIndex,
   type SitePageInput,
@@ -23,7 +23,7 @@ const makePage = async (
   slug: string,
   extra: Partial<SitePageInput> = {},
 ): Promise<SitePage> => {
-  const slugIndex = await computeSitePageSlugIndex(slug);
+  const slugIndex = await hmacHash(slug);
   return sitePages.table.insert({
     name: `Name ${slug}`,
     slug,
@@ -73,7 +73,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
     test("getSitePageBySlugIndex finds a page by its blind index", async () => {
       await makePage("terms-of-use");
-      const idx = await computeSitePageSlugIndex("terms-of-use");
+      const idx = await hmacHash("terms-of-use");
       const found = await getSitePageBySlugIndex(idx);
       expect(found?.slug).toBe("terms-of-use");
     });
@@ -136,14 +136,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(updated.value.content).toBe("new");
       // slug_index is computed inside the write, so the renamed slug is
       // findable and the old one is freed - the pair can never desync.
-      const byNew = await getSitePageBySlugIndex(
-        await computeSitePageSlugIndex("after-move"),
-      );
+      const byNew = await getSitePageBySlugIndex(await hmacHash("after-move"));
       expect(byNew?.id).toBe(created.id);
       expect(
-        await getSitePageBySlugIndex(
-          await computeSitePageSlugIndex("before-move"),
-        ),
+        await getSitePageBySlugIndex(await hmacHash("before-move")),
       ).toBeNull();
     });
 

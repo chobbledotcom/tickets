@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { addPageItem, getItemsForPage } from "#db/site-page-items.ts";
 import {
-  computeSitePageSlugIndex,
   getSitePageById,
   getSitePageBySlugIndex,
   sitePages,
@@ -252,13 +252,9 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(await wasLogged("Page 'Renamed' updated")).toBe(true);
       // The blind index is recomputed, so the new slug is findable and the old
       // one is freed (both key off slug_index).
-      const byNew = await getSitePageBySlugIndex(
-        await computeSitePageSlugIndex("renamed"),
-      );
+      const byNew = await getSitePageBySlugIndex(await hmacHash("renamed"));
       expect(byNew?.id).toBe(page.id);
-      const byOld = await getSitePageBySlugIndex(
-        await computeSitePageSlugIndex("orig"),
-      );
+      const byOld = await getSitePageBySlugIndex(await hmacHash("orig"));
       expect(byOld).toBeNull();
     });
 

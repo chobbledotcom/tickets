@@ -36,8 +36,8 @@ import {
 } from "#db/images.ts";
 import { readRows } from "#db/read.ts";
 import {
+  freshSlugIndexWrites,
   unclaimedSlugCondition,
-  updateRowWithUnclaimedSlug,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { col } from "#db/table.ts";
@@ -92,10 +92,6 @@ const newsNameColumns = newsPostsTable.read.pick(["id", "name"]);
 export type NewsPostWriteInput = Required<
   Omit<NewsPostInput, "created" | "slug" | "slugIndex">
 >;
-
-/** The blind index for a news slug — lookup by `/news/:slug` without decrypting. */
-export const computeNewsSlugIndex = (slug: string): Promise<BlindIndex> =>
-  hmacHash(slug);
 
 const unclaimedNewsSlugCondition = (
   slugIndex: BlindIndex,
@@ -210,11 +206,9 @@ export const createNewsPost = async (
   return useTransaction(transaction, async (tx) => {
     const { slug, slugIndex } = await uniqueSlugFromBase({
       base: newsSlugBase(created, input.name),
-      computeIndex: computeNewsSlugIndex,
+      computeIndex: hmacHash,
       isTaken: async (slug) => {
-        const condition = unclaimedNewsSlugCondition(
-          await computeNewsSlugIndex(slug),
-        );
+        const condition = unclaimedNewsSlugCondition(await hmacHash(slug));
         return (
           resultRows(
             await tx.execute({
@@ -251,20 +245,17 @@ export const createNewsPost = async (
  * posts them all), including the (now editable) slug. `created` never changes.
  * The blind index is computed here and its uniqueness condition is part of the
  * UPDATE statement, so a concurrent rename returns `slugTaken`. */
+const newsPostWrites = freshSlugIndexWrites(
+  newsPostsTable,
+  unclaimedNewsSlugCondition,
+);
+
 export const updateNewsPost = async (
   id: number,
   input: NewsPostWriteInput & { slug: string },
   transaction?: TxScope,
-): Promise<Result<NewsPost, "notFound" | "slugTaken">> => {
-  const slugIndex = await computeNewsSlugIndex(input.slug);
-  return updateRowWithUnclaimedSlug(
-    newsPostsTable,
-    id,
-    { ...input, slugIndex },
-    unclaimedNewsSlugCondition(slugIndex, id),
-    transaction,
-  );
-};
+): Promise<Result<NewsPost, "notFound" | "slugTaken">> =>
+  newsPostWrites.update(id, input, transaction);
 
 /** Delete a post and its image links in one batch (images themselves stay in
  * the library — only the uses are pruned, as with listing/group deletion). */

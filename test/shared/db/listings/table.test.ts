@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
-import { computeSlugIndex, rawListingsTable } from "#db/listings/table.ts";
+import { rawListingsTable } from "#db/listings/table.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -18,7 +19,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       maxPrice: 10000,
       name: "defaults",
       slug: "storage-defaults",
-      slugIndex: await computeSlugIndex("storage-defaults"),
+      slugIndex: await hmacHash("storage-defaults"),
     });
     const saved = await getListingWithCount(listing.id);
     expect(saved).toMatchObject({
@@ -51,7 +52,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       maxAttendees: 100,
       name: "raw defaults",
       slug: "raw-storage-defaults",
-      slugIndex: await computeSlugIndex("raw-storage-defaults"),
+      slugIndex: await hmacHash("raw-storage-defaults"),
     } as ListingInput);
     expect(listing.duration_days).toBe(1);
     expect(listing.max_price).toBe(0);
@@ -84,7 +85,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test",
         slug: "test-date-read-1",
-        slugIndex: await computeSlugIndex("test-date-read-1"),
+        slugIndex: await hmacHash("test-date-read-1"),
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("");
@@ -97,7 +98,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test",
         slug: "test-date-read-2",
-        slugIndex: await computeSlugIndex("test-date-read-2"),
+        slugIndex: await hmacHash("test-date-read-2"),
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("2026-06-15T12:00:00.000Z");
@@ -111,7 +112,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
           maxPrice: 10000,
           name: "test",
           slug: "test-date-read-invalid",
-          slugIndex: await computeSlugIndex("test-date-read-invalid"),
+          slugIndex: await hmacHash("test-date-read-invalid"),
         }),
       ).rejects.toThrow("date has invalid datetime: not-a-dateZ");
     });
@@ -125,7 +126,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test",
         slug: "test-read-1",
-        slugIndex: await computeSlugIndex("test-read-1"),
+        slugIndex: await hmacHash("test-read-1"),
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBeNull();
@@ -138,7 +139,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test",
         slug: "test-read-2",
-        slugIndex: await computeSlugIndex("test-read-2"),
+        slugIndex: await hmacHash("test-read-2"),
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
@@ -152,7 +153,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
           maxPrice: 10000,
           name: "test",
           slug: "test-closes-invalid",
-          slugIndex: await computeSlugIndex("test-closes-invalid"),
+          slugIndex: await hmacHash("test-closes-invalid"),
         }),
       ).rejects.toThrow("closes_at has invalid datetime: not-a-dateZ");
     });
@@ -166,7 +167,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test-duration",
         slug,
-        slugIndex: await computeSlugIndex(slug),
+        slugIndex: await hmacHash(slug),
       });
       return (await getListingWithCount(listing.id))!.duration_days;
     };
@@ -200,7 +201,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test-duration",
         slug: "test-dur-upd",
-        slugIndex: await computeSlugIndex("test-dur-upd"),
+        slugIndex: await hmacHash("test-dur-upd"),
       });
       await listingsTable.update(listing.id, {
         durationDays: MAX_DURATION_DAYS + 1,
@@ -218,7 +219,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test-bd-json",
         slug: "test-bd-json",
-        slugIndex: await computeSlugIndex("test-bd-json"),
+        slugIndex: await hmacHash("test-bd-json"),
       });
       await getDb().execute({
         args: ["[", listing.id],
@@ -235,7 +236,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test-bd",
         slug: "test-bd-1",
-        slugIndex: await computeSlugIndex("test-bd-1"),
+        slugIndex: await hmacHash("test-bd-1"),
       });
       await getDb().execute({
         args: ['"not-an-array"', listing.id],
@@ -252,7 +253,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test-bd-types",
         slug: "test-bd-2",
-        slugIndex: await computeSlugIndex("test-bd-2"),
+        slugIndex: await hmacHash("test-bd-2"),
       });
       await getDb().execute({
         args: ['["Monday",1]', listing.id],
@@ -269,7 +270,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         maxPrice: 10000,
         name: "test-bd-day",
         slug: "test-bd-day",
-        slugIndex: await computeSlugIndex("test-bd-day"),
+        slugIndex: await hmacHash("test-bd-day"),
       });
       await getDb().execute({
         args: ['["Monday","Funday"]', listing.id],

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { computeSitePageSlugIndex, sitePages } from "#db/site-pages.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { sitePages } from "#db/site-pages.ts";
 import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -10,7 +11,7 @@ const makePage = async (slug: string) =>
   sitePages.table.insert({
     name: `Name ${slug}`,
     slug,
-    slugIndex: await computeSitePageSlugIndex(slug),
+    slugIndex: await hmacHash(slug),
     sortOrder: 0,
   });
 
