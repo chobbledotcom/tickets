@@ -22,9 +22,11 @@ const moduleOf = (
   specifier: path.startsWith("file://") ? path : `file://${ROOT}/${path}`,
 });
 
+/** A graph whose root is the first module given. */
 const graphOf = (
-  ...modules: ModuleGraph["modules"][number][]
-): ModuleGraph => ({ modules, roots: [] });
+  root: ModuleGraph["modules"][number],
+  ...rest: ModuleGraph["modules"][number][]
+): ModuleGraph => ({ modules: [root, ...rest], roots: [root.specifier] });
 
 describe("loadTimeEdges", () => {
   test("keeps the static local imports as relative edges", () => {
@@ -33,6 +35,7 @@ describe("loadTimeEdges", () => {
         moduleOf("src/a.ts", [
           { code: { specifier: `file://${ROOT}/src/b.ts` } },
         ]),
+        moduleOf("src/b.ts", []),
       ),
       ROOT,
     );
@@ -52,6 +55,8 @@ describe("loadTimeEdges", () => {
           { code: { specifier: "file:///elsewhere/src/out.ts" } },
           { code: { specifier: `file://${ROOT}/src/a.ts` } },
         ]),
+        moduleOf("src/lazy.ts", []),
+        moduleOf("file:///elsewhere/src/out.ts", []),
       ),
       ROOT,
     );
@@ -62,15 +67,79 @@ describe("loadTimeEdges", () => {
     // A checkout under "my repo" arrives from deno info as file:///my%20repo/.
     // The dependency carries the escaped form the way deno info emits it.
     const edges = loadTimeEdges(
-      graphOf({
-        dependencies: [
-          { code: { specifier: "file:///my%20repo/src/b.ts" }, specifier: "" },
-        ],
-        specifier: "file:///my%20repo/src/a.ts",
-      }),
+      graphOf(
+        {
+          dependencies: [
+            {
+              code: { specifier: "file:///my%20repo/src/b.ts" },
+              specifier: "",
+            },
+          ],
+          specifier: "file:///my%20repo/src/a.ts",
+        },
+        {
+          dependencies: [],
+          specifier: "file:///my%20repo/src/b.ts",
+        },
+      ),
       "/my repo",
     );
     expect(edges.get("src/a.ts")).toEqual(new Set(["src/b.ts"]));
+  });
+
+  test("keeps a module whose name begins with two dots", () => {
+    // "..generated" is a folder under the root, not the parent escape.
+    const edges = loadTimeEdges(
+      graphOf(
+        moduleOf("src/entry.ts", [
+          { code: { specifier: `file://${ROOT}/..generated/a.ts` } },
+        ]),
+        moduleOf("..generated/a.ts", []),
+      ),
+      ROOT,
+    );
+    expect(edges.get("src/entry.ts")).toEqual(new Set(["..generated/a.ts"]));
+  });
+
+  test("skips a cycle nothing at runtime can reach", () => {
+    // The entry imports the pair for types only, so neither module ever
+    // evaluates and their mutual imports are no load-order tangle.
+    const edges = loadTimeEdges(
+      graphOf(
+        moduleOf("src/entry.ts", [{ specifier: "#pair/a.ts" }]),
+        moduleOf("src/pair/a.ts", [
+          { code: { specifier: `file://${ROOT}/src/pair/b.ts` } },
+        ]),
+        moduleOf("src/pair/b.ts", [
+          { code: { specifier: `file://${ROOT}/src/pair/a.ts` } },
+        ]),
+      ),
+      ROOT,
+    );
+    expect(edges.size).toBe(0);
+  });
+
+  test("keeps a cycle behind a dynamic import", () => {
+    // A deferred module still evaluates on first use, so its own static
+    // cycle is a real load-order tangle once it loads.
+    const edges = loadTimeEdges(
+      graphOf(
+        moduleOf("src/entry.ts", [
+          {
+            code: { specifier: `file://${ROOT}/src/lazy/a.ts` },
+            isDynamic: true,
+          },
+        ]),
+        moduleOf("src/lazy/a.ts", [
+          { code: { specifier: `file://${ROOT}/src/lazy/b.ts` } },
+        ]),
+        moduleOf("src/lazy/b.ts", [
+          { code: { specifier: `file://${ROOT}/src/lazy/a.ts` } },
+        ]),
+      ),
+      ROOT,
+    );
+    expect(cyclicGroups(edges)).toEqual([["src/lazy/a.ts", "src/lazy/b.ts"]]);
   });
 });
 

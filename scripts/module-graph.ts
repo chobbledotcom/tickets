@@ -16,7 +16,7 @@ import { runCommand } from "#scripts/precommit/git.ts";
 
 // `deno info --json` emits a richer per-module object; only the fields used
 // here are declared, the rest is ignored by valibot's strip behaviour.
-export const DependencySchema = v.object({
+const DependencySchema = v.object({
   // The resolved specifier of the runtime (code) dependency. Absent for
   // type-only imports — those never evaluate, so they are not part of any
   // graph we walk.
@@ -28,7 +28,7 @@ export const DependencySchema = v.object({
   specifier: v.string(),
 });
 
-export const ModuleGraphSchema = v.object({
+const ModuleGraphSchema = v.object({
   modules: v.array(
     v.object({
       dependencies: v.optional(v.array(DependencySchema)),
@@ -45,6 +45,7 @@ export const ModuleGraphSchema = v.object({
 
 export type ModuleGraph = v.InferOutput<typeof ModuleGraphSchema>;
 export type Dependency = v.InferOutput<typeof DependencySchema>;
+export type GraphModule = ModuleGraph["modules"][number];
 
 /** Run `deno info --json` for `entry` from `cwd`, failing loudly on errors. */
 export const readModuleGraph = async (
@@ -87,8 +88,60 @@ export const localFiles = (specifiers: Iterable<string>): Set<string> =>
  */
 export const staticCodeSpecifiers = (
   deps: readonly Dependency[],
+): readonly string[] => codeSpecifiers(deps, false);
+
+/** Resolved runtime (code) deps of one module, dynamic ones included when
+ * `includeDynamic` says so — a deferred module still evaluates on first use. */
+const codeSpecifiers = (
+  deps: readonly Dependency[],
+  includeDynamic: boolean,
 ): readonly string[] =>
   deps
-    .filter((dep) => !dep.isDynamic)
+    .filter((dep) => includeDynamic || !dep.isDynamic)
     .map((dep) => dep.code?.specifier)
     .filter((specifier): specifier is string => !!specifier);
+
+/** Breadth-first walk from `graph.roots` over the edges `edgesOf` names.
+ * Shared by every reachability question over a module graph. */
+export const reachableSpecifiers = (
+  graph: ModuleGraph,
+  edgesOf: (module: GraphModule) => readonly string[],
+): Set<string> => {
+  const bySpecifier = new Map(
+    graph.modules.map((module) => [module.specifier, module]),
+  );
+  const seen = new Set<string>();
+  const queue = [...graph.roots];
+
+  while (queue.length > 0) {
+    const specifier = queue.shift();
+    if (!specifier || seen.has(specifier) || !bySpecifier.has(specifier)) {
+      continue;
+    }
+    seen.add(specifier);
+    for (const resolved of edgesOf(bySpecifier.get(specifier)!)) {
+      if (!seen.has(resolved)) queue.push(resolved);
+    }
+  }
+  return seen;
+};
+
+/**
+ * A module's runtime edges, dynamic imports included — the walk for
+ * questions about what can ever evaluate.
+ */
+export const runtimeEdgesOf = (module: GraphModule): readonly string[] =>
+  codeSpecifiers(module.dependencies ?? [], true);
+
+/** A module's static edges only — the walk the cold-start question uses. */
+export const staticEdgesOf = (module: GraphModule): readonly string[] =>
+  staticCodeSpecifiers(module.dependencies ?? []);
+
+/**
+ * The modules the entry can reach at runtime: static imports plus dynamic
+ * ones, because a deferred module still evaluates on first use. Type-only
+ * imports reach nothing — a module only they can reach never evaluates, so
+ * cycles inside that subtree cost no load order and no cold start.
+ */
+export const runtimeReachableSpecifiers = (graph: ModuleGraph): Set<string> =>
+  reachableSpecifiers(graph, runtimeEdgesOf);

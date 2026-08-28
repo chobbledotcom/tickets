@@ -4,30 +4,39 @@
  * screen. Data in, data out — the `deno info` read lives in run.ts.
  */
 
-import { fromFileUrl, relative } from "@std/path";
+import { fromFileUrl, relative, SEPARATOR } from "@std/path";
 import {
   type ModuleGraph,
+  runtimeReachableSpecifiers,
   staticCodeSpecifiers,
 } from "#scripts/module-graph.ts";
 
 /**
- * The load-time import edges of a graph: which local files under `root`
+ * The load-time import edges of a graph: which modules reachable at runtime
  * evaluate which others. Keyed and valued by paths relative to `root`.
  * Type-only imports evaluate nothing and dynamic imports are deferred to
  * first use, so neither is an edge — a cycle through either costs no cold
- * start and no load order.
+ * start and no load order. Modules only a type import can reach are skipped
+ * entirely: they never evaluate, so their inner cycles are not load-order
+ * tangles.
  */
 export const loadTimeEdges = (
   graph: ModuleGraph,
   root: string,
 ): Map<string, Set<string>> => {
+  const reachable = runtimeReachableSpecifiers(graph);
   const edges = new Map<string, Set<string>>();
   const localUnderRoot = (specifier: string): string | null => {
-    if (!specifier.startsWith("file://")) return null;
+    if (!specifier.startsWith("file://") || !reachable.has(specifier)) {
+      return null;
+    }
     // fromFileUrl decodes the URL: a repo path with a space arrives as
     // %20, and the undecoded form reads as outside the root.
     const path = relative(root, fromFileUrl(specifier));
-    return path.startsWith("..") || path.startsWith("/") ? null : path;
+    // A leading ".." must be the parent escape itself — a name such as
+    // ..generated stays a module under the root.
+    const escapesRoot = path === ".." || path.startsWith(`..${SEPARATOR}`);
+    return escapesRoot ? null : path;
   };
   for (const module of graph.modules) {
     const from = localUnderRoot(module.specifier);

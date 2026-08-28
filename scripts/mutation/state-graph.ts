@@ -16,8 +16,9 @@
 import {
   localFiles,
   type ModuleGraph,
+  reachableSpecifiers,
   readModuleGraph,
-  staticCodeSpecifiers,
+  staticEdgesOf,
 } from "#scripts/module-graph.ts";
 
 /** The module whose import graph produces the prebuilt test state. */
@@ -47,26 +48,8 @@ export const collectModuleGraphFiles: GraphFiles = graphFilesFrom(
 );
 
 /** Breadth-first walk of the static-import graph from `graph.roots`. */
-const walkStatic = (graph: ModuleGraph): Set<string> => {
-  const bySpecifier = new Map(
-    graph.modules.map((module) => [module.specifier, module]),
-  );
-  const seen = new Set<string>();
-  const queue = [...graph.roots];
-
-  while (queue.length > 0) {
-    const specifier = queue.shift();
-    if (!specifier || seen.has(specifier) || !bySpecifier.has(specifier)) {
-      continue;
-    }
-    seen.add(specifier);
-    const deps = bySpecifier.get(specifier)?.dependencies ?? [];
-    for (const resolved of staticCodeSpecifiers(deps)) {
-      if (!seen.has(resolved)) queue.push(resolved);
-    }
-  }
-  return seen;
-};
+const walkStatic = (graph: ModuleGraph): Set<string> =>
+  reachableSpecifiers(graph, staticEdgesOf);
 
 /**
  * Absolute paths of every local file reachable from `entry` through **static**
