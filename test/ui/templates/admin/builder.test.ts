@@ -71,4 +71,26 @@ describe("adminBuilderPage", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
     expect(html).toContain("Site builder");
   });
+
+  test("posts the create form to the builder route with its footer toggle", () => {
+    const html = adminBuilderPage(OWNER_SESSION, []);
+    expect(html).toContain('action="/admin/builder"');
+    expect(html).toContain('id="builder-form"');
+    // The assignment toggle posts 1, the value the route reads.
+    const toggle = html.slice(
+      html.indexOf('name="assignable"') - 80,
+      html.indexOf('name="assignable"') + 80,
+    );
+    expect(toggle).toContain('type="checkbox"');
+    expect(toggle).toContain('value="1"');
+  });
+
+  test("heads the sites table with one column per fact", () => {
+    const html = adminBuilderPage(OWNER_SESSION, [
+      { created: "1 Jan 2026", name: "Alpha", siteUrl: "alpha.b-cdn.net" },
+    ]);
+    expect(html).toContain("Name");
+    expect(html).toContain("URL");
+    expect(html).toContain("Built");
+  });
 });

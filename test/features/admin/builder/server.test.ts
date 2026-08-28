@@ -3,8 +3,8 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builtSites } from "#db/built-sites.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
-import { builderForm } from "#routes/admin/builder.ts";
 import { builderApi } from "#shared/builder.ts";
+import { builderForm } from "#templates/fields/builder.ts";
 import {
   MOCK_DB_RESULT,
   stubBuildSiteApis,

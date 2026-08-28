@@ -4,7 +4,6 @@
 
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
@@ -15,6 +14,7 @@ import { ProseSection } from "#templates/components/prose-section.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import { builderForm } from "#templates/fields/builder.ts";
 /* jscpd:ignore-end */
 
 export type BuiltSiteDisplay = {
