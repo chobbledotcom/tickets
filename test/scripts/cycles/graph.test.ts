@@ -1,4 +1,5 @@
 import { expect } from "@std/expect";
+import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   cyclicGroups,
@@ -57,7 +58,6 @@ describe("loadTimeEdges", () => {
           { specifier: "#types" },
           { code: { specifier: "npm:valibot" } },
           { code: { specifier: "file:///elsewhere/src/out.ts" } },
-          { code: { specifier: `file://${ROOT}/src/a.ts` } },
         ]),
         moduleOf("src/lazy.ts", []),
         moduleOf("file:///elsewhere/src/out.ts", []),
@@ -65,6 +65,21 @@ describe("loadTimeEdges", () => {
       ROOT,
     );
     expect(edges.has("src/a.ts")).toBe(false);
+  });
+
+  test("reports a module that imports itself as a tangle of one", () => {
+    const edges = loadTimeEdges(
+      graphOf(
+        moduleOf("src/entry.ts", [
+          { code: { specifier: `file://${ROOT}/src/self.ts` } },
+        ]),
+        moduleOf("src/self.ts", [
+          { code: { specifier: `file://${ROOT}/src/self.ts` } },
+        ]),
+      ),
+      ROOT,
+    );
+    expect(cyclicGroups(edges)).toEqual([["src/self.ts"]]);
   });
 
   test("keeps edges under a repo path whose URL form is escaped", () => {
@@ -207,6 +222,10 @@ describe("cyclicGroups", () => {
       ),
     ).toEqual([]);
   });
+
+  test("keeps a self-edge as a one-module group", () => {
+    expect(cyclicGroups(edgesOf([["a.ts", "a.ts"]]))).toEqual([["a.ts"]]);
+  });
 });
 
 describe("formatCycleReport", () => {
@@ -231,12 +250,25 @@ describe("formatCycleReport", () => {
 });
 
 describe("runCycleReport", () => {
-  test("runs against the real tree and reports a shaped answer", async () => {
-    const report = await runCycleReport();
-    // Structure, not debt: the report must state what it measured and count
-    // its groups, whatever the tree's current cycle count is.
-    expect(report).toMatch(/modules with load-time imports: \d+/);
-    expect(report).toMatch(/cyclic groups: \d+/);
+  test("shapes the answer from whatever graph it reads", async () => {
+    // A stubbed reader keeps the deno-info subprocess out of the ordinary
+    // suite; the real read has its own direct tests. The fixture must sit
+    // under the repo root the report computes for itself.
+    const repo = resolve(import.meta.dirname!, "../../..");
+    const graph = graphOf(
+      moduleOf(`file://${repo}/src/a.ts`, [
+        { code: { specifier: `file://${repo}/src/b.ts` } },
+      ]),
+      moduleOf(`file://${repo}/src/b.ts`, [
+        { code: { specifier: `file://${repo}/src/a.ts` } },
+      ]),
+    );
+    const report = await runCycleReport(() => Promise.resolve(graph));
+    expect(report).toContain("modules with load-time imports: 2");
+    expect(report).toContain("cyclic groups: 1");
+    expect(report).toContain("== group of 2 ==");
+    expect(report).toContain("  src/a.ts");
+    expect(report).toContain("  src/b.ts");
     expect(report).toContain("type-only imports evaluate nothing and dynamic");
   });
 });

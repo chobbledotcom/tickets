@@ -9,7 +9,7 @@ import { requiredMapValue } from "#fp";
 import {
   type ModuleGraph,
   runtimeReachableSpecifiers,
-  staticCodeSpecifiers,
+  staticImportsBySpecifier,
 } from "#scripts/module-graph.ts";
 
 /**
@@ -19,13 +19,14 @@ import {
  * first use, so neither is an edge — a cycle through either costs no cold
  * start and no load order. Modules only a type import can reach are skipped
  * entirely: they never evaluate, so their inner cycles are not load-order
- * tangles.
+ * tangles. A module importing itself stays an edge: it is a tangle of one.
  */
 export const loadTimeEdges = (
   graph: ModuleGraph,
   root: string,
 ): Map<string, Set<string>> => {
   const reachable = runtimeReachableSpecifiers(graph);
+  const staticImports = staticImportsBySpecifier(graph);
   const edges = new Map<string, Set<string>>();
   const localUnderRoot = (specifier: string): string | null => {
     if (!specifier.startsWith("file://") || !reachable.has(specifier)) {
@@ -39,12 +40,12 @@ export const loadTimeEdges = (
     const escapesRoot = path === ".." || path.startsWith(`..${SEPARATOR}`);
     return escapesRoot ? null : path;
   };
-  for (const module of graph.modules) {
-    const from = localUnderRoot(module.specifier);
+  for (const [specifier, imports] of staticImports) {
+    const from = localUnderRoot(specifier);
     if (from === null) continue;
-    for (const toSpecifier of staticCodeSpecifiers(module.dependencies ?? [])) {
+    for (const toSpecifier of imports) {
       const to = localUnderRoot(toSpecifier);
-      if (to === null || to === from) continue;
+      if (to === null) continue;
       const targets = edges.get(from) ?? new Set<string>();
       targets.add(to);
       edges.set(from, targets);
@@ -111,10 +112,10 @@ const groupsFromFinishOrder = (
 };
 
 /**
- * The groups of modules that can each load the other — more than one module,
- * largest first, each member list sorted. A group is a load-order tangle:
- * any module in it pulls in every other, and the count to work down is the
- * group's size.
+ * The groups of modules that can each load the other — two or more modules,
+ * or one module that imports itself — largest first, each member list
+ * sorted. A group is a load-order tangle: any module in it pulls in every
+ * other, and the count to work down is the group's size.
  */
 export const cyclicGroups = (edges: Map<string, Set<string>>): string[][] => {
   const nodes = [
@@ -139,8 +140,10 @@ export const cyclicGroups = (edges: Map<string, Set<string>>): string[][] => {
   for (const [from, targets] of importsOf.entries()) {
     for (const to of targets) importersOf[to]!.push(from);
   }
+  const isTangle = (group: number[]): boolean =>
+    group.length > 1 || importsOf[group[0]!]!.includes(group[0]!);
   return groupsFromFinishOrder(finishOrderOf(nodes, importsOf), importersOf)
-    .filter((group) => group.length > 1)
+    .filter(isTangle)
     .map((group) => group.map((node) => nodes[node]!).sort())
     .sort((a, b) => b.length - a.length);
 };

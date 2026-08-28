@@ -16,9 +16,8 @@
 import {
   localFiles,
   type ModuleGraph,
-  reachableSpecifiers,
   readModuleGraph,
-  staticEdgesOf,
+  staticReachableSpecifiers,
 } from "#scripts/module-graph.ts";
 
 /** The module whose import graph produces the prebuilt test state. */
@@ -49,7 +48,7 @@ export const collectModuleGraphFiles: GraphFiles = graphFilesFrom(
 
 /** Breadth-first walk of the static-import graph from `graph.roots`. */
 const walkStatic = (graph: ModuleGraph): Set<string> =>
-  reachableSpecifiers(graph, staticEdgesOf);
+  staticReachableSpecifiers(graph);
 
 /**
  * Absolute paths of every local file reachable from `entry` through **static**

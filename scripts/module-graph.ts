@@ -28,14 +28,23 @@ const DependencySchema = v.object({
   specifier: v.string(),
 });
 
+// One module entry, normalised as it parses: a module with no dependencies
+// gets an empty list right at the boundary, so every reader downstream
+// trusts the list instead of coalescing an undefined away.
+const ModuleSchema = v.pipe(
+  v.object({
+    dependencies: v.optional(v.array(DependencySchema)),
+    error: v.optional(v.string()),
+    specifier: v.string(),
+  }),
+  v.transform((module) => ({
+    ...module,
+    dependencies: module.dependencies ?? [],
+  })),
+);
+
 const ModuleGraphSchema = v.object({
-  modules: v.array(
-    v.object({
-      dependencies: v.optional(v.array(DependencySchema)),
-      error: v.optional(v.string()),
-      specifier: v.string(),
-    }),
-  ),
+  modules: v.array(ModuleSchema),
   // `deno info --json` always emits `roots` for a local entry; requiring it
   // means a future Deno that drops the field fails loudly here instead of
   // silently producing an empty graph that would let a cold-start regression
@@ -45,7 +54,6 @@ const ModuleGraphSchema = v.object({
 
 export type ModuleGraph = v.InferOutput<typeof ModuleGraphSchema>;
 type Dependency = v.InferOutput<typeof DependencySchema>;
-type GraphModule = ModuleGraph["modules"][number];
 
 /** Run `deno info --json` for `entry` from `cwd`, failing loudly on errors. */
 export const readModuleGraph = async (
@@ -86,9 +94,8 @@ export const localFiles = (specifiers: Iterable<string>): Set<string> =>
  * type-only imports (they never evaluate) and dynamic `import(...)` (it is
  * deferred).
  */
-export const staticCodeSpecifiers = (
-  deps: readonly Dependency[],
-): readonly string[] => codeSpecifiers(deps, false);
+const staticCodeSpecifiers = (deps: readonly Dependency[]): readonly string[] =>
+  codeSpecifiers(deps, false);
 
 /** Resolved runtime (code) deps of one module, dynamic ones included when
  * `includeDynamic` says so — a deferred module still evaluates on first use. */
@@ -101,11 +108,11 @@ const codeSpecifiers = (
     .map((dep) => dep.code?.specifier)
     .filter((specifier): specifier is string => !!specifier);
 
-/** Breadth-first walk from `graph.roots` over the edges `edgesOf` names.
- * Shared by every reachability question over a module graph. */
-export const reachableSpecifiers = (
+/** Breadth-first walk from `graph.roots` over each module's runtime (code)
+ * deps — dynamic ones followed only when `followDynamic` says so. */
+const reachableModules = (
   graph: ModuleGraph,
-  edgesOf: (module: GraphModule) => readonly string[],
+  followDynamic: boolean,
 ): Set<string> => {
   const bySpecifier = new Map(
     graph.modules.map((module) => [module.specifier, module]),
@@ -119,7 +126,9 @@ export const reachableSpecifiers = (
       continue;
     }
     seen.add(specifier);
-    for (const resolved of edgesOf(bySpecifier.get(specifier)!)) {
+    const module = bySpecifier.get(specifier)!;
+    const runtimeImports = codeSpecifiers(module.dependencies, followDynamic);
+    for (const resolved of runtimeImports) {
       if (!seen.has(resolved)) queue.push(resolved);
     }
   }
@@ -127,15 +136,21 @@ export const reachableSpecifiers = (
 };
 
 /**
- * A module's runtime edges, dynamic imports included — the relation behind
- * the runtime-reachability walk.
+ * The static import targets of every module in the graph, keyed by the
+ * module's own specifier. Dynamic and type-only imports are absent: a
+ * deferred import decides no load order here, and a type import names no
+ * runtime target at all.
  */
-const runtimeEdgesOf = (module: GraphModule): readonly string[] =>
-  codeSpecifiers(module.dependencies ?? [], true);
-
-/** A module's static edges only — the walk the cold-start question uses. */
-export const staticEdgesOf = (module: GraphModule): readonly string[] =>
-  staticCodeSpecifiers(module.dependencies ?? []);
+export const staticImportsBySpecifier = (
+  graph: ModuleGraph,
+): Map<string, readonly string[]> => {
+  const bySpecifier = new Map<string, readonly string[]>();
+  for (const module of graph.modules) {
+    const staticImports = staticCodeSpecifiers(module.dependencies);
+    bySpecifier.set(module.specifier, staticImports);
+  }
+  return bySpecifier;
+};
 
 /**
  * The modules the entry can reach at runtime: static imports plus dynamic
@@ -144,4 +159,9 @@ export const staticEdgesOf = (module: GraphModule): readonly string[] =>
  * cycles inside that subtree cost no load order and no cold start.
  */
 export const runtimeReachableSpecifiers = (graph: ModuleGraph): Set<string> =>
-  reachableSpecifiers(graph, runtimeEdgesOf);
+  reachableModules(graph, true);
+
+/** The modules the entry reaches through static imports alone — the set a
+ * cold-start regression cares about, before any deferred import fires. */
+export const staticReachableSpecifiers = (graph: ModuleGraph): Set<string> =>
+  reachableModules(graph, false);
