@@ -115,6 +115,25 @@ GitHub.
   still be booked for this ticket." Write for someone without a CS degree; a
   ten-year-old must understand the comment and the method name, even if the
   implementation uses `map`, `filter`, or `reduce`.
+- **Name a thing the way the site names it**: A story, a test, or a comment
+  calls a thing what its label, its message, or its column heading calls it. The
+  site says "Username", so a story says "the owner is told the username is
+  taken", never "the name is taken". A reader must be able to carry a word from
+  the story to the screen. "A name" is ambiguous here, because attendees,
+  listings and groups all have names too. Copy the word a person reads in
+  `src/locales/en/*.json`. Never copy the identifier beside it in `src/`. An
+  HMAC, a token index, and a `package_group_id` all stay out of a story. Two
+  things are not drift. A plain-words description of an outcome is right, so
+  "who has not joined yet" beats the status word "Invited". A general word is
+  right where the rule itself is general, so a bundle holds "things" because
+  that rule covers every kind of listing. Keep one word for one thing inside a
+  single document too. `removing-a-persons-access.feature` is the reference: the
+  word the owner types, the word in its prose, and the word its step asserts are
+  one word. A better word never moves an authored tag. A `@story:`, `@rule:` or
+  `@case:` id is a durable identifier. A saved `--tags` selector or a published
+  evidence manifest can point at one. The id stays as it is while the words
+  above it improve. No checker enforces this, so the judgement is yours on every
+  change.
 - **Comments describe current code**: Do not leave comments that compare current
   code with an old implementation or explain what the code replaced. They do not
   help someone understand the code as it works now. Git history preserves the
@@ -1258,6 +1277,63 @@ merge waiting to happen, and the whole point of this exercise. So:
   just wrote subsumes three more call sites, or that it and an older helper are
   the same thing wearing two names. Keep pulling the thread until the merges are
   genuinely exhausted.
+- **A curry almost always exists — "these two cannot be merged" is nearly always
+  wrong.** Two functions that differ only in a value, a path, a field name, a
+  message, or a callback are one function that has not been given its parameter
+  yet. Lift what differs into a factory's argument and let the returned function
+  take the data. This holds even when the two bodies look nothing alike at a
+  glance, because the shared part is often a _tail_ ("…and then keep what they
+  were told") or an _opening_ ("open this page, and then…"), and a curry takes
+  either. So treat every flagged pair as mergeable until you have actually
+  written the curry and found what the parameter would have to be. "This pair is
+  noise" is a conclusion you earn by trying, never a first reading — and if you
+  reach for that phrase about a whole band of results, you are almost certainly
+  looking at a factory nobody has written yet.
+
+  Before you write one, look for the factory that already exists. An
+  under-adopted curry reads exactly like unavoidable duplication: the pairs pile
+  up at the call sites that never adopted it, so the check looks like it is
+  flagging noise when it is really flagging the gap. The Cucumber page openers
+  are the reference. `opensAdminPageAt(path)` in `test/specs/support/browser.ts`
+  turns any "open this one fixed admin page" wrapper into a single line, and
+  four support files hand-rolled the wrapper anyway.
+- **The one honest exception is a shared _signature_ with nothing behind it.**
+  When two functions match only on their parameter list and return type, and
+  share no call at all, there is nothing to lift and a curry cannot help. Give
+  that signature a named type instead and let both sides declare it —
+  `ActOnOneThing` in `test/specs/support/world.ts` is the house example. Be
+  strict about which case you are in: if the two bodies call even one function
+  in common, you are in the curry case, not this one.
+
+### The six scans, and how hard each looks
+
+The 0% threshold is not the number that decides how hard jscpd looks.
+`minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
+lower number is a tighter net. Six configs divide the tree, because helper code,
+test bodies and stylesheets each deserve a different net.
+
+| Config                | Scans                            | minTokens |
+| --------------------- | -------------------------------- | --------- |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
+| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
+| `.jscpd.support.json` | `test/specs/support`             | 18        |
+| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
+| `.jscpd.test.json`    | `test`                           | 48        |
+| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+
+Both helper trees are scanned **alongside `src/`**, so a helper that
+reimplements production logic is flagged against the source it copied. A
+separate run could never see that pair. Where a helper tree can be held tighter
+than `src/` can, it gets a second scan of its own — the support helpers are at
+18 that way, because the scan they share with `src/` cannot go below 19 without
+dragging `src/` down too. A test body is different: it repeats by design, and
+the shared mechanism is the test framework itself, so the whole of `test/` stays
+at the loose 48.
+
+**Every helper number ratchets downward** — lower it, bring the tree to it,
+repeat — the same way `check:comments` works. `docs/test-duplication.md`
+measures what each remaining step costs. Read its counts as work to do, not as a
+floor: the counts fall as the curries land.
 
 ## Database Queries
 
@@ -1476,12 +1552,17 @@ deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-
 #### Lower-level alternative
 
 For a pure unit test that imports neither the app nor Stripe, you can skip the
-harness and run `deno test` directly on the file (fastest, but it fails on a
-missing `src/ui/static/*.js` asset or an unstarted stripe-mock if the test does
-import them):
+harness and run `deno test` directly on the file. This is the fastest way. It
+fails on a missing `src/ui/static/*.js` asset, or on an unstarted stripe-mock,
+when the test imports them.
+
+Always keep `--preload ./test/test-utils/preload.ts`. The preload puts the
+complete message catalog in the isolate. The runner tasks do this for you.
+Without the preload, every `t()` call throws `Missing translation for key "…"`
+for copy that is already in the catalog.
 
 ```bash
-deno test --no-check --allow-all test/shared/dates.test.ts
+deno test --no-check --allow-all --preload ./test/test-utils/preload.ts test/shared/dates.test.ts
 ```
 
 To do this for a test that depends on stripe-mock (anything importing Stripe),
@@ -1490,7 +1571,7 @@ you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars
 to the port you chose:
 
 ```bash
-STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/scripts/stripe-mock/ports.test.ts
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all --preload ./test/test-utils/preload.ts test/scripts/stripe-mock/ports.test.ts
 ```
 
 ## Environment Variables
@@ -1681,6 +1762,23 @@ journey never supplies the only coverage of a production line or branch.
 categories, the authored Feature hierarchy and tags, how specs are run, the
 checklist for migrating an existing test into a story, and the pitfalls that
 have caught people out before.
+
+One rule from that checklist is repeated here, because it is the rule that
+people skip. A skipped check lost real coverage more than once. **A test that
+moves into a story is a replacement, so prove that it replaced everything. Build
+the list of the old test's claims from the diff, never from the new file.** Name
+the merge base and the file once, as `base` and `file`, then read
+`git diff "$base" HEAD -- "$file"` and `git show "$base:$file"`. Both names stay
+quoted, and neither command reads from main's tip. Audit only a file that the
+base holds, which
+`git diff --name-only --no-renames --diff-filter=a "$base" HEAD` lists. A file
+that the change adds has no earlier claims, and `git show` exits 128 on it. A
+finished story feels like a check of the work, but it is not one. A good story
+reads as though it covers everything, so only the old file says what is missing.
+This applies to a file that you rewrote in place as much as to one that you
+deleted. The rewrites are where the real losses occurred. Every claim then lands
+in one of three places. It lands in the story, in a direct test that you keep,
+or in a drop that you state out loud.
 
 ## Test Quality Standards
 

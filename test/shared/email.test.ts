@@ -79,6 +79,40 @@ describe("sendEmail", () => {
     return body;
   };
 
+  test("sends no signal when the caller passes none", async () => {
+    await sendEmail(testEmailConfig, minimalEmailMessage);
+
+    const [, init] = fetch.getFetchArgs();
+    expect(init?.signal).toBe(null);
+  });
+
+  test("carries the caller's signal into the request", async () => {
+    const controller = new AbortController();
+
+    await sendEmail(testEmailConfig, minimalEmailMessage, controller.signal);
+
+    const [, init] = fetch.getFetchArgs();
+    expect(init?.signal).toBe(controller.signal);
+  });
+
+  test("reports a cancelled send as undelivered instead of throwing", async () => {
+    const controller = new AbortController();
+    fetch.restubFetch((_url, init) => {
+      controller.abort();
+      return Promise.reject(
+        new DOMException(init?.signal?.reason ?? "Aborted", "AbortError"),
+      );
+    });
+
+    const delivery = await sendEmail(
+      testEmailConfig,
+      minimalEmailMessage,
+      controller.signal,
+    );
+
+    expect(delivery.delivered).toBe(false);
+  });
+
   test("sends via Resend with correct URL, headers, and body", async () => {
     const msg: EmailMessage = {
       html: "<p>Hi</p>",
@@ -116,10 +150,10 @@ describe("sendEmail", () => {
 
     const [url] = fetch.getFetchArgs();
     expect(url).toBe("https://api.postmarkapp.com/email");
-    expect(fetch.getFetchHeaders().Accept).toBe("application/json");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe(
       "re_test_key",
     );
+    expect(fetch.getFetchHeaders().Accept).toBe("application/json");
     const body = fetch.getFetchJsonBody();
     expect(body.From).toBe("tickets@example.com");
     expect(body.To).toBe("user@test.com");

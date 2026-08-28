@@ -15,12 +15,15 @@ import { sumupApi } from "#shared/sumup.ts";
 import {
   adminBrowser,
   CUSTOMER,
+  expectAccepted,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { sellPlacesAt, soleBookingOn } from "#test/specs/support/money.ts";
+import { sellPlacesAt } from "#test/specs/support/money.ts";
 import {
+  expectNotBooked,
   type FilledOrder,
+  soleBookingOn,
   visitorFillsInBooking,
   visitorTriesToBook,
 } from "#test/specs/support/public-booking.ts";
@@ -73,10 +76,9 @@ type CompletePublicPayment = (...args: PaymentArgs) => Promise<PaidBooking>;
 const startHostedCheckout = async (
   filled: FilledOrder,
 ): Promise<TestBrowser> => {
-  const attempt = await filled.press();
-  expect(attempt.wasBooked).toBe(false);
-  expect(attempt.browser.redirectedTo).toBe(HOSTED_CHECKOUT_URL);
-  return attempt.browser;
+  const browser = expectNotBooked(await filled.press());
+  expect(browser.redirectedTo).toBe(HOSTED_CHECKOUT_URL);
+  return browser;
 };
 
 const completeStripePayment: CompletePublicPayment = async (filled, name) => {
@@ -168,8 +170,9 @@ const completeSumupPayment: CompletePublicPayment = async (filled, name) => {
         id: checkoutId,
       }),
     );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ processed: true });
+    expect(await expectAccepted(response).json()).toMatchObject({
+      processed: true,
+    });
   } finally {
     readCheckout.restore();
   }

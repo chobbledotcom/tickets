@@ -1,13 +1,16 @@
 /**
- * Payment Provider, Stripe, Square, and Booking Fee forms for settings
+ * The payment-provider choice, the one credentials form every provider uses,
+ * and Square's separate webhook-key form.
  */
 
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { type Child, Raw } from "#jsx/jsx-runtime.ts";
+import { escapeHtml } from "#jsx/escape-html.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
+import type { PaymentProviderMode } from "#shared/payment-provider-status.ts";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,
@@ -82,204 +85,120 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   </SaveForm>
 );
 
-const shownPaymentProvider = (
-  s: SettingsPageState,
-): PaymentProviderType | null => s.paymentProvider ?? s.existingPaymentProvider;
+/** Square alone points at a separate test estate, and the operator switches
+ *  to it here rather than by swapping the credentials. */
+const SquareSandboxToggle = (mode: PaymentProviderMode): JSX.Element => (
+  <label>
+    <input checked={mode === "sandbox"} name="square_sandbox" type="checkbox" />
+    {t("settings.square.sandbox_mode")}
+  </label>
+);
 
-const showsPaymentProvider =
-  (provider: PaymentProviderType) =>
-  (s: SettingsPageState): boolean =>
-    shownPaymentProvider(s) === provider;
-
-const showsStripe = showsPaymentProvider("stripe");
-const showsSquare = showsPaymentProvider("square");
-const showsSumUp = showsPaymentProvider("sumup");
-
-/** Test/live mode notice for providers that use sk_test_/sk_live_ keys
- * (Stripe and SumUp). Renders nothing when the mode is unknown. */
-const ApiKeyModeNotice = ({
-  mode,
-  provider,
-}: {
-  mode: string | null;
-  provider: string;
-}): JSX.Element | null => {
-  if (mode === "test") {
-    return (
-      <p class="notice warning">
-        <strong>Test mode:</strong> You are using a {provider} test key (
-        <code>sk_test_</code>). No real charges will be made. Switch to a live
-        key (<code>sk_live_</code>) when you are ready to accept real payments.
-      </p>
-    );
-  }
-  if (mode === "live") {
-    return (
-      <p class="notice">
-        <strong>Live mode:</strong> You are using a {provider} live key.
-        Payments will be charged for real.
-      </p>
-    );
-  }
-  return null;
+/** What one provider's credentials form asks for beyond the shared shape:
+ *  the fields it shows, and any extra control only it needs. */
+type CredentialsView = {
+  readonly extraControl?: (mode: PaymentProviderMode) => JSX.Element;
+  readonly fields: () => Parameters<typeof renderFields>[0];
 };
 
-/** Small "Where do I find this?" footnote linking to the payment setup guide,
- *  shared by the provider credential forms. */
-const PaymentGuideLink = ({ label }: { label: string }): JSX.Element => (
-  <p>
-    <small>
-      <a href="/admin/guide#payment-setup">{label}</a>
-    </small>
-  </p>
-);
+const CREDENTIALS_VIEW: Record<PaymentProviderType, CredentialsView> = {
+  square: {
+    extraControl: SquareSandboxToggle,
+    fields: getSquareAccessTokenFields,
+  },
+  stripe: { fields: getStripeKeyFields },
+  sumup: { fields: getSumupFields },
+};
 
-/** The save/Test Connection footer plus its hidden result div, shared by the
- *  Stripe and SumUp key forms. Curried by the provider's id-slug, the
- *  "Update <provider> Credentials" label, and the "Test Connection" label. */
-const paymentTestFooter = (
-  provider: string,
-  keyConfigured: boolean,
-  updateLabel: string,
-  testConnectionLabel: string,
-): JSX.Element => (
-  <>
-    <footer>
-      <SubmitButton icon="save">{updateLabel}</SubmitButton>
-      {keyConfigured && (
-        <button class="secondary" id={`${provider}-test-btn`} type="button">
-          {testConnectionLabel}
-        </button>
-      )}
-    </footer>
-    <div class="hidden" id={`${provider}-test-result`} />
-  </>
-);
+/** What the notice says about each estate, or nothing when the stored
+ *  credentials do not name one. */
+const MODE_NOTICE: Record<PaymentProviderMode, string | null> = {
+  live: "settings.provider.mode_live",
+  sandbox: "settings.provider.mode_sandbox",
+  test: "settings.provider.mode_test",
+  unknown: null,
+};
 
-/** The credentials body shared by the Stripe and SumUp key forms: the
- *  test/live-mode notice (when a key is set), the "where do I find this" guide
- *  link, the masked key fields, and the save/Test Connection footer. Each
- *  provider supplies only its own display name, id-slug, labels, field list and
- *  mask key. */
-const ProviderKeyBlock = ({
-  configured,
-  fields,
-  guideLabel,
-  maskKey,
+/** Which estate the stored credentials point at. Only live money is not a
+ *  warning, so every other estate is styled as one. */
+const ModeNotice = ({
   mode,
   provider,
-  providerId,
-  testLabel,
-  updateLabel,
 }: {
-  configured: boolean;
-  fields: Parameters<typeof renderFields>[0];
-  guideLabel: string;
-  maskKey: string;
-  mode: string | null;
-  provider: string;
-  providerId: string;
-  testLabel: string;
-  updateLabel: string;
-}): JSX.Element => (
-  <>
-    {configured && <ApiKeyModeNotice mode={mode} provider={provider} />}
-    <PaymentGuideLink label={guideLabel} />
-    <Raw
-      html={renderFields(
-        fields,
-        configured ? { [maskKey]: MASK_SENTINEL } : {},
-      )}
-    />
-    {paymentTestFooter(providerId, configured, updateLabel, testLabel)}
-  </>
-);
-
-/** The heading and "configured / not configured" hint that opens each payment
- *  provider's settings form. `keyPrefix` is the provider's i18n namespace
- *  ("settings.stripe", "settings.square", "settings.sumup"); `configured` picks
- *  which hint to show. `children` holds anything extra the provider tucks inside
- *  the prose block (Square's guide link). */
-const ProviderIntro = ({
-  keyPrefix,
-  configured,
-  children,
-}: {
-  keyPrefix: string;
-  configured: boolean;
-  children?: Child;
-}): JSX.Element => (
-  <div class="prose">
-    <h2>{t(`${keyPrefix}.heading`)}</h2>
-    <p>
-      {configured
-        ? t(`${keyPrefix}.configured_hint`)
-        : t(`${keyPrefix}.not_configured_hint`)}
+  mode: PaymentProviderMode;
+  provider: PaymentProviderType;
+}): JSX.Element | null => {
+  const key = MODE_NOTICE[mode];
+  return key === null ? null : (
+    <p class={mode === "live" ? "notice" : "notice warning"}>
+      <Raw
+        html={t(key, {
+          provider: escapeHtml(PAYMENT_PROVIDERS[provider].label),
+        })}
+      />
     </p>
-    {children}
-  </div>
-);
+  );
+};
 
-export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
-  showsStripe(s) ? (
-    <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
-      <ProviderIntro
-        configured={s.stripeKeyConfigured}
-        keyPrefix="settings.stripe"
-      />
-      <ProviderKeyBlock
-        configured={s.stripeKeyConfigured}
-        fields={getStripeKeyFields()}
-        guideLabel={t("settings.stripe.where_to_find")}
-        maskKey="stripe_secret_key"
-        mode={s.stripeKeyMode}
-        provider="Stripe"
-        providerId="stripe"
-        testLabel={t("settings.stripe.test_connection")}
-        updateLabel={t("settings.stripe.update_key")}
-      />
-    </CsrfForm>
-  ) : null;
-
-export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
-  showsSquare(s) ? (
-    <CsrfForm action="/admin/settings/square" id="settings-square">
-      <ProviderIntro
-        configured={s.squareTokenConfigured}
-        keyPrefix="settings.square"
-      >
-        <PaymentGuideLink label={t("settings.square.where_to_find")} />
-      </ProviderIntro>
+/** The credentials form of whichever provider the page shows. Route, form id
+ *  and test-button ids all come from the provider's own name, so
+ *  CREDENTIALS_VIEW above is the only place this form names a provider. */
+export const ProviderCredentialsForm = (
+  s: SettingsPageState,
+): JSX.Element | null => {
+  const shown = s.shownPaymentProvider;
+  if (shown === null) return null;
+  const { configured, mode, provider } = shown;
+  const { extraControl, fields } = CREDENTIALS_VIEW[provider];
+  const { label, secretField } = PAYMENT_PROVIDERS[provider];
+  return (
+    <CsrfForm
+      action={`/admin/settings/${provider}`}
+      id={`settings-${provider}`}
+    >
+      <div class="prose">
+        <h2>{t("settings.provider.heading", { provider: label })}</h2>
+        <p>
+          {configured
+            ? t("settings.provider.configured_hint", { provider: label })
+            : t("settings.provider.not_configured_hint", { provider: label })}
+        </p>
+      </div>
+      {configured && <ModeNotice mode={mode} provider={provider} />}
+      <p>
+        <small>
+          <a href="/admin/guide#payment-setup">
+            {t("settings.provider.guide_link")}
+          </a>
+        </small>
+      </p>
       <Raw
         html={renderFields(
-          getSquareAccessTokenFields(),
-          s.squareTokenConfigured ? { square_access_token: MASK_SENTINEL } : {},
+          fields(),
+          configured ? { [secretField]: MASK_SENTINEL } : {},
         )}
       />
-      <label>
-        <input
-          checked={s.squareSandbox}
-          name="square_sandbox"
-          type="checkbox"
-        />
-        {t("settings.square.sandbox_mode")}
-      </label>
+      {extraControl?.(mode)}
       <footer>
         <SubmitButton icon="save">
-          {t("settings.square.update_credentials")}
+          {t("settings.provider.update_credentials", { provider: label })}
         </SubmitButton>
-        {s.squareTokenConfigured && (
-          <button class="secondary" id="square-test-btn" type="button">
-            {t("settings.square.test_connection")}
+        {configured && (
+          <button class="secondary" id={`${provider}-test-btn`} type="button">
+            {t("settings.provider.test_connection")}
           </button>
         )}
       </footer>
-      <div class="hidden" id="square-test-result"></div>
+      <div class="hidden" id={`${provider}-test-result`} />
     </CsrfForm>
-  ) : null;
+  );
+};
 
-export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
-  showsSquare(s) && s.squareTokenConfigured ? (
+/** Square's webhook signature key, asked for once its access token is
+ *  stored. No other provider needs a key pasted in by hand. */
+export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null => {
+  const shown = s.shownPaymentProvider;
+  return shown?.provider === "square" && shown.configured ? (
     <SaveForm
       action="/admin/settings/square-webhook"
       id="settings-square-webhook"
@@ -337,24 +256,4 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
       />
     </SaveForm>
   ) : null;
-
-export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
-  showsSumUp(s) ? (
-    <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
-      <ProviderIntro
-        configured={s.sumupKeyConfigured}
-        keyPrefix="settings.sumup"
-      />
-      <ProviderKeyBlock
-        configured={s.sumupKeyConfigured}
-        fields={getSumupFields()}
-        guideLabel={t("settings.sumup.where_to_find")}
-        maskKey="sumup_api_key"
-        mode={s.sumupKeyMode}
-        provider="SumUp"
-        providerId="sumup"
-        testLabel={t("settings.sumup.test_connection")}
-        updateLabel={t("settings.sumup.update_key")}
-      />
-    </CsrfForm>
-  ) : null;
+};

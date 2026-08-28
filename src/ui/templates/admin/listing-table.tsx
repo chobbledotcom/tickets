@@ -1,16 +1,14 @@
 /**
  * The admin listings tables: column definitions, cell renderers, and the
- * composition helpers (`ListingsTableBlock`, `renderListingsTableSection`)
- * used by the dashboard, listings index, and group detail page.
+ * composition helpers the dashboard, listings index, and group detail page use.
  *
- * The operator picks which listing columns appear, and in what order, via a
- * Liquid-style template saved in `listing_column_order`.
+ * The operator picks which columns appear, and in what order, with a
+ * Liquid-style template saved in `listing_column_order`. The pure layout schema
+ * lives in `#shared/tables/configurable.ts`, so settings code can parse a saved
+ * template without an import of this UI module.
  *
- * Editors see a fixed, money-free variant (`editorListingTable`) whose name
- * column links to the edit form rather than the staff-only detail page.
- *
- * The pure layout schema lives in `#shared/tables/configurable.ts`, so settings
- * code can parse saved templates without importing this UI module.
+ * Editors get a money-free variant whose name column links to the edit form,
+ * because the detail page is staff-only.
  */
 
 import { t } from "#i18n";

@@ -3,6 +3,7 @@ import type { World } from "@cucumber/cucumber";
 import type { ChargeMoney } from "#payment/resources.ts";
 import type { CleanupTask } from "#scripts/cleanup.ts";
 import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
+import type { EmailContent } from "#templates/email/shared.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
@@ -22,6 +23,7 @@ import type {
   CodeOnScreen,
   WhereTheCodeLed,
 } from "#test/specs/support/shown-code.ts";
+import { withEnv } from "#test-utils/env.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 import type {
   JourneyCatalogSpec,
@@ -37,6 +39,9 @@ export type ActOnOneThing = (
   world: TicketsWorld,
   name: string,
 ) => Promise<void>;
+/** A step that names nothing at all: it acts on the story as it stands. */
+export type ActOnTheStory = (world: TicketsWorld) => Promise<void>;
+
 export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
@@ -134,6 +139,10 @@ export interface TicketsWorld extends World, EvidencePages {
   firstDay?: string;
   firstFailureData?: string;
   firstStatus?: number;
+  /** What the SMS gateway answers in this story, when it is not the ordinary
+   * "it took the message". A new answer each time it is asked, because a
+   * story that sends twice would read one body twice. */
+  gatewayReply?: () => Response;
   groupSlug?: string;
   holdListingId?: number;
   lengthChangeMessage?: string;
@@ -158,6 +167,9 @@ export interface TicketsWorld extends World, EvidencePages {
   orderSent?: BookingAttempt;
   placeholderId?: number;
   providerCharges: Map<string, ChargeMoney>;
+  /** What the email provider answers in this story, when it is not the
+   * ordinary "it took the message" — a refusal, or a network failure. */
+  providerReply?: Response | Error;
   questionChoices?: { byLabel: Record<string, string>; field: string };
   questionId?: number;
   raceListing?: string;
@@ -176,9 +188,22 @@ export interface TicketsWorld extends World, EvidencePages {
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;
+  /** The three parts of an email's wording the owner last saved, kept so a
+   * later step can prove those exact words are what the site stored. */
+  wordingWritten?: EmailContent;
   wordsWritten?: string;
   writeoffBefore?: number;
 }
+
+/** Run the rest of this scenario with the environment changed, and put it
+ * back when the scenario ends. Every story that needs a different environment
+ * goes through here, so none of them can leave one behind for the next. */
+export const scenarioEnv = (
+  world: Pick<TicketsWorld, "cleanup">,
+  changes: Record<string, string | undefined>,
+): void => {
+  world.cleanup.add(withEnv(changes));
+};
 
 export const addDatabaseCleanup = (
   world: Pick<TicketsWorld, "cleanup">,

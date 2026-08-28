@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { questionsTable } from "#db/questions/tables.ts";
 import {
   type CreatedEntry,
   saveSessionAnswers,
@@ -12,6 +12,7 @@ import { bookingIntent } from "#test/features/api/payment-processing/index/helpe
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 
 const bookedEntry = async (): Promise<CreatedEntry> => {
   const listing = await createTestListing({ maxAttendees: 5 });
@@ -45,20 +46,12 @@ const saveAndReadAnswers = async (
 describeWithEnv("paid booking answer saves", { db: true }, () => {
   test("saves a choice answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: "Choose one",
-    });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Chosen",
-    });
+    const { answerId, questionId } = await createQuestionWithAnswer();
     const saved = await saveAndReadAnswers(entry, {
-      listingAnswerIds: { [entry.listing.id]: [answer.id] },
+      listingAnswerIds: { [entry.listing.id]: [answerId] },
     });
     expect(saved).toEqual([
-      { answer_id: answer.id, question_id: question.id, string_id: null },
+      { answer_id: answerId, question_id: questionId, string_id: null },
     ]);
   });
 

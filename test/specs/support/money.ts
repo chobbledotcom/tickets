@@ -6,7 +6,6 @@
 
 import { expect } from "@std/expect";
 import { WORLD } from "#accounting/accounts.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -18,7 +17,11 @@ import {
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
 import { attendeeLegsOfKind } from "#test/specs/support/money-reads.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import {
+  soleBookingOn,
+  visitorBooks,
+} from "#test/specs/support/public-booking.ts";
+import { emailFor } from "#test/specs/support/tickets.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -60,7 +63,7 @@ export const buyOnePlace = async (
     world,
     listingId,
     who,
-    `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    emailFor(who),
     minorUnits(pounds),
     `cs_${name.toLowerCase().replaceAll(" ", "_")}`,
     `pi_${name.toLowerCase().replaceAll(" ", "_")}`,
@@ -82,18 +85,6 @@ export const buyOnePlace = async (
   return attendeeId;
 };
 
-/** The one booking a checkout made on a listing. Fails loudly when there is
- * not exactly one, so a story can never carry on against an arbitrary row. */
-export const soleBookingOn = async (listingId: number): Promise<number> => {
-  const bookings = await getAttendeesRaw(listingId);
-  if (bookings.length !== 1) {
-    throw new Error(
-      `Expected one booking on listing ${listingId}, found ${bookings.length}`,
-    );
-  }
-  return bookings[0]!.id;
-};
-
 /** Sell one place with an extra charge on top and pay the whole amount, the way
  * a real checkout does: the signed total must match what the site re-derives. */
 export const buyPlaceWithExtra = async (
@@ -112,7 +103,7 @@ export const buyPlaceWithExtra = async (
   const listingId = listing.id;
   const price = minorUnits(pounds);
   world.attendeeId = await runStripeSuccess(world, {
-    email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    email: emailFor(who),
     items: JSON.stringify([{ e: listingId, p: price, q: 1 }]),
     ...(modifierId === undefined
       ? {}

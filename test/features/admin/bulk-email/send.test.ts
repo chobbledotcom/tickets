@@ -48,16 +48,24 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       expect(fetch.callCount()).toBe(0);
     });
 
-    test("sends to recipients, clears the draft, and logs activity", async () => {
-      useResend();
+    /** Draft an email to a two-attendee listing, answer the provider with
+     * this reply, and send it. */
+    const sendDraft = async (body = "", status = 200) => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
         listing_id: String(listing.id),
         subject: "Update",
       });
-
+      fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
       const { response } = await adminFormPost("/admin/emails/send", {});
+      return { listing, response };
+    };
+
+    test("sends to recipients, clears the draft, and logs activity", async () => {
+      useResend();
+
+      const { response } = await sendDraft();
 
       await expectFlashRedirect(
         "/admin/emails",
@@ -71,20 +79,11 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
 
     test("relays the provider's reply in the flash and the listing log", async () => {
       useResend();
-      const listing = await seedListingWithAttendees();
-      await adminFormPost("/admin/emails/preview", {
-        body: "Hello",
-        listing_id: String(listing.id),
-        subject: "Update",
-      });
-      // The provider acknowledges the batch with queued message IDs.
-      fetch.restubFetch(() =>
-        Promise.resolve(
-          new Response('{"data":[{"id":"msg_1"}]}', { status: 200 }),
-        ),
-      );
 
-      const { response } = await adminFormPost("/admin/emails/send", {});
+      // The provider acknowledges the batch with queued message IDs.
+      const { listing, response } = await sendDraft(
+        '{"data":[{"id":"msg_1"}]}',
+      );
 
       await expectFlashRedirect(
         "/admin/emails",
@@ -95,6 +94,66 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       expect(
         listingLog.some((e) => e.message.includes('{"data":[{"id":"msg_1"}]}')),
       ).toBe(true);
+    });
+
+    test("counts only what the provider took when it refuses a message", async () => {
+      settings.setForTest({
+        email_api_key: "pm_key",
+        email_from_address: "tickets@example.com",
+        email_provider: "postmark",
+      });
+      // Postmark takes the batch, then refuses one message inside it.
+      const { response } = await sendDraft(
+        '[{"ErrorCode":0,"Message":"OK"},' +
+          '{"ErrorCode":406,"Message":"Inactive recipient"}]',
+      );
+
+      await expectFlashRedirect(
+        "/admin/emails",
+        "Sent to 1 of 2 recipients via Postmark." +
+          ' The email provider responded with HTTP 200: [{"ErrorCode":0,' +
+          '"Message":"OK"},{"ErrorCode":406,"Message":"Inactive recipient"}].' +
+          " It refused 1 message. Postmark error 406: Inactive recipient.",
+      )(response);
+      const log = await getAllActivityLog(10);
+      expect(log.some((e) => e.message.includes("to 1 of 2 recipients"))).toBe(
+        true,
+      );
+    });
+
+    test("does not tell the operator an unconfirmed send failed", async () => {
+      settings.setForTest({
+        email_api_key: "pm_key",
+        email_from_address: "tickets@example.com",
+        email_provider: "postmark",
+      });
+
+      // Postmark took the batch, then answered with something unreadable.
+      const { response } = await sendDraft("not json at all");
+
+      // The mail may be queued, so the operator must not be told it failed
+      // and go on to send the whole thing a second time.
+      await expectFlashRedirect(
+        "/admin/emails",
+        "Sent to 0 of 2 recipients via Postmark." +
+          " The email provider responded with HTTP 200: not json at all." +
+          " It did not confirm 2 messages. They may still have been sent." +
+          " Check the provider before you send them again.",
+      )(response);
+    });
+
+    test("does not call a send a success when every message was refused", async () => {
+      useResend();
+
+      const { response } = await sendDraft("nope", 500);
+
+      await expectFlashRedirect(
+        "/admin/emails",
+        "Resend sent none of your 2 messages." +
+          " The email provider responded with HTTP 500: nope." +
+          " It refused 2 messages.",
+        false,
+      )(response);
     });
 
     test("logs an audience send against no specific listing", async () => {
@@ -276,6 +335,8 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
         e.message.includes('Sent bulk email "Just you"'),
       );
       expect(entry?.listing_id).toBe(null);
+      // The log names one recipient in the singular, and says so exactly.
+      expect(entry?.message).toContain("to 1 recipient.");
     });
   });
 });

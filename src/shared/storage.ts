@@ -232,15 +232,6 @@ export const deleteListingAttachmentFile = async (
   }
 };
 
-/** Delete all attachment files for a list of listings */
-export const deleteAllListingAttachmentFiles = async (
-  listings: readonly ListingWithAttachmentStorage[],
-): Promise<void> => {
-  for (const listing of listings) {
-    await deleteListingAttachmentFile(listing, "database reset");
-  }
-};
-
 /** Delete the full-size image and thumbnail files for a first-class image. */
 export const deleteImageStorageFiles = async (
   image: ImageWithStorage,
@@ -277,14 +268,25 @@ export const deleteImageStorageFilesStrict = async (
   if (failure) throw failure;
 };
 
+/** Turn a "delete one record's files" function into the whole-table sweep the
+ * database reset runs. Both sweeps below are this one loop. */
+const deletesEveryFileFor =
+  <Record>(
+    deleteOne: (record: Record, reason: string) => Promise<void>,
+  ): ((records: readonly Record[]) => Promise<void>) =>
+  async (records: readonly Record[]): Promise<void> => {
+    for (const record of records) await deleteOne(record, "database reset");
+  };
+
+/** Delete all attachment files for a list of listings */
+export const deleteAllListingAttachmentFiles = deletesEveryFileFor(
+  deleteListingAttachmentFile,
+);
+
 /** Delete all first-class image files. */
-export const deleteAllImageStorageFiles = async (
-  images: readonly ImageWithStorage[],
-): Promise<void> => {
-  for (const image of images) {
-    await deleteImageStorageFiles(image, "database reset");
-  }
-};
+export const deleteAllImageStorageFiles = deletesEveryFileFor(
+  deleteImageStorageFiles,
+);
 
 /** Generate a random `.webp` filename. Every uploaded image is transcoded to
  * WebP, so stored image variants always carry the `.webp` extension. */
@@ -382,17 +384,11 @@ const encryptAndUpload = async (
 ): Promise<string> => uploadRaw(await encryptBytes(data), filename);
 
 /**
- * Transcode an uploaded image to WebP and store one file per target.
+ * Transcode an uploaded image to WebP, one stored file per target, returned in
+ * the order of `targets`.
  *
- * The source bytes (of the validated `mime`) are decoded once, then each target
- * is downscaled to its max width and encoded to WebP at its quality; each
- * variant is encrypted and uploaded under a fresh `.webp` filename. Returns the
- * stored filenames in the same order as `targets` — so a caller wanting a
- * full-size image plus a thumbnail passes both targets and destructures the two
- * filenames back out.
- *
- * The image pipeline (~1MB of codec wasm) is dynamically imported here so it is
- * loaded only on the first upload, never at cold boot.
+ * The image pipeline is about 1MB of codec wasm, so it is imported here on the
+ * first upload and never at cold boot.
  */
 export const uploadImageTargets: ImageTargetTranscoder<string[]> = async (
   data,

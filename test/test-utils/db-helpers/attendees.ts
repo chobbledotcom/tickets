@@ -58,19 +58,15 @@ export const createTestAttendee = async (
   quantity = 1,
   phone = "",
 ): Promise<Attendee> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest, mockTicketFormRequest } = await import(
+  const { mockTicketFormRequest, sendToApp, testPageHtml } = await import(
     "#test-utils/mocks.ts"
   );
   const { extractCsrfToken } = await import("#test-utils/csrf.ts");
 
-  const pageResponse = await handleRequest(
-    mockRequest(`/ticket/${listingSlug}`),
-  );
-  const pageHtml = await pageResponse.text();
+  const pageHtml = await testPageHtml(`/ticket/${listingSlug}`);
   const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
 
-  const response = await handleRequest(
+  const response = await sendToApp(
     mockTicketFormRequest(
       listingSlug,
       { email, name, phone, [`quantity_${listingId}`]: String(quantity) },

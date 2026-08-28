@@ -19,6 +19,9 @@ export interface ThingsByKind {
   /** The addresses of the people a story booked onto one listing, in the order
    * it booked them. */
   booked: string[];
+  /** One named person's booking: what they booked, the row the site filed
+   * them under, and the phone number they gave, if any. */
+  booking: { attendeeId: number; listingId: number; phone: string };
   /** Somebody's own window on the site: the organiser's, a customer's. */
   browser: TestBrowser;
   /** Things sold together under one name. */

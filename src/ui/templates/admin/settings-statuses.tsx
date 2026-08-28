@@ -23,7 +23,10 @@ import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.ts
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -49,11 +52,9 @@ const statusColumns: TableColumn<AttendeeStatus>[] = [
     (s) => adminPath("status", { id: s.id }),
     (s) => s.name,
   ),
-  {
-    cell: (s) => statusBadges(s),
-    header: translatedTableHeader("statuses.flags_header"),
-    key: "flags",
-  },
+  translatedTableColumn("flags", "statuses.flags_header", (s) =>
+    statusBadges(s),
+  ),
 ];
 
 /** One named checkbox for a status flag. */

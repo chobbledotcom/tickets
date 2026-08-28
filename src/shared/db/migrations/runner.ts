@@ -10,6 +10,7 @@ import { retryWithBackoff } from "#shared/retry.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestRemaining,
+  SubrequestBudgetError,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { loadMigrations } from "./context.ts";
@@ -25,26 +26,15 @@ import { verifyCurrentAppSchema } from "./schema-sync.ts";
 import type { Migration } from "./types.ts";
 
 /**
- * Round-trips held back from the migration run so recording progress and
- * releasing the lock always fit, even when the migrations themselves fill the
- * request's subrequest budget. Recording a batch and releasing the lock are one
- * batched write each, so a handful of round-trips is ample headroom.
+ * Round-trips held back so recording progress and releasing the lock always
+ * fit, even when the migrations fill the request's subrequest budget.
  *
- * Without this reserve a batch that spends the whole budget leaves nothing for
- * the bookkeeping: the progress markers can't be written and the lock can't be
- * released, so the database makes no forward progress and stays locked until the
- * lock's TTL expires — every reload in that window is turned away, then re-runs
- * the same over-budget batch. Reserving the headroom lets each reload record
- * what it finished and hand the lock back, so the next reload continues.
+ * Without the reserve, a batch that spends the whole budget cannot write its
+ * progress markers or release the lock. The database then makes no forward
+ * progress and stays locked until the TTL expires, and every reload in that
+ * window is turned away and re-runs the same over-budget batch.
  */
 const MIGRATION_BOOKKEEPING_RESERVE = 5;
-
-/** True when `error` is the "subrequest budget spent" signal countSubrequest
- *  raises at the reserve cap — the cue to stop the batch here rather than a
- *  migration defect. The cap always trips this budget guard before the wider
- *  round-trip limit, so that is the only message to match. */
-const isSubrequestBudgetError = (error: unknown): boolean =>
-  errorMessage(error).startsWith("Subrequest allowance exceeded");
 
 /** The migrations whose ids are not yet recorded as applied, in run order.
  *  Checks the ids first so the implementations only load when at least one
@@ -70,23 +60,14 @@ export const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
 };
 
 /**
- * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
- * the number of retries, so four verify attempts in total.
+ * Backoff before each re-attempt of a migration's verify(). Its length is the
+ * number of retries.
  *
- * up() applies DDL and verify() reads the live schema back to confirm it
- * landed. The snapshot is pinned to the primary to dodge replica lag, but a
- * freshly-opened primary connection can still briefly observe the pre-DDL
- * schema, so a column the ALTER just added reads as missing and verify() throws
- * spuriously. It re-snapshots on every call, so a short backoff lets the schema
- * settle within the same request rather than 503-ing it. A genuine defect stays
- * missing across every attempt and still throws.
- *
- * Retrying verify() alone is not always enough: up() can skip a write when its
- * own snapshot lagged. syncIndexes() skips an index whose table the snapshot
- * does not show — right for a table a later migration creates, wrong when this
- * migration just created it. The index is then never created and verify() fails
- * on every attempt, so once its retries are exhausted
- * {@link applyMigrationWithRetry} re-runs up() once and verifies again.
+ * The snapshot is pinned to the primary to dodge replica lag, but a fresh
+ * primary connection can still briefly observe the pre-DDL schema, so a column
+ * the ALTER just added reads as missing and verify() throws spuriously. A short
+ * backoff lets the schema settle within the same request rather than 503 it,
+ * and a genuine defect stays missing across every attempt.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
 
@@ -101,7 +82,7 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
     (error, { attempt, willRetry }) => {
       // A spent subrequest budget is not a transient lag: retrying just burns
       // the reserve. Propagate so the batch stops and its progress is recorded.
-      if (isSubrequestBudgetError(error)) throw error;
+      if (error instanceof SubrequestBudgetError) throw error;
       if (!willRetry) return;
       logDebug(
         "Migration",
@@ -115,20 +96,14 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
 /**
  * Apply a migration: run up(), then verify() with retries. If verify() never
  * passes across a full round of retries, re-run up() once and verify again.
+ * That repairs an up() which skipped a write because its own schema snapshot
+ * lagged (see VERIFY_RETRY_BACKOFF_MS). up() is idempotent by construction: the
+ * runner already re-runs it whenever a prior run died before its marker landed.
  *
- * Re-running up() repairs the case where up() itself skipped a write because its
- * own schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS) — the missing-index
- * failure. up() is idempotent by construction (the runner already re-runs it on
- * a later request whenever a prior run died before recording its marker), so the
- * second pass — now reading a settled snapshot — completes the skipped write.
- *
- * The re-run is deferred until verify()'s own retries are exhausted, not fired
- * on the first verify miss, so a migration whose up() is NOT a cheap no-op after
- * success — e.g. 2026-06-20_free_text_questions, which recopies attendee_answers
- * / listing_questions / questions via recreateTable — is not re-run on a pure
- * verify-lag (up() did its work; only verify()'s snapshot lagged), which would
- * recopy large tables and risk the edge request budget. up() therefore runs at
- * most twice, never once per retry.
+ * The re-run waits for verify()'s retries to run out and never fires on the
+ * first miss. Some up() work is not a cheap no-op after success, because a
+ * migration such as the free-text-questions one recopies whole tables, and a
+ * pure verify-lag must not re-run that and risk the edge request budget.
  */
 export const applyMigrationWithRetry = async (
   migration: Migration,
@@ -140,7 +115,7 @@ export const applyMigrationWithRetry = async (
     // Re-running up() to repair a lagged snapshot only helps a transient miss;
     // an over-budget request has no budget left for a second up(), so hand the
     // signal back to stop the batch instead.
-    if (isSubrequestBudgetError(error)) throw error;
+    if (error instanceof SubrequestBudgetError) throw error;
     logDebug(
       "Migration",
       `verify ${migration.id} still failing after retries, re-running up(): ${errorMessage(
@@ -167,8 +142,10 @@ const applyUntilBudgetSpent = async (
     } catch (error) {
       // Out of budget: stop here so the caller records what finished and the
       // next request continues. The half-applied migration is idempotent, so
-      // it re-runs cleanly from the top next time.
-      if (isSubrequestBudgetError(error)) return;
+      // it re-runs cleanly from the top next time. Either refusal lands here:
+      // a statement blocked at the cap, and a migration that opens a
+      // transaction whose rollback reserve no longer fits.
+      if (error instanceof SubrequestBudgetError) return;
       throw error;
     }
     completed.push(migration);

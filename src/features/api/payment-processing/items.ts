@@ -27,6 +27,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { namesConcealedIn } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
 
@@ -109,12 +110,10 @@ export const validateAllItems = async (
   const { allocations, foldedChildIds, standaloneLineIds } =
     bookingPaths(intent);
   // For a hidden package, a per-member failure message would reveal a member
-  // name on /payment/success, so never include the listing name in those errors
-  // (fail-safe resolution — see resolveNamesConcealed).
-  const groupIds = [...lineGroupIds(intent.items)];
-  const hiddenPackage = groupIds.some(
-    (groupId) =>
-      snapshot.notificationPackages.displays.get(groupId)?.hideListings ?? true,
+  // name on /payment/success, so never include the listing name in those errors.
+  const hiddenPackage = namesConcealedIn(
+    snapshot.notificationPackages.displays,
+    lineGroupIds(intent.items),
   );
   // A standalone session started before its listing joined a HIDDEN package must
   // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would

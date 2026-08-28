@@ -25,7 +25,6 @@ import {
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import {
   type AnswerInfo,
-  getTicketFieldsSetting,
   listingAnswerMaps,
   parseQuantities,
   ticketFormErrorResponse,
@@ -35,6 +34,7 @@ import {
   type TicketCtx,
 } from "#routes/public/types.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { getTicketFieldsSetting } from "#shared/listing-fields.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";

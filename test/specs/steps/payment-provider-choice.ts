@@ -52,9 +52,7 @@ Then(
     for (const provider of ["Square", "Stripe", "SumUp"]) {
       expect(browser.pageText).toContain(provider);
     }
-    expect(browser.pageText).toContain(
-      "A Stripe secret key is currently configured",
-    );
+    expect(browser.pageText).toContain("Your Stripe credentials are saved");
     expect(browser.pageText).toContain("Test mode:");
     expect(browser.pageText).toContain("No real charges will be made");
   },

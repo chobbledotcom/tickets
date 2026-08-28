@@ -123,6 +123,13 @@ describe("modifier fields", () => {
           type: "number",
         },
         {
+          hint: "Question-answer modifiers only: the most times this charge can apply within one booking. Set 1 to charge a delivery fee once per booking. Leave blank to charge for every ticket. Ignored for other triggers.",
+          label: "Max times per order (optional)",
+          min: 1,
+          name: "max_per_order",
+          type: "number",
+        },
+        {
           label: "Status",
           name: "active",
           options: [{ label: "Active (apply at checkout)", value: "1" }],

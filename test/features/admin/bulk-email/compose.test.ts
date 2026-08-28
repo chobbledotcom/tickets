@@ -34,6 +34,8 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
     test("shows the disabled notice when no own provider is configured", async () => {
       const html = await (await adminGet("/admin/emails")).text();
       expect(html).toContain("Heads up");
+      // The notice must say why, not just that something is wrong.
+      expect(html).toContain("configured your own email provider");
     });
 
     test("hides the disabled notice when a bulk provider is configured", async () => {

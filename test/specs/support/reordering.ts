@@ -21,13 +21,16 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 export type Direction = "up" | "down";
 
 /** Moving one named row around a list. */
+/** Whether the list offers to move one named row one way. */
+type AsksAboutAMove = (
+  world: TicketsWorld,
+  name: string,
+  direction: Direction,
+) => Promise<boolean>;
+
 export interface MovesNamedRows {
   /** Whether the list offers to move this row that way at all. */
-  canMove(
-    world: TicketsWorld,
-    name: string,
-    direction: Direction,
-  ): Promise<boolean>;
+  canMove: AsksAboutAMove;
   /** Press this row's own arrow. A row the list offers no arrow for is one
    * nobody could move, so this fails rather than quietly doing nothing. */
   move(world: TicketsWorld, name: string, direction: Direction): Promise<void>;

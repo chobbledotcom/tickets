@@ -169,23 +169,15 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
 };
 
 /**
- * Get one page of attendees — with every one of their booking rows — for the
- * admin attendees browser.
+ * Pagination counts ATTENDEES, not booking lines, so a grouped attendee row
+ * carries their complete listings list and never splits across a page boundary.
+ * `listingIds` decides WHICH attendees match, and the returned rows still cover
+ * all of a matched attendee's listings.
  *
- * Pagination counts ATTENDEES, not booking lines: the inner subquery selects
- * one page of attendee ids, ordered by id — AUTOINCREMENT, so co-monotonic
- * with the registration date but unique, making paging deterministic and
- * index-backed — and the outer query returns every listing_attendees line for
- * those attendees. A grouped attendee row therefore always carries their
- * complete listings list and never splits across a page boundary. When
- * `listingIds` is given it decides WHICH attendees match (any booking on
- * those listings); the returned rows still cover all of a matched attendee's
- * listings.
- *
- * The page size is fixed; callers pass a zero-based `page`. One extra
- * attendee is read to report `hasNext` without a separate count query, then
- * trimmed off. PII stays encrypted — decrypt with decryptAttendees before
- * display.
+ * An order by id works because AUTOINCREMENT ids are unique and always rise.
+ * Each page is therefore deterministic. One extra attendee reports `hasNext`
+ * without a second count query. PII stays encrypted, so decrypt with
+ * decryptAttendees first.
  */
 export const getAttendeesPage = async ({
   listingIds,

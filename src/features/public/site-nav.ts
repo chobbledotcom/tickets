@@ -1,22 +1,12 @@
 /**
- * Data-loading side of the public site-pages nav: load the forest's rows plus
- * the resolved leaf targets as plain data, then hand them to the pure
- * `buildNavModel`. The page/edge reads are the request-cached narrow
- * projections; leaf resolution runs only on `/page/:slug` renders (the fixed
- * pages pass a null current and skip it entirely).
- *
  * Liveness uses the same gates the rest of the public site does, so the nav
- * never renders a link that would 404 or dead-end. A listing is live iff it is
- * active, not a renewal tier (that flow needs a site token the normal ticket
- * flow never supplies), has its OWN standalone booking page (not a
- * non-standalone child, not a hidden package member — both 404 their
- * `/ticket/<slug>`), and is not a parent projected sold out. A group is live iff
- * its `/ticket/<group>` page would serve — a regular group needs a
- * standalone-bookable visible member, a package needs the whole bundle to fit
- * (the shared `groupBookable` gate, the same one the group card and QR use).
- * Being marked HIDDEN does not remove liveness: hidden governs the public index,
- * not bookability, so a hidden but bookable item an operator placed on a page
- * keeps its link (its page serves with noindex). Page targets are always live.
+ * never renders a link that 404s or dead-ends. A listing is live iff it is
+ * active, not a renewal tier, and not a parent projected sold out. It must also
+ * have its OWN standalone booking page. A group is live iff `/ticket/<group>`
+ * serves.
+ *
+ * HIDDEN governs the public index, not bookability, so a hidden but bookable
+ * item keeps its link. Page targets are always live.
  */
 
 import { fillTogether } from "#db/fill-together.ts";

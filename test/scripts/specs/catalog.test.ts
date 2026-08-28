@@ -24,6 +24,7 @@ describe("Cucumber story catalog", () => {
       "attendees.merging-duplicate-bookings",
       "attendees.no-quantity-tickets",
       "attendees.removing-one-part-of-an-order",
+      "attendees.sending-somebody-a-text",
       "attendees.the-record-kept-about-someone",
       "attendees.the-states-a-booking-can-be-in",
       "attendees.the-ticket-a-customer-holds",
@@ -81,6 +82,10 @@ describe("Cucumber story catalog", () => {
       "records.filling-the-site-with-example-data",
       "records.keeping-only-what-is-needed",
       "servicing.hold-and-cost",
+      "servicing.the-work-coming-up",
+      "settings.connecting-an-email-provider",
+      "settings.turning-features-on-and-off",
+      "settings.writing-the-emails-the-site-sends",
     ]);
   });
 

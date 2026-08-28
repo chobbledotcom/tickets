@@ -168,6 +168,13 @@ const resolveMessage = (locale: string, key: string): Resolved | null => {
   return resolved;
 };
 
+/** Names which of the two causes applies, so a reader does not search for copy
+ * that is already in the catalog. */
+const missingKeyReason = (owner: MessageGroup | undefined): string =>
+  owner === undefined
+    ? "No loaded message group holds the key. The key is wrong, or its group is not loaded."
+    : `Group "${owner}" holds the key, but this scope does not declare it.`;
+
 /**
  * Translate a key with optional ICU MessageFormat parameters.
  *
@@ -189,7 +196,8 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
       : resolveMessage(locale, key);
   if (resolved === null) {
     throw new Error(
-      `Missing translation for key "${key}" (locale "${locale}")`,
+      `Missing translation for key "${key}" (locale "${locale}"). ` +
+        missingKeyReason(owner),
     );
   }
   // Plain copy is already its final text; only ICU messages need formatting.

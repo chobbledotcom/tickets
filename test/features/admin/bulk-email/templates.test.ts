@@ -129,6 +129,11 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       ).text();
       expect(html).toContain("Pre-fill Subject");
       expect(html).toContain("Pre-fill body");
+      // A template carries no marketing flag, so the box starts unticked
+      // and the owner opts in deliberately.
+      expect(html).toContain('name="marketing"');
+      expect(html).not.toContain('name="marketing" checked');
+      expect(html).not.toContain('checked name="marketing"');
     });
 
     test("?template=N for an unknown id still renders the compose page", async () => {
@@ -233,6 +238,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       // The subject (encrypted at rest) is decrypted to confirm against.
       expect(html).toContain("To delete");
       expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain(`action="/admin/emails/templates/${id}/delete"`);
     });
 
     test("GET /admin/emails/templates/:id/delete 404s for unknown template", async () => {
@@ -262,6 +268,10 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         response,
         "Template subject does not match. Please type the exact template subject to confirm deletion.",
         false,
+      );
+      // The owner lands back on the confirmation page to try again.
+      expect(response.headers.get("location")).toContain(
+        `/admin/emails/templates/${id}/delete?`,
       );
     });
 

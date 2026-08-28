@@ -1,18 +1,14 @@
 /**
- * jSquash WebAssembly codec wrappers: decode JPEG/PNG/WebP to RGBA, encode
- * RGBA to WebP.
+ * The `.wasm` bytes are initialised manually rather than left to jSquash's own
+ * loader, which relies on `fetch` and filesystem paths that do not resolve
+ * inside the single-file Bunny edge bundle.
  *
- * The `.wasm` bytes come from the jSquash package sidecars and are initialised
- * manually rather than left to jSquash's own loader, which relies on
- * `fetch`/filesystem paths that do not resolve inside the single-file Bunny edge
- * bundle. Initialisation is shared by concurrent calls and only happens on the
- * first transcode — this module is dynamically imported by the upload path,
- * never at cold boot — so the ~1MB of codec wasm is compiled lazily and once per
- * isolate after success. A transient CDN failure remains retryable.
+ * This module is dynamically imported by the upload path, never at cold boot,
+ * so the ~1MB of codec wasm compiles lazily and once per isolate. A transient
+ * CDN failure stays retryable.
  *
- * The WebP encoder ships two builds; we pick the SIMD one when the runtime
- * reports WASM SIMD support, matching jSquash's own selection so the glue code
- * and the wasm module always agree.
+ * The SIMD build is chosen when the runtime reports SIMD support, which mirrors
+ * jSquash's own selection so the glue code and the wasm module always agree.
  */
 
 import jpegDecode, { init as jpegInit } from "@jsquash/jpeg/decode.js";

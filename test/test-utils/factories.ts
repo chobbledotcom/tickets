@@ -145,6 +145,7 @@ export const testModifier = (overrides: Partial<Modifier> = {}): Modifier => ({
   code_index: null,
   direction: "discount",
   id: 1,
+  max_per_order: null,
   min_subtotal: 0,
   min_visits: 0,
   name: "Early bird",

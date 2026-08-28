@@ -10,9 +10,8 @@ import {
   getModifier,
   getModifierAggregateRecalculation,
   MODIFIER_AGGREGATE_FIELDS,
+  modifierAggregates,
   modifiersTable,
-  resetModifierAggregateFields,
-  updateModifierAggregateValues,
 } from "#db/modifiers.ts";
 import { readModifierAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -88,12 +87,12 @@ describeWithEnv(
       // here, not silently on the form.
       const m = await makeModifier();
       await insertModifierUsage(m.id, 1, 3, 1500);
-      await updateModifierAggregateValues(m.id, {
+      await modifierAggregates.update(m.id, {
         total_uses: 9,
         usage_count: 9,
       });
 
-      await resetModifierAggregateFields(m.id, [...MODIFIER_AGGREGATE_FIELDS]);
+      await modifierAggregates.reset(m.id, [...MODIFIER_AGGREGATE_FIELDS]);
 
       expect(await aggregates(m.id)).toEqual({
         total_uses: 3,
@@ -253,7 +252,7 @@ describeWithEnv(
       const m = await makeModifier();
       await insertModifierUsage(m.id, 1, 3, 1500);
 
-      await updateModifierAggregateValues(m.id, {
+      await modifierAggregates.update(m.id, {
         total_uses: 8,
         usage_count: 4,
       });
@@ -268,7 +267,7 @@ describeWithEnv(
       const m = await makeModifier();
       await insertModifierUsage(m.id, 1, 3, 1500);
       await insertModifierUsage(m.id, 2, 2, 1000);
-      await updateModifierAggregateValues(m.id, {
+      await modifierAggregates.update(m.id, {
         total_uses: 8,
         usage_count: 4,
       });
@@ -279,7 +278,7 @@ describeWithEnv(
         usage_count: { current: 4, recalculated: 2 },
       });
 
-      await resetModifierAggregateFields(m.id, ["total_uses"]);
+      await modifierAggregates.reset(m.id, ["total_uses"]);
 
       expect(await aggregates(m.id)).toEqual({
         total_uses: 5,

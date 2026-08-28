@@ -252,6 +252,7 @@ const postBody = (
   url: string,
   headers: Headers,
   body: unknown,
+  signal: AbortSignal | null,
 ): Promise<FetchResult> => {
   const isFormData = body instanceof FormData;
   return fetchText(url, {
@@ -260,11 +261,16 @@ const postBody = (
       ? headers
       : { ...headers, "Content-Type": "application/json" },
     method: "POST",
+    signal,
   });
 };
 
-export const sendEmailRequest = (request: EmailRequest): Promise<FetchResult> =>
-  postBody(...request);
+/** `signal` cancels the request while it is in flight. `null` is the
+ * everyday case: a send that nothing cancels. */
+export const sendEmailRequest = (
+  request: EmailRequest,
+  signal: AbortSignal | null = null,
+): Promise<FetchResult> => postBody(...request, signal);
 
 export type EmailDeliveryResult =
   | { delivered: true; status: number }
@@ -280,7 +286,11 @@ export type EmailDeliveryResult =
     };
 
 /** Deliver one message with a config — the shape every sender shares. */
-type EmailDeliveryFn = EmailProviderFn<Promise<EmailDeliveryResult>>;
+type EmailDeliveryFn = (
+  config: EmailConfig,
+  msg: EmailMessage,
+  signal?: AbortSignal | null,
+) => Promise<EmailDeliveryResult>;
 
 const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
   delivered: false,
@@ -293,11 +303,15 @@ const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
  * Resend and Mailgun `message`, Postmark `Message`, SendGrid `errors`. */
 const PROVIDER_ERROR_KEYS = ["message", "Message", "errors", "error"];
 
-/** How much of a provider's reply can enter a log line or a flash message,
- * so a verbose body cannot flood either. A cut reply keeps this many
- * characters and then a three-character `...` marker, like the bulk-send
- * summary. */
+/** How much of a provider's reply can enter a log line, a flash message, or
+ * the activity log, so a verbose body cannot flood any of them. */
 const MAX_REASON_LENGTH = 300;
+
+/** Cut a provider's reply to that length, marking the cut. */
+export const cappedReply = (text: string): string =>
+  text.length > MAX_REASON_LENGTH
+    ? `${text.slice(0, MAX_REASON_LENGTH)}...`
+    : text;
 
 /** Any email-shaped token in a reply is an address that must not reach the
  * logs — a provider can echo the recipient, the sender, or an account
@@ -308,24 +322,22 @@ const EMAIL_SHAPED = /\S+@\S+/g;
 /** Pull the reason out of a provider's error reply: the parsed message or the
  * raw body, on one line, capped, and with every email-shaped value blanked.
  * Empty when the reply body says nothing. */
-const failureReason = (text: string): string => {
+export const failureReason = (text: string): string => {
   const withoutAddresses = apiErrorMessage(text, PROVIDER_ERROR_KEYS).replace(
     EMAIL_SHAPED,
     "[redacted]",
   );
-  const oneLine = withoutAddresses.replace(/\s+/g, " ").trim();
-  return oneLine.length > MAX_REASON_LENGTH
-    ? `${oneLine.slice(0, MAX_REASON_LENGTH)}...`
-    : oneLine;
+  return cappedReply(withoutAddresses.replace(/\s+/g, " ").trim());
 };
 
 const emailDelivery =
   (recover: (error: unknown) => EmailDeliveryResult): EmailDeliveryFn =>
-  async (config, msg) => {
+  async (config, msg, signal = null) => {
     const buildRequest = PROVIDERS[config.provider];
     try {
       const { ok, status, text } = await sendEmailRequest(
         buildRequest(config, msg),
+        signal,
       );
       if (ok) return { delivered: true, status };
       const reason = failureReason(text);
@@ -350,8 +362,8 @@ export const deliverRegistrationEmail: EmailDeliveryFn = emailDelivery(
   },
 );
 
-export const sendEmail: EmailDeliveryFn = async (config, msg) => {
-  const delivery = await reportedEmailDelivery(config, msg);
+export const sendEmail: EmailDeliveryFn = async (config, msg, signal) => {
+  const delivery = await reportedEmailDelivery(config, msg, signal);
   if (!delivery.delivered) {
     logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
   }

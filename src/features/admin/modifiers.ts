@@ -23,12 +23,11 @@ import {
   type ModifierAggregateValues,
   type ModifierInput,
   type ModifierRow,
+  modifierAggregates,
   modifierGroups,
   modifierListings,
   modifiersTable,
-  resetModifierAggregateFields,
   setModifierAnswers,
-  updateModifierAggregateValues,
 } from "#db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { once } from "#fp";
@@ -83,10 +82,12 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
 /* jscpd:ignore-end */
 
-/** Build modifier input from validated form values. The value is stored as the
- * positive magnitude the owner typed; converting it to the signed engine value
- * happens where modifiers are applied to a checkout. A promo code is kept only
- * for "code" modifiers, with its blind index computed for public lookup. */
+/** Build modifier input from validated form values. The value is stored as
+ * the positive magnitude the owner typed. The signed engine value is
+ * computed where modifiers are applied to a checkout. A promo code is kept
+ * only for "code" modifiers, with its blind index computed for public
+ * lookup. The per-order cap is kept only for "answer" modifiers, so a
+ * modifier moved away from that trigger loses its stale cap. */
 const extractModifierInput = async (
   values: ModifierFormValues,
 ): Promise<ModifierInput> => {
@@ -98,6 +99,7 @@ const extractModifierInput = async (
     code,
     codeIndex: code ? await hmacHash(normalizeCode(code)) : null,
     direction: values.direction,
+    maxPerOrder: values.trigger === "answer" ? values.max_per_order : null,
     minSubtotal: toMinorUnits(values.min_subtotal),
     minVisits: values.min_visits,
     name: values.name,
@@ -106,13 +108,6 @@ const extractModifierInput = async (
     trigger: values.trigger,
   };
 };
-
-const extractModifierAggregateValues = (
-  values: ModifierAggregateValues,
-): ModifierAggregateValues => ({
-  total_uses: values.total_uses,
-  usage_count: values.usage_count,
-});
 
 const resolveAddOnScope = (
   scope: ModifierScope | undefined,
@@ -217,6 +212,15 @@ const validateModifier = (
   ) {
     return Promise.resolve(
       "Minimum previous bookings must be a whole number of 0 or more",
+    );
+  }
+  if (
+    input.maxPerOrder !== undefined &&
+    input.maxPerOrder !== null &&
+    (!Number.isInteger(input.maxPerOrder) || input.maxPerOrder < 1)
+  ) {
+    return Promise.resolve(
+      "Max times per order must be a whole number of 1 or more",
     );
   }
   const isOptionalAddOn = input.trigger === "optional";
@@ -348,17 +352,17 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   withAuth(request, AUTH_FORM, async (_session, form) => {
     const modifier = await getModifier(id);
     if (!modifier) return notFoundResponse();
-    const aggregates = parseEditableAggregateForm<
-      ModifierAggregateValues,
-      ModifierAggregateValues
-    >(form, getModifierAggregateFields(), extractModifierAggregateValues);
+    const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
+      form,
+      getModifierAggregateFields(),
+    );
     if (!aggregates.ok) {
       return modifierPage.renderEditError(id, _session, form, aggregates.error);
     }
     const result = await getModifiersResource().update(id, form);
     if (result.ok) {
       if (aggregates.input) {
-        await updateModifierAggregateValues(id, aggregates.input);
+        await modifierAggregates.update(id, aggregates.input);
       }
       await logActivity(`Modifier '${result.row.name}' updated`);
       return redirect("/admin/modifiers", "Modifier updated", true);
@@ -399,7 +403,7 @@ const modifierRecalculateHandlers = createRecalculateHandlers({
   log: (modifier) =>
     logActivity(`Modifier '${modifier.name}' totals recalculated`),
   render: renderModifierRecalculatePage,
-  reset: resetModifierAggregateFields,
+  reset: modifierAggregates.reset,
   successMessage: t("modifiers.recalculate.success"),
   successPath: (modifier) => `/admin/modifiers/${modifier.id}/edit`,
   withEntity: withModifier,

@@ -13,7 +13,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
 
   @rule:access.an-editor-sets-up-their-own-account
   Rule: An editor sets up their own account from an invite
-    The owner invites them by name and hands over a link. The editor chooses
+    The owner invites them by username and hands over a link. The editor chooses
     their own password on that link, and from then on they log in and land on
     the listings, which is where their work is.
 

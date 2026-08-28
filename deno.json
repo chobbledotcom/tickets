@@ -22,17 +22,18 @@
     "specs:evidence": "deno run --v8-flags=--expose-gc -A scripts/run-spec-evidence.ts",
     "specs:check": "deno run --allow-read scripts/check-specs.ts",
     "specs:files": "deno run --v8-flags=--expose-gc -A scripts/run-specs.ts",
-    "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
+    "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi --preload ./test/test-utils/preload.ts test/",
     "lint": "deno fmt && deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
     "lint:ci": "deno fmt --check && deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
     "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
-    "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
+    "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.helpers.json && deno run -A scripts/cpd.ts --config .jscpd.support.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "check:imports": "deno run --allow-read=deno.json,src,test,scripts,cli scripts/check-imports.ts",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
+    "cycles": "deno run -A scripts/cycles.ts",
     "line-counts": "deno run --allow-read=src,test scripts/line-counts.ts",
     "diff-code-lines": "deno run --allow-env=PATH --allow-run=git scripts/diff-code-lines.ts",
     "unit-tests-report": "deno run --allow-read=src,test,deno.json scripts/unit-tests-report.ts",
@@ -54,7 +55,8 @@
     "screenshot:attendees-list": "deno task screenshot attendees-list",
     "screenshot:listing": "deno task screenshot listing",
     "screenshot:listing-attendees": "deno task screenshot listing-attendees",
-    "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts"
+    "e2e": "deno run -A --config=e2e-payments/deno.json e2e-payments/src/main.ts",
+    "e2e:email": "deno run -A scripts/email-sandbox-e2e/main.ts"
   },
   "fmt": {
     "include": [
@@ -93,7 +95,6 @@
     "#cli/": "./cli/",
     "#scripts/": "./scripts/",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
-    "fast-check": "npm:fast-check@^3.23.0",
     "@formatjs/icu-messageformat-parser": "npm:@formatjs/icu-messageformat-parser@^2.11",
     "intl-messageformat": "npm:intl-messageformat@^10",
     "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.1",

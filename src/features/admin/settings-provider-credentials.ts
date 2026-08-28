@@ -15,6 +15,7 @@ import {
 import { redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { paymentProviderHasCredentials } from "#shared/payment-provider-status.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
 /**
@@ -26,10 +27,6 @@ import type { PaymentProviderType } from "#types";
 type ProviderCredentialsConfig<T> = {
   /** Provider selected on a successful save. */
   provider: PaymentProviderType;
-  /** Form ID for flash-message targeting. */
-  formId: string;
-  /** Form field name of the masked secret. */
-  secretField: string;
   /** Error shown when the secret is cleared and none is stored. */
   secretRequiredError: string;
   /** Flash message + activity-log entry on a successful save. */
@@ -91,24 +88,29 @@ export const defineProviderCredentialsRoute = <T>(
   save: (request: Request) => Promise<Response>;
   test: (request: Request) => Promise<Response>;
 } => {
+  // The same id the form carries on the page, so the flash lands on it.
+  const formId = `settings-${cfg.provider}`;
   const save = settingsRoute(async (form, errorPage) => {
     const activateFromMissing = !paymentProviderHasCredentials(cfg.provider);
-    const secret = processSecretField(form, cfg.secretField);
+    const secret = processSecretField(
+      form,
+      PAYMENT_PROVIDERS[cfg.provider].secretField,
+    );
     const fields = cfg.extraFields
       ? cfg.extraFields(form)
       : (undefined as unknown as T);
 
     const settingsFlash = (message: string): Response =>
-      redirect(SETTINGS_PATH, message, true, { formId: cfg.formId });
+      redirect(SETTINGS_PATH, message, true, { formId });
 
     // Provider validation + the "secret required unless already stored" guard.
     const invalid = await cfg.validate(fields, secret);
-    if (invalid) return errorPage(invalid, cfg.formId);
+    if (invalid) return errorPage(invalid, formId);
     if (
       secret.action === "cleared" &&
       !paymentProviderHasCredentials(cfg.provider)
     ) {
-      return errorPage(cfg.secretRequiredError, cfg.formId);
+      return errorPage(cfg.secretRequiredError, formId);
     }
 
     // A secret-only provider with no new secret is a genuine no-op.
@@ -125,13 +127,13 @@ export const defineProviderCredentialsRoute = <T>(
           secret,
           activateFromMissing,
         );
-        if (saveError) return errorPage(saveError, cfg.formId);
+        if (saveError) return errorPage(saveError, formId);
         await logActivity(cfg.logMessage);
         return settingsFlash(cfg.successMessage);
       },
       form.getOptionalInt("settings_version"),
     );
-    return task.ok ? task.value : errorPage(task.error, cfg.formId);
+    return task.ok ? task.value : errorPage(task.error, formId);
   });
 
   return { save, test: testRoute(cfg.testFn) };

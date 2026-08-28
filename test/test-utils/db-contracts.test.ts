@@ -47,6 +47,7 @@ import {
 } from "#test-utils/session.ts";
 import {
   featureSetting,
+  settingsAsStored,
   storedFeatureEnabled,
   testWithSetting,
   useSetting,
@@ -115,7 +116,7 @@ describe("test-utils — db-backed & settings contracts", () => {
       resetDb();
       await createTestDb();
       await expect(getTestPrivateKey()).rejects.toThrow(
-        "Test setup failed: no wrapped data key",
+        "Test owner has no wrapped data key",
       );
 
       resetDb();
@@ -129,6 +130,19 @@ describe("test-utils — db-backed & settings contracts", () => {
       await expect(getTestPrivateKey()).rejects.toThrow(
         "Test setup failed: no wrapped private key",
       );
+    });
+
+    test("settingsAsStored brings the stored value back", async () => {
+      await settings.update.email.fromAddress("owner@example.com");
+
+      // Dropping the cache alone leaves an empty snapshot, which reads as the
+      // setting's default and not as what is stored. A caller that stopped
+      // there would assert against defaults and believe it read the database.
+      settings.invalidateCache();
+      expect(settings.email.fromAddress).toBe("");
+
+      await settingsAsStored();
+      expect(settings.email.fromAddress).toBe("owner@example.com");
     });
 
     test("storedFeatureEnabled fails when the feature setting is missing", async () => {
@@ -155,15 +169,32 @@ describe("test-utils — db-backed & settings contracts", () => {
       );
     });
 
+    test("manager and agent helpers take a username in any case", async () => {
+      // Production stores usernames lower-cased, and the login lookup hashes
+      // them lower-cased to match. A helper that indexed the caller's own
+      // spelling could not find the row it had just written.
+      const managerCookie = await createTestManagerSession(
+        "mgr-mixed",
+        "MixedCaseManager",
+      );
+      expect(managerCookie).toContain("mgr-mixed");
+
+      const agent = await createTestAgentSession({
+        token: "agent-mixed",
+        username: "MixedCaseAgent",
+      });
+      expect(agent.userId).toBeGreaterThan(0);
+    });
+
     test("manager and agent helpers require the setup admin key", async () => {
       resetDb();
       await createTestDb();
 
       await expect(createTestManagerSession()).rejects.toThrow(
-        "Admin user has no wrapped data key",
+        "Test owner has no wrapped data key",
       );
       await expect(createTestAgentSession()).rejects.toThrow(
-        "Admin user not set up",
+        "Test owner has no wrapped data key",
       );
     });
 

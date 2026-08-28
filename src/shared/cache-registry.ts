@@ -22,32 +22,35 @@ const providers = new Set<CacheStatProvider>();
  * it, tests must call it so their entries never outlive the test). */
 export type Unregister = () => void;
 
+/** Build the "join this set, and here is how to leave it" register function a
+ * set of load-time registrations needs. Both registries below are one. */
+const registrar =
+  <T>(members: Set<T>): ((member: T) => Unregister) =>
+  (member: T): Unregister => {
+    members.add(member);
+    return () => {
+      members.delete(member);
+    };
+  };
+
 /** Register a cache stat provider (called at module load time) */
-export const registerCache = (provider: CacheStatProvider): Unregister => {
-  providers.add(provider);
-  return () => providers.delete(provider);
-};
+export const registerCache = registrar(providers);
 
 /** Collect stats from all registered caches */
 export const getAllCacheStats = (): CacheStat[] =>
   [...providers].map((p) => p());
 
 /**
- * Table → cache invalidation registry.
+ * A cache declares its own table plus any table a DB trigger writes through to.
+ * The listings cache depends on `listing_attendees` for that reason.
  *
- * A cache declares the physical tables whose mutation should clear it (its own
- * table, plus any table a DB trigger writes through to — e.g. the listings
- * cache depends on `listing_attendees` because triggers there maintain the
- * listings aggregate columns). The db client inspects every write statement's
- * target table and fires the registered invalidators, so no write path has to
- * remember to invalidate by hand. Inverting the dependency this way (caches
- * push their invalidator in at load time) keeps the low-level client free of
- * any static import of the cache modules.
+ * The db client sniffs every write's target table and fires the registered
+ * invalidators, so no write path has to remember to invalidate by hand. Caches
+ * push their invalidator in at load time, which keeps the client free of static
+ * imports of them.
  *
- * Column-gated registrations narrow the UPDATE case: a dependency with
- * `whenColumns` only fires when the UPDATE assigns at least one listed column.
- * INSERT, DELETE, and REPLACE always fire regardless of the gate, because a
- * row entering or leaving always shifts the aggregates.
+ * INSERT, DELETE and REPLACE ignore a `whenColumns` gate, because a row that
+ * enters or leaves always shifts the aggregates.
  */
 
 /** What a write narrows to, for column-gated invalidation. */
@@ -78,10 +81,7 @@ const resetHooks = new Set<Invalidator>();
 /** Register an extra full-clear to run with a write cause when every cache is
  * reset. Only needed by caches without a table registration;
  * `resetAllCaches` already fires every table-registered invalidator. */
-export const registerCacheReset = (reset: Invalidator): Unregister => {
-  resetHooks.add(reset);
-  return () => resetHooks.delete(reset);
-};
+export const registerCacheReset = registrar(resetHooks);
 
 /**
  * Clear every registered cache: each table-registered invalidator once (a

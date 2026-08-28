@@ -2,7 +2,12 @@ import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { execute, executeBatch, queryOne } from "#db/client.ts";
-import { CONFIG_KEYS, type SettingsData, settings } from "#db/settings.ts";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  type SettingsData,
+  settings,
+} from "#db/settings.ts";
 import {
   type AdminFeatureKey,
   type EnabledFeatures,
@@ -13,6 +18,14 @@ import {
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
 import { withMocks } from "./mocks.ts";
+
+/** Read every setting back off disk, throwing away what this process last
+ * cached. A test that saved through a route and then asks what the site holds
+ * has to cross that boundary, or it reads its own stale snapshot back. */
+export const settingsAsStored = async (): Promise<void> => {
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
+};
 
 /** The standard outer describe for admin-settings tests: scoped to
  *  `"server (admin settings)"` with a fresh test DB per spec and an
@@ -94,19 +107,27 @@ export const storedFeatureEnabled = async (
 ): Promise<boolean> =>
   parseEnabledFeatures(await settingValue(CONFIG_KEYS.ENABLED_FEATURES))[key];
 
+/** One saved modifier, which is what puts the Modifiers feature in use. Every
+ * test that needs that state writes this same row, so it is written once. */
+const MODIFIER_SQL =
+  "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES (?, 'fixed', 1, 'increase')";
+
+export const saveAModifier = (name = "Fee"): Promise<unknown> =>
+  execute(MODIFIER_SQL, [name]);
+
 export const seedFeatureRecords = (includeLogistics = true): Promise<void> =>
-  executeBatch(
-    [
+  executeBatch([
+    ...[
       "INSERT INTO attributes (name) VALUES ('Level')",
       "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
-      "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
       ...(includeLogistics
         ? ["INSERT INTO logistics_agents (name) VALUES ('Delivery team')"]
         : []),
       "INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created) VALUES (1, 'index', 'key', 'Sync', '2026-07-15')",
       "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')",
     ].map((sql) => ({ args: [], sql })),
-  );
+    { args: ["Fee"], sql: MODIFIER_SQL },
+  ]);
 
 export const SEEDED_FEATURE_RECORDS: EnabledFeatures = {
   apiKeys: true,

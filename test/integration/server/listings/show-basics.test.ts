@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import {
   assertAdminHtml,
   expectHtmlResponse,
@@ -141,7 +141,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         "actual@example.com",
         2,
       );
-      await updateListingAggregateValues(listing.id, {
+      await listingAggregates.update(listing.id, {
         booked_quantity: 9,
         tickets_count: 1,
       });

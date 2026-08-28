@@ -98,16 +98,14 @@ type PlaceholderBookings = Parameters<
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
  *
- * Reached only for a trusted session (the mismatch verdict refunds upstream), so
- * the proof has already bound `balance_attendee_id` and the single balance line,
- * and the charge equals the signed total. The amount this checkout was created
- * for is that line's price (`items[0].p`); the settle clears the balance only if
- * the live `remaining_balance` still equals it — so a balance the owner edited,
- * or one a concurrent/stale checkout already settled, can't be cleared for the
- * wrong figure — and finalizes the session in the SAME transaction so a crash
- * between settle and finalize can't leave a paid-but-unfinalized row (which a
- * later stale-replay would wrongly refund). A mismatch refunds and returns a
- * terminal failure rather than mutating anything.
+ * The settle clears the balance only if the live `remaining_balance` still
+ * equals the amount this checkout was created for. A balance the owner edited,
+ * or one a stale checkout already settled, cannot be cleared for the wrong
+ * figure.
+ *
+ * The session finalizes in the SAME transaction, so a crash between settle and
+ * finalize cannot leave a paid-but-unfinalized row that a later stale replay
+ * would wrongly refund.
  */
 export const settleBalanceSession = async (
   sessionId: string,
@@ -152,20 +150,16 @@ export const settleBalanceSession = async (
 };
 
 /**
- * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
- * store it as a quantity-0 placeholder (overbook-tolerant, so capacity — or a
- * since-deleted listing — can never downgrade the store into a drop), refund the
- * payment, record the cash round-trip in the ledger (a `payment` + `refund_cash`
- * with NO `sale` leg, so the placeholder recognises no revenue and its projected
- * price_paid stays 0), and flag the attendee with a plain-language system note
- * carrying a non-sensitive reason code. The provider reference stays in
- * owner-key payment storage. The customer is told their details were saved and
- * the payment refunded; no ticket is issued.
+ * Keep a signed-by-us booking we cannot honour, rather than drop it into limbo.
  *
- * We never report `refunded: false`. The booking now exists, so a retry must NOT
- * re-create it — an un-refunded payment is recorded as a terminal, operator-
- * resolved outcome (the note's manual-refund instruction stands) rather than
- * released for re-processing.
+ * The placeholder is overbook-tolerant, so capacity or a since-deleted listing
+ * can never downgrade the store into a drop. Its ledger legs are a `payment`
+ * plus a `refund_cash` with NO `sale`, so it recognises no revenue and its
+ * projected price_paid stays 0.
+ *
+ * We never report `refunded: false`. The booking now exists, so a retry must
+ * NOT re-create it. An un-refunded payment is a terminal, operator-resolved
+ * outcome, not something released for re-processing.
  */
 /** The claimed anchor a stored placeholder hands back for its follow-up
  * money work. */

@@ -1,15 +1,10 @@
 /**
- * Why a page selling several things together has no date or booking length to
- * offer. The booking form only offers the dates and lengths EVERY item
- * supports, so two items with no overlap leave the buyer a bare "nothing is
- * available" with no way to tell which items clash. These rules name them.
+ * The booking form only offers the dates and lengths EVERY item supports, so
+ * two items with no overlap leave the buyer a bare "nothing is available" with
+ * no way to tell which items clash. These rules name them.
  *
- * Pure and render-time only: the ticket page evaluates the rules against each
- * item's own dates and lengths (gathered by `dailyDateItems` in
- * `features/public/ticket-payment.ts` and `customisableLengthItems` in
- * `#shared/booking/model.ts`) and shows every conflict at once via
- * `allReasons`. When no rule speaks — one item, or an overlap emptied some
- * other way — the selectors keep their plain "nothing available" copy.
+ * Pure and render-time only. When no rule speaks, the selectors keep their
+ * plain "nothing available" copy.
  */
 
 import { intersect } from "@std/collections";

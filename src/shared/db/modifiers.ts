@@ -13,18 +13,17 @@ import { accountBalanceSubquery } from "#accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   executeBatch,
-  executeUpdate,
   inPlaceholders,
   queryAll,
   queryIdColumn,
   queryOne,
   requireOne,
-  resetAggregates,
   update,
 } from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
+  aggregateRepairs,
   idAndEncryptedNameSchema,
 } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
@@ -67,6 +66,7 @@ export type ModifierInput = {
   trigger?: ModifierTrigger;
   code?: string;
   codeIndex?: string | null;
+  maxPerOrder?: number | null;
   minVisits?: number;
   scope?: ModifierScope;
   minSubtotal?: number;
@@ -87,6 +87,7 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
     code: col.encryptedText(encrypt, decrypt),
     code_index: col.withDefault<string | null>(() => null),
     direction: col.simple<ModifierDirection>(),
+    max_per_order: col.withDefault<number | null>(() => null),
     min_subtotal: col.withDefault(() => 0),
     min_visits: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),
@@ -199,14 +200,6 @@ export const getModifierAggregateRecalculation = async (
   };
 };
 
-/** Manually set every editable modifier aggregate from the edit form. */
-export const updateModifierAggregateValues = async (
-  modifierId: number,
-  values: ModifierAggregateValues,
-): Promise<void> => {
-  await executeUpdate("modifiers", { ...values }, { id: modifierId });
-};
-
 /**
  * Correct a modifier's projected revenue to `targetRevenue` in its own write
  * transaction — the standalone form of `ledgerTx.correct.modifierRevenue` (see
@@ -218,20 +211,17 @@ export const updateModifierAggregateValues = async (
  */
 export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 
-const aggregateResetSql: Record<ModifierAggregateField, string> = {
-  total_uses:
-    "total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?), 0)",
-  usage_count:
-    "usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ?)",
-};
-
-/** Reset selected modifier aggregate columns from actual usage rows. */
-export const resetModifierAggregateFields = async (
-  modifierId: number,
-  fields: ModifierAggregateField[],
-): Promise<void> => {
-  await resetAggregates("modifiers", modifierId, fields, aggregateResetSql);
-};
+/** Write the operator's typed modifier aggregates, or rebuild chosen ones from
+ * the usage rows they count. */
+export const modifierAggregates = aggregateRepairs<ModifierAggregateField>(
+  "modifiers",
+  {
+    total_uses:
+      "total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?), 0)",
+    usage_count:
+      "usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ?)",
+  },
+);
 
 /** The listings a "listings"-scoped modifier is charged on, keyed by modifier
  * id: `getIds` reads them (the admin scope editor), `setIds` replaces the set

@@ -9,13 +9,15 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import { addDays } from "#shared/dates.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   listingIdNamed,
-  organiserSavesListing,
+  organiserSavesFields,
   rememberListing,
 } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { Attendee, Listing } from "#types";
 // jscpd:ignore-end
@@ -29,18 +31,13 @@ export const guest = (order: number): { email: string; who: string } => ({
 /** Every stay booked on a listing so far, newest first — the order the site
  * itself returns them in. Callers that want a particular one should pick it
  * out rather than trusting a position. */
-export const staysOn = (
-  world: TicketsWorld,
-  name: string,
-): Promise<Attendee[]> => getAttendeesRaw(listingIdNamed(world, name));
+export const staysOn: ReadAboutOneThing<Attendee[]> = (world, name) =>
+  getAttendeesRaw(listingIdNamed(world, name));
 
 /** The stay booked most recently on a listing — the highest id, so the answer
  * does not depend on the order the rows come back in. Fails loudly when nothing
  * has been booked, so a story never carries on with no stay to talk about. */
-export const newestStayOn = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<number> => {
+export const newestStayOn: ReadAboutOneThing<number> = async (world, name) => {
   const booked = await staysOn(world, name);
   if (booked.length === 0) {
     throw new Error(`No stay has been booked on the ${name}`);
@@ -107,13 +104,6 @@ export const changeStayLength = async (
   days: number,
 ): Promise<string> => {
   const browser = await adminBrowser(world);
-  const length = String(days);
-  await organiserSavesListing(world, name, (served) => {
-    // The organiser has to be able to send this length: a box that is missing,
-    // disabled, or fixed at another value would mean they cannot make the
-    // change at all, however happily the form post is accepted.
-    expectCanReallySend(served, { duration_days: length });
-    return { duration_days: length };
-  });
+  await organiserSavesFields(world, name, { duration_days: String(days) });
   return browser.pageText;
 };

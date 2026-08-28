@@ -120,7 +120,7 @@ src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildF
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
 src/features/api/payment-success.ts::processSessionAndRedirect.thankYouUrl~1sbbxjk  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
-src/ui/templates/admin/settings/payment.tsx::shownPaymentProvider~1empuiw  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
+src/features/admin/settings-page.ts::shownPaymentProvider.provider~0qdhvz6  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
 src/features/api/folded-booking.ts::applyChildSelectionsToForm.childBySlug~0ucmfin  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
@@ -202,3 +202,18 @@ src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated"   # t
 src/features/router.ts::routeSpecificity.paramCount~1806jrr  ?? → ||   # String.match returns an array or null, and an array is always truthy
 src/features/router.ts::compileRoutes.methodRoutes~02urywu  ?? → ||   # Map.get returns an array or undefined, and an array is always truthy
 src/features/router.ts::routeSpecificity.literalLength~0au8fma   → "mutated"   # literal length is only ever compared between two routes with the SAME parameter count, so replacing each parameter with a fixed word adds the same amount to both sides and the comparison is unchanged
+src/features/admin/bulk-email.ts::getBulkAvailability.disabledReason~0ah9p7f   → "mutated"   # this reason belongs to the configured case, and both pages render disabledReason only when canBulkSend is false
+src/features/admin/bulk-email.ts::handlePreviewGet.providerLabel~0tea227   → "mutated"   # this label belongs to the unavailable case, and the preview page renders providerLabel only inside its canBulkSend branch
+src/features/admin/bulk-email.ts::handleComposeGet.draft.marketing~0aepv7o  ?? → ||   # marketing is a boolean, whose only falsy value is the false the fallback supplies, so no draft distinguishes the two operators
+
+# Form-quantity fallbacks: the parser answers a whole number or null, and the
+# fallback for null is the same 0 that the literal "0" parses to, so no posted
+# value tells the operators or the spellings apart.
+src/features/public/ticket-form.ts::collectValuesByListing.list~0zcnvvx  ?? → ||   # the answer bucket is an array or absent, and an array is always truthy
+src/features/public/ticket-form.ts::parseQuantities.raw~11sglfa  0 → ""   # "" parses to null then the minimum supplies 0; the literal "0" parses to 0 directly
+src/features/public/ticket-form.ts::parseAddOnSelections.quantity~1ksz3r2  0 → ""   # both spellings parse to zero add-ons, which the caller drops
+src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1av017t  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  ?? → ||   # form.get answers a string or absent; "" parses to null and falls to the same 0 the "0" literal parses to
+src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
+src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0

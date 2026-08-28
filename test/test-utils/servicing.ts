@@ -319,12 +319,12 @@ export const adminPost = async (
   path: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
+  const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const { cookie, csrfToken } = await getTestSession();
-  return handleRequest(
-    mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
-  );
+  return awaitTestRequest(path, {
+    cookie,
+    data: { csrf_token: csrfToken, ...data },
+  });
 };
 
 // ─── Compound assertion helpers (curried where the shape is shared) ─────────

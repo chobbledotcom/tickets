@@ -4,8 +4,8 @@ import { stub } from "@std/testing/mock";
 import {
   getAllModifiers,
   getModifier,
+  modifierAggregates,
   modifiersTable,
-  updateModifierAggregateValues,
 } from "#db/modifiers.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -258,7 +258,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Usage" }));
       const { id } = await lastModifier();
       await insertModifierUsage(id, 1, 2, 1000);
-      await updateModifierAggregateValues(id, {
+      await modifierAggregates.update(id, {
         total_uses: 9,
         usage_count: 5,
       });
@@ -280,7 +280,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Reset" }));
       const { id } = await lastModifier();
       await insertModifierUsage(id, 1, 2, 1000);
-      await updateModifierAggregateValues(id, {
+      await modifierAggregates.update(id, {
         total_uses: 9,
         usage_count: 5,
       });

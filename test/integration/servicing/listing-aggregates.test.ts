@@ -5,7 +5,7 @@
  * `booked_quantity` (that's what blocks capacity — §2) but NOT toward
  * `tickets_count` ("tickets sold" is a customer metric) and NOT toward `income`
  * (servicing is free). The trigger-maintained aggregates and the explicit
- * recompute (`getListingAggregateRecalculation` / `resetListingAggregateFields`)
+ * recompute (`getListingAggregateRecalculation` / `listingAggregates.reset`)
  * must agree on this split, so a recalc never re-introduces servicing into
  * tickets_count.
  *
@@ -23,7 +23,7 @@ import { accountBalance } from "#accounting/queries.ts";
 import { getDb } from "#db/client.ts";
 import {
   getListingAggregateRecalculation,
-  resetListingAggregateFields,
+  listingAggregates,
 } from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
@@ -76,7 +76,7 @@ describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
     const listing = await createHoldAndInvalidate(3);
     const before = await getListingWithCount(listing.id);
     // Reset to zero then recompute from the live rows: the split must hold.
-    await resetListingAggregateFields(listing.id, [
+    await listingAggregates.reset(listing.id, [
       "booked_quantity",
       "tickets_count",
     ]);

@@ -231,6 +231,25 @@ export const wayToPost = (
   return null;
 };
 
+/** The way to an address, or a refusal naming which of the three ways the page
+ * offers none: no form goes there at all, the form that does cannot be
+ * submitted, or its buttons all go somewhere else. A caller that means to press
+ * its way there learns what is wrong with the page, not merely that something
+ * is. */
+export const theWayToPost = (
+  html: string,
+  action: string,
+): { form: FormInfo; pressed: Pressable } => {
+  const wayThere = wayToPost(html, action);
+  if (wayThere) return wayThere;
+  const declared = findForms(html).find((form) => form.action === action);
+  if (!declared) throw new Error(`No form on this page posts to "${action}"`);
+  if (pressableOn(declared).length === 0) {
+    throw new Error(`The form that posts to "${action}" cannot be submitted`);
+  }
+  throw new Error(`No button on the form at "${action}" posts there`);
+};
+
 /** Extract all checkbox values for a given field name from form HTML */
 const extractCheckboxValues = (form: string, fieldName: string): string[] =>
   regexCollect(

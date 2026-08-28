@@ -1,14 +1,9 @@
 /**
- * Payment-provider metadata registry.
+ * Provider *behaviour* is loaded on demand, because it carries the SDK. Every
+ * provider fact that does NOT need that SDK lives here, so a caller can ask
+ * what a provider is like without paying to load it.
  *
- * Provider *behaviour* lives behind the `PaymentProvider` interface, which is
- * loaded on demand because it carries the provider SDK. Every provider fact
- * that does not need that SDK lives here instead, so a caller can ask what a
- * provider is like without paying to load it.
- *
- * One exhaustive `Record<PaymentProviderType, …>` means adding a provider is a
- * single compile error here rather than a hunt through scattered literals.
- * Nothing outside this file may branch on a provider name: a fact that differs
+ * Nothing outside this file may branch on a provider name. A fact that differs
  * between providers is a column here, and the caller reads the column.
  */
 
@@ -36,6 +31,11 @@ export type PaymentProviderMeta = {
    * provider lands a repeat on the original refund; a keyless one pays
    * twice. */
   readonly refundCapability: RefundProviderCapability;
+  /** The settings-form field carrying this provider's secret credential. The
+   * field is rendered under this name, the form masks a stored value by it,
+   * and the save route reads the mask back out of it, so a change here moves
+   * all three together. */
+  readonly secretField: string;
   /** How this provider's webhook is wired, or null when it sends none.
    *
    * One nullable column, because the three facts that hang off it must never
@@ -89,6 +89,7 @@ export const PAYMENT_PROVIDERS = {
     // into one `b` entry (see packMetadata in payment-helpers.ts).
     metadata: { maxEntries: 10, maxValueLength: 255, packs: true },
     refundCapability: "keyed",
+    secretField: "square_access_token",
     webhook: {
       domainChangeFixKey: "settings.domain_warning.square",
       signatureHeader: "x-square-hmacsha256-signature",
@@ -100,6 +101,7 @@ export const PAYMENT_PROVIDERS = {
     label: "Stripe",
     metadata: { maxEntries: 50, maxValueLength: 500, packs: false },
     refundCapability: "keyed",
+    secretField: "stripe_secret_key",
     webhook: {
       domainChangeFixKey: "settings.domain_warning.stripe",
       signatureHeader: "stripe-signature",
@@ -135,6 +137,7 @@ export const PAYMENT_PROVIDERS = {
     // locally (db/sumup-checkouts.ts), so nothing is capped or packed.
     metadata: { maxValueLength: Number.POSITIVE_INFINITY, packs: false },
     refundCapability: "keyless",
+    secretField: "sumup_api_key",
     webhook: null,
   },
 } as const satisfies Record<PaymentProviderType, PaymentProviderMeta>;

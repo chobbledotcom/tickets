@@ -13,6 +13,7 @@
 
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
+import { getAttendeesRaw } from "#db/attendees/queries.ts";
 // jscpd:ignore-start
 import {
   CUSTOMER,
@@ -23,7 +24,7 @@ import {
   checkboxValueOffered,
   optionsOffered,
 } from "#test/specs/support/form-controls/reading.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
@@ -75,7 +76,7 @@ const expectControlCanSend = (
   field: string,
   chosen: string,
 ): void => {
-  expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
+  expectCanReallySend(html, { [field]: chosen });
 };
 
 /** An order filled in and waiting on the visitor to press Continue. Splitting
@@ -214,12 +215,18 @@ export const visitorBooks = async (
 /** The visitor was turned away because the listing had no room — not because
  * of some other error. Any page without the thank-you text would otherwise
  * count as "refused", including a validation or server error. */
+/** The booking did not go through, and the window they are left looking at is
+ * handed back for the caller's own check. */
+export const expectNotBooked = (attempt: BookingAttempt): TestBrowser => {
+  expect(attempt.wasBooked).toBe(false);
+  return attempt.browser;
+};
+
 export const expectRefusedForWantOfRoom = (
   attempt: BookingAttempt,
   listingName: string,
 ): void => {
-  expect(attempt.wasBooked).toBe(false);
-  expect(attempt.browser.pageText).toContain(
+  expect(expectNotBooked(attempt).pageText).toContain(
     bookingError.withName(listingName),
   );
 };
@@ -237,3 +244,38 @@ export const daysOfferedOn = (html: string): string[] =>
 /** The days a listing's own page offers as a stay's first day. */
 export const daysOfferedFor = async (listing: Listing): Promise<string[]> =>
   daysOfferedOn((await openBookingPage(listing)).currentHtml);
+
+/** The one number in a list, or a loud failure saying what was counted. A
+ * story that carried on against an arbitrary row would report the site's
+ * behaviour when its own setup is what went wrong. */
+const theOnly = (ids: number[], counting: string): number => {
+  const only = ids[0];
+  if (ids.length !== 1 || !only) {
+    throw new Error(`Expected one ${counting}, found ${ids.length}`);
+  }
+  return only;
+};
+
+const bookingIdsOn = async (listingId: number): Promise<number[]> =>
+  (await getAttendeesRaw(listingId)).map((booking) => booking.id);
+
+/** The one booking made on a listing. Fails loudly when there is not exactly
+ * one, so a story can never carry on against an arbitrary row. */
+export const soleBookingOn = async (listingId: number): Promise<number> =>
+  theOnly(await bookingIdsOn(listingId), `booking on listing ${listingId}`);
+
+/** The booking one person makes while something happens — the row that was
+ * not on the listing before. Told apart by which id is new rather than by
+ * which is newest, because two people booking in the same second tie on when
+ * they booked. */
+export const bookingMadeDuring = async (
+  listingId: number,
+  booking: () => Promise<unknown>,
+): Promise<number> => {
+  const before = new Set(await bookingIdsOn(listingId));
+  await booking();
+  return theOnly(
+    (await bookingIdsOn(listingId)).filter((id) => !before.has(id)),
+    `new booking on listing ${listingId}`,
+  );
+};

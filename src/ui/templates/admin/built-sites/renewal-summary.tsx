@@ -6,17 +6,18 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
 const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
-  {
-    cell: (tier) => <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>,
-    header: translatedTableHeader("built_sites.tier_table_tier"),
-    key: "tier",
-  },
+  translatedTableColumn("tier", "built_sites.tier_table_tier", (tier) => (
+    <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>
+  )),
   {
     cell: (tier) => tier.months_per_unit,
     class: "quantity",

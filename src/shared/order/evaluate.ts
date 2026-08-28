@@ -5,22 +5,16 @@ import type {
 } from "#shared/order/options.ts";
 
 /**
- * The pure order evaluator: subtract each of the visitor's selections from the
- * shared capacity pools in the order they were added, then judge every other
- * option against what remains.
+ * Selections are honoured in the order they were added, so an earlier choice
+ * always keeps its capacity. A new selection can grey out a later option but
+ * never un-selects an earlier one.
  *
- * Selections are honoured in the order they were added — the earlier choice
- * always keeps its capacity, so adding something can grey out a later option
- * but never un-select an earlier one. Overlap is NOT a conflict: two packages
- * sharing a listing (or a package plus that listing's own card) simply sum
- * their demand, and both stay selectable while stock covers them — the aim is
- * to never restrict what can be booked beyond stock. When an option no longer
- * fits, the message names the earliest selected option contending for the
- * exhausted pool ("Remove <name> to add"); an option that would not fit even
- * on an empty cart is plainly unavailable.
+ * Overlap is NOT a conflict. Two packages sharing a listing simply sum their
+ * demand, and both stay selectable while stock covers them. The aim is to never
+ * restrict what can be booked beyond stock.
  *
- * IO-free and context-agnostic: the caller resolves the options, pools, and
- * date; nothing here knows what surface it serves.
+ * When an option no longer fits, the message names the EARLIEST selected option
+ * contending for the exhausted pool.
  */
 
 /** Pool keys: each listing's own pool and each capped group's pool. */

@@ -28,7 +28,10 @@ import type {
 } from "#templates/admin/attendee-form/types.ts";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -166,16 +169,8 @@ const listingColumns: readonly TableColumn<
   AttendeeFormLine,
   AttendeeFormTemplateData
 >[] = [
-  {
-    cell: listingNameCell,
-    header: translatedTableHeader("terms.listing"),
-    key: "listing",
-  },
-  {
-    cell: listingDatesCell,
-    header: translatedTableHeader("attendee_form.col_dates"),
-    key: "dates",
-  },
+  translatedTableColumn("listing", "terms.listing", listingNameCell),
+  translatedTableColumn("dates", "attendee_form.col_dates", listingDatesCell),
   {
     cell: listingQuantityCell,
     className: "attendee-line-qty",

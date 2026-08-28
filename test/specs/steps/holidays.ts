@@ -12,8 +12,10 @@ import {
   sellsDayPlaces,
 } from "#test/specs/support/holidays.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
-import { soleBookingOn } from "#test/specs/support/money.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import {
+  soleBookingOn,
+  visitorBooks,
+} from "#test/specs/support/public-booking.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
   keepWhatTheyWereTold,

@@ -272,17 +272,16 @@ export interface PaymentProvider {
   refundCharge(request: AuthorizedRefundRequest): Promise<RefundAttemptResult>;
 
   /**
-   * Resolve a validated session from a webhook event.
-   * Each provider knows how to extract/fetch session data from its own
-   * event structure, so the webhook handler stays provider-agnostic.
+   * Resolve a validated session from a webhook event. Each provider extracts or
+   * fetches session data from its own event structure, so the webhook handler
+   * stays provider-agnostic.
    *
-   * @returns the session; "skip" if the event should be acknowledged
-   *          without processing (e.g. pending payment); "retry" when the
-   *          provider could not be read or its answer contradicted our facts,
-   *          so the route must refuse with the fixed retryable response and
-   *          let redelivery try again; a rejection when the provider reported
-   *          a paid charge the boundary could not read; or null for an event
-   *          that is provably not ours.
+   * @returns the session. `"skip"` acknowledges an event without processing it.
+   *          `"retry"` means the boundary refused before any read, the read
+   *          failed, or the provider contradicted our facts. Redelivery must
+   *          try again. A rejection means the provider reported a paid charge
+   *          the boundary cannot read. `null` means the event is provably not
+   *          ours.
    */
   resolveWebhookSession(listing: WebhookEvent): Promise<WebhookSessionResult>;
 

@@ -14,7 +14,7 @@ import { BackButton } from "#templates/components/actions.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 import type { AdminSession, Theme } from "#types";
 
@@ -32,19 +32,12 @@ const featureRows = (enabledFeatures: EnabledFeatures): FeatureRow[] =>
   }));
 
 const featureColumns: TableColumn<FeatureRow>[] = [
-  {
-    cell: ({ feature }) => (
-      <a href={`/admin/features/${feature.slug}`}>{t(feature.labelKey)}</a>
-    ),
-    header: translatedTableHeader("features.column.feature"),
-    key: "feature",
-  },
-  {
-    cell: ({ enabled }) =>
-      t(enabled ? "features.status.enabled" : "features.status.disabled"),
-    header: translatedTableHeader("features.column.status"),
-    key: "status",
-  },
+  translatedTableColumn("feature", "features.column.feature", ({ feature }) => (
+    <a href={`/admin/features/${feature.slug}`}>{t(feature.labelKey)}</a>
+  )),
+  translatedTableColumn("status", "features.column.status", ({ enabled }) =>
+    t(enabled ? "features.status.enabled" : "features.status.disabled"),
+  ),
 ];
 
 const featureTable = defineTable(featureColumns);

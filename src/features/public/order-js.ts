@@ -1,17 +1,9 @@
 /**
- * Dynamic `/order.js` handler for the external order library.
+ * Not a static asset route, because the response depends on mutable settings
+ * and the request `Origin`.
  *
- * Runs inside the normal request pipeline (after settings load), unlike the
- * static asset routes, because its response depends on mutable settings and the
- * request `Origin`:
- * - when `external_order_enabled` is off it returns a harmless console-notice
- *   stub (no listing data) so an owner who left the tag in place sees why their
- *   cart isn't working, without leaking any slugs;
- * - when on it embeds the public listing catalog and gates the cross-origin
- *   CORS header on the `embed_hosts` allow-list.
- *
- * The widget body is the ESM bundle built from `src/ui/client/order.ts`; the
- * per-request catalog is prepended as a `const CATALOG = {…};` statement.
+ * With the feature off it returns a console-notice stub that holds no listing
+ * data, so an owner who left the tag in place learns why, and no slug leaks.
  */
 
 import { getCatalogListings } from "#db/listings/catalog.ts";

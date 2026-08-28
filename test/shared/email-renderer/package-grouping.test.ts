@@ -170,6 +170,38 @@ describeEmailRenderer(() => {
       expect(data.entries[1]!.attendee.quantity).toBe(1);
     });
 
+    test("one row of a hidden bundle still collapses behind the bundle's name", async () => {
+      // Booking one thing out of a hidden bundle is still a bundle booking, so
+      // the row it collapses to carries the bundle's name and the buyer's own
+      // contact — the whole point of hiding the members.
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Single Kit",
+      });
+      await groups.table.update(group.id, { hidePackageListings: true });
+      const only = await createTestListing({
+        groupId: group.id,
+        name: "Only Member",
+        unitPrice: 500,
+      });
+      const entry = makeEntry(
+        { id: only.id, name: "Only Member", unit_price: 500 },
+        { package_group_id: group.id, price_paid: "1500", quantity: 3 },
+      );
+
+      const data = await buildTestData([entry], { hidePackageMembers: true });
+
+      expect(data.entries.length).toBe(1);
+      expect(data.entries[0]!.listing.name).toBe("Single Kit");
+      expect(data.entries[0]!.attendee.quantity).toBe(3);
+      expect(data.entries[0]!.attendee.price_paid).toBe("1500");
+      // The buyer's own contact comes from the row that was booked, so a
+      // collapse that reached past it for a second row it does not have would
+      // fail here rather than send an email addressed to nobody.
+      expect(data.entries[0]!.attendee.name).toBe(entry.attendee.name);
+      expect(data.entries[0]!.attendee.email).toBe(entry.attendee.email);
+    });
+
     test("a standalone booking of a hidden one-member package's listing is NOT collapsed", async () => {
       const group = await createTestGroup({
         isPackage: true,

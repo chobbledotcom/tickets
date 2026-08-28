@@ -1,18 +1,12 @@
 /**
- * Per-request collection cache using AsyncLocalStorage.
+ * Refills use the primary while replicas catch up, INCLUDING when the next read
+ * happens in a request reached through a redirect.
  *
- * Each incoming request gets a fresh cache scope. The first call to
- * getAll() fetches from the database; subsequent calls within the same
- * request return the cached result. Writes call invalidate() to clear
- * the cached data. Refills use the primary while replicas catch up, including
- * when the next read happens in the request reached through a redirect.
+ * {@link requestBatchCache} is the same idea for batched lookups: it remembers
+ * each id already looked up this request, so a later batch asks only for ids
+ * nobody fetched yet.
  *
- * {@link requestBatchCache} is the same idea for lookups that arrive in
- * batches: it remembers each id it has already looked up this request, so a
- * later batch only asks the database for the ids nobody has fetched yet.
- *
- * Outside a request context (e.g. tests), every getAll() call fetches
- * directly — no caching is applied.
+ * Outside a request context every call fetches directly, with no caching.
  */
 
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";

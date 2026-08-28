@@ -16,10 +16,13 @@ import {
   getVisits,
 } from "#db/contact-preferences.ts";
 import { t } from "#i18n";
+import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
 // jscpd:ignore-start
 import {
   openAdminPage,
+  opensAdminPageAt,
   organiserSendsAndIsTold,
+  wordsOnPageFrom,
 } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
@@ -27,18 +30,12 @@ import {
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
 import { takeDownFromActions } from "#test/specs/support/form-controls.ts";
-import {
-  listingIdNamed,
-  rememberListing,
-} from "#test/specs/support/listings.ts";
-import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type {
   ActOnOneThing,
   AsksAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
@@ -70,14 +67,11 @@ const WHAT_ADA_TYPED: Record<WayOfKnowingSomebody, string> = {
 };
 
 /** The organiser's own Privacy page, open in their window. */
-const openPrivacyPage = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, "/admin/privacy");
+const openPrivacyPage = opensAdminPageAt("/admin/privacy");
 
 /** What the Privacy page says right now, read fresh — every rule here is about
  * what the organiser sees the next time they look. */
-export const whatThePrivacyPageSays = async (
-  world: TicketsWorld,
-): Promise<string> => (await openPrivacyPage(world)).pageText;
+export const whatThePrivacyPageSays = wordsOnPageFrom(openPrivacyPage);
 
 /** How many times the site has seen somebody, found the way the site finds
  * them: by a one-way code made from the email or phone, never by the address
@@ -97,19 +91,9 @@ export const adaBooks = async (
   world: TicketsWorld,
   alsoGivingAPhone: boolean,
 ): Promise<void> => {
-  await enablePublicSite();
-  const listing = rememberListing(
-    world,
-    POTTERY,
-    await createTestListing({
-      fields: alsoGivingAPhone ? "email,phone" : "email",
-      maxAttendees: 10,
-      name: POTTERY,
-      thankYouUrl: "",
-    }),
-  );
-  await visitorBooks(world, listing, {
+  await somebodyBooksThroughTheSite(world, {
     email: ADA.email,
+    listingName: POTTERY,
     who: ADA.name,
     ...(alsoGivingAPhone ? { phone: ADA.phone } : {}),
   });
@@ -258,12 +242,16 @@ export const organiserForgetsAda = (
 ): Promise<void> =>
   sendsEraseForm(world, { by: way, typing: WHAT_ADA_TYPED[way] });
 
+/** The organiser sends the erase form with one email address typed in. */
+const forgettingTheEmail =
+  (typing: string) =>
+  (world: TicketsWorld): Promise<void> =>
+    sendsEraseForm(world, { by: "email", typing });
+
 /** The organiser looks for an email address nobody ever booked with. */
-export const organiserForgetsAStranger = (world: TicketsWorld): Promise<void> =>
-  sendsEraseForm(world, { by: "email", typing: "nobody@example.com" });
+export const organiserForgetsAStranger =
+  forgettingTheEmail("nobody@example.com");
 
 /** The organiser presses delete having typed nothing at all. The box is not a
  * required one, so this is a send a real browser would let them make. */
-export const organiserForgetsNobodyInParticular = (
-  world: TicketsWorld,
-): Promise<void> => sendsEraseForm(world, { by: "email", typing: "" });
+export const organiserForgetsNobodyInParticular = forgettingTheEmail("");

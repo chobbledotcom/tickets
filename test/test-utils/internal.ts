@@ -1,8 +1,9 @@
 import { lazyRef } from "#fp";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 
-/** The owner every test starts with. A person's name, because some stories
- * leave a page behind that gets published: a screenshot of the team is only
- * worth showing if the team reads like one. */
+/** The owner every test starts with. The username reads like a person's name,
+ * because some stories leave a page behind that gets published: a screenshot
+ * of the team is only worth showing if the team reads like one. */
 export const TEST_ADMIN_USERNAME = "jo";
 
 export const TEST_ADMIN_PASSWORD = "testpassword123";
@@ -71,7 +72,7 @@ export const [getTestStoragePath, setTestStoragePath] = lazyRef<string | null>(
 
 export interface TestRequestOptions {
   cookie?: string;
-  data?: Record<string, string>;
+  data?: TestFormValues;
   method?: string;
 }
 

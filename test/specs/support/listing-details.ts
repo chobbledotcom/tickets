@@ -11,6 +11,7 @@ import {
   openAdminPage,
   openAsNewcomer,
   takesDownFromOwnPage,
+  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
@@ -18,6 +19,7 @@ import {
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
 import {
+  type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -31,32 +33,29 @@ const keptDetail = (world: TicketsWorld): { id: number; name: string } =>
 /** The owner keeps a detail with the wordings it can take, through the pages
  * the site serves. The id is read from where the site sent them, so
  * everything later acts on the detail the site really made. */
-export const ownerKeepsDetail = async (
+export const ownerKeepsDetail = (
   world: TicketsWorld,
   name: string,
   wordings: string[],
-): Promise<void> => {
-  const browser = await openAdminPage(world, "/admin/attributes");
-  await fillInAndSend(browser, { name }, "Add attribute");
-  const sentTo = requiredWorldValue(
-    browser.currentUrl.match(/\/admin\/attributes\/(\d+)/),
-    `the page for the detail ${name}`,
-  );
-  world.listingDetail = { id: Number(sentTo[1]), name };
-  for (const wording of wordings) {
-    await fillInAndSend(browser, { text: wording }, "Add option");
-  }
-  for (const wording of wordings) {
-    expect(browser.pageText).toContain(wording);
-  }
-};
+): Promise<void> =>
+  withAdminPage(world, "/admin/attributes", async (browser) => {
+    await fillInAndSend(browser, { name }, "Add attribute");
+    const sentTo = requiredWorldValue(
+      browser.currentUrl.match(/\/admin\/attributes\/(\d+)/),
+      `the page for the detail ${name}`,
+    );
+    world.listingDetail = { id: Number(sentTo[1]), name };
+    for (const wording of wordings) {
+      await fillInAndSend(browser, { text: wording }, "Add option");
+    }
+    for (const wording of wordings) {
+      expect(browser.pageText).toContain(wording);
+    }
+  });
 
 /** The stored id behind one wording, or a loud failure — marking a listing
  * with a wording the site does not offer would prove nothing. */
-const wordingId = async (
-  world: TicketsWorld,
-  wording: string,
-): Promise<number> => {
+const wordingId: ReadAboutOneThing<number> = async (world, wording) => {
   const detail = keptDetail(world);
   const attribute = requiredWorldValue(
     (await getAllAttributesWithOptions()).find((row) => row.id === detail.id),
@@ -87,10 +86,10 @@ export const ownerMarksListing = async (
 
 /** What a visitor reading this listing's page is shown, opened by somebody
  * who was never signed in. */
-export const visitorReadsListingPage = async (
-  world: TicketsWorld,
-  listingName: string,
-): Promise<string> =>
+export const visitorReadsListingPage: ReadAboutOneThing = async (
+  world,
+  listingName,
+) =>
   (await openAsNewcomer(`/ticket/${listingNamed(world, listingName).slug}`))
     .pageText;
 

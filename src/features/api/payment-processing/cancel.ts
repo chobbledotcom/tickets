@@ -21,20 +21,11 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
 
-/** The retry link for a cancelled checkout: the package group's page when the
- * order booked one package, else the (first) listing's own page. Returns null
- * (no retry link) whenever the target page would no longer serve, so a "Try
- * again" link never dead-ends:
- *   - a standalone order whose listing has since lost its own booking page (it
- *     became a non-standalone child or a hidden package member mid-checkout);
- *   - a package order whose bundle is no longer bookable (a member was
- *     deactivated, or the package cap dropped to 0) — the same {@link
- *     groupBookable} gate the bundle page itself applies, so the link matches
- *     what `/ticket/<group>` would render. When the bundle is dead we fall back
- *     to the member's own page only if it still has one, else null.
- * An order that booked SEVERAL packages retries against the first bundle that
- * still serves (its page re-offers that part of the order), falling back like
- * the single-package case. */
+/** The retry link for a cancelled checkout. Returns null whenever the target
+ * page no longer serves, so a "Try again" link never dead-ends. A listing can
+ * lose its own page mid-checkout, and a bundle can cease to be bookable. The
+ * gate is {@link groupBookable}, the same one `/ticket/<group>` applies, so the
+ * link matches what that page renders. */
 const retryHrefFor = async (
   intent: BookingIntent,
   listing: { id: number; slug: string },

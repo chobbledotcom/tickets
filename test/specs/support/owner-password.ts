@@ -15,7 +15,7 @@ import {
   signInAndRemember,
   signsInAndCanOpen,
 } from "#test/specs/support/staff-accounts.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { ActOnTheStory, TicketsWorld } from "#test/specs/support/world.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -67,9 +67,7 @@ export const ownerChangesPassword = async (
  * nothing and changes nothing. Only a change that ends the server-side
  * sessions — not merely the sending window's own cookie — can sign this
  * window out. */
-export const ownerSignInASecondWindow = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const ownerSignInASecondWindow: ActOnTheStory = async (world) => {
   await signInAndRemember(OWNER_CREDENTIALS)(world, OWNERS_SECOND_WINDOW);
 };
 
