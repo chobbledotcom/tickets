@@ -97,7 +97,7 @@ const requireRefundStatus = async (world: LiveWorld): Promise<void> => {
  * answer the app gives back. */
 const refreshPayment = async (
   world: LiveWorld,
-  expectedAnswer: string | RegExp,
+  answers: string | readonly string[],
 ): Promise<void> => {
   const owner = ownerOf(world);
   await attendeeTabOf(world, "");
@@ -106,7 +106,7 @@ const refreshPayment = async (
   );
   await requirePageText(
     owner,
-    expectedAnswer,
+    [answers].flat(),
     "payment-refresh-no-answer",
     "Expected the refreshed payment page to answer; got:",
   );
@@ -218,19 +218,32 @@ When(
  * The recovery refresh must actually record the already-returned refund.
  * The observation-only refresh has exactly two honest answers: nothing new,
  * or a provider-settled refund the refresh just recorded. The exact-payment
- * refresh runs before any refund, so only "up to date" is right. */
-const REFRESH_STEPS: readonly [string, string | RegExp][] = [
-  ["the owner refreshes the payment", "Payment status updated: refunded"],
+ * refresh runs before any refund, so only "up to date" is right. Each
+ * answer renders from its catalog key, so a rename follows the spec. */
+const REFRESH_STEPS: readonly (readonly [
+  string,
+  string | readonly string[],
+])[] = [
+  [
+    "the owner refreshes the payment",
+    await catalogWords("attendees", "success.payment_status_refunded"),
+  ],
   [
     "the owner refreshes the payment without submitting Refund again",
-    /Payment status (is up to date|updated: refunded)/,
+    [
+      await catalogWords("attendees", "success.payment_status_current"),
+      await catalogWords("attendees", "success.payment_status_refunded"),
+    ],
   ],
-  ["the owner refreshes the exact payment", "Payment status is up to date"],
+  [
+    "the owner refreshes the exact payment",
+    await catalogWords("attendees", "success.payment_status_current"),
+  ],
 ];
 
-for (const [text, answer] of REFRESH_STEPS) {
+for (const [text, answers] of REFRESH_STEPS) {
   When(text, async function (this: LiveWorld) {
-    await refreshPayment(this, answer);
+    await refreshPayment(this, answers);
   });
 }
 

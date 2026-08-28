@@ -64,12 +64,14 @@ const LABEL_CALLS: Record<string, LabelCall> = {
   requirePageText: { argument: 2, form: "free", match: "contains" },
 };
 
-/** A `t("key", …)` call, not a property or longer identifier ending in "t". */
-const T_KEY_CALL = /(?<![.\w$])t\s*\(\s*"([a-z0-9_.-]+)"/g;
+/** A `t("key", …)` call in either quote style, not a property or longer
+ * identifier ending in "t". Group 1 is the quote, group 2 the key. */
+const T_KEY_CALL = /(?<![.\w$])t\s*\(\s*(["'])([a-z0-9_.-]+)\1/g;
 
-/** A `catalogWords("group", "key", …)` call. The key is its second literal. */
+/** A `catalogWords("group", "key", …)` call in either quote style. Group 2
+ * is the key's quote, group 3 the key. */
 const CATALOG_WORDS_CALL =
-  /(?<![.\w$])catalogWords\s*\(\s*"[a-z0-9_-]+"\s*,\s*"([a-z0-9_.-]+)"/g;
+  /(?<![.\w$])catalogWords\s*\(\s*(["'])[a-z0-9_-]+\1\s*,\s*(["'])([a-z0-9_.-]+)\2/g;
 
 /**
  * The top-level argument texts of the call whose "(" sits at `open`, in
@@ -107,12 +109,15 @@ const ESCAPES: Record<string, string> = {
   v: "\v",
 };
 
-/** One whole escape sequence: the text between the backslash and its end. */
+/** One whole escape sequence: the text between the backslash and its end. A
+ * backslash before a line terminator is a continuation and decodes to
+ * nothing. */
 const ESCAPE =
-  /\\(x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|u[0-9a-fA-F]{4}|[\s\S])/g;
+  /\\(x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|u[0-9a-fA-F]{4}|\r\n|\r|\n|[\s\S])/g;
 
 /** Decode one escape body: a named escape, \xHH, \uHHHH, or \u{H+}. */
 const decodeEscape = (body: string): string => {
+  if (body === "\r\n" || body === "\r" || body === "\n") return "";
   if (body.startsWith("x") || body.startsWith("u")) {
     const hex = body.startsWith("u{") ? body.slice(2, -1) : body.slice(1);
     return String.fromCodePoint(Number.parseInt(hex, 16));
@@ -195,28 +200,36 @@ const opensAString = (
   spans.some((span) => span.kind === "string" && span.start === quoteAt);
 
 /** Issues from every `t("key")` or `catalogWords("group", "key")` call whose
- * key the catalog dropped. A call named inside a string literal is prose,
- * not code, so its quoted words do not count. */
+ * key the catalog dropped, in either quote style. A call named inside a
+ * string literal is prose, not code, so its quoted words do not count. */
 const keyIssues = (
   code: string,
   spans: readonly LexicalSpan[],
   catalog: CatalogCopy,
   lineOf: LineOf,
 ): LabelIssue[] => {
-  const droppedKey = (match: RegExpExecArray): LabelIssue | null => {
-    const quoteAt = match.index + match[0].indexOf('"');
-    return opensAString(spans, quoteAt) && !catalog.keys.has(match[1]!)
+  const droppedKey = (
+    match: RegExpExecArray,
+    quote: number,
+    key: number,
+  ): LabelIssue | null => {
+    const quoteAt = match.index + match[0].indexOf(match[quote]!);
+    return opensAString(spans, quoteAt) && !catalog.keys.has(match[key]!)
       ? {
           line: lineOf(match.index),
           message:
-            `asks for message key "${match[1]}", which src/locales/en holds ` +
+            `asks for message key "${match[key]}", which src/locales/en holds ` +
             "nowhere. Copy renames leave this driver with nothing to click.",
         }
       : null;
   };
+  const droppedTKey = (match: RegExpExecArray): LabelIssue | null =>
+    droppedKey(match, 1, 2);
+  const droppedCatalogKey = (match: RegExpExecArray): LabelIssue | null =>
+    droppedKey(match, 2, 3);
   return [
-    ...mapNotNullish(droppedKey)([...code.matchAll(T_KEY_CALL)]),
-    ...mapNotNullish(droppedKey)([...code.matchAll(CATALOG_WORDS_CALL)]),
+    ...mapNotNullish(droppedTKey)([...code.matchAll(T_KEY_CALL)]),
+    ...mapNotNullish(droppedCatalogKey)([...code.matchAll(CATALOG_WORDS_CALL)]),
   ];
 };
 

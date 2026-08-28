@@ -199,8 +199,12 @@ export const submitBooking = async (
     .first();
   if (await qty.count()) await setSelectOrInput(qty, "1");
 
+  // The reservations form's own submit control (see form.tsx: its label is
+  // the catalog's Continue), so a rename follows the spec.
   const submit = page
-    .getByRole("button", { name: /continue|book|pay|checkout|reserve/i })
+    .getByRole("button", {
+      name: await catalogWords("common", "common.continue"),
+    })
     .first();
   await session.submitLocator(submit);
   log(`  booking submitted; now at ${page.url()}`);

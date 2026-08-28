@@ -73,6 +73,20 @@ describe("e2e label rules", () => {
     expect(issues[0]?.message).toContain('"admin.attendees.gone"');
   });
 
+  test("reads key calls written in single quotes", () => {
+    const source = [
+      `await t('settings.gone_one');`,
+      `await catalogWords('common', 'common.gone_two');`,
+    ].join("\n");
+    const copy = catalog([], ["common.save_changes"]);
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.map((issue) => issue.line)).toEqual([1, 2]);
+    expect(
+      issues.map((issue) => issue.message.match(/"([^"]+)"/)?.[1]),
+    ).toEqual(["settings.gone_one", "common.gone_two"]);
+  });
+
   test("ignores a key call quoted inside a string literal", () => {
     const source = `const note = 'an example: t("gone.key") in prose';`;
     const copy = catalog([], []);
@@ -234,6 +248,17 @@ describe("e2e label rules", () => {
     ]);
 
     expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
+  test("reads a label split by a line continuation", () => {
+    const lf = `await session.clickButton("Save \\\nChanges");`;
+    const crlf = `await session.clickButton("Save \\\r\nChanges");`;
+    const cr = `await session.clickButton("Save \\\rChanges");`;
+    const copy = catalog(["Save Changes"]);
+
+    expect(findLabelIssues(lf, copy)).toEqual([]);
+    expect(findLabelIssues(crlf, copy)).toEqual([]);
+    expect(findLabelIssues(cr, copy)).toEqual([]);
   });
 
   test("reports issues in source order", () => {
