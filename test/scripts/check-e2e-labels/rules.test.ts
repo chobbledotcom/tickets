@@ -174,6 +174,13 @@ describe("e2e label rules", () => {
     expect(findLabelIssues(source, copy).length).toBe(1);
   });
 
+  test("reads an apostrophe escaped inside a single-quoted literal", () => {
+    const source = `await session.clickButton('Don\\'t save');`;
+    const copy = catalog(["Don't save"]);
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
   test("reports issues in source order", () => {
     const source = [
       `await session.clickButton("First Gone");`,

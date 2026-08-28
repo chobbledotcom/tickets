@@ -19,7 +19,7 @@ import {
   requireNoRecognisedIncome,
   submitBooking,
 } from "#e2e/flow.ts";
-import { pageTextIncludes } from "#e2e/page-text.ts";
+import { pageTextCount, pageTextIncludes } from "#e2e/page-text.ts";
 import type { SandboxRefundObservation } from "#e2e/providers/types.ts";
 import type { RefundPageFacts } from "#e2e/refund-outcome.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
@@ -239,7 +239,7 @@ export const attendeeTabOf = async (
 
 /** How many refund transfers the attendee's Money statement carries. */
 export const moneyRefundCount = async (world: LiveWorld): Promise<number> =>
-  (await attendeeTabOf(world, "ledger")).split("Refund paid to").length - 1;
+  pageTextCount(await attendeeTabOf(world, "ledger"), "Refund paid to");
 
 /** The attendee's Money statement must carry exactly this many refunds. */
 export const requireMoneyRefunds = async (

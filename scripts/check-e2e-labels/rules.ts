@@ -90,8 +90,8 @@ const topLevelArgs = (code: string, blank: string, open: number): string[] => {
 const stringLiteral = (arg: string): string | null => {
   const double = arg.match(/^"((?:[^"\\]|\\.)*)"$/);
   if (double) return JSON.parse(`"${double[1]}"`) as string;
-  const single = arg.match(/^'([^'\\]*)'$/);
-  return single ? single[1]! : null;
+  const single = arg.match(/^'((?:[^'\\]|\\.)*)'$/);
+  return single ? single[1]!.replace(/\\(['"\\])/g, "$1") : null;
 };
 
 /** Judge one argument that carries visible words. */

@@ -92,4 +92,16 @@ describe("top level commas", () => {
       "quantity = 1",
     ]);
   });
+
+  test("reads past brackets a quoted value carries, when never stopped", () => {
+    // The SQL shape must not stop at a closer inside the text: a value
+    // like ')(' would otherwise swallow every later assignment.
+    const clause = "note = ')(', quantity = 1";
+    const { commas, end } = topLevelCommas(clause, sqlShape());
+
+    expect(pieces(clause, commas, end)).toEqual([
+      "note = ')('",
+      "quantity = 1",
+    ]);
+  });
 });

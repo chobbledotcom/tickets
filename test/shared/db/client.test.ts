@@ -131,6 +131,14 @@ describe("extractUpdateColumns", () => {
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
+  test("columns after a bracket inside a value still split at the comma", () => {
+    // A value like ')(' must not stop the scan. A stop there would drop
+    // every later column from the sniff, so its cache is never invalidated.
+    const cols = extractUpdateColumns("UPDATE t SET note = ')(', quantity = 1");
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
   test("depth scan starts at the very first character of the SET clause", () => {
     // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
     // see that first character, otherwise depth goes negative at ")" and the
