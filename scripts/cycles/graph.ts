@@ -4,7 +4,7 @@
  * screen. Data in, data out — the `deno info` read lives in run.ts.
  */
 
-import { relative } from "@std/path";
+import { fromFileUrl, relative } from "@std/path";
 import {
   type ModuleGraph,
   staticCodeSpecifiers,
@@ -24,7 +24,9 @@ export const loadTimeEdges = (
   const edges = new Map<string, Set<string>>();
   const localUnderRoot = (specifier: string): string | null => {
     if (!specifier.startsWith("file://")) return null;
-    const path = relative(root, specifier.replace("file://", ""));
+    // fromFileUrl decodes the URL: a repo path with a space arrives as
+    // %20, and the undecoded form reads as outside the root.
+    const path = relative(root, fromFileUrl(specifier));
     return path.startsWith("..") || path.startsWith("/") ? null : path;
   };
   for (const module of graph.modules) {
