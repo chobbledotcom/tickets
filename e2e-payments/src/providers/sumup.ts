@@ -13,6 +13,7 @@ import {
   readLoggedId,
   refundObservationVia,
   requiredField,
+  saveCredentials,
   testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
@@ -122,9 +123,10 @@ export const sumup: PaymentProvider = {
   // payments and refunds are append-only sandbox resources.
   cleanup: noProviderCleanup,
   configure: configureProvider("sumup", async (session, secrets) => {
-    await session.fill("sumup_api_key", secrets.apiKey);
-    await session.fill("sumup_merchant_code", secrets.merchantCode);
-    await session.clickButton("Update SumUp Credentials");
+    await saveCredentials(session, "sumup", {
+      sumup_api_key: secrets.apiKey,
+      sumup_merchant_code: secrets.merchantCode,
+    });
     await testSumupConnection(session, secrets.merchantCode);
   }),
   name: "sumup",

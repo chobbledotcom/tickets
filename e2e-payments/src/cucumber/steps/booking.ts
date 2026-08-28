@@ -324,7 +324,7 @@ const changeListingPrice = async (world: LiveWorld): Promise<void> => {
     "unit_price",
     ((config.unitPrice + 100) / 100).toFixed(2),
   );
-  await ownerOf(world).clickButton("Save changes");
+  await ownerOf(world).clickButton("Save Changes");
   world.recordPhase("listing-price-changed");
 };
 

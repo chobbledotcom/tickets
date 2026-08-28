@@ -7,7 +7,9 @@ import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
 import { mapNotNullish } from "#fp";
+import { ensureMessageGroups, t } from "#i18n";
 import { PROVIDER_TIMEOUT_MS } from "#payment/provider-fetch.ts";
+import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
@@ -244,6 +246,29 @@ export const selectProvider: ProviderStep = async (session, provider) => {
   await session.check("payment_provider", provider);
   await session.clickButton("Save Payment Provider");
   log(`  selected payment provider: ${provider}`);
+};
+
+/**
+ * Fill one provider's credentials and save them with the button the settings
+ * page renders for that provider. The words come from the same message
+ * catalog the app renders, so a copy rename cannot strand this driver on a
+ * label that no longer exists. If the app under test is ever rebranded
+ * through I18N_REPLACEMENTS, this process needs that env too.
+ */
+export const saveCredentials = async (
+  session: BrowserSession,
+  provider: ProviderName,
+  values: Record<string, string>,
+): Promise<void> => {
+  await ensureMessageGroups(["settings"]);
+  for (const [field, value] of Object.entries(values)) {
+    await session.fill(field, value);
+  }
+  await session.clickButton(
+    t("settings.provider.update_credentials", {
+      provider: PAYMENT_PROVIDERS[provider].label,
+    }),
+  );
 };
 
 /**
