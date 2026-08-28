@@ -1,8 +1,4 @@
-/**
- * The site builder form. It lives beside the other admin field definitions,
- * so the page template and the building route share one definition without
- * either importing the other.
- */
+/** Site builder form fields. */
 
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";

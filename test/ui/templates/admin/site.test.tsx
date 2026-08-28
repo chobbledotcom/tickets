@@ -9,6 +9,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { inputNamed } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
@@ -53,14 +54,13 @@ describeWithEnv("site editor pages", { db: true }, () => {
     expect(html).toContain('action="/admin/site/contact"');
     // The toggle posts to its own route with a checkbox the route reads.
     expect(html).toContain('action="/admin/site/contact/form"');
-    const toggle = html.slice(
-      html.indexOf('name="contact_form_enabled"') - 100,
-      html.indexOf('name="contact_form_enabled"') + 200,
-    );
+    const toggle = inputNamed(html, "contact_form_enabled");
     expect(toggle).toContain('type="checkbox"');
     expect(toggle).toContain('value="true"');
     // The box and its label stay one space apart, not glued.
-    expect(toggle).toMatch(/value="true"\s*>\s+Enable contact form/);
+    expect(html).toMatch(
+      /name="contact_form_enabled"[^>]*>\s+Enable contact form/,
+    );
     expect(html).toContain("submissions are accepted without a spam check");
     expect(html).not.toContain("to receive contact form messages");
     // The env-key names sit one space apart, not glued.
@@ -96,14 +96,11 @@ describeWithEnv("site editor pages", { db: true }, () => {
     expect(html).toContain('name="order_intro_text"');
     expect(html).toContain('action="/admin/site/order"');
     expect(html).toContain('action="/admin/site/order/toggle"');
-    const toggle = html.slice(
-      html.indexOf('name="order_enabled"') - 100,
-      html.indexOf('name="order_enabled"') + 200,
-    );
+    const toggle = inputNamed(html, "order_enabled");
     expect(toggle).toContain('type="checkbox"');
     expect(toggle).toContain('value="true"');
     // The box and its label stay one space apart, not glued.
-    expect(toggle).toMatch(/value="true"\s*>\s+Enable order page/);
+    expect(html).toMatch(/name="order_enabled"[^>]*>\s+Enable order page/);
     expect(html).toContain('class="prose"');
   });
 

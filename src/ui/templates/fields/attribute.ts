@@ -1,8 +1,4 @@
-/**
- * The attribute editor forms. They live beside the other admin field
- * definitions, so the page template and the saving route share one
- * definition without either importing the other.
- */
+/** Attribute editor form fields (name and option text). */
 
 import { defineTextForm } from "#shared/forms/definition.ts";
 

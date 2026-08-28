@@ -60,8 +60,7 @@ describe("loadTimeEdges", () => {
 
   test("keeps edges under a repo path whose URL form is escaped", () => {
     // A checkout under "my repo" arrives from deno info as file:///my%20repo/.
-    // The module's own specifier is built unescaped here; the dependency
-    // carries the escaped form the way deno info emits it.
+    // The dependency carries the escaped form the way deno info emits it.
     const edges = loadTimeEdges(
       graphOf({
         dependencies: [

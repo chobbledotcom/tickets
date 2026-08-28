@@ -1,8 +1,4 @@
-/**
- * The site page editor's forms. They live here, beside the other admin field
- * definitions, so the page templates and the saving route share one
- * definition without either importing the other.
- */
+/** Site page editor form fields (home, contact, order intro). */
 
 import { MAX_WEBSITE_TITLE_LENGTH } from "#db/settings/constants.ts";
 import { t } from "#i18n";

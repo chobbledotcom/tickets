@@ -46,7 +46,7 @@ export const loadTimeEdges = (
 /** The modules of a graph in the order their imports finish loading: a
  * depth-first walk that records each module after everything it imports.
  * Iterative, so a deep graph cannot overflow the stack. */
-const finishOrderOf = (nodes: string[], adjacency: number[][]): number[] => {
+const finishOrderOf = (nodes: string[], importsOf: number[][]): number[] => {
   const seen = new Array<boolean>(nodes.length).fill(false);
   const finished: number[] = [];
   for (let start = 0; start < nodes.length; start++) {
@@ -55,9 +55,9 @@ const finishOrderOf = (nodes: string[], adjacency: number[][]): number[] => {
     const stack: [number, number][] = [[start, 0]];
     while (stack.length > 0) {
       const [node, next] = stack[stack.length - 1]!;
-      if (next < adjacency[node]!.length) {
+      if (next < importsOf[node]!.length) {
         stack[stack.length - 1]![1] = next + 1;
-        const target = adjacency[node]![next]!;
+        const target = importsOf[node]![next]!;
         if (!seen[target]) {
           seen[target] = true;
           stack.push([target, 0]);
@@ -75,7 +75,7 @@ const finishOrderOf = (nodes: string[], adjacency: number[][]): number[] => {
  * reverse: each unvisited module there starts one group. */
 const groupsFromFinishOrder = (
   finished: number[],
-  transpose: number[][],
+  importersOf: number[][],
 ): number[][] => {
   const assigned = new Array<boolean>(finished.length).fill(false);
   const groups: number[][] = [];
@@ -88,7 +88,7 @@ const groupsFromFinishOrder = (
     while (work.length > 0) {
       const node = work.pop()!;
       group.push(node);
-      for (const source of transpose[node]!) {
+      for (const source of importersOf[node]!) {
         if (!assigned[source]) {
           assigned[source] = true;
           work.push(source);
@@ -101,10 +101,10 @@ const groupsFromFinishOrder = (
 };
 
 /**
- * The groups of modules that can each load the other: strongly connected
- * components of more than one module, largest first, each member list
- * sorted. A group is a load-order tangle — any module in it pulls in every
- * other — and the count to work down is the group's size.
+ * The groups of modules that can each load the other — more than one module,
+ * largest first, each member list sorted. A group is a load-order tangle:
+ * any module in it pulls in every other, and the count to work down is the
+ * group's size.
  */
 export const cyclicGroups = (edges: Map<string, Set<string>>): string[][] => {
   const nodes = [
@@ -114,16 +114,16 @@ export const cyclicGroups = (edges: Map<string, Set<string>>): string[][] => {
     ]),
   ];
   const index = new Map(nodes.map((node, i) => [node, i]));
-  const adjacency = nodes.map((node) =>
+  const importsOf = nodes.map((node) =>
     [...(edges.get(node) ?? [])]
       .filter((target) => index.has(target))
       .map((target) => index.get(target)!),
   );
-  const transpose = nodes.map(() => [] as number[]);
-  adjacency.forEach((targets, from) => {
-    for (const to of targets) transpose[to]!.push(from);
+  const importersOf = nodes.map(() => [] as number[]);
+  importsOf.forEach((targets, from) => {
+    for (const to of targets) importersOf[to]!.push(from);
   });
-  return groupsFromFinishOrder(finishOrderOf(nodes, adjacency), transpose)
+  return groupsFromFinishOrder(finishOrderOf(nodes, importsOf), importersOf)
     .filter((group) => group.length > 1)
     .map((group) => group.map((node) => nodes[node]!).sort())
     .sort((a, b) => b.length - a.length);

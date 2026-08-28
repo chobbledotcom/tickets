@@ -1,8 +1,4 @@
-/**
- * The demo-data seeds form. It lives beside the other admin field
- * definitions, so the page template and the seeding route share one
- * definition without either importing the other.
- */
+/** Demo-data seeds form fields. */
 
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
