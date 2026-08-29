@@ -1,1 +1,0 @@
-src/shared/turso-api.ts::TursoHostnameSchema~0ulp4z2  && → ||   # url.hostname === value already implies url.port === "" (a hostname never carries a port), so the second arm is redundant and || agrees with &&

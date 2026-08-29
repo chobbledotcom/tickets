@@ -32,17 +32,27 @@ import {
 } from "./cpd-renamed/run.ts";
 import { commandExitCode, denoNpmArgs } from "./deno-command.ts";
 
-const ROOT = new URL("../", import.meta.url).pathname;
+const ROOT = new URL("../", import.meta.url).pathname.replace(/\/$/, "");
+// jscpd names each file relative to the scan root it came from, so the same
+// relative name can exist under several roots (src/restore.ts and
+// scripts/restore.ts both report as "restore.ts"). Asking for absolute paths
+// and stripping the repo root below leaves every name prefixed with its root
+// word — "src/…", "e2e-payments/…", "scripts/…" — so one name always means
+// one file.
 const ROOTS = ["src", "e2e-payments", "scripts"].map(
-  (root) => `${ROOT}${root}`,
+  (root) => `${ROOT}/${root}`,
 );
-const REGISTRY_FILE = `${ROOT}scripts/cpd-renamed/allowed.json`;
+const REGISTRY_FILE = `${ROOT}/scripts/cpd-renamed/allowed.json`;
+
+/** jscpd's absolute path, as the repo-root-relative name every entry stores. */
+const rootRelative = (name: string): string =>
+  name.startsWith(`${ROOT}/`) ? name.slice(ROOT.length + 1) : name;
 
 const runJscpd = async (): Promise<JscpdDuplicate[]> => {
   const outputDir = await Deno.makeTempDir({ prefix: "cpd-renamed-" });
   try {
     const config = {
-      absolute: false,
+      absolute: true,
       exitCode: 1,
       format: ["javascript", "json", "typescript", "tsx"],
       gitignore: true,
@@ -76,7 +86,14 @@ const runJscpd = async (): Promise<JscpdDuplicate[]> => {
     const report = JSON.parse(
       Deno.readTextFileSync(`${outputDir}/jscpd-report.json`),
     );
-    return (report.duplicates ?? []) as JscpdDuplicate[];
+    const duplicates = (report.duplicates ?? []) as JscpdDuplicate[];
+    return duplicates.map((dup) => ({
+      firstFile: { ...dup.firstFile, name: rootRelative(dup.firstFile.name) },
+      secondFile: {
+        ...dup.secondFile,
+        name: rootRelative(dup.secondFile.name),
+      },
+    }));
   } finally {
     await Deno.remove(outputDir, { recursive: true });
   }
@@ -86,7 +103,7 @@ const code = await runRenamedCloneCheck({
   duplicates: await runJscpd(),
   output: { log: console.log },
   registryFile: REGISTRY_FILE,
-  roots: ROOTS,
+  roots: [ROOT],
   update: Deno.args.includes("--update"),
 });
 if (code !== 0) Deno.exit(code);

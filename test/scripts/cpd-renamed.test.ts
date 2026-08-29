@@ -20,6 +20,18 @@ describe("skeleton", () => {
   it("treats strings as words, so only the wording differs", () => {
     expect(cloneKind(`t("orders.title")`, `t("pages.title")`)).toBe("words");
   });
+
+  it("keeps control-flow keywords, so different flow is not a rename", () => {
+    expect(cloneKind("if (ready) work();", "while (ready) work();")).toBe(
+      "different",
+    );
+  });
+
+  it("keeps true and false, so a flipped flag is not a rename", () => {
+    expect(cloneKind("return !listing.active;", "return listing.active;")).toBe(
+      "different",
+    );
+  });
 });
 
 describe("cloneKind", () => {
@@ -51,6 +63,25 @@ describe("isImportSpan", () => {
     ).toBe(true);
   });
 
+  it("accepts an import jscpd cut mid-statement", () => {
+    // jscpd stops a span on a token boundary, not a statement boundary, so
+    // the last import may be missing its `from "…"` close. It is still only
+    // import content. (The fixture lines are indented so the raw import
+    // checker treats them as example text, not real imports.)
+    expect(
+      isImportSpan(`import { settings } from "#db/settings.ts";
+        import {
+          createTokenRoute,`),
+    ).toBe(true);
+  });
+
+  it("rejects a span that continues past an import into copied code", () => {
+    expect(
+      isImportSpan(`import { expect } from "@std/expect";
+export const answer = (slug: string) => hash(slug);`),
+    ).toBe(false);
+  });
+
   it("rejects ordinary code that merely mentions from", () => {
     expect(isImportSpan("const row = await readFrom(groups);")).toBe(false);
     expect(
@@ -65,12 +96,33 @@ describe("isImportSpan", () => {
 
 describe("pairHash", () => {
   it("is stable across formatting noise and differs between pairs", async () => {
-    const first = await pairHash("const a = 1;\n", "const b = 2;");
-    const same = await pairHash("const a = 1;", "  const b = 2;");
-    const other = await pairHash("const a = 1;", "const b = 3;");
+    const first = await pairHash(
+      { file: "a.ts", snippet: "const a = 1;\n" },
+      { file: "b.ts", snippet: "const b = 2;" },
+    );
+    const same = await pairHash(
+      { file: "a.ts", snippet: "const a = 1;" },
+      { file: "b.ts", snippet: "  const b = 2;" },
+    );
+    const other = await pairHash(
+      { file: "a.ts", snippet: "const a = 1;" },
+      { file: "b.ts", snippet: "const b = 3;" },
+    );
     expect(first).toBe(same);
     expect(first).not.toBe(other);
     expect(first).toHaveLength(64);
+  });
+
+  it("names the files, so the same snippets copied elsewhere are a new pair", async () => {
+    const original = await pairHash(
+      { file: "src/one.ts", snippet: "shared body" },
+      { file: "src/two.ts", snippet: "shared body" },
+    );
+    const copied = await pairHash(
+      { file: "src/other/one.ts", snippet: "shared body" },
+      { file: "src/other/two.ts", snippet: "shared body" },
+    );
+    expect(copied).not.toBe(original);
   });
 });
 
@@ -90,7 +142,9 @@ describe("resolvePath", () => {
 const writeFixture = async (files: Record<string, string>): Promise<string> => {
   const root = await Deno.makeTempDir({ prefix: "cpd-renamed-test-" });
   for (const [name, body] of Object.entries(files)) {
-    await Deno.writeTextFile(`${root}/${name}`, body);
+    const path = `${root}/${name}`;
+    await Deno.mkdir(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+    await Deno.writeTextFile(path, body);
   }
   return root;
 };
@@ -206,20 +260,62 @@ describe("runRenamedCloneCheck", () => {
     }
   });
 
-  it("keeps a reviewed reason, read or rewritten", async () => {
-    const root = await writeFixture(fixtures);
+  /** The base fixture pair's finding — shared by the tests below. */
+  const baseFinding = async (root: string) => {
+    const [finding] = await collectFindings({
+      duplicates: [pairOf("a.ts", 1, "b.ts", 1)],
+      output: { log: () => {} },
+      registryFile: `${root}/allowed.json`,
+      roots: [root],
+    });
+    if (finding === undefined) throw new Error("fixture pair not found");
+    return finding;
+  };
+
+  it("fails on the same pair content copied into new files", async () => {
+    // The registry identity names both files, so a previously reviewed copy
+    // relocated to new files still needs its own review.
+    const root = await writeFixture({
+      ...fixtures,
+      "nested/one.ts": fixtures["a.ts"],
+      "nested/two.ts": fixtures["b.ts"],
+    });
     const registryFile = `${root}/allowed.json`;
     try {
-      const [finding] = await collectFindings({
-        duplicates: [pairOf("a.ts", 1, "b.ts", 1)],
+      const finding = await baseFinding(root);
+      const nested = pairOf("nested/one.ts", 1, "nested/two.ts", 1);
+      const [nestedFinding] = await collectFindings({
+        duplicates: [nested],
         output: { log: () => {} },
         registryFile,
         roots: [root],
       });
-      if (finding === undefined) throw new Error("fixture pair not found");
+      if (nestedFinding === undefined) {
+        throw new Error("nested fixture pair not found");
+      }
+      expect(nestedFinding.kind).toBe(finding.kind);
+      expect(nestedFinding.hash).not.toBe(finding.hash);
+
+      await Deno.writeTextFile(
+        registryFile,
+        `${JSON.stringify([{ ...finding, reason: "declared rows" }])}\n`,
+      );
+      const result = await run(root, [nested], registryFile);
+      expect(result.code).toBe(1);
+      expect(result.lines.join("\n")).toContain("COPY FOUND");
+      expect(result.lines.join("\n")).toContain("nested/one.ts");
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+
+  it("keeps a reviewed reason, read or rewritten", async () => {
+    const root = await writeFixture(fixtures);
+    const registryFile = `${root}/allowed.json`;
+    try {
       const seed = `${JSON.stringify([
         {
-          ...finding,
+          ...(await baseFinding(root)),
           reason: "declared data rows — by design",
         },
       ])}\n`;

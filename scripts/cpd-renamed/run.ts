@@ -8,9 +8,55 @@
 
 import { sha256Hex } from "#scripts/checksum.ts";
 
-/** Words include names, strings, and numbers: everything a rename touches. */
+/** Words include names, strings, and numbers: everything a rename touches.
+ * Reserved words carry meaning, so `if` and `while` keep their own shapes and
+ * two spans with different control flow never read as one renamed copy. */
+const RESERVED = new Set([
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "from",
+  "function",
+  "if",
+  "import",
+  "in",
+  "instanceof",
+  "let",
+  "new",
+  "null",
+  "of",
+  "return",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "undefined",
+  "var",
+  "void",
+  "while",
+  "yield",
+]);
+
 export const skeleton = (code: string): string =>
-  code.replace(/[A-Za-z0-9_$'"]+/g, "§").replace(/\s+/g, "");
+  code
+    .replace(/[A-Za-z0-9_$'"]+/g, (word) => (RESERVED.has(word) ? word : "§"))
+    .replace(/\s+/g, "");
 
 /** How equal two clone sides are. "words" means the punctuation shape matches
  * and only word-shaped tokens differ. */
@@ -25,19 +71,43 @@ export const cloneKind = (a: string, b: string): CloneKind => {
 
 /** Import blocks are the one sanctioned repeat in this repository, so a span
  * that only names imports is not a finding. A span counts as an import span
- * when it opens with `import` or closes with a `from "…"` module specifier. */
+ * when every statement in it either closes with a `from "…"` module specifier
+ * or is an import fragment jscpd cut mid-statement — bare members, braces,
+ * and commas, no executable code. A span that continues past an import into
+ * copied code keeps that code and is not exempt. */
+const importFragment = /^[A-Za-z0-9_$\s{},"']*$/;
+
 export const isImportSpan = (code: string): boolean => {
-  const trimmed = code.trim();
+  const statements = code
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter((statement) => statement !== "");
   return (
-    trimmed.startsWith("import ") || /from\s+["'][^"']+["'];?\s*$/.test(trimmed)
+    statements.length > 0 &&
+    statements.every(
+      (statement) =>
+        /from\s+["'][^"']+["']$/.test(statement) ||
+        importFragment.test(statement),
+    )
   );
 };
 
-/** A stable identity for a pair: the hash of both snippets together. Line
- * numbers drift, so the content is the key; edit either side and the entry
- * goes stale on purpose, forcing a fresh review. */
-export const pairHash = async (a: string, b: string): Promise<string> =>
-  await sha256Hex(new TextEncoder().encode(`${a.trim()}\n<==>\n${b.trim()}`));
+/** One side of a pair for hashing: where it sits and what it says. */
+export type CloneSide = { file: string; snippet: string };
+
+/** A stable identity for a pair: the hash of both files and both snippets.
+ * Line numbers drift, so they stay out; the files stay in, so the same
+ * snippets copied into new files read as a new pair that needs its own
+ * review. Edit either side and the entry goes stale on purpose. */
+export const pairHash = async (
+  first: CloneSide,
+  second: CloneSide,
+): Promise<string> =>
+  await sha256Hex(
+    new TextEncoder().encode(
+      `${first.file}\n${first.snippet.trim()}\n<==>\n${second.file}\n${second.snippet.trim()}`,
+    ),
+  );
 
 /** Where a copy sits: both sides and the content identity of the pair. */
 export type ClonePlace = {
@@ -63,8 +133,9 @@ export type Finding = ClonePlace & {
 export type JscpdSide = { name: string; start: number; end: number };
 export type JscpdDuplicate = { firstFile: JscpdSide; secondFile: JscpdSide };
 
-/** jscpd names each file relative to the scan root it came from, so a name
- * like `src/main.ts` may live under `e2e-payments/`. Try every root. */
+/** Resolve a reported name against the directories names may be relative to.
+ * The entry names every file relative to the repo root, prefixed with its scan
+ * root's word, so one name resolves to exactly one file. */
 export const resolvePath = (roots: string[], name: string): string => {
   const hit = roots.find((root) => {
     try {
@@ -81,7 +152,7 @@ export const resolvePath = (roots: string[], name: string): string => {
 };
 
 export type CheckOptions = {
-  /** Absolute scan roots, in the order jscpd was given them. */
+  /** Absolute directory the reported names resolve against (the repo root). */
   roots: string[];
   /** The pairs jscpd found, verbatim from its report. */
   duplicates: JscpdDuplicate[];
@@ -116,7 +187,10 @@ export const collectFindings = async (
       first: dup.firstFile.name,
       firstSnippet: first.trim(),
       firstStart: dup.firstFile.start,
-      hash: await pairHash(first, second),
+      hash: await pairHash(
+        { file: dup.firstFile.name, snippet: first },
+        { file: dup.secondFile.name, snippet: second },
+      ),
       kind,
       second: dup.secondFile.name,
       secondSnippet: second.trim(),
