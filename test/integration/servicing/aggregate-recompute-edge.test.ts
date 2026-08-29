@@ -15,7 +15,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import {
   getListingAggregateRecalculation,
-  resetListingAggregateFields,
+  listingAggregates,
 } from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
@@ -77,7 +77,7 @@ describeWithEnv(
     test("recomputing aggregates on a mixed-kind listing preserves the split", async () => {
       const listing = await setupListingLWithHoldAndAttendee();
       // Reset to zero then recompute from the live rows.
-      await resetListingAggregateFields(listing.id, [
+      await listingAggregates.reset(listing.id, [
         "booked_quantity",
         "tickets_count",
       ]);

@@ -10,7 +10,7 @@ import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
@@ -44,36 +44,27 @@ const builtSiteUrlCell = (site: BuiltSite): JSX.Element => (
 );
 
 const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
-  {
-    cell: builtSiteNameCell,
-    header: translatedTableHeader("common.name"),
-    key: "name",
-  },
-  {
-    cell: builtSiteUrlCell,
-    header: translatedTableHeader("built_sites.table_site_url"),
-    key: "site_url",
-  },
-  {
-    cell: (site) =>
-      site.assignedAttendeeId
-        ? t("built_sites.status_assigned", { id: site.assignedAttendeeId })
-        : site.assignable
-          ? t("built_sites.status_available")
-          : t("built_sites.status_not_assignable"),
-    header: translatedTableHeader("common.status"),
-    key: "status",
-  },
-  {
-    cell: (site) => site.updates,
-    header: translatedTableHeader("built_sites.table_updates"),
-    key: "updates",
-  },
-  {
-    cell: (site) => formatDeadlineLabel(site.readOnlyFrom),
-    header: translatedTableHeader("built_sites.table_read_only"),
-    key: "read_only",
-  },
+  translatedTableColumn("name", "common.name", builtSiteNameCell),
+  translatedTableColumn(
+    "site_url",
+    "built_sites.table_site_url",
+    builtSiteUrlCell,
+  ),
+  translatedTableColumn("status", "common.status", (site) =>
+    site.assignedAttendeeId
+      ? t("built_sites.status_assigned", { id: site.assignedAttendeeId })
+      : site.assignable
+        ? t("built_sites.status_available")
+        : t("built_sites.status_not_assignable"),
+  ),
+  translatedTableColumn(
+    "updates",
+    "built_sites.table_updates",
+    (site) => site.updates,
+  ),
+  translatedTableColumn("read_only", "built_sites.table_read_only", (site) =>
+    formatDeadlineLabel(site.readOnlyFrom),
+  ),
 ];
 
 const builtSitesTable = defineTable(builtSiteColumns);

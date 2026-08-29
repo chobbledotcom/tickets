@@ -53,7 +53,6 @@ import {
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { defineTextForm } from "#shared/forms/definition.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -63,24 +62,16 @@ import {
   attributeNameFlat,
 } from "#templates/admin/attributes.tsx";
 import {
+  attributeNameForm,
+  attributeOptionForm,
+} from "#templates/fields/attribute.ts";
+import {
   attributeListingRows,
   optionListingCounts,
 } from "./attribute-page-data.ts";
 import { createListingChoicePost } from "./listing-choice-post.ts";
 
 /* jscpd:ignore-end */
-
-export const attributeNameForm = defineTextForm(
-  "Attribute name",
-  "name",
-  "e.g. Difficulty",
-);
-
-export const attributeOptionForm = defineTextForm(
-  "Option text",
-  "text",
-  "e.g. Beginner",
-);
 
 const handleAttributesGet = ownerPage(async (session) => {
   const flash = getFlash();

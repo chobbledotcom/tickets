@@ -9,9 +9,8 @@ import {
   getModifierGroupListingIdsByModifierId,
   getModifierNamesByIds,
   MODIFIER_AGGREGATE_FIELDS,
+  modifierAggregates,
   modifiersTable,
-  resetModifierAggregateFields,
-  updateModifierAggregateValues,
 } from "#db/modifiers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
@@ -93,7 +92,7 @@ describeWithEnv("db modifiers table", { db: true }, () => {
   describe("aggregates", () => {
     test("manual aggregate writes persist", async () => {
       const row = await insertModifier({ name: "Counted" });
-      await updateModifierAggregateValues(row.id, {
+      await modifierAggregates.update(row.id, {
         total_uses: 9,
         usage_count: 4,
       });
@@ -106,14 +105,12 @@ describeWithEnv("db modifiers table", { db: true }, () => {
       const row = await insertModifier({ name: "Recounted" });
       await insertModifierUsage(row.id, 1, 3, 150);
       await insertModifierUsage(row.id, 2, 2, 100);
-      await updateModifierAggregateValues(row.id, {
+      await modifierAggregates.update(row.id, {
         total_uses: 99,
         usage_count: 99,
       });
 
-      await resetModifierAggregateFields(row.id, [
-        ...MODIFIER_AGGREGATE_FIELDS,
-      ]);
+      await modifierAggregates.reset(row.id, [...MODIFIER_AGGREGATE_FIELDS]);
       const stored = await getModifier(row.id);
       expect(stored?.total_uses).toBe(5);
       expect(stored?.usage_count).toBe(2);

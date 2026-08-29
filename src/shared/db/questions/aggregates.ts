@@ -6,16 +6,11 @@
  * The `modifier_id` column links an answer to the price modifier it triggers.
  */
 
+import { execute, queryAll, queryOne, requireOne } from "#db/client.ts";
 import {
-  execute,
-  queryAll,
-  queryOne,
-  requireOne,
-  resetAggregates,
-} from "#db/client.ts";
-import type {
-  AggregateRecalculation,
-  AggregateValues,
+  type AggregateRecalculation,
+  type AggregateValues,
+  aggregateRepairs,
 } from "#db/common-schema.ts";
 import { map } from "#fp";
 
@@ -65,29 +60,15 @@ export const getAnswerAggregateRecalculation = async (
   };
 };
 
-/** Manually set an answer's editable aggregate from the edit form. */
-export const updateAnswerAggregateValues = async (
-  answerId: number,
-  values: AnswerAggregateValues,
-): Promise<void> => {
-  await execute("UPDATE answers SET times_selected = ? WHERE id = ?", [
-    values.times_selected,
-    answerId,
-  ]);
-};
-
-const answerAggregateResetSql: Record<AnswerAggregateField, string> = {
-  times_selected:
-    "times_selected = COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = ?), 0)",
-};
-
-/** Reset selected answer aggregate columns from the actual attendee_answers. */
-export const resetAnswerAggregateFields = async (
-  answerId: number,
-  fields: AnswerAggregateField[],
-): Promise<void> => {
-  await resetAggregates("answers", answerId, fields, answerAggregateResetSql);
-};
+/** Write the operator's typed selection total, or rebuild it from the actual
+ * attendee_answers rows. */
+export const answerAggregates = aggregateRepairs<AnswerAggregateField>(
+  "answers",
+  {
+    times_selected:
+      "times_selected = COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = ?), 0)",
+  },
+);
 
 /** Get the price-modifier id a single answer triggers, or null when it has
  * none. The modifier_id column isn't part of the decrypted Answer shape, so the

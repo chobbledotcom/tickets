@@ -10,6 +10,7 @@ import {
   readLoggedId,
   refundObservationVia,
   requiredField,
+  saveCredentials,
 } from "./shared.ts";
 import type {
   HostedCheckoutContext,
@@ -191,11 +192,12 @@ export const square: PaymentProvider = {
   // ephemeral webhook endpoint for this harness to remove.
   cleanup: noProviderCleanup,
   configure: configureProvider("square", async (session, secrets) => {
-    await session.fill("square_access_token", secrets.token);
-    await session.fill("square_location_id", secrets.locationId);
     // The sandbox checkbox is the only mode this harness can drive.
     await session.check("square_sandbox");
-    await session.clickButton("Update Square Credentials");
+    await saveCredentials(session, "square", {
+      square_access_token: secrets.token,
+      square_location_id: secrets.locationId,
+    });
   }),
   name: "square",
 

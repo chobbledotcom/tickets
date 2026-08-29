@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  answerAggregates,
   getAnswerAggregateRecalculation,
   getAnswerSelectionTotals,
-  resetAnswerAggregateFields,
-  updateAnswerAggregateValues,
 } from "#db/questions/aggregates.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import {
@@ -125,7 +124,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("getAnswerSelectionTotals returns the stored times_selected", async () => {
       const { a, q } = await seedAnswer();
-      await updateAnswerAggregateValues(a.id, { times_selected: 9 });
+      await answerAggregates.update(a.id, { times_selected: 9 });
       const totals = await getAnswerSelectionTotals(q.id);
       expect(totals.get(a.id)).toBe(9);
     });
@@ -141,18 +140,18 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("getAnswerAggregateRecalculation flags drift from attendee answers", async () => {
       const { a } = await seedSelectedAnswer();
       // Force the stored total out of step with the one real selection.
-      await updateAnswerAggregateValues(a.id, { times_selected: 42 });
+      await answerAggregates.update(a.id, { times_selected: 42 });
 
       const recalc = await getAnswerAggregateRecalculation(a.id);
       expect(recalc.times_selected.current).toBe(42);
       expect(recalc.times_selected.recalculated).toBe(1);
     });
 
-    test("resetAnswerAggregateFields rebuilds the stored total", async () => {
+    test("answerAggregates.reset rebuilds the stored total", async () => {
       const { a } = await seedSelectedAnswer();
-      await updateAnswerAggregateValues(a.id, { times_selected: 42 });
+      await answerAggregates.update(a.id, { times_selected: 42 });
 
-      await resetAnswerAggregateFields(a.id, ["times_selected"]);
+      await answerAggregates.reset(a.id, ["times_selected"]);
 
       const recalc = await getAnswerAggregateRecalculation(a.id);
       expect(recalc.times_selected.current).toBe(1);

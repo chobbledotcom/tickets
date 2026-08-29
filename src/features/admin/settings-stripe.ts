@@ -5,6 +5,7 @@
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { stripeConnectionAnswer } from "#routes/admin/settings-connection-lines.ts";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
@@ -56,7 +57,8 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   },
   secretRequiredError: t("error.stripe_key_required"),
   successMessage: t("success.stripe_updated"),
-  testFn: () => stripeApi.testStripeConnection(),
+  testFn: async () =>
+    stripeConnectionAnswer(await stripeApi.testStripeConnection()),
   unchangedMessage: t("success.stripe_unchanged"),
   validate: (_fields, secret) => {
     if (isDemoMode()) return t("error.stripe_demo_mode");

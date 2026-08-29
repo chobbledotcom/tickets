@@ -35,7 +35,7 @@ import {
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
 import type { AdminLevel, LogisticsAgent } from "#types";
 
@@ -43,15 +43,11 @@ import type { AdminLevel, LogisticsAgent } from "#types";
 
 /** Single-column table of logistics agents (name linking to edit). */
 const agentColumns: TableColumn<LogisticsAgent>[] = [
-  {
-    cell: (agent) => (
-      <WritableLink href={adminPath("logisticsAgent", { id: agent.id })}>
-        {agent.name}
-      </WritableLink>
-    ),
-    header: translatedTableHeader("common.name"),
-    key: "name",
-  },
+  translatedTableColumn("name", "common.name", (agent) => (
+    <WritableLink href={adminPath("logisticsAgent", { id: agent.id })}>
+      {agent.name}
+    </WritableLink>
+  )),
 ];
 
 /** The logistics-agents list with inline add form (shown when logistics is on). */

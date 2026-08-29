@@ -305,10 +305,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const listing = await createTestListing();
       await bookAnswer(listing.id, aId);
 
-      const { updateAnswerAggregateValues } = await import(
-        "#db/questions/aggregates.ts"
-      );
-      await updateAnswerAggregateValues(aId, { times_selected: 8 });
+      const { answerAggregates } = await import("#db/questions/aggregates.ts");
+      await answerAggregates.update(aId, { times_selected: 8 });
 
       const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
@@ -342,9 +340,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const listing = await createTestListing();
       await bookAnswer(listing.id, aId);
 
-      const { updateAnswerAggregateValues, getAnswerSelectionTotals } =
-        await import("#db/questions/aggregates.ts");
-      await updateAnswerAggregateValues(aId, { times_selected: 99 });
+      const { answerAggregates, getAnswerSelectionTotals } = await import(
+        "#db/questions/aggregates.ts"
+      );
+      await answerAggregates.update(aId, { times_selected: 99 });
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/recalculate`,

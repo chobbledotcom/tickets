@@ -7,10 +7,18 @@ import { groupListingAnswerSets } from "#db/questions/attendee-answers/save.ts";
 import {
   type AnswerInfo,
   listingAnswerMaps,
+  listingsWithQuantity,
   parseAddOnSelections,
   parseQuantities,
+  parseQuantityValue,
+  resolvePageDate,
+  ticketFormErrorResponse,
+  ticketResponse,
 } from "#routes/public/ticket-form.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { ticketContext, twoListingContext } from "#test-utils/ticket-ctx.ts";
 
 const question = (
   id: number,
@@ -212,13 +220,13 @@ describe("parseAddOnSelections", () => {
     new FormParams(new URLSearchParams(record));
 
   test("reads each selected add-on's quantity, clamped to its ceiling", () => {
-    const result = parseAddOnSelections(form({ addon_5: "2", addon_6: "99" }), [
+    const result = parseAddOnSelections(form({ addon_5: "1", addon_6: "99" }), [
       addOn(5, 10),
       addOn(6, 3),
     ]);
     expect(result).toEqual(
       new Map([
-        [5, 2],
+        [5, 1],
         [6, 3],
       ]),
     );
@@ -268,5 +276,110 @@ describe("parseQuantities", () => {
       tl(3, { maxPurchasable: 5 }),
     ]);
     expect(result).toEqual(new Map([[3, 2]]));
+  });
+
+  test("leaves out a listing whose box is absent or carries no number", () => {
+    // An absent or cleared box must read as zero tickets, never one.
+    const form = new FormParams(new URLSearchParams({ quantity_2: "abc" }));
+    expect(parseQuantities(form, [tl(1, {}), tl(2, {})])).toEqual(new Map());
+  });
+
+  test("keeps a listing the buyer chose exactly one ticket for", () => {
+    const form = new FormParams(new URLSearchParams({ quantity_1: "1" }));
+    expect(parseQuantities(form, [tl(1, {})])).toEqual(new Map([[1, 1]]));
+  });
+});
+
+describe("parseQuantityValue", () => {
+  test("lifts a too-small count to one and clamps a too-large count at the max", () => {
+    expect(parseQuantityValue("0", 5)).toBe(1);
+    expect(parseQuantityValue("", 5)).toBe(1);
+    expect(parseQuantityValue("3", 5)).toBe(3);
+    expect(parseQuantityValue("9", 5)).toBe(5);
+  });
+});
+
+describe("listingsWithQuantity", () => {
+  const tl = (id: number): TicketListing =>
+    ({
+      isClosed: false,
+      isSoldOut: false,
+      listing: { id },
+      maxPurchasable: 10,
+    }) as unknown as TicketListing;
+
+  test("keeps only the listings the buyer chose tickets for", () => {
+    const chosen = tl(1);
+    const declined = tl(2);
+    expect(
+      listingsWithQuantity(
+        [chosen, declined],
+        new Map([
+          [1, 1],
+          [2, 0],
+        ]),
+      ),
+    ).toEqual([{ listing: { id: 1 }, qty: 1 }]);
+  });
+
+  test("reads a listing the quantities map omits as zero", () => {
+    expect(listingsWithQuantity([tl(1)], new Map())).toEqual([]);
+  });
+});
+
+describe("resolvePageDate", () => {
+  test("a dateless page has no date to choose", () => {
+    expect(resolvePageDate([], null)).toEqual({ date: null, ok: true });
+  });
+
+  test("keeps a submitted date the page offers", () => {
+    expect(resolvePageDate(["2026-05-01", "2026-05-02"], "2026-05-02")).toEqual(
+      { date: "2026-05-02", ok: true },
+    );
+  });
+
+  test("refuses a page with dates when nothing was submitted", () => {
+    // One offered date: a length check off by one would treat this as chosen.
+    expect(resolvePageDate(["2026-05-01"], null)).toEqual({
+      error: "Please select a valid date",
+      ok: false,
+    });
+  });
+
+  test("refuses a submitted date the page does not offer", () => {
+    expect(resolvePageDate(["2026-05-01"], "2026-05-09")).toEqual({
+      error: "Please select a valid date",
+      ok: false,
+    });
+  });
+});
+
+describeWithEnv("ticket responses", { db: true }, () => {
+  test("answers with the rendered page at 200 by default", async () => {
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const ctx = await ticketContext([listing.id]);
+
+    const response = ticketResponse(ctx)();
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(listing.name);
+  });
+
+  test("carries the error and status it is given", async () => {
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const ctx = await ticketContext([listing.id]);
+
+    const response = ticketResponse(ctx)("No room", 400);
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("No room");
+  });
+
+  test("redirects a form error back to the page the form lives on", async () => {
+    const { ctx, first, second } = await twoListingContext();
+
+    const response = ticketFormErrorResponse(ctx)("Pick one");
+    // Two listings share one page address, joined by a plus.
+    expect(response.headers.get("Location")).toContain(
+      `/ticket/${first.slug}+${second.slug}`,
+    );
   });
 });

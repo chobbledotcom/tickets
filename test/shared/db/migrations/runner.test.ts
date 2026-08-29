@@ -137,14 +137,14 @@ describe("db > migrations > runner", () => {
       expect(upCalls).toBe(1);
     });
 
-    test("re-runs up() once when verify keeps failing, so a skipped index recovers", async () => {
-      // Reproduces the production failure: up()'s syncIndexes ran against a
-      // primary snapshot that lagged the table it had just created in the same
-      // up(), so it silently skipped the index. Retrying verify() ALONE would
-      // fail on every attempt because the index was never created; only re-running
-      // up() (which now sees the table) creates it — which is why the failure
-      // cleared on the next request. up() is re-run only after a full round of
-      // verify retries has failed.
+    /**
+     * The production failure: up()'s syncIndexes ran against a primary snapshot
+     * that lagged the table it had just created in the same up(), so it silently
+     * skipped the index. Retrying verify() ALONE would fail on every attempt
+     * because the index was never created; only re-running up() (which now sees
+     * the table) creates it. Reports how many times up() ran.
+     */
+    const repairsASkippedIndex = async (): Promise<number> => {
       let upCalls = 0;
       let indexCreated = false;
       await withVirtualBackoff(() =>
@@ -152,8 +152,6 @@ describe("db > migrations > runner", () => {
           fakeMigration({
             up: () => {
               upCalls++;
-              // First up() skips the index (lagging snapshot); the second sees the
-              // table and creates it.
               if (upCalls >= 2) indexCreated = true;
               return Promise.resolve();
             },
@@ -168,9 +166,28 @@ describe("db > migrations > runner", () => {
           }),
         ),
       );
-      // up() ran exactly twice — once initially, once to repair — never per retry.
-      expect(upCalls).toBe(2);
-      expect(indexCreated).toBe(true);
+      return upCalls;
+    };
+
+    test("re-runs up() once when verify keeps failing, so a skipped index recovers", async () => {
+      // Twice — once initially, once to repair — never once per retry. It
+      // resolving at all is what says the second up() created the index.
+      expect(await repairsASkippedIndex()).toBe(2);
+    });
+
+    test("says it is re-running up(), and what verify was still missing", async () => {
+      // Without this line the log shows a migration running, then nothing until
+      // it either passes or fails, with no sign that up() was tried again.
+      await repairsASkippedIndex();
+      const lines = debugMessages(debugSpy()).map(String);
+      expect(
+        lines.some(
+          (line) =>
+            line.includes("fake-apply-retry still failing after retries") &&
+            line.includes("re-running up()") &&
+            line.includes("missing index idx_system_notes_attendee_id"),
+        ),
+      ).toBe(true);
     });
 
     test("rethrows the original error after re-running up() once and still failing", async () => {

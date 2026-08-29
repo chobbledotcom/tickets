@@ -7,6 +7,8 @@
   "payment.stripe_instructions": "Click the button below to complete your payment securely via Stripe.",
   "payment.pay_now": "Pay Now",
   "payment.success.title_paid": "Payment Successful",
+  "payment.failure.refunded": "Your payment has been automatically refunded.",
+  "payment.failure.contact_support": "Please contact support for a refund.",
   "payment.success.title_free": "Ticket Reserved",
   "payment.success.heading_paid": "Payment Successful!",
   "payment.success.heading_free": "Ticket reserved successfully.",

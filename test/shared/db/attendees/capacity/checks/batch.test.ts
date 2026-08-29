@@ -4,7 +4,7 @@ import {
   checkBatchAvailabilityImpl as checkBatchAvailability,
   checkLinesCapacity,
 } from "#db/attendees/capacity/checks.ts";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -246,7 +246,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       listingType: "standard",
       maxAttendees: 5,
     });
-    await updateListingAggregateValues(listing.id, {
+    await listingAggregates.update(listing.id, {
       booked_quantity: 5,
       tickets_count: 0,
     });

@@ -188,6 +188,13 @@ const loadFreeCertificate = async (
   return okOrError(response, "Load free certificate");
 };
 
+/** Report a failed Bunny call and hand the failure straight back — what every
+ * step below does when its call does not come back ok. */
+const reported = <T extends { error: string }>(failure: T): T => {
+  logError({ code: ErrorCode.CDN_REQUEST, detail: failure.error });
+  return failure;
+};
+
 /**
  * Validate a custom domain by adding it to the Bunny CDN pull zone
  * and enabling force SSL. Returns success or an error message.
@@ -197,8 +204,7 @@ const validateCustomDomainImpl = async (
 ): Promise<BunnyApiResult> => {
   const zoneResult = await bunnyCdnApi.findPullZoneId();
   if (!zoneResult.ok) {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: zoneResult.error });
-    return zoneResult;
+    return reported(zoneResult);
   }
 
   const pullZoneId = zoneResult.id;
@@ -213,14 +219,12 @@ const validateCustomDomainImpl = async (
     !hostnameResult.ok &&
     hostnameResult.errorKey !== HOSTNAME_ALREADY_REGISTERED
   ) {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: hostnameResult.error });
-    return hostnameResult;
+    return reported(hostnameResult);
   }
 
   const certResult = await loadFreeCertificate(hostname);
   if (!certResult.ok) {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: certResult.error });
-    return certResult;
+    return reported(certResult);
   }
 
   const sslResult = await pullZonePost(
@@ -230,8 +234,7 @@ const validateCustomDomainImpl = async (
     "Set force SSL",
   );
   if (!sslResult.ok) {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: sslResult.error });
-    return sslResult;
+    return reported(sslResult);
   }
 
   return { ok: true };
@@ -331,8 +334,7 @@ const registerBunnySubdomainImpl = async (
   // Resolve CDN hostname for CNAME target (stable .b-cdn.net, not custom domain)
   const cdnHostname = await bunnyCdnApi.getCdnHostname();
   if (!cdnHostname.ok) {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: cdnHostname.error });
-    return cdnHostname;
+    return reported(cdnHostname);
   }
   const target = cdnHostname.hostname;
 

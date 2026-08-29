@@ -6,6 +6,7 @@
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { squareConnectionAnswer } from "#routes/admin/settings-connection-lines.ts";
 /* jscpd:ignore-start */
 import { settingsSecret } from "#routes/admin/settings-helpers.ts";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
@@ -39,7 +40,8 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
   successMessage: "Square credentials updated",
   // A lambda, not the member itself: the config is built once at module
   // load, and resolving the member per call keeps test stubs live.
-  testFn: () => squareApi.testSquareConnection(),
+  testFn: async () =>
+    squareConnectionAnswer(await squareApi.testSquareConnection()),
   validate: ({ locationId }, secret) => {
     if (isDemoMode()) return t("error.square_demo_mode");
     if (!locationId) return t("error.square_location_required");

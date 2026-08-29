@@ -23,12 +23,11 @@ import {
   type ModifierAggregateValues,
   type ModifierInput,
   type ModifierRow,
+  modifierAggregates,
   modifierGroups,
   modifierListings,
   modifiersTable,
-  resetModifierAggregateFields,
   setModifierAnswers,
-  updateModifierAggregateValues,
 } from "#db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { once } from "#fp";
@@ -109,13 +108,6 @@ const extractModifierInput = async (
     trigger: values.trigger,
   };
 };
-
-const extractModifierAggregateValues = (
-  values: ModifierAggregateValues,
-): ModifierAggregateValues => ({
-  total_uses: values.total_uses,
-  usage_count: values.usage_count,
-});
 
 const resolveAddOnScope = (
   scope: ModifierScope | undefined,
@@ -360,17 +352,17 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   withAuth(request, AUTH_FORM, async (_session, form) => {
     const modifier = await getModifier(id);
     if (!modifier) return notFoundResponse();
-    const aggregates = parseEditableAggregateForm<
-      ModifierAggregateValues,
-      ModifierAggregateValues
-    >(form, getModifierAggregateFields(), extractModifierAggregateValues);
+    const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
+      form,
+      getModifierAggregateFields(),
+    );
     if (!aggregates.ok) {
       return modifierPage.renderEditError(id, _session, form, aggregates.error);
     }
     const result = await getModifiersResource().update(id, form);
     if (result.ok) {
       if (aggregates.input) {
-        await updateModifierAggregateValues(id, aggregates.input);
+        await modifierAggregates.update(id, aggregates.input);
       }
       await logActivity(`Modifier '${result.row.name}' updated`);
       return redirect("/admin/modifiers", "Modifier updated", true);
@@ -411,7 +403,7 @@ const modifierRecalculateHandlers = createRecalculateHandlers({
   log: (modifier) =>
     logActivity(`Modifier '${modifier.name}' totals recalculated`),
   render: renderModifierRecalculatePage,
-  reset: resetModifierAggregateFields,
+  reset: modifierAggregates.reset,
   successMessage: t("modifiers.recalculate.success"),
   successPath: (modifier) => `/admin/modifiers/${modifier.id}/edit`,
   withEntity: withModifier,

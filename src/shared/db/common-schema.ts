@@ -1,4 +1,5 @@
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { executeUpdate, resetAggregates } from "#db/client.ts";
 import {
   createKeyedCache,
   type KeyedCache,
@@ -53,6 +54,30 @@ export type AggregateRecalculation<F extends string> = Record<
   F,
   { current: number; recalculated: number }
 >;
+
+/** The two owner-facing repairs every trigger-maintained aggregate column set
+ * needs: write the numbers the operator typed, and rebuild chosen columns from
+ * the rows they count. */
+export type AggregateRepairs<F extends string> = {
+  reset: (entityId: number, fields: readonly F[]) => Promise<void>;
+  update: (entityId: number, values: AggregateValues<F>) => Promise<void>;
+};
+
+/**
+ * Both repairs for one table's aggregate columns, given the SQL that recounts
+ * each one. Every aggregate family declares its table and its per-column
+ * recount here rather than writing the same two wrappers again.
+ */
+export const aggregateRepairs = <F extends string>(
+  table: string,
+  resetSql: Record<F, string>,
+): AggregateRepairs<F> => ({
+  reset: (entityId, fields) =>
+    resetAggregates(table, entityId, fields, resetSql),
+  update: async (entityId, values) => {
+    await executeUpdate(table, { ...values }, { id: entityId });
+  },
+});
 
 type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
 type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;

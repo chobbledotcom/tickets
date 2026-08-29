@@ -14,7 +14,7 @@ import { GuideFooter } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, Attendee, ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
@@ -33,16 +33,14 @@ type SmsPageOptions = {
 };
 
 const historyColumns: readonly TableColumn<SmsHistoryItem>[] = [
-  {
-    cell: (item) => formatDatetimeShort(item.created),
-    header: translatedTableHeader("sms.contact.col_when"),
-    key: "when",
-  },
-  {
-    cell: (item) => item.message,
-    header: translatedTableHeader("sms.contact.col_message"),
-    key: "message",
-  },
+  translatedTableColumn("when", "sms.contact.col_when", (item) =>
+    formatDatetimeShort(item.created),
+  ),
+  translatedTableColumn(
+    "message",
+    "sms.contact.col_message",
+    (item) => item.message,
+  ),
 ];
 
 const smsHistoryTable = defineTable(historyColumns);

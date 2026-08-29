@@ -5,7 +5,7 @@ import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeRaw, getAttendeesRaw } from "#db/attendees/queries.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { getDb } from "#db/client.ts";
-import { updateListingAggregateValues } from "#db/listings/aggregates.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
@@ -42,7 +42,7 @@ const expectCartRows = async (
 
 const setupBookedOutListing = async () => {
   const listing = await createTestListing({ maxAttendees: 1 });
-  await updateListingAggregateValues(listing.id, {
+  await listingAggregates.update(listing.id, {
     booked_quantity: 1,
     tickets_count: 0,
   });
