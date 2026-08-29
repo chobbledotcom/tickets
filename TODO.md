@@ -1,12 +1,13 @@
 # TODO — remaining follow-ups
 
 Open work now lives in GitHub issues. This file holds the entries that predate
-the issue tracker. They move to issues in batches. Delete this file when the
-last one moves. Record a new follow-up as an issue, not as a section here.
+the issue tracker. Entries that name work move to issues in batches. Entries
+that record a decision or a contract move to `docs/` instead. Delete this file
+when the last entry moves. Record a new follow-up as an issue, not as a section
+here.
 
-One entry is not a job: the stripe-mock port-steal note that AGENTS.md cites as
-a worked example. That entry is documentation. Move it to `docs/` when this file
-is deleted.
+The stripe-mock port-steal note that AGENTS.md cites as a worked example is
+documentation, not a job. Move it to `docs/` when this file is deleted.
 
 This file tracks work that was planned but **not yet done** when the root-level
 planning/design docs were retired (they had served their purpose once the bulk

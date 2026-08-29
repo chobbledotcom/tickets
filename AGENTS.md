@@ -294,11 +294,12 @@ GitHub.
   against the current source. Then close it with a comment that names the
   answer. An issue stays open only when part of its work is still open.
   `TODO.md` is the predecessor of the issue tracker. It still holds entries that
-  predate the migration, and they move to issues in batches. Its entries keep
-  the old rule: delete an entry when you finish it, and never leave one marked
-  "done". The one exception is an entry this file cites as a worked example, the
-  stripe-mock port-steal note. That entry is documentation, not a job, and it
-  moves to `docs/` when the file is deleted.
+  predate the migration. An entry that names work moves to an issue, in batches.
+  An entry that records a decision or a contract moves to `docs/`. Its entries
+  keep the old rule: delete an entry when you finish it, and never leave one
+  marked "done". The one exception is an entry this file cites as a worked
+  example, the stripe-mock port-steal note. That entry is documentation, not a
+  job, and it moves to `docs/` when the file is deleted.
 - **Stage what you changed, never `git add -A`**: Name the files you meant to
   touch, and read `git status --short` before committing. A blanket add cannot
   tell your work from a stray tool run, a build artefact, or a formatter that
