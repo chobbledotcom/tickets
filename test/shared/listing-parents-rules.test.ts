@@ -6,6 +6,8 @@ import {
   durationsCompatible,
   type EdgeListing,
   edgeFieldError,
+  scopeIsChildDeadEnd,
+  scopeReachesPage,
 } from "#shared/listing-parents-rules.ts";
 
 /** The i18n message a broken edge rule reports for the named listing — the
@@ -20,6 +22,39 @@ describe("childAddOnError", () => {
     expect(message).toContain("Face Paint");
     expect(message).toContain("Bouncy Castle");
     expect(message).not.toContain("children_err");
+  });
+});
+
+describe("scopeReachesPage", () => {
+  test("a whole-order scope reaches every page", () => {
+    expect(scopeReachesPage(null, new Set())).toBe(true);
+  });
+
+  test("a listing scope reaches a page that shares one of its ids", () => {
+    expect(scopeReachesPage([7, 8], new Set([8, 9]))).toBe(true);
+    expect(scopeReachesPage([7], new Set([8, 9]))).toBe(false);
+  });
+});
+
+describe("scopeIsChildDeadEnd", () => {
+  test("a whole-order add-on is never a dead end", () => {
+    // A null scope means the add-on loads on every page, so no listing choice
+    // takes it away.
+    expect(scopeIsChildDeadEnd(null, new Set([5]), new Set())).toBe(false);
+  });
+
+  test("a scope that names no hidden child is never a dead end", () => {
+    // Listing 5 keeps its own page. The add-on stays reachable there, whatever
+    // the parent pages hold.
+    expect(scopeIsChildDeadEnd([5], new Set([9]), new Set())).toBe(false);
+  });
+
+  test("a scope of one hidden child with no page left is a dead end", () => {
+    expect(scopeIsChildDeadEnd([5], new Set([5]), new Set())).toBe(true);
+  });
+
+  test("one live page in the scope rescues the hidden child", () => {
+    expect(scopeIsChildDeadEnd([5, 6], new Set([5]), new Set([6]))).toBe(false);
   });
 });
 

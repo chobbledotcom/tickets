@@ -1,7 +1,6 @@
 import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
 import type { DayPriceRow } from "#db/listing-prices.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
-import { scopeIsChildDeadEnd } from "#db/modifier-resolve.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { unique } from "#fp";
 import {
@@ -9,6 +8,7 @@ import {
   type EdgeListing,
   edgeFieldError,
   type ParentChildEdge,
+  scopeIsChildDeadEnd,
 } from "#shared/listing-parents-rules.ts";
 import type { DayPrices } from "#types";
 
