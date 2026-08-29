@@ -201,8 +201,8 @@ they fail by construction.
 **Agents lose their cheapest channel.** This repo is largely agent-built. A
 comment is how one session's decision reaches the next without re-reading 2,232
 commits. Cutting prose is safe only if the durable "why" moves somewhere — a
-`specs/` Feature for a business rule, `TODO.md` for a deferred idea, `docs/` for
-a design decision — rather than being deleted.
+`specs/` Feature for a business rule, a GitHub issue for a deferred idea,
+`docs/` for a design decision — rather than being deleted.
 
 Two feared costs turn out not to exist:
 
@@ -379,7 +379,7 @@ A long passage that is genuinely durable is usually in the wrong place:
 | ------------------------------------------- | ------------------ |
 | a business rule                             | a `specs/` Feature |
 | a design decision, with its options         | `docs/`            |
-| a deferred idea                             | `TODO.md`          |
+| a deferred idea                             | a GitHub issue     |
 | a per-function contract, in a module header | that function      |
 
 Split the comment, move the part that belongs elsewhere, and leave a pointer
