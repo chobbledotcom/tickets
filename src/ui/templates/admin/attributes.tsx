@@ -4,10 +4,6 @@ import type { AttributeOption, AttributeWithOptions } from "#db/attributes.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
-import {
-  attributeNameForm,
-  attributeOptionForm,
-} from "#routes/admin/attributes.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
@@ -27,6 +23,10 @@ import {
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import {
+  attributeNameForm,
+  attributeOptionForm,
+} from "#templates/fields/attribute.ts";
 import type { AdminSession } from "#types";
 import {
   type ListingPanelProps,

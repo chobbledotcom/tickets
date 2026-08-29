@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { MAX_SEED_LISTINGS, seedsForm } from "#routes/admin/seeds.ts";
 import { SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
+import { MAX_SEED_LISTINGS, seedsForm } from "#templates/fields/seeds.ts";
 import {
   expectFlashRedirect,
   expectHtmlContains,

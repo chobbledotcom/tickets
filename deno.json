@@ -34,6 +34,7 @@
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
+    "cycles": "deno run -A scripts/cycles.ts",
     "line-counts": "deno run --allow-read=src,test scripts/line-counts.ts",
     "diff-code-lines": "deno run --allow-env=PATH --allow-run=git scripts/diff-code-lines.ts",
     "unit-tests-report": "deno run --allow-read=src,test,deno.json scripts/unit-tests-report.ts",

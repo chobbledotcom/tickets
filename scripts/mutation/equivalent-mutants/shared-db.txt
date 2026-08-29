@@ -231,3 +231,4 @@ src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3 The unanswered SumUp count returned no result→""   # unreachable: one ResultSet per batch statement
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w The unanswered SumUp count returned no row→""   # unreachable: COUNT(*) always returns one row
 src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn The unanswered SumUp listing returned no result→""   # unreachable: one ResultSet per batch statement
+src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a2j2  ?? → ||   # the day-price map holds record objects, and a record is always truthy even when empty
