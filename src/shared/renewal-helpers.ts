@@ -20,3 +20,32 @@ export const formatDeadlineLabel = (iso: string, now = nowMs()): string => {
   if (diffMs < 0) return `expired ${diffDays} day(s) ago`;
   return `in ${diffDays} day(s)`;
 };
+
+/** The little a tier needs for a site to renew on it. */
+type RenewableTier = { id: number };
+
+/** Which renewal tier a site is on, and what its renewal page offers.
+ * `retired` is a tier an operator chose that no longer qualifies — its listing
+ * was deleted, deactivated, unhidden, or lost its months per unit. */
+export type SiteRenewalTier<Tier extends RenewableTier> = {
+  /** A site on one tier offers only that tier. Every other site offers all of
+   * them, so a retired tier never leaves a customer with nothing to buy. */
+  offered: Tier[];
+} & (
+  | { kind: "any" }
+  | { kind: "pinned"; tier: Tier }
+  | { kind: "retired"; listingId: number }
+);
+
+export const siteRenewalTier = <Tier extends RenewableTier>(
+  site: Pick<BuiltSite, "renewalTierListingId">,
+  qualifying: readonly Tier[],
+): SiteRenewalTier<Tier> => {
+  const everyTier = [...qualifying];
+  const chosenId = site.renewalTierListingId;
+  if (chosenId === null) return { kind: "any", offered: everyTier };
+  const tier = qualifying.find((candidate) => candidate.id === chosenId);
+  return tier
+    ? { kind: "pinned", offered: [tier], tier }
+    : { kind: "retired", listingId: chosenId, offered: everyTier };
+};

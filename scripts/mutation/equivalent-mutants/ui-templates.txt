@@ -64,6 +64,16 @@ src/ui/templates/admin/builder.tsx::builtSitesTable~0ytajae name→""   # render
 src/ui/templates/admin/builder.tsx::builtSitesTable~1mp2mcy url→""   # same: the key reaches no rendered output on this page
 src/ui/templates/admin/builder.tsx::builtSitesTable~0w4j3rw built→""   # same: the key reaches no rendered output on this page
 
+# built-sites list (ui/templates/admin/built-sites/list-parts.tsx) — column
+# keys nothing reads back. The list renders through renderTable with only a
+# context, so no columnKeys, hiddenKeys, or filter ever looks a key up.
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~02alai9 name→""   # no reader of a column key is in play on this table
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~0wl4rmg site_url→""   # same as the name key above — the list supplies only a context
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~0g1lcco status→""   # same as the name key above — the list supplies only a context
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~1u7lnyz renewal_tier→""   # same as the name key above — the list supplies only a context
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~1szmvt4 updates→""   # same as the name key above — the list supplies only a context
+src/ui/templates/admin/built-sites/list-parts.tsx::builtSiteColumns~1geahz2 read_only→""   # same as the name key above — the list supplies only a context
+
 # seeds.tsx: the page passes no nav route, and no nav section owns the empty
 # string, so any non-route value renders the same unhighlighted nav.
 src/ui/templates/admin/seeds.tsx::adminSeedsPage~0quyacc  →"mutated"   # the page passes no nav route, and no section owns the empty string, so any non-route value renders the same unhighlighted nav

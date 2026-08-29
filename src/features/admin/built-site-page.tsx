@@ -11,16 +11,17 @@ import {
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
+import { getQualifyingTierListings } from "#shared/site-assignment.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import {
   MaintenancePanel,
-  renewalPanelFor,
   SecretsPanel,
   UpdatePanel,
 } from "#templates/admin/built-sites/panels.tsx";
+import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panel.tsx";
 import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 
 /* jscpd:ignore-end */
@@ -28,7 +29,7 @@ import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 const renewalTab = panelTab<BuiltSite>(
   "renewal",
   "built_sites.renewal_title",
-  (site) => Promise.resolve(renewalPanelFor(site)),
+  async (site) => renewalPanelFor(site, await getQualifyingTierListings()),
 );
 
 const secretsTab = panelTab<BuiltSite>(

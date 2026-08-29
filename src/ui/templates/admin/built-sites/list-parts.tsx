@@ -2,7 +2,10 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
+import {
+  formatDeadlineLabel,
+  siteRenewalTier,
+} from "#shared/renewal-helpers.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
@@ -43,7 +46,27 @@ const builtSiteUrlCell = (site: BuiltSite): JSX.Element => (
   <NewTabUrl url={site.siteUrl} />
 );
 
-const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
+/** The tier column reads the same qualifying list the page already loaded for
+ * its summary table, so a site's tier is named the same way in both. */
+const builtSiteTierCell = (
+  site: BuiltSite,
+  tiers: ListingWithCount[],
+): JSX.Element | string => {
+  const chosen = siteRenewalTier(site, tiers);
+  if (chosen.kind === "pinned") {
+    return <a href={`/admin/listing/${chosen.tier.id}`}>{chosen.tier.name}</a>;
+  }
+  return t(
+    chosen.kind === "retired"
+      ? "built_sites.tier_cell_removed"
+      : "built_sites.tier_cell_any",
+  );
+};
+
+/** Every column reads the page's qualifying tiers as its context. */
+type BuiltSiteColumn = TableColumn<BuiltSite, ListingWithCount[]>;
+
+const builtSiteColumns: readonly BuiltSiteColumn[] = [
   translatedTableColumn("name", "common.name", builtSiteNameCell),
   translatedTableColumn(
     "site_url",
@@ -58,6 +81,11 @@ const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
         : t("built_sites.status_not_assignable"),
   ),
   translatedTableColumn(
+    "renewal_tier",
+    "built_sites.table_renewal_tier",
+    builtSiteTierCell,
+  ),
+  translatedTableColumn(
     "updates",
     "built_sites.table_updates",
     (site) => site.updates,
@@ -69,33 +97,25 @@ const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
 
 const builtSitesTable = defineTable(builtSiteColumns);
 
-const BuiltSitesTable = ({
-  hostingIds,
-  sites,
-}: {
+type BuiltSitesListProps = {
   hostingIds: string;
+  renewalTiers: ListingWithCount[];
   sites: BuiltSite[];
-}): JSX.Element => (
-  <div>
-    {renderTable(builtSitesTable, sites)}
-    <p>{hostingIds}</p>
-  </div>
-);
+};
 
 export const BuiltSitesListBody = ({
   hostingIds,
   renewalTiers,
   sites,
-}: {
-  hostingIds: string;
-  renewalTiers: ListingWithCount[];
-  sites: BuiltSite[];
-}): JSX.Element => (
+}: BuiltSitesListProps): JSX.Element => (
   <>
     {sites.length === 0 ? (
       <p>{t("built_sites.no_built_sites")}</p>
     ) : (
-      <BuiltSitesTable hostingIds={hostingIds} sites={sites} />
+      <div>
+        {renderTable(builtSitesTable, sites, { context: renewalTiers })}
+        <p>{hostingIds}</p>
+      </div>
     )}
     <RenewalTierSummary tiers={renewalTiers} />
   </>

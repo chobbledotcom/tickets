@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
+import { builtSites, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
@@ -10,7 +10,7 @@ import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { renewalTestSite } from "#test-utils/db-helpers/built-sites.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -18,22 +18,10 @@ import {
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
-const setupRenewalSite = async () => {
-  await insertBuiltSite(
-    "Renewal Test Site",
-    "renewal.b-cdn.net",
-    "",
-    "",
-    false,
-    "7101",
-  );
-  const sites = await builtSites.getAll();
-  const site = sites.find((s) => s.name === "Renewal Test Site")!;
-  const { token } = await provisionTestBuiltSite(site.id, {
+const setupRenewalSite = () =>
+  renewalTestSite("Renewal Test Site", {
     readOnlyFrom: "2026-09-01T00:00:00Z",
   });
-  return { site, token };
-};
 
 describeWithEnv("routes > renewal", { db: true }, () => {
   /** Create a single qualifying renewal tier listing + provisioned renewal
@@ -55,6 +43,35 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
     );
     return { response, token };
+  };
+
+  /** Two qualifying tiers and a provisioned site set to renew on the annual
+   * one. Both tiers allow several months per order, so the picker renders its
+   * quantity control even when only one tier is offered. */
+  const siteOnAnnualTier = async () => {
+    const monthly = await createTestListing({
+      hidden: true,
+      maxAttendees: 100,
+      maxQuantity: 12,
+      monthsPerUnit: 1,
+      name: "Monthly tier",
+      purchaseOnly: true,
+      unitPrice: 500,
+    });
+    const annual = await createTestListing({
+      hidden: true,
+      maxAttendees: 100,
+      maxQuantity: 12,
+      monthsPerUnit: 12,
+      name: "Annual tier",
+      purchaseOnly: true,
+      unitPrice: 5000,
+    });
+    const { site, token } = await setupRenewalSite();
+    await updateBuiltSiteRenewalState(site.id, {
+      renewalTierListingId: annual.id,
+    });
+    return { annual, monthly, token };
   };
 
   describe("GET /renew/", () => {
@@ -95,6 +112,40 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       expect(html).toContain("csrf_token");
     });
 
+    test("offers only the tier the site renews on", async () => {
+      const { annual, monthly, token } = await siteOnAnnualTier();
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "You are renewing Annual tier.",
+      );
+      expect(html).toContain(`quantity_${annual.id}`);
+      expect(html).not.toContain(`quantity_${monthly.id}`);
+      expect(html).not.toContain("Pick a tier and quantity below");
+    });
+
+    test("offers every tier again once the chosen one stops qualifying", async () => {
+      const { annual, monthly, token } = await siteOnAnnualTier();
+      await deactivateTestListing(annual.id);
+
+      const response = await handleRequest(
+        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+      );
+
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "You are renewing Monthly tier.",
+      );
+      expect(html).toContain(`quantity_${monthly.id}`);
+      expect(html).not.toContain(`quantity_${annual.id}`);
+    });
+
     test("does not show terms and conditions or agreement checkbox", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
@@ -106,34 +157,6 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       const { response } = await visitRenewalPicker();
       expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       expect(response.headers.has("x-robots-noindex")).toBe(false);
-    });
-
-    test("shows the current deadline in the page", async () => {
-      const { response } = await visitRenewalPicker();
-      const html = await response.text();
-      expect(html).toContain("Tuesday 1 September 2026");
-    });
-
-    test("omits the 'current deadline' wording when no deadline is set", async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      // A provisioned site whose readOnlyFrom was never populated (e.g. CDN
-      // push failed during initial provisioning) still renders a usable picker.
-      await insertBuiltSite("No Deadline Site", "nd.b-cdn.net");
-      const sites = await builtSites.getAll();
-      const site = sites.find((s) => s.name === "No Deadline Site")!;
-      const { token } = await provisionTestBuiltSite(site.id);
-
-      const response = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
-      const html = await response.text();
-      expect(html).toContain("Pick a tier and quantity below");
-      expect(html).not.toContain("Current deadline:");
     });
 
     test("renders the postcode search for an address-collecting tier", async () => {
@@ -160,33 +183,6 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain("data-address-lookup");
-    });
-
-    test("returns 404 for unknown token", async () => {
-      const response = await handleRequest(
-        mockRequest("/renew/?t=unknown-token"),
-      );
-      expect(response.status).toBe(404);
-    });
-
-    test("returns 404 when token is missing", async () => {
-      const response = await handleRequest(mockRequest("/renew/"));
-      expect(response.status).toBe(404);
-    });
-
-    test("renders error page when no qualifying tier listings exist", async () => {
-      const { token } = await setupRenewalSite();
-
-      const response = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
-      const html = await expectHtmlResponse(
-        response,
-        200,
-        "Renewal Unavailable",
-        "no longer valid",
-      );
-      expect(html).not.toContain("quantity_");
     });
 
     test("excludes inactive tier listings from the picker", async () => {

@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
+import {
+  formatDeadlineLabel,
+  isProvisioned,
+  siteRenewalTier,
+} from "#shared/renewal-helpers.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 
 describe("isProvisioned", () => {
@@ -53,5 +57,56 @@ describe("formatDeadlineLabel", () => {
   test("rounds a hair over the 1.5-day mark up to 2 days, not 1", () => {
     const future = new Date(NOW + 1.5 * DAY_MS + 1).toISOString();
     expect(formatDeadlineLabel(future, NOW)).toBe("in 2 day(s)");
+  });
+});
+
+describe("siteRenewalTier", () => {
+  const monthly = { id: 11, name: "Monthly" };
+  const annual = { id: 12, name: "Annual" };
+  const qualifying = [monthly, annual];
+
+  test("offers every tier when the site is on no particular one", () => {
+    const site = testBuiltSite({ renewalTierListingId: null });
+    expect(siteRenewalTier(site, qualifying)).toEqual({
+      kind: "any",
+      offered: [monthly, annual],
+    });
+  });
+
+  test("offers only the chosen tier while it still qualifies", () => {
+    const site = testBuiltSite({ renewalTierListingId: 12 });
+    expect(siteRenewalTier(site, qualifying)).toEqual({
+      kind: "pinned",
+      offered: [annual],
+      tier: annual,
+    });
+  });
+
+  test("falls back to every tier when the chosen one was retired", () => {
+    const site = testBuiltSite({ renewalTierListingId: 99 });
+    expect(siteRenewalTier(site, qualifying)).toEqual({
+      kind: "retired",
+      listingId: 99,
+      offered: [monthly, annual],
+    });
+  });
+
+  test("reports 'retired' when no tier qualifies at all", () => {
+    const site = testBuiltSite({ renewalTierListingId: 11 });
+    expect(siteRenewalTier(site, [])).toEqual({
+      kind: "retired",
+      listingId: 11,
+      offered: [],
+    });
+  });
+
+  test("offers nothing when the site is on no tier and none qualifies", () => {
+    const site = testBuiltSite({ renewalTierListingId: null });
+    expect(siteRenewalTier(site, []).offered).toEqual([]);
+  });
+
+  test("copies the list rather than handing back the caller's array", () => {
+    const site = testBuiltSite({ renewalTierListingId: null });
+    expect(siteRenewalTier(site, qualifying).offered).not.toBe(qualifying);
   });
 });

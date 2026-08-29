@@ -244,6 +244,7 @@ export const testBuiltSite = (
   id: 1,
   name: "Test Site",
   readOnlyFrom: "",
+  renewalTierListingId: null,
   renewalToken: null,
   renewalTokenIndex: null,
   scheduledTaskKey: null,

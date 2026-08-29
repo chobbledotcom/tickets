@@ -24,6 +24,7 @@ test("keeps the complete built-site route catalog exact", async () => {
     "POST /admin/built-sites/:id/provision-scheduler",
     "POST /admin/built-sites/:id/re-sync-deadline",
     "POST /admin/built-sites/:id/rotate-renewal-token",
+    "POST /admin/built-sites/:id/set-renewal-tier",
     "POST /admin/built-sites/:id/update",
   ]);
 });

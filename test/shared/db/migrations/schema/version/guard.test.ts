@@ -105,8 +105,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-08-04_login_attempt_stamp",
         "2026-08-10_refund_authority_records",
         "2026-08-18_sumup_recovery_state",
+        "2026-08-26_built_sites_renewal_tier",
       ],
-      schemaHash: "g0zsbw",
+      schemaHash: "ep3sl4",
     });
   });
 
@@ -121,7 +122,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Ask SumUp what became of every checkout, so a payment whose message went missing still becomes a ticket.",
+        "Record which renewal tier a built site renews on, so the operator can see it and change it.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

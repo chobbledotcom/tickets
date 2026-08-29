@@ -354,21 +354,23 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   return rowToBuiltSite(decrypted);
 };
 
-/** Update built site renewal state: token index, deadline, and renewal blob together */
+/** The renewal facts one write can set: the deadline, the token and its blind
+ * index, and the tier the site renews on. `exactOptionalPropertyTypes` means an
+ * omitted key cannot be passed as `undefined`, so a named key is always a value
+ * to write and an omitted one always keeps what the site already stores. */
+export type BuiltSiteRenewalStateUpdate = Partial<
+  Pick<
+    BuiltSite,
+    | "readOnlyFrom"
+    | "renewalTierListingId"
+    | "renewalToken"
+    | "renewalTokenIndex"
+  >
+>;
+
+/** Update a built site's renewal state — deadline, token, blind index, and
+ * renewal tier — in one write. */
 export const updateBuiltSiteRenewalState = (
   siteId: number,
-  updates: {
-    renewalTokenIndex?: string | null;
-    readOnlyFrom?: string;
-    renewalToken?: string;
-  },
-): Promise<BuiltSite | null> =>
-  updateBuiltSite(siteId, (existing) => ({
-    renewalToken: updates.renewalToken ?? existing.renewalToken,
-    ...(updates.renewalTokenIndex !== undefined
-      ? { renewalTokenIndex: updates.renewalTokenIndex }
-      : {}),
-    ...(updates.readOnlyFrom !== undefined
-      ? { readOnlyFrom: updates.readOnlyFrom }
-      : {}),
-  }));
+  updates: BuiltSiteRenewalStateUpdate,
+): Promise<BuiltSite | null> => updateBuiltSite(siteId, () => updates);

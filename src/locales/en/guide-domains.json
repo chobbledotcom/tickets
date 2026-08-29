@@ -33,5 +33,7 @@
   "guide.a.what_do_i_need_before_building_a": "<p>You need a libsql database (e.g. from <a href=\"https://turso.tech\">Turso</a>) with its URL and auth token. The server must have <code>BUNNY_API_KEY</code> configured. The builder is owner-only.</p>",
   "guide.q.can_i_add_a_site_record_without": "Can I add a site record without using the builder?",
   "guide.a.can_i_add_a_site_record_without": "<p>Yes. On the <strong>Built Sites</strong> page, click <strong>Add Built Site</strong> to manually record a site name and URL. This is useful for tracking instances you deployed by other means.</p>",
+  "guide.q.how_do_i_set_a_sites_renewal_tier": "How do I set a site's renewal tier?",
+  "guide.a.how_do_i_set_a_sites_renewal_tier": "<p>A renewal tier is a hidden, buy-only listing with <em>Months per unit</em> above 0. Open a site from <strong>Built Sites</strong> and use the <strong>Renewal</strong> tab. The <strong>Renewal tier</strong> box shows which tier the site renews on, and lets you change it.</p><p>Pick a tier and the renewal page offers only that one. Pick <em>Any tier</em> and the customer chooses from every tier you have. If you later remove the tier a site is on, the site goes back to showing every tier, and the Renewal tab tells you so.</p>",
   "guide.q.what_is_host_subdomain": "What is a host subdomain?"
 }
