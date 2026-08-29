@@ -331,6 +331,19 @@ GitHub.
   coverage. Write the failing test first, confirm it fails for the right reason,
   then apply the fix and watch it go green. This locks the bug out for good and
   proves the fix actually addresses it.
+- **A branch fixes the defects it introduces**: A review finding about code the
+  branch adds is that branch's work. Fix it in the branch, pin it with a
+  regression test, and merge the branch clean. Never record it as a follow-up
+  issue and merge anyway: the defect exists nowhere but the open branch, and the
+  issue hands work to a future person who must rebuild the context in front of
+  you now. An issue is for a defect that is already on main, or for one that is
+  genuinely outside the branch's scope. If the fix would complicate the branch,
+  split the branch instead of merging a known defect. In a stack, the fix
+  belongs to the layer that introduces it.
+
+  The worked example: issues #2226–#2233 were opened for review findings on PR
+  #2166's own new code, and the defects they describe existed nowhere but that
+  open branch. The fixes belong in the same pull request.
 - **Offensive, not defensive, programming**: Fail loudly and immediately instead
   of tolerating bad states — never suppress, default away, or paper over an
   error. See
