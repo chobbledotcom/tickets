@@ -9,8 +9,10 @@
 import { sha256Hex } from "#scripts/checksum.ts";
 
 /** Words include names, strings, and numbers: everything a rename touches.
- * Reserved words carry meaning, so `if` and `while` keep their own shapes and
- * two spans with different control flow never read as one renamed copy. */
+ * Reserved words keep their own shape only as keywords: a word straight after
+ * a `.` is a member name, so `client.delete(...)` reads the same as
+ * `client.archive(...)` — one renamed member — while `if` and `while` still
+ * differ as control flow. */
 const RESERVED = new Set([
   "await",
   "break",
@@ -53,9 +55,16 @@ const RESERVED = new Set([
   "yield",
 ]);
 
+/** A reserved word sitting in keyword position, not member position: the text
+ * before it (if any) is not a property access dot. */
+const isKeywordPosition = (offset: number, full: string): boolean =>
+  !full.slice(0, offset).trimEnd().endsWith(".");
+
 export const skeleton = (code: string): string =>
   code
-    .replace(/[A-Za-z0-9_$'"]+/g, (word) => (RESERVED.has(word) ? word : "§"))
+    .replace(/[A-Za-z0-9_$'"]+/g, (word, offset: number) =>
+      RESERVED.has(word) && isKeywordPosition(offset, code) ? word : "§",
+    )
     .replace(/\s+/g, "");
 
 /** How equal two clone sides are. "words" means the punctuation shape matches
@@ -69,13 +78,23 @@ export const cloneKind = (a: string, b: string): CloneKind => {
   return skeleton(first) === skeleton(second) ? "words" : "different";
 };
 
+/** The first word of a statement, which names what the statement is. */
+const head = (statement: string): string => {
+  const limit = statement.search(/[\s{]/);
+  return limit === -1 ? statement : statement.slice(0, limit);
+};
+
 /** Import blocks are the one sanctioned repeat in this repository, so a span
  * that only names imports is not a finding. A span counts as an import span
  * when every statement in it either closes with a `from "…"` module specifier
- * or is an import fragment jscpd cut mid-statement — bare members, braces,
- * and commas, no executable code. A span that continues past an import into
- * copied code keeps that code and is not exempt. */
-const importFragment = /^[A-Za-z0-9_$\s{},"']*$/;
+ * or is an import member fragment: bare names, braces, and commas whose head
+ * word is either a plain name or an import-syntax word. An executable
+ * shorthand (`return { a, b };`) heads with a control keyword, so it is not
+ * exempt. */
+const memberFragment = /^[A-Za-z0-9_$\s{},"']*$/;
+
+/** The words import member lists legitimately start with. */
+const importSyntaxHeads = new Set(["import", "type", "from", "of", "in"]);
 
 export const isImportSpan = (code: string): boolean => {
   const statements = code
@@ -87,7 +106,9 @@ export const isImportSpan = (code: string): boolean => {
     statements.every(
       (statement) =>
         /from\s+["'][^"']+["']$/.test(statement) ||
-        importFragment.test(statement),
+        (memberFragment.test(statement) &&
+          (importSyntaxHeads.has(head(statement)) ||
+            !RESERVED.has(head(statement)))),
     )
   );
 };

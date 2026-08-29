@@ -32,6 +32,12 @@ describe("skeleton", () => {
       "different",
     );
   });
+
+  it("masks reserved words used as member names, so a rename is still a rename", () => {
+    expect(cloneKind("client.delete(item);", "client.archive(item);")).toBe(
+      "words",
+    );
+  });
 });
 
 describe("cloneKind", () => {
@@ -75,11 +81,30 @@ describe("isImportSpan", () => {
     ).toBe(true);
   });
 
+  it("accepts a member tail cut out of an import block", () => {
+    // jscpd cuts on token boundaries, so a span can begin mid-list and end
+    // before the `from "…"` close. It is still import content.
+    expect(
+      isImportSpan(`summarizeProviderResponse,
+  targetAllowsEmpty,
+  targetQuery,`),
+    ).toBe(true);
+    expect(isImportSpan("targetQuery,")).toBe(true);
+  });
+
   it("rejects a span that continues past an import into copied code", () => {
     expect(
       isImportSpan(`import { expect } from "@std/expect";
 export const answer = (slug: string) => hash(slug);`),
     ).toBe(false);
+  });
+
+  it("rejects executable shorthand returns, identical on both sides", () => {
+    // A bare word-and-braces list is not import syntax: an executable clone
+    // must not slip past the gate as a would-be import fragment.
+    expect(isImportSpan("return { alpha, beta, gamma, delta, epsilon };")).toBe(
+      false,
+    );
   });
 
   it("rejects ordinary code that merely mentions from", () => {

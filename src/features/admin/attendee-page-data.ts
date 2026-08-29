@@ -341,8 +341,8 @@ const ATTENDEE_LOG_LIMIT = 1000;
 /** How many entries the Overview preview shows before "view all". */
 const ATTENDEE_LOG_PREVIEW = 3;
 
-/** An exported activity log reader: one attendee's log, capped at the limit. */
-export type AttendeeActivityLoader = (
+/** An activity log reader: one attendee's log, capped at the limit. */
+type AttendeeActivityLoader = (
   attendeeId: number,
 ) => ReturnType<typeof getAttendeeActivityLog>;
 
