@@ -43,25 +43,44 @@ export interface LabelIssue extends LineIssue {
 /** Reports the source line a match index sits on. */
 type LineOf = (index: number) => number;
 
-/** How one scanned call names its words. */
-interface LabelCall {
-  /** Which argument carries the words, counted from one. */
+/** Where a call's words or key sits, and how the call reads them. */
+interface CallShape {
+  /** Which argument carries the words or key, counted from one. */
   readonly argument: number;
   /** A free call reads `name(…)`. A member call reads `session.name(…)`. */
   readonly form: "free" | "member";
-  /** A control's name is the whole message. Page text may be a fragment.
-   * A key call passes the catalog key itself. */
-  readonly match: "exact" | "contains" | "key";
 }
+
+/** A words call quotes what the page renders: a control's name is the whole
+ * message; page text may be a fragment. */
+interface WordCall extends CallShape {
+  readonly match: "exact" | "contains";
+}
+
+/** A key call forwards a group and key to catalogWords, which loads only
+ * that group — so the group must be the one that holds the key, or the
+ * driver throws at run time. `group` is the argument naming it, or the
+ * fixed group a helper with no group argument loads. */
+interface KeyCall extends CallShape {
+  readonly group: number | string;
+  readonly match: "key";
+}
+
+type LabelCall = WordCall | KeyCall;
 
 /** The calls the driver makes against an app page by visible words. */
 const LABEL_CALLS: Record<string, LabelCall> = {
-  attendeeCatalogButtons: { argument: 2, form: "free", match: "key" },
+  attendeeCatalogButtons: {
+    argument: 2,
+    form: "free",
+    group: "attendees",
+    match: "key",
+  },
   clickButton: { argument: 1, form: "member", match: "exact" },
   clickLink: { argument: 1, form: "member", match: "exact" },
   exactLinkCount: { argument: 2, form: "free", match: "exact" },
-  pageTextCount: { argument: 3, form: "free", match: "key" },
-  pageTextIncludes: { argument: 3, form: "free", match: "key" },
+  pageTextCount: { argument: 3, form: "free", group: 2, match: "key" },
+  pageTextIncludes: { argument: 3, form: "free", group: 2, match: "key" },
   requireNoExactLink: { argument: 2, form: "free", match: "exact" },
   requirePageText: { argument: 2, form: "free", match: "contains" },
 };
@@ -148,20 +167,50 @@ const stringLiteral = (arg: string): string | null => {
   return quoted[1]!.replace(ESCAPE, (_, body: string) => decodeEscape(body));
 };
 
-/** Judge one argument that carries visible words or a catalog key. */
+/** The issue when a call names a group that does not hold its key: the
+ * driver loads only that group, so the call throws at run time. */
+const wrongGroupIssue = (
+  named: string,
+  key: string,
+  catalog: CatalogCopy,
+): string | null => {
+  const holder = catalog.groupOf.get(key);
+  return holder === named
+    ? null
+    : `names group "${named}", but "${key}" lives in ` +
+        `"${holder === undefined ? "no group" : holder}". ` +
+        "Name the group that holds the key.";
+};
+
+/** The literal a key call's group comes from, or null when the group
+ * argument is not a literal the scan can read. The group argument always
+ * precedes the words argument, which the caller has already shown present. */
+const groupLiteral = (args: readonly string[], how: KeyCall): string | null =>
+  typeof how.group === "string"
+    ? how.group
+    : stringLiteral(args[how.group - 1]!);
+
+/** Judge a scanned call's arguments: the words or key argument, and the
+ * group a key call forwards beside it. `words` is the argument text the
+ * caller has already shown to be present. */
 const argumentIssue = (
-  arg: string,
+  words: string,
+  args: readonly string[],
   catalog: CatalogCopy,
   how: LabelCall,
 ): string | null => {
-  const literal = stringLiteral(arg);
+  const literal = stringLiteral(words);
   // A non-literal names the scenario's own data. See the header.
   if (literal === null) return null;
   if (how.match === "key") {
-    return catalog.keys.has(literal)
-      ? null
-      : `uses key "${literal}", which src/locales/en holds nowhere. ` +
-          `Give the group and key the page's template reads.`;
+    if (!catalog.keys.has(literal)) {
+      return (
+        `uses key "${literal}", which src/locales/en holds nowhere. ` +
+        `Give the group and key the page's template reads.`
+      );
+    }
+    const group = groupLiteral(args, how);
+    return group === null ? null : wrongGroupIssue(group, literal, catalog);
   }
   const renders = catalog.values.some((value) =>
     how.match === "exact" ? value === literal : value.includes(literal),
@@ -199,7 +248,7 @@ const callSiteIssues = (
       },
     ];
   }
-  const message = argumentIssue(arg, catalog, how);
+  const message = argumentIssue(arg, args, catalog, how);
   return message === null ? [] : [{ line: lineOf(match.index), message }];
 };
 
@@ -241,17 +290,8 @@ const keyIssues = (
   const wrongGroup = (match: RegExpExecArray): LabelIssue | null => {
     const issue = droppedKey(match, 3, 4);
     if (issue !== null) return issue;
-    const key = match[4]!;
-    const holder = catalog.groupOf.get(key);
-    return holder === match[2]
-      ? null
-      : {
-          line: lineOf(match.index),
-          message:
-            `loads group "${match[2]}", but "${key}" lives in ` +
-            `"${holder === undefined ? "no group" : holder}". Name the group ` +
-            "that holds the key.",
-        };
+    const message = wrongGroupIssue(match[2]!, match[4]!, catalog);
+    return message === null ? null : { line: lineOf(match.index), message };
   };
   return [
     ...mapNotNullish(droppedTKey)([...code.matchAll(T_KEY_CALL)]),

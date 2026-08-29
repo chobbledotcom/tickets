@@ -106,7 +106,7 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
     expect(issues[0]?.message).toBe(
-      'loads group "common", but "settings.save_payment_provider" lives in ' +
+      'names group "common", but "settings.save_payment_provider" lives in ' +
         '"settings". Name the group that holds the key.',
     );
   });
@@ -120,6 +120,52 @@ describe("e2e label rules", () => {
     expect(findLabelIssues(source, copy)).toEqual([]);
   });
 
+  test("flags a page-text helper that names the wrong group", () => {
+    const source = [
+      `if (await pageTextIncludes(ledger, "common", "admin.ledger.event.sale")) {}`,
+      `requireExactly(await pageTextCount(ledger, "common", "admin.ledger.human.payment"), 1, "r");`,
+    ].join("\n");
+    const copy = catalog(
+      [],
+      ["admin.ledger.event.sale", "admin.ledger.human.payment"],
+      {
+        "admin.ledger.event.sale": "ledger",
+        "admin.ledger.human.payment": "ledger",
+      },
+    );
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.map((issue) => issue.message)).toEqual([
+      'names group "common", but "admin.ledger.event.sale" lives in ' +
+        '"ledger". Name the group that holds the key.',
+      'names group "common", but "admin.ledger.human.payment" lives in ' +
+        '"ledger". Name the group that holds the key.',
+    ]);
+  });
+
+  test("flags an attendee button key that left the attendees group", () => {
+    const source = `const confirm = await attendeeCatalogButtons(owner, "admin.ledger.event.sale");`;
+    const copy = catalog([], ["admin.ledger.event.sale"], {
+      "admin.ledger.event.sale": "ledger",
+    });
+
+    const issues = findLabelIssues(source, copy);
+    expect(issues.length).toBe(1);
+    expect(issues[0]?.message).toBe(
+      'names group "attendees", but "admin.ledger.event.sale" lives in ' +
+        '"ledger". Name the group that holds the key.',
+    );
+  });
+
+  test("leaves a key call alone whose group argument is a variable", () => {
+    const source = `if (await pageTextIncludes(ledger, group, "admin.ledger.event.sale")) {}`;
+    const copy = catalog([], ["admin.ledger.event.sale"], {
+      "admin.ledger.event.sale": "ledger",
+    });
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
   test("says no group holds a key the catalog carries without one", () => {
     const source = `await catalogWords("settings", "orphan.key")`;
     const copy = catalog([], ["orphan.key"]);
@@ -127,7 +173,7 @@ describe("e2e label rules", () => {
     const issues = findLabelIssues(source, copy);
     expect(issues.length).toBe(1);
     expect(issues[0]?.message).toBe(
-      'loads group "settings", but "orphan.key" lives in ' +
+      'names group "settings", but "orphan.key" lives in ' +
         '"no group". Name the group that holds the key.',
     );
   });
