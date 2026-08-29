@@ -40,6 +40,13 @@ export const getSteps = (): Step[] => {
     // no import spelling a module longer than its own alias allows (see
     // "Imports name a module one way" in AGENTS.md).
     { cmd: [deno, "task", "check:imports"], name: "check:imports" },
+    // Hold the payment e2e to the catalog's own words: every label it clicks
+    // or asserts must be copy src/locales/en renders (or a t("…") call), so a
+    // copy rename fails here instead of the schedule-only nightly run.
+    {
+      cmd: [deno, "task", "check:e2e-labels"],
+      name: "check:e2e-labels",
+    },
     // Catch a known-equivalent entry that no longer points at a real mutant on
     // the branch that moved it, rather than in review. Resolution only — the
     // audit that re-proves equivalence runs lint and type-check per entry and

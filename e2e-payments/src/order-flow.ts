@@ -15,6 +15,7 @@
 
 /* jscpd:ignore-start */
 import { type BrowserSession, hrefOf } from "./browser.ts";
+import { catalogWords } from "./catalog-words.ts";
 import {
   type BookerIdentity,
   config,
@@ -85,7 +86,7 @@ const createPackage = async (
   await session.goto("/admin/groups/new");
   await session.fill("name", catalog.kit);
   await session.check("is_package");
-  await session.clickButton("Create Group");
+  await session.clickButton(await catalogWords("groups", "groups.add.submit"));
   await session.goto("/admin/groups");
   await session.clickLink(catalog.kit);
   const groupId = idFromUrl(session, "groups");
@@ -93,7 +94,11 @@ const createPackage = async (
   for (const member of members) {
     await session.goto(`/admin/listing/${member.id}/edit`);
     await session.check("group_ids", String(groupId));
-    await session.clickButton("Save");
+    // The listing edit form's save control says "Save Changes"; the old
+    // "Save" click only worked through the browser's substring match.
+    await session.clickButton(
+      await catalogWords("common", "common.save_changes"),
+    );
   }
 
   step("Setting the package's member prices");
@@ -104,7 +109,9 @@ const createPackage = async (
       (member.priceMinor / 100).toFixed(2),
     );
   }
-  await session.clickButton("Save");
+  await session.clickButton(
+    await catalogWords("common", "common.save_changes"),
+  );
   return groupId;
 };
 
@@ -175,7 +182,9 @@ const fillBookingPage = async (
   await setRowQty(identity.catalog.plain, "2");
   await session.fill("name", identity.booker.name);
   await session.fill("email", identity.booker.email);
-  await session.clickButton("Continue");
+  // This form is the reservations form (reached at /ticket/), whose own
+  // submit renders common.continue — not the gallery's order key.
+  await session.clickButton(await catalogWords("common", "common.continue"));
   log(`  booking submitted; now at ${page.url()}`);
 };
 

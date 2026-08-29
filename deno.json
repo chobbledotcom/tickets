@@ -29,6 +29,7 @@
     "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.helpers.json && deno run -A scripts/cpd.ts --config .jscpd.support.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
+    "check:e2e-labels": "deno run --allow-read=src,e2e-payments scripts/check-e2e-labels.ts",
     "check:imports": "deno run --allow-read=deno.json,src,test,scripts,cli scripts/check-imports.ts",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",

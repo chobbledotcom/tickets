@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import type { BrowserSession } from "#e2e/browser.ts";
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { log } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import {
@@ -9,6 +10,7 @@ import {
   providerFetch,
   refundObservationVia,
   requiredField,
+  saveCredentials,
   testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
@@ -26,28 +28,33 @@ const stripeApi = <T>(
     ...(method === undefined ? {} : { method }),
   }) as Promise<T>;
 
-const saveStripeKey = async (
-  session: BrowserSession,
-  secretKey: string,
-): Promise<void> => {
-  await session.fill("stripe_secret_key", secretKey);
-  await session.clickButton("Update Stripe Key");
-};
-
 /** Ask the owner's "Test Connection" button about Stripe. Beyond the key, it
- * proves the rotation left exactly one of our webhook endpoints behind. */
-const testStripeConnection = (session: BrowserSession): Promise<void> => {
+ * proves the rotation left exactly one of our webhook endpoints behind. Every
+ * required line derives from the message keys the page renders. */
+const testStripeConnection = async (session: BrowserSession): Promise<void> => {
   const webhookUrl = `${session.baseUrl}/payment/webhook`;
-  return testProviderConnection(session, "stripe", {
+  const apiKeyLabel = await catalogWords(
+    "settings",
+    "settings.connection.label_api_key",
+  );
+  await testProviderConnection(session, "stripe", {
     alsoWrong: (text) => {
       const endpoints = text.split(webhookUrl).length - 1;
       return endpoints === 1 ? null : `current endpoint count: ${endpoints}`;
     },
     passed: "Stripe connection, webhook listing, and endpoint rotation passed",
     require: [
-      "API Key: Valid (test mode)",
-      `${webhookUrl} (tickets)`,
-      "Events: checkout.session.completed",
+      await catalogWords("settings", "settings.connection.valid", {
+        label: apiKeyLabel,
+        mode: "test",
+      }),
+      `${webhookUrl} ${await catalogWords(
+        "settings",
+        "settings.connection.own_endpoint",
+      )}`,
+      await catalogWords("settings", "settings.connection.events", {
+        events: "checkout.session.completed",
+      }),
     ],
   });
 };
@@ -140,8 +147,9 @@ export const stripe: PaymentProvider = {
   configure: configureProvider("stripe", async (session, secrets) => {
     // The second save rotates the endpoint through the app's production cleanup
     // path. The connection result then proves only the replacement remains.
-    await saveStripeKey(session, secrets.secretKey);
-    await saveStripeKey(session, secrets.secretKey);
+    const credentials = { stripe_secret_key: secrets.secretKey };
+    await saveCredentials(session, "stripe", credentials);
+    await saveCredentials(session, "stripe", credentials);
     await testStripeConnection(session);
   }),
   name: "stripe",

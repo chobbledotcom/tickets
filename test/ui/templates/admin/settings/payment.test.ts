@@ -139,17 +139,17 @@ describe("settings payment forms", () => {
       test(`offers ${label} a connection test only once it is configured`, () => {
         const configured = credentials(provider, { configured: true });
         expect(configured).toContain(
-          `<button class="secondary" id="${provider}-test-btn"`,
+          `<button class="secondary" data-testing="Testing..." id="${provider}-test-btn"`,
         );
         expect(configured).toContain("Test connection");
         expect(configured).toContain(
-          `<div class="hidden" id="${provider}-test-result"`,
+          `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
         );
 
         const blank = credentials(provider);
         expect(blank).not.toContain(`id="${provider}-test-btn"`);
         expect(blank).toContain(
-          `<div class="hidden" id="${provider}-test-result"`,
+          `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
         );
       });
 

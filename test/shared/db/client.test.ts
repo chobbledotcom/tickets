@@ -120,6 +120,41 @@ describe("extractUpdateColumns", () => {
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
+  test("columns after an astral character still split at the comma", () => {
+    // An emoji is two UTF-16 code units. A code-point scan slices into its
+    // middle, reads the next column as ", quantity", and the write sniffs
+    // the wrong table — so its cache is never invalidated.
+    const cols = extractUpdateColumns(
+      "UPDATE t SET note = \u{1F600}, quantity = 1",
+    );
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
+  test("columns after a bracket inside a value still split at the comma", () => {
+    // A value like ')(' must not stop the scan. A stop there would drop
+    // every later column from the sniff, so its cache is never invalidated.
+    const cols = extractUpdateColumns("UPDATE t SET note = ')(', quantity = 1");
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
+  test("columns after an unbalanced bracket inside a quoted value", () => {
+    // A lone closer inside a quoted value used to shift the level for the
+    // rest of the clause, dropping every later column from the sniff.
+    const cols = extractUpdateColumns("UPDATE t SET note = ')', quantity = 1");
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
+  test("a doubled quote keeps its comma inside one value", () => {
+    const cols = extractUpdateColumns(
+      "UPDATE t SET note = 'a'', b', quantity = 1",
+    );
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
   test("depth scan starts at the very first character of the SET clause", () => {
     // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
     // see that first character, otherwise depth goes negative at ")" and the

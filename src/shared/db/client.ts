@@ -29,6 +29,7 @@ import { namedError } from "#shared/named-error.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import { withSubrequestReserve } from "#shared/subrequest-budget.ts";
+import { topLevelCommas } from "#shared/top-level-commas.ts";
 
 /**
  * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
@@ -70,17 +71,19 @@ export const extractUpdateColumns = (
       .toLowerCase();
     if (col) columns.add(col);
   };
-  let depth = 0;
   let start = 0;
-  for (const [i, ch] of setClause.split("").entries()) {
-    if (ch === "(") depth++;
-    else if (ch === ")") depth--;
-    else if (ch === "," && depth === 0) {
-      addAssignment(setClause.slice(start, i).trim());
-      start = i + 1;
-    }
+  const { commas } = topLevelCommas(setClause, {
+    closers: ")",
+    openers: "(",
+    // A quoted SQL value is opaque: its brackets and commas split nothing.
+    quotes: "'\"",
+    start: 0,
+    stopWhenClosed: false,
+  });
+  for (const comma of [...commas, setClause.length]) {
+    addAssignment(setClause.slice(start, comma).trim());
+    start = comma + 1;
   }
-  addAssignment(setClause.slice(start).trim());
   return columns.size > 0 ? columns : null;
 };
 

@@ -1,5 +1,10 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
+# Connection-test answer lines: a valid credential's mode is always a
+# non-empty provider word ("test"/"live"/"sandbox") or the "unknown"
+# fallback itself, so the empty string never reaches this operand.
+src/features/admin/settings-connection-lines.ts::credentialLine.mode~1vqeabi  ?? → ||   # cred.mode on a valid credential is a non-empty mode word or undefined; never the empty string
+
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/site-content-page.ts::defineSiteContentPage.tabs~0786g3u  ?? → ||   # extraTabs is an array when present, and arrays are always truthy

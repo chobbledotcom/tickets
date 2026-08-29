@@ -10,8 +10,9 @@ import {
   holdFirstAppReturn,
   requirePageText,
 } from "#e2e/browser.ts";
+// jscpd:ignore-start -- this #e2e import run is structural
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-// jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import {
@@ -21,6 +22,7 @@ import {
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
+import { pageTextCount, pageTextIncludes } from "#e2e/page-text.ts";
 import { lastLoggedMatch } from "#e2e/providers/shared.ts";
 import {
   deliverGenuineCallbackTwice,
@@ -319,12 +321,16 @@ Then(
 /** The owner edits the listing's price while the visitor is mid-checkout. */
 const changeListingPrice = async (world: LiveWorld): Promise<void> => {
   await openScenarioListing(world, "overview");
-  await ownerOf(world).clickLink("Edit");
+  await ownerOf(world).clickLink(
+    await catalogWords("entity-pages", "entity.tab.edit"),
+  );
   await ownerOf(world).fill(
     "unit_price",
     ((config.unitPrice + 100) / 100).toFixed(2),
   );
-  await ownerOf(world).clickButton("Save changes");
+  await ownerOf(world).clickButton(
+    await catalogWords("common", "common.save_changes"),
+  );
   world.recordPhase("listing-price-changed");
 };
 
@@ -341,7 +347,7 @@ const visitorSeesRefundNotice = async (world: LiveWorld): Promise<void> => {
   await visitorFollowsHeldReturn(world);
   await requirePageText(
     world.resources.visitor,
-    "automatically refunded",
+    await catalogWords("payment", "payment.failure.refunded"),
     "invalidated-visitor-not-told",
     "Expected the visitor to be told their details were saved and the payment refunded; got:",
   );
@@ -374,11 +380,15 @@ Then(
   async function (this: LiveWorld): Promise<void> {
     const ledger = await attendeeTabOf(this, "ledger");
     requireExactly(
-      ledger.split("Payment received for").length - 1,
+      await pageTextCount(ledger, "ledger", "admin.ledger.human.payment"),
       1,
       "payment row",
     );
-    requireExactly(ledger.split("Refund paid to").length - 1, 1, "refund row");
+    requireExactly(
+      await pageTextCount(ledger, "ledger", "admin.ledger.human.refund_cash"),
+      1,
+      "refund row",
+    );
     const balance = await finalBalanceFigure(ownerOf(this));
     if (!/^[^0-9]*0(?:\.00)?$/.test(balance.trim())) {
       throw new Error(
@@ -392,7 +402,7 @@ Then(
  * but no sale was ever recorded for a booking that cannot be honoured. */
 const requireNoSaleForUnfulfilled = async (world: LiveWorld): Promise<void> => {
   const ledger = await attendeeTabOf(world, "ledger");
-  if (ledger.includes("Booking made")) {
+  if (await pageTextIncludes(ledger, "ledger", "admin.ledger.event.sale")) {
     throw new Error("the unfulfilled booking recorded a sale");
   }
   await requireMoneyRefunds(world, 1, "Money refund");
