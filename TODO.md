@@ -4,7 +4,7 @@
 
 _Origin: the cpd investigation. jscpd matches literal tokens, so a rename hides
 a copy; `deno task cpd:renamed` now catches that class, and its registry
-(`scripts/cpd-renamed/allowed.json`) holds 83 `pending merge` pairs._
+(`scripts/cpd-renamed/allowed.json`) holds 70 `pending merge` pairs._
 
 Each entry is two sites that spell one code shape with different words. Merge
 the pair (helper or curry), then run `deno task cpd:renamed --update` to drop
@@ -14,16 +14,23 @@ by-design reason.
 Merged or judged so far: the provider slug pair (now `providerSlugRule` in
 `src/shared/config.ts`), the activity-log limit pair (now
 `attendeeActivityCappedAt` in `src/features/admin/attendee-page-data.ts`), the
-site-pages flash pair (now `pageWriteWords`), and four judged by-design
+site-pages flash pair (now `pageWriteWords`), the setup agreement clauses
+(declared data — one row per reviewed literal `t()` key), the listing lifecycle
+verb pages (now `listingVerbPage`), the entity-pages section props (now
+`SectionOf`), the attendee refund-all state (shared fields once), the listing
+on/off API routes (now `toggleActiveRoute`), the integrations guide example
+blocks (now `ExampleCode`), the backup page sections (now the shared
+`ProseSection`), the listing date countdown rows (now `withCountdown`), and the
+deactivation effects list shared between the listing and group pages (now
+`DeactivationEffects`). Four others are judged by-design with written reasons
 (`answerFlashRoute` twins, `parseOrNull`/`parseOrThrow`,
 `statOrNull`/`lstatOrNull`, `costOfListing`/`profitOfListing`). Remaining
 families, easiest first:
 
-- `deleteAttribute` (`src/shared/db/attributes.ts`) and `deleteListing`
-  (`src/shared/db/listings/delete.ts`) — cascade deletes; one helper takes the
-  table-specific clear statements.
-- The route-table twins in `src/features/admin/api.ts`
-  (`handleToggleActive(request, listingId, false/true)`).
+- The CSV export pair (`attendees-csv.ts` vs `calendar-csv.ts`) — two export
+  writers sharing the tail of their generate calls.
+- `downloadRaw` / `downloadImage` in `src/shared/storage.ts`.
+- The `entity-pages` tab strip row pair.
 
 Read a pair's snippets with `deno task cpd:renamed` output before merging.
 
