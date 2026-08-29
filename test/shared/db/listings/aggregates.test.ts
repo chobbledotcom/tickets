@@ -8,10 +8,8 @@ import {
 } from "#db/listings/aggregates.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createListingWithDriftedTotals,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { createListingWithDriftedTotals } from "#test-utils/db-helpers/listing-totals.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const storedTotals = (listingId: number) =>
   queryOne<{ booked_quantity: number; tickets_count: number }>(

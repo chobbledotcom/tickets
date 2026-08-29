@@ -1,13 +1,14 @@
 /**
- * Data loaders for the listing entity page's read-only tabs — Overview,
- * Attendees (roster), and Activity. Each gathers exactly what its own tab
- * renders: per-tab loading means the expensive decrypted-attendee fetch only
- * runs for the two tabs that show the roster, never for Edit / Questions / QR.
+ * Data loaders for the listing entity page. Most serve the read-only tabs —
+ * Overview, Attendees (roster), and Activity. Each one gathers exactly what
+ * its own tab renders, so the expensive decrypted-attendee fetch runs for the
+ * two tabs that show the roster and for no other.
  *
- * The panels themselves (ListingOverviewPanel / ListingRosterPanel) live in the
- * listings template; these loaders assemble their props from the DB. The
- * gathering mirrors the pre-migration detail handler (listings-view.ts) so the
- * tabs render the same data the single detail page used to.
+ * `getListingAndGroups` is the exception, because the edit form and the edit
+ * tab's panels both need it. It sits here rather than inside either of them.
+ *
+ * The panels themselves (ListingOverviewPanel / ListingRosterPanel) live in
+ * the listings template. These loaders assemble their props from the DB.
  */
 
 import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
@@ -19,15 +20,23 @@ import {
 } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import { getHiddenPackageMemberIds } from "#db/groups.ts";
+import {
+  getHiddenPackageMemberIds,
+  groups,
+  listingGroups,
+} from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
   hydrateListingLinks,
   listingChildren,
 } from "#db/listing-parents.ts";
-import { getListingAggregateRecalculation } from "#db/listings/aggregates.ts";
+import {
+  getListingAggregateRecalculation,
+  type ListingAggregateRecalculation,
+} from "#db/listings/aggregates.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getStoredListingWithCount } from "#db/listings/records.ts";
 import {
   loadNotesForAttendees,
   loadNotesForListing,
@@ -53,6 +62,7 @@ import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
   type Attendee,
+  type Group,
   isOwnerRole,
   isPaidListing,
   type ListingWithCount,
@@ -65,6 +75,33 @@ import {
   rosterListSetup,
 } from "./listings-view.ts";
 import { loadListingOr } from "./load-listing.ts";
+
+/** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
+export const getListingAndGroups = async (
+  listingId: number,
+): Promise<{
+  aggregateRecalculation: ListingAggregateRecalculation;
+  groups: Group[];
+  listing: ListingWithCount;
+  selectedGroupIds: number[];
+} | null> => {
+  const [listing, allGroups, selectedGroupIds] = await Promise.all([
+    // The edit form reads the listing's *stored* values, not the resolved
+    // view. An edit to an inheriting listing must not bake the current
+    // defaults into its row.
+    getStoredListingWithCount(listingId),
+    groups.cache.getAll(),
+    listingGroups.getIds(listingId),
+  ]);
+  return listing
+    ? {
+        aggregateRecalculation: await getListingAggregateRecalculation(listing),
+        groups: allGroups,
+        listing,
+        selectedGroupIds,
+      }
+    : null;
+};
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any

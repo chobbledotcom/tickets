@@ -7,6 +7,7 @@ src/features/admin/settings-connection-lines.ts::credentialLine.mode~1vqeabi  ??
 
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
+src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → ||   # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
 src/features/admin/site-content-page.ts::defineSiteContentPage.tabs~0786g3u  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → ||   # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → ||   # textContent is string|null; its only falsy string is the empty fallback itself

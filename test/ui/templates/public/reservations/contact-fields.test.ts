@@ -57,7 +57,7 @@ const packageOver = (
     quantities: new Map(),
     slug: "bundle",
     terms: "",
-  }) as PagePackage;
+  }) satisfies PagePackage;
 
 const paidInput = (
   listings: ReturnType<typeof buildTicketListing>[],
