@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
-import { MAX_SEED_LISTINGS, seedsForm } from "#templates/fields/seeds.ts";
+import { MAX_SEED_LISTINGS, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
+import { seedsForm } from "#templates/fields/seeds.ts";
 import { inputNamed } from "#test-utils/assertions.ts";
 
 describe("seeds form", () => {

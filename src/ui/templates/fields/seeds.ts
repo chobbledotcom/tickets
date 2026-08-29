@@ -2,10 +2,7 @@
 
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
-import { SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
-
-/** Max listings that can be created in a single seed operation */
-export const MAX_SEED_LISTINGS = 30;
+import { MAX_SEED_LISTINGS, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 
 export const seedsForm = defineForm({
   fields: [
