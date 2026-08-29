@@ -82,12 +82,14 @@ const summaryValue = (row: SummaryRow): JSX.Element | string =>
     row.value
   );
 
+/** One loaded section, narrowed to its kind — the shared prop typing every
+ * section renderer takes. */
+type SectionOf<Kind> = {
+  section: Extract<LoadedSection, { kind: Kind }>;
+};
+
 /** The read-only key/value summary table. */
-const SummarySection = ({
-  section,
-}: {
-  section: Extract<LoadedSection, { kind: "summary" }>;
-}): JSX.Element => (
+const SummarySection = ({ section }: SectionOf<"summary">): JSX.Element => (
   <DetailTable>
     {section.rows.map((row) => (
       <tr>
@@ -100,11 +102,7 @@ const SummarySection = ({
 
 /** The activity log (full, or a preview with a "view all" link into the
  * Activity tab). */
-const ActivitySection = ({
-  section,
-}: {
-  section: Extract<LoadedSection, { kind: "activity" }>;
-}): JSX.Element => (
+const ActivitySection = ({ section }: SectionOf<"activity">): JSX.Element => (
   <>
     <ActivityLogTable entries={section.entries} />
     {section.viewAllHref && (
@@ -164,9 +162,7 @@ export const TitledSection = ({
  * zone. Either half disappears entirely when empty. */
 const ActionsSection = ({
   section,
-}: {
-  section: Extract<LoadedSection, { kind: "actions" }>;
-}): JSX.Element | null => {
+}: SectionOf<"actions">): JSX.Element | null => {
   if (section.plain.length === 0 && section.danger.length === 0) return null;
   return (
     <TitledSection titleKey={section.titleKey}>

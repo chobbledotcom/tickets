@@ -21,6 +21,7 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -402,14 +403,14 @@ const activateConfirmPage =
 /** Admin deactivate-group confirmation page */
 export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
   body: (
-    <>
-      <ul>
-        <li>{t("bulk_actions.deactivate_consequence_404")}</li>
-        <li>{t("bulk_actions.deactivate_consequence_registrations")}</li>
-        <li>{t("bulk_actions.deactivate_consequence_payments")}</li>
-      </ul>
-      <p>{t("bulk_actions.deactivate_existing_attendees")}</p>
-    </>
+    <DeactivationEffects
+      effect404={t("bulk_actions.deactivate_consequence_404")}
+      effectPayments={t("bulk_actions.deactivate_consequence_payments")}
+      effectRegistrations={t(
+        "bulk_actions.deactivate_consequence_registrations",
+      )}
+      existingAttendeesNote={t("bulk_actions.deactivate_existing_attendees")}
+    />
   ),
   buttonText: t("bulk_actions.deactivate_confirm_button"),
   confirmPromptKey: "bulk_actions.deactivate_confirm_prompt",

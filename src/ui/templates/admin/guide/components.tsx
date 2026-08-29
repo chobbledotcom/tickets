@@ -48,6 +48,26 @@ export const Q = ({
   </details>
 );
 
+/** A labelled block of example code, bold callout then `<pre>`: the shape
+ * every guide example shows. Owning it here keeps the pair of lines from
+ * being re-authored (and re-detected as clones) per example. */
+export const ExampleCode = ({
+  label,
+  code,
+}: {
+  label: Child;
+  code: string;
+}): JSX.Element => (
+  <>
+    <p>
+      <strong>{label}</strong>
+    </p>
+    <pre>
+      <code>{code}</code>
+    </pre>
+  </>
+);
+
 /** Data-driven FAQ entry: question and answer HTML come from locale keys. */
 export const Faq = ({ id }: { id: string }): JSX.Element => (
   <Q q={t(`guide.q.${id}`)}>

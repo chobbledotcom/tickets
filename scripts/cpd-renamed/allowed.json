@@ -120,14 +120,6 @@
     "secondStart": 219
   },
   {
-    "first": "features/admin/api.ts",
-    "firstStart": 139,
-    "hash": "8d19f0efc5f61bba5d9a66ca2a44ff10c58cc09abe2995209458fd8eecf21fd9",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "features/admin/api.ts",
-    "secondStart": 143
-  },
-  {
     "first": "features/admin/attendee-page-data.ts",
     "firstStart": 244,
     "hash": "f32c2770dd558289769da93a06f548931d165114cee5cc5f38e65cf93210b479",
@@ -728,14 +720,6 @@
     "secondStart": 143
   },
   {
-    "first": "ui/templates/admin/attendees.tsx",
-    "firstStart": 231,
-    "hash": "84c47e91c8399bbd3266ee269163ac34e6250d9e67eb22ef6c9519d5066ed317",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/attendees.tsx",
-    "secondStart": 236
-  },
-  {
     "first": "ui/templates/admin/attributes.tsx",
     "firstStart": 143,
     "hash": "dce2436e80f1157cda54730202f37ba235ee4886be72b6301a741ce4cccbe914",
@@ -750,14 +734,6 @@
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "ui/templates/admin/questions.tsx",
     "secondStart": 382
-  },
-  {
-    "first": "ui/templates/admin/backup.tsx",
-    "firstStart": 113,
-    "hash": "128a3025802306e406f5826ac2ab155b7d7c060fb6472b95e47641be166c4c73",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/backup.tsx",
-    "secondStart": 177
   },
   {
     "first": "ui/templates/admin/bulk-email.tsx",
@@ -776,60 +752,12 @@
     "secondStart": 255
   },
   {
-    "first": "ui/templates/admin/entity-pages.tsx",
-    "firstStart": 86,
-    "hash": "6a6a29c39fe2606b122c905f1aed546132a32db733103f7adf95e0fcc46c76b2",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/entity-pages.tsx",
-    "secondStart": 103
-  },
-  {
-    "first": "ui/templates/admin/entity-pages.tsx",
-    "firstStart": 86,
-    "hash": "73b9b242f21999d19242b1ec5106f23897e66aa2d8a69816e342b63a65b8b29f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/entity-pages.tsx",
-    "secondStart": 165
-  },
-  {
-    "first": "ui/templates/admin/guide/integrations.tsx",
-    "firstStart": 243,
-    "hash": "fc0669a26e9f459a92f03bdc521ffed902c7324830cd5a3073c7163e9c88869c",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/guide/integrations.tsx",
-    "secondStart": 249
-  },
-  {
     "first": "ui/templates/admin/holidays.tsx",
     "firstStart": 120,
     "hash": "f480f1ba3cad90b60b5e4cdf2971fff99e45cc390da2df44df7b930e3cdb632c",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "ui/templates/admin/settings-statuses.tsx",
     "secondStart": 164
-  },
-  {
-    "first": "ui/templates/admin/listings/details.tsx",
-    "firstStart": 237,
-    "hash": "4ba1c4fe523882a17fc3ebaee71e7f1b56c7db357fbf641f9e0401ab374aa0eb",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/listings/details.tsx",
-    "secondStart": 284
-  },
-  {
-    "first": "ui/templates/admin/listings/lifecycle.tsx",
-    "firstStart": 54,
-    "hash": "c55bef76e338edbdbffe5d1feb204ff91daca0fbc96e0d89706dc156d2a0d139",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/listings/lifecycle.tsx",
-    "secondStart": 70
-  },
-  {
-    "first": "ui/templates/admin/listings/lifecycle.tsx",
-    "firstStart": 54,
-    "hash": "93d665d48937ede5c545676acb901254713c8a6760ac4958fd88e1ebd97676af",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "ui/templates/admin/listings/lifecycle.tsx",
-    "secondStart": 92
   },
   {
     "first": "ui/templates/admin/settings/email-tpl-admin.tsx",
@@ -859,7 +787,7 @@
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
     "hash": "70883c154e8b3f9d7acdd5364b15efe22a641b0dd1d1ef5315c4aabdf2e40f80",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
     "second": "ui/templates/setup.tsx",
     "secondStart": 33
   },
@@ -867,7 +795,7 @@
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
     "hash": "d9fc19a94e6abbcb1e1e2740f549ffd6fb1eeb1c38a0a112df068c4a1de6ed9d",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
     "second": "ui/templates/setup.tsx",
     "secondStart": 37
   },
@@ -875,7 +803,7 @@
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
     "hash": "47cd1eaed8906a244f879fd92dc5cd2f04879b38e028eb73f474a096d193685e",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
     "second": "ui/templates/setup.tsx",
     "secondStart": 41
   },
@@ -883,7 +811,7 @@
     "first": "ui/templates/setup.tsx",
     "firstStart": 29,
     "hash": "66af757e0da0419f41cf427cc95f570698ca9d7749c9959e5f2e2f11e14aff60",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
     "second": "ui/templates/setup.tsx",
     "secondStart": 45
   }
