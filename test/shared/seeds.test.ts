@@ -15,16 +15,24 @@ import {
   DEMO_LISTING_NAMES,
   DEMO_NAMES,
 } from "#shared/demo/samples.ts";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
+import {
+  createSeeds,
+  MAX_SEED_LISTINGS,
+  SEED_MAX_ATTENDEES,
+} from "#shared/seeds.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("seeds", { db: true }, () => {
-  // The seeds page clamps to this ceiling and offers it as the box's max, so
-  // both of its own tests read it from here and would follow it if it moved.
-  // Naming the number is what keeps it from moving unnoticed.
+  // The seeds page clamps to these two ceilings and offers each as its box's
+  // max, so the page's own tests read them from here and would follow them if
+  // they moved. Naming the numbers is what keeps them from moving unnoticed.
   test("the attendee ceiling the seeds page clamps to is a hundred thousand", () => {
     expect(SEED_MAX_ATTENDEES).toBe(100_000);
+  });
+
+  test("the listing ceiling the seeds page clamps to is thirty", () => {
+    expect(MAX_SEED_LISTINGS).toBe(30);
   });
 
   test("reports exactly what it created", async () => {
