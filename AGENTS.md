@@ -273,30 +273,33 @@ GitHub.
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
   build you helped produce is your responsibility too.
-- **A written-down diagnosis is a hypothesis, not a finding**: A `TODO.md`
-  entry, a review comment, a commit message, or a code comment explaining why
-  something breaks was written by someone reasoning about the code at a moment
-  that has passed. Re-derive it from the current source before you fix anything,
-  however confident and detailed it reads — a wrong diagnosis is more expensive
-  than none, because it aims your fix at the wrong place and takes the
-  regression test with it. The stripe-mock port-steal entry in `TODO.md` is the
-  worked example: it was a careful, plausible, thoroughly argued account of a
-  race in the wrong function, and following it would have "fixed" code that was
-  already correct while leaving the real hazard in place. When you find one
-  wrong, correct the note in the same change — leaving it sends the next person
-  down the same path.
-- **A finished job leaves `TODO.md`**: `TODO.md` holds work that is still open.
-  When you complete an entry, delete it in the same change. Never leave it in
-  place marked "done", "fixed", or "shipped". A reader must be able to trust
-  that every entry is work somebody can still pick up, so a list of finished
-  ones costs every later reader the time to work out which is which. The commit
-  message and the pull request are the record of what you did, and git history
-  holds the entry itself. The same applies to an entry you did not write: when
-  you find one the code already answers, check it against the current source,
-  then delete it. An entry stays only when part of it is still open, and then
-  only that part stays. The one exception is an entry this file cites as a
-  worked example, such as the stripe-mock port-steal note. That entry is
-  documentation, not a job.
+- **A written-down diagnosis is a hypothesis, not a finding**: A GitHub issue, a
+  review comment, a commit message, or a code comment explaining why something
+  breaks was written by someone reasoning about the code at a moment that has
+  passed. Re-derive it from the current source before you fix anything, however
+  confident and detailed it reads — a wrong diagnosis is more expensive than
+  none, because it aims your fix at the wrong place and takes the regression
+  test with it. The stripe-mock port-steal entry in `TODO.md` is the worked
+  example: it was a careful, plausible, thoroughly argued account of a race in
+  the wrong function, and following it would have "fixed" code that was already
+  correct while leaving the real hazard in place. When you find one wrong,
+  correct the note in the same change — leaving it sends the next person down
+  the same path.
+- **A finished job closes its issue**: GitHub issues hold work that is still
+  open. When you complete one, close it in the same change. The commit message
+  and the pull request are the record of what you did. Never leave an issue open
+  and marked "done", "fixed", or "shipped". A reader must be able to trust that
+  every open issue is work somebody can still pick up. The same applies to an
+  issue you did not write. When you find one the code already answers, check it
+  against the current source. Then close it with a comment that names the
+  answer. An issue stays open only when part of its work is still open.
+  `TODO.md` is the predecessor of the issue tracker. It still holds entries that
+  predate the migration. An entry that names work moves to an issue, in batches.
+  An entry that records a decision or a contract moves to `docs/`. Its entries
+  keep the old rule: delete an entry when you finish it, and never leave one
+  marked "done". The one exception is an entry this file cites as a worked
+  example, the stripe-mock port-steal note. That entry is documentation, not a
+  job, and it moves to `docs/` when the file is deleted.
 - **Stage what you changed, never `git add -A`**: Name the files you meant to
   touch, and read `git status --short` before committing. A blanket add cannot
   tell your work from a stray tool run, a build artefact, or a formatter that
@@ -494,11 +497,11 @@ GitHub.
   frugality: resolution replies on review threads are expected, not noise. Keep
   each reply tight (a few sentences), and reference the fixing commit. **If a
   suggestion is valid but outside the current job's scope**, do not silently
-  drop it — record it in `TODO.md` with enough context for a future person to
-  pick it up without re-reading the PR (the file/path it concerns, what the
-  reviewer proposed, why it is genuinely out of scope here, and a starting
-  point), then reply on the thread pointing to the TODO entry. Scope is a real
-  boundary, not an excuse to lose good ideas.
+  drop it — open a GitHub issue with enough context for a future person to pick
+  it up without re-reading the PR (the file/path it concerns, what the reviewer
+  proposed, why it is genuinely out of scope here, and a starting point), then
+  reply on the thread pointing to the issue. Scope is a real boundary, not an
+  excuse to lose good ideas.
 - **"Actually broken" outranks "nice in a perfect world"**: A finding, review
   comment, or idea earns a fix when it names a concrete failure — real inputs
   and state under which behaviour is wrong: money lost or double-moved, data
@@ -508,8 +511,8 @@ GitHub.
   no concrete trigger, restating what a pinned test already enforces, polish
   whose only effect is making the document or code "more consistent" — is
   perfect-world work: declining it with a short reason on the thread is a
-  first-class outcome, and a genuinely good idea goes to `TODO.md` rather than
-  into the queue. This is triage for what enters the queue, never licence to do
+  first-class outcome, and a genuinely good idea becomes a GitHub issue rather
+  than queue work. This is triage for what enters the queue, never licence to do
   entered work partially — "Always the complete version" still governs
   everything we decide to do. Assertive automated reviewers can generate
   perfect-world findings indefinitely, so bot silence is not a finish line: when
