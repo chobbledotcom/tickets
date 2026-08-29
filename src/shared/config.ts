@@ -268,7 +268,7 @@ export const slugifyForProvider = (name: string, maxLength: number): string =>
  * padded with `pad` when it lands under `minLength` (a provider that only
  * needs a non-empty name sets `minLength` to 1 and reads `pad` as the
  * empty-name fallback). */
-export const providerSlugRule =
+const providerSlugRule =
   ({
     maxLength,
     minLength,

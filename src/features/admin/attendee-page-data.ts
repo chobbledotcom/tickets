@@ -341,20 +341,23 @@ const ATTENDEE_LOG_LIMIT = 1000;
 /** How many entries the Overview preview shows before "view all". */
 const ATTENDEE_LOG_PREVIEW = 3;
 
+/** An exported activity log reader: one attendee's log, capped at the limit. */
+export type AttendeeActivityLoader = (
+  attendeeId: number,
+) => ReturnType<typeof getAttendeeActivityLog>;
+
 /** Read the attendee's activity log capped at the given entry count. */
 const attendeeActivityCappedAt =
-  (
-    limit: number,
-  ): ((attendeeId: number) => ReturnType<typeof getAttendeeActivityLog>) =>
+  (limit: number): AttendeeActivityLoader =>
   (attendeeId) =>
     getAttendeeActivityLog(attendeeId, limit);
 
 /** Load the full activity log for the Activity tab. */
-export const loadAttendeeActivity =
+export const loadAttendeeActivity: AttendeeActivityLoader =
   attendeeActivityCappedAt(ATTENDEE_LOG_LIMIT);
 
 /** Load the short Overview preview of the activity log. */
-export const loadAttendeeActivityPreview =
+export const loadAttendeeActivityPreview: AttendeeActivityLoader =
   attendeeActivityCappedAt(ATTENDEE_LOG_PREVIEW);
 
 /** A booked daily listing booked for longer than its own duration allows —

@@ -145,13 +145,40 @@ describeWithEnv("public ticket routes", { db: true }, () => {
 
   test("a single package slug renders the package form, not the cart", async () => {
     await enablePublicSite();
-    const group = await createTestGroup({ isPackage: true, name: "Solo Pkg" });
+    const group = await createTestGroup({
+      description: "The package page names what the group page says.",
+      isPackage: true,
+      name: "Solo Pkg",
+    });
     await createTestListing({ groupId: group.id, name: "Solo Pkg Stall" });
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
-      `name="package_quantity_${group.id}"`,
+    const html = await response.text();
+    expect(html).toContain(`name="package_quantity_${group.id}"`);
+    // Only the group fallback renders the description; the lone-package cart
+    // path would drop it.
+    expect(html).toContain("The package page names what the group page says.");
+  });
+
+  test("a package booked beside a listing renders the cart's package section", async () => {
+    await enablePublicSite();
+    // Only the cart path can render a package next to a standalone listing;
+    // the listing-only path cannot resolve the package slug.
+    const group = await createTestGroup({ isPackage: true, name: "Combo Pkg" });
+    await createTestListing({
+      groupId: group.id,
+      name: "Combo Pkg Stall",
+      unitPrice: 1000,
+    });
+    const addon = await createTestListing({ name: "Combo Addon" });
+    const response = await handleRequest(
+      mockRequest(`/ticket/${group.slug}+${addon.slug}`),
     );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(`name="package_quantity_${group.id}"`);
+    expect(html).toContain("Combo Pkg Stall");
+    expect(html).toContain("Combo Addon");
   });
 
   test("a multi-slug page renders the cart, and a mixed unknown cart stays 404", async () => {

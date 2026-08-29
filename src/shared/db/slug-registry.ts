@@ -78,6 +78,26 @@ export type UnclaimedSlugCondition = (
   id: number | undefined,
 ) => SqlStatement;
 
+/** Extra create fields that can never re-point the slug or its blind index. */
+type FieldsExtra<Input> = Partial<Omit<Input, "slug" | "slugIndex">>;
+
+/** The write surface {@link freshSlugIndexWrites} hands back for one table.
+ * The blind index is always computed inside, never passed in, so `slug` and
+ * `slug_index` move together — the extra fields a create may add can never
+ * move either one. */
+export type SluggedContentWrites<Row, Input extends SluggedContentInput> = {
+  create: (
+    input: Omit<Input, "slugIndex">,
+    extra: (tx: TxScope) => Promise<FieldsExtra<Input>>,
+    transaction?: TxScope,
+  ) => Promise<Result<Row, "slugTaken">>;
+  update: (
+    id: number,
+    input: Omit<Input, "slugIndex">,
+    transaction?: TxScope,
+  ) => Promise<Result<Row, "notFound" | "slugTaken">>;
+};
+
 /** Conditional writes for a slugged content table. The blind index is always
  * computed here from the body's slug (never caller-supplied), so `slug` and
  * `slug_index` move together, and every write carries the unclaimed-slug
@@ -86,12 +106,12 @@ export type UnclaimedSlugCondition = (
 export const freshSlugIndexWrites = <Row, Input extends SluggedContentInput>(
   table: Table<Row, Input>,
   unclaimed: UnclaimedSlugCondition,
-) => {
+): SluggedContentWrites<Row, Input> => {
   const write = async (
     tx: TxScope,
     rowAt: number | undefined,
     input: Omit<Input, "slugIndex">,
-    extra: Partial<Input>,
+    extra: FieldsExtra<Input>,
   ): Promise<Row | null> => {
     const slugIndex = await hmacHash(input.slug);
     // The spread rebuilds the table input minus the computed index.
@@ -110,20 +130,14 @@ export const freshSlugIndexWrites = <Row, Input extends SluggedContentInput>(
         });
   };
   return {
-    create: async (
-      input: Omit<Input, "slugIndex">,
-      extra: (tx: TxScope) => Promise<Partial<Input>>,
-      transaction?: TxScope,
-    ): Promise<Result<Row, "slugTaken">> =>
+    // The writes stay inferred from SluggedContentWrites, the declared
+    // contract at the factory's return type.
+    create: (input, extra, transaction) =>
       useTransaction(transaction, async (tx) => {
         const created = await write(tx, undefined, input, await extra(tx));
         return created === null ? errorResult("slugTaken") : okResult(created);
       }),
-    update: async (
-      id: number,
-      input: Omit<Input, "slugIndex">,
-      transaction?: TxScope,
-    ): Promise<Result<Row, "notFound" | "slugTaken">> =>
+    update: (id, input, transaction) =>
       useTransaction(transaction, async (tx) => {
         const updated = await write(tx, id, input, {});
         if (updated) return okResult(updated);

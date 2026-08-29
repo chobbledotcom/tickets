@@ -83,9 +83,16 @@ describe("admin bulk action templates", () => {
       id: 9,
       name: "Afternoon session",
     });
+    // A name holding the word "mutated": under a non-empty initial find, its
+    // new-name preview would differ. The initial find is empty, so the
+    // preview shows the name exactly.
+    const watchMutated = testListingWithCount({
+      id: 10,
+      name: "Unmutated session",
+    });
     const html = adminDuplicateGroupPage(
       GROUP,
-      [listing],
+      [listing, watchMutated],
       OWNER_SESSION,
       "Try again.",
     );
@@ -101,6 +108,8 @@ describe("admin bulk action templates", () => {
     expect(html).toContain(
       'href="/admin/groups/17/bulk-actions">← Bulk Actions</a>',
     );
+    // The find field starts empty (its own name_find input shows no value).
+    expect(html).toContain("<td data-preview-original-name>");
     expect(html).toContain('<div class="prose"><h1>Duplicate Group</h1>');
     // The nested nav highlight matches the landing's Groups section.
     expect(html).toContain('<a class="active" href="/admin/groups"');
@@ -131,6 +140,12 @@ describe("admin bulk action templates", () => {
     expect(html).toMatch(/<input(?=[^>]*name="date_find")(?=[^>]*type="date")/);
     expect(html).toContain('id="duplicate-group-form"');
     expect(html).toContain("<span>Duplicate Group</span>");
+    // A name whose text would change under any non-empty find still previews
+    // unchanged: the initial find is empty.
+    expect(html).toContain(
+      "<td data-preview-original-name>Afternoon session</td>",
+    );
+    expect(html).toContain("<td data-preview-new-name>Unmutated session</td>");
     expect(html).toContain('<tr data-listing-id="9">');
     expect(html).toContain("Afternoon session");
     expect(html).toContain("2026-08-03 14:30");

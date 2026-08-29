@@ -24,12 +24,13 @@ blocks (now `ExampleCode`), the backup page sections (now the shared
 deactivation effects list shared between the listing and group pages (now
 `DeactivationEffects`). Four others are judged by-design with written reasons
 (`answerFlashRoute` twins, `parseOrNull`/`parseOrThrow`,
-`statOrNull`/`lstatOrNull`, `costOfListing`/`profitOfListing`). Remaining
-families, easiest first:
+`statOrNull`/`lstatOrNull`, `costOfListing`/`profitOfListing`). Hardest first —
+take the steepest remaining family next:
 
+- `downloadRaw` / `downloadImage` in `src/shared/storage.ts`: one contract
+  behind two checksum-verified downloads, exception paths included.
 - The CSV export pair (`attendees-csv.ts` vs `calendar-csv.ts`) — two export
   writers sharing the tail of their generate calls.
-- `downloadRaw` / `downloadImage` in `src/shared/storage.ts`.
 - The `entity-pages` tab strip row pair.
 
 Read a pair's snippets with `deno task cpd:renamed` output before merging.
