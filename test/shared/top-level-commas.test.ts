@@ -2,10 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type CommaSplit, topLevelCommas } from "#shared/top-level-commas.ts";
 
-/** The SQL shape: parens only, whole text, never stops early. */
+/** The SQL shape: parens only, quoted values are opaque, whole text, never
+ * stops early. */
 const sqlShape = (): CommaSplit => ({
   closers: ")",
   openers: "(",
+  quotes: "'\"",
   start: 0,
   stopWhenClosed: false,
 });
@@ -101,6 +103,37 @@ describe("top level commas", () => {
 
     expect(pieces(clause, commas, end)).toEqual([
       "note = ')('",
+      "quantity = 1",
+    ]);
+  });
+
+  test("skips the brackets an unbalanced quoted value carries", () => {
+    // A lone closer inside a quoted value shifted the level for the rest of
+    // the clause, so every later column dropped out of the split.
+    const clause = "note = ')', quantity = 1";
+    const { commas, end } = topLevelCommas(clause, sqlShape());
+
+    expect(pieces(clause, commas, end)).toEqual(["note = ')'", "quantity = 1"]);
+  });
+
+  test("skips commas and brackets a doubled quote keeps inside one value", () => {
+    // SQL doubling: a doubled quote inside the value is an escaped quote,
+    // so the comma after it still splits nothing.
+    const clause = "note = 'a'', b', quantity = 1";
+    const { commas, end } = topLevelCommas(clause, sqlShape());
+
+    expect(pieces(clause, commas, end)).toEqual([
+      "note = 'a'', b'",
+      "quantity = 1",
+    ]);
+  });
+
+  test("skips a double-quoted value the same way", () => {
+    const clause = 'note = ")(", quantity = 1';
+    const { commas, end } = topLevelCommas(clause, sqlShape());
+
+    expect(pieces(clause, commas, end)).toEqual([
+      'note = ")("',
       "quantity = 1",
     ]);
   });

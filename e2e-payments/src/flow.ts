@@ -55,7 +55,9 @@ export const login = async (
   step("Logging in");
   await session.goto("/admin/");
   const body = await session.bodyText();
-  if (/log ?in/i.test(body)) {
+  // The login page's own heading names it, so a copy rename travels with
+  // the spec instead of stranding the driver off a stale regex.
+  if (body.includes(await catalogWords("login", "login.title"))) {
     await session.fill("username", owner.username);
     await session.fill("password", owner.password);
     await session.clickButton(await catalogWords("login", "login.submit"));

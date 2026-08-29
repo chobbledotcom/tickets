@@ -139,6 +139,22 @@ describe("extractUpdateColumns", () => {
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
+  test("columns after an unbalanced bracket inside a quoted value", () => {
+    // A lone closer inside a quoted value used to shift the level for the
+    // rest of the clause, dropping every later column from the sniff.
+    const cols = extractUpdateColumns("UPDATE t SET note = ')', quantity = 1");
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
+  test("a doubled quote keeps its comma inside one value", () => {
+    const cols = extractUpdateColumns(
+      "UPDATE t SET note = 'a'', b', quantity = 1",
+    );
+    expect(cols).toBeDefined();
+    expect([...cols!].sort()).toEqual(["note", "quantity"]);
+  });
+
   test("depth scan starts at the very first character of the SET clause", () => {
     // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
     // see that first character, otherwise depth goes negative at ")" and the

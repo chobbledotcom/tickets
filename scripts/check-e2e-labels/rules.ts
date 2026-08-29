@@ -252,13 +252,16 @@ const callSiteIssues = (
   return message === null ? [] : [{ line: lineOf(match.index), message }];
 };
 
-/** True when a match's key quote opens a real string span, so the call is
- * executable and not words quoted inside another string. */
-const opensAString = (
+/** True when a match's quoted group opens a real string span, so the call
+ * is executable and not words quoted inside another string. */
+const quoteOpensAString = (
   spans: readonly LexicalSpan[],
-  quoteAt: number,
-): boolean =>
-  spans.some((span) => span.kind === "string" && span.start === quoteAt);
+  match: RegExpExecArray,
+  quote: number,
+): boolean => {
+  const quoteAt = match.index + match[0].indexOf(match[quote]!);
+  return spans.some((span) => span.kind === "string" && span.start === quoteAt);
+};
 
 /** Issues from every `t("key")` or `catalogWords("group", "key")` call whose
  * key the catalog dropped, in either quote style. A call named inside a
@@ -274,9 +277,8 @@ const keyIssues = (
     match: RegExpExecArray,
     quote: number,
     key: number,
-  ): LabelIssue | null => {
-    const quoteAt = match.index + match[0].indexOf(match[quote]!);
-    return opensAString(spans, quoteAt) && !catalog.keys.has(match[key]!)
+  ): LabelIssue | null =>
+    quoteOpensAString(spans, match, quote) && !catalog.keys.has(match[key]!)
       ? {
           line: lineOf(match.index),
           message:
@@ -284,12 +286,13 @@ const keyIssues = (
             "nowhere. Copy renames leave this driver with nothing to click.",
         }
       : null;
-  };
   const droppedTKey = (match: RegExpExecArray): LabelIssue | null =>
     droppedKey(match, 1, 2);
   const wrongGroup = (match: RegExpExecArray): LabelIssue | null => {
     const issue = droppedKey(match, 3, 4);
     if (issue !== null) return issue;
+    // Prose quotes a call's words without running it, so it names no group.
+    if (!quoteOpensAString(spans, match, 3)) return null;
     const message = wrongGroupIssue(match[2]!, match[4]!, catalog);
     return message === null ? null : { line: lineOf(match.index), message };
   };

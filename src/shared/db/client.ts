@@ -75,6 +75,8 @@ export const extractUpdateColumns = (
   const { commas } = topLevelCommas(setClause, {
     closers: ")",
     openers: "(",
+    // A quoted SQL value is opaque: its brackets and commas split nothing.
+    quotes: "'\"",
     start: 0,
     stopWhenClosed: false,
   });

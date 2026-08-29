@@ -4,6 +4,7 @@
  */
 
 import { settings } from "#db/settings.ts";
+import { sumupConnectionAnswer } from "#routes/admin/settings-connection-lines.ts";
 /* jscpd:ignore-start */
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
@@ -29,7 +30,8 @@ export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
   successMessage: "SumUp credentials updated",
   // A lambda, not the member itself: the config is built once at module
   // load, and resolving the member per call keeps test stubs live.
-  testFn: () => sumupApi.testSumupConnection(),
+  testFn: async () =>
+    sumupConnectionAnswer(await sumupApi.testSumupConnection()),
   validate: ({ merchantCode }) => {
     if (isDemoMode()) return "Cannot configure SumUp in demo mode";
     const currencyBlock = providerCurrencyBlock("sumup", settings.currency);

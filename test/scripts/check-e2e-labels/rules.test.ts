@@ -185,6 +185,18 @@ describe("e2e label rules", () => {
     expect(findLabelIssues(source, copy)).toEqual([]);
   });
 
+  test("ignores a catalogWords call quoted inside a string literal", () => {
+    const source = [
+      `const note = 'example: catalogWords("common", "settings.save_payment_provider")';`,
+      `const hint = 'gone too: catalogWords("attendees", "admin.attendees.gone")';`,
+    ].join("\n");
+    const copy = catalog([], ["settings.save_payment_provider"], {
+      "settings.save_payment_provider": "settings",
+    });
+
+    expect(findLabelIssues(source, copy)).toEqual([]);
+  });
+
   test("flags a label the catalog renamed underneath the spec", () => {
     // The 2026-08-27 nightly failure: #2152 renamed the button the Stripe
     // spec clicked, and nothing caught it until the scheduled run.

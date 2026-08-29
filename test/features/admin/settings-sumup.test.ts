@@ -136,7 +136,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       method: "POST",
     });
 
-    test("returns the connection test result as JSON", async () => {
+    test("returns the connection test result as rendered lines", async () => {
       await withMocks(
         () =>
           stub(sumupApi, "testSumupConnection", () =>
@@ -153,8 +153,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
           );
           await assertJson(Promise.resolve(response), 200, (json) => {
             expect(json.ok).toBe(true);
-            expect(json.apiKey.valid).toBe(true);
-            expect(json.merchant.merchantCode).toBe("MC1");
+            expect(json.lines).toEqual([
+              "API Key: Valid (test mode)",
+              "Merchant: MC1",
+              "Currency: GBP (supported)",
+            ]);
           });
         },
       );

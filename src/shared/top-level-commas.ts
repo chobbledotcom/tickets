@@ -19,6 +19,9 @@ export interface CommaSplit {
   readonly closers: string;
   /** Characters that open one nesting level, for example "(". */
   readonly openers: string;
+  /** Characters that open a quoted value whose contents neither nest nor
+   * split; SQL doubling (a doubled quote) closes and reopens the value. */
+  readonly quotes?: string;
   /** The first index the scan reads. */
   readonly start: number;
   /** Stop at the first character that closes past the base level. */
@@ -28,6 +31,18 @@ export interface CommaSplit {
 /** How one character changes the nesting level. */
 const levelStep = (char: string, openers: string, closers: string): number =>
   (openers.includes(char) ? 1 : 0) - (closers.includes(char) ? 1 : 0);
+
+/** The quote state after one character: an opening quote enters a quoted
+ * value, a matching one exits it, and SQL doubling (a doubled quote) exits
+ * and re-enters in one step. */
+const quoteStateAfter = (
+  quoted: string | null,
+  char: string,
+  quotes: string | undefined,
+): string | null => {
+  if (quoted !== null) return char === quoted ? null : quoted;
+  return quotes?.includes(char) ? char : null;
+};
 
 /**
  * The commas of `text` that sit at the base nesting level (see CommaSplit).
@@ -41,11 +56,15 @@ export const topLevelCommas = (
   split: CommaSplit,
 ): TopLevelCommas => {
   const commas: number[] = [];
-  const { closers, openers, start, stopWhenClosed } = split;
+  const { closers, openers, quotes, start, stopWhenClosed } = split;
   let level = 0;
   let end = text.length;
+  let quoted: string | null = null;
   for (const [i, char] of text.split("").entries()) {
     if (i < start) continue;
+    // A quoted value is opaque: its brackets and commas split nothing.
+    quoted = quoteStateAfter(quoted, char, quotes);
+    if (quoted !== null) continue;
     level += levelStep(char, openers, closers);
     if (stopWhenClosed && level === -1) {
       end = i;
