@@ -34,6 +34,15 @@ describe("skeleton", () => {
     );
   });
 
+  it("keeps TypeScript visibility modifiers, so a widened member is not a rename", () => {
+    expect(cloneKind("public run(): void {}", "private run(): void {}")).toBe(
+      "different",
+    );
+    expect(cloneKind("readonly width: number;", "width: number;")).toBe(
+      "different",
+    );
+  });
+
   it("masks reserved words used as member names, so a rename is still a rename", () => {
     expect(cloneKind("client.delete(item);", "client.archive(item);")).toBe(
       "words",

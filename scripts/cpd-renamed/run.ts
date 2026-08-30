@@ -17,11 +17,15 @@ export const repoRootFrom = (moduleUrl: URL): string =>
   fromFileUrl(new URL("../", moduleUrl)).replace(/\/$/, "");
 
 /** Words include names, strings, and numbers: everything a rename touches.
- * Reserved words keep their own shape only in keyword position: a word after a
- * property-access dot or in an object-key slot is a member name, so
- * `client.delete(...)` and `{ delete: x }` read as renamed members, while
- * `if` and `while` still differ as control flow. */
+ * Reserved words — JavaScript's and TypeScript's — keep their own shape only
+ * in keyword position: a word after a property-access dot or in an object-key
+ * slot is a member name, so `client.delete(...)` and `{ delete: x }` read as
+ * renamed members, while `if` vs `while` and `public` vs `private` still
+ * differ as syntax. */
 const RESERVED = new Set([
+  "abstract",
+  "accessor",
+  "as",
   "await",
   "break",
   "case",
@@ -29,10 +33,12 @@ const RESERVED = new Set([
   "class",
   "const",
   "continue",
+  "declare",
   "default",
   "delete",
   "do",
   "else",
+  "enum",
   "export",
   "extends",
   "false",
@@ -41,20 +47,35 @@ const RESERVED = new Set([
   "from",
   "function",
   "if",
+  "implements",
   "import",
   "in",
+  "infer",
   "instanceof",
+  "interface",
+  "is",
+  "keyof",
   "let",
+  "module",
+  "namespace",
   "new",
   "null",
   "of",
+  "out",
+  "override",
+  "private",
+  "protected",
+  "public",
+  "readonly",
   "return",
+  "satisfies",
   "super",
   "switch",
   "this",
   "throw",
   "true",
   "try",
+  "type",
   "typeof",
   "undefined",
   "var",
