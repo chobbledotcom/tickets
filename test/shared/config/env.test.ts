@@ -17,6 +17,7 @@ import {
   getTursoGroup,
   getTursoOrganization,
   isBotpoisonEnabled,
+  isBuilderEnabled,
   isBunnyCdnEnabled,
   isBunnyDbEnabled,
   isBunnyDnsEnabled,
@@ -25,6 +26,7 @@ import {
   isSecureMode,
   isTursoEnabled,
   resetEffectiveDomain,
+  seedEffectiveDomainHost,
   setEffectiveDomainForTest,
   slugifyForProvider,
 } from "#shared/config.ts";
@@ -125,6 +127,20 @@ describe("isSecureMode", () => {
       expect(isSecureMode()).toBe(true);
     });
   }
+
+  test("seeds a real host through a URL and keeps secure mode on", () => {
+    seedEffectiveDomainHost(new URL("http://tickets.example.com:3000/"));
+    expect(isSecureMode()).toBe(true);
+    seedEffectiveDomainHost(new URL("http://[::1]:3000/"));
+    expect(isSecureMode()).toBe(false);
+  });
+
+  test("stays on for forged loopback shapes a URL cannot parse", () => {
+    for (const host of ["127.0.0.1.5", "127.0.1e2.1"]) {
+      setEffectiveDomainForTest(host);
+      expect(isSecureMode(), host).toBe(true);
+    }
+  });
 });
 
 expectEnabledByAllKeys("isBunnyCdnEnabled", isBunnyCdnEnabled, [
@@ -249,6 +265,17 @@ describe("getDefaultDbProvider", () => {
   test("returns bunny for any other configured value", () => {
     using _env = withEnv({ DEFAULT_DB_HOST: "some-unrecognised-host" });
     expect(getDefaultDbProvider()).toBe("bunny");
+  });
+});
+
+describe("isBuilderEnabled", () => {
+  test("reads CAN_BUILD_SITES as a switch with a safe default", () => {
+    using _builder = withEnv({ CAN_BUILD_SITES: "true" });
+    expect(isBuilderEnabled()).toBe(true);
+    using _notBuilder = withEnv({ CAN_BUILD_SITES: "false" });
+    expect(isBuilderEnabled()).toBe(false);
+    using _unset = withEnv({ CAN_BUILD_SITES: undefined });
+    expect(isBuilderEnabled()).toBe(false);
   });
 });
 
