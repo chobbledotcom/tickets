@@ -13,9 +13,11 @@ import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
 import type { ListingWithCount } from "#types";
 import { loadItemImagesPanel } from "./item-images.ts";
-import type { LoadedListing } from "./listing-page-data.ts";
+import {
+  getListingAndGroups,
+  type LoadedListing,
+} from "./listing-page-data.ts";
 import { EMPTY_QR_VALUES, loadQrFormContext } from "./listing-qr.ts";
-import { getListingAndGroups } from "./listings-edit.ts";
 import { loadListingParentsSection } from "./listings-parents.ts";
 
 /**

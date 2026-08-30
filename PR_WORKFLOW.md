@@ -388,7 +388,7 @@ external failure was never designed.
 - Push and watch CI.
 - Read every review comment before resolving it.
 - Reply with the mechanism and regression test, or explain why it is incorrect.
-- Record valid out-of-scope work in `TODO.md` and link it from the reply.
+- Record valid out-of-scope work in a GitHub issue and link it from the reply.
 - Re-run the design checklist when review finds a new state or failure.
 - Rewrite the title and description to match the final behavior.
 

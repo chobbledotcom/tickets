@@ -409,18 +409,15 @@ None of them blocks, or is blocked by, the admin surface work.
    renderer removes an estimated 500 lines and, more important, the choice that
    regenerates the drift.
 3. **`defineStatement` for hand-ordered SQL parameters.** The sweep answers the
-   open question in `TODO.md` ("Numbered SQL parameters", from PR #2040): 33
-   statements across 26 files bind at least one value more than once, in two
-   dialects (repeated positional args, and `?N` kept honest by prose comments).
-   The largest are money-adjacent: 16 bound values in
-   `provider-refund-authority.ts:221`, 10 in `payment-anchor/attendee.ts:71`. A
-   schema-first statement definition removes the silent argument-order bug
-   class.
+   open question in issue #2198: 33 statements across 26 files bind at least one
+   value more than once, in two dialects (repeated positional args, and `?N`
+   kept honest by prose comments). The largest are money-adjacent: 16 bound
+   values in `provider-refund-authority.ts:221`, 10 in
+   `payment-anchor/attendee.ts:71`. A schema-first statement definition removes
+   the silent argument-order bug class.
 4. **A per-provider transport-error descriptor.** The three payment providers
    classify the same three transport error classes twice each (once for
    reads/refunds, once for checkout) — six hand-kept mappings, ~170 lines,
-   already drifted in three measurable ways. Two cheap adjacent fixes need no
+   already drifted in three measurable ways. One cheap adjacent fix needs no
    design: Square's settings form re-implements `ProviderKeyBlock` inline
-   (`ui/templates/admin/settings/payment.tsx:254-278`), and Square's checkout
-   bypass of `makeCreateCheckoutSession` is recorded in `TODO.md` as a behaviour
-   divergence.
+   (`ui/templates/admin/settings/payment.tsx:254-278`).

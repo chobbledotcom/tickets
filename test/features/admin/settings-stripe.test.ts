@@ -40,7 +40,7 @@ describeAdminSettings(() => {
 
   const postStripeTest = async (
     stubResult: StripeConnectionTestResult,
-    assertions: (json: StripeConnectionTestResult) => void,
+    assertions: (json: { lines: string[]; ok: boolean }) => void,
   ): Promise<void> =>
     withMocks(
       () =>
@@ -201,7 +201,7 @@ describeAdminSettings(() => {
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
-    test("returns JSON result when API key is not configured", async () => {
+    test("returns JSON lines when API key is not configured", async () => {
       await postStripeTest(
         {
           apiKey: { error: "No Stripe secret key configured", valid: false },
@@ -210,10 +210,10 @@ describeAdminSettings(() => {
         },
         (json) => {
           expect(json.ok).toBe(false);
-          expect(json.apiKey.valid).toBe(false);
-          expect(json.apiKey.error).toContain(
-            "No Stripe secret key configured",
-          );
+          expect(json.lines).toEqual([
+            "API Key: Invalid - No Stripe secret key configured",
+            "Webhooks: None configured",
+          ]);
         },
       );
     });
@@ -235,16 +235,12 @@ describeAdminSettings(() => {
         },
         (json) => {
           expect(json.ok).toBe(true);
-          expect(json.apiKey.valid).toBe(true);
-          expect(json.apiKey.mode).toBe("test");
-          expect(json.webhooks).toHaveLength(1);
-          expect(json.webhooks[0]!.url).toBe(
-            "https://example.com/payment/webhook",
-          );
-          expect(json.webhooks[0]!.status).toBe("enabled");
-          expect(json.webhooks[0]!.enabledEvents).toContain(
-            "checkout.session.completed",
-          );
+          expect(json.lines).toEqual([
+            "API Key: Valid (test mode)",
+            "Webhooks: 1 endpoint(s)",
+            "  enabled - https://example.com/payment/webhook (tickets)",
+            "  Events: checkout.session.completed",
+          ]);
         },
       );
     });
@@ -258,8 +254,10 @@ describeAdminSettings(() => {
         },
         (json) => {
           expect(json.ok).toBe(false);
-          expect(json.apiKey.valid).toBe(true);
-          expect(json.webhooks).toHaveLength(0);
+          expect(json.lines).toEqual([
+            "API Key: Valid (test mode)",
+            "Webhooks: None configured",
+          ]);
         },
       );
     });

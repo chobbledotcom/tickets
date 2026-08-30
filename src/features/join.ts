@@ -107,7 +107,9 @@ const joinRoute =
  * Handle GET /join/:code
  */
 const handleJoinGet = joinRoute((request, code, _user, username) =>
-  publicFormPage(request, (flash) => joinPage(code, username, flash.error)),
+  publicFormPage(request, (flash) =>
+    joinPage(code, username, joinForm.render(), flash.error),
+  ),
 );
 
 const setPasswordRoute = (code: string, user: User) =>

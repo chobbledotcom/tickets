@@ -9,9 +9,13 @@ import { t } from "#i18n";
 import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
+import {
+  createSeeds,
+  MAX_SEED_LISTINGS,
+  SEED_MAX_ATTENDEES,
+} from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
-import { MAX_SEED_LISTINGS, seedsForm } from "#templates/fields/seeds.ts";
+import { seedsForm } from "#templates/fields/seeds.ts";
 
 /* jscpd:ignore-end */
 

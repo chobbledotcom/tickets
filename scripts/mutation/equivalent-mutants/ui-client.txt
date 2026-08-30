@@ -1,5 +1,10 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
+# --- Payment test buttons (src/ui/client/admin/payment-test-buttons.ts) --------
+# The CSRF input's value is a string or undefined and the fallback is the
+# empty string, so the only falsy operand value equals the fallback itself.
+src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer~1dlz3y3  ?? → ||   # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
+
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # URL matches and catalog entries are either non-empty strings/objects or absent,
 # so these nullish and truthy fallbacks have the same result.
@@ -93,6 +98,3 @@ src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nfll
 # whose empty initial value makes assign and append identical.
 src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → +=   # a just-created SVG <text> has empty textContent, so append equals assign
 src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → +=   # same: the <title> is fresh, so append equals assign
-
-# The payment test button reads the CSRF token out of its own form.
-src/ui/client/admin/payment-test-buttons.ts::setupTestButton.data~1dlz3y3  ?? → ||   # the input's value is string|undefined; its only falsy string is "", and "" ?? "" = "" || "" = ""

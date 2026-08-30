@@ -235,10 +235,16 @@ describeAdminSettings(() => {
     });
 
     const connectionTestCases: ReadonlyArray<{
-      name: string;
+      expected: string[];
       mockResult: SquareConnectionTestResult;
+      name: string;
     }> = [
       {
+        expected: [
+          "Access Token: Invalid - No Square access token configured",
+          "Location: Not configured",
+          "Webhook: Not configured",
+        ],
         mockResult: {
           accessToken: {
             error: "No Square access token configured",
@@ -248,9 +254,14 @@ describeAdminSettings(() => {
           ok: false,
           webhook: { configured: false },
         },
-        name: "returns JSON result when access token is not configured",
+        name: "returns the lines when access token is not configured",
       },
       {
+        expected: [
+          "Access Token: Valid (sandbox mode)",
+          "Location: Test Location (ACTIVE)",
+          "Webhook: Signature key configured",
+        ],
         mockResult: {
           accessToken: { mode: "sandbox", valid: true },
           location: {
@@ -265,6 +276,11 @@ describeAdminSettings(() => {
         name: "returns success when all checks pass",
       },
       {
+        expected: [
+          "Access Token: Valid (sandbox mode)",
+          "Location: Not configured - No location ID configured",
+          "Webhook: Signature key configured",
+        ],
         mockResult: {
           accessToken: { mode: "sandbox", valid: true },
           location: {
@@ -293,7 +309,7 @@ describeAdminSettings(() => {
               "application/json; charset=utf-8",
             );
             await assertJson(Promise.resolve(response), 200, (json) =>
-              expect(json).toEqual(tc.mockResult),
+              expect(json.lines).toEqual(tc.expected),
             );
           },
         );

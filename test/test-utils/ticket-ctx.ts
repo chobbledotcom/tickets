@@ -5,7 +5,7 @@
 
 import { buildTicketListing } from "#booking/model.ts";
 import { quantityFieldName } from "#booking/tree.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { getTicketContext } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -19,7 +19,7 @@ export const ticketContext = async (
 ): Promise<TicketCtx> => {
   const listings = await Promise.all(
     listingIds.map(async (id) =>
-      buildTicketListing((await getListingWithCount(id))!, false, undefined),
+      buildTicketListing(await requireListingWithCount(id), false, undefined),
     ),
   );
   return {

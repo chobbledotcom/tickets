@@ -34,6 +34,9 @@ import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 /** Max attendees per seeded listing */
 export const SEED_MAX_ATTENDEES = 100_000;
 
+/** Max listings that can be created in a single seed operation */
+export const MAX_SEED_LISTINGS = 30;
+
 /** Pick a random ticket quantity (1-4) */
 const randomQuantity = (): number => 1 + Math.floor(Math.random() * 4);
 
