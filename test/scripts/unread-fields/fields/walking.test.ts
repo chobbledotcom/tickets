@@ -180,8 +180,11 @@ describe("what the walk goes into", () => {
 
   test("goes into the type of a parameter the class keeps to itself", () => {
     // The word hides the field, and the constructor stays everyone's to call,
-    // so a caller still has to supply what the parameter holds.
-    expect(verdictOf("Holder.options", "suppliedByCallers")).toBe("never read");
+    // so a caller still has to supply what the parameter holds. The input
+    // walks under `new ()`, because that is what supplies it.
+    expect(verdictOf('Holder["new ()"].options', "suppliedByCallers")).toBe(
+      "never read",
+    );
   });
 
   test("stays out of the type of a property the class keeps to itself", () => {
@@ -219,13 +222,14 @@ describe("what the walk goes into", () => {
 
   test("gives a set and a map the step a list takes", () => {
     // Each holds many, so a field of the shape and a field of what it holds
-    // are two fields, exactly as with a list.
+    // are two fields, exactly as with a list. A map's value takes the
+    // `values()` step, because that is how a reader reaches it.
     expect(verdictOf('HoldsManyOtherWays.inASet["[]"]', "insideASet")).toBe(
       "never read",
     );
-    expect(verdictOf('HoldsManyOtherWays.inAMap["[]"]', "insideAMap")).toBe(
-      "never read",
-    );
+    expect(
+      verdictOf('HoldsManyOtherWays.inAMap["values()"]', "insideAMap"),
+    ).toBe("never read");
     expect(
       verdictOf(
         'HoldsManyOtherWays.inAReadonlySet["[]"]',
@@ -234,7 +238,7 @@ describe("what the walk goes into", () => {
     ).toBe("never read");
     expect(
       verdictOf(
-        'HoldsManyOtherWays.inAReadonlyMap["[]"]',
+        'HoldsManyOtherWays.inAReadonlyMap["values()"]',
         "insideAReadonlyMap",
       ),
     ).toBe("never read");

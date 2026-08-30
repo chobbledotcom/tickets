@@ -5,6 +5,7 @@ import {
   type AskAboutAMention,
   namesAMember,
   nodeAt,
+  quotedInBrackets,
   readsTheValue,
 } from "#scripts/unread-fields/writes.ts";
 
@@ -58,6 +59,50 @@ describe("nodeAt", () => {
   test("finds nothing past the end of the file", () => {
     const source = parse("const total = 1;");
     expect(nodeAt(source, 500)).toBeUndefined();
+  });
+});
+
+describe("quotedInBrackets", () => {
+  /** The name a computed property holds, whatever that name is spelled as,
+   * so the question can be put to each spelling. A computed name in a
+   * property assignment is enough, because the answer only looks at the
+   * name node. */
+  const bracketsHolding = (code: string): ts.ComputedPropertyName => {
+    const source = parsePlainTs(`const x = { ${code}: 1 };`);
+    const comma = source.getFullText().indexOf(": 1 }");
+    let node = nodeAt(source, comma - 1);
+    while (node && !ts.isComputedPropertyName(node)) node = node.parent;
+    if (!node) throw new Error(`no computed property name in ${code}`);
+    return node;
+  };
+
+  test("answers the quoted string the brackets hold", () => {
+    const brackets = bracketsHolding('["total"]');
+    expect(quotedInBrackets(brackets)?.getText()).toBe('"total"');
+  });
+
+  test("answers the number the brackets hold", () => {
+    const brackets = bracketsHolding("[7]");
+    expect(quotedInBrackets(brackets)?.getText()).toBe("7");
+  });
+
+  test("answers the template literal the brackets hold", () => {
+    const brackets = bracketsHolding("[`total`]");
+    expect(quotedInBrackets(brackets)?.getText()).toBe("`total`");
+  });
+
+  test("does not answer a name a variable works out", () => {
+    const brackets = bracketsHolding("[worked_out]");
+    expect(quotedInBrackets(brackets)).toBeUndefined();
+  });
+
+  test("does not answer a name a template's value goes into", () => {
+    // The `${` is a literal part of the code under test, so the snippet is
+    // built from pieces rather than written with an escape the formatter
+    // rejects either way round.
+    const aTemplate = "${";
+    const brackets = bracketsHolding(`[\`tota${aTemplate}l}\`]`);
+    expect(quotedInBrackets(brackets)).toBeUndefined();
   });
 });
 

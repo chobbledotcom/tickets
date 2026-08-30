@@ -64,6 +64,27 @@ export interface WritesAListEveryWay {
   namedReadonly: ReadonlyArray<{ insideNamedReadonly: number }>;
 }
 
+// A map's key and its value are two calls apart, \`keys()\` and \`values()\`,
+// so a field of one name on each side stays two fields, and the one only
+// \`keys()\` reaches can leave the report as unread as it is.
+export interface HoldsBothEndsOfAMap {
+  bothEnds: Map<{ sharedAtBothEnds: string }, { sharedAtBothEnds: number }>;
+}
+
+// A tuple element is reached one index at a time, exactly as a list element
+// is, so the field the tuple holds stays a step away from the field beside
+// it.
+export type CarriesATuple = { sharedWithATuple: string } & [{
+  sharedWithATuple: number;
+}];
+
+// The value a mapped type holds is reached through a key, so it takes the
+// same step an index signature does, and the field beside the mapping stays
+// its own.
+export type MapsItsValues = { sharedWithAMapped: string } & {
+  [K in "one"]: { sharedWithAMapped: number };
+};
+
 export type InlineArmsShareIt =
   | { whichInlineArm: "first"; sharedByInlineArms: number }
   | {

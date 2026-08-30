@@ -97,14 +97,18 @@ export type AskAboutAMention = (node: ts.Node) => boolean;
 
 /** The quoted or numbered name inside a pair of brackets, when that is what
  * the brackets hold. `["total"]` and `[7]` name the same fields `"total"` and
- * `7` do. Brackets that hold anything else — a variable, a sum, a symbol — hold
- * an expression rather than a word, so nothing can look that name up. Where
- * the expression is worked out is a separate question, and the answer differs
- * between a class and an interface. */
+ * `7` do, and so does a template literal with nothing worked out in it:
+ * `` [`foo`] `` names the field `x.foo`. Brackets that hold anything else —
+ * a variable, a sum, a symbol, a template a value goes into — hold an
+ * expression rather than a word, so nothing can look that name up. Where
+ * the expression is worked out is a separate question, and the answer
+ * differs between a class and an interface. */
 export const quotedInBrackets = (name: ts.Node): ts.Node | undefined => {
   if (!ts.isComputedPropertyName(name)) return;
   const { expression } = name;
-  return ts.isStringLiteral(expression) || ts.isNumericLiteral(expression)
+  return ts.isStringLiteral(expression) ||
+    ts.isNumericLiteral(expression) ||
+    ts.isNoSubstitutionTemplateLiteral(expression)
     ? expression
     : undefined;
 };

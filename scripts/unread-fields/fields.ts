@@ -121,15 +121,22 @@ const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
     ts.isParameterPropertyDeclaration(node, node.parent));
 
 /** A field's name as it is written down. `row["status-code"]` reaches the
- * same member as `row.total`, so a quoted or numbered name counts. A
- * `#private` name is nobody else's to reach, so it is not a field the scan
- * can look up. */
-export type FieldName = ts.Identifier | ts.StringLiteral | ts.NumericLiteral;
+ * same member as `row.total`, so a quoted or numbered name counts, and so
+ * does a template literal with nothing worked out in it: `` [`foo`]: number``
+ * names the field `x.foo` exactly as `"foo": number` does. A `#private`
+ * name is nobody else's to reach, so it is not a field the scan can look up.
+ */
+export type FieldName =
+  | ts.Identifier
+  | ts.StringLiteral
+  | ts.NumericLiteral
+  | ts.NoSubstitutionTemplateLiteral;
 
 const isFieldName = (node: ts.Node): node is FieldName =>
   ts.isIdentifier(node) ||
   ts.isStringLiteral(node) ||
-  ts.isNumericLiteral(node);
+  ts.isNumericLiteral(node) ||
+  ts.isNoSubstitutionTemplateLiteral(node);
 
 /** The name a declaration is written down by. An index signature has none.
  * A setter has none either, for a different reason: `row.total = 1` calls it,
@@ -210,19 +217,16 @@ const narrowsByAFilter = namedOneOf(NARROWS_BY_A_FILTER);
 /** The generics a reader reaches one member at a time. `Array<Row>` and
  * `Row[]` are one type written two ways, and `Record<string, Row>` is the
  * index signature written as a generic, which already takes this step. A set
- * and a map hold many the same way, so a field of the shape and a field of
- * what one of them holds stay two fields. */
+ * holds many the same way, so a field of the shape and a field of what it
+ * holds stay two fields. A map is not here: its two arguments are below. */
 const holdsElements = namedOneOf(
-  new Set([
-    "Array",
-    "ReadonlyArray",
-    "Record",
-    "Set",
-    "ReadonlySet",
-    "Map",
-    "ReadonlyMap",
-  ]),
+  new Set(["Array", "ReadonlyArray", "Record", "Set", "ReadonlySet"]),
 );
+
+/** The generics that hold two different kinds of thing at once. The key and
+ * the value of a map are reached by two different calls, so a field of each
+ * with one name stays two fields. */
+const holdsKeysAndValues = namedOneOf(new Set(["Map", "ReadonlyMap"]));
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
@@ -239,14 +243,22 @@ const holdsNoAnswer = (node: ts.Node): boolean =>
 /** The one arm a conditional answers with, when it has an answer. `true
  * extends true ? A : B` is only ever A, so no value of it holds a field of B.
  * A conditional that waits on a type parameter has no answer yet, and both
- * arms stay possible. */
+ * arms stay possible. A conditional that answers by substituting an `infer`
+ * variable names its answer in neither arm — the true arm still denotes the
+ * variable, and the checker hands back the substituted type — so the answer
+ * is not a node to walk at all, and the checker path through the resolved
+ * type is what carries the members. A conditional that distributes over a
+ * union waits and answers at once, so its arms stay possible too. */
 const answeredWith = (
   checker: ts.TypeChecker,
   node: ts.ConditionalTypeNode,
-): ts.TypeNode | undefined => {
+): ts.TypeNode | "resolved" | undefined => {
   const whole = checker.getTypeFromTypeNode(node);
+  if (whole.flags & (ts.TypeFlags.Conditional | ts.TypeFlags.Union)) return;
   const arms = [node.trueType, node.falseType];
-  return arms.find((arm) => checker.getTypeFromTypeNode(arm) === whole);
+  return (
+    arms.find((arm) => checker.getTypeFromTypeNode(arm) === whole) ?? "resolved"
+  );
 };
 
 /** A node that holds a body and nothing a shape hands out. A static block is
@@ -269,6 +281,7 @@ const worthWalking =
     if (holdsNoAnswer(node)) return () => false;
     if (ts.isConditionalTypeNode(node)) {
       const answer = answeredWith(checker, node);
+      if (answer === "resolved") return () => false;
       if (answer) return (part) => part === answer;
       return (part) => part !== node.checkType && part !== node.extendsType;
     }
@@ -311,7 +324,51 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.ConstructorType, "new ()"],
   [ts.SyntaxKind.IndexSignature, ELEMENT],
   [ts.SyntaxKind.ArrayType, ELEMENT],
+  [ts.SyntaxKind.TupleType, ELEMENT],
+  [ts.SyntaxKind.MappedType, ELEMENT],
 ]);
+
+/** What a constructor's caller supplies an input through. */
+const ENTERS_THROUGH = "new ()";
+
+/** The type a call hands back and a caller receives. */
+const ITS_RESULT = "result";
+
+/** The step a caller's input to a constructor takes before its own name. The
+ * parameters that arrive at `underAnUnnamedPart` are the inputs a caller
+ * supplies — a plain one, or one a word hides — because a public parameter
+ * property is a field and never walks. A method's parameter is nobody's
+ * input, so only the constructor's take the step. */
+const enterTheConstructorThrough = (
+  node: ts.ParameterDeclaration,
+): readonly { way: string }[] =>
+  ts.isConstructorDeclaration(node.parent) ? [{ way: ENTERS_THROUGH }] : [];
+
+/** The step a map's type arguments take apart. The key and the value are
+ * reached by two different calls, `keys()` and `values()`, so the first
+ * argument is the key's type. A reference that writes no arguments down has
+ * none of either, and a map's name does not typecheck without its two. */
+const throughTheMap = (node: ts.Node): { way: string } | undefined => {
+  const { parent } = node;
+  if (!ts.isTypeReferenceNode(parent)) return;
+  const [key] = parent.typeArguments ?? [];
+  if (!holdsKeysAndValues(parent)) return;
+  return { way: node === key ? "keys()" : "values()" };
+};
+
+/** Whether a type node is the result its parent hands back. A call, a
+ * construct, a method, an arrow, a getter: the type it returns is what a
+ * caller receives, so it takes the `result` step. An index signature's type
+ * is not one — it says what every value looks like, so it stays put. */
+const handsBackItsResult = (node: ts.Node): boolean => {
+  const { parent } = node;
+  return (
+    ts.isTypeNode(node) &&
+    ts.isFunctionLike(parent) &&
+    !ts.isIndexSignatureDeclaration(parent) &&
+    parent.type === node
+  );
+};
 
 /** The step a member with no name of its own adds to the path. A shape can
  * hold more than one of them, and each can carry a field of the same name, so
@@ -322,7 +379,9 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
  * index signature have neither, so the way a reader reaches through it does.
  * `bag[key].total` is a step away from `bag.total`, and without the step the
  * two are one field. A list is the same case: `rows[0].total` is a step away
- * from `rows.total`, so a list and a `Record` add one too. */
+ * from `rows.total`, so a list and a `Record` add one too.
+ * A setter is a step of its own name, because a setter is nobody's to read
+ * but its input is everybody's to supply. */
 const underAnUnnamedPart = (
   path: readonly Step[],
   node: ts.Node,
@@ -331,8 +390,18 @@ const underAnUnnamedPart = (
     const way = ts.isIdentifier(node.name)
       ? node.name.text
       : String(node.parent.parameters.indexOf(node));
-    return [...path, { way }];
+    return [...path, ...enterTheConstructorThrough(node), { way }];
   }
+  if (ts.isSetAccessorDeclaration(node)) {
+    // A setter's name is written as a plain word, so it can say where the
+    // input walks under. A computed one is worked out at run time, and the
+    // walk stays where it was.
+    const { name } = node;
+    return ts.isIdentifier(name) ? [...path, { way: name.text }] : path;
+  }
+  const throughMap = throughTheMap(node);
+  if (throughMap) return [...path, throughMap];
+  if (handsBackItsResult(node)) return [...path, { way: ITS_RESULT }];
   const through = holdsElements(node)
     ? ELEMENT
     : REACHED_THROUGH.get(node.kind);

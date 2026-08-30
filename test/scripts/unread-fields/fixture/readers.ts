@@ -6,23 +6,29 @@ export const READERS = `
 import type { Reached } from "./inner";
 import { report, sum } from "./produce.ts";
 import {
+  type AcceptsOptionsOfItsOwn,
   type Borrowed,
   type BothArmsWriteIt,
   BothSides,
   type Callable,
+  type CarriesATuple,
   type DeletedInParens,
   type ExtendsFarBase,
   type FromAShorthand,
   type HandsAnObjectOver,
   HasAStaticAndAccessors,
   type HoldsAClass,
+  type HoldsBothEndsOfAMap,
   type HoldsClasses,
   type HoldsAListOfTheSameName,
   type HoldsThingsInGenerics,
   type InlineArmsShareIt,
+  type MapsItsValues,
   type NamedByALiteral,
   NamedItsParameter,
   type Passed,
+  type ServesSettingsThroughASetter,
+  type ServesThroughAWorkedOutName,
   type SuppliedInBrackets,
   type UsedAsAKey,
   type WrittenByARest,
@@ -160,4 +166,36 @@ export const readAQuotedName = (n: NamedByALiteral): string =>
 
 export const readANameInBrackets = (n: NamedByALiteral): string =>
   n["quoted-in-brackets"];
+
+export const readATemplatedName = (n: NamedByALiteral): number =>
+  n.templated;
+
+// Reads the field the class holds, and never the constructor input of the
+// same spelling. One line for both would let this speak for the input.
+export const readItsOwnOptions = (a: AcceptsOptionsOfItsOwn): string =>
+  a.options.id;
+
+// Reads the field the class holds, and never the input the setter takes.
+export const readTheServedField = (s: ServesSettingsThroughASetter): number =>
+  s.value.kept;
+
+// Reads beside a setter whose name only exists when the program runs. The
+// input through it walks like a plain parameter.
+export const readBesideTheWorkedOutName = (
+  s: ServesThroughAWorkedOutName,
+): number => s.kept.besideAWorkedOutSetter;
+
+// Reads the value side of the map, and never the key side.
+export const readTheValueEnd = (m: HoldsBothEndsOfAMap): number => {
+  for (const value of m.bothEnds.values()) return value.sharedAtBothEnds;
+  return 0;
+};
+
+// Reads the field beside the tuple, and never the one the tuple holds.
+export const readBesideTheTuple = (c: CarriesATuple): string =>
+  c.sharedWithATuple;
+
+// Reads the field beside the mapping, and never the mapped one.
+export const readBesideTheMapping = (m: MapsItsValues): string =>
+  m.sharedWithAMapped;
 `;

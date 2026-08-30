@@ -100,6 +100,27 @@ export interface CollidesWithItsCall {
 export const readTheLiteralOne = (held: CollidesWithItsCall): number =>
   held["()"].sharedWithTheLabel;
 
+// A call's input and its result can each reach a field of one name. The
+// input stays under its parameter name and the result walks under
+// \`result\`, so the line this reads cannot speak for both.
+export interface CallsItBothWays {
+  (input: { sameAtBothEnds: string }): { input: { sameAtBothEnds: string } };
+}
+
+export const readTheInputEnd = (called: CallsItBothWays): string => {
+  const held: Parameters<CallsItBothWays>[0] = { sameAtBothEnds: "x" };
+  return held.sameAtBothEnds;
+};
+
+// The answer an \`infer\` variable names is substituted, so neither arm as
+// written is the type a caller holds: the checker hands back \`held\`, and the
+// field of the false arm is one no value of this shape ever had.
+export type ResolvesThroughInfer = Promise<{ held: number }> extends
+  Promise<infer Held> ? Held : { gone: number };
+
+export const readWhatItResolved = (x: ResolvesThroughInfer): number =>
+  x.held;
+
 // The brackets pick one key. No value of this holds the key it dropped, nor
 // anything under it, so only the checker can say what is left.
 export type PickedByAKey = {

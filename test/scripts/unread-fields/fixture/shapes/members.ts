@@ -39,6 +39,7 @@ export interface NamedByALiteral {
   ["quoted-in-brackets"]: string;
   [2]: string;
   [WORKED_OUT_WHEN_IT_RUNS]: string;
+  [\`templated\`]: number;
 }
 
 export class HasAStaticAndAccessors {
@@ -60,6 +61,24 @@ export class HasAStaticAndAccessors {
   set writeOnly(next: string) {
     this.#held = next;
   }
+}
+
+// A setter is nobody's to read, but the input it takes is everybody's to
+// supply, so the input walks under the setter's own name. The \`kept\` a
+// caller supplies is not the \`kept\` the field holds, though both sit under
+// \`value\`.
+export class ServesSettingsThroughASetter {
+  value: { kept: number };
+
+  set settings(value: { kept: string }) {}
+}
+
+// A setter whose name is worked out when the program runs has no name to
+// walk under, so the input takes the path of a plain parameter.
+export class ServesThroughAWorkedOutName {
+  kept: { besideAWorkedOutSetter: number };
+
+  set [WORKED_OUT_WHEN_IT_RUNS](held: { throughTheWorkedOutName: number }) {}
 }
 
 export type DroppedByAFilter = Extract<

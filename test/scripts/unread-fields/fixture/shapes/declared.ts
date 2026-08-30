@@ -109,6 +109,15 @@ export class Carrier {
   }
 }
 
+// A constructor input and a field of the same name are two fields, and each
+// holds an \`id\` of its own. The caller supplies the input through \`new ()\`,
+// so a read of the field never speaks for the input nothing reads.
+export class AcceptsOptionsOfItsOwn {
+  options: { id: string };
+
+  constructor(options: { id: number }) {}
+}
+
 export interface Borrowed {
   onlyItsTypeIsUsed: number;
   takenAwayByDelete?: number;
