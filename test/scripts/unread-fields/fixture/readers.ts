@@ -28,6 +28,7 @@ import {
   NamedItsParameter,
   type Passed,
   type ServesSettingsThroughASetter,
+  type ServesItsValueThroughAGetter,
   type ServesThroughAWorkedOutName,
   type SuppliedInBrackets,
   type UsedAsAKey,
@@ -184,6 +185,12 @@ export const readTheServedField = (s: ServesSettingsThroughASetter): number =>
 export const readBesideTheWorkedOutName = (
   s: ServesThroughAWorkedOutName,
 ): number => s.kept.besideAWorkedOutSetter;
+
+// Reads the getter's value where the property itself is reached, and never
+// a step the walk does not take.
+export const readTheServedValue = (
+  s: ServesItsValueThroughAGetter,
+): number => s.config.dead;
 
 // Reads the value side of the map, and never the key side.
 export const readTheValueEnd = (m: HoldsBothEndsOfAMap): number => {

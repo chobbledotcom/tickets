@@ -55,9 +55,15 @@ reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 `Record<string, { id: number }>` both count. `Array<T>`, `ReadonlyArray<T>` and
 `T[]` add a step for the element, because `rows[0].id` is one step further than
 `rows.id`. `Record<K, T>` adds the same step, because it is the index signature
-written as a generic, and so do `Set`, `ReadonlySet`, `Map` and `ReadonlyMap`,
-which hold many the same way. Without that step a shape that holds both a field
-and a list of the same name reports the two as one.
+written as a generic, and so do `Set` and `ReadonlySet`, which hold many the
+same way. Without that step a shape that holds both a field and a list of the
+same name reports the two as one.
+
+A map is two calls apart, not one step. `Map<K, V>` and `ReadonlyMap<K, V>` put
+the key's fields under `["keys()"]` and the value's under `["values()"]`,
+because those are the two ways a reader reaches them, and a shape can hold a
+field of one name on both sides.
+
 `Extract<Row, { kind: "one" }>` is different. Its second argument says which
 arms of `Row` to keep. It is a filter, and no value of the shape has a field of
 it. `Exclude` works the same way.
@@ -197,10 +203,11 @@ as `Sum.total`. Any other name takes brackets and quotes, as `Row["has.a.dot"]`,
 so a name that holds a dot cannot read like a path. A member with no name of its
 own gets the way a reader reaches through it instead: `Callable["()"]` for a
 call signature, `Constructable["new ()"]` for a construct signature, and
-`Bag["[]"]` for an index signature. A list, a `Record`, a set and a map read one
-member at a time, so they take the same `[]` step. The fields of
+`Bag["[]"]` for an index signature. A list, a `Record` and a set read one member
+at a time, so they take the same `[]` step. The fields of
 `Array<{ total: number }>` sit under `Rows["[]"]`, because a reader writes
-`rows[0].total`.
+`rows[0].total`. A map's keys and values take the two calls a reader makes of
+them, as `Held["keys()"]` and `Held["values()"]`.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start, not a verdict. A field

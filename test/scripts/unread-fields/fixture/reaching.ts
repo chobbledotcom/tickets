@@ -121,6 +121,20 @@ export type ResolvesThroughInfer = Promise<{ held: number }> extends
 export const readWhatItResolved = (x: ResolvesThroughInfer): number =>
   x.held;
 
+// A property and a method can share one name, and each can hold an \`input\`
+// of its own. The data's \`id\` sits under the property, and the method's sits
+// under the call, so a read of either stays with its own.
+export type HasAPropertyAndAMethodOfOneName = {
+  run: { input: { id: number } };
+} & {
+  run(input: { id: string }): void;
+};
+
+// Reads the data the name holds, and never the input the method takes.
+export const readTheDataTheNameHolds = (
+  mixed: HasAPropertyAndAMethodOfOneName,
+): number => mixed.run.input.id;
+
 // The brackets pick one key. No value of this holds the key it dropped, nor
 // anything under it, so only the checker can say what is left.
 export type PickedByAKey = {

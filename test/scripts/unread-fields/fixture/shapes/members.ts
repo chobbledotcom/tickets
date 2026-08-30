@@ -81,6 +81,14 @@ export class ServesThroughAWorkedOutName {
   set [WORKED_OUT_WHEN_IT_RUNS](held: { throughTheWorkedOutName: number }) {}
 }
 
+// A getter's value reads as the property's own, so its return type walks on
+// the property's path with no step between.
+export class ServesItsValueThroughAGetter {
+  get config(): { dead: number } {
+    return { dead: 1 };
+  }
+}
+
 export type DroppedByAFilter = Extract<
   { whichArm: "kept"; keptByTheFilter: number } | {
     whichArm: "gone";

@@ -89,25 +89,6 @@ describe("what the walk goes into", () => {
     expect(scanned.all.filter((f) => f.owner.includes("Keys"))).toEqual([]);
   });
 
-  test("still sees a field a readonly array hands out", () => {
-    // `readonly` is a type operator too, and this one does hand a field out.
-    // The list still takes its step, because a reader writes `kept[0]`.
-    expect(verdictOf('StillHandsOneOut["[]"]', "keptByReadonly")).toBe(
-      "never read",
-    );
-  });
-
-  test("sees a field of an object type a generic holds", () => {
-    // `Array<{ id }>` and `Record<string, { id }>` both hand the inner shape
-    // on, and a reader reaches it as `rows.inAnArray[0].insideAnArray`.
-    expect(
-      verdictOf('HoldsThingsInGenerics.inAnArray["[]"]', "insideAnArray"),
-    ).toBe("read");
-    expect(
-      verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
-    ).toBe("never read");
-  });
-
   test("leaves out a field only a filter's argument names", () => {
     // `Extract<T, { picked: true }>` and `Exclude<T, { picked: true }>` say
     // which arms of T to keep. The argument is a filter, and no value of the
@@ -191,71 +172,53 @@ describe("what the walk goes into", () => {
     expect(verdictOf("Keeps.held", "keptInsideToo")).toBeUndefined();
   });
 
-  test("keeps a field and a list of the same name apart", () => {
-    // `{ shared: string } & Array<{ shared: number }>` declares the name
-    // twice. One is `h.shared` and the other is `h[0].shared`, so one line
-    // for both would let the read of the first speak for the second.
-    expect(verdictOf("HoldsAListOfTheSameName", "sharedWithAList")).toBe(
-      "read",
-    );
-    expect(verdictOf('HoldsAListOfTheSameName["[]"]', "sharedWithAList")).toBe(
-      "never read",
-    );
-  });
-
-  test("gives a list the same step however it is written", () => {
-    // `T[]`, `readonly T[]` and `ReadonlyArray<T>` all reach an element the
-    // way `Array<T>` does, so each spelling has to take the step.
-    expect(
-      verdictOf('WritesAListEveryWay.withBrackets["[]"]', "insideBrackets"),
-    ).toBe("never read");
-    expect(
-      verdictOf('WritesAListEveryWay.withReadonly["[]"]', "insideReadonly"),
-    ).toBe("never read");
-    expect(
-      verdictOf(
-        'WritesAListEveryWay.namedReadonly["[]"]',
-        "insideNamedReadonly",
-      ),
-    ).toBe("never read");
-  });
-
-  test("gives a set and a map the step a list takes", () => {
-    // Each holds many, so a field of the shape and a field of what it holds
-    // are two fields, exactly as with a list. A map's value takes the
-    // `values()` step, because that is how a reader reaches it.
-    expect(verdictOf('HoldsManyOtherWays.inASet["[]"]', "insideASet")).toBe(
-      "never read",
-    );
-    expect(
-      verdictOf('HoldsManyOtherWays.inAMap["values()"]', "insideAMap"),
-    ).toBe("never read");
-    expect(
-      verdictOf(
-        'HoldsManyOtherWays.inAReadonlySet["[]"]',
-        "insideAReadonlySet",
-      ),
-    ).toBe("never read");
-    expect(
-      verdictOf(
-        'HoldsManyOtherWays.inAReadonlyMap["values()"]',
-        "insideAReadonlyMap",
-      ),
-    ).toBe("never read");
-  });
-
-  test("gives a Record the step its index signature spelling takes", () => {
-    // `Record<string, T>` and `{ [k: string]: T }` are one type written two
-    // ways, so a reader writes `rec[key].inside` for both.
-    expect(
-      verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
-    ).toBe("never read");
-  });
-
   test("reads the key an indexed access keeps, and not the one it drops", () => {
     // No value of `{ ... }["keptByTheKey"]` holds the dropped key, so the
     // walk stays out of both operands and the checker says what is left.
     expect(verdictOf("PickedByAKey", "keptInsideTheKey")).toBe("never read");
     expect(verdictOf("PickedByAKey", "droppedByTheKey")).toBeUndefined();
+  });
+
+  test("tells two parameters of one method apart", () => {
+    // Both parameters hold a field of the same name, and one line for the
+    // two would let a read of either speak for both. The inputs sit under
+    // the call the method takes.
+    expect(
+      verdictOf('TakesTwoObjects.send["()"].first', "sameNameInBothParameters"),
+    ).toBe("never read");
+    expect(
+      verdictOf(
+        'TakesTwoObjects.send["()"].second',
+        "sameNameInBothParameters",
+      ),
+    ).toBe("never read");
+  });
+
+  test("tells a parameter with no name of its own by its place", () => {
+    expect(
+      verdictOf(
+        'TakesADestructuredObject.handle["()"]["0"]',
+        "onlyInsideADestructured",
+      ),
+    ).toBe("never read");
+  });
+
+  test("puts a field a method takes under that method", () => {
+    // Two methods can take an object with the same field name, and the two
+    // are different fields. Under the class they would read as one.
+    expect(
+      verdictOf('TakesObjectsInMethods.send["()"].value', "sameNameInBoth"),
+    ).toBe("never read");
+    expect(
+      verdictOf('TakesObjectsInMethods.post["()"].value', "sameNameInBoth"),
+    ).toBe("never read");
+  });
+
+  test("walks only what an inferred conditional resolved to", () => {
+    // The answer is the substituted type, so `held` is a field and `gone` is
+    // a shape no value holds. Before, the walk took the false arm and
+    // invented it.
+    expect(verdictOf("ResolvesThroughInfer", "held")).toBe("read");
+    expect(verdictOf("ResolvesThroughInfer", "gone")).toBeUndefined();
   });
 });

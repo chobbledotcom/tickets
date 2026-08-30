@@ -1,0 +1,157 @@
+/**
+ * The step a path takes through a member with no name of its own, and the
+ * tables the spellings of a shape come from. A step is what keeps two
+ * declarations that share a name two fields.
+ */
+import ts from "typescript";
+
+/** A type this repository names rather than writes out, picked from a list. */
+export const namedOneOf =
+  (names: ReadonlySet<string>): ((node: ts.Node) => boolean) =>
+  (node) =>
+    ts.isTypeReferenceNode(node) &&
+    ts.isIdentifier(node.typeName) &&
+    names.has(node.typeName.text);
+
+/** The generics a reader reaches one member at a time. `Array<Row>` and
+ * `Row[]` are one type written two ways, and `Record<string, Row>` is the
+ * index signature written as a generic, which already takes this step. A set
+ * holds many the same way, so a field of the shape and a field of what it
+ * holds stay two fields. A map is not here: its two arguments are below. */
+const holdsElements = namedOneOf(
+  new Set(["Array", "ReadonlyArray", "Record", "Set", "ReadonlySet"]),
+);
+
+/** The generics that hold two different kinds of thing at once. The key and
+ * the value of a map are reached by two different calls, so a field of each
+ * with one name stays two fields. */
+const holdsKeysAndValues = namedOneOf(new Set(["Map", "ReadonlyMap"]));
+
+/** One step down to a field. A `name` is what a field is called, and a `way`
+ * is how a reader reaches through a member with no name of its own. The two
+ * are kept apart, because a field can be called `"()"` and a call is not one. */
+export type Step = { name: string } | { way: string };
+
+export const stepText = (step: Step): string =>
+  "name" in step ? step.name : step.way;
+
+/** One element of something that holds many. An index signature and a list
+ * both read this way, and a shape is never both at one place in the path. */
+const ELEMENT = "[]";
+
+/** How a reader reaches through a member that has no name to give. */
+const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
+  [ts.SyntaxKind.CallSignature, "()"],
+  [ts.SyntaxKind.ConstructSignature, "new ()"],
+  [ts.SyntaxKind.FunctionType, "()"],
+  [ts.SyntaxKind.ConstructorType, "new ()"],
+  [ts.SyntaxKind.IndexSignature, ELEMENT],
+  [ts.SyntaxKind.ArrayType, ELEMENT],
+  [ts.SyntaxKind.TupleType, ELEMENT],
+  [ts.SyntaxKind.MappedType, ELEMENT],
+]);
+
+/** What a constructor's caller supplies an input through. */
+const ENTERS_THROUGH = "new ()";
+
+/** The type a call hands back and a caller receives. */
+const ITS_RESULT = "result";
+
+/** The step a caller's input to a constructor takes before its own name. The
+ * parameters that arrive at `underAnUnnamedPart` are the inputs a caller
+ * supplies — a plain one, or one a word hides — because a public parameter
+ * property is a field and never walks. A method's parameter is nobody's
+ * input, so only the constructor's take the step. */
+const enterTheConstructorThrough = (
+  node: ts.ParameterDeclaration,
+): readonly { way: string }[] =>
+  ts.isConstructorDeclaration(node.parent) ? [{ way: ENTERS_THROUGH }] : [];
+
+/** Whether a parameter arrives through a call the reader writes out. A
+ * method's input walks under the call, so it stays apart from the data the
+ * method's own name holds. A setter's input arrives through an assignment,
+ * which has no call. A constructor's arrives through `new ()`, which is its
+ * own step below. */
+const arrivesThroughACall = (node: ts.ParameterDeclaration): boolean => {
+  const { parent } = node;
+  return (
+    (parent as { name?: ts.Node }).name !== undefined &&
+    !ts.isSetAccessorDeclaration(parent) &&
+    !ts.isConstructorDeclaration(parent)
+  );
+};
+
+/** The step a map's type arguments take apart. The key and the value are
+ * reached by two different calls, `keys()` and `values()`, so the first
+ * argument is the key's type. A reference that writes no arguments down has
+ * none of either, and a map's name does not typecheck without its two. */
+const throughTheMap = (node: ts.Node): { way: string } | undefined => {
+  const { parent } = node;
+  if (!ts.isTypeReferenceNode(parent)) return;
+  const [key] = parent.typeArguments ?? [];
+  if (!holdsKeysAndValues(parent)) return;
+  return { way: node === key ? "keys()" : "values()" };
+};
+
+/** Whether a type node is the result its parent hands back. A call, a
+ * construct, a method, an arrow: the type it returns is what a caller
+ * receives, so it takes the `result` step. An index signature's type is not
+ * one — it says what every value looks like, so it stays put. An accessor's
+ * return is not one either: a getter's value reads as the property's own, so
+ * its type walks on the property's path, and a setter writes no return. */
+const handsBackItsResult = (node: ts.Node): boolean => {
+  const { parent } = node;
+  return (
+    ts.isTypeNode(node) &&
+    ts.isFunctionLike(parent) &&
+    !ts.isIndexSignatureDeclaration(parent) &&
+    !ts.isAccessor(parent) &&
+    parent.type === node
+  );
+};
+
+/** The step a member with no name of its own adds to the path. A shape can
+ * hold more than one of them, and each can carry a field of the same name, so
+ * a step that tells them apart is what keeps the two fields two.
+ * `send(first: { id: string }, second: { id: string })` is the plain case: the
+ * parameter's own name does it. A destructured parameter has no name, so its
+ * place in the list stands in. A call signature, a construct signature and an
+ * index signature have neither, so the way a reader reaches through it does.
+ * `bag[key].total` is a step away from `bag.total`, and without the step the
+ * two are one field. A list is the same case: `rows[0].total` is a step away
+ * from `rows.total`, so a list and a `Record` add one too.
+ * A setter is a step of its own name, because a setter is nobody's to read
+ * but its input is everybody's to supply. */
+export const underAnUnnamedPart = (
+  path: readonly Step[],
+  node: ts.Node,
+): readonly Step[] => {
+  if (ts.isParameter(node)) {
+    const way = ts.isIdentifier(node.name)
+      ? node.name.text
+      : String(node.parent.parameters.indexOf(node));
+    // A method's named parameter is also an input to the method, and it
+    // arrives through the call, which is a word of its own.
+    const throughTheCall = arrivesThroughACall(node) ? [{ way: "()" }] : [];
+    return [
+      ...path,
+      ...enterTheConstructorThrough(node),
+      ...throughTheCall,
+      { way },
+    ];
+  }
+  if (ts.isSetAccessorDeclaration(node)) {
+    // A setter's name is written as a plain word, so it can say where the
+    // input walks under. A computed one is worked out at run time, and the
+    // walk stays where it was.
+    const { name } = node;
+    return ts.isIdentifier(name) ? [...path, { way: name.text }] : path;
+  }
+  const throughMap = throughTheMap(node);
+  if (throughMap) return [...path, throughMap];
+  if (handsBackItsResult(node)) return [...path, { way: ITS_RESULT }];
+  const through = holdsElements(node)
+    ? ELEMENT
+    : REACHED_THROUGH.get(node.kind);
+  return through === undefined ? path : [...path, { way: through }];
+};
