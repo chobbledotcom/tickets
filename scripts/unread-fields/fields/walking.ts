@@ -8,14 +8,21 @@ import ts from "typescript";
 import { filter } from "#fp";
 import { namedOneOf } from "./steps.ts";
 
-/** Four built-in types that keep some of the first argument and drop the
+/** Five built-in types that keep some of the first argument and drop the
  * rest. `Extract` and `Exclude` choose arms of a union; `Pick` and `Omit`
- * choose keys of an object. Neither argument of any of them is the answer:
- * the second says what to keep and is nobody's to read, and the first still
- * holds what was dropped. Only the checker knows what is left, and it
+ * choose keys of an object; `ReturnType` takes what a call hands back. No
+ * argument of any of them is the answer: the chooser says what to keep and is
+ * nobody's to read, `ReturnType`'s names the call that answers, and the first
+ * still holds what was dropped. Only the checker knows what is left, and it
  * resolves the reference for the shape it belongs to. Every other type
  * argument holds a type the shape hands on, as `Array<{ id: number }>` does. */
-const NARROWS_BY_A_FILTER = new Set(["Extract", "Exclude", "Pick", "Omit"]);
+const NARROWS_BY_A_FILTER = new Set([
+  "Extract",
+  "Exclude",
+  "Pick",
+  "Omit",
+  "ReturnType",
+]);
 
 const narrowsByAFilter = namedOneOf(NARROWS_BY_A_FILTER);
 

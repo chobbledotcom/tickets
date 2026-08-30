@@ -89,6 +89,23 @@ export class ServesItsValueThroughAGetter {
   }
 }
 
+// A property can hold a call the same way a method does, so its input takes
+// the same \`()\` step the method's does. A function expression written out
+// in full is one more spelling of the same call.
+export class RunsItAsAProperty {
+  run = (input: { arrowSpelling: number }): void => {};
+
+  send = function (input: { writtenOutSpelling: number }): void {}
+}
+
+// A setter's name can be written in quotes rather than as a plain word, and
+// the input still walks under it.
+export class ServesItThroughAQuotedName {
+  value: { besideAQuotedSetter: number };
+
+  set ["settings"](held: { throughTheQuotedSetter: number }) {}
+}
+
 export type DroppedByAFilter = Extract<
   { whichArm: "kept"; keptByTheFilter: number } | {
     whichArm: "gone";

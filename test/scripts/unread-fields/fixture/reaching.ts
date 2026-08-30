@@ -135,6 +135,16 @@ export const readTheDataTheNameHolds = (
   mixed: HasAPropertyAndAMethodOfOneName,
 ): number => mixed.run.input.id;
 
+// \`ReturnType\` names a call whose answer is the shape, so nothing the call
+// takes belongs to it. Only what the call hands back is a field.
+export type WhatItGivesBack = ReturnType<
+  (input: { givenToTheCall: number }) => { given: number }
+>;
+
+// Reads what the call hands back, and never the input it takes.
+export const readWhatItGives = (out: WhatItGivesBack): number =>
+  out.given;
+
 // The brackets pick one key. No value of this holds the key it dropped, nor
 // anything under it, so only the checker can say what is left.
 export type PickedByAKey = {

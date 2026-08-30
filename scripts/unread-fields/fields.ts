@@ -13,7 +13,13 @@ import {
   type Shape,
   shapeBody,
 } from "./fields/shapes.ts";
-import { type Step, stepText, underAnUnnamedPart } from "./fields/steps.ts";
+import {
+  type FieldName,
+  isFieldName,
+  type Step,
+  stepText,
+  underAnUnnamedPart,
+} from "./fields/steps.ts";
 import { membersOf } from "./fields/walking.ts";
 import { reaching } from "./findings.ts";
 import { carriesAModifier, quotedInBrackets } from "./writes.ts";
@@ -53,24 +59,6 @@ const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   ts.isClassElement(node) ||
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
-
-/** A field's name as it is written down. `row["status-code"]` reaches the
- * same member as `row.total`, so a quoted or numbered name counts, and so
- * does a template literal with nothing worked out in it: `` [`foo`]: number``
- * names the field `x.foo` exactly as `"foo": number` does. A `#private`
- * name is nobody else's to reach, so it is not a field the scan can look up.
- */
-export type FieldName =
-  | ts.Identifier
-  | ts.StringLiteral
-  | ts.NumericLiteral
-  | ts.NoSubstitutionTemplateLiteral;
-
-const isFieldName = (node: ts.Node): node is FieldName =>
-  ts.isIdentifier(node) ||
-  ts.isStringLiteral(node) ||
-  ts.isNumericLiteral(node) ||
-  ts.isNoSubstitutionTemplateLiteral(node);
 
 /** The name a declaration is written down by. An index signature has none.
  * A setter has none either, for a different reason: `row.total = 1` calls it,

@@ -14,10 +14,9 @@ import {
 const SOURCE = `
 export type Once = { writtenDownOnce: number };
 
-export type Twice = [
-  { writtenDownTwice: number },
-  { writtenDownTwice: number },
-];
+export type Twice =
+  | { writtenDownTwice: number }
+  | { writtenDownTwice: number };
 `;
 
 describe("one line per field", () => {

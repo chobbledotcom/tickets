@@ -12,6 +12,7 @@ import {
   BothSides,
   type Callable,
   type CarriesATuple,
+  type CarriesTwoElementsOfOneName,
   type DeletedInParens,
   type ExtendsFarBase,
   type FromAShorthand,
@@ -27,8 +28,10 @@ import {
   type NamedByALiteral,
   NamedItsParameter,
   type Passed,
+  type RunsItAsAProperty,
   type ServesSettingsThroughASetter,
   type ServesItsValueThroughAGetter,
+  type ServesItThroughAQuotedName,
   type ServesThroughAWorkedOutName,
   type SuppliedInBrackets,
   type UsedAsAKey,
@@ -186,11 +189,29 @@ export const readBesideTheWorkedOutName = (
   s: ServesThroughAWorkedOutName,
 ): number => s.kept.besideAWorkedOutSetter;
 
+// Reads the value a property's call hands back. A class that runs its
+// property like a method supplies its input the same way a method does.
+export const readAPropertyRun = (s: RunsItAsAProperty): number => {
+  s.run({ arrowSpelling: 1 });
+  s.send({ writtenOutSpelling: 2 });
+  return 0;
+};
+
 // Reads the getter's value where the property itself is reached, and never
 // a step the walk does not take.
 export const readTheServedValue = (
   s: ServesItsValueThroughAGetter,
 ): number => s.config.dead;
+
+// Reads the field beside a setter whose name is written in quotes.
+export const readBesideTheQuotedSetter = (
+  s: ServesItThroughAQuotedName,
+): number => s.value.besideAQuotedSetter;
+
+// Reads the first of two tuple elements of one name, and never the second.
+export const readTheFirstElement = (
+  pair: CarriesTwoElementsOfOneName,
+): string => pair[0].id;
 
 // Reads the value side of the map, and never the key side.
 export const readTheValueEnd = (m: HoldsBothEndsOfAMap): number => {

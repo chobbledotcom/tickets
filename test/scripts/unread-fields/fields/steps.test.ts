@@ -12,9 +12,10 @@ describe("the steps a reader takes", () => {
 
   test("counts a read of the field the second tuple part writes", () => {
     // `pair[1].sharedByTupleParts` points at the second part, and the first
-    // part writes a field of that name down too. Both sit under the step a
-    // tuple element takes.
-    expect(verdictOf('Pair["[]"]', "sharedByTupleParts")).toBe("read");
+    // part writes a field of that name down too. Each element is reached by
+    // its place, so the two stay two lines.
+    expect(verdictOf('Pair["1"]', "sharedByTupleParts")).toBe("read");
+    expect(verdictOf('Pair["0"]', "sharedByTupleParts")).toBe("never read");
   });
 
   test("keeps a field under the index off the shape's own path", () => {
@@ -113,9 +114,57 @@ describe("the steps a reader takes", () => {
     // `c.sharedWithATuple` and `c[0].sharedWithATuple` are two fields. A
     // tuple reaches its elements exactly as a list does.
     expect(verdictOf("CarriesATuple", "sharedWithATuple")).toBe("read");
-    expect(verdictOf('CarriesATuple["[]"]', "sharedWithATuple")).toBe(
+    expect(verdictOf('CarriesATuple["0"]', "sharedWithATuple")).toBe(
       "never read",
     );
+  });
+
+  test("tells two tuple elements of one name apart", () => {
+    // `pair[0].id` and `pair[1].id` are two fields, and each element is
+    // reached by its place, so a read of one never answers for the other.
+    expect(verdictOf('CarriesTwoElementsOfOneName["0"]', "id")).toBe("read");
+    expect(verdictOf('CarriesTwoElementsOfOneName["1"]', "id")).toBe(
+      "never read",
+    );
+  });
+
+  test("gives a property that holds a call the step a method takes", () => {
+    // `run = (input) => x`, `send = function (input) { x }` and
+    // `run(input) { return x }` name the input the same way, so every
+    // spelling walks under the same `()` step.
+    expect(verdictOf("RunsItAsAProperty", "run")).toBe("read");
+    expect(
+      verdictOf('RunsItAsAProperty.run["()"].input', "arrowSpelling"),
+    ).toBe("never read");
+    expect(verdictOf("RunsItAsAProperty", "send")).toBe("read");
+    expect(
+      verdictOf('RunsItAsAProperty.send["()"].input', "writtenOutSpelling"),
+    ).toBe("never read");
+  });
+
+  test("gives a type written as a function the step a call takes", () => {
+    // `takesAnObject: (made: { ... }) => void` holds a call in type
+    // position, and its parameter's fields sit under it.
+    expect(
+      verdictOf(
+        'HandsAnObjectOver.takesAnObject["()"].made',
+        "insideAParameter",
+      ),
+    ).toBe("never read");
+  });
+
+  test("keeps a setter's quoted name in the path", () => {
+    // `set ["settings"](held)` names the setter what the quotes say, so its
+    // input walks under it exactly as a plain word's does.
+    expect(
+      verdictOf("ServesItThroughAQuotedName.value", "besideAQuotedSetter"),
+    ).toBe("read");
+    expect(
+      verdictOf(
+        "ServesItThroughAQuotedName.settings.held",
+        "throughTheQuotedSetter",
+      ),
+    ).toBe("never read");
   });
 
   test("keeps a method's input under the call", () => {

@@ -78,6 +78,10 @@ export type CarriesATuple = { sharedWithATuple: string } & [{
   sharedWithATuple: number;
 }];
 
+// Each element of a tuple is reached by its own place, so two elements of
+// one name stay two fields, exactly as two parameters do.
+export type CarriesTwoElementsOfOneName = [{ id: string }, { id: number }];
+
 // The value a mapped type holds is reached through a key, so it takes the
 // same step an index signature does, and the field beside the mapping stays
 // its own.

@@ -4,6 +4,7 @@
  * declarations that share a name two fields.
  */
 import ts from "typescript";
+import { quotedInBrackets } from "#scripts/unread-fields/writes.ts";
 
 /** A type this repository names rather than writes out, picked from a list. */
 export const namedOneOf =
@@ -35,19 +36,41 @@ export type Step = { name: string } | { way: string };
 export const stepText = (step: Step): string =>
   "name" in step ? step.name : step.way;
 
+/** A field's name as it is written down. `row["status-code"]` reaches the
+ * same member as `row.total`, so a quoted or numbered name counts, and so
+ * does a template literal with nothing worked out in it: `` [`foo`]: number``
+ * names the field `x.foo` exactly as `"foo": number` does. A `#private`
+ * name is nobody else's to reach, so it is not a field the scan can look up.
+ */
+export type FieldName =
+  | ts.Identifier
+  | ts.StringLiteral
+  | ts.NumericLiteral
+  | ts.NoSubstitutionTemplateLiteral;
+
+export const isFieldName = (node: ts.Node): node is FieldName =>
+  ts.isIdentifier(node) ||
+  ts.isStringLiteral(node) ||
+  ts.isNumericLiteral(node) ||
+  ts.isNoSubstitutionTemplateLiteral(node);
+
 /** One element of something that holds many. An index signature and a list
  * both read this way, and a shape is never both at one place in the path. */
 const ELEMENT = "[]";
 
-/** How a reader reaches through a member that has no name to give. */
+/** How a reader reaches through a member that has no name to give. An arrow
+ * or a function expression written as a value takes the call step too, so
+ * `run = (input) => x` and `run(input) { return x }` name the input the same
+ * way. */
 const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.CallSignature, "()"],
   [ts.SyntaxKind.ConstructSignature, "new ()"],
   [ts.SyntaxKind.FunctionType, "()"],
   [ts.SyntaxKind.ConstructorType, "new ()"],
+  [ts.SyntaxKind.ArrowFunction, "()"],
+  [ts.SyntaxKind.FunctionExpression, "()"],
   [ts.SyntaxKind.IndexSignature, ELEMENT],
   [ts.SyntaxKind.ArrayType, ELEMENT],
-  [ts.SyntaxKind.TupleType, ELEMENT],
   [ts.SyntaxKind.MappedType, ELEMENT],
 ]);
 
@@ -110,6 +133,16 @@ const handsBackItsResult = (node: ts.Node): boolean => {
   );
 };
 
+/** The step a setter's own name adds, so its input walks under it. A plain
+ * word or a quoted one can say where, the way a field's own name does. A
+ * name a variable works out cannot, and there is no step. */
+const stepOfTheSettersName = (
+  name: ts.PropertyName,
+): { way: string } | undefined => {
+  const written = quotedInBrackets(name) ?? name;
+  return isFieldName(written) ? { way: written.text } : undefined;
+};
+
 /** The step a member with no name of its own adds to the path. A shape can
  * hold more than one of them, and each can carry a field of the same name, so
  * a step that tells them apart is what keeps the two fields two.
@@ -119,7 +152,9 @@ const handsBackItsResult = (node: ts.Node): boolean => {
  * index signature have neither, so the way a reader reaches through it does.
  * `bag[key].total` is a step away from `bag.total`, and without the step the
  * two are one field. A list is the same case: `rows[0].total` is a step away
- * from `rows.total`, so a list and a `Record` add one too.
+ * from `rows.total`, so a list and a `Record` add one too. A tuple's elements
+ * are reached one place at a time, so each takes its place the way a
+ * destructured parameter does.
  * A setter is a step of its own name, because a setter is nobody's to read
  * but its input is everybody's to supply. */
 export const underAnUnnamedPart = (
@@ -141,11 +176,12 @@ export const underAnUnnamedPart = (
     ];
   }
   if (ts.isSetAccessorDeclaration(node)) {
-    // A setter's name is written as a plain word, so it can say where the
-    // input walks under. A computed one is worked out at run time, and the
-    // walk stays where it was.
-    const { name } = node;
-    return ts.isIdentifier(name) ? [...path, { way: name.text }] : path;
+    const step = stepOfTheSettersName(node.name);
+    return step ? [...path, step] : path;
+  }
+  if (ts.isTupleTypeNode(node.parent)) {
+    const place = node.parent.elements as readonly ts.Node[];
+    return [...path, { way: String(place.indexOf(node)) }];
   }
   const throughMap = throughTheMap(node);
   if (throughMap) return [...path, throughMap];

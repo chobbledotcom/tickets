@@ -11,7 +11,8 @@ import ts from "typescript";
 import { unique } from "#fp";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
-import { exportedFields, type FieldName } from "./fields.ts";
+import type { FieldName } from "./fields/steps.ts";
+import { exportedFields } from "./fields.ts";
 import { type Finding, verdictFor } from "./findings.ts";
 import { answered, compilerOptions, pathIs, serviceHost } from "./host.ts";
 import {

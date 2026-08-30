@@ -221,4 +221,15 @@ describe("what the walk goes into", () => {
     expect(verdictOf("ResolvesThroughInfer", "held")).toBe("read");
     expect(verdictOf("ResolvesThroughInfer", "gone")).toBeUndefined();
   });
+
+  test("leaves out what a ReturnType's call takes as an input", () => {
+    // `ReturnType` names a call whose answer is the shape. The input the
+    // call takes is nobody's to read, and no value of the shape holds it:
+    // walked by mistake, it would sit under the call the type spells.
+    expect(verdictOf("WhatItGivesBack", "given")).toBe("read");
+    expect(
+      verdictOf('WhatItGivesBack["()"].input', "givenToTheCall"),
+    ).toBeUndefined();
+    expect(verdictOf("WhatItGivesBack", "givenToTheCall")).toBeUndefined();
+  });
 });
