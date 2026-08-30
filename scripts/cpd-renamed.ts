@@ -28,11 +28,12 @@
 
 import {
   type JscpdDuplicate,
+  repoRootFrom,
   runRenamedCloneCheck,
 } from "./cpd-renamed/run.ts";
 import { commandExitCode, denoNpmArgs } from "./deno-command.ts";
 
-const ROOT = new URL("../", import.meta.url).pathname.replace(/\/$/, "");
+const ROOT = repoRootFrom(new URL(import.meta.url));
 // jscpd names each file relative to the scan root it came from, so the same
 // relative name can exist under several roots (src/restore.ts and
 // scripts/restore.ts both report as "restore.ts"). Asking for absolute paths

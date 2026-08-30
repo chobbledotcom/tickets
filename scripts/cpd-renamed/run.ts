@@ -6,13 +6,21 @@
  * `docs/test-duplication.md` for the policy.
  */
 
+import { fromFileUrl } from "@std/path";
+import * as v from "valibot";
 import { sha256Hex } from "#scripts/checksum.ts";
 
+/** The repository root as a filesystem path for a module that sits at its
+ * top level. URL pathnames keep percent escapes, which breaks project paths
+ * holding spaces, so decode through `fromFileUrl`. */
+export const repoRootFrom = (moduleUrl: URL): string =>
+  fromFileUrl(new URL("../", moduleUrl)).replace(/\/$/, "");
+
 /** Words include names, strings, and numbers: everything a rename touches.
- * Reserved words keep their own shape only as keywords: a word straight after
- * a `.` is a member name, so `client.delete(...)` reads the same as
- * `client.archive(...)` — one renamed member — while `if` and `while` still
- * differ as control flow. */
+ * Reserved words keep their own shape only in keyword position: a word after a
+ * property-access dot or in an object-key slot is a member name, so
+ * `client.delete(...)` and `{ delete: x }` read as renamed members, while
+ * `if` and `while` still differ as control flow. */
 const RESERVED = new Set([
   "await",
   "break",
@@ -55,15 +63,24 @@ const RESERVED = new Set([
   "yield",
 ]);
 
-/** A reserved word sitting in keyword position, not member position: the text
- * before it (if any) is not a property access dot. */
-const isKeywordPosition = (offset: number, full: string): boolean =>
-  !full.slice(0, offset).trimEnd().endsWith(".");
+/** A reserved word keeps its own shape only in keyword position. It is a
+ * member name — masked like any other word — when it follows a property-access
+ * dot or sits in an object-key slot before a colon (`{ delete: item }` reads
+ * the same as `{ archive: item }`). The label keywords `case` and `default`
+ * also take a colon, so they stay keywords. */
+const isKeywordUse = (word: string, offset: number, full: string): boolean => {
+  if (full.slice(0, offset).trimEnd().endsWith(".")) return false;
+  if (word === "case" || word === "default") return true;
+  return !full
+    .slice(offset + word.length)
+    .trimStart()
+    .startsWith(":");
+};
 
 export const skeleton = (code: string): string =>
   code
     .replace(/[A-Za-z0-9_$'"]+/g, (word, offset: number) =>
-      RESERVED.has(word) && isKeywordPosition(offset, code) ? word : "§",
+      RESERVED.has(word) && isKeywordUse(word, offset, code) ? word : "§",
     )
     .replace(/\s+/g, "");
 
@@ -116,6 +133,10 @@ export const isImportSpan = (code: string): boolean => {
 /** One side of a pair for hashing: where it sits and what it says. */
 export type CloneSide = { file: string; snippet: string };
 
+/** Windows checkouts keep carriage returns, which a hash must not see: the
+ * registry records LF-only snippets. */
+const lfOnly = (text: string): string => text.replace(/\r\n/g, "\n");
+
 /** A stable identity for a pair: the hash of both files and both snippets.
  * Line numbers drift, so they stay out; the files stay in, so the same
  * snippets copied into new files read as a new pair that needs its own
@@ -126,7 +147,7 @@ export const pairHash = async (
 ): Promise<string> =>
   await sha256Hex(
     new TextEncoder().encode(
-      `${first.file}\n${first.snippet.trim()}\n<==>\n${second.file}\n${second.snippet.trim()}`,
+      `${first.file}\n${lfOnly(first.snippet.trim())}\n<==>\n${second.file}\n${lfOnly(second.snippet.trim())}`,
     ),
   );
 
@@ -143,6 +164,15 @@ export type ClonePlace = {
 export type AllowedClone = ClonePlace & {
   reason: string;
 };
+
+const allowedCloneSchema = v.object({
+  first: v.pipe(v.string(), v.nonEmpty()),
+  firstStart: v.number(),
+  hash: v.pipe(v.string(), v.nonEmpty()),
+  reason: v.pipe(v.string(), v.nonEmpty()),
+  second: v.pipe(v.string(), v.nonEmpty()),
+  secondStart: v.number(),
+});
 
 /** One pair the scan holds: where it sits, its identity, and both snippets. */
 export type Finding = ClonePlace & {
@@ -222,12 +252,22 @@ export const collectFindings = async (
 };
 
 const loadRegistry = (registryFile: string): AllowedClone[] => {
+  let parsed: unknown;
   try {
-    return JSON.parse(Deno.readTextFileSync(registryFile)) as AllowedClone[];
+    parsed = JSON.parse(Deno.readTextFileSync(registryFile));
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) return [];
     throw error;
   }
+  const result = v.safeParse(v.array(allowedCloneSchema), parsed);
+  if (!result.success) {
+    // A hand-edited entry with no reason would otherwise ride its hash through
+    // the check as a silent exemption, so refuse the whole file.
+    throw new Error(
+      `registry entries are malformed in ${registryFile}: ${result.issues[0].message}`,
+    );
+  }
+  return result.output as AllowedClone[];
 };
 
 const describe = (finding: Finding): string => {

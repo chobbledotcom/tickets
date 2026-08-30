@@ -28,7 +28,6 @@ import {
   resetEffectiveDomain,
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
-  slugifyForProvider,
 } from "#shared/config.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -302,13 +301,3 @@ expectRequiredEnvGetter(
   "TURSO_GROUP",
   "turso_group",
 );
-
-describe("slugifyForProvider", () => {
-  test("keeps the start of the provider slug within the length limit", () => {
-    expect(slugifyForProvider("My Long Site Name", 10)).toBe("my-long-si");
-  });
-
-  test("trims a trailing hyphen left by the length limit", () => {
-    expect(slugifyForProvider("Alpha Beta", 6)).toBe("alpha");
-  });
-});

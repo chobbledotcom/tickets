@@ -85,7 +85,7 @@ type FieldsExtra<Input> = Partial<Omit<Input, "slug" | "slugIndex">>;
  * The blind index is always computed inside, never passed in, so `slug` and
  * `slug_index` move together — the extra fields a create may add can never
  * move either one. */
-export type SluggedContentWrites<Row, Input extends SluggedContentInput> = {
+type SluggedContentWrites<Row, Input extends SluggedContentInput> = {
   create: (
     input: Omit<Input, "slugIndex">,
     extra: (tx: TxScope) => Promise<FieldsExtra<Input>>,

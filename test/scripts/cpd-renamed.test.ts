@@ -6,6 +6,7 @@ import {
   isImportSpan,
   type JscpdDuplicate,
   pairHash,
+  repoRootFrom,
   resolvePath,
   runRenamedCloneCheck,
 } from "#scripts/cpd-renamed/run.ts";
@@ -37,6 +38,16 @@ describe("skeleton", () => {
     expect(cloneKind("client.delete(item);", "client.archive(item);")).toBe(
       "words",
     );
+  });
+
+  it("masks reserved words used as object keys, so a rename is still a rename", () => {
+    expect(cloneKind("{ delete: first };", "{ archive: second };")).toBe(
+      "words",
+    );
+  });
+
+  it("keeps case and default, so a relabelled switch arm is not a rename", () => {
+    expect(cloneKind("case 1: run();", "default: run();")).toBe("different");
   });
 });
 
@@ -148,6 +159,18 @@ describe("pairHash", () => {
       { file: "src/other/two.ts", snippet: "shared body" },
     );
     expect(copied).not.toBe(original);
+  });
+
+  it("normalizes carriage returns, so a CRLF checkout reads the LF registry", async () => {
+    const lf = await pairHash(
+      { file: "a.ts", snippet: "const a = 1;\nconst b = 2;" },
+      { file: "b.ts", snippet: "const c = 3;\nconst d = 4;" },
+    );
+    const crlf = await pairHash(
+      { file: "a.ts", snippet: "const a = 1;\r\nconst b = 2;" },
+      { file: "b.ts", snippet: "const c = 3;\r\nconst d = 4;" },
+    );
+    expect(crlf).toBe(lf);
   });
 });
 
@@ -371,5 +394,41 @@ describe("runRenamedCloneCheck", () => {
     } finally {
       await Deno.remove(root, { recursive: true });
     }
+  });
+
+  it("fails loudly on a registry entry without a reason", async () => {
+    const root = await writeFixture(fixtures);
+    const registryFile = `${root}/allowed.json`;
+    const seed = await baseFinding(root);
+    // The reason field is what makes an entry an audited exemption, so a
+    // hand-edit that drops it must not ride its hash through the check.
+    for (const reason of [undefined, "", 7]) {
+      await Deno.writeTextFile(
+        registryFile,
+        `${JSON.stringify([{ ...seed, reason }])}\n`,
+      );
+      try {
+        await run(root, [pairOf("a.ts", 1, "b.ts", 1)], registryFile);
+        throw new Error("expected the reasonless registry to fail");
+      } catch (error) {
+        expect(error instanceof Error).toBe(true);
+        expect((error as Error).message).toContain("malformed");
+      }
+    }
+    await Deno.remove(root, { recursive: true });
+  });
+});
+
+describe("repoRootFrom", () => {
+  it("decodes the percent escapes a URL pathname keeps", () => {
+    expect(
+      repoRootFrom(new URL("file:///home/user/My%20Dir/tickets/scripts/x.ts")),
+    ).toBe("/home/user/My Dir/tickets");
+  });
+
+  it("returns the parent of the module's folder without a trailing slash", () => {
+    expect(repoRootFrom(new URL("file:///srv/tickets/scripts/x.ts"))).toBe(
+      "/srv/tickets",
+    );
   });
 });

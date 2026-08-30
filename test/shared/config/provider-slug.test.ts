@@ -45,6 +45,18 @@ describe("provider resource slugs", () => {
     expect(tursoDatabaseSlug("a".repeat(100))).toBe("a".repeat(63));
   });
 
+  test("a turso database slug keeps the start when the cut lands mid-word", () => {
+    expect(tursoDatabaseSlug(`My Long Site Name ${"x".repeat(53)}`)).toBe(
+      `my-long-site-name-${"x".repeat(45)}`,
+    );
+  });
+
+  test("a deno deploy app slug trims the hyphen a cut lands on", () => {
+    expect(denoDeployAppSlug(`${"a".repeat(31)} ${"b".repeat(5)}`)).toBe(
+      "a".repeat(31),
+    );
+  });
+
   test("a turso database slug ends clean when truncation lands on a separator", () => {
     const slug = tursoDatabaseSlug(`${"a".repeat(62)}-b`);
     expect(slug.endsWith("-")).toBe(false);

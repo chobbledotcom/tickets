@@ -261,7 +261,7 @@ export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
  * Sanitize a site name into a valid provider resource slug: the shared
  * {@link slugify}, capped at `maxLength` with any hyphen the cut left trimmed.
  */
-export const slugifyForProvider = (name: string, maxLength: number): string =>
+const slugifyForProvider = (name: string, maxLength: number): string =>
   slugify(name).slice(0, maxLength).replace(/-+$/, "");
 
 /** Turns a site name into a provider-safe slug. */
