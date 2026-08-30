@@ -41,18 +41,20 @@ const holdsNoAnswer = (node: ts.Node): boolean =>
 /** The one arm a conditional answers with, when it has an answer. `true
  * extends true ? A : B` is only ever A, so no value of it holds a field of B.
  * A conditional that waits on a type parameter has no answer yet, and both
- * arms stay possible. A conditional that answers by substituting an `infer`
+ * arms stay possible. A conditional that answers through a substituted `infer`
  * variable names its answer in neither arm — the true arm still denotes the
  * variable, and the checker hands back the substituted type — so the answer
  * is not a node to walk at all, and the checker path through the resolved
- * type is what carries the members. A conditional that distributes over a
- * union waits and answers at once, so its arms stay possible too. */
+ * type is what carries the members. A union the answer names is the union
+ * itself: an arm written as that union equals it, so the walk takes it and
+ * only it. A distributed answer names neither arm so exactly, and the
+ * checker path carries its members instead. */
 const answeredWith = (
   checker: ts.TypeChecker,
   node: ts.ConditionalTypeNode,
 ): ts.TypeNode | "resolved" | undefined => {
   const whole = checker.getTypeFromTypeNode(node);
-  if (whole.flags & (ts.TypeFlags.Conditional | ts.TypeFlags.Union)) return;
+  if (whole.flags & ts.TypeFlags.Conditional) return;
   const arms = [node.trueType, node.falseType];
   return (
     arms.find((arm) => checker.getTypeFromTypeNode(arm) === whole) ?? "resolved"

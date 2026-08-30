@@ -13,6 +13,8 @@ export const EVERY_FIELD: readonly string[] = [
   "AnsweredAgain.answeredTwice",
   "Answerer.answersAQuestion",
   "Answerer.readsLikeAField",
+  "AnswersWithAUnion.liveA",
+  "AnswersWithAUnion.liveB",
   "BadgeProps.label",
   "BadgeProps.supplied",
   "Borrowed.onlyItsTypeIsUsed",

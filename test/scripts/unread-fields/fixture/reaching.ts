@@ -121,6 +121,17 @@ export type ResolvesThroughInfer = Promise<{ held: number }> extends
 export const readWhatItResolved = (x: ResolvesThroughInfer): number =>
   x.held;
 
+// An arm can be a union in its own right. The answer names the union, so the
+// walk takes that arm only, and the other arm's \`ghost\` is one no value of
+// this shape ever had.
+export type AnswersWithAUnion = true extends true
+  ? { liveA: string } | { liveB: string }
+  : { ghost: string };
+
+// Reads one field of the union, and never the ghost the walk once named.
+export const readOneLiveField = (x: AnswersWithAUnion): string =>
+  "liveA" in x ? x.liveA : "";
+
 // A property and a method can share one name, and each can hold an \`input\`
 // of its own. The data's \`id\` sits under the property, and the method's sits
 // under the call, so a read of either stays with its own.

@@ -82,9 +82,10 @@ block holds only code, so a type declared inside one does not count either.
 and the report calls that object `typeof C`, which is what TypeScript calls it.
 One line for both would call a field on a value read because the class side is.
 
-A field is named in four ways, and all four reach the same member. `total`,
-`"quoted-name"`, `1`, and `["quoted-name"]` are each a name the compiler answers
-a lookup for. A name a variable works out stays out, because the variable is not
+A field is named in five ways, and all five reach the same member. `total`,
+`"quoted-name"`, `1`, `["quoted-name"]`, and ``[`quoted-name`]`` — a template
+literal with nothing worked out in it — are each a name the compiler answers a
+lookup for. A name a variable works out stays out, because the variable is not
 the field. A `#private` name stays out too, because nobody outside can reach it.
 
 A `declare global` block does not count either. It adds its shapes to the global

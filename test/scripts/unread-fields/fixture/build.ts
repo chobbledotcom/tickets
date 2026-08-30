@@ -6,7 +6,7 @@ import { READERS } from "./readers.ts";
 import { SHAPES } from "./shapes.ts";
 
 /**
- * A whole repository, small enough to hold in your head, covering every way a
+ * A whole repository, small enough to hold in your head. It holds every way a
  * field can be reached. The scan runs over it once and each test reads one
  * verdict out of the answer.
  */

@@ -20,7 +20,7 @@ describe("what the walk goes into", () => {
 
   test("keeps a borrowed field a nested one shares a name with", () => {
     // The nested field and the borrowed one are different fields that happen
-    // to share a name. Counting the nested one as the shape's own would hide
+    // to share a name. To count the nested one as the shape's own would hide
     // the borrowed one, which a reader reaches straight off the shape.
     const lines = scanned.all.filter((f) => f.owner === "NestsTheSameName");
     expect(lines.map((f) => f.field).sort()).toEqual([
@@ -220,6 +220,15 @@ describe("what the walk goes into", () => {
     // invented it.
     expect(verdictOf("ResolvesThroughInfer", "held")).toBe("read");
     expect(verdictOf("ResolvesThroughInfer", "gone")).toBeUndefined();
+  });
+
+  test("walks a resolved arm that is itself a union", () => {
+    // An arm written as a union equals the whole the checker answers with,
+    // so the walk takes that arm only. The other arm's `ghost` is one no
+    // value of this shape ever had.
+    expect(verdictOf("AnswersWithAUnion", "liveA")).toBe("read");
+    expect(verdictOf("AnswersWithAUnion", "liveB")).toBe("never read");
+    expect(verdictOf("AnswersWithAUnion", "ghost")).toBeUndefined();
   });
 
   test("leaves out what a ReturnType's call takes as an input", () => {
