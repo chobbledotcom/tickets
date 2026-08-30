@@ -6,37 +6,27 @@
 
 import ts from "typescript";
 import { filter } from "#fp";
-import { namedOneOf } from "./steps.ts";
+import { holdsElements, holdsKeysAndValues, namedOneOf } from "./steps.ts";
 
-/** Five built-in types that keep some of the first argument and drop the
- * rest. `Extract` and `Exclude` choose arms of a union; `Pick` and `Omit`
- * choose keys of an object; `ReturnType` takes what a call hands back. No
- * argument of any of them is the answer: the chooser says what to keep and is
- * nobody's to read, `ReturnType`'s names the call that answers, and the first
- * still holds what was dropped. Only the checker knows what is left, and it
- * resolves the reference for the shape it belongs to. Every other type
- * argument holds a type the shape hands on, as `Array<{ id: number }>` does. */
-const NARROWS_BY_A_FILTER = new Set([
-  "Extract",
-  "Exclude",
-  "Pick",
-  "Omit",
-  "ReturnType",
-]);
-
-const narrowsByAFilter = namedOneOf(NARROWS_BY_A_FILTER);
+/** The generics that hand their argument's members out under the names the
+ * argument gave them. `Partial<T>`, `Required<T>` and `Readonly<T>` keep
+ * every member of T, with no step between. */
+const PASSES_MEMBERS_THROUGH = namedOneOf(
+  new Set(["Partial", "Required", "Readonly"]),
+);
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
   ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.KeyOfKeyword;
 
-/** Three ways to write a type none of whose parts is the answer. A filter
- * keeps some of its first argument, `keyof` names the words rather than the
- * fields, and `Row["paid"]` picks one key out of another type. The checker
- * knows what is left in each, and it answers for the shape that holds the
- * reference. */
+/** The two ways to write a type none of whose syntax parts is the answer —
+ * `keyof` names the words rather than the fields, and `Row["paid"]` picks
+ * one key out of another type. A reference to a filter such as `Extract` or
+ * `Omit` is the third way, and the generic rule below carries it: no value
+ * of the answer holds what the filter's own arguments wrote down, so only
+ * the checker knows what is left. */
 const holdsNoAnswer = (node: ts.Node): boolean =>
-  narrowsByAFilter(node) || isKeyOf(node) || ts.isIndexedAccessTypeNode(node);
+  isKeyOf(node) || ts.isIndexedAccessTypeNode(node);
 
 /** The one arm a conditional answers with, when it has an answer. `true
  * extends true ? A : B` is only ever A, so no value of it holds a field of B.
@@ -67,11 +57,43 @@ const answeredWith = (
 const holdsOnlyCode = (node: ts.Node): boolean =>
   ts.isFunctionLike(node) || ts.isClassStaticBlockDeclaration(node);
 
+/** Whether a generic hands its argument on where the walk can see it. The
+ * walk's own containers take their argument as the thing they hold, and the
+ * pass-through utilities keep its members. Every other generic puts its
+ * argument somewhere of its own, so only the checker knows where it lives. */
+const keepsItsArgumentVisible = (node: ts.TypeReferenceNode): boolean =>
+  holdsElements(node) ||
+  holdsKeysAndValues(node) ||
+  PASSES_MEMBERS_THROUGH(node);
+
+/** The parts of a generic the walk goes on through. A generic that hides its
+ * argument keeps its own parts only, so the checker path carries the
+ * argument's fields instead. */
+const partsOfTheGeneric = (
+  node: ts.TypeReferenceNode,
+): ((part: ts.Node) => boolean) => {
+  const argumentNodes = node.typeArguments ?? ([] as readonly ts.Node[]);
+  return (part) => !argumentNodes.includes(part);
+};
+
+/** The parts a conditional holds. Only the answer is part of the shape; both
+ * arms stay possible while the conditional waits. */
+const partsOfTheConditional = (
+  checker: ts.TypeChecker,
+  node: ts.ConditionalTypeNode,
+): ((part: ts.Node) => boolean) => {
+  const answer = answeredWith(checker, node);
+  if (answer === "resolved") return () => false;
+  if (answer) return (part) => part === answer;
+  return (part) => part !== node.checkType && part !== node.extendsType;
+};
+
 /** Which of a node's parts can hold a member. A conditional checks one type
  * against another, and only the answer is part of the shape. A function keeps
  * its parameters and the type it hands back. Its body holds a type that never
  * leaves it, and its type parameters describe themselves, exactly as a
- * shape's own ones do. */
+ * shape's own ones do. A generic that puts its argument under a named member —
+ * `Box<T> = { value: T }` — leaves the argument to the checker path. */
 const worthWalking =
   (checker: ts.TypeChecker) =>
   (node: ts.Node): ((part: ts.Node) => boolean) => {
@@ -80,10 +102,10 @@ const worthWalking =
     // operator too, and `readonly { paid: number }[]` does hand `paid` out.
     if (holdsNoAnswer(node)) return () => false;
     if (ts.isConditionalTypeNode(node)) {
-      const answer = answeredWith(checker, node);
-      if (answer === "resolved") return () => false;
-      if (answer) return (part) => part === answer;
-      return (part) => part !== node.checkType && part !== node.extendsType;
+      return partsOfTheConditional(checker, node);
+    }
+    if (ts.isTypeReferenceNode(node) && !keepsItsArgumentVisible(node)) {
+      return partsOfTheGeneric(node);
     }
     if (!holdsOnlyCode(node)) return () => true;
     return (part) => ts.isTypeNode(part) || ts.isParameter(part);

@@ -82,11 +82,13 @@ block holds only code, so a type declared inside one does not count either.
 and the report calls that object `typeof C`, which is what TypeScript calls it.
 One line for both would call a field on a value read because the class side is.
 
-A field is named in five ways, and all five reach the same member. `total`,
-`"quoted-name"`, `1`, `["quoted-name"]`, and ``[`quoted-name`]`` — a template
-literal with nothing worked out in it — are each a name the compiler answers a
-lookup for. A name a variable works out stays out, because the variable is not
-the field. A `#private` name stays out too, because nobody outside can reach it.
+A field is named in five ways. `total`, `"quoted-name"`, `1`, `["quoted-name"]`,
+and ``[`quoted-name`]`` — a template literal with nothing worked out in it — are
+the spellings a member's name is written in, and the compiler answers a lookup
+for every one of them. Spellings that write the same name name the same member;
+spellings that write different members name different ones. A name a variable
+works out stays out, because the variable is never the field's own. A `#private`
+name stays out too, because nobody outside can reach it.
 
 A `declare global` block does not count either. It adds its shapes to the global
 scope rather than to what the file exports. The one in
@@ -204,11 +206,13 @@ as `Sum.total`. Any other name takes brackets and quotes, as `Row["has.a.dot"]`,
 so a name that holds a dot cannot read like a path. A member with no name of its
 own gets the way a reader reaches through it instead: `Callable["()"]` for a
 call signature, `Constructable["new ()"]` for a construct signature, and
-`Bag["[]"]` for an index signature. A list, a `Record` and a set read one member
-at a time, so they take the same `[]` step. The fields of
-`Array<{ total: number }>` sit under `Rows["[]"]`, because a reader writes
-`rows[0].total`. A map's keys and values take the two calls a reader makes of
-them, as `Held["keys()"]` and `Held["values()"]`.
+`Bag["[string]"]` for an index signature that keys on strings — the bracket
+holds the kind of key a reader writes there, so two signatures for different
+kinds of key stay apart. A list, a `Record` and a set read one member at a time,
+so they take the same `[]` step. The fields of `Array<{ total: number }>` sit
+under `Rows["[]"]`, because a reader writes `rows[0].total`. A map's keys and
+values take the two calls a reader makes of them, as `Held["keys()"]` and
+`Held["values()"]`.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start, not a verdict. A field

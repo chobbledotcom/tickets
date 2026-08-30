@@ -18,15 +18,18 @@ export const namedOneOf =
  * `Row[]` are one type written two ways, and `Record<string, Row>` is the
  * index signature written as a generic, which already takes this step. A set
  * holds many the same way, so a field of the shape and a field of what it
- * holds stay two fields. A map is not here: its two arguments are below. */
-const holdsElements = namedOneOf(
+ * holds stay two fields. A map is not here: its two arguments are below.
+ * These are all exported for the walk, which keeps a generic's argument out
+ * unless the generic hands it on unchanged. */
+export const holdsElements = namedOneOf(
   new Set(["Array", "ReadonlyArray", "Record", "Set", "ReadonlySet"]),
 );
 
 /** The generics that hold two different kinds of thing at once. The key and
  * the value of a map are reached by two different calls, so a field of each
- * with one name stays two fields. */
-const holdsKeysAndValues = namedOneOf(new Set(["Map", "ReadonlyMap"]));
+ * with one name stays two fields. Exported for the walk, which keeps a
+ * generic's argument out unless the generic hands it on unchanged. */
+export const holdsKeysAndValues = namedOneOf(new Set(["Map", "ReadonlyMap"]));
 
 /** One step down to a field. A `name` is what a field is called, and a `way`
  * is how a reader reaches through a member with no name of its own. The two
@@ -54,8 +57,8 @@ export const isFieldName = (node: ts.Node): node is FieldName =>
   ts.isNumericLiteral(node) ||
   ts.isNoSubstitutionTemplateLiteral(node);
 
-/** One element of something that holds many. An index signature and a list
- * both read this way, and a shape is never both at one place in the path. */
+/** One element of something that holds many. A list and a `Record` read
+ * this way, and a shape is never both at one place in the path. */
 const ELEMENT = "[]";
 
 /** How a reader reaches through a member that has no name to give. An arrow
@@ -69,7 +72,6 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.ConstructorType, "new ()"],
   [ts.SyntaxKind.ArrowFunction, "()"],
   [ts.SyntaxKind.FunctionExpression, "()"],
-  [ts.SyntaxKind.IndexSignature, ELEMENT],
   [ts.SyntaxKind.ArrayType, ELEMENT],
   [ts.SyntaxKind.MappedType, ELEMENT],
 ]);
@@ -85,10 +87,8 @@ const ITS_RESULT = "result";
  * supplies — a plain one, or one a word hides — because a public parameter
  * property is a field and never walks. A method's parameter is nobody's
  * input, so only the constructor's take the step. */
-const enterTheConstructorThrough = (
-  node: ts.ParameterDeclaration,
-): readonly { way: string }[] =>
-  ts.isConstructorDeclaration(node.parent) ? [{ way: ENTERS_THROUGH }] : [];
+const stepThrough = (when: boolean, way: string): readonly { way: string }[] =>
+  when ? [{ way }] : [];
 
 /** Whether a parameter arrives through a call the reader writes out. A
  * method's input walks under the call, so it stays apart from the data the
@@ -143,6 +143,17 @@ const stepOfTheSettersName = (
   return isFieldName(written) ? { way: written.text } : undefined;
 };
 
+/** The steps a parameter adds before its own name. A method's named
+ * parameter is also an input to the method, and it arrives through the call,
+ * which is a word of its own. A constructor's caller supplies each input
+ * through `new ()`, which is a word of its own too. */
+const stepsBeforeTheParametersOwn = (
+  node: ts.ParameterDeclaration,
+): readonly { way: string }[] => [
+  ...stepThrough(ts.isConstructorDeclaration(node.parent), ENTERS_THROUGH),
+  ...stepThrough(arrivesThroughACall(node), "()"),
+];
+
 /** The step a member with no name of its own adds to the path. A shape can
  * hold more than one of them, and each can carry a field of the same name, so
  * a step that tells them apart is what keeps the two fields two.
@@ -165,15 +176,7 @@ export const underAnUnnamedPart = (
     const way = ts.isIdentifier(node.name)
       ? node.name.text
       : String(node.parent.parameters.indexOf(node));
-    // A method's named parameter is also an input to the method, and it
-    // arrives through the call, which is a word of its own.
-    const throughTheCall = arrivesThroughACall(node) ? [{ way: "()" }] : [];
-    return [
-      ...path,
-      ...enterTheConstructorThrough(node),
-      ...throughTheCall,
-      { way },
-    ];
+    return [...path, ...stepsBeforeTheParametersOwn(node), { way }];
   }
   if (ts.isSetAccessorDeclaration(node)) {
     const step = stepOfTheSettersName(node.name);
@@ -182,6 +185,14 @@ export const underAnUnnamedPart = (
   if (ts.isTupleTypeNode(node.parent)) {
     const place = node.parent.elements as readonly ts.Node[];
     return [...path, { way: String(place.indexOf(node)) }];
+  }
+  if (ts.isIndexSignatureDeclaration(node)) {
+    // A shape can hold more than one index signature, each for keys of its
+    // own kind, so the kind names the step: `bag[stringKey]` and
+    // `bag[symbolKey]` stay two fields. An index signature always writes
+    // its one annotated key parameter down — the syntax has no other form.
+    const key = node.parameters[0] as Required<ts.ParameterDeclaration>;
+    return [...path, { way: `[${key.type.getText()}]` }];
   }
   const throughMap = throughTheMap(node);
   if (throughMap) return [...path, throughMap];

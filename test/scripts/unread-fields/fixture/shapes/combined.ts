@@ -89,6 +89,33 @@ export type MapsItsValues = { sharedWithAMapped: string } & {
   [K in "one"]: { sharedWithAMapped: number };
 };
 
+// A generic puts its argument somewhere of its own, under a named member the
+// way this one does, so the argument's fields never reach the outer shape's
+// path. Before, both \`shared\` declarations shared one key.
+type Carries<What> = { value: What };
+
+export type ReachesThroughAGeneric = { shared: string } & Carries<
+  { shared: number; keptInsideTheBox: number }
+>;
+
+// A generic that hands its argument's members on unchanged, as \`Partial\`
+// does, keeps every member at the outer shape's path. \`Readonly\` and
+// \`Required\` do the same.
+export type PassedThroughPartially = Partial<{
+  carriedThroughUntouched: number;
+  keptCompletelyUnread: number;
+  carriedNested: { deepInsideThePartial: number };
+}>;
+
+export type PassedThroughReadonly = Readonly<{
+  frozenButRead: number;
+  heldNested: { deepInsideTheFreeze: number };
+}>;
+
+export type PassedThroughRequired = Required<{
+  maybeMissing?: { readOnceFilled: number };
+}>;
+
 export type InlineArmsShareIt =
   | { whichInlineArm: "first"; sharedByInlineArms: number }
   | {

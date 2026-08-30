@@ -98,6 +98,14 @@ export class RunsItAsAProperty {
   send = function (input: { writtenOutSpelling: number }): void {}
 }
 
+// A shape can hold one index signature for each kind of key, and a reader
+// reaches them all by bracket, so the kind names the step: \`bag[stringKey]\`
+// and \`bag[symbolKey]\` stay two fields.
+export interface HoldsTwoKeyDomains {
+  [key: string]: { sharedByTwoDomains: string };
+  [key: symbol]: { sharedByTwoDomains: number };
+}
+
 // A setter's name can be written in quotes rather than as a plain word, and
 // the input still walks under it.
 export class ServesItThroughAQuotedName {

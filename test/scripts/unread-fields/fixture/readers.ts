@@ -23,11 +23,16 @@ import {
   type HoldsClasses,
   type HoldsAListOfTheSameName,
   type HoldsThingsInGenerics,
+  type HoldsTwoKeyDomains,
   type InlineArmsShareIt,
   type MapsItsValues,
   type NamedByALiteral,
   NamedItsParameter,
   type Passed,
+  type PassedThroughPartially,
+  type PassedThroughReadonly,
+  type PassedThroughRequired,
+  type ReachesThroughAGeneric,
   type RunsItAsAProperty,
   type ServesSettingsThroughASetter,
   type ServesItsValueThroughAGetter,
@@ -213,6 +218,23 @@ export const readTheFirstElement = (
   pair: CarriesTwoElementsOfOneName,
 ): string => pair[0].id;
 
+// Reads the field the outer shape holds itself, and never the one the
+// generic carries for it.
+export const readTheOuterField = (
+  held: ReachesThroughAGeneric,
+): string => held.shared;
+
+// Reads a member a pass-through generic kept, at the outer shape's path.
+export const readThePassedThrough = (
+  held: PassedThroughPartially,
+): number | undefined =>
+  held.carriedNested?.deepInsideThePartial ?? held.carriedThroughUntouched;
+
+// Reads the string-domain field, and never the symbol-domain one.
+export const readTheStringDomain = (
+  bag: HoldsTwoKeyDomains,
+): string => bag["a-key"].sharedByTwoDomains;
+
 // Reads the value side of the map, and never the key side.
 export const readTheValueEnd = (m: HoldsBothEndsOfAMap): number => {
   for (const value of m.bothEnds.values()) return value.sharedAtBothEnds;
@@ -226,4 +248,10 @@ export const readBesideTheTuple = (c: CarriesATuple): string =>
 // Reads the field beside the mapping, and never the mapped one.
 export const readBesideTheMapping = (m: MapsItsValues): string =>
   m.sharedWithAMapped;
+
+// Reads a member the Readonly pass-through kept, at the outer path.
+export const readFrozen = (r: PassedThroughReadonly): number => r.heldNested.deepInsideTheFreeze;
+
+export const readRequired = (r: PassedThroughRequired): number =>
+  r.maybeMissing?.readOnceFilled ?? 0;
 `;

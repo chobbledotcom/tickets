@@ -176,4 +176,18 @@ export class HasAStatic extends HidesItsStatics {}
 // itself for its own use.
 export const readThePassedDownStatic = (): number =>
   HasAStatic.passedDownToItsChildren;
+
+// A static the child declares itself shadows the base's: they are two fields,
+// and a read of neither speaks for the other.
+class ServesItsStatics {
+  static writtenOnTheBase = 1;
+}
+
+export class ShadowsItsBase extends ServesItsStatics {
+  static writtenOnTheChild = 2;
+}
+
+// Reads the child's own, and never the base's.
+export const readTheShadowingStatic = (): number =>
+  ShadowsItsBase.writtenOnTheChild;
 `;

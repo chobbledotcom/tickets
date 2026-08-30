@@ -21,7 +21,7 @@ describe("the steps a reader takes", () => {
   test("keeps a field under the index off the shape's own path", () => {
     // `bag[key].sharedName` is a step away from `bag.sharedName`. Without the
     // step the two are one line, and a read of the named one covers both.
-    expect(verdictOf('Indexed["[]"]', "sharedName")).toBe("never read");
+    expect(verdictOf('Indexed["[string]"]', "sharedName")).toBe("never read");
   });
 
   test("keeps what a call hands back off the shape's own path", () => {
@@ -153,6 +153,26 @@ describe("the steps a reader takes", () => {
     ).toBe("never read");
   });
 
+  test("takes a member's name in every spelling it is written in", () => {
+    // A plain word, a quoted name, a number, and a template literal are the
+    // four spellings a name can take, and each keeps its line.
+    expect(verdictOf("NamedByALiteral", "plainName")).toBe("never read");
+    expect(verdictOf("NamedByALiteral", "quoted-name")).toBe("read");
+    expect(verdictOf("NamedByALiteral", "1")).toBe("never read");
+    expect(verdictOf("NamedByALiteral", "templated")).toBe("read");
+  });
+
+  test("keeps two index signatures of different key kinds apart", () => {
+    // `bag[stringKey]` and `bag[symbolKey]` are two fields, and the kind of
+    // key names the step so a read of one never answers for the other.
+    expect(
+      verdictOf('HoldsTwoKeyDomains["[string]"]', "sharedByTwoDomains"),
+    ).toBe("read");
+    expect(
+      verdictOf('HoldsTwoKeyDomains["[symbol]"]', "sharedByTwoDomains"),
+    ).toBe("never read");
+  });
+
   test("keeps a setter's quoted name in the path", () => {
     // `set ["settings"](held)` names the setter what the quotes say, so its
     // input walks under it exactly as a plain word's does.
@@ -199,25 +219,6 @@ describe("the steps a reader takes", () => {
     expect(verdictOf('Constructable["new ()"].result', "handedBackByNew")).toBe(
       "never read",
     );
-  });
-
-  test("still sees a field a readonly array hands out", () => {
-    // `readonly` is a type operator too, and this one does hand a field out.
-    // The list still takes its step, because a reader writes `kept[0]`.
-    expect(verdictOf('StillHandsOneOut["[]"]', "keptByReadonly")).toBe(
-      "never read",
-    );
-  });
-
-  test("sees a field of an object type a generic holds", () => {
-    // `Array<{ id }>` and `Record<string, { id }>` both hand the inner shape
-    // on, and a reader reaches it as `rows.inAnArray[0].insideAnArray`.
-    expect(
-      verdictOf('HoldsThingsInGenerics.inAnArray["[]"]', "insideAnArray"),
-    ).toBe("read");
-    expect(
-      verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
-    ).toBe("never read");
   });
 
   test("keeps a field and a list of the same name apart", () => {

@@ -103,9 +103,12 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
  * those fields like any other. A class also borrows its static side from a
  * base, which the instance type does not hold: the type of the `extends`
  * expression is that base's class object, and each field of it reports under
- * `typeof C`, where a declared one sits already. The class object's own
- * members (`prototype`, the class name) are written down in a declaration
- * file, so the same filter drops them as it drops a library's. */
+ * `typeof C`, where a declared one sits already. A static the child declares
+ * itself shadows the base's, so the base's declaration does not join its
+ * line: they are two fields, and a read of either speaks for its own. The
+ * class object's own members (`prototype`, the class name) are written down
+ * in a declaration file, so the same filter drops them as it drops a
+ * library's. */
 const borrowedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
@@ -120,10 +123,18 @@ const borrowedFields = (
   if (!ts.isClassDeclaration(shape) || !shape.heritageClauses) {
     return { onItsValues: instance, onTheClass: [] };
   }
+  /** The statics the child declares itself. Each shadows the base's field of
+   * the same name, so the base's stays a different field. */
+  const shadowed = new Set(
+    mapNotNullish(nameOf)(shape.members.filter(isStatic)).map(
+      (name) => name.text,
+    ),
+  );
   const onTheClass = shape.heritageClauses
     .filter((clause) => clause.token === ts.SyntaxKind.ExtendsKeyword)
     .flatMap((clause) => clause.types)
-    .flatMap((base) => namesFrom(checker.getTypeAtLocation(base.expression)));
+    .flatMap((base) => namesFrom(checker.getTypeAtLocation(base.expression)))
+    .filter((name) => !shadowed.has(name.text));
   return { onItsValues: instance, onTheClass };
 };
 

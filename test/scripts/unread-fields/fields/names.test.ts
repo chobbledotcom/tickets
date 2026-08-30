@@ -51,6 +51,17 @@ describe("how a field is named", () => {
     );
   });
 
+  test("keeps a static the child declares itself apart from the base's", () => {
+    // A static the child declares shadows the base's: they are two fields,
+    // and a read of either speaks for its own.
+    expect(verdictOf("typeof ShadowsItsBase", "writtenOnTheChild")).toBe(
+      "read",
+    );
+    expect(verdictOf("typeof ShadowsItsBase", "writtenOnTheBase")).toBe(
+      "never read",
+    );
+  });
+
   test("keeps a class's static side apart from a value of it", () => {
     // Only the class side is read. One line for both would call the field on
     // a value read, and send nobody to the dead one.

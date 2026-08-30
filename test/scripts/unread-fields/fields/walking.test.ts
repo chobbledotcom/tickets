@@ -241,4 +241,69 @@ describe("what the walk goes into", () => {
     ).toBeUndefined();
     expect(verdictOf("WhatItGivesBack", "givenToTheCall")).toBeUndefined();
   });
+
+  test("leaves a generic's argument to the checker that resolves it", () => {
+    // `Carries<What>` puts its argument under a named member of its own, so
+    // the argument's field never joins the outer shape's path. Before, both
+    // `shared` declarations shared one key and a read of either answered for
+    // both.
+    expect(verdictOf("ReachesThroughAGeneric", "shared")).toBe("read");
+    expect(verdictOf("ReachesThroughAGeneric", "value")).toBe("never read");
+    expect(
+      verdictOf("ReachesThroughAGeneric", "keptInsideTheBox"),
+    ).toBeUndefined();
+  });
+
+  test("keeps the members a pass-through generic hands on", () => {
+    // `Partial`, `Required` and `Readonly` all keep every member of their
+    // argument at the outer path, with no step between.
+    expect(verdictOf("PassedThroughPartially", "carriedThroughUntouched")).toBe(
+      "read",
+    );
+    expect(verdictOf("PassedThroughPartially", "keptCompletelyUnread")).toBe(
+      "never read",
+    );
+    expect(
+      verdictOf("PassedThroughPartially.carriedNested", "deepInsideThePartial"),
+    ).toBe("read");
+    expect(verdictOf("PassedThroughReadonly", "frozenButRead")).toBe(
+      "never read",
+    );
+    expect(
+      verdictOf("PassedThroughReadonly.heldNested", "deepInsideTheFreeze"),
+    ).toBe("read");
+    expect(
+      verdictOf("PassedThroughRequired.maybeMissing", "readOnceFilled"),
+    ).toBe("read");
+  });
+
+  test("keeps the arguments of the generics the walk holds", () => {
+    // A map's value and an array's element stay within the walk's reach,
+    // whatever other step their path takes.
+    expect(
+      verdictOf('HoldsManyOtherWays.inAMap["values()"]', "insideAMap"),
+    ).toBe("never read");
+    expect(
+      verdictOf('HoldsThingsInGenerics.inAnArray["[]"]', "insideAnArray"),
+    ).toBe("read");
+  });
+
+  test("still sees a field a readonly array hands out", () => {
+    // `readonly` is a type operator too, and this one does hand a field out.
+    // The list still takes its step, because a reader writes `kept[0]`.
+    expect(verdictOf('StillHandsOneOut["[]"]', "keptByReadonly")).toBe(
+      "never read",
+    );
+  });
+
+  test("sees a field of an object type a generic holds", () => {
+    // `Array<{ id }>` and `Record<string, { id }>` both hand the inner shape
+    // on, and a reader reaches it as `rows.inAnArray[0].insideAnArray`.
+    expect(
+      verdictOf('HoldsThingsInGenerics.inAnArray["[]"]', "insideAnArray"),
+    ).toBe("read");
+    expect(
+      verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
+    ).toBe("never read");
+  });
 });
