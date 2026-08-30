@@ -91,7 +91,7 @@ const worthWalking =
 
 /** The parts of a node the walk goes on through. */
 export const membersOf =
-  (checker: ts.TypeChecker) =>
+  (checker: ts.TypeChecker): ((node: ts.Node) => ts.Node[]) =>
   (node: ts.Node): ts.Node[] => {
     const parts: ts.Node[] = [];
     ts.forEachChild(node, (child) => {

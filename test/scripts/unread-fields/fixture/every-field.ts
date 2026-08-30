@@ -201,6 +201,7 @@ export const EVERY_FIELD: readonly string[] = [
   "WrittenThroughParens.filledBehindSatisfies",
   "WrittenThroughParens.filledInsideParens",
   "typeof BothSides.heldByTheClass",
+  "typeof HasAStatic.passedDownToItsChildren",
   "typeof HasAStaticAndAccessors.madeOnTheClass",
   "typeof HasAStaticAndAccessors.make",
   "typeof Registry.namesAKeyOfADescribedClass",

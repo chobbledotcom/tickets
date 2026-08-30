@@ -100,13 +100,32 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
 /** Where a shape's borrowed fields are written down.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
  * to itself, and `CheckoutIntent` intersects one. A reader of either reaches
- * those fields like any other. */
-const inheritedNames = (checker: ts.TypeChecker, shape: Shape): FieldName[] =>
-  inheritsFrom(shape)
-    ? partsOf(checker.getTypeAtLocation(shape.name))
-        .flatMap((part) => checker.getPropertiesOfType(part))
-        .flatMap(writtenNames)
-    : [];
+ * those fields like any other. A class also borrows its static side from a
+ * base, which the instance type does not hold: the type of the `extends`
+ * expression is that base's class object, and each field of it reports under
+ * `typeof C`, where a declared one sits already. The class object's own
+ * members (`prototype`, the class name) are written down in a declaration
+ * file, so the same filter drops them as it drops a library's. */
+const borrowedFields = (
+  checker: ts.TypeChecker,
+  shape: Shape,
+): { onItsValues: FieldName[]; onTheClass: FieldName[] } => {
+  if (!inheritsFrom(shape)) return { onItsValues: [], onTheClass: [] };
+  /** The names a type hands out, written down in this repository. */
+  const namesFrom = (type: ts.Type): FieldName[] =>
+    partsOf(type)
+      .flatMap((part) => checker.getPropertiesOfType(part))
+      .flatMap(writtenNames);
+  const instance = namesFrom(checker.getTypeAtLocation(shape.name));
+  if (!ts.isClassDeclaration(shape) || !shape.heritageClauses) {
+    return { onItsValues: instance, onTheClass: [] };
+  }
+  const onTheClass = shape.heritageClauses
+    .filter((clause) => clause.token === ts.SyntaxKind.ExtendsKeyword)
+    .flatMap((clause) => clause.types)
+    .flatMap((base) => namesFrom(checker.getTypeAtLocation(base.expression)));
+  return { onItsValues: instance, onTheClass };
+};
 
 /** One field the scan looked at, and the shape it belongs to. A field can be
  * written down in more than one place: both arms of a union declare it, and a
@@ -164,8 +183,14 @@ export const exportedFields = (
     // A borrowed field goes under the shape's own name, so a field the shape
     // declares itself already holds the line. It gains a second name only
     // where the checker hands back a second declaration, as `A & B` does.
-    for (const name of inheritedNames(checker, shape)) {
+    // A borrowed static goes under `typeof C`, where a declared one sits.
+    const borrowed = borrowedFields(checker, shape);
+    for (const name of borrowed.onItsValues) {
       remember(from, name);
+    }
+    const asTheClass: Step[] = [{ way: `typeof ${shape.name.text}` }];
+    for (const name of borrowed.onTheClass) {
+      remember(asTheClass, name);
     }
   }
   return [...found.values()];

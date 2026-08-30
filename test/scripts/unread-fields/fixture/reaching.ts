@@ -162,4 +162,18 @@ export type PickedByAKey = {
   keptByTheKey: { keptInsideTheKey: number };
   droppedByTheKey: { droppedInsideTheKey: number };
 }["keptByTheKey"];
+
+// A class can borrow its static side from a base the file keeps to itself.
+// The reader writes \`Child.staticFromABase\`, so the inherited static is a
+// field of \`typeof Child\` that no walk of the Child's own body can see.
+class HidesItsStatics {
+  static passedDownToItsChildren = 1;
+}
+
+export class HasAStatic extends HidesItsStatics {}
+
+// Reads what the base declared, and never the one only the base declared on
+// itself for its own use.
+export const readThePassedDownStatic = (): number =>
+  HasAStatic.passedDownToItsChildren;
 `;

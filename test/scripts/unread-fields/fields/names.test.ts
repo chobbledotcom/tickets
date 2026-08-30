@@ -43,6 +43,14 @@ describe("how a field is named", () => {
     );
   });
 
+  test("sees a static a class borrows from a base it cannot see", () => {
+    // The base is the file's own, so the walk cannot enter it, but the class
+    // object holds the static and a reader writes `Child.staticFromABase`.
+    expect(verdictOf("typeof HasAStatic", "passedDownToItsChildren")).toBe(
+      "read",
+    );
+  });
+
   test("keeps a class's static side apart from a value of it", () => {
     // Only the class side is read. One line for both would call the field on
     // a value read, and send nobody to the dead one.
