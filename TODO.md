@@ -4,8 +4,7 @@ Open work now lives in GitHub issues. This file holds the entries that predate
 the issue tracker. Entries that name work move to issues in batches. Entries
 that record a decision or a contract move to `docs/` instead. Delete this file
 when the last entry moves. Record a new follow-up as an issue, not as a section
-here. The word-only clone-backlog entries predate this rule; they moved to issue
-#2235.
+here. The word-only clone backlog follows the rule: it is issue #2235.
 
 The stripe-mock port-steal note that AGENTS.md cites as a worked example is
 documentation, not a job. Move it to `docs/` when this file is deleted.
