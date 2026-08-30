@@ -69,10 +69,6 @@ const groupIdsJson = defineStoredJson(
   v.array(v.pipe(v.number(), v.safeInteger(), v.minValue(1))),
 );
 
-/** Compute slug index from slug for blind index lookup */
-export const computeGroupSlugIndex = (slug: string): Promise<BlindIndex> =>
-  hmacHash(slug);
-
 /** Raw groups table with CRUD operations */
 const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
@@ -171,7 +167,7 @@ export const isGroupSlugTaken = (
 
 /** Generate a unique group slug, retrying on collision. */
 export const generateUniqueGroupSlug = (): Promise<SlugWithIndex<BlindIndex>> =>
-  generateUniqueSlug(computeGroupSlugIndex, isGroupSlugTaken);
+  generateUniqueSlug(hmacHash, isGroupSlugTaken);
 
 /**
  * Members of SEVERAL groups at once, keyed by group id — the batched form of the

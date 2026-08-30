@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import {
-  computeGroupSlugIndex,
   getAllGroupNames,
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -34,7 +34,7 @@ const insertMinimalGroup = async (name: string) => {
   return await groups.table.insert({
     name,
     slug,
-    slugIndex: await computeGroupSlugIndex(slug),
+    slugIndex: await hmacHash(slug),
   });
 };
 

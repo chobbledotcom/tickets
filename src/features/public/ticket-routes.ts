@@ -2,7 +2,8 @@
  * Route definitions, endpoint handlers, and the routeTicket router
  */
 
-import { computeGroupSlugIndex, getGroupBySlugIndex } from "#db/groups.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { getGroupBySlugIndex } from "#db/groups.ts";
 /* jscpd:ignore-start -- imports */
 import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -99,7 +100,7 @@ export const handleTicketQrGet = async (
       : qrResponse(slug);
   }
 
-  const slugIndex = await computeGroupSlugIndex(slug);
+  const slugIndex = await hmacHash(slug);
   const group = await getGroupBySlugIndex(slugIndex);
   // A group QR encodes `/ticket/<group>`, which renders no bookable quantity
   // when the group has no standalone-bookable member — every member is a child

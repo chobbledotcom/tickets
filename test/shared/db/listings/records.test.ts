@@ -1,12 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { getListingDayPrices, PRICE_TYPE_BASE } from "#db/listing-prices.ts";
 import {
   getAllListingOptions,
+  getAllListings,
   getListingsBySlugs,
   getListingWithCount,
   getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
   listingNames,
+  listingsTable,
   requireListingsWithCountsByIds,
   requireListingWithCount,
 } from "#db/listings/records.ts";
@@ -16,7 +21,9 @@ import {
   runWithQueryLogContext,
 } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -149,6 +156,128 @@ describeWithEnv(
       await expect(
         requireListingsWithCountsByIds([99998, 99999]),
       ).rejects.toThrow("Listing not found: 99998");
+    });
+
+    test("required listing lookup returns the listing it names", async () => {
+      const listing = await createTestListing({ name: "Present And Counted" });
+      expect((await requireListingWithCount(listing.id)).name).toBe(
+        "Present And Counted",
+      );
+    });
+  },
+);
+
+describeWithEnv(
+  "db > listings > price and image writes",
+  {
+    db: true,
+    triggers: true,
+  },
+  () => {
+    const insertPriced = async () =>
+      await listingsTable.insert({
+        dayPrices: { 2: 500 },
+        maxAttendees: 10,
+        maxPrice: 0,
+        name: "Price Sync",
+        slug: "price-sync",
+        slugIndex: await hmacHash("price-sync"),
+        unitPrice: 700,
+      });
+
+    test("an insert stores day prices, mirrors the base price, and carries no image", async () => {
+      const listing = await insertPriced();
+      expect(listing.image_url).toBe("");
+      expect(listing.image_thumb_url).toBe("");
+      expect(listing.image_alt_text).toBe("");
+      expect((await getListingDayPrices(listing.id))[2]).toBe(500);
+      const base = await queryOne<{ unit_price: number }>(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+        [listing.id, PRICE_TYPE_BASE],
+      );
+      expect(base?.unit_price).toBe(700);
+    });
+
+    test("an update rewrites the day prices and re-mirrors the base price", async () => {
+      const listing = await insertPriced();
+      await listingsTable.update(listing.id, {
+        dayPrices: { 3: 900 },
+        unitPrice: 800,
+      });
+      const prices = await getListingDayPrices(listing.id);
+      expect(prices[2]).toBeUndefined();
+      expect(prices[3]).toBe(900);
+      const base = await queryOne<{ unit_price: number }>(
+        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+        [listing.id, PRICE_TYPE_BASE],
+      );
+      expect(base?.unit_price).toBe(800);
+    });
+
+    test("a booked listing's profit is its income minus its cost", async () => {
+      const listing = await createTestListing({ unitPrice: 600 });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Profit Probe",
+        "profit@example.com",
+      );
+      const counted = await requireListingWithCount(listing.id);
+      expect(counted.cost).toBe(0);
+      expect(counted.profit).toBe(counted.income);
+      expect(Number.isFinite(counted.profit)).toBe(true);
+    });
+  },
+);
+
+describeWithEnv(
+  "db > listings > cache wiring",
+  { db: true, triggers: true },
+  () => {
+    test("a warm read asks nothing, and dependency writes empty the cache", async () => {
+      await createTestListing({ name: "Cache Warmth" });
+      await getAllListings();
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        await getAllListings();
+        expect(getQueryLog()).toEqual([]);
+      });
+
+      // Each dependency table's writes must empty the cache again: the next
+      // read re-queries. A no-op write still counts — invalidation keys on the
+      // statement's table and (for attendees) its written columns.
+      const writes: [string, string][] = [
+        [
+          "listing_attendees",
+          "UPDATE listing_attendees SET quantity = quantity WHERE id = -1",
+        ],
+        ["transfers", "UPDATE transfers SET id = id WHERE id = -1"],
+        [
+          "listing_prices",
+          "UPDATE listing_prices SET unit_price = unit_price WHERE listing_id = -1",
+        ],
+        [
+          "image_uses",
+          "UPDATE image_uses SET image_id = image_id WHERE image_id = -1",
+        ],
+        ["images", "UPDATE images SET id = id WHERE id = -1"],
+      ];
+      for (const [table, sql] of writes) {
+        await execute(sql);
+        const calls = await runWithQueryLogContext(async () => {
+          enableQueryLog();
+          await getAllListings();
+          return getQueryLog().length;
+        });
+        expect(
+          calls,
+          `a write to ${table} must empty the listings cache`,
+        ).toBeGreaterThan(0);
+      }
+    });
+
+    test("cache stats identify the listings cache by name", async () => {
+      expect(getAllCacheStats().map((stat) => stat.name)).toContain("listings");
     });
   },
 );

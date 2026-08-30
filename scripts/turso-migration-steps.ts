@@ -5,13 +5,10 @@ import {
   type SnapshotRequest,
 } from "#scripts/database-snapshot-lib.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
+import { tursoDatabaseSlug } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { requireSuccess } from "#shared/result.ts";
-import {
-  slugifyForTurso,
-  type TursoApi,
-  type TursoDatabaseCredentials,
-} from "#shared/turso-api.ts";
+import type { TursoApi, TursoDatabaseCredentials } from "#shared/turso-api.ts";
 
 /** Everything a migration needs from the outside world, so tests can stand in. */
 export interface TursoMigrationDeps extends ScriptIo {
@@ -224,7 +221,7 @@ const freeDatabaseName = async (
   let name = wanted;
   while (requireSuccess(await api.databaseExists(organization, name))) {
     deps.stdout(`Turso database already exists: ${organization}/${name}`);
-    name = slugifyForTurso(
+    name = tursoDatabaseSlug(
       requiredAnswer(
         deps.prompt("Choose another Turso database name:"),
         "Turso database name",

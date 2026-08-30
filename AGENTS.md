@@ -1321,21 +1321,23 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The six scans, and how hard each looks
+### The seven scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
 lower number is a tighter net. Six configs divide the tree, because helper code,
-test bodies and stylesheets each deserve a different net.
+test bodies and stylesheets each deserve a different net. The seventh is a
+wrapper scan that catches what renamed words hide from all of them.
 
-| Config                | Scans                            | minTokens |
-| --------------------- | -------------------------------- | --------- |
-| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
-| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
-| `.jscpd.support.json` | `test/specs/support`             | 18        |
-| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
-| `.jscpd.test.json`    | `test`                           | 48        |
-| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+| Config                   | Scans                            | minTokens             |
+| ------------------------ | -------------------------------- | --------------------- |
+| `.jscpd.json`            | `src`, `e2e-payments`, `scripts` | 19                    |
+| `.jscpd.specs.json`      | `src` + `test/specs/support`     | 19                    |
+| `.jscpd.support.json`    | `test/specs/support`             | 18                    |
+| `.jscpd.helpers.json`    | `src` + `test/test-utils`        | 40                    |
+| `.jscpd.test.json`       | `test`                           | 48                    |
+| `.jscpd.css.json`        | `src/ui/static/style.scss`       | 50                    |
+| `scripts/cpd-renamed.ts` | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
@@ -1345,6 +1347,15 @@ than `src/` can, it gets a second scan of its own — the support helpers are at
 dragging `src/` down too. A test body is different: it repeats by design, and
 the shared mechanism is the test framework itself, so the whole of `test/` stays
 at the loose 48.
+
+The seventh scan (`deno task cpd:renamed`) catches copies that renamed words
+hide. jscpd matches literal token runs, so two copies of one operation with
+different names sit below `minTokens` 19: every renamed word breaks the run. The
+scan runs jscpd at 17 and keeps only the pairs whose two sides share their whole
+punctuation shape — the same code with different words. Every kept pair must be
+merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`. The
+registry only shrinks: merge a pair, delete its entry, and a new word-only copy
+anywhere fails the gate.
 
 **Every helper number ratchets downward** — lower it, bring the tree to it,
 repeat — the same way `check:comments` works. `docs/test-duplication.md`

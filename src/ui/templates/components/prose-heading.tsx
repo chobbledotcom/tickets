@@ -46,9 +46,9 @@ export const RawParagraph = ({ html }: HtmlProps): JSX.Element => (
 );
 
 /** A single prose paragraph rendered from a trusted HTML string — the
- *  `<div class="prose"><p><Raw html=.../></p></div>` intro block several admin
- *  pages open with. Owning it here keeps that shape from being re-authored (and
- *  re-detected as a clone) per page. */
+ * `<div class="prose"><p><Raw html=.../></p></div>` intro block several admin
+ * pages open with. Owning it here keeps that shape from being re-authored (and
+ * re-detected as a clone) per page. */
 export const ProseIntro = ({ html }: HtmlProps): JSX.Element => (
   <Prose>
     <RawParagraph html={html} />

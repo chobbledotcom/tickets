@@ -1,7 +1,7 @@
 /** Shared arrange helpers for the admin group route tests. */
 
 import { expect } from "@std/expect";
-import { computeGroupSlugIndex } from "#db/groups.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { handleRequest } from "#routes";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import {
@@ -46,7 +46,7 @@ export const groupInput = async (
     termsAndConditions: "",
     ...overrides,
     slug,
-    slugIndex: await computeGroupSlugIndex(slug),
+    slugIndex: await hmacHash(slug),
   };
 };
 

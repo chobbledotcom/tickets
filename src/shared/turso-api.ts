@@ -6,7 +6,7 @@ import {
   getTursoApiToken,
   getTursoGroup,
   getTursoOrganization,
-  slugifyForProvider,
+  tursoDatabaseSlug,
 } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import {
@@ -73,12 +73,6 @@ export interface TursoApi {
   listOrganizations(): Promise<Result<string[]>>;
 }
 
-/** Turn a site name into a valid Turso database name. */
-export const slugifyForTurso = (name: string): string => {
-  const slug = slugifyForProvider(name, 63);
-  return slug.length > 0 ? slug : "db";
-};
-
 const parseResponse = <Output>(
   schema: v.GenericSchema<unknown, Output>,
   text: string,
@@ -132,7 +126,7 @@ export const createTursoApi = (
     name: string,
   ): Promise<Result<void>> => {
     const response = await fetchApi(
-      databasePath(organization, slugifyForTurso(name)),
+      databasePath(organization, tursoDatabaseSlug(name)),
       { method: "DELETE" },
       false,
     );
@@ -174,7 +168,7 @@ export const createTursoApi = (
   const createDatabase = async (
     request: CreateTursoDatabaseRequest,
   ): Promise<Result<TursoDatabaseCredentials>> => {
-    const name = slugifyForTurso(request.name);
+    const name = tursoDatabaseSlug(request.name);
     let createResponse: FetchResult;
     try {
       createResponse = await postCreateRequest(request, name);
@@ -240,7 +234,7 @@ export const createTursoApi = (
     createDatabase,
     databaseExists: async (organization, name) => {
       const response = await fetchApi(
-        databasePath(organization, slugifyForTurso(name)),
+        databasePath(organization, tursoDatabaseSlug(name)),
       );
       if (response.ok) return okResult(true);
       if (response.status === 404) return okResult(false);

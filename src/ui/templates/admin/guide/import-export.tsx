@@ -14,6 +14,7 @@ import {
 } from "#shared/catalog-transfer-example.ts";
 import {
   custom,
+  ExampleCode,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
@@ -47,14 +48,16 @@ export const importExportSections = (): GuideSection[] => [
           <pre>
             <code>{CATALOG_LISTING_EXAMPLE_JSON}</code>
           </pre>
-          <p>
-            <strong>A group</strong> — its own fields plus its member listings
-            (by name), each carrying its package price, quantity, and per-day
-            overrides:
-          </p>
-          <pre>
-            <code>{CATALOG_GROUP_EXAMPLE_JSON}</code>
-          </pre>
+          <ExampleCode
+            code={CATALOG_GROUP_EXAMPLE_JSON}
+            label={
+              <>
+                A group — its own fields plus its member listings (by name),
+                each carrying its package price, quantity, and per-day
+                overrides:
+              </>
+            }
+          />
           <p>
             Every optional field can be omitted — the importing site fills in
             its own defaults. Only <code>name</code> (and a listing's{" "}

@@ -2,8 +2,8 @@
  * Group ticket context and routing
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
 import {
-  computeGroupSlugIndex,
   getGroupBySlugIndex,
   groupListings,
   groups,
@@ -30,7 +30,7 @@ export type GroupWithListings = {
 const groupListingsLoader =
   (load: (group: Group) => Promise<GroupWithListings | null>) =>
   async (slug: string): Promise<GroupWithListings | null> => {
-    const group = await getGroupBySlugIndex(await computeGroupSlugIndex(slug));
+    const group = await getGroupBySlugIndex(await hmacHash(slug));
     return group === null ? null : load(group);
   };
 
@@ -91,7 +91,7 @@ export const loadCartPackagesBySlugs = async (
 ): Promise<(GroupWithListings | null)[]> => {
   const noPackages = slugs.map(() => null);
   if (slugs.length === 0) return noPackages;
-  const slugIndices = await Promise.all(slugs.map(computeGroupSlugIndex));
+  const slugIndices = await Promise.all(slugs.map(hmacHash));
   const bySlug = await groups.cache.getByKeys(slugIndices);
   const packages = uniqueBy((group: Group) => group.id)(
     compact(bySlug).filter((group) => group.is_package),

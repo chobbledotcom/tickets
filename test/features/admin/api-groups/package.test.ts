@@ -6,17 +6,17 @@ import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { t } from "#i18n";
-import { assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { apiRequest } from "#test-utils/session.ts";
 import {
   groupWithMember,
   packagedGroup,
   putGroup,
   soldPackage,
-} from "./groups/helpers.ts";
+} from "#test/features/admin/groups/helpers.ts";
+import { assertJson } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
   test("POST persists is_package and hide_package_listings", async () => {
@@ -33,6 +33,35 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       (body) => {
         expect(body.group.is_package).toBe(true);
         expect(body.group.hide_package_listings).toBe(true);
+      },
+    );
+  });
+
+  test("GET hydrates even a single day price, and strips the blind index", async () => {
+    const { group, listing } = await groupWithMember("SoloDay");
+    await putGroup(group.id, {
+      is_package: true,
+      package_members: [
+        {
+          day_prices: { 2: 500 },
+          listing_id: listing.id,
+          price: null,
+        },
+      ],
+    });
+    await assertJson(
+      apiRequest(`/api/admin/groups/${group.id}`),
+      200,
+      (body) => {
+        expect(body.group.package_members).toEqual([
+          {
+            day_prices: { 2: 500 },
+            listing_id: listing.id,
+            price: null,
+            quantity: 1,
+          },
+        ]);
+        expect(Object.keys(body.group)).not.toContain("slug_index");
       },
     );
   });

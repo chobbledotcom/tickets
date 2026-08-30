@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
+  runWithFlashContext,
+  setFlashContext,
+  setFlashFormId,
+} from "#shared/flash-context.ts";
+import {
   entityPageView,
   renderSection,
   type SummaryRow,
@@ -135,6 +140,8 @@ describe("actions section", () => {
     expect(html).toContain(
       '<span class="muted small">What the attendee still owes',
     );
+    // Each action sits in its own entity-action row.
+    expect(html).toContain('<div class="entity-action">');
   });
 
   test("omits the danger zone when no action is dangerous", () => {
@@ -276,5 +283,21 @@ describe("entityPageView", () => {
     });
     // Only the summary yields a block — the null section leaves no empty one.
     expect((html.match(/class="page-block"/g) ?? []).length).toBe(1);
+  });
+
+  test("a form-scoped flash waits outside the page, not inside its regions", () => {
+    const scoped = runWithFlashContext(() => {
+      // A redirect targeted a form, so the flash belongs to that form — the
+      // page must leave it for the layout's backstop above the page regions.
+      setFlashContext({ success: "Saved." });
+      setFlashFormId("entity-edit");
+      return entityPageView(view);
+    });
+    expect(scoped).toContain("Saved.");
+    // The backstop renders before the admin nav; a page-level render would
+    // sit inside the page regions, below it.
+    expect(scoped.indexOf('role="alert">Saved.')).toBeLessThan(
+      scoped.indexOf('class="admin-nav-group"'),
+    );
   });
 });

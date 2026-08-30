@@ -8,6 +8,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { ProseSection } from "#templates/components/prose-section.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 /* jscpd:ignore-end */
@@ -110,37 +111,41 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
         </p>
       )}
 
-      <section>
-        <div class="prose">
-          <h2>{t("backup.encryption_key_heading")}</h2>
-          <p>{t("backup.encryption_key_description")}</p>
-        </div>
-        <pre>
-          <code>{state.encryptionKey}</code>
-        </pre>
-      </section>
+      <ProseSection
+        bare
+        footer={
+          <pre>
+            <code>{state.encryptionKey}</code>
+          </pre>
+        }
+        title={t("backup.encryption_key_heading")}
+      >
+        <p>{t("backup.encryption_key_description")}</p>
+      </ProseSection>
 
       {state.storageEnabled && (
         <>
-          <section>
-            <div class="prose">
-              <h2>{t("backup.create_backup_heading")}</h2>
-              {state.createBlocked ? (
-                <Raw html={t("backup.create_too_large", state.createBlocked)} />
-              ) : (
-                <p>{t("backup.create_backup_description")}</p>
-              )}
-            </div>
-            {!state.createBlocked && (
-              <SaveForm
-                action="/admin/backup/create"
-                class="no-bg"
-                id="backup-create"
-                submitIcon="plus"
-                submitLabel={t("backup.create_button")}
-              />
+          <ProseSection
+            bare
+            footer={
+              !state.createBlocked && (
+                <SaveForm
+                  action="/admin/backup/create"
+                  class="no-bg"
+                  id="backup-create"
+                  submitIcon="plus"
+                  submitLabel={t("backup.create_button")}
+                />
+              )
+            }
+            title={t("backup.create_backup_heading")}
+          >
+            {state.createBlocked ? (
+              <Raw html={t("backup.create_too_large", state.createBlocked)} />
+            ) : (
+              <p>{t("backup.create_backup_description")}</p>
             )}
-          </section>
+          </ProseSection>
 
           <section>
             <h2>{t("backup.existing_backups_heading")}</h2>
@@ -174,12 +179,9 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
           </section>
         </>
       )}
-      <section>
-        <div class="prose">
-          <h2>{t("backup.restore_heading")}</h2>
-          <Raw html={t("backup.restore_console_description")} />
-        </div>
-      </section>
+      <ProseSection bare title={t("backup.restore_heading")}>
+        <Raw html={t("backup.restore_console_description")} />
+      </ProseSection>
       <GuideFooter href="/admin/guide#backups">
         {t("backup.guide_link")}
       </GuideFooter>

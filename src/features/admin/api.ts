@@ -22,7 +22,7 @@ import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
+import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   deleteOrphanedAddOnError,
@@ -127,6 +127,13 @@ const toApiListing = async (
   ...(await hydrateListingGroupIds([row])).get(row.id),
 });
 
+/** One of the listing's on/off routes: deactivate turns it off, reactivate
+ * turns it back on. */
+const toggleActiveRoute =
+  (active: boolean) =>
+  (request: Request, params: RouteParams): Promise<Response> =>
+    handleToggleActive(request, params.listingId as number, active);
+
 const listingApiRoutes = defineCrudApi<
   Listing,
   ListingInput,
@@ -136,14 +143,8 @@ const listingApiRoutes = defineCrudApi<
   afterCommit: syncListingPrices,
   extraRoutes: {
     "DELETE /api/admin/listings/:listingId": handleDeleteListing,
-    "POST /api/admin/listings/:listingId/deactivate": (
-      request,
-      { listingId },
-    ) => handleToggleActive(request, listingId as number, false),
-    "POST /api/admin/listings/:listingId/reactivate": (
-      request,
-      { listingId },
-    ) => handleToggleActive(request, listingId as number, true),
+    "POST /api/admin/listings/:listingId/deactivate": toggleActiveRoute(false),
+    "POST /api/admin/listings/:listingId/reactivate": toggleActiveRoute(true),
   },
   getAll: getAllListings,
   hydrate: hydrateListingGroupIds,

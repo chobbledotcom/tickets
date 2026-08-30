@@ -223,3 +223,22 @@ src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz
 src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
 src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices answers a DayPrices Map or undefined, never a falsy value, so the || fallback is unreachable
+src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds builds its map over the same id list hydrate passes it, so requiredMapValue always finds the entry; the message is an impossible-state guard (AGENTS.md: do not defend against the impossible)
+src/features/public/ticket-routes.ts::getFromEmailIfConfigured.config~0c5547m  ?? → ||   # getEmailConfig answers a populated config object or null (email.ts returns null when apiKey or fromAddress is missing), so the || fallback is unreachable
+src/features/public/ticket-routes.ts::getFromEmailIfConfigured~0uy8up8  ?? → ||   # a present config carries a parsed ValidEmail fromAddress, never empty, so fromAddress is truthy whenever it exists
+src/features/public/ticket-routes.ts::handleReservedGet.normalizedTokens~10w3ne2  ?? → ||   # replaceAll answers a string; "" is the only falsy one, and "" || "" equals "" ?? ""
+src/features/public/ticket-routes.ts::handleReservedGet.normalizedTokens~10w3ne2  → "mutated"   # the fallback feeds only token splitting; "mutated" resolves to no verified token exactly like the empty string, and the page renders the same
+src/features/public/ticket-routes.ts::handleReservedGet.tokens~09d2xk9  0 → 1   # every real ticket token is far longer than one character, so length > 0 and length > 1 filter the same crafted residue
+src/features/admin/attendee-page-data.ts::loadPackagePaths.memberPrices~1xcdymp  ?? → ||   # the price loader answers an array or undefined, and arrays (including []) are truthy, so the [] fallback fires only on undefined
+src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups~183l51m  ?? → ||   # byListing.get answers a Map or undefined, and Maps are truthy
+src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks~11c4q19  ?? → ||   # the fallback is 0 and the stored preselected quantities are non-negative counts, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::listingBookingFor.durationDays~1vg0u7m  1 → 0   # a standard line carries date null, and addDemandToBucket reads duration only inside the dated branch (expandDailyRange), so the standard branch never reads it
+src/features/admin/attendee-page-data.ts::overbookedListingIds~11ijbqo  ?? → ||   # the fallback is 0 and the running totals are non-negative counts, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0gnct02  ?? → ||   # the fallback is 0 and remaining balances are non-negative money, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0g9qz7c  ?? → ||   # the fallback is 0 and full prices are non-negative money, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  ?? → ||   # the fallback is 0 and deposit amounts are non-negative money, so 0 || 0 = 0 ?? 0
+src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec14e6  0 → 1   # the depositPaid fallback only feeds owed = max(fullPrice, listed) - paid on a path where orderSummary is absent, so fullPrice and listed are both 0 and owed stays ≤ 0 under either value
+src/features/admin/attendee-page-data.ts::assembleTemplateData.questions~0wxrma2  ?? → ||   # opts.questions is an array or undefined, and arrays are truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedTextAnswers~0av0z2p  ?? → ||   # the value is a Map or undefined, and Maps are truthy
+src/features/admin/attendee-page-data.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # the answer map answers an array or undefined, and arrays are truthy

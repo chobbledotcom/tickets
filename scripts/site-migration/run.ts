@@ -3,6 +3,7 @@ import type {
   MainInstance,
   SiteWithHost,
 } from "#scripts/site-migration/sites.ts";
+/* jscpd:ignore-start -- imports */
 import {
   configuredOrAsked,
   configuredValue,
@@ -14,8 +15,10 @@ import {
   runMigrationTask,
   type TursoMigrationDeps,
 } from "#scripts/turso-migration-steps.ts";
+import { tursoDatabaseSlug } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { slugifyForTurso, type TursoApi } from "#shared/turso-api.ts";
+import type { TursoApi } from "#shared/turso-api.ts";
+/* jscpd:ignore-end */
 
 export const MIGRATE_SITES_USAGE = "Usage: deno task migrate:sites";
 
@@ -141,7 +144,7 @@ const migrateSite = async (
     deps,
     api,
     { dbToken: site.dbToken, dbUrl: site.dbUrl },
-    slugifyForTurso(site.name),
+    tursoDatabaseSlug(site.name),
   );
   // Say what is left behind before the cutover, so a later failure cannot hide it.
   const leftBehind = reportCleanupError(deps, outcome);
