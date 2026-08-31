@@ -206,10 +206,10 @@ describe("importCycles", () => {
     ]);
   });
 
-  test("leaves a module that loads itself out, having no second member", () => {
+  test("finds a module that loads itself, a startup crash waiting to run", () => {
     expect(
       ringsIn({ "src/shared/a.ts": 'import { a } from "#shared/a.ts";' }),
-    ).toEqual([]);
+    ).toEqual([["src/shared/a.ts"]]);
   });
 
   test("leaves a ring of type-only imports alone", () => {

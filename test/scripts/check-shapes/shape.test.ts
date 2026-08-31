@@ -311,6 +311,7 @@ describe("shapeOf reading a pattern", () => {
     // Nothing says what such a bracket belongs to, so it takes the reading
     // that all but a control header wants, and the slash divides.
     expect(shapeOf(") / 2")).toEqual([")", "/", "NUM"]);
+    expect(shapeOf("} / 2")).toEqual(["}", "/", "NUM"]);
   });
 
   test("still divides after a bracket that ends a call or a sum", () => {
@@ -338,6 +339,104 @@ describe("shapeOf reading a pattern", () => {
 
   test("still divides inside a braced control body", () => {
     expect(shapeOf("if (a) { b = c() / 2; }")).toContain("/");
+  });
+
+  test("opens a pattern after a brace that closed a block", () => {
+    expect(shapeOf("if (ready) {} /foo/.test(value)")).toEqual([
+      "if",
+      "(",
+      "ID",
+      ")",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+    expect(shapeOf("try {} finally {} /x/.test(s)")).toEqual([
+      "try",
+      "{",
+      "}",
+      "finally",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+  });
+
+  test("still divides after a brace that closed a value", () => {
+    expect(shapeOf("half = { one: 1, two: 2 } / 2")).toEqual([
+      "ID",
+      "=",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      ",",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+    ]);
+  });
+
+  test("keeps a pattern whole inside an interpolation after return", () => {
+    // The sample holds a literal "${…}", with the dollar spliced in so no one
+    // string carries the placeholder.
+    const dollar = "$";
+    const sample = `\`prefix ${dollar}{(() => { return /}/.test(s); })() && w(s)}\``;
+    expect(shapeOf(sample)).toEqual([
+      "STR",
+      "(",
+      "(",
+      ")",
+      "=",
+      ">",
+      "{",
+      "return",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+      ";",
+      "}",
+      ")",
+      "(",
+      ")",
+      "&",
+      "&",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+  });
+
+  test("reads a member dot after a radix, exponent, or BigInt number", () => {
+    expect(shapeOf("0x1.toString()")).toEqual(shapeOf("1..toString()"));
+    expect(shapeOf("1e3.toString()")).toEqual(shapeOf("1..toString()"));
+    expect(shapeOf("1n.toString()")).toEqual(shapeOf("1..toString()"));
+    expect(shapeOf("0x1.toString()")).toEqual(["NUM", ".", "ID", "(", ")"]);
+    expect(shapeOf("1.5.toFixed(2)")).toEqual([
+      "NUM",
+      ".",
+      "ID",
+      "(",
+      "NUM",
+      ")",
+    ]);
   });
 
   test("still reads a comment opening with a slash as a comment", () => {

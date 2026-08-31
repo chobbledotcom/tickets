@@ -85,9 +85,9 @@ const endOfComment = (text: string, start: number): number => {
  * What the token before a slash counts as, when the boundary scan has to tell
  * a divide from a pattern. Whitespace keeps whatever came before it, and
  * anything that ends no value clears it, so an operator puts a pattern back in
- * reach. Only the end offset comes out of that scan, so reading every word as
- * a value is close enough: a `${…}` never opens with a keyword that a pattern
- * could follow.
+ * reach. A word reads as the word itself when the syntax list holds it — so
+ * `return` ends no value, the way it does in the token scan — and as `ID`
+ * otherwise: a `${…}` never opens with a keyword a pattern could follow.
  */
 const valueEndingAt = (
   text: string,
@@ -96,7 +96,14 @@ const valueEndingAt = (
 ): string | undefined => {
   const character = text[index] as string;
   if (/\s/.test(character)) return before;
-  if (isWordPart(character)) return "ID";
+  if (isWordPart(character)) {
+    let start = index;
+    while (start > 0 && isWordPart(text[start - 1] as string)) start--;
+    let end = index;
+    while (end < text.length && isWordPart(text[end] as string)) end++;
+    const word = text.slice(start, end);
+    return SYNTAX_WORDS.has(word) ? word : "ID";
+  }
   if (isStepChange(character) && text[index - 1] === character) {
     return character + character;
   }
@@ -233,16 +240,24 @@ const startsNumber = (body: string, index: number): boolean =>
   (body[index] === "." && /[0-9]/.test(body[index + 1] ?? ""));
 
 /**
- * Just past the number that opens at `start`. A number carries at most one
- * dot, which is what keeps a member access off the end of one: `1.5.toFixed(2)`
- * reads its second dot as reaching into the number, not as part of it.
+ * Just past the number that opens at `start`. A decimal point joins the
+ * number only while one has not joined already and the read so far holds no
+ * exponent, no BigInt `n`, and no radix prefix — so `0x1.toString()`,
+ * `1e3.toString()`, and `1n.toString()` read like `1..toString()`, their dot a
+ * member access rather than part of the number.
  */
 const readNumber = (body: string, start: number): Step => {
   let index = start;
   let dots = 0;
   while (index < body.length) {
+    const read = body.slice(start, index);
+    const takesADecimal =
+      dots === 0 &&
+      !/[eE]/.test(read) &&
+      !read.endsWith("n") &&
+      !/^0[xXoObB]/.test(read);
     if (body[index] === ".") {
-      if (dots > 0) break;
+      if (!takesADecimal) break;
       dots++;
     }
     NUMBER_PART.lastIndex = index;
@@ -285,30 +300,72 @@ const readTemplate = (body: string, start: number): Step => {
  * ends no value, because what follows is a statement, not more of a sum. */
 const HEADER_WORDS = new Set(["for", "if", "while"]);
 
+/** The tokens a `{` sits after when it opens a block rather than a value: the
+ * header of a control statement, another statement's end, an arrow's body, or
+ * the head of the body itself. */
+const BLOCK_BRACE_AFTER = new Set([
+  "",
+  ")",
+  ";",
+  "{",
+  "}",
+  "=>",
+  "do",
+  "else",
+  "finally",
+  "try",
+]);
+
+/** Walks back through `shape` to the token in front of the bracket that the
+ * bracket at the end closes, or nothing when no opener matches it. */
+const tokenBeforeMatchingBrackets =
+  (closes: string, opens: string) =>
+  (shape: readonly string[]): string | undefined => {
+    let depth = 0;
+    for (let at = shape.length - 1; at >= 0; at--) {
+      if (shape[at] === closes) depth++;
+      if (shape[at] !== opens) continue;
+      depth--;
+      if (depth === 0) return shape[at - 1];
+    }
+    return;
+  };
+
+const wordBeforeParens = tokenBeforeMatchingBrackets(")", "(");
+const tokenBeforeBraces = tokenBeforeMatchingBrackets("}", "{");
+
 /**
- * Whether the `)` that ends `shape` closed an `if`, `while` or `for` header.
- * Walks back to the `(` it matches and reads the word in front of it, which is
- * the only way to tell that bracket from the one that ends a call or a sum.
+ * Whether the `)` at the end of `shape` closed an `if`, `while` or `for`
+ * header: the word in front of the matching `(` is the only way to tell that
+ * bracket from the one that ends a call or a sum.
  */
-const closesAHeader = (shape: readonly string[]): boolean => {
-  let depth = 0;
-  for (let at = shape.length - 1; at >= 0; at--) {
-    if (shape[at] === ")") depth++;
-    if (shape[at] !== "(") continue;
-    depth--;
-    if (depth === 0) return HEADER_WORDS.has(shape[at - 1] ?? "");
-  }
-  return false;
+const closesAHeader = (shape: readonly string[]): boolean =>
+  HEADER_WORDS.has(wordBeforeParens(shape) ?? "");
+
+/**
+ * Whether the `}` at the end of `shape` closed a value an operator can work
+ * on, rather than a block a statement follows: a `{` after an assignment, a
+ * bracket, a comma or colon slot, or a value-making keyword holds a value, and
+ * any other `{` holds statements. A `}` that closes nothing takes the reading
+ * the unmatched `)` does, and divides.
+ */
+const braceEndedAValue = (shape: readonly string[]): boolean => {
+  const opener = tokenBeforeBraces(shape);
+  return opener !== undefined ? !BLOCK_BRACE_AFTER.has(opener) : true;
 };
 
 /**
  * Whether the token before a slash ends a value, so the slash divides it. A
  * `)` is the one token that depends on what came before it: `total() / 2`
- * divides, but `if (ready) /foo/.test(value)` opens a pattern.
+ * divides, but `if (ready) /foo/.test(value)` opens a pattern. A `}` is the
+ * other: `if (ready) {} /foo/.test(value)` opens one too, because the brace
+ * closed a block.
  */
 const endsAValue = (shape: readonly string[]): boolean => {
   const before = shape[shape.length - 1] ?? "";
-  return before === ")" ? !closesAHeader(shape) : ENDS_A_VALUE.has(before);
+  if (before === ")") return !closesAHeader(shape);
+  if (before === "}") return braceEndedAValue(shape);
+  return ENDS_A_VALUE.has(before);
 };
 
 /** What sits at `index`, and where whatever follows it begins. The tokens

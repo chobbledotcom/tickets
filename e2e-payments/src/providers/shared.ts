@@ -88,7 +88,9 @@ export const requiredField = <T>(
  * held to its own vocabulary rather than to a payment provider's.
  */
 export const refuseOtherProvider =
-  <Name extends string>(say: (wanted: Name, inHand: Name) => string) =>
+  <Name extends string>(
+    say: (wanted: Name, inHand: Name) => string,
+  ): ((wanted: Name, inHand: Name) => void) =>
   (wanted: Name, inHand: Name): void => {
     if (inHand !== wanted) throw new Error(say(wanted, inHand));
   };

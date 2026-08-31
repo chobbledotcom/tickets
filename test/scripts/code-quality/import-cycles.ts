@@ -92,7 +92,8 @@ interface Walk {
 }
 
 /** The ring that closes at `path`: every module still waiting since the walk
- *  first met this one. */
+ *  first met this one. A one-member ring is a module that loads itself —
+ *  legal to write and a startup crash to run — so it stays a finding. */
 const ringAt = (walk: Walk, path: string): void => {
   const ring: string[] = [];
   let taken: string;
@@ -101,7 +102,8 @@ const ringAt = (walk: Walk, path: string): void => {
     (walk.seen.get(taken) as Visit).waiting = false;
     ring.push(taken);
   } while (taken !== path);
-  if (ring.length > 1) walk.found.push(ring.sort());
+  const loadsItself = (walk.loads.get(path) ?? []).includes(path);
+  if (ring.length > 1 || loadsItself) walk.found.push(ring.sort());
 };
 
 /** Walk everything `path` loads, then say whether a ring closed here. This is
