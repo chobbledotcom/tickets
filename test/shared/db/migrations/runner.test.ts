@@ -184,6 +184,7 @@ describe("db > migrations > runner", () => {
         lines.some(
           (line) =>
             line.includes("fake-apply-retry still failing after retries") &&
+            line.includes("re-running up()") &&
             line.includes("missing index idx_system_notes_attendee_id"),
         ),
       ).toBe(true);

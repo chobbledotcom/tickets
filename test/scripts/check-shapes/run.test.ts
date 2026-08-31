@@ -9,16 +9,7 @@ import {
   runShapeCheck,
   SOURCE_DIRS,
 } from "#scripts/check-shapes/run.ts";
-
-/** Collects what a run said, so a test can read it back. */
-const recorder = () => {
-  const lines: string[] = [];
-  return {
-    lines,
-    log: (line: string) => lines.push(line),
-    logError: (line: string) => lines.push(line),
-  };
-};
+import { capturedCheckOutput } from "#test-utils/check-script.ts";
 
 /** A tree on disk to run the check against, removed when the test ends. */
 const inTempTree = async (
@@ -49,7 +40,7 @@ const TWINS = {
 describe("runShapeCheck", () => {
   test("reports a pair nothing accepts, and fails", async () => {
     await inTempTree(TWINS, async (root, acceptedDir) => {
-      const output = recorder();
+      const output = capturedCheckOutput();
       expect(await runShapeCheck([root], acceptedDir, output)).toBe(1);
       expect(output.lines.join("\n")).toContain("first");
       expect(output.lines.join("\n")).toContain("second");
@@ -62,7 +53,7 @@ describe("runShapeCheck", () => {
         `${acceptedDir}/a.txt`,
         `${root}/one.ts::first,${root}/two.ts::second  # a test pair\n`,
       );
-      const output = recorder();
+      const output = capturedCheckOutput();
       expect(await runShapeCheck([root], acceptedDir, output)).toBe(0);
     });
   });
@@ -75,7 +66,7 @@ describe("runShapeCheck", () => {
           `${acceptedDir}/a.txt`,
           "src/gone.ts::a,src/gone.ts::b  # merged already\n",
         );
-        const output = recorder();
+        const output = capturedCheckOutput();
         expect(await runShapeCheck([root], acceptedDir, output)).toBe(1);
         expect(output.lines.join("\n")).toContain("matches nothing now");
       },
@@ -93,7 +84,7 @@ describe("runShapeCheck", () => {
     await inTempTree(
       { "one.ts": "export const only = (a) => a;\n" },
       async (root, acceptedDir) => {
-        const output = recorder();
+        const output = capturedCheckOutput();
         expect(await runShapeCheck([root], acceptedDir, output)).toBe(0);
         expect(output.lines.join("\n")).toContain("No two named functions");
       },
@@ -126,7 +117,7 @@ describe("runShapeCheck", () => {
   });
 
   test("holds this repository at its accepted list", async () => {
-    const output = recorder();
+    const output = capturedCheckOutput();
     expect(await runShapeCheck(SOURCE_DIRS, ACCEPTED_DIR, output)).toBe(0);
   });
 

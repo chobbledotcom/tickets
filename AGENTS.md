@@ -273,30 +273,33 @@ GitHub.
   a flaky/fragile test while working — even in code you were not asked to touch
   and did not write — fix it in passing rather than stepping around it. A green
   build you helped produce is your responsibility too.
-- **A written-down diagnosis is a hypothesis, not a finding**: A `TODO.md`
-  entry, a review comment, a commit message, or a code comment explaining why
-  something breaks was written by someone reasoning about the code at a moment
-  that has passed. Re-derive it from the current source before you fix anything,
-  however confident and detailed it reads — a wrong diagnosis is more expensive
-  than none, because it aims your fix at the wrong place and takes the
-  regression test with it. The stripe-mock port-steal entry in `TODO.md` is the
-  worked example: it was a careful, plausible, thoroughly argued account of a
-  race in the wrong function, and following it would have "fixed" code that was
-  already correct while leaving the real hazard in place. When you find one
-  wrong, correct the note in the same change — leaving it sends the next person
-  down the same path.
-- **A finished job leaves `TODO.md`**: `TODO.md` holds work that is still open.
-  When you complete an entry, delete it in the same change. Never leave it in
-  place marked "done", "fixed", or "shipped". A reader must be able to trust
-  that every entry is work somebody can still pick up, so a list of finished
-  ones costs every later reader the time to work out which is which. The commit
-  message and the pull request are the record of what you did, and git history
-  holds the entry itself. The same applies to an entry you did not write: when
-  you find one the code already answers, check it against the current source,
-  then delete it. An entry stays only when part of it is still open, and then
-  only that part stays. The one exception is an entry this file cites as a
-  worked example, such as the stripe-mock port-steal note. That entry is
-  documentation, not a job.
+- **A written-down diagnosis is a hypothesis, not a finding**: A GitHub issue, a
+  review comment, a commit message, or a code comment explaining why something
+  breaks was written by someone reasoning about the code at a moment that has
+  passed. Re-derive it from the current source before you fix anything, however
+  confident and detailed it reads — a wrong diagnosis is more expensive than
+  none, because it aims your fix at the wrong place and takes the regression
+  test with it. The stripe-mock port-steal entry in `TODO.md` is the worked
+  example: it was a careful, plausible, thoroughly argued account of a race in
+  the wrong function, and following it would have "fixed" code that was already
+  correct while leaving the real hazard in place. When you find one wrong,
+  correct the note in the same change — leaving it sends the next person down
+  the same path.
+- **A finished job closes its issue**: GitHub issues hold work that is still
+  open. When you complete one, close it in the same change. The commit message
+  and the pull request are the record of what you did. Never leave an issue open
+  and marked "done", "fixed", or "shipped". A reader must be able to trust that
+  every open issue is work somebody can still pick up. The same applies to an
+  issue you did not write. When you find one the code already answers, check it
+  against the current source. Then close it with a comment that names the
+  answer. An issue stays open only when part of its work is still open.
+  `TODO.md` is the predecessor of the issue tracker. It still holds entries that
+  predate the migration. An entry that names work moves to an issue, in batches.
+  An entry that records a decision or a contract moves to `docs/`. Its entries
+  keep the old rule: delete an entry when you finish it, and never leave one
+  marked "done". The one exception is an entry this file cites as a worked
+  example, the stripe-mock port-steal note. That entry is documentation, not a
+  job, and it moves to `docs/` when the file is deleted.
 - **Stage what you changed, never `git add -A`**: Name the files you meant to
   touch, and read `git status --short` before committing. A blanket add cannot
   tell your work from a stray tool run, a build artefact, or a formatter that
@@ -328,6 +331,19 @@ GitHub.
   coverage. Write the failing test first, confirm it fails for the right reason,
   then apply the fix and watch it go green. This locks the bug out for good and
   proves the fix actually addresses it.
+- **A branch fixes the defects it introduces**: A review finding about code the
+  branch adds is that branch's work. Fix it in the branch, pin it with a
+  regression test, and merge the branch clean. Never record it as a follow-up
+  issue and merge anyway: the defect exists nowhere but the open branch, and the
+  issue hands work to a future person who must rebuild the context in front of
+  you now. An issue is for a defect that is already on main, or for one that is
+  genuinely outside the branch's scope. If the fix would complicate the branch,
+  split the branch instead of merging a known defect. In a stack, the fix
+  belongs to the layer that introduces it.
+
+  The worked example: issues #2226–#2233 were opened for review findings on PR
+  #2166's own new code, and the defects they describe existed nowhere but that
+  open branch. The fixes belong in the same pull request.
 - **Offensive, not defensive, programming**: Fail loudly and immediately instead
   of tolerating bad states — never suppress, default away, or paper over an
   error. See
@@ -494,11 +510,11 @@ GitHub.
   frugality: resolution replies on review threads are expected, not noise. Keep
   each reply tight (a few sentences), and reference the fixing commit. **If a
   suggestion is valid but outside the current job's scope**, do not silently
-  drop it — record it in `TODO.md` with enough context for a future person to
-  pick it up without re-reading the PR (the file/path it concerns, what the
-  reviewer proposed, why it is genuinely out of scope here, and a starting
-  point), then reply on the thread pointing to the TODO entry. Scope is a real
-  boundary, not an excuse to lose good ideas.
+  drop it — open a GitHub issue with enough context for a future person to pick
+  it up without re-reading the PR (the file/path it concerns, what the reviewer
+  proposed, why it is genuinely out of scope here, and a starting point), then
+  reply on the thread pointing to the issue. Scope is a real boundary, not an
+  excuse to lose good ideas.
 - **"Actually broken" outranks "nice in a perfect world"**: A finding, review
   comment, or idea earns a fix when it names a concrete failure — real inputs
   and state under which behaviour is wrong: money lost or double-moved, data
@@ -508,8 +524,8 @@ GitHub.
   no concrete trigger, restating what a pinned test already enforces, polish
   whose only effect is making the document or code "more consistent" — is
   perfect-world work: declining it with a short reason on the thread is a
-  first-class outcome, and a genuinely good idea goes to `TODO.md` rather than
-  into the queue. This is triage for what enters the queue, never licence to do
+  first-class outcome, and a genuinely good idea becomes a GitHub issue rather
+  than queue work. This is triage for what enters the queue, never licence to do
   entered work partially — "Always the complete version" still governs
   everything we decide to do. Assertive automated reviewers can generate
   perfect-world findings indefinitely, so bot silence is not a finish line: when
@@ -1321,10 +1337,10 @@ merge waiting to happen, and the whole point of this exercise. So:
 
 jscpd compares the tokens as written, so **renaming one copy hides it**. Two
 functions that do the same job under different names, over differently named
-values, match no token run and pass every scan above at 0%.
-`deno task check:shapes` reads the other half. It reduces each named function's
-body to its _shape_ — every name, number and string becomes one symbol — and
-reports two functions that share one.
+values, match no token run and pass every jscpd config at 0%. The wrapper scan
+below catches the renamed token run; `deno task check:shapes` reads the other
+half. It reduces each named function's body to its _shape_ — every name, number
+and string becomes one symbol — and reports two functions that share one.
 
 It reports whole named functions, not runs of tokens inside them. That is what
 keeps it readable: a config object handed to a shared factory is the shape this
@@ -1346,7 +1362,7 @@ tree already carries, one per line with the reason it stands, split in two:
   empty**, and that is the state to keep it in: a line added here is a merge
   somebody owes.
 - `coincidences.txt` — two functions with one shape and no shared step to lift.
-  A line earns this file only after somebody tried to write the curry.
+  A line earns this file only after somebody tried the write the curry.
 
 **The list only shrinks.** A match that is not on it fails the check, and an
 entry that matches nothing any more fails too, so a merge has to take its entry
@@ -1366,21 +1382,25 @@ fingerprint of the body would catch it and is not worth its cost — the formatt
 would invalidate entries it had no quarrel with. Read the note when you edit a
 function the list names.
 
-### The six scans, and how hard each looks
+### The eight scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
 lower number is a tighter net. Six configs divide the tree, because helper code,
-test bodies and stylesheets each deserve a different net.
+test bodies and stylesheets each deserve a different net. The seventh is a
+wrapper scan that catches what renamed words hide from all of them. The eighth
+matches whole named functions by shape.
 
-| Config                | Scans                            | minTokens |
-| --------------------- | -------------------------------- | --------- |
-| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
-| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
-| `.jscpd.support.json` | `test/specs/support`             | 18        |
-| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
-| `.jscpd.test.json`    | `test`                           | 48        |
-| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+| Config                    | Scans                            | minTokens             |
+| ------------------------- | -------------------------------- | --------------------- |
+| `.jscpd.json`             | `src`, `e2e-payments`, `scripts` | 19                    |
+| `.jscpd.specs.json`       | `src` + `test/specs/support`     | 19                    |
+| `.jscpd.support.json`     | `test/specs/support`             | 18                    |
+| `.jscpd.helpers.json`     | `src` + `test/test-utils`        | 40                    |
+| `.jscpd.test.json`        | `test`                           | 48                    |
+| `.jscpd.css.json`         | `src/ui/static/style.scss`       | 50                    |
+| `scripts/cpd-renamed.ts`  | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
+| `scripts/check-shapes.ts` | `src`, `e2e-payments`, `scripts` | 20, whole functions   |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
@@ -1390,6 +1410,15 @@ than `src/` can, it gets a second scan of its own — the support helpers are at
 dragging `src/` down too. A test body is different: it repeats by design, and
 the shared mechanism is the test framework itself, so the whole of `test/` stays
 at the loose 48.
+
+The seventh scan (`deno task cpd:renamed`) catches copies that renamed words
+hide. jscpd matches literal token runs, so two copies of one operation with
+different names sit below `minTokens` 19: every renamed word breaks the run. The
+scan runs jscpd at 17 and keeps only the pairs whose two sides share their whole
+punctuation shape — the same code with different words. Every kept pair must be
+merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`. The
+registry only shrinks: merge a pair, delete its entry, and a new word-only copy
+anywhere fails the gate.
 
 **Every helper number ratchets downward** — lower it, bring the tree to it,
 repeat — the same way `check:comments` works. `docs/test-duplication.md`

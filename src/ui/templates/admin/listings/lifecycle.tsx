@@ -4,6 +4,7 @@ import {
   entityDeletePage,
   type TCall,
 } from "#templates/admin/confirm-page.tsx";
+import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /** The parts of the confirm page each lifecycle action words differently. */
@@ -36,6 +37,27 @@ const listingConfirmPageFrom = (
     ...buildOptions(listing),
   }));
 
+/** The actions the listing confirm pages share wording for: the URL segment,
+ * the button key, and the title key all build from this one word. */
+type ListingVerb = "delete" | "deactivate" | "reactivate";
+
+/** Bind the shared confirm shell to one lifecycle verb: the action posts to
+ * `/admin/listing/<id>/<verb>`, and the button and title read the verb's
+ * catalog keys. */
+const listingVerbPage =
+  (verb: ListingVerb) =>
+  (
+    options: (
+      listing: ListingWithCount,
+    ) => Omit<ListingConfirmOptions, "action" | "buttonText" | "title">,
+  ): ListingConfirmPage =>
+    listingConfirmPageFrom((listing) => ({
+      action: `/admin/listing/${listing.id}/${verb}`,
+      buttonText: t(`listings_table.${verb}_listing`),
+      title: listingTitle(`listings_table.${verb}_listing_title`, listing),
+      ...options(listing),
+    }));
+
 const warningText = (children: Child): JSX.Element => (
   <p>
     <strong>{t("listings_table.warning")}:</strong> {children}
@@ -51,62 +73,52 @@ const confirmParagraph = (
   listing: ListingWithCount,
 ): JSX.Element => <p>{t(key, { name: listing.name })}</p>;
 
-export const adminListingDeletePage: ListingConfirmPage =
-  listingConfirmPageFrom((listing) => ({
-    action: `/admin/listing/${listing.id}/delete`,
-    buttonText: t("listings_table.delete_listing"),
-    prompt: {
-      args: { name: listing.name },
-      key: "listings_table.delete_confirmation_text",
-    },
-    title: listingTitle("listings_table.delete_listing_title", listing),
-    warning: warningText(
-      t("listings_table.delete_warning_text", {
-        count: listing.attendee_count,
-      }),
-    ),
-  }));
+export const adminListingDeletePage: ListingConfirmPage = listingVerbPage(
+  "delete",
+)((listing) => ({
+  prompt: {
+    args: { name: listing.name },
+    key: "listings_table.delete_confirmation_text",
+  },
+  warning: warningText(
+    t("listings_table.delete_warning_text", {
+      count: listing.attendee_count,
+    }),
+  ),
+}));
 
-export const adminDeactivateListingPage: ListingConfirmPage =
-  listingConfirmPageFrom((listing) => ({
-    action: `/admin/listing/${listing.id}/deactivate`,
-    buttonText: t("listings_table.deactivate_listing"),
-    children: (
-      <>
-        <ul>
-          <li>{t("listings_table.deactivate_effect_404")}</li>
-          <li>{t("listings_table.deactivate_effect_prevent_registrations")}</li>
-          <li>{t("listings_table.deactivate_effect_reject_payments")}</li>
-        </ul>
-        <p>{t("listings_table.existing_attendees_not_affected")}</p>
-        {confirmParagraph(
-          "listings_table.deactivate_confirmation_text",
-          listing,
+export const adminDeactivateListingPage: ListingConfirmPage = listingVerbPage(
+  "deactivate",
+)((listing) => ({
+  children: (
+    <>
+      <DeactivationEffects
+        effect404={t("listings_table.deactivate_effect_404")}
+        effectPayments={t("listings_table.deactivate_effect_reject_payments")}
+        effectRegistrations={t(
+          "listings_table.deactivate_effect_prevent_registrations",
         )}
-      </>
-    ),
-    title: listingTitle("listings_table.deactivate_listing_title", listing),
-    warning: warningText(t("listings_table.deactivate_warning")),
-  }));
+        existingAttendeesNote={t(
+          "listings_table.existing_attendees_not_affected",
+        )}
+      />
+      {confirmParagraph("listings_table.deactivate_confirmation_text", listing)}
+    </>
+  ),
+  warning: warningText(t("listings_table.deactivate_warning")),
+}));
 
-export const adminReactivateListingPage: ListingConfirmPage =
-  listingConfirmPageFrom((listing) => ({
-    action: `/admin/listing/${listing.id}/reactivate`,
-    buttonText: t("listings_table.reactivate_listing"),
-    children: (
-      <>
-        <p>{t("listings_table.reactivate_will_make_available")}</p>
-        <p>
-          {t(
-            "listings_table.public_page_accessible_new_attendees_can_register",
-          )}
-        </p>
-        {confirmParagraph(
-          "listings_table.reactivate_confirmation_text",
-          listing,
-        )}
-      </>
-    ),
-    danger: false,
-    title: listingTitle("listings_table.reactivate_listing_title", listing),
-  }));
+export const adminReactivateListingPage: ListingConfirmPage = listingVerbPage(
+  "reactivate",
+)((listing) => ({
+  children: (
+    <>
+      <p>{t("listings_table.reactivate_will_make_available")}</p>
+      <p>
+        {t("listings_table.public_page_accessible_new_attendees_can_register")}
+      </p>
+      {confirmParagraph("listings_table.reactivate_confirmation_text", listing)}
+    </>
+  ),
+  danger: false,
+}));

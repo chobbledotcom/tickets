@@ -8,7 +8,7 @@ import {
 import {
   attributeNameForm,
   attributeOptionForm,
-} from "#routes/admin/attributes.ts";
+} from "#templates/fields/attribute.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -47,6 +47,13 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       const html = attributeOptionForm.render();
       expect(html).toContain("Option text");
       expect(inputNamed(html, "text")).toContain('placeholder="e.g. Beginner"');
+    });
+  });
+
+  describe("GET /admin/attributes", () => {
+    test("serves the attributes collection page", async () => {
+      const response = await adminGet("/admin/attributes");
+      expect(response.status).toBe(200);
     });
   });
 

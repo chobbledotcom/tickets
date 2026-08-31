@@ -227,18 +227,13 @@ export const adminResendNotificationPage = attendeeRouteConfirm(
 /**
  * Admin refund all attendees confirmation page
  */
-type RefundAllPageState =
-  | {
-      readonly count: number;
-      readonly flash: string | undefined;
-      readonly kind: "available";
-    }
-  | {
-      readonly count: number;
-      readonly flash: string | undefined;
-      readonly kind: "unavailable";
-      readonly reason: string;
-    };
+type RefundAllPageState = {
+  readonly count: number;
+  readonly flash: string | undefined;
+} & (
+  | { readonly kind: "available" }
+  | { readonly kind: "unavailable"; readonly reason: string }
+);
 
 export const adminRefundAllAttendeesPage = (
   listing: ListingWithCount,

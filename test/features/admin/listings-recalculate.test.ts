@@ -8,7 +8,7 @@ import {
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createListingWithDriftedTotals } from "#test-utils/db-helpers/listings.ts";
+import { createListingWithDriftedTotals } from "#test-utils/db-helpers/listing-totals.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
 

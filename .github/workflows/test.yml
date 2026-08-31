@@ -51,6 +51,9 @@ jobs:
       - name: Check for code duplication (CPD)
         run: deno task cpd
 
+      - name: Check for renamed duplicate functions
+        run: deno task check:shapes
+
       - name: Check user-facing copy
         run: deno task check:copy
 
@@ -59,6 +62,9 @@ jobs:
 
       - name: Check module import names
         run: deno task check:imports
+
+      - name: Check payment e2e labels against the catalog
+        run: deno task check:e2e-labels
 
       - name: Check known-equivalent mutant records
         run: deno task check:equivalents

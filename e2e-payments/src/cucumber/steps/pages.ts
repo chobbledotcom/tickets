@@ -6,9 +6,10 @@
  * owner session, booker identity, and credentials can never drift apart.
  */
 
+// jscpd:ignore-start -- this #e2e import run is structural
 import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
-// jscpd:ignore-start -- the #e2e alias import for LiveWorld is structural
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
 // jscpd:ignore-end
 import {
@@ -18,6 +19,7 @@ import {
   requireNoRecognisedIncome,
   submitBooking,
 } from "#e2e/flow.ts";
+import { pageTextCount, pageTextIncludes } from "#e2e/page-text.ts";
 import type { SandboxRefundObservation } from "#e2e/providers/types.ts";
 import type { RefundPageFacts } from "#e2e/refund-outcome.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
@@ -203,16 +205,40 @@ export const gatherRefundPageFacts = async (
 
   const { overview, paymentDetails } = await attendeeOverviewFacts(world);
   const refundedVisible =
-    paymentDetails.includes("Refund Status:") &&
-    !paymentDetails.includes("Not refunded") &&
-    paymentDetails.includes("Refunded");
-  const refreshReachable = overview.includes("Refresh payment status");
+    (await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.refund_status",
+    )) &&
+    !(await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.not_refunded",
+    )) &&
+    (await pageTextIncludes(
+      paymentDetails,
+      "attendees",
+      "admin.attendees.refunded",
+    ));
+  const refreshReachable = await pageTextIncludes(
+    overview,
+    "attendees",
+    "admin.attendees.refresh_payment",
+  );
 
   await openAttendeeTabIn(ownerOf(world), "actions");
   return {
-    deleteActionVisible: (await exactLinkCount(ownerOf(world), "Delete")) > 0,
+    deleteActionVisible:
+      (await exactLinkCount(
+        ownerOf(world),
+        await catalogWords("common", "common.delete"),
+      )) > 0,
     refreshReachable,
-    refundActionVisible: (await exactLinkCount(ownerOf(world), "Refund")) > 0,
+    refundActionVisible:
+      (await exactLinkCount(
+        ownerOf(world),
+        await catalogWords("attendees", "attendee_form.action_refund"),
+      )) > 0,
     refundedVisible,
     unfinishedWorkWarningVisible,
   };
@@ -229,7 +255,11 @@ export const attendeeTabOf = async (
 
 /** How many refund transfers the attendee's Money statement carries. */
 export const moneyRefundCount = async (world: LiveWorld): Promise<number> =>
-  (await attendeeTabOf(world, "ledger")).split("Refund paid to").length - 1;
+  await pageTextCount(
+    await attendeeTabOf(world, "ledger"),
+    "ledger",
+    "admin.ledger.human.refund_cash",
+  );
 
 /** The attendee's Money statement must carry exactly this many refunds. */
 export const requireMoneyRefunds = async (
@@ -245,7 +275,12 @@ export const attendeeOverviewFacts = async (
 ): Promise<{ overview: string; paymentDetails: string }> => {
   const overview = await attendeeTabOf(world, "");
   const paymentDetails = await ownerOf(world)
-    .page.locator(".prose", { hasText: "Payment Details" })
+    .page.locator(".prose", {
+      hasText: await catalogWords(
+        "attendees",
+        "admin.attendees.payment_details",
+      ),
+    })
     .first()
     .innerText();
   return { overview, paymentDetails };
@@ -254,7 +289,9 @@ export const attendeeOverviewFacts = async (
 /** Open the attendee's rendered refund confirmation form (not submitted). */
 export const openRefundForm = async (world: LiveWorld): Promise<void> => {
   await attendeeTabOf(world, "actions");
-  await ownerOf(world).clickLink("Refund");
+  await ownerOf(world).clickLink(
+    await catalogWords("attendees", "attendee_form.action_refund"),
+  );
 };
 
 /**
@@ -291,8 +328,12 @@ export const requireSystemMapAnswersClean = async (
 };
 
 /** Submit the currently-rendered refund confirmation form. */
-export const submitRenderedRefundForm = (
+export const submitRenderedRefundForm = async (
   session: BrowserSession,
   bookerName: string,
 ): Promise<void> =>
-  fillAndSubmit(session, { confirm_identifier: bookerName }, "Refund Attendee");
+  fillAndSubmit(
+    session,
+    { confirm_identifier: bookerName },
+    await catalogWords("attendees", "admin.attendees.refund_submit"),
+  );

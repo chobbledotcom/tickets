@@ -1,19 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  slugifyForTurso,
-  tursoDbProvider as tursoApi,
-} from "#shared/turso-api.ts";
+import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
 import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-
-const TURSO_ENV = {
-  TURSO_API_TOKEN: "test-turso-token",
-  TURSO_GROUP: "default",
-  TURSO_ORGANIZATION: "myorg",
-};
+import { createReplyingWith, TEST_TURSO_ENV } from "./fixtures.ts";
 
 /**
  * Stub fetch with standard Turso URL routing: /databases → db JSON, /auth/tokens → JWT.
@@ -44,29 +36,6 @@ const stubTursoFetch = (
     return new Response("unexpected", { status: 500 });
   });
 
-test("slugifyForTurso lowercases and replaces non-slug chars with hyphens", () => {
-  expect(slugifyForTurso("My Site")).toBe("my-site");
-  expect(slugifyForTurso("Test_DB 123")).toBe("test-db-123");
-});
-
-test("slugifyForTurso collapses consecutive hyphens and trims leading/trailing", () => {
-  expect(slugifyForTurso("--My--Site--")).toBe("my-site");
-});
-
-test("slugifyForTurso truncates to 63 characters", () => {
-  expect(slugifyForTurso("a".repeat(100))).toBe("a".repeat(63));
-});
-
-test("slugifyForTurso does not produce trailing hyphen when truncation lands on separator", () => {
-  const result = slugifyForTurso(`${"a".repeat(62)}-b`);
-  expect(result.endsWith("-")).toBe(false);
-  expect(result.length).toBeLessThanOrEqual(63);
-});
-
-test("slugifyForTurso returns db for names that reduce to empty", () => {
-  expect(slugifyForTurso("---")).toBe("db");
-});
-
 /** Returns a `stubTursoFetch` `onRequest` callback that captures the create-database POST body into `out.body`. */
 const captureCreateBody =
   (out: { body?: unknown }) => (url: string, init?: RequestInit) => {
@@ -75,7 +44,7 @@ const captureCreateBody =
     }
   };
 
-describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
+describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
   test("createDatabase calls create and token endpoints", async () => {
     const fetchCalls: string[] = [];
 
@@ -224,6 +193,59 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
         if (result.ok) {
           expect(result.value.dbUrl).toMatch(/^libsql:\/\//);
           expect(result.value.dbUrl).toContain("my-app.turso.io");
+        }
+      },
+    );
+  });
+
+  test("createDatabase refuses a database host that is not a bare hostname", async () => {
+    // A host only round-trips through the URL parser when it is bare:
+    // lowercase, no port, no spaces. Anything else means the platform is not
+    // pointing at a plain database host, so the schema must reject it.
+    const jwt = JSON.stringify({ jwt: "j" });
+    const refusedHosts: [name: string, hostname: string][] = [
+      ["db_port", "db.example.com:8080"],
+      ["db_case", "DB.Example.COM"],
+      ["db_space", "Not A Hostname"],
+    ];
+    for (const [name, hostname] of refusedHosts) {
+      await withMocks(
+        () =>
+          stubFetch(
+            createReplyingWith(
+              { DbId: name, Hostname: hostname, Name: "ported" },
+              jwt,
+            ),
+          ),
+        async () => {
+          const result = await tursoApi.createDatabase("Ported");
+          expect(result.ok, hostname).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain(
+              "Create database returned an invalid response",
+            );
+          }
+        },
+      );
+    }
+  });
+
+  test("createDatabase names the token operation when its reply is not JSON", async () => {
+    await withMocks(
+      () =>
+        stubFetch(
+          createReplyingWith(
+            { DbId: "d", Hostname: "t.turso.io", Name: "halfbroken" },
+            "not json",
+          ),
+        ),
+      async () => {
+        const result = await tursoApi.createDatabase("HalfBroken");
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain(
+            "Generate database token returned invalid JSON",
+          );
         }
       },
     );

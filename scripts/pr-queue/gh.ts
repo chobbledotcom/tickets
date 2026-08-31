@@ -39,6 +39,8 @@ export const runGhCommand: GhRunner = async (args) => {
   const captured = await captureOutput(
     new Deno.Command("gh", {
       args,
+      // Deno rejects loader overrides when `--allow-run` permits only `gh`.
+      env: { LD_LIBRARY_PATH: "" },
       signal,
       stderr: "piped",
       stdout: "piped",

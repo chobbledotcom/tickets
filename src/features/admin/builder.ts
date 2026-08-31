@@ -13,7 +13,6 @@ import {
   insertBuiltSite,
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
-import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
@@ -26,16 +25,11 @@ import {
   isDenoDeployEnabled,
   isTursoEnabled,
 } from "#shared/config.ts";
-import { defineForm } from "#shared/forms/definition.ts";
 import {
   adminBuilderPage,
   type BuiltSiteDisplay,
 } from "#templates/admin/builder.tsx";
-import {
-  builtSiteBox,
-  denoDeployOption,
-  providerChoices,
-} from "#templates/fields/admin.ts";
+import { builderForm } from "#templates/fields/builder.ts";
 
 const BUILDER_PATH = "/admin/builder";
 
@@ -67,39 +61,6 @@ const handleBuilderGet = (request: Request): Promise<Response> =>
   isBuilderEnabled()
     ? renderBuilderPage(request)
     : Promise.resolve(notFoundResponse());
-
-export const builderForm = defineForm({
-  fields: [
-    {
-      ...builtSiteBox("site_name", "name", "text" as const),
-      maxlength: 64,
-      minlength: 1,
-      required: true,
-    },
-    ...providerChoices({
-      db: [
-        {
-          label: t("fields.built_site.provider.bunny_db_auto"),
-          value: "bunny",
-        },
-        { label: t("fields.built_site.provider.turso_auto"), value: "turso" },
-        { label: t("fields.built_site.provider.manual_db"), value: "manual" },
-      ],
-      hosting: [
-        { label: t("fields.built_site.provider.bunny_edge"), value: "bunny" },
-        denoDeployOption(),
-      ],
-    }),
-    {
-      ...builtSiteBox("db_url", "db_url", "url" as const),
-      hint: t("fields.built_site.auto_provision_hint"),
-    },
-    {
-      ...builtSiteBox("db_token", "db_token", "password" as const),
-      hint: t("fields.built_site.auto_provision_hint"),
-    },
-  ] as const,
-});
 
 /** Return an error message when a DB provider isn't configured, else null. */
 const dbProviderConfigError = (

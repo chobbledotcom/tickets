@@ -38,6 +38,8 @@ describe("listing lifecycle confirm pages", () => {
     expect(html).toContain("/icons.svg#trash-2");
     expect(html).toContain("Delete Listing");
     expect(html).toContain("<title>Delete: Summer Camp &amp; Fun");
+    // Confirm pages live under the Home nav, not a section's.
+    expect(html).toContain('<a class="active" href="/admin/"');
   });
 
   test("delete page renders a rejected-submit error", () => {

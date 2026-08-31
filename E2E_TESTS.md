@@ -401,7 +401,7 @@ prose above it.
 **When the story fails because the product does not do that, do not soften the
 story.** This is the most valuable thing a migration finds, and the temptation
 is to reword the `Then` until it goes green. Instead: delete the scenario, leave
-the original test where it is, and write the question up in `TODO.md` with what
-you expected, what the product does, and the ways it could be settled. Say it in
-the pull request too. A scenario weakened to match behaviour nobody chose is
-worse than no scenario — it makes the accident look intended.
+the original test where it is, and write the question up in a GitHub issue with
+what you expected, what the product does, and the ways it could be settled. Say
+it in the pull request too. A scenario weakened to match behaviour nobody chose
+is worse than no scenario — it makes the accident look intended.

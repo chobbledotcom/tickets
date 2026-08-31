@@ -65,20 +65,22 @@ export interface AppBrowser {
   stop: () => Promise<void>;
 }
 
-/** Require the current page body to contain text (or match a pattern), saving
- * the page before raising a concise failure. */
+/** Require the page body to carry this answer — one text, one pattern, or
+ * any of several texts — saving the page before a concise failure. */
 export const requirePageText = async (
   session: BrowserSession,
-  expected: string | RegExp,
+  expected: string | RegExp | readonly string[],
   artifact: string,
   message: string,
 ): Promise<void> => {
   const body = await session.bodyText();
-  const matches =
+  const carries =
     typeof expected === "string"
       ? body.includes(expected)
-      : expected.test(body);
-  if (matches) return;
+      : expected instanceof RegExp
+        ? expected.test(body)
+        : expected.some((answer) => body.includes(answer));
+  if (carries) return;
   await session.dumpPage(artifact);
   throw new Error(`${message}\n${body.slice(0, 800)}`);
 };

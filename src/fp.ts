@@ -272,6 +272,13 @@ export const isNullish = (value: unknown): value is null | undefined =>
 export const isNotNullish = <T>(value: T | null | undefined): value is T =>
   !isNullish(value);
 
+/** Ask whether a value is one of a fixed list: `isOneOf(["a", "b"])("a")` is
+ * true. Curried, so a list of words becomes one named check. */
+export const isOneOf =
+  (values: readonly string[]): ((value: string | undefined) => boolean) =>
+  (value) =>
+    value !== undefined && values.includes(value);
+
 export const compact = <T>(array: (T | null | undefined)[]): T[] =>
   array.filter(isNotNullish);
 

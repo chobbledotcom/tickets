@@ -9,13 +9,11 @@
  * so one pure computation feeds both the nav and the body item list.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
 import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start -- imports */
-import {
-  computeSitePageSlugIndex,
-  getSitePageBySlugIndex,
-} from "#db/site-pages.ts";
+import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
@@ -64,7 +62,7 @@ export const publicSlugRoute =
     requirePublicSite(() => handle(slug));
 
 const handleSitePage = async (slug: string): Promise<Response> => {
-  const slugIndex = await computeSitePageSlugIndex(slug);
+  const slugIndex = await hmacHash(slug);
   const page = await getSitePageBySlugIndex(slugIndex);
   return renderContentPage(
     page,

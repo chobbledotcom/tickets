@@ -1,6 +1,7 @@
 import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/format.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
@@ -150,6 +151,17 @@ const PublicUrlRow = ({
     </tr>
   );
 
+/** A formatted instant followed by its countdown, as both the listing date
+ * (linked to the calendar) and the registration deadline show it. */
+const withCountdown = (label: Child, at: string): JSX.Element => (
+  <>
+    {label}{" "}
+    <small>
+      <em>({formatCountdown(at)})</em>
+    </small>
+  </>
+);
+
 const buildListingCopyRows = (
   listing: ListingWithCount,
   embedScriptCode: string,
@@ -230,12 +242,12 @@ export const ListingDetailsTable = ({
             <th>{t("listings_table.listing_date")}</th>
             <td>
               <span>
-                <a href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}>
-                  {formatDatetimeLabel(listing.date)}
-                </a>{" "}
-                <small>
-                  <em>({formatCountdown(listing.date)})</em>
-                </small>
+                {withCountdown(
+                  <a href={`/admin/calendar?date=${listing.date.slice(0, 10)}`}>
+                    {formatDatetimeLabel(listing.date)}
+                  </a>,
+                  listing.date,
+                )}
               </span>
             </td>
           </tr>
@@ -279,10 +291,10 @@ export const ListingDetailsTable = ({
           <td>
             {listing.closes_at ? (
               <span>
-                {formatDatetimeLabel(listing.closes_at)}{" "}
-                <small>
-                  <em>({formatCountdown(listing.closes_at)})</em>
-                </small>
+                {withCountdown(
+                  formatDatetimeLabel(listing.closes_at),
+                  listing.closes_at,
+                )}
               </span>
             ) : (
               <em>{t("listings_table.no_deadline")}</em>

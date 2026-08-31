@@ -184,12 +184,21 @@ export const ProviderCredentialsForm = (
           {t("settings.provider.update_credentials", { provider: label })}
         </SubmitButton>
         {configured && (
-          <button class="secondary" id={`${provider}-test-btn`} type="button">
+          <button
+            class="secondary"
+            data-testing={t("settings.connection.testing")}
+            id={`${provider}-test-btn`}
+            type="button"
+          >
             {t("settings.provider.test_connection")}
           </button>
         )}
       </footer>
-      <div class="hidden" id={`${provider}-test-result`} />
+      <div
+        class="hidden"
+        data-failed={t("settings.connection.failed")}
+        id={`${provider}-test-result`}
+      />
     </CsrfForm>
   );
 };

@@ -12,6 +12,7 @@ import {
   identity,
   isNotNullish,
   isNullish,
+  isOneOf,
   joinStrings,
   keepAndTake,
   map,
@@ -448,5 +449,23 @@ describe("sameOn", () => {
 
   test("matches anything when no field is named", () => {
     expect(sameOn<{ a: number }>()({ a: 1 }, { a: 2 })).toBe(true);
+  });
+});
+
+describe("isOneOf", () => {
+  const isHttpMethod = isOneOf(["DELETE", "PATCH", "POST", "PUT"]);
+
+  test("accepts a value the list names", () => {
+    expect(isHttpMethod("POST")).toBe(true);
+    expect(isHttpMethod("DELETE")).toBe(true);
+  });
+
+  test("refuses a value the list does not name", () => {
+    expect(isHttpMethod("GET")).toBe(false);
+    expect(isHttpMethod("post")).toBe(false);
+  });
+
+  test("refuses an absent value", () => {
+    expect(isHttpMethod(undefined)).toBe(false);
   });
 });

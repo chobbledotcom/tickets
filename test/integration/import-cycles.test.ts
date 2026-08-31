@@ -34,32 +34,16 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 /** Every ring `src/` carries today, each sorted, and the rings in the order
  *  the detector reports them. Each says why it is still standing. */
 const KNOWN_RINGS: string[][] = [
-  // A page and the template it renders, where the template links back to the
-  // page for its own route. Six pairs, all the same shape.
-  ["src/features/admin/attributes.ts", "src/ui/templates/admin/attributes.tsx"],
-  ["src/features/admin/builder.ts", "src/ui/templates/admin/builder.tsx"],
+  // A group and its membership each need to ask the other what a listing
+  // belongs to before they can answer.
+  ["src/shared/db/groups.ts", "src/shared/db/groups/membership.ts"],
+  // A listing's parents, prices and records each need to ask the others what
+  // a listing belongs to before they can answer.
   [
-    "src/features/admin/listing-page-management-panels.ts",
-    "src/features/admin/listing-page.ts",
-    "src/features/admin/listings-edit.ts",
-  ],
-  ["src/features/admin/seeds.ts", "src/ui/templates/admin/seeds.tsx"],
-  ["src/features/admin/site.ts", "src/ui/templates/admin/site.tsx"],
-  ["src/features/join.ts", "src/ui/templates/join.tsx"],
-  // A listing's parents, prices, groups and modifiers each need to ask the
-  // others what a listing belongs to before they can answer.
-  [
-    "src/shared/db/groups.ts",
-    "src/shared/db/groups/membership.ts",
     "src/shared/db/listing-parents.ts",
     "src/shared/db/listing-prices.ts",
-    "src/shared/db/listing-relationship-validation.ts",
     "src/shared/db/listings/records.ts",
-    "src/shared/db/modifier-resolve.ts",
   ],
-  // Reporting an error goes out to ntfy and to Sentry, and either of those
-  // failing is itself an error to log.
-  ["src/shared/logger.ts", "src/shared/ntfy.ts", "src/shared/sentry.ts"],
 ];
 
 /** The alias table, read the way the import check reads it. */

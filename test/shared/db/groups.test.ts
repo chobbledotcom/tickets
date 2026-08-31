@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import {
   checkBatchAvailabilityImpl as checkBatchAvailability,
   checkListingAvailability as hasAvailableSpots,
@@ -15,7 +16,6 @@ import { assignListingsToGroup } from "#db/groups/membership.ts";
 import {
   anyHiddenPackageGroup,
   anyListingInPackageGroup,
-  computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getGroupBySlugIndex,
   getGroupPackagePrices,
@@ -121,9 +121,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         slug: "idx-group",
       });
 
-      const found = await getGroupBySlugIndex(
-        await computeGroupSlugIndex("idx-group"),
-      );
+      const found = await getGroupBySlugIndex(await hmacHash("idx-group"));
       expect(found?.slug).toBe(group.slug);
       expect(await getGroupBySlugIndex("missing")).toBeNull();
     });

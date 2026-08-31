@@ -1,6 +1,8 @@
 /* jscpd:ignore-start */
 import type { Locator, Page } from "playwright";
-import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
+import { keyModeOf } from "#db/settings/constants.ts";
+import type { BrowserSession } from "#e2e/browser.ts";
+import { catalogWords } from "#e2e/catalog-words.ts";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import { type AfterPayOutcome, watchAfterPay } from "./post-pay.ts";
@@ -13,6 +15,7 @@ import {
   readLoggedId,
   refundObservationVia,
   requiredField,
+  saveCredentials,
   testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
@@ -106,31 +109,48 @@ const transactionIdOf = async (
  * This is the only journey that asks SumUp for the merchant behind the key, so
  * it is the only proof that the merchant read works against the real API. The
  * merchant line appears only when that read succeeded, so asserting the real
- * merchant code proves the call and not just the page.
+ * merchant code proves the call and not just the page. Both required lines
+ * derive from the message keys the page renders, and the key's mode comes
+ * from the same prefix classifier the app reads it with.
  */
-const testSumupConnection = (
+const testSumupConnection = async (
   session: BrowserSession,
+  apiKey: string,
   merchantCode: string,
-): Promise<void> =>
-  testProviderConnection(session, "sumup", {
+): Promise<void> => {
+  const apiKeyLabel = await catalogWords(
+    "settings",
+    "settings.connection.label_api_key",
+  );
+  const merchantLabel = await catalogWords(
+    "settings",
+    "settings.connection.label_merchant",
+  );
+  await testProviderConnection(session, "sumup", {
     passed: "SumUp connection and merchant lookup passed",
-    require: ["API Key: Valid", `Merchant: ${merchantCode}`],
+    require: [
+      await catalogWords("settings", "settings.connection.valid", {
+        label: apiKeyLabel,
+        mode: keyModeOf(apiKey) ?? "unknown",
+      }),
+      await catalogWords("settings", "settings.connection.value", {
+        label: merchantLabel,
+        value: merchantCode,
+      }),
+    ],
   });
+};
 
 export const sumup: PaymentProvider = {
   // SumUp sets its return URL per checkout and registers no webhook endpoint;
   // payments and refunds are append-only sandbox resources.
   cleanup: noProviderCleanup,
   configure: configureProvider("sumup", async (session, secrets) => {
-    await fillAndSubmit(
-      session,
-      {
-        sumup_api_key: secrets.apiKey,
-        sumup_merchant_code: secrets.merchantCode,
-      },
-      "Update SumUp Credentials",
-    );
-    await testSumupConnection(session, secrets.merchantCode);
+    await saveCredentials(session, "sumup", {
+      sumup_api_key: secrets.apiKey,
+      sumup_merchant_code: secrets.merchantCode,
+    });
+    await testSumupConnection(session, secrets.apiKey, secrets.merchantCode);
   }),
   name: "sumup",
 

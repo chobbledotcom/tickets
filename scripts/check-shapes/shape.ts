@@ -3,54 +3,11 @@
  * one symbol, so two functions that differ only in what they are called and
  * what they mention read as the same run of tokens.
  *
- * This is what `deno task cpd` cannot see. jscpd compares the tokens as
+ * This is what `deno task cpd` cannot see. jscpd compares tokens as
  * written, so renaming one copy hides it.
  */
 
-/** Words that carry meaning of their own, so they survive normalisation. Every
- * name the parser found is already masked by then, so one of these words used
- * as a name — `row.type`, `{ type }` — never reaches this set. */
-const KEPT_WORDS = new Set([
-  "as",
-  "await",
-  "break",
-  "case",
-  "catch",
-  "const",
-  "continue",
-  "default",
-  "delete",
-  "do",
-  "else",
-  "export",
-  "extends",
-  "false",
-  "finally",
-  "for",
-  "function",
-  "if",
-  "import",
-  "in",
-  "instanceof",
-  "let",
-  "new",
-  "null",
-  "of",
-  "return",
-  "satisfies",
-  "switch",
-  "this",
-  "throw",
-  "true",
-  "try",
-  "type",
-  "typeof",
-  "undefined",
-  "var",
-  "void",
-  "while",
-  "yield",
-]);
+import { SYNTAX_WORDS } from "#scripts/syntax-words.ts";
 
 /** Where a run of text sits in a file, as offsets. */
 export interface Span {
@@ -300,7 +257,7 @@ const readWord = (body: string, start: number): Step => {
   let index = start + 1;
   while (index < body.length && isWordPart(body[index] as string)) index++;
   const word = body.slice(start, index);
-  return { next: index, tokens: [KEPT_WORDS.has(word) ? word : "ID"] };
+  return { next: index, tokens: [SYNTAX_WORDS.has(word) ? word : "ID"] };
 };
 
 /**

@@ -30,6 +30,7 @@ cov_profile/
 .deno-cache/
 .local-data/
 .mutation-runs/
+.pi-worktrees/
 .security-worktrees/
 docs-output*/
 /screenshots/

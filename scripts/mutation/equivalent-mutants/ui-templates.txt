@@ -57,3 +57,25 @@ src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? �
 # schema-atlas.tsx: formatTimeAgo returns a formatted string or null, never
 # "", so ?? and || pick the same side for every input.
 src/ui/templates/admin/schema-atlas.tsx::UnansweredMoneySection~15crpim ??→||   # formatTimeAgo → string|null, never ""
+
+# builder.tsx: the built-sites table renders every column with no columnKeys
+# or hiddenKeys passed, so a column's key reaches no rendered output.
+src/ui/templates/admin/builder.tsx::builtSitesTable~0ytajae name→""   # renderTable(builtSitesTable, sites) filters by key only when columnKeys/hiddenKeys are passed, and this page passes neither
+src/ui/templates/admin/builder.tsx::builtSitesTable~1mp2mcy url→""   # same: the key reaches no rendered output on this page
+src/ui/templates/admin/builder.tsx::builtSitesTable~0w4j3rw built→""   # same: the key reaches no rendered output on this page
+
+# seeds.tsx: the page passes no nav route, and no nav section owns the empty
+# string, so any non-route value renders the same unhighlighted nav.
+src/ui/templates/admin/seeds.tsx::adminSeedsPage~0quyacc  →"mutated"   # the page passes no nav route, and no section owns the empty string, so any non-route value renders the same unhighlighted nav
+src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~1dfcwnz  original_name → ""   # the duplicate preview table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~0mlva16  new_name → ""   # same as the original_name key — the preview table is rendered without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~01ktg5a  original_date → ""   # same as the original_name key — the preview table is rendered without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/bulk-actions.tsx::previewColumns.key~1oyjr6z  new_date → ""   # same as the original_name key — the preview table is rendered without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.initialRows.dateFind~0jpoy5k  → "mutated"   # computeDayOffset short-circuits when either date is empty, and the initial dateReplace is empty, so the offset stays 0 under either value
+src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.initialRows.dateReplace~0u00vsl  → "mutated"   # computeDayOffset short-circuits when the initial dateFind is empty, so the replace value is never read
+src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.initialRows.nameReplace~1eieidw  → "mutated"   # applyNameReplacement short-circuits when the initial nameFind is empty, so the replace value is never read
+src/ui/templates/admin/attendees.tsx::adminBlockedRefundAttendeePage~0077u6j  refund → ""   # a disabled confirm page renders no form, so this action segment is never read
+src/ui/templates/admin/attendees.tsx::EditQuestions.textValue~0a2e8nn  ?? → ||   # a stored free-text answer is a string or undefined, and the "" fallback equals what || gives for the empty string
+src/ui/templates/admin/api-keys.tsx::apiKeyColumns~171hyss  name → ""   # the key table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/api-keys.tsx::apiKeyColumns~1pdocf9  created → ""   # same as the name key — the key table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/api-keys.tsx::apiKeyColumns~13k1qvy  last_used → ""   # same as the name key — the key table renders without columnKeys, hiddenKeys, or filters

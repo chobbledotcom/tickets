@@ -175,14 +175,14 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { groups, computeGroupSlugIndex } = await import("#db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
       const { assignListingsToGroup } = await import(
         "#db/groups/membership.ts"
       );
       const { listingsTable } = await import("#db/listings/records.ts");
-      const { computeSlugIndex } = await import("#db/listings/table.ts");
+      const { hmacHash } = await import("#crypto/hashing.ts");
       await enablePublicSite();
-      const slugIndex = await computeGroupSlugIndex("ro-group");
+      const slugIndex = await hmacHash("ro-group");
       const group = await groups.table.insert({
         hidden: false,
         maxAttendees: 0,
@@ -196,7 +196,7 @@ describeWithEnv(
         maxPrice: 0,
         name: "RO Listing",
         slug: "ro-listing",
-        slugIndex: await computeSlugIndex("ro-listing"),
+        slugIndex: await hmacHash("ro-listing"),
       });
       await assignListingsToGroup([roListing.id], group.id);
       const res = await handleRequest(mockRequest("/listings"));

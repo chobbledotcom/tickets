@@ -168,7 +168,9 @@ export const namedFunctions = (
  *  component renders become one string, and whitespace between elements goes
  *  altogether, because JSX drops it and `deno fmt` moves it. */
 const maskFor = (node: AstNode, source: string): string | null => {
-  if (node.type === "Identifier") return "_";
+  // A JSX name — an element or an attribute — is a name somebody chose, not
+  // the keyword it spells: `class={…}` and `type={…}` must read as names.
+  if (node.type === "Identifier" || node.type === "JSXIdentifier") return "_";
   // A closing tag reads as one without repeating the element's name, which the
   // opening tag already carried. Dropping its `/` also keeps the tokeniser from
   // reading `</b>` as a pattern opening after `<`.

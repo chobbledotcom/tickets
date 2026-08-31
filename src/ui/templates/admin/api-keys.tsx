@@ -15,6 +15,7 @@ import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
+import { ExampleCode } from "#templates/admin/guide/components.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
@@ -166,22 +167,6 @@ const CodeBlock = ({ children }: { children: Child }): JSX.Element => (
   </pre>
 );
 
-/** A labelled payload section: "<strong>Label:</strong>" then the code block. */
-const PayloadBlock = ({
-  label,
-  body,
-}: {
-  label: string;
-  body: string;
-}): JSX.Element => (
-  <>
-    <p>
-      <strong>{label}</strong>
-    </p>
-    <CodeBlock>{body}</CodeBlock>
-  </>
-);
-
 const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
   String(
     <details>
@@ -192,9 +177,9 @@ const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
         &mdash; {endpoint.description}
       </summary>
       {endpoint.request && (
-        <PayloadBlock body={endpoint.request} label="Request:" />
+        <ExampleCode code={endpoint.request} label="Request:" />
       )}
-      <PayloadBlock body={endpoint.response} label="Response:" />
+      <ExampleCode code={endpoint.response} label="Response:" />
     </details>,
   );
 

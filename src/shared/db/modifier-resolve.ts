@@ -23,6 +23,10 @@ import { byId, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
+import {
+  scopeIsChildDeadEnd,
+  scopeReachesPage,
+} from "#shared/listing-parents-rules.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import {
   type ModifierTrigger,
@@ -196,37 +200,6 @@ const scopeCoversListing = (
   listingId: number,
 ): boolean =>
   scope === null || (Array.isArray(scope) && scope.includes(listingId));
-
-/** Whether a resolved listing scope is reachable from a page's listing ids:
- * a whole-order scope (null) always is; a listing set must share an id. Shared
- * by the add-on listing and the child-reachability hard block. */
-const scopeReachesPage = (
-  scope: number[] | null,
-  pageIds: Set<number>,
-): boolean => scope === null || scope.some((id) => pageIds.has(id));
-
-/**
- * The single reachability test shared by both child-scoped-add-on hard blocks,
- * so the edge save and the modifier save can never diverge.
- *
- * An opt-in add-on is a dead end exactly when its resolved scope is a listing
- * set that names a suppressed child yet reaches none of the pages that would
- * load it. A whole-order scope (`null`) is reachable everywhere.
- *
- * Callers define "reachable" from their own side, which is why the two id sets
- * are parameters rather than derived here.
- */
-export const scopeIsChildDeadEnd = (
-  scope: number[] | null,
-  suppressed: Set<number>,
-  reachable: Set<number>,
-): boolean => {
-  if (scope === null) return false;
-  return (
-    scope.some((id) => suppressed.has(id)) &&
-    !scopeReachesPage(scope, reachable)
-  );
-};
 
 /**
  * Total quantity each "answer"-triggered modifier is requested for, respecting

@@ -1,0 +1,76 @@
+/**
+ * The commas of a line that sit at the base bracket level, and the index
+ * that closed the nesting. The SQL column reader and the e2e label check
+ * split at top-level commas this one way, so the two cannot drift apart.
+ */
+
+/** What one split found. */
+export interface TopLevelCommas {
+  /** Every comma that sits at the base level, in order. */
+  readonly commas: readonly number[];
+  /** The first index that closed past the base level, or the text's end
+   * when nothing closed it or the scan did not stop. */
+  end: number;
+}
+
+/** How one line is split at its top-level commas. */
+export interface CommaSplit {
+  /** Characters that close one nesting level, for example ")". */
+  readonly closers: string;
+  /** Characters that open one nesting level, for example "(". */
+  readonly openers: string;
+  /** Characters that open a quoted value whose contents neither nest nor
+   * split; SQL doubling (a doubled quote) closes and reopens the value. */
+  readonly quotes?: string;
+  /** The first index the scan reads. */
+  readonly start: number;
+  /** Stop at the first character that closes past the base level. */
+  readonly stopWhenClosed: boolean;
+}
+
+/** How one character changes the nesting level. */
+const levelStep = (char: string, openers: string, closers: string): number =>
+  (openers.includes(char) ? 1 : 0) - (closers.includes(char) ? 1 : 0);
+
+/** The quote state after one character: an opening quote enters a quoted
+ * value, a matching one exits it, and SQL doubling (a doubled quote) exits
+ * and re-enters in one step. */
+const quoteStateAfter = (
+  quoted: string | null,
+  char: string,
+  quotes: string | undefined,
+): string | null => {
+  if (quoted !== null) return char === quoted ? null : quoted;
+  return quotes?.includes(char) ? char : null;
+};
+
+/**
+ * The commas of `text` that sit at the base nesting level (see CommaSplit).
+ * A fixed character list leaves no index arithmetic a mutant can
+ * freeze (see TODO, "Loop-freezing mutants stall whole mutation runs").
+ * `split("")` walks UTF-16 code units, so the indexes it reports work with
+ * the string APIs every caller uses.
+ */
+export const topLevelCommas = (
+  text: string,
+  split: CommaSplit,
+): TopLevelCommas => {
+  const commas: number[] = [];
+  const { closers, openers, quotes, start, stopWhenClosed } = split;
+  let level = 0;
+  let end = text.length;
+  let quoted: string | null = null;
+  for (const [i, char] of text.split("").entries()) {
+    if (i < start) continue;
+    // A quoted value is opaque: its brackets and commas split nothing.
+    quoted = quoteStateAfter(quoted, char, quotes);
+    if (quoted !== null) continue;
+    level += levelStep(char, openers, closers);
+    if (stopWhenClosed && level === -1) {
+      end = i;
+      break;
+    }
+    if (char === "," && level === 0) commas.push(i);
+  }
+  return { commas, end };
+};

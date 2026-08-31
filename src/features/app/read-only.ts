@@ -1,3 +1,4 @@
+import { isOneOf } from "#fp";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 
@@ -31,11 +32,7 @@ const READ_ONLY_SAFE_PATHS = [
   /^\/checkin\/[^/]+$/,
 ];
 
-const isMutatingMethod = (method: string): boolean =>
-  method === "DELETE" ||
-  method === "PATCH" ||
-  method === "POST" ||
-  method === "PUT";
+const isMutatingMethod = isOneOf(["DELETE", "PATCH", "POST", "PUT"]);
 
 const isAdminMutation = (path: string, method: string): boolean =>
   isMutatingMethod(method) && path.startsWith("/admin/");

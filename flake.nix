@@ -38,6 +38,9 @@
               pkgs.biome
               pkgs.openssl
               pkgs.buildah
+              # The PR queue report (`deno task pr-queue`) and the stacked-PR
+              # workflow both run gh commands.
+              pkgs.gh
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
             shellHook = ''

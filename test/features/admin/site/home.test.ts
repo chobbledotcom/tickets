@@ -22,7 +22,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     // The expected labels, hints, and names are written out here so a changed
     // form definition fails this test instead of moving the expectation along.
     test("serves the home form boxes with their labels and hints", async () => {
-      const { siteHomeForm } = await import("#routes/admin/site.ts");
+      const { siteHomeForm } = await import("#templates/fields/site.ts");
       const html = siteHomeForm.render();
       expect(html).toContain("Website title");
       expect(html).toContain(
@@ -39,7 +39,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     });
 
     test("serves the contact form box with its label", async () => {
-      const { siteContactForm } = await import("#routes/admin/site.ts");
+      const { siteContactForm } = await import("#templates/fields/site.ts");
       const html = siteContactForm.render();
       inputNamed(html, "contact_page_text");
       expect(html).toContain("Contact page text");

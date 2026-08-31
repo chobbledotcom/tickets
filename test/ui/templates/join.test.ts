@@ -9,12 +9,18 @@ describe("join templates", () => {
   registerPublicTemplateHooks();
 
   test("renders the password form for the invited user", () => {
-    const html = joinPage("invite-code", "New <User>", "Try again");
+    const html = joinPage(
+      "invite-code",
+      "New <User>",
+      "<password-fields/>",
+      "Try again",
+    );
 
     expect(html).toContain("<title>Set your password</title>");
     expect(html).toContain("Welcome, New &lt;User&gt;");
     expect(html).toContain('action="/join/invite-code"');
     expect(html).toContain("Set your password to complete your account setup.");
+    expect(html).toContain("<password-fields/>");
     expect(html).toContain("Try again");
     expect(html).toContain(">Set password</button>");
   });

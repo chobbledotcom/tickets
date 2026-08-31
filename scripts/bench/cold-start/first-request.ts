@@ -37,11 +37,9 @@ const log = console.log.bind(console);
 
 /** Add the public catalogue whose group count makes query scaling visible. */
 const seedCatalogue = async (): Promise<void> => {
-  const { computeGroupSlugIndex, groups, setListingGroups } = await import(
-    "#db/groups.ts"
-  );
+  const { groups, setListingGroups } = await import("#db/groups.ts");
   const { listingsTable } = await import("#db/listings/records.ts");
-  const { computeSlugIndex } = await import("#db/listings/table.ts");
+  const { hmacHash } = await import("#crypto/hashing.ts");
 
   const addGroupWithListing = async (
     number: number,
@@ -53,7 +51,7 @@ const seedCatalogue = async (): Promise<void> => {
       isPackage,
       name: benchmarkGroupName(number, isPackage),
       slug,
-      slugIndex: await computeGroupSlugIndex(slug),
+      slugIndex: await hmacHash(slug),
     });
     const listingSlug = `benchmark-listing-${number}`;
     const listing = await listingsTable.insert({
@@ -61,7 +59,7 @@ const seedCatalogue = async (): Promise<void> => {
       maxPrice: 0,
       name: benchmarkListingName(number),
       slug: listingSlug,
-      slugIndex: await computeSlugIndex(listingSlug),
+      slugIndex: await hmacHash(listingSlug),
     });
     await setListingGroups(listing.id, [group.id]);
   };

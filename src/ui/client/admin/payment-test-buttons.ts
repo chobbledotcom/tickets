@@ -2,6 +2,14 @@
 /// <reference lib="dom.iterable" />
 import { csrfPost } from "./csrf.ts";
 
+/** The answer a connection-test endpoint returns: whether the connection
+ * passed, and the lines to show — words the server rendered from the
+ * message catalog, so this script holds no copy of its own. */
+interface ConnectionAnswer {
+  lines: string[];
+  ok: boolean;
+}
+
 /** Show the result box with the given text, coloured green for a pass and red
  * for a failure. */
 const showTestResult = (
@@ -19,43 +27,43 @@ const showTestResult = (
 
 /** Wire up one payment provider's "Test Connection" button. The provider's
  * own name gives the two element ids, the result class and the test address,
- * so the page and this script cannot disagree about any of them. */
-const setupTestButton = (
-  provider: string,
-  // deno-lint-ignore no-explicit-any
-  formatLines: (data: any) => string[],
-) => {
+ * so the page and this script cannot disagree about any of them. The page
+ * also owns every label: the answer's words come from the server, and the
+ * testing and failure labels ride along as data attributes. */
+const setupTestButton = (provider: string) => {
   const button = document.getElementById(`${provider}-test-btn`);
   if (!(button instanceof HTMLButtonElement)) return;
-  const resultId = `${provider}-test-result`;
+  const resultDiv = document.getElementById(`${provider}-test-result`);
+  if (resultDiv === null) return;
   // The page owns the button label, so keep its own words to put back.
   const label = button.textContent;
   button.addEventListener("click", async () => {
-    const resultDiv = document.getElementById(resultId)!;
     button.disabled = true;
-    button.textContent = "Testing...";
+    button.textContent = button.dataset.testing ?? label;
     resultDiv.classList.add("hidden");
     resultDiv.classList.remove("success", "error");
     try {
       const csrfInput = button
         .closest("form")
         ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
-      const data = await csrfPost(
+      const answer: ConnectionAnswer = await csrfPost(
         `/admin/settings/${provider}/test`,
         csrfInput?.value ?? "",
       );
       showTestResult(
         resultDiv,
-        formatLines(data).join("\n"),
-        data.ok,
-        resultId,
+        answer.lines.join("\n"),
+        answer.ok,
+        `${provider}-test-result`,
       );
     } catch (e) {
       showTestResult(
         resultDiv,
-        `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`,
+        `${resultDiv.dataset.failed} ${
+          e instanceof Error ? e.message : "Unknown error"
+        }`,
         false,
-        resultId,
+        `${provider}-test-result`,
       );
     }
     button.disabled = false;
@@ -63,72 +71,10 @@ const setupTestButton = (
   });
 };
 
-/** Format a webhook status line from a test result's webhook field */
-// deno-lint-ignore no-explicit-any
-const formatWebhookLine = (webhook: any, detail: string): string =>
-  webhook.configured
-    ? `Webhook: ${detail}`
-    : `Webhook: Not configured${webhook.error ? ` - ${webhook.error}` : ""}`;
-
-/** Format a Square location line */
-// deno-lint-ignore no-explicit-any
-const formatLocationLine = (loc: any): string =>
-  loc.configured
-    ? `Location: ${loc.name || loc.locationId}${loc.status ? ` (${loc.status})` : ""}`
-    : `Location: Not configured${loc.error ? ` - ${loc.error}` : ""}`;
-
-/** Format a credential validity line (e.g. "API Key: Valid (test mode)") */
-// deno-lint-ignore no-explicit-any
-const formatCredentialLine = (label: string, cred: any): string =>
-  cred.valid
-    ? `${label}: Valid (${cred.mode} mode)`
-    : `${label}: Invalid${cred.error ? ` - ${cred.error}` : ""}`;
-
-/** Format Stripe webhook endpoint lines */
-// deno-lint-ignore no-explicit-any
-const formatStripeWebhooks = (data: any): string[] => {
-  if (data.webhookError) return [`Webhooks: Error - ${data.webhookError}`];
-  if (!data.webhooks?.length) return ["Webhooks: None configured"];
-  const lines = [`Webhooks: ${data.webhooks.length} endpoint(s)`];
-  for (const wh of data.webhooks) {
-    const ours =
-      data.ownEndpointId && wh.endpointId === data.ownEndpointId
-        ? " (tickets)"
-        : "";
-    lines.push(`  ${wh.status} - ${wh.url}${ours}`);
-    lines.push(`  Events: ${wh.enabledEvents.join(", ")}`);
-  }
-  return lines;
-};
-
 /** Wire up the "Test Connection" button of every payment provider that has
  * one on the admin settings page. */
 export const initPaymentTestButtons = (): void => {
-  setupTestButton("stripe", (data) => [
-    formatCredentialLine("API Key", data.apiKey),
-    ...formatStripeWebhooks(data),
-  ]);
-
-  setupTestButton("square", (data) => [
-    formatCredentialLine("Access Token", data.accessToken),
-    formatLocationLine(data.location),
-    formatWebhookLine(data.webhook, "Signature key configured"),
-  ]);
-
-  setupTestButton("sumup", (data) => {
-    const apiKeyLine = formatCredentialLine("API Key", data.apiKey);
-    // A rejected key means the merchant lookup never ran, so "Merchant: Not
-    // configured" would be misleading and the currency note is just noise.
-    // The API Key line already carries the full, actionable fix.
-    if (!data.apiKey.valid) return [apiKeyLine];
-    return [
-      apiKeyLine,
-      data.merchant.configured
-        ? `Merchant: ${data.merchant.merchantCode}`
-        : `Merchant: Not configured${data.merchant.error ? ` - ${data.merchant.error}` : ""}`,
-      data.currency.supported
-        ? `Currency: ${data.currency.code} (supported)`
-        : `Currency: ${data.currency.code} is not supported by SumUp`,
-    ];
-  });
+  for (const provider of ["square", "stripe", "sumup"]) {
+    setupTestButton(provider);
+  }
 };

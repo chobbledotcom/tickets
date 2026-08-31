@@ -12,9 +12,9 @@ import { walkSourceFiles } from "#test-utils/walk-src.ts";
  * the section ids unique.
  *
  * PENDING_SECTIONS are anchors whose guide section is planned but not yet
- * written (tracked in TODO.md under "Admin guide — sections still to write").
- * Their links are allowed to dangle until the section lands; delete an entry
- * here as soon as its section is authored (the second test fails if you forget).
+ * written. Their links are allowed to dangle until the section lands; delete
+ * an entry here as soon as its section is authored (the second test fails if
+ * you forget).
  */
 const PENDING_SECTIONS = new Set<string>([]);
 
