@@ -23,6 +23,7 @@ import {
   requiredMapValue,
   sameOn,
   sameOrder,
+  sortedNumbers,
   sumByKey,
 } from "#fp";
 
@@ -347,6 +348,16 @@ describe("emptyListsFor", () => {
   });
 });
 
+describe("sortedNumbers", () => {
+  test("orders the numbers smallest first, below zero included", () => {
+    expect(sortedNumbers([3, 0, -1, -3, 1])).toEqual([-3, -1, 0, 1, 3]);
+  });
+
+  test("keeps each number once", () => {
+    expect(sortedNumbers([2, 2, 1])).toEqual([1, 2]);
+  });
+});
+
 describe("sameOrder", () => {
   test("matches two sequences holding the same values in the same order", () => {
     expect(sameOrder([1, 2, 3], [1, 2, 3])).toBe(true);
@@ -359,6 +370,10 @@ describe("sameOrder", () => {
 
   test("refuses the same values in a different order", () => {
     expect(sameOrder(["a", "b"], ["b", "a"])).toBe(false);
+  });
+
+  test("refuses a difference at the very first place", () => {
+    expect(sameOrder([1, 2, 3], [9, 2, 3])).toBe(false);
   });
 
   test("refuses a difference at the very last place", () => {
