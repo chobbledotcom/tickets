@@ -131,21 +131,25 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null =>
 const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
 
 /**
- * The line with its comments taken out, so a `from` inside one cannot end a
- * wrapped import early or name the wrong module. A string keeps whatever it
- * quotes, so a module address with `//` of its own survives.
+ * The source with every comment taken out, newlines kept where they were so a
+ * reader can still count lines. A comment that spans lines stays absent on
+ * each of them, because the walk carries it from the line it opens to the line
+ * it closes. A string keeps whatever it quotes, so a module address with `//`
+ * of its own survives.
  */
-const withoutComments = (line: string): string => {
+const stripComments = (source: string): string => {
   let out = "";
   let index = 0;
-  while (index < line.length) {
-    const character = line[index] as string;
+  while (index < source.length) {
+    const character = source[index] as string;
     if (character === '"' || character === "'" || character === "`") {
-      const end = endOfQuoted(line, index + 1, character);
-      out += line.slice(index, end);
+      const end = endOfQuoted(source, index + 1, character);
+      out += source.slice(index, end);
       index = end;
-    } else if (opensComment(line, index)) {
-      index = endOfComment(line, index);
+    } else if (opensComment(source, index)) {
+      const end = endOfComment(source, index);
+      out += source.slice(index, end).replace(/[^\n]/g, "");
+      index = end;
     } else {
       out += character;
       index++;
@@ -161,28 +165,27 @@ const withoutComments = (line: string): string => {
  * module name is read from the line that ends the statement, which is the line
  * carrying `from`, and the shape from the line that opens it. A statement that
  * ends without a `from`, such as `export { getRawCached };`, names no module
- * and is dropped. Comments on a line are read as absent, so a `from` inside
- * one cannot end the statement early or name the wrong module.
+ * and is dropped. Comments are read as absent, so a `from` inside one cannot
+ * end the statement early or name the wrong module.
  */
 export const topLevelImports = (content: string): ImportLine[] => {
   const found: ImportLine[] = [];
   let open: { head: string; line: number } | null = null;
-  for (const [index, line] of content.split("\n").entries()) {
+  for (const [index, line] of stripComments(content).split("\n").entries()) {
     if (open === null && OPENS_A_MODULE_STATEMENT.test(line)) {
       open = { head: line, line: index + 1 };
     }
     if (open === null) continue;
-    const bare = withoutComments(line);
     const isEnd =
-      /from\s+["']/.test(bare) ||
-      /^import\s+["'][^"']*["']/.test(bare) ||
-      /;\s*$/.test(bare);
+      /from\s+["']/.test(line) ||
+      /^import\s+["'][^"']*["']/.test(line) ||
+      /;\s*$/.test(line);
     if (!isEnd) continue;
     // A side-effect `import "./x.ts"` names its module without a `from`, and
     // loads it for what it does rather than for what it hands back.
     const specifier =
-      bare.match(/from\s+["']([^"']+)["']/)?.[1] ??
-      bare.match(/^import\s+["']([^"']+)["']/)?.[1];
+      line.match(/from\s+["']([^"']+)["']/)?.[1] ??
+      line.match(/^import\s+["']([^"']+)["']/)?.[1];
     if (specifier !== undefined) {
       found.push({
         line: open.line,

@@ -31,9 +31,14 @@ const isKeywordUse = (word: string, offset: number, full: string): boolean => {
     .startsWith(":");
 };
 
+/** The runs a rename touches: names, numbers, and quoted text of every style,
+ * backticks included, so template words mask with the template around them
+ * and a syntax word inside one cannot survive on its own. */
+const WORD_RUN = /[A-Za-z0-9_$'"`]+/g;
+
 export const skeleton = (code: string): string =>
   code
-    .replace(/[A-Za-z0-9_$'"]+/g, (word, offset: number) =>
+    .replace(WORD_RUN, (word, offset: number) =>
       SYNTAX_WORDS.has(word) && isKeywordUse(word, offset, code) ? word : "§",
     )
     .replace(/\s+/g, "");

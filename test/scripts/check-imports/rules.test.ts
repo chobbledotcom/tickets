@@ -170,6 +170,16 @@ describe("topLevelImports", () => {
         typeOnly: false,
       },
     ]);
+    // A comment that spans lines stays absent on each line it covers.
+    const spanning = [
+      "import {",
+      "  /*",
+      '  from "./wrong.ts"',
+      "  */",
+      "  thing,",
+      '} from "./right.ts";',
+    ].join("\n");
+    expect(topLevelImports(spanning)).toEqual(expected);
   });
 
   test("keeps a module address that carries its own slashes", () => {

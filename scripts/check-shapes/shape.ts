@@ -342,12 +342,14 @@ const braceEndedAValue = (shape: readonly string[]): boolean => {
  * `)` is the one token that depends on what came before it: `total() / 2`
  * divides, but `if (ready) /foo/.test(value)` opens a pattern. A `}` is the
  * other: `if (ready) {} /foo/.test(value)` opens one too, because the brace
- * closed a block.
+ * closed a block. A `!` divides only as a non-null assertion, which it is
+ * when what stands before it ended a value itself.
  */
 const endsAValue = (shape: readonly string[]): boolean => {
   const before = shape[shape.length - 1] ?? "";
   if (before === ")") return !closesAHeader(shape);
   if (before === "}") return braceEndedAValue(shape);
+  if (before === "!") return endsAValue(shape.slice(0, -1));
   return ENDS_A_VALUE.has(before);
 };
 

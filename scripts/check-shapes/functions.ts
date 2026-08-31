@@ -172,9 +172,12 @@ const maskFor = (node: AstNode, source: string): string | null => {
   // the keyword it spells: `class={…}` and `type={…}` must read as names.
   if (node.type === "Identifier" || node.type === "JSXIdentifier") return "_";
   // A closing tag reads as one without repeating the element's name, which the
-  // opening tag already carried. Dropping its `/` also keeps the tokeniser from
-  // reading `</b>` as a pattern opening after `<`.
-  if (node.type === "JSXClosingElement") return "<>";
+  // opening tag already carried — a fragment's `</>` too. Dropping the `/`
+  // also keeps the tokeniser from reading `</b>` as a pattern opening after
+  // `<`.
+  if (node.type === "JSXClosingElement" || node.type === "JSXClosingFragment") {
+    return "<>";
+  }
   if (node.type !== "JSXText") return null;
   return /\S/.test(source.slice(node.start as number, node.end as number))
     ? '""'

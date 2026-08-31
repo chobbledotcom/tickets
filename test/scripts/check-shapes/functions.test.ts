@@ -153,6 +153,10 @@ describe("maskedRuns", () => {
     expect(masked("const A = () => <b>x</b>;")).toContainEqual(["</b>", "<>"]);
   });
 
+  test("masks a closing fragment, so its slash cannot open a pattern", () => {
+    expect(masked("const A = () => <>x</>;")).toContainEqual(["</>", "<>"]);
+  });
+
   test("leaves an interpolated value as code, masking only its names", () => {
     const runs = masked("const A = ({ n }) => <b>{n.toFixed(2)}</b>;");
     expect(runs.every(([, as]) => as !== '""')).toBe(true);

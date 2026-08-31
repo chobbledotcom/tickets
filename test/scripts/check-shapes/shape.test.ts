@@ -246,6 +246,20 @@ describe("shapeOf reading a pattern", () => {
   test("still reads a slash after a value as dividing", () => {
     expect(shapeOf("a / b")).toEqual(["ID", "/", "ID"]);
     expect(shapeOf("total() / 2")).toEqual(["ID", "(", ")", "/", "NUM"]);
+    // A non-null assertion ends the value it asserts on.
+    expect(shapeOf("total! / divisor")).toEqual(["ID", "!", "/", "ID"]);
+    // A leading negation ends no value, so the pattern after it opens.
+    expect(shapeOf("return !/x/.test(s);")).toEqual([
+      "return",
+      "!",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+      ";",
+    ]);
   });
 
   test("reads a step operator as one token, the way JavaScript does", () => {
