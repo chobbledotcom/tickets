@@ -288,6 +288,21 @@ describe("what the walk goes into", () => {
     ).toBe("read");
   });
 
+  test("does not take a borrowed name for the built-in it spells", () => {
+    // The repository's own `Partial` is not the built-in: it hands its
+    // argument on under a named member of its own, so the walk leaves the
+    // argument to the checker and the outer field keeps its own line.
+    expect(verdictOf("UsesABorrowedName", "shared")).toBe("read");
+    expect(verdictOf("UsesABorrowedName", "held")).toBe("never read");
+  });
+
+  test("leaves a record keyed by words to the checker", () => {
+    // `Record<"fixed", T>` names one member per word, reached as
+    // `record.fixed`, so the element step does not apply and the checker
+    // carries the word.
+    expect(verdictOf("FixedByWord", "fixed")).toBeUndefined();
+  });
+
   test("still sees a field a readonly array hands out", () => {
     // `readonly` is a type operator too, and this one does hand a field out.
     // The list still takes its step, because a reader writes `kept[0]`.

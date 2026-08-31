@@ -29,6 +29,8 @@ import {
   type NamedByALiteral,
   NamedItsParameter,
   type Passed,
+  type FixedByWord,
+  type MixedKeyRecord,
   type PassedThroughPartially,
   type PassedThroughReadonly,
   type PassedThroughRequired,
@@ -251,6 +253,15 @@ export const readBesideTheMapping = (m: MapsItsValues): string =>
 
 // Reads a member the Readonly pass-through kept, at the outer path.
 export const readFrozen = (r: PassedThroughReadonly): number => r.heldNested.deepInsideTheFreeze;
+
+// Reads the word the record named, which is a member like any other.
+export const readTheFixedWord = (record: FixedByWord): number => record.fixed.id;
+
+// Reads one member by its bracket, as the union of a domain and a word
+// promises.
+export const readByBracket = (record: MixedKeyRecord): number =>
+  record[7].byBracket;
+
 
 export const readRequired = (r: PassedThroughRequired): number =>
   r.maybeMissing?.readOnceFilled ?? 0;

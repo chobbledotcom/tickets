@@ -190,4 +190,19 @@ export class ShadowsItsBase extends ServesItsStatics {
 // Reads the child's own, and never the base's.
 export const readTheShadowingStatic = (): number =>
   ShadowsItsBase.writtenOnTheChild;
+
+// A type the repository wrote itself under a borrowed name is never the
+// built-in the name usually means. This \`Partial\` hands its argument on
+// under a named member of its own, so the walk leaves the argument to the
+// checker.
+type Partial<What> = { held: What };
+
+export type UsesABorrowedName = { shared: string } & Partial<
+  { shared: number }
+>;
+
+// Reads the direct field, and never the one the borrowed name carries.
+export const readBesideTheBorrowedName = (
+  held: UsesABorrowedName,
+): string => held.shared;
 `;

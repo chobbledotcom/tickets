@@ -179,13 +179,14 @@ export const exportedFields = (
   };
 
   const partsOf = membersOf(checker);
+  const stepOf = underAnUnnamedPart(checker);
   const collect = (path: readonly Step[], node: ts.Node): void => {
     if (handsNothingOut(node)) return;
     const here: readonly Step[] = isStatic(node)
       ? [{ way: `typeof ${ownerOf(path)}` }]
       : path;
     const name = fieldNameOf(node);
-    const inside = name ? remember(here, name) : underAnUnnamedPart(here, node);
+    const inside = name ? remember(here, name) : stepOf(here, node);
     for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {

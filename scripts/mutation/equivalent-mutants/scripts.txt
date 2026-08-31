@@ -127,3 +127,4 @@ scripts/unread-fields/fields/walking.ts::answeredWith~0x551x4  ?? → ||   # arm
 scripts/unread-fields/fields/steps.ts::throughTheMap~0kfksbp  ?? → ||   # parent.typeArguments is a NodeArray or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/steps.ts::stepOfTheSettersName.written~0dvznn4  ?? → ||   # quotedInBrackets answers a ts.Node or undefined, and a node is always a truthy object, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/walking.ts::partsOfTheGeneric.argumentNodes~1ulj8jb  ?? → ||   # node.typeArguments is a NodeArray or undefined, and an array is always a truthy object, so nothing falsy-but-defined can reach the fallback
+

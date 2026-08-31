@@ -6,14 +6,24 @@
 
 import ts from "typescript";
 import { filter } from "#fp";
-import { holdsElements, holdsKeysAndValues, namedOneOf } from "./steps.ts";
+import {
+  holdsElements,
+  holdsKeysAndValues,
+  passesMembersThrough,
+} from "./steps.ts";
 
-/** The generics that hand their argument's members out under the names the
- * argument gave them. `Partial<T>`, `Required<T>` and `Readonly<T>` keep
- * every member of T, with no step between. */
-const PASSES_MEMBERS_THROUGH = namedOneOf(
-  new Set(["Partial", "Required", "Readonly"]),
-);
+/** Whether a generic hands its argument on where the walk can see it. The
+ * walk's own containers take their argument as the thing they hold, and the
+ * pass-through utilities — the built-in `Partial`, `Required` and
+ * `Readonly`, resolved through the checker so a borrowed name is not
+ * mistaken for them — keep its members. Every other generic puts its
+ * argument somewhere of its own, so only the checker knows where it lives. */
+const keepsItsArgumentVisible =
+  (checker: ts.TypeChecker): ((node: ts.TypeReferenceNode) => boolean) =>
+  (node) =>
+    holdsElements(checker)(node) ||
+    holdsKeysAndValues(checker)(node) ||
+    passesMembersThrough(checker)(node);
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
@@ -57,15 +67,6 @@ const answeredWith = (
 const holdsOnlyCode = (node: ts.Node): boolean =>
   ts.isFunctionLike(node) || ts.isClassStaticBlockDeclaration(node);
 
-/** Whether a generic hands its argument on where the walk can see it. The
- * walk's own containers take their argument as the thing they hold, and the
- * pass-through utilities keep its members. Every other generic puts its
- * argument somewhere of its own, so only the checker knows where it lives. */
-const keepsItsArgumentVisible = (node: ts.TypeReferenceNode): boolean =>
-  holdsElements(node) ||
-  holdsKeysAndValues(node) ||
-  PASSES_MEMBERS_THROUGH(node);
-
 /** The parts of a generic the walk goes on through. A generic that hides its
  * argument keeps its own parts only, so the checker path carries the
  * argument's fields instead. */
@@ -104,7 +105,10 @@ const worthWalking =
     if (ts.isConditionalTypeNode(node)) {
       return partsOfTheConditional(checker, node);
     }
-    if (ts.isTypeReferenceNode(node) && !keepsItsArgumentVisible(node)) {
+    if (
+      ts.isTypeReferenceNode(node) &&
+      !keepsItsArgumentVisible(checker)(node)
+    ) {
       return partsOfTheGeneric(node);
     }
     if (!holdsOnlyCode(node)) return () => true;

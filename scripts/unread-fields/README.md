@@ -208,11 +208,14 @@ own gets the way a reader reaches through it instead: `Callable["()"]` for a
 call signature, `Constructable["new ()"]` for a construct signature, and
 `Bag["[string]"]` for an index signature that keys on strings — the bracket
 holds the kind of key a reader writes there, so two signatures for different
-kinds of key stay apart. A list, a `Record` and a set read one member at a time,
-so they take the same `[]` step. The fields of `Array<{ total: number }>` sit
-under `Rows["[]"]`, because a reader writes `rows[0].total`. A map's keys and
-values take the two calls a reader makes of them, as `Held["keys()"]` and
-`Held["values()"]`.
+kinds of key stay apart. A list, a set, and a `Record` keyed by an open domain
+of keys — `Record<string, T>` — read one member at a time, so they take the same
+`[]` step. The fields of `Array<{ total: number }>` sit under `Rows["[]"]`,
+because a reader writes `rows[0].total`. A `Record` keyed by words —
+`Record<"fixed", T>` — is different: each word names one member, reached as
+`record.fixed`, so the element step does not apply and the checker carries the
+word. A map's keys and values take the two calls a reader makes of them, as
+`Held["keys()"]` and `Held["values()"]`.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start, not a verdict. A field

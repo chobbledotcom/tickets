@@ -162,6 +162,25 @@ describe("the steps a reader takes", () => {
     expect(verdictOf("NamedByALiteral", "templated")).toBe("read");
   });
 
+  test("takes each pass-through generic at its own word", () => {
+    // `Partial`, `Required` and `Readonly` all keep their argument's members
+    // at the outer path, and each spelling is pinned so none can be dropped
+    // from the list without a line losing its field. The nested field is the
+    // one only the walk can find — the checker path stops at the top member.
+    expect(verdictOf("PassedThroughPartially", "carriedThroughUntouched")).toBe(
+      "read",
+    );
+    expect(
+      verdictOf("PassedThroughPartially.carriedNested", "deepInsideThePartial"),
+    ).toBe("read");
+    expect(
+      verdictOf("PassedThroughRequired.maybeMissing", "readOnceFilled"),
+    ).toBe("read");
+    expect(
+      verdictOf("PassedThroughReadonly.heldNested", "deepInsideTheFreeze"),
+    ).toBe("read");
+  });
+
   test("keeps two index signatures of different key kinds apart", () => {
     // `bag[stringKey]` and `bag[symbolKey]` are two fields, and the kind of
     // key names the step so a read of one never answers for the other.

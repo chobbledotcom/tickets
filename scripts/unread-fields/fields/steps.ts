@@ -6,13 +6,34 @@
 import ts from "typescript";
 import { quotedInBrackets } from "#scripts/unread-fields/writes.ts";
 
-/** A type this repository names rather than writes out, picked from a list. */
-export const namedOneOf =
-  (names: ReadonlySet<string>): ((node: ts.Node) => boolean) =>
-  (node) =>
-    ts.isTypeReferenceNode(node) &&
-    ts.isIdentifier(node.typeName) &&
-    names.has(node.typeName.text);
+/** Whether the language itself wrote a declaration down — in a declaration
+ * file — rather than this repository. */
+const declaredByTheLanguage = (at: ts.Declaration): boolean =>
+  at.getSourceFile().isDeclarationFile;
+
+/** A built-in type this reference names, picked from a list. A type the
+ * repository wrote itself under a borrowed name (`type Partial<T> = ...`)
+ * never matches: its declarations are the repository's own, not the
+ * language's declaration files. A name the program typechecked with always
+ * resolves to its symbol. */
+const builtInNamed =
+  (
+    names: ReadonlySet<string>,
+  ): ((checker: ts.TypeChecker) => (node: ts.Node) => boolean) =>
+  (checker) =>
+  (node) => {
+    if (
+      !ts.isTypeReferenceNode(node) ||
+      !ts.isIdentifier(node.typeName) ||
+      !names.has(node.typeName.text)
+    ) {
+      return false;
+    }
+    const symbol = checker.getSymbolAtLocation(node.typeName) as ts.Symbol;
+    // A resolved built-in always carries the language's own declarations.
+    const declarations = symbol.declarations as readonly ts.Declaration[];
+    return declarations.every(declaredByTheLanguage);
+  };
 
 /** The generics a reader reaches one member at a time. `Array<Row>` and
  * `Row[]` are one type written two ways, and `Record<string, Row>` is the
@@ -20,16 +41,56 @@ export const namedOneOf =
  * holds many the same way, so a field of the shape and a field of what it
  * holds stay two fields. A map is not here: its two arguments are below.
  * These are all exported for the walk, which keeps a generic's argument out
- * unless the generic hands it on unchanged. */
-export const holdsElements = namedOneOf(
-  new Set(["Array", "ReadonlyArray", "Record", "Set", "ReadonlySet"]),
-);
+ * unless the generic hands it on unchanged. A `Record` keyed by words rather
+ * than a key domain stays out too: its members are named, reached as
+ * `record.fixed`, so the checker reports them like any other named member. */
+const ELEMENT_CONTAINERS = new Set([
+  "Array",
+  "ReadonlyArray",
+  "Record",
+  "Set",
+  "ReadonlySet",
+]);
+
+/** Whether a `Record`'s first type argument names a key domain — a string,
+ * a number, a symbol — rather than the words themselves. A domain reaches
+ * one member at a time; words each name one member. A union mixes the two
+ * the way the checker does: a domain anywhere makes the whole thing one. */
+const namesAWordKey = (keys: ts.TypeNode): boolean => {
+  if (ts.isUnionTypeNode(keys)) return keys.types.every(namesAWordKey);
+  return ts.isLiteralTypeNode(keys);
+};
+
+/** The generics a reader reaches one member at a time, except a `Record`
+ * keyed by words: each word names one member, reached as `record.fixed`, so
+ * the element step does not apply. */
+export const holdsElements =
+  (checker: ts.TypeChecker): ((node: ts.Node) => boolean) =>
+  (node) => {
+    if (!anElementContainer(checker)(node)) return false;
+    // An element container always writes its arguments down — the name does
+    // not typecheck without them.
+    const reference = node as ts.TypeReferenceNode;
+    // An element container always writes its arguments down — the name
+    // does not typecheck without them.
+    const [first] = reference.typeArguments as unknown as [ts.TypeNode];
+    return !namesAWordKey(first);
+  };
+
+const anElementContainer = builtInNamed(ELEMENT_CONTAINERS);
 
 /** The generics that hold two different kinds of thing at once. The key and
  * the value of a map are reached by two different calls, so a field of each
  * with one name stays two fields. Exported for the walk, which keeps a
  * generic's argument out unless the generic hands it on unchanged. */
-export const holdsKeysAndValues = namedOneOf(new Set(["Map", "ReadonlyMap"]));
+export const holdsKeysAndValues = builtInNamed(new Set(["Map", "ReadonlyMap"]));
+
+/** A pass-through generic hands its argument's members on unchanged.
+ * `Partial<T>`, `Required<T>` and `Readonly<T>` keep every member of T, with
+ * no step between. */
+export const passesMembersThrough = builtInNamed(
+  new Set(["Partial", "Required", "Readonly"]),
+);
 
 /** One step down to a field. A `name` is what a field is called, and a `way`
  * is how a reader reaches through a member with no name of its own. The two
@@ -108,11 +169,14 @@ const arrivesThroughACall = (node: ts.ParameterDeclaration): boolean => {
  * reached by two different calls, `keys()` and `values()`, so the first
  * argument is the key's type. A reference that writes no arguments down has
  * none of either, and a map's name does not typecheck without its two. */
-const throughTheMap = (node: ts.Node): { way: string } | undefined => {
+const throughTheMap = (
+  checker: ts.TypeChecker,
+  node: ts.Node,
+): { way: string } | undefined => {
   const { parent } = node;
   if (!ts.isTypeReferenceNode(parent)) return;
   const [key] = parent.typeArguments ?? [];
-  if (!holdsKeysAndValues(parent)) return;
+  if (!holdsKeysAndValues(checker)(parent)) return;
   return { way: node === key ? "keys()" : "values()" };
 };
 
@@ -154,7 +218,41 @@ const stepsBeforeTheParametersOwn = (
   ...stepThrough(arrivesThroughACall(node), "()"),
 ];
 
-/** The step a member with no name of its own adds to the path. A shape can
+/** The step an index signature adds. A shape can hold more than one index
+ * signature, each for keys of its own kind, so the kind names the step:
+ * `bag[stringKey]` and `bag[symbolKey]` stay two fields. An index signature
+ * always writes its one annotated key parameter down — the syntax has no
+ * other form. */
+const stepOfTheIndexSignature = (
+  node: ts.IndexSignatureDeclaration,
+): { way: string } => {
+  const key = node.parameters[0] as Required<ts.ParameterDeclaration>;
+  return { way: `[${key.type.getText()}]` };
+};
+
+/** The step a tuple element takes: its place, the way a destructured
+ * parameter takes its place in the list. */
+const stepOfTheTuplePlace = (
+  node: ts.Node,
+  tuple: ts.TupleTypeNode,
+): { way: string } => {
+  const place = tuple.elements as readonly ts.Node[];
+  return { way: String(place.indexOf(node)) };
+};
+
+/** The final fallthrough step: a list's `[]`, or the way a reader reaches
+ * through a member with a spelling in the table. */
+const fallThroughText = (
+  checker: ts.TypeChecker,
+  node: ts.Node,
+): string | undefined => {
+  if (handsBackItsResult(node)) return ITS_RESULT;
+  return holdsElements(checker)(node)
+    ? ELEMENT
+    : REACHED_THROUGH.get(node.kind);
+};
+
+/** The steps a member with no name of its own adds to the path. A shape can
  * hold more than one of them, and each can carry a field of the same name, so
  * a step that tells them apart is what keeps the two fields two.
  * `send(first: { id: string }, second: { id: string })` is the plain case: the
@@ -168,37 +266,42 @@ const stepsBeforeTheParametersOwn = (
  * destructured parameter does.
  * A setter is a step of its own name, because a setter is nobody's to read
  * but its input is everybody's to supply. */
-export const underAnUnnamedPart = (
+export const underAnUnnamedPart =
+  (
+    checker: ts.TypeChecker,
+  ): ((path: readonly Step[], node: ts.Node) => readonly Step[]) =>
+  (path, node) =>
+    stepOfANamelessPart(checker, path, node);
+
+const stepOfANamelessPart = (
+  checker: ts.TypeChecker,
   path: readonly Step[],
   node: ts.Node,
 ): readonly Step[] => {
   if (ts.isParameter(node)) {
-    const way = ts.isIdentifier(node.name)
-      ? node.name.text
-      : String(node.parent.parameters.indexOf(node));
-    return [...path, ...stepsBeforeTheParametersOwn(node), { way }];
+    return [...path, ...stepsOfAParameter(node)];
   }
   if (ts.isSetAccessorDeclaration(node)) {
     const step = stepOfTheSettersName(node.name);
     return step ? [...path, step] : path;
   }
   if (ts.isTupleTypeNode(node.parent)) {
-    const place = node.parent.elements as readonly ts.Node[];
-    return [...path, { way: String(place.indexOf(node)) }];
+    return [...path, stepOfTheTuplePlace(node, node.parent)];
   }
   if (ts.isIndexSignatureDeclaration(node)) {
-    // A shape can hold more than one index signature, each for keys of its
-    // own kind, so the kind names the step: `bag[stringKey]` and
-    // `bag[symbolKey]` stay two fields. An index signature always writes
-    // its one annotated key parameter down — the syntax has no other form.
-    const key = node.parameters[0] as Required<ts.ParameterDeclaration>;
-    return [...path, { way: `[${key.type.getText()}]` }];
+    return [...path, stepOfTheIndexSignature(node)];
   }
-  const throughMap = throughTheMap(node);
+  const throughMap = throughTheMap(checker, node);
   if (throughMap) return [...path, throughMap];
-  if (handsBackItsResult(node)) return [...path, { way: ITS_RESULT }];
-  const through = holdsElements(node)
-    ? ELEMENT
-    : REACHED_THROUGH.get(node.kind);
-  return through === undefined ? path : [...path, { way: through }];
+  const fallThrough = fallThroughText(checker, node);
+  return fallThrough === undefined ? path : [...path, { way: fallThrough }];
+};
+
+/** The steps a parameter adds: its own name, and the way its caller supplied
+ * it (through `new ()`, through a call, or plainly). */
+const stepsOfAParameter = (node: ts.ParameterDeclaration): readonly Step[] => {
+  const way = ts.isIdentifier(node.name)
+    ? node.name.text
+    : String(node.parent.parameters.indexOf(node));
+  return [...stepsBeforeTheParametersOwn(node), { way }];
 };
