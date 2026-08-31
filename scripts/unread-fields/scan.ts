@@ -19,6 +19,7 @@ import {
 import { exportedFields } from "./fields.ts";
 import { type Finding, verdictFor } from "./findings.ts";
 import { answered, compilerOptions, pathIs, serviceHost } from "./host.ts";
+import { ownerPath } from "./identity.ts";
 import {
   type AskAboutAMention,
   isInside,
@@ -233,8 +234,13 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   const fields = program
     .getSourceFiles()
     .filter((source) => scanned.has(source.fileName))
-    .flatMap((source) => exportedFields(checker, source));
-  const symbols = new Set(fields.flatMap((field) => field.symbols));
+    .flatMap((source) =>
+      exportedFields(checker, source).map((field) => ({
+        exportedFrom: source.fileName,
+        field,
+      })),
+    );
+  const symbols = new Set(fields.flatMap(({ field }) => field.symbols));
   const symbolReaders = readersOfSymbols(
     program,
     checker,
@@ -243,13 +249,18 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
     root,
   );
   const findings: Finding[] = [];
-  for (const { owner, names, symbols: fieldSymbols } of fields) {
+  for (const {
+    exportedFrom,
+    field: { owner, names, symbols: fieldSymbols },
+  } of fields) {
     findings.push({
+      exportedFrom: exportedFrom.replace(`${root}/`, ""),
       field: fieldNameText(names[0]),
       // Where a reader has to go to find it, which is where it was written
       // down rather than the shape that hands it on.
       file: names[0].getSourceFile().fileName.replace(`${root}/`, ""),
-      owner,
+      owner: ownerPath(owner),
+      path: owner,
       verdict: verdictFor(
         readersOf(service, program, root, names, fieldSymbols, symbolReaders),
       ),
