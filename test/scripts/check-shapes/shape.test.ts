@@ -326,6 +326,11 @@ describe("shapeOf reading a pattern", () => {
     // that all but a control header wants, and the slash divides.
     expect(shapeOf(") / 2")).toEqual([")", "/", "NUM"]);
     expect(shapeOf("} / 2")).toEqual(["}", "/", "NUM"]);
+    // A brace at the very head of a body opens a block, with nothing before
+    // it to say otherwise, and a label's unmatched closer still reads as a
+    // label's.
+    expect(shapeOf("{} / 2")).toEqual(["{", "}", "RE"]);
+    expect(shapeOf("done]: {} / 2")).toEqual(["ID", "]", ":", "{", "}", "RE"]);
   });
 
   test("still divides after a bracket that ends a call or a sum", () => {
@@ -410,6 +415,140 @@ describe("shapeOf reading a pattern", () => {
       "(",
       "ID",
       ")",
+    ]);
+  });
+
+  test("reads a label's brace and a case clause's as a block", () => {
+    expect(shapeOf("done: {} /foo/.test(value)")).toEqual([
+      "ID",
+      ":",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+    expect(shapeOf('case "all": {} /x/.test(s)')).toEqual([
+      "case",
+      "STR",
+      ":",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+    expect(shapeOf("default: {} /x/.test(s)")).toEqual([
+      "default",
+      ":",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+  });
+
+  test("still divides after a brace that holds a ternary arm or a property", () => {
+    expect(shapeOf("c ? a : { one: 1 } / 2")).toEqual([
+      "ID",
+      "?",
+      "ID",
+      ":",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+    ]);
+    expect(shapeOf("c ? a[0]: { one: 1 } / 2")).toEqual([
+      "ID",
+      "?",
+      "ID",
+      "[",
+      "NUM",
+      "]",
+      ":",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+    ]);
+    expect(shapeOf("c ? (a) : { one: 1 } / 2")).toEqual([
+      "ID",
+      "?",
+      "(",
+      "ID",
+      ")",
+      ":",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+    ]);
+    expect(shapeOf("c ? hold(a) : { one: 1 } / 2")).toEqual([
+      "ID",
+      "?",
+      "ID",
+      "(",
+      "ID",
+      ")",
+      ":",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+    ]);
+    expect(shapeOf("c ? { yes: 1 } : { no: 2 } / 2")).toEqual([
+      "ID",
+      "?",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      ":",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+    ]);
+    // A property's own value divides inside the object that holds it.
+    expect(shapeOf("x = { a: { b } / 2 }")).toEqual([
+      "ID",
+      "=",
+      "{",
+      "ID",
+      ":",
+      "{",
+      "ID",
+      "}",
+      "/",
+      "NUM",
+      "}",
     ]);
   });
 

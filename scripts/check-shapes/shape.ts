@@ -299,23 +299,34 @@ const BLOCK_BRACE_AFTER = new Set([
   "try",
 ]);
 
-/** Walks back through `shape` to the token in front of the bracket that the
- * bracket at the end closes, or nothing when no opener matches it. */
-const tokenBeforeMatchingBrackets =
+/** Walks back through `shape` to the position of the bracket that matches the
+ * one at the end, or -1 when nothing matches it. */
+const matchingOpener =
   (closes: string, opens: string) =>
-  (shape: readonly string[]): string | undefined => {
+  (shape: readonly string[]): number => {
     let depth = 0;
     for (let at = shape.length - 1; at >= 0; at--) {
       if (shape[at] === closes) depth++;
       if (shape[at] !== opens) continue;
       depth--;
-      if (depth === 0) return shape[at - 1];
+      if (depth === 0) return at;
     }
-    return;
+    return -1;
   };
 
-const wordBeforeParens = tokenBeforeMatchingBrackets(")", "(");
-const tokenBeforeBraces = tokenBeforeMatchingBrackets("}", "{");
+const parenOpensAt = matchingOpener(")", "(");
+const bracketOpensAt = matchingOpener("]", "[");
+const braceOpensAt = matchingOpener("}", "{");
+
+/** The token in front of the bracket the last one matches, or nothing. */
+const tokenBeforeMatching =
+  (openerAt: (shape: readonly string[]) => number) =>
+  (shape: readonly string[]): string | undefined => {
+    const at = openerAt(shape);
+    return at === -1 ? undefined : shape[at - 1];
+  };
+
+const wordBeforeParens = tokenBeforeMatching(parenOpensAt);
 
 /**
  * Whether the `)` at the end of `shape` closed an `if`, `while` or `for`
@@ -325,16 +336,75 @@ const tokenBeforeBraces = tokenBeforeMatchingBrackets("}", "{");
 const closesAHeader = (shape: readonly string[]): boolean =>
   HEADER_WORDS.has(wordBeforeParens(shape) ?? "");
 
+/** The tokens a label or a case clause is made of: the name it labels by, a
+ * dotted match value, and the two clause keywords. A bracketed stretch counts
+ * too, so the walk crosses it and keeps going. */
+const LABEL_PARTS = new Set([".", "ID", "NUM", "STR", "case", "default"]);
+
+/** The position before the bracketed stretch that ends `shape`, or -1 when
+ * nothing matches its closer, so a walk over labels can cross a balanced
+ * stretch whole and keep going. */
+const beforeBracketed = (
+  openerAt: (shape: readonly string[]) => number,
+  shape: readonly string[],
+  from: number,
+): number => {
+  const open = openerAt(shape.slice(0, from + 1));
+  return open === -1 ? -1 : open - 1;
+};
+
+/** One step back over a label's words: a name or a dotted match value steps
+ * back a token, a balanced bracket — a call, a parenthesised arm, an index —
+ * crosses whole, and anything else stops the walk where it stands. */
+const stepBackOverLabel = (shape: readonly string[], index: number): number => {
+  const token = shape[index] as string;
+  if (token === ")") return beforeBracketed(parenOpensAt, shape, index);
+  if (token === "]") return beforeBracketed(bracketOpensAt, shape, index);
+  return LABEL_PARTS.has(token) ? index - 1 : index;
+};
+
+/**
+ * Whether the `{` at `at`, which follows a colon, opens a labeled block or a
+ * case clause rather than a property. The label walks back — balanced
+ * brackets crossed whole — to whatever stands before it: a question mark says
+ * a ternary's arm, an enclosing object says a property, a value just closed
+ * says the same, and anything else says a statement boundary, which is a
+ * label's. The clause keywords say a case whatever went before.
+ */
+const labeledBrace = (shape: readonly string[], at: number): boolean => {
+  let index = at - 2;
+  let clause = false;
+  while (index >= 0) {
+    const stepped = stepBackOverLabel(shape, index);
+    if (stepped === index) break;
+    clause = clause || shape[index] === "case" || shape[index] === "default";
+    index = stepped;
+  }
+  if (clause) return true;
+  const before = shape[index] ?? "";
+  if (before === "?") return false;
+  if (before === "{") return braceOpensABlock(shape, index);
+  if (before === "}") return !braceEndedAValue(shape.slice(0, index + 1));
+  return true;
+};
+
+/** Whether the brace that opens at `at` holds statements rather than a value. */
+const braceOpensABlock = (shape: readonly string[], at: number): boolean => {
+  const before = shape[at - 1] ?? "";
+  if (before === ":") return labeledBrace(shape, at);
+  return BLOCK_BRACE_AFTER.has(before);
+};
+
 /**
  * Whether the `}` at the end of `shape` closed a value an operator can work
- * on, rather than a block a statement follows: a `{` after an assignment, a
- * bracket, a comma or colon slot, or a value-making keyword holds a value, and
- * any other `{` holds statements. A `}` that closes nothing takes the reading
- * the unmatched `)` does, and divides.
+ * on, rather than a block a statement follows: an assignment, a bracket, a
+ * block opener, or a value-making keyword means a value, and a label or a case
+ * clause means statements. A `}` that closes nothing takes the reading the
+ * unmatched `)` does, and divides.
  */
 const braceEndedAValue = (shape: readonly string[]): boolean => {
-  const opener = tokenBeforeBraces(shape);
-  return opener !== undefined ? !BLOCK_BRACE_AFTER.has(opener) : true;
+  const at = braceOpensAt(shape);
+  return at === -1 ? true : !braceOpensABlock(shape, at);
 };
 
 /**

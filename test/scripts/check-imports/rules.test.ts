@@ -6,6 +6,7 @@ import {
   findImportIssues,
   formatIssue,
   resolveSpecifier,
+  stripComments,
   topLevelImports,
 } from "#scripts/check-imports/rules.ts";
 
@@ -86,6 +87,23 @@ describe("bestSpelling", () => {
   });
 });
 
+describe("stripComments", () => {
+  test("takes a comment out and keeps the line it spanned", () => {
+    expect(stripComments("a/*x*/b")).toBe("ab");
+    expect(stripComments("a/*x\ny*/b")).toBe("a\nb");
+  });
+
+  test("takes a template's contents and keeps only its line breaks", () => {
+    expect(stripComments("a`x\ny`b")).toBe("a\nb");
+    expect(stripComments("`x`")).toBe("");
+  });
+
+  test("keeps whatever a string quotes, in either quote style", () => {
+    expect(stripComments("a'b//c'd")).toBe("a'b//c'd");
+    expect(stripComments('a"b//c"d')).toBe('a"b//c"d');
+  });
+});
+
 describe("topLevelImports", () => {
   test("records the line, specifier, and names-only shape", () => {
     expect(topLevelImports('import { a } from "#types";\n')).toEqual([
@@ -136,6 +154,18 @@ describe("topLevelImports", () => {
     expect(entry?.namesOnly).toBe(false);
   });
 
+  test("ends an import with no semicolon, the way JavaScript allows", () => {
+    expect(topLevelImports('import { a } from "#types"')).toEqual([
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#types",
+        typeOnly: false,
+      },
+    ]);
+  });
+
   test("reads the statement's own from, not one inside a comment", () => {
     const expected = [
       {
@@ -180,6 +210,23 @@ describe("topLevelImports", () => {
       '} from "./right.ts";',
     ].join("\n");
     expect(topLevelImports(spanning)).toEqual(expected);
+    // A multiline template keeps only its line breaks, so an example import
+    // written at column zero inside one is not the real thing.
+    const documented = [
+      "const guide = `Before:",
+      'import { x } from "./wrong.ts";',
+      "`;",
+      'import { thing } from "./right.ts";',
+    ].join("\n");
+    expect(topLevelImports(documented)).toEqual([
+      {
+        line: 4,
+        namesOnly: true,
+        reExport: false,
+        specifier: "./right.ts",
+        typeOnly: false,
+      },
+    ]);
   });
 
   test("keeps a module address that carries its own slashes", () => {

@@ -131,20 +131,23 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null =>
 const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
 
 /**
- * The source with every comment taken out, newlines kept where they were so a
- * reader can still count lines. A comment that spans lines stays absent on
- * each of them, because the walk carries it from the line it opens to the line
- * it closes. A string keeps whatever it quotes, so a module address with `//`
- * of its own survives.
+ * The source with every comment and every template taken out, newlines kept
+ * where they were so a reader can still count lines. A comment that spans
+ * lines stays absent on each of them, because the walk carries it from the
+ * line it opens to the line it closes. A template keeps only its line breaks,
+ * so an example import written at column zero inside one is not mistaken for
+ * the real thing — no import sits inside a template. A string keeps whatever
+ * it quotes, so a module address with `//` of its own survives.
  */
-const stripComments = (source: string): string => {
+export const stripComments = (source: string): string => {
   let out = "";
   let index = 0;
   while (index < source.length) {
     const character = source[index] as string;
     if (character === '"' || character === "'" || character === "`") {
       const end = endOfQuoted(source, index + 1, character);
-      out += source.slice(index, end);
+      const run = source.slice(index, end);
+      out += character === "`" ? run.replace(/[^\n]/g, "") : run;
       index = end;
     } else if (opensComment(source, index)) {
       const end = endOfComment(source, index);
