@@ -2,30 +2,24 @@
  * What the scan concluded about one field, and how it reads on the console.
  */
 
+import {
+  compareFindingIdentities,
+  compareText,
+  type FindingIdentity,
+  findingPath,
+} from "#scripts/unread-fields/identity.ts";
+
 /** Where a field's readers live, if it has any. */
 export type Verdict = "read" | "never read" | "read only by tests";
 
 /** One exported field the scan looked at. */
-export interface Finding {
-  /** The field itself. */
-  field: string;
+export interface Finding extends FindingIdentity {
   /** The file that declares it, relative to the repository. */
   file: string;
-  /** The exported shape the field belongs to, and the path down to it. */
+  /** The readable path to the shape that owns the field. */
   owner: string;
   verdict: Verdict;
 }
-
-const IS_A_PLAIN_WORD = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-
-/** How a reader reaches one more name from where they already are. A plain
- * word goes after a dot. Any other name needs brackets and quotes, exactly as
- * the code that reads it does, so a name that holds a dot cannot read like a
- * path of its own. */
-export const reaching = (path: string, name: string): string =>
-  IS_A_PLAIN_WORD.test(name)
-    ? `${path}.${name}`
-    : `${path}[${JSON.stringify(name)}]`;
 
 /** Folders that hold tests. `scripts/email-sandbox-e2e/` and `e2e-payments/`
  * are live end-to-end harnesses, so a field only one of them reads is kept
@@ -49,10 +43,10 @@ export const verdictFor = (readers: string[]): Verdict => {
 export const worthReporting = (findings: Finding[]): Finding[] =>
   findings
     .filter((finding) => finding.verdict !== "read")
-    .sort((a, b) =>
-      a.file === b.file
-        ? reaching(a.owner, a.field).localeCompare(reaching(b.owner, b.field))
-        : a.file.localeCompare(b.file),
+    .sort((left, right) =>
+      left.file === right.file
+        ? compareFindingIdentities(left, right)
+        : compareText(left.file, right.file),
     );
 
 const countOf = (findings: Finding[], verdict: Verdict): number =>
@@ -73,7 +67,7 @@ export const reportLines = (findings: Finding[]): string[] => {
   ];
   for (const finding of worth) {
     lines.push(
-      `  ${finding.verdict.padEnd(19)} ${reaching(finding.owner, finding.field)}` +
+      `  ${finding.verdict.padEnd(19)} ${findingPath(finding)}` +
         `  ${finding.file}`,
     );
   }

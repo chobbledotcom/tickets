@@ -23,11 +23,10 @@ import {
 import {
   namedRecordMembers,
   type Step,
-  stepText,
   underAnUnnamedPart,
 } from "./fields/steps.ts";
 import { membersOf } from "./fields/walking.ts";
-import { reaching } from "./findings.ts";
+import { ownerPath } from "./identity.ts";
 import { carriesAModifier, quotedInBrackets } from "./writes.ts";
 
 /** A member nobody outside the class can reach is not a field it hands out.
@@ -175,17 +174,13 @@ const borrowedFields = (
  * `Record` key has no source declaration, so its checker symbol stands in. */
 export interface OwnedField {
   names: [FieldName, ...FieldName[]];
-  owner: string;
+  owner: readonly Step[];
   symbols: ts.Symbol[];
 }
 
-/** The path a reader follows, written the way the code that follows it is. */
-const ownerOf = (path: readonly Step[]): string =>
-  path.map(stepText).reduce(reaching);
-
 /** The path to the class object that holds a static member. */
 const onTheClass = (path: readonly Step[]): readonly Step[] => {
-  const owner = ownerOf(path);
+  const owner = ownerPath(path);
   return [{ way: owner.startsWith("typeof ") ? owner : `typeof ${owner}` }];
 };
 
@@ -230,7 +225,7 @@ export const exportedFields = (
     if (!line) {
       found.set(key, {
         names: [name],
-        owner: ownerOf(path),
+        owner: [...path],
         symbols: fieldSymbol ? [fieldSymbol] : [],
       });
     }

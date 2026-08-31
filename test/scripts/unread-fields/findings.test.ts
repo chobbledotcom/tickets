@@ -7,13 +7,18 @@ import {
   worthReporting,
 } from "#scripts/unread-fields/findings.ts";
 
-const finding = (over: Partial<Finding> = {}): Finding => ({
-  field: "total",
-  file: "src/a.ts",
-  owner: "Sum",
-  verdict: "never read",
-  ...over,
-});
+const finding = (over: Partial<Finding> = {}): Finding => {
+  const owner = over.owner ?? "Sum";
+  return {
+    exportedFrom: "src/a.ts",
+    field: "total",
+    file: "src/a.ts",
+    owner,
+    path: [{ name: owner }],
+    verdict: "never read",
+    ...over,
+  };
+};
 
 describe("verdictFor", () => {
   test("calls a field with no readers never read", () => {
@@ -50,6 +55,15 @@ describe("worthReporting", () => {
     ]).map((f) => `${f.file}:${f.field}`);
 
     expect(order).toEqual(["src/a.ts:a", "src/a.ts:b", "src/z.ts:b"]);
+  });
+
+  test("keeps files that are already in order", () => {
+    const order = worthReporting([
+      finding({ file: "src/a.ts" }),
+      finding({ file: "src/z.ts" }),
+    ]).map(({ file }) => file);
+
+    expect(order).toEqual(["src/a.ts", "src/z.ts"]);
   });
 });
 

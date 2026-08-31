@@ -10,6 +10,41 @@ The scan takes a few minutes. It prints a line per reported field, and it does
 not gate. It reports about one exported field in eight. Most of those are the
 false positives listed below, so the report is a place to start.
 
+Precommit runs the policy gate instead:
+
+```bash
+nix develop -c deno task check:unread-fields
+```
+
+The gate compares each reported field with two exact registries:
+
+- `baseline.ts` holds accepted debt. An entry does not say that the field is
+  valid. Do not add new entries. Remove an entry when production reads the field
+  or the field is deleted.
+- `exemptions.ts` holds reviewed false positives. Each entry names its
+  production evidence. Each entry uses one of five mechanisms: an external
+  output, a provider input, a schema-driven read, a persisted format, or a
+  dynamic read.
+
+A finite exported type uses a closed snapshot. The snapshot classifies every
+field as `check` or `exempt`. A new field stops typecheck until its policy is
+explicit. Open type, folder, and file wildcards are not available.
+
+The gate fails for:
+
+- a reported field with no policy.
+- a policy entry that no current finding matches.
+- duplicate policy or finding identities.
+- a field in both registries.
+
+The identity contains the file that exports it, each typed path step, and the
+field. Thus, a field named `"[]"` stays separate from the unnamed array element
+step. The displayed report remains a readable field path.
+
+When the gate reports a new field, find its production consumer. Connect the
+missing read or delete the unused field. Add an exemption only when the consumer
+exists but the scan cannot see it. Name that consumer in the evidence.
+
 ## Why the type checker
 
 `BulkSendResult.failed` counted a bulk email send's refused recipients. No

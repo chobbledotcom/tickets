@@ -33,6 +33,7 @@
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "check:e2e-labels": "deno run --allow-read=src,e2e-payments scripts/check-e2e-labels.ts",
     "check:imports": "deno run --allow-read=deno.json,src,test,scripts,cli scripts/check-imports.ts",
+    "check:unread-fields": "deno run --allow-read --allow-env=TSC_WATCHFILE,TSC_NONPOLLING_WATCHER,TSC_WATCHDIRECTORY,TSC_WATCH_POLLINGINTERVAL_LOW,TSC_WATCH_POLLINGINTERVAL_MEDIUM,TSC_WATCH_POLLINGINTERVAL_HIGH,TSC_WATCH_POLLINGCHUNKSIZE_LOW,TSC_WATCH_POLLINGCHUNKSIZE_MEDIUM,TSC_WATCH_POLLINGCHUNKSIZE_HIGH,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_LOW,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_MEDIUM,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_HIGH,NODE_INSPECTOR_IPC,VSCODE_INSPECTOR_OPTIONS,NODE_ENV scripts/check-unread-fields.ts",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",

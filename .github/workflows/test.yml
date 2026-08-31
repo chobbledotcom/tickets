@@ -48,6 +48,9 @@ jobs:
       - name: Typecheck
         run: deno task typecheck
 
+      - name: Check unread exported fields
+        run: deno task check:unread-fields
+
       - name: Check for code duplication (CPD)
         run: deno task cpd
 

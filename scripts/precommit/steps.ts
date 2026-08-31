@@ -28,6 +28,13 @@ export const getSteps = (): Step[] => {
     // Run `deno task lint` separately to auto-fix formatting before committing.
     { cmd: [deno, "task", "lint:ci"], name: "lint" },
     { cmd: [deno, "task", "typecheck"], name: "typecheck" },
+    // An exact baseline and reviewed false positives turn the whole-repository
+    // field scan into a ratchet. It follows typecheck because it asks the same
+    // compiler program which symbol each mention reaches.
+    {
+      cmd: [deno, "task", "check:unread-fields"],
+      name: "check:unread-fields",
+    },
     { cmd: [deno, "task", "cpd"], name: "cpd" },
     // Guard the user-facing copy catalog against the mechanical simple-language
     // rules (see the "Simple Language" section of AGENTS.md).

@@ -71,11 +71,13 @@ describe("the reads the scan counts", () => {
   });
 
   test("names the declaring file, not the shape that hands the field on", () => {
-    expect(
-      scanned.all.find(
-        (f) => f.owner === "ExtendsFarBase" && f.field === "readFromFarAway",
-      )?.file,
-    ).toBe("src/inner/index.ts");
+    const found = scanned.all.find(
+      (f) => f.owner === "ExtendsFarBase" && f.field === "readFromFarAway",
+    );
+
+    expect(found?.file).toBe("src/inner/index.ts");
+    expect(found?.exportedFrom).toBe("src/shapes.ts");
+    expect(found?.path).toEqual([{ name: "ExtendsFarBase" }]);
   });
 
   test("sees a field read through a directory import", () => {
