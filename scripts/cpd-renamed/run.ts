@@ -20,15 +20,21 @@ export const repoRootFrom = (moduleUrl: URL): string =>
 /** A syntax word keeps its own shape only in keyword position. It is a
  * member name — masked like any other word — when it follows a property-access
  * dot or sits in an object-key slot before a colon (`{ delete: item }` reads
- * the same as `{ archive: item }`). The label keywords `case` and `default`
- * also take a colon, so they stay keywords. */
+ * the same as `{ archive: item }`), and an identifier — a parameter, a
+ * shorthand, a list entry, an assignment's target — when a closing bracket,
+ * a comma, or an equals follows it (`(type)` reads the same as `(kind)`). The
+ * label keywords `case` and `default` also take a colon, so they stay
+ * keywords. */
+const positionsAfterName = [")", "}", ",", "]", "="];
+
 const isKeywordUse = (word: string, offset: number, full: string): boolean => {
   if (full.slice(0, offset).trimEnd().endsWith(".")) return false;
   if (word === "case" || word === "default") return true;
-  return !full
-    .slice(offset + word.length)
-    .trimStart()
-    .startsWith(":");
+  const after = full.slice(offset + word.length).trimStart();
+  return (
+    !after.startsWith(":") &&
+    !positionsAfterName.some((mark) => after.startsWith(mark))
+  );
 };
 
 /** The runs a rename touches: names, numbers, and quoted text of every style,

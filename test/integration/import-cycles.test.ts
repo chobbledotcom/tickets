@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Alias } from "#scripts/check-imports/rules.ts";
-import { collectSourceFiles } from "#scripts/walk-files.ts";
+import { collectScriptFiles } from "#scripts/walk-files.ts";
 import {
   importCycles,
   modulesOf,
@@ -53,9 +53,11 @@ const readAliases = async (): Promise<Alias[]> => {
   return Object.entries(imports).map(([name, target]) => ({ name, target }));
 };
 
-/** Every module under `src/`, keyed by its path from the repository root. */
+/** Every module under `src/`, keyed by its path from the repository root. The
+ *  browser scripts we ship as plain `.js` count too, so a ring through one is
+ *  seen. */
 const readSource = async (): Promise<SourceFile[]> => {
-  const paths = await collectSourceFiles(join(REPO_ROOT, "src"));
+  const paths = await collectScriptFiles(join(REPO_ROOT, "src"));
   return Promise.all(
     paths.map(async (path) => ({
       content: await Deno.readTextFile(path),

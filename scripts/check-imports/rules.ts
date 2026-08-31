@@ -140,23 +140,41 @@ const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
  * the real thing — no import sits inside a template. A string keeps whatever
  * it quotes, so a module address with `//` of its own survives.
  */
+/** The line breaks of a run, which is all the count needs to keep. */
+const lineBreaksOf = (run: string): string => run.replace(/[^\n]/g, "");
+
+/**
+ * What stands where the quoted run that opens at `index` stands, and where it
+ * ends. A one-line string keeps its text — a specifier is exactly that —
+ * while a template and any string a backslash-newline carried across a line
+ * keep only their line breaks, so no module statement shares their lines.
+ */
+const maskedQuote = (
+  source: string,
+  index: number,
+): { as: string; end: number } => {
+  const character = source[index] as string;
+  const end =
+    character === "`"
+      ? endOfTemplateRun(source, index + 1)
+      : endOfQuoted(source, index + 1, character);
+  const run = source.slice(index, end);
+  const keepsText = character !== "`" && !run.includes("\n");
+  return { as: keepsText ? run : lineBreaksOf(run), end };
+};
+
 export const stripComments = (source: string): string => {
-  // The line breaks of a masked run, which is all the count needs to keep.
-  const lineBreaksOf = (run: string): string => run.replace(/[^\n]/g, "");
   let out = "";
   let index = 0;
   while (index < source.length) {
     const character = source[index] as string;
-    if (character === "`" || opensComment(source, index)) {
-      const masked =
-        character === "`"
-          ? endOfTemplateRun(source, index + 1)
-          : endOfComment(source, index);
-      out += lineBreaksOf(source.slice(index, masked));
-      index = masked;
-    } else if (character === '"' || character === "'") {
-      const end = endOfQuoted(source, index + 1, character);
-      out += source.slice(index, end);
+    if (character === '"' || character === "'" || character === "`") {
+      const masked = maskedQuote(source, index);
+      out += masked.as;
+      index = masked.end;
+    } else if (opensComment(source, index)) {
+      const end = endOfComment(source, index);
+      out += lineBreaksOf(source.slice(index, end));
       index = end;
     } else {
       out += character;
@@ -168,26 +186,27 @@ export const stripComments = (source: string): string => {
 
 /**
  * Every top-level statement in `content` that names a module — an import or a
- * re-export. A line that starts in column 0 is the only one that counts, so an
- * example import quoted inside a string or a template is not mistaken for the
- * real thing. The statement's lines are held while it is open, so the module
- * name is read from the whole statement — a `from` and its specifier can wait
- * on different lines — and the shape from the line that opens it. A statement
- * that ends without a `from`, such as `export { getRawCached };`, names no
- * module and is dropped. Comments are read as absent, so a `from` inside one
- * cannot end the statement early or name the wrong module.
+ * re-export — however its opening line is indented: templates, spanning
+ * strings, and comments are masked to their line breaks before the lines are
+ * read, so no quoted example can start a line and pose as one. The
+ * statement's lines are held while it is open, so the module name is read
+ * from the whole statement — a `from` and its specifier can wait on different
+ * lines — and the shape from the line that opens it. A statement that ends
+ * without a `from`, such as `export { getRawCached };`, names no module and
+ * is dropped.
  */
 export const topLevelImports = (content: string): ImportLine[] => {
   const found: ImportLine[] = [];
   let open: { head: string; line: number } | null = null;
   let held: string[] = [];
-  for (const [index, line] of stripComments(content).split("\n").entries()) {
+  for (const [index, raw] of stripComments(content).split("\n").entries()) {
+    const line = raw.trimStart();
     if (open === null) {
       if (!OPENS_A_MODULE_STATEMENT.test(line)) continue;
       open = { head: line, line: index + 1 };
       held = [line];
     } else {
-      held.push(line);
+      held.push(raw);
     }
     const isEnd =
       /from\s+["']/.test(line) ||

@@ -281,6 +281,24 @@ describe("topLevelImports", () => {
     expect(entry?.specifier).toBe("#types");
   });
 
+  test("records an import whose opening line is indented", () => {
+    expect(topLevelImports('  import { a } from "#types";')).toEqual([
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#types",
+        typeOnly: false,
+      },
+    ]);
+  });
+
+  test("reads no import from inside a string continued across lines", () => {
+    const continued =
+      "const sample = 'text\\\nimport { x } from \"./wrong.ts\";\nfinish';";
+    expect(topLevelImports(continued)).toEqual([]);
+  });
+
   test("records a star re-export", () => {
     expect(topLevelImports('export * from "#types";')[0]?.specifier).toBe(
       "#types",
@@ -318,10 +336,6 @@ describe("topLevelImports", () => {
     expect(topLevelImports('import t from "#types";')[0]?.namesOnly).toBe(
       false,
     );
-  });
-
-  test("ignores an indented import, which is inside a string", () => {
-    expect(topLevelImports('  import { a } from "#types";\n')).toEqual([]);
   });
 
   test("keeps reading after a side-effect import", () => {
