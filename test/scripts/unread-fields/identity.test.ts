@@ -49,10 +49,24 @@ describe("unread-field identities", () => {
 
   test("builds one exact identity for each supplied field", () => {
     expect(
-      identitiesAt("src/sum.ts", [{ name: "Sum" }])(["total", "other"]),
+      identitiesAt([["src/sum.ts", [{ name: "Sum" }]]])(["total", "other"]),
     ).toEqual([
       identity([{ name: "Sum" }]),
       identity([{ name: "Sum" }], "other"),
+    ]);
+  });
+
+  test("builds shared fields for several exact owners", () => {
+    expect(
+      identitiesAt([
+        ["src/sum.ts", [{ name: "Sum" }]],
+        ["src/other.ts", [{ name: "Other" }]],
+      ])(["total", "other"]),
+    ).toEqual([
+      identity([{ name: "Sum" }]),
+      identity([{ name: "Sum" }], "other"),
+      identity([{ name: "Other" }], "total", "src/other.ts"),
+      identity([{ name: "Other" }], "other", "src/other.ts"),
     ]);
   });
 

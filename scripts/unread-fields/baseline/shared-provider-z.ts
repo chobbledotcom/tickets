@@ -45,82 +45,69 @@ const CONTENT_META_FIELDS = [
 ] as const;
 
 export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
-  ...identitiesAt("src/shared/provider-refunds.ts", [
-    { name: "ProviderRefundResult" },
-  ])(["state"]),
-  ...identitiesAt("src/shared/provider-types.ts", [
-    { name: "DatabaseCredentials" },
-  ])(["dbId"]),
-  ...identitiesAt("src/shared/qr-token.ts", [{ name: "QrBookPayload" }])(["e"]),
-  ...identitiesAt("src/shared/reservation-amount.ts", [
-    { name: "ReservationDepositAllocation" },
+  ...identitiesAt([
+    [
+      "src/shared/reservation-amount.ts",
+      [{ name: "ReservationDepositAllocation" }],
+    ],
   ])(["perItemTotals", "total"]),
-  ...identitiesAt("src/shared/rest/crud-parsers.ts", [{ name: "DeleteBody" }])([
-    "confirm_identifier",
-  ]),
-  ...identitiesAt("src/shared/rest/resource.ts", [{ name: "DeleteResult" }])([
-    "notFound",
-  ]),
-  ...identitiesAt("src/shared/rest/resource.ts", [{ name: "NamedResource" }])(
-    RESOURCE_FIELDS,
-  ),
-  ...identitiesAt("src/shared/rest/resource.ts", [{ name: "Resource" }])(
-    RESOURCE_FIELDS,
-  ),
-  ...identitiesAt("src/shared/rest/resource.ts", [{ name: "UpdateResult" }])([
-    "notFound",
-  ]),
-  ...identitiesAt("src/shared/schema-atlas/machine-spec.ts", [
-    { name: "DerivedNodeIds" },
+  ...identitiesAt([
+    ["src/shared/rest/resource.ts", [{ name: "NamedResource" }]],
+    ["src/shared/rest/resource.ts", [{ name: "Resource" }]],
+  ])(RESOURCE_FIELDS),
+  ...identitiesAt([
+    ["src/shared/schema-atlas/machine-spec.ts", [{ name: "DerivedNodeIds" }]],
   ])(["terminal"]),
-  ...identitiesAt("src/shared/schema-atlas/machine-spec.ts", [
-    { name: "MachineEvent" },
-  ])(["id"]),
-  ...identitiesAt("src/shared/schema-atlas/machine-spec.ts", [
-    { name: "MachineMovesReader" },
+  ...identitiesAt([
+    [
+      "src/shared/schema-atlas/machine-spec.ts",
+      [{ name: "MachineMovesReader" }],
+    ],
   ])(["splitTags"]),
-  ...identitiesAt("src/shared/schema-atlas/machine-spec.ts", [
-    { name: "MachineNode" },
-  ])(["awaits"]),
-  ...identitiesAt("src/shared/schema-atlas/types.ts", [
-    { name: "AtlasState" },
-    { name: "layout" },
+  ...identitiesAt([
+    [
+      "src/shared/schema-atlas/types.ts",
+      [{ name: "AtlasState" }, { name: "layout" }],
+    ],
   ])(["x", "y"]),
-  ...identitiesAt("src/shared/settings/form-schema.ts", [
-    { name: "BooleanSettingsFormConfig" },
+  ...identitiesAt([
+    [
+      "src/shared/settings/form-schema.ts",
+      [{ name: "BooleanSettingsFormConfig" }],
+    ],
+    ["src/shared/settings/form-schema.ts", [{ name: "SettingsFormConfig" }]],
+    [
+      "src/shared/settings/form-schema.ts",
+      [{ name: "TextareaSettingsFormConfig" }],
+    ],
+    [
+      "src/shared/settings/form-schema.ts",
+      [{ name: "TextSettingsFormConfig" }],
+    ],
   ])(KEYED_SETTINGS_CONFIG_FIELDS),
-  ...identitiesAt("src/shared/settings/form-schema.ts", [
-    { name: "FieldFormCopy" },
+  ...identitiesAt([
+    ["src/shared/settings/form-schema.ts", [{ name: "FieldFormCopy" }]],
   ])(["submitLabelKey"]),
-  ...identitiesAt("src/shared/settings/form-schema.ts", [
-    { name: "FieldsSettingsFormConfig" },
+  ...identitiesAt([
+    [
+      "src/shared/settings/form-schema.ts",
+      [{ name: "FieldsSettingsFormConfig" }],
+    ],
   ])(SETTINGS_CONFIG_FIELDS),
-  ...identitiesAt("src/shared/settings/form-schema.ts", [
-    { name: "SettingsFormConfig" },
-  ])(KEYED_SETTINGS_CONFIG_FIELDS),
-  ...identitiesAt("src/shared/settings/form-schema.ts", [
-    { name: "TextareaSettingsFormConfig" },
-  ])(KEYED_SETTINGS_CONFIG_FIELDS),
-  ...identitiesAt("src/shared/settings/form-schema.ts", [
-    { name: "TextSettingsFormConfig" },
-  ])(KEYED_SETTINGS_CONFIG_FIELDS),
-  ...identitiesAt("src/shared/settings/forms.ts", [
-    { name: "SettingsFormDefinition" },
+  ...identitiesAt([
+    ["src/shared/settings/forms.ts", [{ name: "SettingsFormDefinition" }]],
+    ["src/shared/settings/forms.ts", [{ name: "SettingsFormFor" }]],
   ])(SETTINGS_FORM_FIELDS),
-  ...identitiesAt("src/shared/settings/forms.ts", [
-    { name: "SettingsFormFor" },
-  ])(SETTINGS_FORM_FIELDS),
-  ...identitiesAt("src/shared/settings/forms.ts", [
-    { name: "SingleFieldSettingsForm" },
+  ...identitiesAt([
+    ["src/shared/settings/forms.ts", [{ name: "SingleFieldSettingsForm" }]],
   ])(SINGLE_SETTINGS_FORM_FIELDS),
-  ...identitiesAt("src/shared/site-pages/types.ts", [{ name: "NavLevel" }])([
-    "label",
-    "nodes",
-  ]),
-  ...identitiesAt("src/shared/site-pages/types.ts", [{ name: "NavModel" }])([
-    "activeRootId",
-  ]),
-  ...identitiesAt("src/shared/site-pages/types.ts", [{ name: "NavNode" }])([
+  ...identitiesAt([["src/shared/site-pages/types.ts", [{ name: "NavLevel" }]]])(
+    ["label", "nodes"],
+  ),
+  ...identitiesAt([["src/shared/site-pages/types.ts", [{ name: "NavModel" }]]])(
+    ["activeRootId"],
+  ),
+  ...identitiesAt([["src/shared/site-pages/types.ts", [{ name: "NavNode" }]]])([
     "active",
     "children",
     "href",
@@ -128,40 +115,32 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
     "label",
     "live",
   ]),
-  ...identitiesAt("src/shared/sms/gateway.ts", [
-    { name: "EncryptedMessagePayload" },
-    { name: "textMessage" },
-  ])(["text"]),
-  ...identitiesAt("src/shared/sms/gateway.ts", [
-    { name: "EncryptedMessagePayload" },
+  ...identitiesAt([
+    ["src/shared/sms/gateway.ts", [{ name: "EncryptedMessagePayload" }]],
   ])(["isEncrypted", "phoneNumbers", "textMessage", "withDeliveryReport"]),
-  ...identitiesAt("src/shared/square/client.ts", [{ name: "SquareClient" }])([
-    "payments",
-    "refunds",
-  ]),
-  ...identitiesAt("src/shared/square/payment-outcomes.ts", [
-    { name: "SquarePaymentClient" },
-    { name: "payments" },
-    { name: "get" },
-    { way: "()" },
-    { way: "input" },
+  ...identitiesAt([
+    ["src/shared/square/client.ts", [{ name: "SquareClient" }]],
+  ])(["payments", "refunds"]),
+  ...identitiesAt([
+    [
+      "src/shared/square/payment-outcomes.ts",
+      [
+        { name: "SquarePaymentClient" },
+        { name: "payments" },
+        { name: "get" },
+        { way: "()" },
+        { way: "input" },
+      ],
+    ],
   ])(["paymentId"]),
-  ...identitiesAt("src/shared/square/wire.ts", [
-    { name: "SquareOrder" },
-    { name: "tenders" },
-    { way: "[]" },
-  ])(["id"]),
-  ...identitiesAt("src/shared/square/wire.ts", [{ name: "SquareOrder" }])([
-    "state",
-  ]),
-  ...identitiesAt("src/shared/square/wire.ts", [{ name: "SquareRefund" }])([
-    "id",
-  ]),
-  ...identitiesAt("src/shared/stripe/client.ts", [
-    { name: "StripeCheckoutLineItemParams" },
+  ...identitiesAt([
+    ["src/shared/stripe/client.ts", [{ name: "StripeCheckoutLineItemParams" }]],
   ])(["price_data", "quantity"]),
-  ...identitiesAt("src/shared/stripe/client.ts", [
-    { name: "StripeCheckoutSessionCreateParams" },
+  ...identitiesAt([
+    [
+      "src/shared/stripe/client.ts",
+      [{ name: "StripeCheckoutSessionCreateParams" }],
+    ],
   ])([
     "cancel_url",
     "customer_email",
@@ -171,71 +150,69 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
     "payment_method_types",
     "success_url",
   ]),
-  ...identitiesAt("src/shared/stripe/client.ts", [
-    { name: "StripeWebhookEndpointCreateParams" },
+  ...identitiesAt([
+    [
+      "src/shared/stripe/client.ts",
+      [{ name: "StripeWebhookEndpointCreateParams" }],
+    ],
   ])(["api_version", "enabled_events", "url"]),
-  ...identitiesAt("src/shared/superuser.ts", [{ name: "SuperuserState" }])([
-    "reason",
-  ]),
-  ...identitiesAt("src/shared/svg-ticket.ts", [{ name: "SvgTicketData" }])([
+  ...identitiesAt([["src/shared/svg-ticket.ts", [{ name: "SvgTicketData" }]]])([
     "currency",
   ]),
-  ...identitiesAt("src/shared/tables/column.ts", [
-    { name: "ReorderColumnOptions" },
-    { name: "titles" },
+  ...identitiesAt([
+    [
+      "src/shared/tables/column.ts",
+      [{ name: "ReorderColumnOptions" }, { name: "titles" }],
+    ],
   ])(["down", "up"]),
-  ...identitiesAt("src/shared/turso-api.ts", [
-    { name: "TursoDatabaseCredentials" },
-  ])(["dbId"]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "ApiKey" }])([
+  ...identitiesAt([["src/shared/types.ts", [{ name: "ApiKey" }]]])([
     "created",
     "key_index",
     "last_used",
     "name",
   ]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "EncryptedContentRecord" }])(
-    CONTENT_META_FIELDS,
-  ),
-  ...identitiesAt("src/shared/types.ts", [{ name: "ImageUse" }])([
+  ...identitiesAt([
+    ["src/shared/types.ts", [{ name: "EncryptedContentRecord" }]],
+    ["src/shared/types.ts", [{ name: "NewsPost" }]],
+    ["src/shared/types.ts", [{ name: "SitePage" }]],
+  ])(CONTENT_META_FIELDS),
+  ...identitiesAt([["src/shared/types.ts", [{ name: "ImageUse" }]]])([
     "image_id",
     "sort_order",
   ]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "Modifier" }])(["code"]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "NagItem" }])(["id"]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "NewsPost" }])(
-    CONTENT_META_FIELDS,
-  ),
-  ...identitiesAt("src/shared/types.ts", [{ name: "PiiBlob" }])(["v"]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "Session" }])(["csrf_token"]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "Settings" }])([
+  ...identitiesAt([["src/shared/types.ts", [{ name: "PiiBlob" }]]])(["v"]),
+  ...identitiesAt([["src/shared/types.ts", [{ name: "Session" }]]])([
+    "csrf_token",
+  ]),
+  ...identitiesAt([["src/shared/types.ts", [{ name: "Settings" }]]])([
     "key",
     "value",
   ]),
-  ...identitiesAt("src/shared/types.ts", [{ name: "SitePage" }])(
-    CONTENT_META_FIELDS,
-  ),
-  ...identitiesAt("src/shared/types.ts", [{ name: "UserLogisticsAgent" }])([
+  ...identitiesAt([["src/shared/types.ts", [{ name: "UserLogisticsAgent" }]]])([
     "agent_id",
     "id",
     "user_id",
   ]),
-  ...identitiesAt("src/shared/update.ts", [{ name: "ReleaseInfo" }])([
+  ...identitiesAt([["src/shared/update.ts", [{ name: "ReleaseInfo" }]]])([
     "publishedAt",
   ]),
-  ...identitiesAt("src/shared/uptime-kuma/socket.ts", [
-    { name: "UptimeKumaWebSocket" },
+  ...identitiesAt([
+    ["src/shared/uptime-kuma/socket.ts", [{ name: "UptimeKumaWebSocket" }]],
   ])(["onclose", "onerror", "onmessage"]),
-  ...identitiesAt("src/shared/wallets/wallet-settings-types.ts", [
-    { name: "WalletReadSettings" },
+  ...identitiesAt([
+    [
+      "src/shared/wallets/wallet-settings-types.ts",
+      [{ name: "WalletReadSettings" }],
+    ],
   ])(["dbConfig", "resetHostConfig", "setHostConfigForTest"]),
-  ...identitiesAt("src/shared/webhook.ts", [{ name: "WebhookListing" }])([
+  ...identitiesAt([["src/shared/webhook.ts", [{ name: "WebhookListing" }]]])([
     "attendee_count",
     "can_pay_more",
     "day_prices",
     "max_attendees",
     "unit_price",
   ]),
-  ...identitiesAt("src/shared/webhook.ts", [{ name: "WebhookPayload" }])([
+  ...identitiesAt([["src/shared/webhook.ts", [{ name: "WebhookPayload" }]]])([
     "amount_owed",
     "business_email",
     "currency",
@@ -246,7 +223,7 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
     "tickets",
     "timestamp",
   ]),
-  ...identitiesAt("src/shared/webhook.ts", [{ name: "WebhookTicket" }])([
+  ...identitiesAt([["src/shared/webhook.ts", [{ name: "WebhookTicket" }]]])([
     "date",
     "listing_name",
     "listing_slug",
@@ -254,7 +231,7 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
     "ticket_token",
     "unit_price",
   ]),
-  ...identitiesAt("src/shared/webhook/delivery.ts", [
-    { name: "WebhookDelivery" },
+  ...identitiesAt([
+    ["src/shared/webhook/delivery.ts", [{ name: "WebhookDelivery" }]],
   ])(["delivered", "reason"]),
 ];

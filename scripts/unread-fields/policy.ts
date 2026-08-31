@@ -43,10 +43,7 @@ export const exemptFieldsAt =
     reason: ExemptionReason,
   ): ((snapshot: ClosedFieldSnapshot<Shape>) => FindingExemption[]) =>
   (snapshot) =>
-    identitiesAt(
-      exportedFrom,
-      path,
-    )(
+    identitiesAt([[exportedFrom, path]])(
       Object.entries(snapshot)
         .filter(([, choice]) => choice === "exempt")
         .map(([field]) => field),

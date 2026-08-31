@@ -64,11 +64,14 @@ export const findingIdentityText = (identity: FindingIdentity): string =>
     `name(${JSON.stringify(identity.field)})`,
   ].join(" / ")}`;
 
-/** Build exact identities for fields under one exported owner. */
+type FindingOwner = readonly [exportedFrom: string, path: readonly Step[]];
+
+/** Build exact identities for fields under one or more exported owners. */
 export const identitiesAt =
   (
-    exportedFrom: string,
-    owner: readonly Step[],
+    owners: readonly FindingOwner[],
   ): ((fields: readonly string[]) => FindingIdentity[]) =>
   (fields) =>
-    fields.map((field) => ({ exportedFrom, field, path: [...owner] }));
+    owners.flatMap(([exportedFrom, path]) =>
+      fields.map((field) => ({ exportedFrom, field, path: [...path] })),
+    );

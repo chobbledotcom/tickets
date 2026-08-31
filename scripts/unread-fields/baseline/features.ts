@@ -14,100 +14,100 @@ const LISTING_BODY_FIELDS = [
 ] as const;
 
 export const FEATURE_BASELINE: readonly FindingIdentity[] = [
-  ...identitiesAt("src/features/admin/actions.ts", [
-    { name: "AttendeeLinkRefs" },
+  ...identitiesAt([
+    ["src/features/admin/actions.ts", [{ name: "AttendeeLinkRefs" }]],
   ])(["kinds", "names"]),
-  ...identitiesAt("src/features/admin/api-groups.ts", [
-    { name: "CreateGroupBody" },
+  ...identitiesAt([
+    ["src/features/admin/api-groups.ts", [{ name: "CreateGroupBody" }]],
   ])(["name", "package_members"]),
-  ...identitiesAt("src/features/admin/api-groups.ts", [
-    { name: "DeleteGroupBody" },
-  ])(["confirm_identifier"]),
-  ...identitiesAt("src/features/admin/api-groups.ts", [
-    { name: "PackageMemberBody" },
+  ...identitiesAt([
+    ["src/features/admin/api-groups.ts", [{ name: "PackageMemberBody" }]],
   ])(["day_prices", "listing_id", "price", "quantity"]),
-  ...identitiesAt("src/features/admin/api-groups.ts", [
-    { name: "UpdateGroupBody" },
+  ...identitiesAt([
+    ["src/features/admin/api-groups.ts", [{ name: "UpdateGroupBody" }]],
   ])(["name", "package_members", "slug"]),
-  ...identitiesAt("src/features/admin/api-holidays.ts", [
-    { name: "CreateHolidayBody" },
-  ])(["end_date", "name", "start_date"]),
-  ...identitiesAt("src/features/admin/api-holidays.ts", [
-    { name: "DeleteHolidayBody" },
-  ])(["confirm_identifier"]),
-  ...identitiesAt("src/features/admin/api-holidays.ts", [
-    { name: "UpdateHolidayBody" },
-  ])(["end_date", "name", "start_date"]),
-  ...identitiesAt("src/features/admin/api-listing-body.ts", [
-    { name: "CreateListingBody" },
+  ...identitiesAt([
+    ["src/features/admin/api-listing-body.ts", [{ name: "CreateListingBody" }]],
   ])(LISTING_BODY_FIELDS),
-  ...identitiesAt("src/features/admin/api-listing-body.ts", [
-    { name: "UpdateListingBody" },
+  ...identitiesAt([
+    ["src/features/admin/api-listing-body.ts", [{ name: "UpdateListingBody" }]],
   ])([...LISTING_BODY_FIELDS, "slug"]),
-  ...identitiesAt("src/features/admin/api.ts", [{ name: "DeleteListingBody" }])(
-    ["confirm_identifier"],
-  ),
-  ...identitiesAt("src/features/admin/attendee-form-model.ts", [
-    { name: "AttendeeFieldError" },
+  ...identitiesAt([
+    [
+      "src/features/admin/attendee-form-model.ts",
+      [{ name: "AttendeeFieldError" }],
+    ],
   ])(["field"]),
-  ...identitiesAt("src/features/admin/attendee-form-model.ts", [
-    { name: "ValidationResult" },
+  ...identitiesAt([
+    [
+      "src/features/admin/attendee-form-model.ts",
+      [{ name: "ValidationResult" }],
+    ],
   ])(["lineErrors"]),
-  ...identitiesAt("src/features/admin/attendee-logistics.ts", [
-    { name: "LogisticsFormErrors" },
+  ...identitiesAt([
+    [
+      "src/features/admin/attendee-logistics.ts",
+      [{ name: "LogisticsFormErrors" }],
+    ],
   ])(["addressError", "locationError"]),
-  ...identitiesAt("src/features/admin/refunds/budget.ts", [
-    { name: "RefundBudgetCandidate" },
+  ...identitiesAt([
+    [
+      "src/features/admin/refunds/budget.ts",
+      [{ name: "RefundBudgetCandidate" }],
+    ],
   ])(["references"]),
-  ...identitiesAt("src/features/admin/refunds/budget.ts", [
-    { name: "RefundSendBudgetReference" },
-  ])(["index"]),
-  ...identitiesAt("src/features/admin/refunds/claim.ts", [
-    { name: "RefundRunBlock" },
-  ])(["reason"]),
-  ...identitiesAt("src/features/admin/refunds/ledger-findings.ts", [
-    { name: "AppliedRefundLedgerFindings" },
+  ...identitiesAt([
+    [
+      "src/features/admin/refunds/ledger-findings.ts",
+      [{ name: "AppliedRefundLedgerFindings" }],
+    ],
   ])(["needsReview"]),
-  ...identitiesAt("src/features/admin/refunds/provider.ts", [
-    { name: "RefundBatchResult" },
-  ])(["reason"]),
-  ...identitiesAt("src/features/admin/refunds/readiness.ts", [
-    { name: "RefundReadinessRead" },
-  ])(["index"]),
-  ...identitiesAt("src/features/admin/refunds/readiness.ts", [
-    { name: "RefundReadinessResult" },
+  ...identitiesAt([
+    [
+      "src/features/admin/refunds/readiness.ts",
+      [{ name: "RefundReadinessResult" }],
+    ],
   ])(["reads"]),
-  ...identitiesAt("src/features/admin/refunds/refresh.ts", [
-    { name: "RefreshPaymentResult" },
-  ])(["reason"]),
-  ...identitiesAt("src/features/admin/servicing/form-model.ts", [
-    { name: "ServicingCreateInput" },
+  ...identitiesAt([
+    [
+      "src/features/admin/servicing/form-model.ts",
+      [{ name: "ServicingCreateInput" }],
+    ],
   ])(["bookings", "kind", "name"]),
-  ...identitiesAt("src/features/admin/settings-connection-lines.ts", [
-    { name: "ConnectionAnswer" },
+  ...identitiesAt([
+    [
+      "src/features/admin/settings-connection-lines.ts",
+      [{ name: "ConnectionAnswer" }],
+    ],
   ])(["lines", "ok"]),
-  ...identitiesAt("src/features/api/payment-callback.ts", [
-    { name: "CallbackOutcome" },
+  ...identitiesAt([
+    ["src/features/api/payment-callback.ts", [{ name: "CallbackOutcome" }]],
   ])(["result"]),
-  ...identitiesAt("src/features/api/payment-processing/create.ts", [
-    { name: "AttendeeBaseFields" },
+  ...identitiesAt([
+    [
+      "src/features/api/payment-processing/create.ts",
+      [{ name: "AttendeeBaseFields" }],
+    ],
   ])(["paymentId", "statusId"]),
-  ...identitiesAt("src/features/api/payment-processing/placeholder-resume.ts", [
-    { name: "PlaceholderFailureResult" },
+  ...identitiesAt([
+    [
+      "src/features/api/payment-processing/placeholder-resume.ts",
+      [{ name: "PlaceholderFailureResult" }],
+    ],
   ])(["status"]),
-  ...identitiesAt("src/features/api/webhook-types.ts", [
-    { name: "ListingValidation" },
+  ...identitiesAt([
+    ["src/features/api/webhook-types.ts", [{ name: "ListingValidation" }]],
   ])(["error", "status"]),
-  ...identitiesAt("src/features/api/webhook-types.ts", [
-    { name: "PaymentResult" },
+  ...identitiesAt([
+    ["src/features/api/webhook-types.ts", [{ name: "PaymentResult" }]],
   ])(["attendee"]),
-  ...identitiesAt("src/features/auth.ts", [{ name: "AuthSession" }])([
+  ...identitiesAt([["src/features/auth.ts", [{ name: "AuthSession" }]]])([
     "settingsNagItems",
   ]),
-  ...identitiesAt("src/features/entity.ts", [
-    { name: "AttendeeListingRouteParams" },
+  ...identitiesAt([
+    ["src/features/entity.ts", [{ name: "AttendeeListingRouteParams" }]],
   ])(["attendeeId", "listingId"]),
-  ...identitiesAt("src/features/public/types.ts", [{ name: "TicketCtx" }])([
+  ...identitiesAt([["src/features/public/types.ts", [{ name: "TicketCtx" }]]])([
     "attributesByListing",
     "baseUrl",
     "cartDateItems",
@@ -120,8 +120,8 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
     "prefill",
     "promoCodesEnabled",
   ]),
-  ...identitiesAt("src/features/public/types.ts", [
-    { name: "TicketSharedContext" },
+  ...identitiesAt([
+    ["src/features/public/types.ts", [{ name: "TicketSharedContext" }]],
   ])([
     "cartDateItems",
     "childDatesById",
