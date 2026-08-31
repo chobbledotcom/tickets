@@ -98,6 +98,17 @@ describe("stripComments", () => {
     expect(stripComments("`x`")).toBe("");
   });
 
+  test("takes a nested template with its holder, group and all", () => {
+    // The placeholder dollars are spliced so no one string carries them.
+    const dollar = "$";
+    expect(stripComments(`x\`a${dollar}{\`b\`}c\`y`)).toBe("xy");
+    // A newline inside the nested template keeps its line in the count.
+    expect(stripComments(`x\`a${dollar}{\`b\n\`}c\`y`)).toBe("x\ny");
+    expect(stripComments(`x\n\`a${dollar}{\`b${dollar}{\`c\`}d\`}e\`\ny`)).toBe(
+      "x\n\ny",
+    );
+  });
+
   test("keeps whatever a string quotes, in either quote style", () => {
     expect(stripComments("a'b//c'd")).toBe("a'b//c'd");
     expect(stripComments('a"b//c"d')).toBe('a"b//c"d');
@@ -236,16 +247,18 @@ describe("topLevelImports", () => {
     ].join("\n");
     expect(topLevelImports(spanning)).toEqual(expected);
     // A multiline template keeps only its line breaks, so an example import
-    // written at column zero inside one is not the real thing.
+    // written at column zero inside one is not the real thing — and a nested
+    // template inside a group hides its contents the same way.
     const documented = [
       "const guide = `Before:",
+      "text ${`inner",
       'import { x } from "./wrong.ts";',
-      "`;",
-      'import { thing } from "./right.ts";',
+      "`} after`;",
+      'import { y } from "./right.ts";',
     ].join("\n");
     expect(topLevelImports(documented)).toEqual([
       {
-        line: 4,
+        line: 5,
         namesOnly: true,
         reExport: false,
         specifier: "./right.ts",

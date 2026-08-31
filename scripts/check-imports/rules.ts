@@ -7,6 +7,7 @@ import { byLine } from "#scripts/check-report.ts";
 import {
   endOfComment,
   endOfQuoted,
+  endOfTemplateRun,
   opensComment,
 } from "#scripts/quoted-run.ts";
 
@@ -140,18 +141,22 @@ const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
  * it quotes, so a module address with `//` of its own survives.
  */
 export const stripComments = (source: string): string => {
+  // The line breaks of a masked run, which is all the count needs to keep.
+  const lineBreaksOf = (run: string): string => run.replace(/[^\n]/g, "");
   let out = "";
   let index = 0;
   while (index < source.length) {
     const character = source[index] as string;
-    if (character === '"' || character === "'" || character === "`") {
+    if (character === "`" || opensComment(source, index)) {
+      const masked =
+        character === "`"
+          ? endOfTemplateRun(source, index + 1)
+          : endOfComment(source, index);
+      out += lineBreaksOf(source.slice(index, masked));
+      index = masked;
+    } else if (character === '"' || character === "'") {
       const end = endOfQuoted(source, index + 1, character);
-      const run = source.slice(index, end);
-      out += character === "`" ? run.replace(/[^\n]/g, "") : run;
-      index = end;
-    } else if (opensComment(source, index)) {
-      const end = endOfComment(source, index);
-      out += source.slice(index, end).replace(/[^\n]/g, "");
+      out += source.slice(index, end);
       index = end;
     } else {
       out += character;

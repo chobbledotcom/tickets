@@ -84,6 +84,12 @@ describe("namedFunctions", () => {
     ]);
   });
 
+  test("names the function a conditional selects", () => {
+    expect(
+      names("const verifyName = pick ? (row) => { work(row); } : undefined"),
+    ).toEqual(["verifyName"]);
+  });
+
   test("leaves an assignment with no name anywhere alone", () => {
     expect(names("handlers[pick()] = (a) => a + 1;")).toEqual([]);
   });

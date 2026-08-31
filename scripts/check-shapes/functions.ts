@@ -44,7 +44,8 @@ const keyText = (named: unknown): string | null => {
 /** The name a node declares or is keyed by. A declaration carries its own
  * `id`; a property, a class member and an object method carry a `key`, so
  * `{ save: () => … }`, `{ save() {} }` and `class A { save() {} }` all name
- * the function they hold. */
+ * the function they hold. A conditional hands its name to both arms, because
+ * the function a test selects is still that one function. */
 const declaredName = (node: AstNode): string | null =>
   keyText(node.id) ?? keyText(node.key) ?? assignedTo(node);
 
@@ -55,6 +56,7 @@ const declaredName = (node: AstNode): string | null =>
 const HANDS_A_NAME_ON = new Set([
   "AssignmentExpression",
   "CallExpression",
+  "ConditionalExpression",
   "MethodDefinition",
   "ObjectProperty",
   "Property",

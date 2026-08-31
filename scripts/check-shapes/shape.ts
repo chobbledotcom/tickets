@@ -8,9 +8,14 @@
  */
 
 import {
+  endOfBraceGroup,
   endOfComment,
   endOfQuoted,
+  endOfRun,
+  endOfRunAt,
   opensComment,
+  type RunReader,
+  templateEndingAt,
 } from "#scripts/quoted-run.ts";
 import { SYNTAX_WORDS } from "#scripts/syntax-words.ts";
 
@@ -147,68 +152,26 @@ const endOfNested = (
   index: number,
   before?: string,
 ): number | null => {
-  const character = text[index] as string;
-  if (character === '"' || character === "'") {
-    return endOfQuoted(text, index + 1, character);
-  }
-  if (character === "`") return endOfTemplate(text, index + 1);
-  if (opensComment(text, index)) return endOfComment(text, index);
-  if (character !== "/") return null;
+  const run = endOfRunAt(text, index, endOfTemplate);
+  if (run !== null) return run;
+  if (text[index] !== "/") return null;
   return ENDS_A_VALUE.has(before ?? "") ? null : endOfRegExp(text, index + 1);
 };
 
-/** Just past the `}` closing the `${` that opened at `start`. Braces nest, so
- * only the one that brings the count back to zero ends it. */
-const endOfInterpolation = (text: string, start: number): number => {
-  let depth = 1;
-  let index = start;
-  let before: string | undefined;
-  while (index < text.length && depth > 0) {
+/** Just past the `}` closing the `${` that opened at `start`, read with the
+ * slash context a pattern after a header or an operator needs. */
+const endOfInterpolation: RunReader = (text, start) =>
+  endOfBraceGroup(text, start, (index, before) => {
     const nested = endOfNested(text, index, before);
     if (nested !== null) {
-      if (!opensComment(text, index)) before = "RE";
-      index = nested;
-      continue;
+      return { before: opensComment(text, index) ? before : "RE", end: nested };
     }
-    if (text[index] === "{") depth++;
-    if (text[index] === "}") depth--;
-    before = valueEndingAt(text, index, before);
-    index++;
-  }
-  return index;
-};
-
-/**
- * Just past the character that closes a run. `step` reads one character and
- * says where to carry on from, or `null` to say that this one closes the run.
- * An escape is always skipped whole, whatever the run is.
- */
-const endOfRun = (
-  text: string,
-  start: number,
-  step: (index: number) => number | null,
-): number => {
-  let index = start;
-  while (index < text.length) {
-    if (text[index] === "\\") {
-      index += 2;
-      continue;
-    }
-    const next = step(index);
-    if (next === null) return index + 1;
-    index = next;
-  }
-  return index;
-};
-
-/** Just past the backtick closing the template that opened before `start`. */
-const endOfTemplate = (text: string, start: number): number =>
-  endOfRun(text, start, (index) => {
-    if (text[index] === "`") return null;
-    return text[index] === "$" && text[index + 1] === "{"
-      ? endOfInterpolation(text, index + 2)
-      : index + 1;
+    return { before: valueEndingAt(text, index, before), end: null };
   });
+
+/** Just past the backtick closing the template that opened before `start`,
+ * crossing each interpolation with the decisions above. */
+const endOfTemplate: RunReader = templateEndingAt(endOfInterpolation);
 
 /**
  * Just past the `/` closing a regular expression, and its flags. A `/` inside
@@ -417,10 +380,12 @@ const stepBackOverLabel = (shape: readonly string[], index: number): number => {
 /**
  * Whether the `{` at `at`, which follows a colon, opens a labeled block or a
  * case clause rather than a property. The label walks back — balanced
- * brackets crossed whole — to whatever stands before it: a question mark says
- * a ternary's arm, an enclosing object says a property, a value just closed
- * says the same, and anything else says a statement boundary, which is a
- * label's. The clause keywords say a case whatever went before.
+ * brackets crossed whole — to whatever stands before it: a question mark, a
+ * comma, or an assignment says an expression — a ternary's arm, an object's
+ * next property, a call's next argument; an enclosing object says a property;
+ * a value just closed says the same; and anything else says a statement
+ * boundary, which is a label's. The clause keywords say a case whatever went
+ * before.
  */
 const labeledBrace = (shape: readonly string[], at: number): boolean => {
   let index = at - 2;
@@ -433,7 +398,7 @@ const labeledBrace = (shape: readonly string[], at: number): boolean => {
   }
   if (clause) return true;
   const before = shape[index] ?? "";
-  if (before === "?") return false;
+  if (before === "?" || before === ",") return false;
   if (before === "{") return braceOpensABlock(shape, index);
   if (before === "}") return !braceEndedAValue(shape.slice(0, index + 1));
   return true;

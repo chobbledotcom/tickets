@@ -349,6 +349,26 @@ describe("shapeOf reading a pattern", () => {
       "NUM",
       "}",
     ]);
+    // A property after a comma is an arm of the object, not a label.
+    expect(shapeOf("x = { a: 1, b: { two: 2 } / 2 }")).toEqual([
+      "ID",
+      "=",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      ",",
+      "ID",
+      ":",
+      "{",
+      "ID",
+      ":",
+      "NUM",
+      "}",
+      "/",
+      "NUM",
+      "}",
+    ]);
   });
 
   test("still divides after a brace that closed a value", () => {
