@@ -164,21 +164,26 @@ export const stripComments = (source: string): string => {
 /**
  * Every top-level statement in `content` that names a module — an import or a
  * re-export. A line that starts in column 0 is the only one that counts, so an
- * example import quoted inside a string is not mistaken for the real thing. The
- * module name is read from the line that ends the statement, which is the line
- * carrying `from`, and the shape from the line that opens it. A statement that
- * ends without a `from`, such as `export { getRawCached };`, names no module
- * and is dropped. Comments are read as absent, so a `from` inside one cannot
- * end the statement early or name the wrong module.
+ * example import quoted inside a string or a template is not mistaken for the
+ * real thing. The statement's lines are held while it is open, so the module
+ * name is read from the whole statement — a `from` and its specifier can wait
+ * on different lines — and the shape from the line that opens it. A statement
+ * that ends without a `from`, such as `export { getRawCached };`, names no
+ * module and is dropped. Comments are read as absent, so a `from` inside one
+ * cannot end the statement early or name the wrong module.
  */
 export const topLevelImports = (content: string): ImportLine[] => {
   const found: ImportLine[] = [];
   let open: { head: string; line: number } | null = null;
+  let held: string[] = [];
   for (const [index, line] of stripComments(content).split("\n").entries()) {
-    if (open === null && OPENS_A_MODULE_STATEMENT.test(line)) {
+    if (open === null) {
+      if (!OPENS_A_MODULE_STATEMENT.test(line)) continue;
       open = { head: line, line: index + 1 };
+      held = [line];
+    } else {
+      held.push(line);
     }
-    if (open === null) continue;
     const isEnd =
       /from\s+["']/.test(line) ||
       /^import\s+["'][^"']*["']/.test(line) ||
@@ -186,9 +191,10 @@ export const topLevelImports = (content: string): ImportLine[] => {
     if (!isEnd) continue;
     // A side-effect `import "./x.ts"` names its module without a `from`, and
     // loads it for what it does rather than for what it hands back.
+    const statement = held.join("\n");
     const specifier =
-      line.match(/from\s+["']([^"']+)["']/)?.[1] ??
-      line.match(/^import\s+["']([^"']+)["']/)?.[1];
+      statement.match(/from\s+["']([^"']+)["']/)?.[1] ??
+      statement.match(/^import\s+["']([^"']+)["']/)?.[1];
     if (specifier !== undefined) {
       found.push({
         line: open.line,

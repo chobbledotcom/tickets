@@ -60,13 +60,63 @@ const isWordPart = (character: string): boolean =>
 const isStepChange = (character: string): boolean =>
   character === "+" || character === "-";
 
+/** The place the word that holds `from` starts, reading backward. */
+const wordStart = (text: string, from: number): number => {
+  let start = from;
+  while (start > 0 && isWordPart(text[start - 1] as string)) start--;
+  return start;
+};
+
+/** The word that stands just before `at`, past any whitespace between, or
+ * nothing when no word stands there. */
+const wordBefore = (text: string, at: number): string | undefined => {
+  let end = at - 1;
+  while (end >= 0 && /\s/.test(text[end] as string)) end--;
+  if (end < 0 || !isWordPart(text[end] as string)) return;
+  return text.slice(wordStart(text, end), end + 1);
+};
+
+/**
+ * The word in front of the `(` that the `)` at `index` closes, or nothing when
+ * nothing matches it or when no word stands there: the boundary scan over raw
+ * text asks the same header question the token scan asks over shapes.
+ */
+const wordBeforeTheParens = (
+  text: string,
+  index: number,
+): string | undefined => {
+  let depth = 0;
+  for (let at = index; at >= 0; at--) {
+    if (text[at] === ")") depth++;
+    if (text[at] !== "(") continue;
+    depth--;
+    if (depth === 0) return wordBefore(text, at);
+  }
+  return;
+};
+
+/** Whether the `)` at `index` closed an `if`, `while` or `for` header. */
+const closesAHeaderIn = (text: string, index: number): boolean => {
+  const word = wordBeforeTheParens(text, index);
+  return HEADER_WORDS.has(word ?? "");
+};
+
+/** The whole word the character at `index` sits inside. */
+const wordAt = (text: string, index: number): string => {
+  let end = index;
+  while (end < text.length && isWordPart(text[end] as string)) end++;
+  return text.slice(wordStart(text, index), end);
+};
+
 /**
  * What the token before a slash counts as, when the boundary scan has to tell
  * a divide from a pattern. Whitespace keeps whatever came before it, and
  * anything that ends no value clears it, so an operator puts a pattern back in
  * reach. A word reads as the word itself when the syntax list holds it — so
  * `return` ends no value, the way it does in the token scan — and as `ID`
- * otherwise: a `${…}` never opens with a keyword a pattern could follow.
+ * otherwise: a `${…}` never opens with a keyword a pattern could follow. A
+ * `)` that closed a control header ends no value either — a pattern can
+ * follow `if (ready)` inside an interpolation the same as outside one.
  */
 const valueEndingAt = (
   text: string,
@@ -76,12 +126,12 @@ const valueEndingAt = (
   const character = text[index] as string;
   if (/\s/.test(character)) return before;
   if (isWordPart(character)) {
-    let start = index;
-    while (start > 0 && isWordPart(text[start - 1] as string)) start--;
-    let end = index;
-    while (end < text.length && isWordPart(text[end] as string)) end++;
-    const word = text.slice(start, end);
+    const word = wordAt(text, index);
     return SYNTAX_WORDS.has(word) ? word : "ID";
+  }
+  if (character === ")") {
+    if (closesAHeaderIn(text, index)) return;
+    return ")";
   }
   if (isStepChange(character) && text[index - 1] === character) {
     return character + character;
@@ -293,6 +343,7 @@ const BLOCK_BRACE_AFTER = new Set([
   "}",
   "=>",
   "ID",
+  "catch",
   "do",
   "else",
   "finally",

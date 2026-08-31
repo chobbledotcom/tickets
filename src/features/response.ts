@@ -26,12 +26,15 @@ const encoder = new TextEncoder();
 export const encodeBody = (text: string): ArrayBuffer =>
   encoder.encode(text).buffer as ArrayBuffer;
 
+/** One response builder of a kind: a body, and a status that defaults to 200. */
+export type EncodedResponse = (body: string, status?: number) => Response;
+
 /**
  * A response of one kind, ready to take a body. Every kind we send is text we
  * built ourselves, so the charset is always UTF-8.
  */
 const encodedResponse =
-  (contentType: string): ((body: string, status?: number) => Response) =>
+  (contentType: string): EncodedResponse =>
   (body, status = 200) =>
     new Response(encodeBody(body), {
       headers: { "content-type": `${contentType}; charset=utf-8` },
@@ -48,7 +51,7 @@ export const orResponse = async <T>(
 ): Promise<Response> => (loaded instanceof Response ? loaded : use(loaded));
 
 /** Create HTML response */
-export const htmlResponse = encodedResponse("text/html");
+export const htmlResponse: EncodedResponse = encodedResponse("text/html");
 
 /**
  * Create 404 not found response
@@ -216,13 +219,15 @@ export const jsonResponse = (data: unknown, status = 200): Response =>
   jsonBody(JSON.stringify(data), status);
 
 /** Create plain text response */
-export const plainResponse = encodedResponse("text/plain");
+export const plainResponse: EncodedResponse = encodedResponse("text/plain");
 
 /** Create iCalendar response */
-export const icsResponse = encodedResponse("text/calendar");
+export const icsResponse: EncodedResponse = encodedResponse("text/calendar");
 
 /** Create RSS/XML response */
-export const rssResponse = encodedResponse("application/rss+xml");
+export const rssResponse: EncodedResponse = encodedResponse(
+  "application/rss+xml",
+);
 
 /**
  * Build a file-download response: the body, a fixed content-type, and a

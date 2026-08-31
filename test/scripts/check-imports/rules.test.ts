@@ -166,6 +166,31 @@ describe("topLevelImports", () => {
     ]);
   });
 
+  test("reads a from whose specifier waits on the next line", () => {
+    const source = 'import { A }\n  from\n  "#shared/a.ts";';
+    expect(topLevelImports(source)).toEqual([
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#shared/a.ts",
+        typeOnly: false,
+      },
+    ]);
+    // The break the statement's lines keep is a separator the join must not
+    // lose, even beside an empty line.
+    const withGap = 'import { A }\nfrom\n\n"#shared/a.ts";';
+    expect(topLevelImports(withGap)).toEqual([
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#shared/a.ts",
+        typeOnly: false,
+      },
+    ]);
+  });
+
   test("reads the statement's own from, not one inside a comment", () => {
     const expected = [
       {
