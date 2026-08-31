@@ -300,4 +300,26 @@ describe("the steps a reader takes", () => {
       verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
     ).toBe("never read");
   });
+
+  test("keeps each field a fixed Record key names", () => {
+    // `Record<"fixed", T>` names one member per key, reached as
+    // `record.fixed`, so the syntax walk must keep that key.
+    expect(verdictOf("FixedByWord", "fixed")).toBe("read");
+    expect(verdictOf("FixedByWord.fixed", "id")).toBe("read");
+    expect(verdictOf("FixedByNegativeZero", "0")).toBe("read");
+    expect(verdictOf("FixedByNumber", "-2")).toBe("read");
+    expect(verdictOf("FixedByWords", "first")).toBe("read");
+    expect(verdictOf("FixedByWords", "second")).toBe("never read");
+  });
+
+  test("reads through a parenthesised fixed Record key", () => {
+    expect(verdictOf("FixedAroundNever", "aroundNever")).toBe("read");
+    expect(
+      verdictOf("FixedAroundNever.aroundNever", "readPastTheFixedKey"),
+    ).toBe("read");
+  });
+
+  test("leaves the value of an empty Record out", () => {
+    expect(verdictOf('EmptyFixedRecord["[]"]', "mustStayOut")).toBeUndefined();
+  });
 });

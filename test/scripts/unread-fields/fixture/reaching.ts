@@ -62,8 +62,8 @@ export type OneArmOrTheOther =
   | { readonly pickedArm: "fourth" };
 
 // Narrowed to the second arm, so the read points at the second declaration.
-// Four arms is what makes this differ from InlineArmsShareIt: the compiler
-// relates two near-identical arms and stops relating four.
+// Four arms makes this differ from InlineArmsShareIt. The compiler relates two
+// near-identical arms but does not relate four.
 export const readTheSecondArm = (rule: OneArmOrTheOther): number =>
   rule.pickedArm === "second" ? rule.declaredByTwoArms : 1;
 

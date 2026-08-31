@@ -1,6 +1,6 @@
 /**
- * Reading a scrap of code and putting a question to one mention in it.
- * Shared by the writes suites, because every suite asks the same scraps.
+ * How to read a code scrap and ask about one mention. The writes suites share
+ * it because every suite asks the same scraps.
  */
 import ts from "typescript";
 import {
@@ -34,6 +34,7 @@ export const askAt =
     let from = -1;
     for (let seen = 0; seen <= nth; seen++) {
       from = code.indexOf(field, from + 1);
+      if (from === -1) break;
     }
     const node = nodeAt(source, from);
     if (!node) throw new Error(`no node at ${from} in ${code}`);

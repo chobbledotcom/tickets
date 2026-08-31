@@ -4,7 +4,11 @@
  * declarations that share a name two fields.
  */
 import ts from "typescript";
+import { answered } from "#scripts/unread-fields/host.ts";
 import { quotedInBrackets } from "#scripts/unread-fields/writes.ts";
+import { type FieldName, fieldNameText, isFieldName } from "./names.ts";
+
+type TypeQuestion = (checker: ts.TypeChecker) => (node: ts.Node) => boolean;
 
 /** Whether the language itself wrote a declaration down — in a declaration
  * file — rather than this repository. */
@@ -17,9 +21,7 @@ const declaredByTheLanguage = (at: ts.Declaration): boolean =>
  * language's declaration files. A name the program typechecked with always
  * resolves to its symbol. */
 const builtInNamed =
-  (
-    names: ReadonlySet<string>,
-  ): ((checker: ts.TypeChecker) => (node: ts.Node) => boolean) =>
+  (names: ReadonlySet<string>): TypeQuestion =>
   (checker) =>
   (node) => {
     if (
@@ -41,8 +43,8 @@ const builtInNamed =
  * holds many the same way, so a field of the shape and a field of what it
  * holds stay two fields. A map is not here: its two arguments are below.
  * These are all exported for the walk, which keeps a generic's argument out
- * unless the generic hands it on unchanged. A `Record` keyed by words rather
- * than a key domain stays out too: its members are named, reached as
+ * unless the generic hands it on unchanged. A `Record` keyed by fixed names
+ * rather than a key domain stays out too. Its members are named and reached as
  * `record.fixed`, so the checker reports them like any other named member. */
 const ELEMENT_CONTAINERS = new Set([
   "Array",
@@ -52,43 +54,80 @@ const ELEMENT_CONTAINERS = new Set([
   "ReadonlySet",
 ]);
 
-/** Whether a `Record`'s first type argument names a key domain — a string,
- * a number, a symbol — rather than the words themselves. A domain reaches
- * one member at a time; words each name one member. A union mixes the two
- * the way the checker does: a domain anywhere makes the whole thing one. */
-const namesAWordKey = (keys: ts.TypeNode): boolean => {
-  if (ts.isUnionTypeNode(keys)) return keys.types.every(namesAWordKey);
-  return ts.isLiteralTypeNode(keys);
+/** The fixed names a `Record` key gives, or no list for an open key domain. */
+const fixedKeysOf = (node: ts.TypeNode): FieldName[] | undefined => {
+  if (ts.isParenthesizedTypeNode(node)) return fixedKeysOf(node.type);
+  if (node.kind === ts.SyntaxKind.NeverKeyword) return [];
+  if (!ts.isUnionTypeNode(node)) {
+    return ts.isLiteralTypeNode(node) && isFieldName(node.literal)
+      ? [node.literal]
+      : undefined;
+  }
+  const parts = node.types.map(fixedKeysOf);
+  return parts.every((part): part is FieldName[] => part !== undefined)
+    ? parts.flat()
+    : undefined;
 };
 
 /** The generics a reader reaches one member at a time, except a `Record`
- * keyed by words: each word names one member, reached as `record.fixed`, so
- * the element step does not apply. */
+ * keyed by fixed names. Each key names one member, reached as `record.fixed`,
+ * so the element step does not apply. */
 export const holdsElements =
   (checker: ts.TypeChecker): ((node: ts.Node) => boolean) =>
   (node) => {
     if (!anElementContainer(checker)(node)) return false;
-    // An element container always writes its arguments down — the name does
-    // not typecheck without them.
     const reference = node as ts.TypeReferenceNode;
     // An element container always writes its arguments down — the name
     // does not typecheck without them.
     const [first] = reference.typeArguments as unknown as [ts.TypeNode];
-    return !namesAWordKey(first);
+    return fixedKeysOf(first) === undefined;
   };
 
 const anElementContainer = builtInNamed(ELEMENT_CONTAINERS);
+
+const aRecord = builtInNamed(new Set(["Record"]));
+
+export interface NamedRecordMember {
+  name: FieldName;
+  symbol: ts.Symbol;
+  value: ts.TypeNode;
+}
+
+/** The named members a fixed-key `Record` writes down in its key argument. */
+export const namedRecordMembers =
+  (checker: ts.TypeChecker): ((node: ts.Node) => NamedRecordMember[]) =>
+  (node) => {
+    if (!aRecord(checker)(node)) return [];
+    const reference = node as ts.TypeReferenceNode;
+    const [keys, value] = reference.typeArguments as unknown as [
+      ts.TypeNode,
+      ts.TypeNode,
+    ];
+    const names = fixedKeysOf(keys);
+    if (!names) return [];
+    const type = checker.getTypeFromTypeNode(reference);
+    return names.map((name) => ({
+      name,
+      symbol: answered(
+        checker.getPropertyOfType(type, fieldNameText(name)),
+        `property ${fieldNameText(name)} of a fixed Record`,
+      ),
+      value,
+    }));
+  };
 
 /** The generics that hold two different kinds of thing at once. The key and
  * the value of a map are reached by two different calls, so a field of each
  * with one name stays two fields. Exported for the walk, which keeps a
  * generic's argument out unless the generic hands it on unchanged. */
-export const holdsKeysAndValues = builtInNamed(new Set(["Map", "ReadonlyMap"]));
+export const holdsKeysAndValues: TypeQuestion = builtInNamed(
+  new Set(["Map", "ReadonlyMap"]),
+);
 
 /** A pass-through generic hands its argument's members on unchanged.
  * `Partial<T>`, `Required<T>` and `Readonly<T>` keep every member of T, with
  * no step between. */
-export const passesMembersThrough = builtInNamed(
+export const passesMembersThrough: TypeQuestion = builtInNamed(
   new Set(["Partial", "Required", "Readonly"]),
 );
 
@@ -99,24 +138,6 @@ export type Step = { name: string } | { way: string };
 
 export const stepText = (step: Step): string =>
   "name" in step ? step.name : step.way;
-
-/** A field's name as it is written down. `row["status-code"]` reaches the
- * same member as `row.total`, so a quoted or numbered name counts, and so
- * does a template literal with nothing worked out in it: `` [`foo`]: number``
- * names the field `x.foo` exactly as `"foo": number` does. A `#private`
- * name is nobody else's to reach, so it is not a field the scan can look up.
- */
-export type FieldName =
-  | ts.Identifier
-  | ts.StringLiteral
-  | ts.NumericLiteral
-  | ts.NoSubstitutionTemplateLiteral;
-
-export const isFieldName = (node: ts.Node): node is FieldName =>
-  ts.isIdentifier(node) ||
-  ts.isStringLiteral(node) ||
-  ts.isNumericLiteral(node) ||
-  ts.isNoSubstitutionTemplateLiteral(node);
 
 /** One element of something that holds many. A list and a `Record` read
  * this way, and a shape is never both at one place in the path. */
@@ -160,6 +181,7 @@ const arrivesThroughACall = (node: ts.ParameterDeclaration): boolean => {
   const { parent } = node;
   return (
     (parent as { name?: ts.Node }).name !== undefined &&
+    !REACHED_THROUGH.has(parent.kind) &&
     !ts.isSetAccessorDeclaration(parent) &&
     !ts.isConstructorDeclaration(parent)
   );
@@ -204,7 +226,7 @@ const stepOfTheSettersName = (
   name: ts.PropertyName,
 ): { way: string } | undefined => {
   const written = quotedInBrackets(name) ?? name;
-  return isFieldName(written) ? { way: written.text } : undefined;
+  return isFieldName(written) ? { way: fieldNameText(written) } : undefined;
 };
 
 /** The steps a parameter adds before its own name. A method's named

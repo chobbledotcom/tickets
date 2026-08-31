@@ -102,8 +102,8 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("Passed", "kept")).toBe("read");
   });
 
-  // The blind spot the README names first: a spread moves the field without
-  // naming it, so there is no reference for the scan to find.
+  // The blind spot the README names first: a spread moves the field but does
+  // not name it. Thus, the scan finds no reference.
 
   test("cannot follow a field carried only by a spread", () => {
     expect(verdictOf("Passed", "carriedBySpread")).toBe("never read");
@@ -153,6 +153,50 @@ describe("the reads the scan counts", () => {
 
   test("does not count a shorthand field with no use at all", () => {
     expect(verdictOf("FromAShorthand", "readsLikeAField")).toBe("never read");
+  });
+
+  test("counts a dot read of a fixed Record key", () => {
+    expect(verdictOf("FixedByWord", "fixed")).toBe("read");
+  });
+
+  test("counts a bracket read of a fixed Record key", () => {
+    expect(verdictOf("FixedByWords", "first")).toBe("read");
+  });
+
+  test("counts a negative numeric fixed Record key read", () => {
+    expect(verdictOf("FixedByNumber", "-2")).toBe("read");
+  });
+
+  test("counts a negative key that a loop assignment takes out", () => {
+    expect(verdictOf("NamedByALiteral", "-7")).toBe("read");
+  });
+
+  test("counts an optional negative key read", () => {
+    expect(verdictOf("NamedByALiteral", "-8")).toBe("read");
+  });
+
+  test("counts a negative key read through either union arm", () => {
+    expect(verdictOf("NegativeArms", "-9")).toBe("read");
+  });
+
+  test("reads below an open negative numeric index", () => {
+    expect(verdictOf('OpenByNumber["[]"]', "readThroughANegativeIndex")).toBe(
+      "read",
+    );
+  });
+
+  test("keeps an unread fixed Record key unread", () => {
+    expect(verdictOf("FixedByWords", "second")).toBe("never read");
+  });
+
+  test("counts a fixed Record key read only by tests", () => {
+    expect(verdictOf("FixedOnlyTestsRead", "onlyTestsRead")).toBe(
+      "read only by tests",
+    );
+  });
+
+  test("counts a fixed Record key read after a union narrows", () => {
+    expect(verdictOf("FixedInTwoArms", "same")).toBe("read");
   });
 
   test("still counts a member read of a shorthand field", () => {

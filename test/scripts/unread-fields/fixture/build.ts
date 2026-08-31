@@ -96,8 +96,11 @@ export const report: Report = {
 
   "test/report.test.ts": `
 import { report } from "../src/produce.ts";
+import type { FixedOnlyTestsRead } from "../src/shapes.ts";
 
 export const seen = report.onlyTestsRead;
+declare const fixed: FixedOnlyTestsRead;
+export const fixedSeen = fixed.onlyTestsRead;
 `,
 };
 

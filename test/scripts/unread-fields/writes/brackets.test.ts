@@ -26,6 +26,12 @@ describe("askAt", () => {
       "no node at -1 in const x = 1;",
     );
   });
+
+  test("stops when the requested occurrence does not exist", () => {
+    expect(() => readsAt("use(total);", "total", 2)).toThrow(
+      "no node at -1 in use(total);",
+    );
+  });
 });
 
 describe("quotedInBrackets", () => {

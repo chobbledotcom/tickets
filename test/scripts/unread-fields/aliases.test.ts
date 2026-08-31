@@ -9,7 +9,7 @@ describe("aliasPaths", () => {
     });
   });
 
-  test("leaves an alias naming one file exact", () => {
+  test("leaves an alias for one file exact", () => {
     expect(aliasPaths({ "#fp": "./src/fp.ts" })).toEqual({
       "#fp": ["./src/fp.ts"],
     });

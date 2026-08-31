@@ -38,6 +38,15 @@ export interface NamedByALiteral {
   plainName: string;
   ["quoted-in-brackets"]: string;
   [2]: string;
+  [-0]: string;
+  [-0xA]: string;
+  [-1_000]: string;
+  [-3]: string;
+  [-4]: string;
+  [-5]: string;
+  [-7]: string;
+  [-8]: string;
+  nestedNegative: { [-6]: string };
   [WORKED_OUT_WHEN_IT_RUNS]: string;
   [\`templated\`]: number;
 }
@@ -95,7 +104,13 @@ export class ServesItsValueThroughAGetter {
 export class RunsItAsAProperty {
   run = (input: { arrowSpelling: number }): void => {};
 
-  send = function (input: { writtenOutSpelling: number }): void {}
+  send = function writtenOut(input: { writtenOutSpelling: number }): void {}
+}
+
+export class HoldsAClassInAStatic {
+  static inner = class {
+    static dead = 1;
+  };
 }
 
 // A shape can hold one index signature for each kind of key, and a reader
@@ -148,6 +163,29 @@ export interface NameHoldsADot {
   "hasADotInIts.name": string;
   hasADotInIts: { name: string };
 }
+
+interface FirstNegativeArm {
+  kind: "first";
+  [-9]: string;
+}
+
+interface SecondNegativeArm {
+  kind: "second";
+  [-9]: string;
+}
+
+export type NegativeArms = FirstNegativeArm | SecondNegativeArm;
+
+export type NegativeZeroTypeLiteral = { [-0]: string };
+
+export class NegativeZeroClass {
+  [-0] = "value";
+}
+
+export type OpenByNumber = Record<
+  number,
+  { readThroughANegativeIndex: string }
+>;
 
 export class KeepsSecretsInside {
   private state: { onlyInsideAPrivate: string } = { onlyInsideAPrivate: "x" };

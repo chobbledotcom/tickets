@@ -121,8 +121,8 @@ describe("readsTheValue", () => {
   });
 
   test("does not read a field a for-in loop assigns each key to", () => {
-    // `for (row.total in source)` puts a key in without looking at the old
-    // value, exactly as the for-of form does.
+    // `for (row.total in source)` puts a key in with no read of the old value,
+    // exactly as the for-of form does.
     expect(readsAt("for (row.total in source) use(row);", "total")).toBe(false);
   });
 

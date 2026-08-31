@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import ts from "typescript";
+import { fieldNameText } from "#scripts/unread-fields/fields/names.ts";
 import {
   exportedFields,
   type OwnedField,
@@ -41,7 +42,7 @@ describe("one line per field", () => {
   });
 
   const namesFor = (field: string): OwnedField["names"] | undefined =>
-    found.find((line) => line.names[0].text === field)?.names;
+    found.find((line) => fieldNameText(line.names[0]) === field)?.names;
 
   test("names one place for a field written down once", () => {
     // The walk reads the declaration, and the checker hands the same one back

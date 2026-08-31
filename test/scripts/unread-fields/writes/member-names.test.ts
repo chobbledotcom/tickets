@@ -12,6 +12,10 @@ describe("namesAMember", () => {
     expect(namesAMemberAt('use(row["total"]);', "total")).toBe(true);
   });
 
+  test("a variable used as a computed key names no member", () => {
+    expect(namesAMemberAt("use(row[total]);", "total")).toBe(false);
+  });
+
   test("the name a pattern takes out names a member", () => {
     expect(namesAMemberAt("const { total } = row;", "total")).toBe(true);
   });

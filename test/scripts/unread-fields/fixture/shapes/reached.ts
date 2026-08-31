@@ -90,5 +90,9 @@ export type FromAShorthand = (typeof SHORTHANDS)[number];
 
 export const useTheLocal = (): number => namedByALocal + 1;
 
+const OTHER_VALUES = { 1: "one" };
+export const useTheLocalAsAComputedKey = (): string =>
+  OTHER_VALUES[namedByALocal];
+
 export const readItHere = (one: FromAShorthand): number => one.readInItsOwnFile;
 `;

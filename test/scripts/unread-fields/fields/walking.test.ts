@@ -296,11 +296,25 @@ describe("what the walk goes into", () => {
     expect(verdictOf("UsesABorrowedName", "held")).toBe("never read");
   });
 
-  test("leaves a record keyed by words to the checker", () => {
-    // `Record<"fixed", T>` names one member per word, reached as
-    // `record.fixed`, so the element step does not apply and the checker
-    // carries the word.
-    expect(verdictOf("FixedByWord", "fixed")).toBeUndefined();
+  test("keeps every fixed-key symbol that shares one field line", () => {
+    // The reader narrows to the second arm. Its synthetic symbol differs from
+    // the first arm's, although both keys belong to one reported field.
+    expect(verdictOf("FixedInTwoArms", "same")).toBe("read");
+  });
+
+  test("keeps the inputs of call types an alias borrows", () => {
+    expect(verdictOf('BorrowsACall["()"].input', "onlyInBorrowedCall")).toBe(
+      "never read",
+    );
+  });
+
+  test("keeps the inputs of construct types an alias borrows", () => {
+    expect(
+      verdictOf(
+        'BorrowsAConstruct["new ()"].options',
+        "onlyInBorrowedConstruct",
+      ),
+    ).toBe("never read");
   });
 
   test("still sees a field a readonly array hands out", () => {

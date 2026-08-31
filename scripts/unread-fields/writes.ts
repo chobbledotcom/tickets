@@ -7,6 +7,7 @@
  */
 
 import ts from "typescript";
+import { isLiteralFieldName } from "./fields/names.ts";
 
 /** The innermost node over a position, which is the identifier a
  * reference points at. */
@@ -24,10 +25,12 @@ export const nodeAt = (
 };
 
 /** The two ways a mention can name the field it reaches: after a dot, and
- * inside brackets. `row["total"]` reaches the same member as `row.total`. */
+ * as a fixed name inside brackets. */
 const reachesTheField = (node: ts.Node, parent: ts.Node): boolean =>
   (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
-  (ts.isElementAccessExpression(parent) && parent.argumentExpression === node);
+  (ts.isElementAccessExpression(parent) &&
+    parent.argumentExpression === node &&
+    isLiteralFieldName(node));
 
 /** Both of the questions below are about the access that reaches the field,
  * so both put their question to that access the same way. */
@@ -106,11 +109,7 @@ export type AskAboutAMention = (node: ts.Node) => boolean;
 export const quotedInBrackets = (name: ts.Node): ts.Node | undefined => {
   if (!ts.isComputedPropertyName(name)) return;
   const { expression } = name;
-  return ts.isStringLiteral(expression) ||
-    ts.isNumericLiteral(expression) ||
-    ts.isNoSubstitutionTemplateLiteral(expression)
-    ? expression
-    : undefined;
+  return isLiteralFieldName(expression) ? expression : undefined;
 };
 
 /** The brackets a mention sits inside, when the mention is the name they

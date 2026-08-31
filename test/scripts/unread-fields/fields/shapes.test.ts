@@ -29,8 +29,8 @@ describe("what the scan counts as a shape", () => {
   });
 
   test("does not count the constructor's own use of a parameter field", () => {
-    // `super(value)` names the parameter, not the field. To count it would
-    // keep every parameter property of an Error subclass looking alive.
+    // `super(value)` names the parameter, not the field. To count it keeps
+    // every parameter property of an Error subclass alive.
     expect(verdictOf("NamedItsParameter", "onlyTheConstructorNamesIt")).toBe(
       "never read",
     );

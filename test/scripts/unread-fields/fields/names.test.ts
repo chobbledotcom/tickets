@@ -28,6 +28,44 @@ describe("how a field is named", () => {
     expect(verdictOf("NamedByALiteral", "2")).toBe("never read");
   });
 
+  test("reads a negative number written inside brackets", () => {
+    expect(verdictOf("NamedByALiteral", "-3")).toBe("read");
+  });
+
+  test("reads a negative number through a binding pattern", () => {
+    expect(verdictOf("NamedByALiteral", "-4")).toBe("read");
+  });
+
+  test("reads a negative number through an assignment pattern", () => {
+    expect(verdictOf("NamedByALiteral", "-5")).toBe("read");
+  });
+
+  test("reads a negative number through a nested assignment pattern", () => {
+    expect(verdictOf("NamedByALiteral.nestedNegative", "-6")).toBe("read");
+  });
+
+  test("reads a negative number through a loop assignment pattern", () => {
+    expect(verdictOf("NamedByALiteral", "-7")).toBe("read");
+  });
+
+  test("uses canonical names for negative numeric keys", () => {
+    expect(verdictOf("NamedByALiteral", "-0")).toBe("read");
+    expect(verdictOf("NamedByALiteral", "-10")).toBe("read");
+    expect(verdictOf("NamedByALiteral", "-1000")).toBe("read");
+  });
+
+  test("uses zero for an inferred negative-zero property", () => {
+    expect(verdictOf("FromInferredNegativeZero", "0")).toBe("read");
+  });
+
+  test("keeps negative zero for a type literal declaration", () => {
+    expect(verdictOf("NegativeZeroTypeLiteral", "-0")).toBe("read");
+  });
+
+  test("keeps negative zero for a class declaration", () => {
+    expect(verdictOf("NegativeZeroClass", "-0")).toBe("read");
+  });
+
   test("leaves out a name a variable works out", () => {
     // The variable is not the field, so there is nothing to look up.
     expect(verdictOf("NamedByALiteral", "keptOut")).toBeUndefined();
@@ -67,6 +105,15 @@ describe("how a field is named", () => {
     // a value read, and send nobody to the dead one.
     expect(verdictOf("typeof BothSides", "heldByTheClass")).toBe("read");
     expect(verdictOf("BothSides", "heldByAValue")).toBe("never read");
+  });
+
+  test("keeps a nested class object's path for its static fields", () => {
+    expect(verdictOf("typeof HoldsAClassInAStatic", "inner")).toBe(
+      "never read",
+    );
+    expect(verdictOf("typeof HoldsAClassInAStatic.inner", "dead")).toBe(
+      "never read",
+    );
   });
 
   test("tells a name that holds a dot from a path built with dots", () => {

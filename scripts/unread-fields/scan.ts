@@ -11,7 +11,11 @@ import ts from "typescript";
 import { unique } from "#fp";
 import { collectSourceFiles } from "#scripts/walk-files.ts";
 import { aliasPaths } from "./aliases.ts";
-import type { FieldName } from "./fields/steps.ts";
+import {
+  type FieldName,
+  fieldNameText,
+  isNegativeNumericName,
+} from "./fields/names.ts";
 import { exportedFields } from "./fields.ts";
 import { type Finding, verdictFor } from "./findings.ts";
 import { answered, compilerOptions, pathIs, serviceHost } from "./host.ts";
@@ -99,9 +103,12 @@ const readersOfName = (
   root: string,
   field: FieldName,
 ): string[] => {
+  // The language service accepts no position inside a negative number.
+  // Its checker property symbol supplies those references below.
+  if (isNegativeNumericName(field)) return [];
   const references = answered(
     service.findReferences(field.getSourceFile().fileName, field.getStart()),
-    `references for ${field.text}`,
+    `references for ${fieldNameText(field)}`,
   );
   const namesTheNamesake = namesTheNamesakeOf(field);
   const readers: string[] = [];
@@ -115,14 +122,99 @@ const readersOfName = (
   return readers;
 };
 
+/** The type that holds one negative member mention. */
+const typeAtNegativeMember = (
+  checker: ts.TypeChecker,
+  node: ts.PrefixUnaryExpression,
+): ts.Type => {
+  const { parent } = node;
+  if (
+    ts.isElementAccessExpression(parent) &&
+    parent.argumentExpression === node
+  ) {
+    return checker.getTypeAtLocation(parent.expression);
+  }
+  const computed = answered(
+    ts.findAncestor(node, ts.isComputedPropertyName),
+    `computed name at ${node.getStart()}`,
+  );
+  const member = computed.parent;
+  if (ts.isBindingElement(member)) {
+    return checker.getTypeAtLocation(member.parent);
+  }
+  const pattern = answered(
+    ts.findAncestor(computed, ts.isObjectLiteralExpression),
+    `assignment pattern at ${node.getStart()}`,
+  );
+  return checker.getTypeOfAssignmentPattern(pattern);
+};
+
+/** The property symbols that one member mention reaches. */
+const symbolsAtMember = (
+  checker: ts.TypeChecker,
+  node: ts.Node,
+): readonly ts.Symbol[] => {
+  const direct = checker.getSymbolAtLocation(node);
+  if (direct) return checker.getRootSymbols(direct);
+  if (!isNegativeNumericName(node)) return [];
+  const property = checker.getPropertyOfType(
+    checker.getNonNullableType(typeAtNegativeMember(checker, node)),
+    fieldNameText(node),
+  );
+  // An open number index accepts this mention without a fixed property.
+  return property ? checker.getRootSymbols(property) : [];
+};
+
 /** Everyone who reads a field, wherever it was written down. */
 const readersOf = (
   service: ts.LanguageService,
   program: ts.Program,
   root: string,
   names: readonly FieldName[],
+  symbols: readonly ts.Symbol[],
+  readersBySymbol: ReadonlyMap<ts.Symbol, readonly string[]>,
 ): string[] =>
-  unique(names.flatMap((name) => readersOfName(service, program, root, name)));
+  unique([
+    ...names.flatMap((name) => readersOfName(service, program, root, name)),
+    ...symbols.flatMap((symbol) =>
+      answered(readersBySymbol.get(symbol), `readers for ${symbol.name}`),
+    ),
+  ]);
+
+/** Read sites for fields the checker creates without a source declaration. */
+const readersOfSymbols = (
+  program: ts.Program,
+  checker: ts.TypeChecker,
+  files: readonly string[],
+  symbols: ReadonlySet<ts.Symbol>,
+  root: string,
+): ReadonlyMap<ts.Symbol, readonly string[]> => {
+  const readers = new Map(
+    [...symbols].map((symbol): [ts.Symbol, string[]] => [symbol, []]),
+  );
+  const readSymbolsIn = (file: string): ((node: ts.Node) => void) => {
+    const relative = file.replace(`${root}/`, "");
+    const read = (node: ts.Node): void => {
+      if (namesAMember(node) && readsTheValue(node)) {
+        for (const symbol of symbolsAtMember(checker, node)) {
+          if (!symbols.has(symbol)) continue;
+          const paths = answered(
+            readers.get(symbol),
+            `reader list for ${symbol.name}`,
+          );
+          paths.push(relative);
+        }
+      }
+      ts.forEachChild(node, read);
+    };
+    return read;
+  };
+  for (const file of files) {
+    const source = answered(program.getSourceFile(file), `source file ${file}`);
+    readSymbolsIn(file)(source);
+  }
+  return readers;
+};
 
 /** Look at every exported field the repository declares under `src/`. */
 export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
@@ -145,20 +237,30 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   const scanned = new Set(
     files.filter((f) => f.startsWith(`${root}/${REPORTED}/`)),
   );
+  const fields = program
+    .getSourceFiles()
+    .filter((source) => scanned.has(source.fileName))
+    .flatMap((source) => exportedFields(checker, source));
+  const symbols = new Set(fields.flatMap((field) => field.symbols));
+  const symbolReaders = readersOfSymbols(
+    program,
+    checker,
+    files,
+    symbols,
+    root,
+  );
   const findings: Finding[] = [];
-  for (const source of program.getSourceFiles()) {
-    const file = source.fileName;
-    if (!scanned.has(file)) continue;
-    for (const { owner, names } of exportedFields(checker, source)) {
-      findings.push({
-        field: names[0].text,
-        // Where a reader has to go to find it, which is where it was written
-        // down rather than the shape that hands it on.
-        file: names[0].getSourceFile().fileName.replace(`${root}/`, ""),
-        owner,
-        verdict: verdictFor(readersOf(service, program, root, names)),
-      });
-    }
+  for (const { owner, names, symbols: fieldSymbols } of fields) {
+    findings.push({
+      field: fieldNameText(names[0]),
+      // Where a reader has to go to find it, which is where it was written
+      // down rather than the shape that hands it on.
+      file: names[0].getSourceFile().fileName.replace(`${root}/`, ""),
+      owner,
+      verdict: verdictFor(
+        readersOf(service, program, root, names, fieldSymbols, symbolReaders),
+      ),
+    });
   }
   return findings;
 };

@@ -132,11 +132,34 @@ export type Renamings = {
   [K in keyof Borrowed as \`re\${Capitalize<K & string>}\`]: number;
 };
 
-// A \`Record\` keyed by words rather than a key domain names one member per
-// word, reached as \`record.fixed\`, so its argument stays with the checker.
+// A \`Record\` keyed by fixed names rather than a key domain names one member
+// per key, reached as \`record.fixed\`, so its argument stays with the checker.
+export type EmptyFixedRecord = Record<never, { mustStayOut: number }>;
+export type FixedAroundNever = Record<
+  ("aroundNever" | never),
+  { readPastTheFixedKey: number }
+>;
 export type FixedByWord = Record<"fixed", { id: number }>;
+export type FixedByNegativeZero = Record<-0, number>;
+export type FixedByNumber = Record<-2, number>;
+export type FixedByWords = Record<"first" | "second", number>;
+export type FixedInTwoArms =
+  | (Record<"same", number> & { kind: "number" })
+  | (Record<"same", string> & { kind: "string" });
+export type FixedOnlyTestsRead = Record<"onlyTestsRead", number>;
+
+const inferredNegativeZero = { [-0]: "value" };
+export type FromInferredNegativeZero = typeof inferredNegativeZero;
 
 // A union of a domain and a word is still a domain to the checker, so the
 // member is reached by bracket, once per key.
 export type MixedKeyRecord = Record<number | "five", { byBracket: number }>;
+
+type HiddenCall = (input: { onlyInBorrowedCall: number }) => void;
+type HiddenConstruct = new (
+  options: { onlyInBorrowedConstruct: number },
+) => object;
+
+export type BorrowsACall = HiddenCall;
+export type BorrowsAConstruct = HiddenConstruct;
 `;

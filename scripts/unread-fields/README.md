@@ -54,10 +54,10 @@ An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 `Record<string, { id: number }>` both count. `Array<T>`, `ReadonlyArray<T>` and
 `T[]` add a step for the element, because `rows[0].id` is one step further than
-`rows.id`. `Record<K, T>` adds the same step, because it is the index signature
-written as a generic, and so do `Set` and `ReadonlySet`, which hold many the
-same way. Without that step a shape that holds both a field and a list of the
-same name reports the two as one.
+`rows.id`. `Record<string, T>` and other open key domains add the same step.
+They are index signatures written as generics. `Set` and `ReadonlySet` add it
+too, because they hold many the same way. Without that step a shape that holds
+both a field and a list of the same name reports the two as one.
 
 A map is two calls apart, not one step. `Map<K, V>` and `ReadonlyMap<K, V>` put
 the key's fields under `["keys()"]` and the value's under `["values()"]`,
@@ -82,13 +82,13 @@ block holds only code, so a type declared inside one does not count either.
 and the report calls that object `typeof C`, which is what TypeScript calls it.
 One line for both would call a field on a value read because the class side is.
 
-A field is named in five ways. `total`, `"quoted-name"`, `1`, `["quoted-name"]`,
-and ``[`quoted-name`]`` — a template literal with nothing worked out in it — are
-the spellings a member's name is written in, and the compiler answers a lookup
-for every one of them. Spellings that write the same name name the same member;
-spellings that write different members name different ones. A name a variable
-works out stays out, because the variable is never the field's own. A `#private`
-name stays out too, because nobody outside can reach it.
+A field is named in seven ways. `total`, `"quoted-name"`, `1`,
+`["quoted-name"]`, `[2]`, `[-2]`, and ``[`quoted-name`]`` are the supported
+syntax forms. The last form is a template literal with no calculated value.
+Forms with equal names identify the same member. Forms with different names
+identify different members. A name a variable calculates stays out, because the
+variable is never the field's own. A `#private` name stays out too, because
+nobody outside can reach it.
 
 A `declare global` block does not count either. It adds its shapes to the global
 scope rather than to what the file exports. The one in
@@ -181,10 +181,10 @@ The rule is about the syntax a mention sits in, never about the name alone. In
 writes. In `const s = { sum: total }` and `class S { sum = total }`, `total` is
 the value rather than the name, so both read it.
 
-A field is reported when nothing reads it, or when only a test does. `test/`
-counts as tests, and so do `scripts/email-sandbox-e2e/` and `e2e-payments/`,
-which are live end-to-end harnesses. A field only its tests read is kept alive
-by those tests. No production code needs it, so it is dead under another name.
+A field is reported when nothing reads it, or when only a test does. The test
+readers are `test/`, `scripts/`, `cli/`, and `e2e-payments/src/`. A field only
+these folders read is kept alive by non-production code. No production code
+needs it, so it is dead under another name.
 
 ## What it cannot see
 
@@ -211,17 +211,18 @@ holds the kind of key a reader writes there, so two signatures for different
 kinds of key stay apart. A list, a set, and a `Record` keyed by an open domain
 of keys — `Record<string, T>` — read one member at a time, so they take the same
 `[]` step. The fields of `Array<{ total: number }>` sit under `Rows["[]"]`,
-because a reader writes `rows[0].total`. A `Record` keyed by words —
-`Record<"fixed", T>` — is different: each word names one member, reached as
-`record.fixed`, so the element step does not apply and the checker carries the
-word. A map's keys and values take the two calls a reader makes of them, as
-`Held["keys()"]` and `Held["values()"]`.
+because a reader writes `rows[0].total`. A `Record` keyed directly by fixed
+literals is different. `Record<"fixed" | 2, T>` declares each literal as one
+member, so the element step does not apply. The syntax walk carries each key.
+The checker symbol connects each access to that key. A map's keys and values
+take the two calls a reader makes of them, as `Held["keys()"]` and
+`Held["values()"]`.
 
 Each is a false positive, and a reader has to judge them. That is why the scan
 reports rather than fails: the list is a place to start, not a verdict. A field
 the scan misses is rarer. It needs a read the compiler cannot see, such as one
-through `Object.keys` or a computed name. One kind of shape is missed whole:
-`Intent = v.InferOutput<typeof IntentSchema>` names a type the compiler cannot
-work out here, because the program does not resolve the bare `valibot` import.
-77 exported aliases under `src/` take their shape that way, and each contributes
-no fields to the report.
+through `Object.keys` or an unresolved dynamic computed name. One kind of shape
+is missed whole: `Intent = v.InferOutput<typeof IntentSchema>` names a type the
+compiler cannot calculate here. The program does not resolve the bare `valibot`
+import. 77 exported aliases under `src/` take their shape that way. Each
+contributes no fields to the report.

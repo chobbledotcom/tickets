@@ -15,7 +15,10 @@ import {
   type CarriesTwoElementsOfOneName,
   type DeletedInParens,
   type ExtendsFarBase,
+  type FixedAroundNever,
+  type FixedByNegativeZero,
   type FromAShorthand,
+  type FromInferredNegativeZero,
   type HandsAnObjectOver,
   HasAStaticAndAccessors,
   type HoldsAClass,
@@ -30,7 +33,14 @@ import {
   NamedItsParameter,
   type Passed,
   type FixedByWord,
+  type FixedByNumber,
+  type FixedByWords,
+  type FixedInTwoArms,
   type MixedKeyRecord,
+  type NegativeArms,
+  NegativeZeroClass,
+  type NegativeZeroTypeLiteral,
+  type OpenByNumber,
   type PassedThroughPartially,
   type PassedThroughReadonly,
   type PassedThroughRequired,
@@ -98,6 +108,17 @@ export const throughTheSecondArm = (either: BothArmsWriteIt): number =>
     : 0;
 
 export const readInFull = (one: FromAShorthand): number => one.writtenInFull;
+
+export const readPastAParenthesisedFixedKey = (
+  fixed: FixedAroundNever,
+): number => fixed.aroundNever.readPastTheFixedKey;
+
+export const readARecordNegativeZero = (fixed: FixedByNegativeZero): number =>
+  fixed[0];
+
+export const readAnInferredNegativeZero = (
+  inferred: FromInferredNegativeZero,
+): string => inferred[0];
 
 export const readInsideAnArray = (h: HoldsThingsInGenerics): number =>
   h.inAnArray[0].insideAnArray;
@@ -178,6 +199,55 @@ export const readAQuotedName = (n: NamedByALiteral): string =>
 export const readANameInBrackets = (n: NamedByALiteral): string =>
   n["quoted-in-brackets"];
 
+export const readNormalisedNegativeNames = (n: NamedByALiteral): string =>
+  n["-0"] + n[-10] + n[-1000];
+
+export const readANegativeName = (n: NamedByALiteral): string => n[-3];
+
+export const takeOutANegativeName = (n: NamedByALiteral): string => {
+  const { [-4]: held } = n;
+  return held;
+};
+
+export const assignANegativeName = (n: NamedByALiteral): string => {
+  let held = "";
+  ({ [-5]: held } = n);
+  return held;
+};
+
+export const assignANestedNegativeName = (n: NamedByALiteral): string => {
+  let held = "";
+  ({ nestedNegative: { [-6]: held } } = n);
+  return held;
+};
+
+export const assignANegativeNameInALoop = (
+  rows: NamedByALiteral[],
+): string => {
+  let held = "";
+  for ({ [-7]: held } of rows) break;
+  return held;
+};
+
+export const readAnOptionalNegativeName = (
+  n: NamedByALiteral | undefined,
+): string | undefined => n?.[-8];
+
+export const readANegativeNameFromEitherArm = (
+  either: NegativeArms,
+): string => either[-9];
+
+export const readATypeLiteralNegativeZero = (
+  value: NegativeZeroTypeLiteral,
+): string => value["-0"];
+
+export const readAClassNegativeZero = (): string =>
+  new NegativeZeroClass()["-0"];
+
+export const readThroughAnOpenNegativeIndex = (
+  values: OpenByNumber,
+): string => values[-1].readThroughANegativeIndex;
+
 export const readATemplatedName = (n: NamedByALiteral): number =>
   n.templated;
 
@@ -255,7 +325,20 @@ export const readBesideTheMapping = (m: MapsItsValues): string =>
 export const readFrozen = (r: PassedThroughReadonly): number => r.heldNested.deepInsideTheFreeze;
 
 // Reads the word the record named, which is a member like any other.
-export const readTheFixedWord = (record: FixedByWord): number => record.fixed.id;
+export const readTheFixedWord = (record: FixedByWord): number =>
+  record.fixed.id;
+
+export const readTheFixedNumber = (record: FixedByNumber): number => record[-2];
+
+export const readOneFixedWord = (record: FixedByWords): number =>
+  record["first"];
+
+export const writeOneFixedWord = (record: FixedByWords): void => {
+  record.second = 2;
+};
+
+export const readTheSecondFixedArm = (record: FixedInTwoArms): string =>
+  record.kind === "string" ? record.same : "";
 
 // Reads one member by its bracket, as the union of a domain and a word
 // promises.

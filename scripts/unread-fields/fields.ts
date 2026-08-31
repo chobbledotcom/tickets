@@ -6,7 +6,14 @@
  */
 
 import ts from "typescript";
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, unique } from "#fp";
+import { answered } from "#scripts/unread-fields/host.ts";
+import {
+  type FieldName,
+  fieldNameText,
+  isFieldName,
+  isNegativeNumericName,
+} from "./fields/names.ts";
 import {
   exportedShapes,
   inheritsFrom,
@@ -14,8 +21,7 @@ import {
   shapeBody,
 } from "./fields/shapes.ts";
 import {
-  type FieldName,
-  isFieldName,
+  namedRecordMembers,
   type Step,
   stepText,
   underAnUnnamedPart,
@@ -97,6 +103,26 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
     ),
   );
 
+/** The call and construct declarations a type borrows from this repository. */
+const writtenSignatures = (
+  checker: ts.TypeChecker,
+  type: ts.Type,
+): ts.SignatureDeclaration[] =>
+  unique(
+    [ts.SignatureKind.Call, ts.SignatureKind.Construct]
+      .flatMap((kind) => checker.getSignaturesOfType(type, kind))
+      .map((signature) =>
+        answered(signature.getDeclaration(), "borrowed signature declaration"),
+      )
+      .filter((declaration) => !declaration.getSourceFile().isDeclarationFile),
+  );
+
+interface BorrowedFields {
+  onItsValues: FieldName[];
+  onTheClass: FieldName[];
+  signatures: ts.SignatureDeclaration[];
+}
+
 /** Where a shape's borrowed fields are written down.
  * `UntaggedPaymentReference` takes `reference` from a base its own file keeps
  * to itself, and `CheckoutIntent` intersects one. A reader of either reaches
@@ -112,44 +138,68 @@ const writtenNames = (property: ts.Symbol): FieldName[] =>
 const borrowedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
-): { onItsValues: FieldName[]; onTheClass: FieldName[] } => {
-  if (!inheritsFrom(shape)) return { onItsValues: [], onTheClass: [] };
+): BorrowedFields => {
+  if (!inheritsFrom(shape)) {
+    return { onItsValues: [], onTheClass: [], signatures: [] };
+  }
   /** The names a type hands out, written down in this repository. */
   const namesFrom = (type: ts.Type): FieldName[] =>
     partsOf(type)
       .flatMap((part) => checker.getPropertiesOfType(part))
       .flatMap(writtenNames);
-  const instance = namesFrom(checker.getTypeAtLocation(shape.name));
+  const type = checker.getTypeAtLocation(shape.name);
+  const instance = namesFrom(type);
+  const signatures = partsOf(type).flatMap((part) =>
+    writtenSignatures(checker, part),
+  );
   if (!ts.isClassDeclaration(shape) || !shape.heritageClauses) {
-    return { onItsValues: instance, onTheClass: [] };
+    return { onItsValues: instance, onTheClass: [], signatures };
   }
   /** The statics the child declares itself. Each shadows the base's field of
    * the same name, so the base's stays a different field. */
   const shadowed = new Set(
-    mapNotNullish(nameOf)(shape.members.filter(isStatic)).map(
-      (name) => name.text,
-    ),
+    mapNotNullish(nameOf)(shape.members.filter(isStatic)).map(fieldNameText),
   );
   const onTheClass = shape.heritageClauses
     .filter((clause) => clause.token === ts.SyntaxKind.ExtendsKeyword)
     .flatMap((clause) => clause.types)
     .flatMap((base) => namesFrom(checker.getTypeAtLocation(base.expression)))
-    .filter((name) => !shadowed.has(name.text));
-  return { onItsValues: instance, onTheClass };
+    .filter((name) => !shadowed.has(fieldNameText(name)));
+  return { onItsValues: instance, onTheClass, signatures };
 };
 
 /** One field the scan looked at, and the shape it belongs to. A field can be
  * written down in more than one place: both arms of a union declare it, and a
  * read points at whichever arm it holds. The first name says where a reader
- * has to go, and the rest are the other places a read can point at. */
+ * has to go, and the rest are the other places a read can point at. A fixed
+ * `Record` key has no source declaration, so its checker symbol stands in. */
 export interface OwnedField {
   names: [FieldName, ...FieldName[]];
   owner: string;
+  symbols: ts.Symbol[];
 }
 
 /** The path a reader follows, written the way the code that follows it is. */
 const ownerOf = (path: readonly Step[]): string =>
   path.map(stepText).reduce(reaching);
+
+/** The path to the class object that holds a static member. */
+const onTheClass = (path: readonly Step[]): readonly Step[] => {
+  const owner = ownerOf(path);
+  return [{ way: owner.startsWith("typeof ") ? owner : `typeof ${owner}` }];
+};
+
+/** The checker symbol for a negative name that the service cannot look up. */
+const symbolOfNegativeName = (
+  checker: ts.TypeChecker,
+  name: FieldName,
+): ts.Symbol | undefined => {
+  if (!isNegativeNumericName(name)) return;
+  return answered(
+    checker.getSymbolAtLocation(name.parent),
+    `property ${fieldNameText(name)}`,
+  );
+};
 
 /** Every field an exported shape declares, with the fields of the object
  * types nested inside it, since `shape.inner.total` reaches those too. The
@@ -167,26 +217,43 @@ export const exportedFields = (
    * written down keeps its line and gains any new place it is written. The
    * path stays a list of steps, because a field can be called `"a.b"`, and one
    * joined string would make it the `b` of an `a` instead. */
-  const remember = (path: readonly Step[], name: FieldName): Step[] => {
-    const inside: Step[] = [...path, { name: name.text }];
+  const remember = (
+    path: readonly Step[],
+    name: FieldName,
+    symbol?: ts.Symbol,
+  ): Step[] => {
+    const fieldSymbol =
+      symbol === undefined ? symbolOfNegativeName(checker, name) : symbol;
+    const inside: Step[] = [...path, { name: fieldNameText(name) }];
     const key = JSON.stringify(inside);
     const line = found.get(key);
-    if (!line) found.set(key, { names: [name], owner: ownerOf(path) });
+    if (!line) {
+      found.set(key, {
+        names: [name],
+        owner: ownerOf(path),
+        symbols: fieldSymbol ? [fieldSymbol] : [],
+      });
+    }
     // For every field a shape writes down itself, the checker hands back the
     // very declaration the walk already saw. One lookup answers for both.
     else if (!line.names.includes(name)) line.names.push(name);
+    if (fieldSymbol && line && !line.symbols.includes(fieldSymbol)) {
+      line.symbols.push(fieldSymbol);
+    }
     return inside;
   };
 
   const partsOf = membersOf(checker);
+  const namedMembersOfARecord = namedRecordMembers(checker);
   const stepOf = underAnUnnamedPart(checker);
   const collect = (path: readonly Step[], node: ts.Node): void => {
     if (handsNothingOut(node)) return;
-    const here: readonly Step[] = isStatic(node)
-      ? [{ way: `typeof ${ownerOf(path)}` }]
-      : path;
+    const here: readonly Step[] = isStatic(node) ? onTheClass(path) : path;
     const name = fieldNameOf(node);
     const inside = name ? remember(here, name) : stepOf(here, node);
+    for (const member of namedMembersOfARecord(node)) {
+      collect(remember(here, member.name, member.symbol), member.value);
+    }
     for (const child of partsOf(node)) collect(inside, child);
   };
   for (const shape of exportedShapes(checker, container, source.fileName)) {
@@ -204,6 +271,7 @@ export const exportedFields = (
     for (const name of borrowed.onTheClass) {
       remember(asTheClass, name);
     }
+    for (const signature of borrowed.signatures) collect(from, signature);
   }
   return [...found.values()];
 };
