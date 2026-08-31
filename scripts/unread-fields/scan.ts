@@ -238,7 +238,7 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
       exportedFields(checker, source).map((field) => ({
         exportedFrom: source.fileName,
         field,
-      }))
+      })),
     );
   const symbols = new Set(fields.flatMap(({ field }) => field.symbols));
   const symbolReaders = readersOfSymbols(
@@ -249,12 +249,10 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
     root,
   );
   const findings: Finding[] = [];
-  for (
-    const {
-      exportedFrom,
-      field: { owner, names, symbols: fieldSymbols },
-    } of fields
-  ) {
+  for (const {
+    exportedFrom,
+    field: { owner, names, symbols: fieldSymbols },
+  } of fields) {
     findings.push({
       exportedFrom: exportedFrom.replace(`${root}/`, ""),
       field: fieldNameText(names[0]),
