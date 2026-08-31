@@ -2,7 +2,9 @@
  * The accepted list: the shape matches this tree already carries, each with a
  * note saying why it stands. The list only shrinks. A match that is not on it
  * fails the check, and an entry that no longer matches anything fails too, so
- * a merge has to take its entry with it.
+ * a merge has to take its entry with it — and so does an edit to a listed
+ * body, which changes its fingerprint and stales the entry until somebody
+ * re-reads the note.
  */
 
 import { entryLines } from "#scripts/registry-lines.ts";
@@ -68,7 +70,8 @@ export const formatProblem = (problem: AcceptedProblem): string => {
   const reason = {
     duplicate: "listed twice",
     malformed: "cannot be read",
-    stale: "matches nothing now — delete it",
+    stale:
+      "matches nothing now — re-read its note, then refresh its fingerprints, or delete it",
   }[problem.kind];
   return `${reason}: ${problem.detail}`;
 };

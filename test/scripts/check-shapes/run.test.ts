@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { bodyFingerprint } from "#scripts/check-shapes/rules.ts";
 import {
   ACCEPTED_DIR,
   collectSites,
@@ -37,13 +38,25 @@ const TWINS = {
     "export const second = (v) => v.one().two().three().four().five();\n",
 };
 
+/** The body each twin's arrow carries, which the fingerprint is taken over. */
+const TWIN_BODY = "a.one().two().three().four().five()";
+
+/** The accepted line that covers the twins, built the way the report prints
+ * it: each site named, sorted, with its body's fingerprint. */
+const twinsAcceptedLine = (root: string): string =>
+  `${root}/one.ts::first~${bodyFingerprint(TWIN_BODY)},${root}/two.ts::second~${bodyFingerprint(
+    TWIN_BODY.replace(/^a/, "v"),
+  )}`;
+
 describe("runShapeCheck", () => {
-  test("reports a pair nothing accepts, and fails", async () => {
+  test("reports a pair nothing accepts, and prints the line to accept", async () => {
     await inTempTree(TWINS, async (root, acceptedDir) => {
       const output = capturedCheckOutput();
       expect(await runShapeCheck([root], acceptedDir, output)).toBe(1);
-      expect(output.lines.join("\n")).toContain("first");
-      expect(output.lines.join("\n")).toContain("second");
+      const report = output.lines.join("\n");
+      expect(report).toContain("first");
+      expect(report).toContain("second");
+      expect(report).toContain(`to accept: ${twinsAcceptedLine(root)}`);
     });
   });
 
@@ -51,10 +64,29 @@ describe("runShapeCheck", () => {
     await inTempTree(TWINS, async (root, acceptedDir) => {
       await Deno.writeTextFile(
         `${acceptedDir}/a.txt`,
-        `${root}/one.ts::first,${root}/two.ts::second  # a test pair\n`,
+        `${twinsAcceptedLine(root)}  # a test pair\n`,
       );
       const output = capturedCheckOutput();
       expect(await runShapeCheck([root], acceptedDir, output)).toBe(0);
+    });
+  });
+
+  test("stales an accepted entry whose body was edited, shape or no shape", async () => {
+    await inTempTree(TWINS, async (root, acceptedDir) => {
+      await Deno.writeTextFile(
+        `${acceptedDir}/a.txt`,
+        `${twinsAcceptedLine(root)}  # a test pair\n`,
+      );
+      // A rename keeps the shape but changes the body's text.
+      await Deno.writeTextFile(
+        `${root}/one.ts`,
+        "export const first = (a) => a.one().two().three().four().sixth();\n",
+      );
+      const output = capturedCheckOutput();
+      expect(await runShapeCheck([root], acceptedDir, output)).toBe(1);
+      expect(output.lines.join("\n")).toContain(
+        "re-read its note, then refresh its fingerprints",
+      );
     });
   });
 

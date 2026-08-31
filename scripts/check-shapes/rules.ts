@@ -3,6 +3,8 @@
  * which groups are worth reporting.
  */
 
+import { shortHash } from "#scripts/checksum.ts";
+
 /** One function, named by the file it lives in. */
 export interface ShapeSite {
   /** The body as written. Two of these that match exactly are already
@@ -28,14 +30,29 @@ export interface ShapeMatch {
 }
 
 /**
+ * A body's fingerprint: seven characters that change when the body's text
+ * changes. Lines are read trimmed and blank lines drop out, so moving a
+ * function into deeper nesting — which only re-indents it — leaves the
+ * fingerprint alone, while any edit to what the body says does not.
+ */
+export const bodyFingerprint = (body: string): string =>
+  shortHash(
+    body
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "")
+      .join("\n"),
+  );
+
+/**
  * How a group is named, and how the accepted list finds it again: every site
- * as `path::name`, sorted, joined by a comma. Moving the code does not change
- * it, so an entry only goes stale when a name or a body changes — which is
- * when somebody has to look again anyway.
+ * as `path::name~fingerprint`, sorted, joined by a comma. The fingerprint
+ * covers the body's text, so editing a listed function makes the entry stale —
+ * which is when somebody has to read its note again.
  */
 export const matchKey = (sites: readonly ShapeSite[]): string =>
   sites
-    .map((site) => `${site.file}::${site.name}`)
+    .map((site) => `${site.file}::${site.name}~${bodyFingerprint(site.body)}`)
     .sort()
     .join(",");
 
@@ -43,11 +60,13 @@ export const matchKey = (sites: readonly ShapeSite[]): string =>
 const formatSite = (site: ShapeSite): string =>
   `    ${site.file}:${site.line}  ${site.name}`;
 
-/** One group, ready to print: what it is, then where each copy lives. */
+/** One group, ready to print: what it is, where each copy lives, and the line
+ * to paste into the accepted list once somebody has written the note. */
 export const formatMatch = (match: ShapeMatch): string =>
   [
     `${match.sites.length} functions share one shape (${match.tokens} tokens):`,
     ...match.sites.map(formatSite),
+    `    to accept: ${match.key}  # why it stands`,
   ].join("\n");
 
 /**
@@ -67,7 +86,9 @@ export const shapeMatches = (
     if (shape.length < minTokens) continue;
     const shapeKey = shape.join(" ");
     sizes.set(shapeKey, shape.length);
-    byShape.set(shapeKey, [...(byShape.get(shapeKey) ?? []), site]);
+    const group = byShape.get(shapeKey);
+    if (group === undefined) byShape.set(shapeKey, [site]);
+    else group.push(site);
   }
   const matches: ShapeMatch[] = [];
   for (const [shapeKey, group] of byShape) {

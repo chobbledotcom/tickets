@@ -1369,18 +1369,14 @@ entry that matches nothing any more fails too, so a merge has to take its entry
 with it. `MIN_TOKENS` in `scripts/check-shapes/run.ts` ratchets downward the
 same way the numbers in `check:comments` do.
 
-A key is every site as `path::name`, sorted. Moving code does not change it, and
-neither does the formatter, so an entry survives every edit that leaves the
-group as it was. An entry goes stale when a function is renamed, moves to
-another file, is deleted, or is edited until the shapes no longer match — and
-then the check says so.
-
-One edit slips through: a rewrite that keeps the shape, changing only names and
-literals. The entry's own claim still holds, because the two still share a
-shape, but the judgement in its note was made about the older bodies. A
-fingerprint of the body would catch it and is not worth its cost — the formatter
-would invalidate entries it had no quarrel with. Read the note when you edit a
-function the list names.
+A key is every site as `path::name~fingerprint`, sorted. The fingerprint is
+seven characters over the body's text, read line-trimmed so a deeper nesting
+that only re-indents a listed function changes nothing. Any other edit to the
+body changes it, so the entry goes stale and the check says so — re-read the
+note, then refresh the fingerprints, or delete the entry if the pair no longer
+stands. A rename, a move, or a deletion stales an entry the same way. The report
+prints the `to accept:` line to paste, because no one writes a fingerprint by
+hand.
 
 ### The eight scans, and how hard each looks
 

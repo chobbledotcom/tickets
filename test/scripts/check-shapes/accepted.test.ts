@@ -72,7 +72,7 @@ describe("acceptedProblems", () => {
 describe("formatProblem", () => {
   test("names what is wrong before the entry it is wrong about", () => {
     expect(formatProblem({ detail: "k", kind: "stale" })).toBe(
-      "matches nothing now — delete it: k",
+      "matches nothing now — re-read its note, then refresh its fingerprints, or delete it: k",
     );
     expect(formatProblem({ detail: "k", kind: "duplicate" })).toBe(
       "listed twice: k",
