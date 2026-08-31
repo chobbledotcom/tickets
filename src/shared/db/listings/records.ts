@@ -1,5 +1,6 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
+import { hmacHash } from "#crypto/hashing.ts";
 import { executeBatch, queryOnePrimary } from "#db/client.ts";
 import { cachedEntityTable } from "#db/common-schema.ts";
 import { getImageFilenamesForItem } from "#db/images.ts";
@@ -30,7 +31,6 @@ import {
   listingReader,
 } from "./select.ts";
 import {
-  computeSlugIndex,
   type ListingOption,
   listingOptionColumns,
   rawListingsTable,
@@ -221,13 +221,13 @@ export const getListingWithCountPrimary = async (
 export const getListingWithCountBySlug = async (
   slug: string,
 ): Promise<ListingWithCount | null> =>
-  listingsCache.getByKey(await computeSlugIndex(slug));
+  listingsCache.getByKey(await hmacHash(slug));
 
 /** Read listings by slug in input order, retaining nulls for missing rows. */
 export const getListingsBySlugs = async (
   slugs: string[],
 ): Promise<(ListingWithCount | null)[]> => {
   if (slugs.length === 0) return [];
-  const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
+  const slugIndices = await Promise.all(slugs.map(hmacHash));
   return listingsCache.getByKeys(slugIndices);
 };

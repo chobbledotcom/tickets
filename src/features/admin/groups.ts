@@ -10,6 +10,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  * reaches the list and the record page, but only staff may delete.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { executeBatch } from "#db/client.ts";
 import {
@@ -18,7 +19,6 @@ import {
   writePackageMembersTx,
 } from "#db/groups/membership.ts";
 import {
-  computeGroupSlugIndex,
   generateUniqueGroupSlug,
   getGroupById,
   getListingsByGroupId,
@@ -231,7 +231,7 @@ const extractGroupEditInput = async (
   return {
     ...sharedGroupFields(values),
     slug,
-    slugIndex: await computeGroupSlugIndex(slug),
+    slugIndex: await hmacHash(slug),
   };
 };
 

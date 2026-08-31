@@ -9,10 +9,10 @@
 import * as v from "valibot";
 /* jscpd:ignore-start */
 import {
+  denoDeployAppSlug,
   getDenoDeployOrgId,
   getDenoDeployOrgSlug,
   getDenoDeployToken,
-  slugifyForProvider,
 } from "#shared/config.ts";
 import {
   DenoAppEnvVarsSchema,
@@ -52,16 +52,6 @@ const getDenoApi = async <T>(
   });
   if (!res.ok) return parseApiError(res, label);
   return okResult(parse(res.text));
-};
-
-/**
- * Sanitize a site name into a valid Deno Deploy slug.
- * Rules: 3–32 chars, lowercase letters/numbers/hyphens, no leading/trailing hyphens.
- */
-export const slugifyForDeno = (name: string): string => {
-  const slug = slugifyForProvider(name, 32);
-  if (slug.length >= 3) return slug;
-  return `${slug}app`.slice(0, 32);
 };
 
 /**
@@ -230,7 +220,7 @@ export const denoDeployApi = {
 };
 
 const prepareDenoSiteImpl: PrepareSiteFn = async (name, _code, secrets) => {
-  const createResult = await denoDeployApi.createApp(slugifyForDeno(name));
+  const createResult = await denoDeployApi.createApp(denoDeployAppSlug(name));
   if (!createResult.ok) return createResult;
   const setResult = await denoDeployApi.setEnvVars(
     createResult.value.appId,

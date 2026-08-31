@@ -1,0 +1,786 @@
+[
+  {
+    "first": "e2e-payments/src/browser.ts",
+    "firstStart": 261,
+    "hash": "d799c52416d3ea813c828091cfc2cdbe26092390b000875ade82776f4a22dd4f",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "e2e-payments/src/entry.ts",
+    "secondStart": 12
+  },
+  {
+    "first": "e2e-payments/src/browser.ts",
+    "firstStart": 261,
+    "hash": "3a3b494c6f57d31fdbf9550af2eb9db9fc987efa1ed6a0c77786987cb3e4333b",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/logger.ts",
+    "secondStart": 365
+  },
+  {
+    "first": "e2e-payments/src/cucumber/support/hooks.ts",
+    "firstStart": 170,
+    "hash": "1a420aa2d0567ed853db524423095caa0fbb5fafdb1a842ef02f6946fdf4ff90",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "e2e-payments/src/cucumber/support/hooks.ts",
+    "secondStart": 178
+  },
+  {
+    "first": "e2e-payments/src/providers/card.ts",
+    "firstStart": 45,
+    "hash": "f5143bf098f5b62536b5c77c6de913277c7c8cc8f5aad92749fb83c2347771ab",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "e2e-payments/src/providers/card.ts",
+    "secondStart": 83
+  },
+  {
+    "first": "e2e-payments/src/providers/types.ts",
+    "firstStart": 23,
+    "hash": "fda4be9096b7ad6dc7f3e9a23c94bf06d724f30efe261f943966ea9336dc9640",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "e2e-payments/src/providers/types.ts",
+    "secondStart": 100
+  },
+  {
+    "first": "scripts/bench/cold-start/spawn-child.ts",
+    "firstStart": 24,
+    "hash": "1ea0ccef612cbbf10088eb69b8a25acf1e7a86080b0dc5236425e32a61cba16a",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "scripts/compact-test-reporter.ts",
+    "secondStart": 535
+  },
+  {
+    "first": "scripts/deploy-edge-lib.ts",
+    "firstStart": 33,
+    "hash": "aea0f1c0f42a946a2f334c3ba9dc06878aaec8b8ab9f54f0018a74b6610ff7ca",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "scripts/deploy-edge-lib.ts",
+    "secondStart": 39
+  },
+  {
+    "first": "scripts/find-unused-src.ts",
+    "firstStart": 289,
+    "hash": "15e77c4d494b36747abc8db0651b9f55600b0749dd4c6cdf17e01dddbffcc9cc",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "scripts/find-unused-src.ts",
+    "secondStart": 309
+  },
+  {
+    "first": "scripts/mutation/generate.ts",
+    "firstStart": 227,
+    "hash": "b8d853236221cf96ddc041aace4e70f064320dec42b0cf8bd28c741cb8d8c344",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "scripts/mutation/generate.ts",
+    "secondStart": 239
+  },
+  {
+    "first": "scripts/mutation/isolation-state.ts",
+    "firstStart": 245,
+    "hash": "76a3a7298c6beb59bdd69d6ca3f24c6aa55883b24843cba432374ea24253e890",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "scripts/mutation/isolation-state.ts",
+    "secondStart": 267
+  },
+  {
+    "first": "scripts/mutation/run-file.ts",
+    "firstStart": 33,
+    "hash": "2539bfb812a611bbacfe4ae8f790f9702622311094bd6c7de1a9a96606469965",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/query-log.ts",
+    "secondStart": 292
+  },
+  {
+    "first": "scripts/not-found.ts",
+    "firstStart": 50,
+    "hash": "4a9fb5cf9e945245a9507a78975bc95943535ad70831b83387cac4fc68d6a283",
+    "reason": "thin wrappers over two different platform calls, Deno.stat vs Deno.lstat; the shared shape is the OrNull convention, already one mechanism",
+    "second": "scripts/not-found.ts",
+    "secondStart": 54
+  },
+  {
+    "first": "scripts/run-tests.ts",
+    "firstStart": 223,
+    "hash": "de7aafdaa3684d4d183fd38f3dbb4b9f0bbdf1e8c88094a8057fea53abbd0d47",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/order-select.ts",
+    "secondStart": 37
+  },
+  {
+    "first": "scripts/unit-tests-report-imports.ts",
+    "firstStart": 180,
+    "hash": "cfb4ab2bd290af4587a9bceb4a123f86e81778105a761ab657c18ff17c67c47c",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "scripts/unit-tests-report-lib.ts",
+    "secondStart": 219
+  },
+  {
+    "first": "src/features/admin/attendee-page-data.ts",
+    "firstStart": 244,
+    "hash": "539d1044fc40409ed6cc04346b7338f77d17c9df055102fe005b713b4b217492",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/admin/attendee-page-data.ts",
+    "secondStart": 295
+  },
+  {
+    "first": "src/features/admin/attendees-csv.ts",
+    "firstStart": 180,
+    "hash": "5b7db3a83ff8dc14d900c8db08c408d0f61b3f19054a0a2803968bc21be849a5",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/admin/calendar-csv.ts",
+    "secondStart": 166
+  },
+  {
+    "first": "src/features/admin/content-form-fields.ts",
+    "firstStart": 151,
+    "hash": "f9f71fdc2e0ca0b4117f417ffb4aa457e00206b4388a2fcec28f97887a4c4353",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/types.ts",
+    "secondStart": 739
+  },
+  {
+    "first": "src/features/admin/listings-parents.ts",
+    "firstStart": 258,
+    "hash": "907ba41ea4f819afad23b78e0dec6dbc44b32614280dffc100e60b949895974c",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/groups/membership.ts",
+    "secondStart": 181
+  },
+  {
+    "first": "src/features/admin/questions.ts",
+    "firstStart": 213,
+    "hash": "2a73d5bc9313ee135460f9e9fea5c6cf3cf49bf4ee1dddad2cadb57674634d74",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/admin/settings-statuses.ts",
+    "secondStart": 127
+  },
+  {
+    "first": "src/features/admin/questions/answers.ts",
+    "firstStart": 137,
+    "hash": "27b8827273fc0de79e1161d6a980c38b77e50e0e7cbdb24cf1af31698a50c880",
+    "reason": "two route handlers delegating to the shared answerFlashRoute with different page renderers; the factory is the shared mechanism, and the bodies differ because two different pages render",
+    "second": "src/features/admin/questions/answers.ts",
+    "secondStart": 259
+  },
+  {
+    "first": "src/features/admin/refunds/ledger-findings.ts",
+    "firstStart": 38,
+    "hash": "097ca7850278cb1c912ff8b6bed3b042fce6046e5424b73089bcd2386fb92204",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/admin/refunds/ledger-findings.ts",
+    "secondStart": 74
+  },
+  {
+    "first": "src/features/admin/refunds/readiness-run.ts",
+    "firstStart": 196,
+    "hash": "46d656a21e52d6cd0038de73a0e0e3557fdd3d1ae84032c04a0a598ac03fc21f",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/admin/refunds/readiness-run.ts",
+    "secondStart": 236
+  },
+  {
+    "first": "src/features/admin/refunds/refresh.ts",
+    "firstStart": 176,
+    "hash": "4536f316f6b3b2573a9e777f1fda559e38d74a08ce6fd3e3212114013ce2b387",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/admin/refunds/refresh.ts",
+    "secondStart": 179
+  },
+  {
+    "first": "src/features/api/booking.ts",
+    "firstStart": 81,
+    "hash": "b701d5e740d9715c8f436251a6f4cfcd2cc8ec323767453a2448a1c676628374",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/api/packages.ts",
+    "secondStart": 278
+  },
+  {
+    "first": "src/features/api/helpers.ts",
+    "firstStart": 91,
+    "hash": "7cf69d86f0919dc408e1420b0753b1d86d11b69934e4388b599ac155cabb0e1a",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/public/qr-book.ts",
+    "secondStart": 180
+  },
+  {
+    "first": "src/features/app/request.ts",
+    "firstStart": 204,
+    "hash": "e756f0772eaa2365d068a61a60a4370fd5e2689ff1752f751e74eaeb30438fb3",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/app/request.ts",
+    "secondStart": 212
+  },
+  {
+    "first": "src/features/public/group-liveness.ts",
+    "firstStart": 270,
+    "hash": "acbab56af7ba36263258b6a4365f0a9eda046e576a78cf8b4138ac5d29d80071",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/public/groups.ts",
+    "secondStart": 107
+  },
+  {
+    "first": "src/features/public/ticket-form.ts",
+    "firstStart": 160,
+    "hash": "f9f7319d095cdd723a406d0f86468fe859e7c7bc5a786c44fb598bfdffb2cfd7",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/features/public/ticket-payment.ts",
+    "secondStart": 178
+  },
+  {
+    "first": "src/shared/accounting/mappers.ts",
+    "firstStart": 68,
+    "hash": "f311e9d978635660f8515afe0e24dd4c36eb722622d05785b2a065a1095f9d49",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/checkout-ledger.ts",
+    "secondStart": 22
+  },
+  {
+    "first": "src/shared/admin-surface/sections.ts",
+    "firstStart": 86,
+    "hash": "9617ea17a62da1d9f2ace0ad3825d4dc219eac572b8c45face2388f9e1bca11e",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/admin-surface/sections.ts",
+    "secondStart": 112
+  },
+  {
+    "first": "src/shared/booking/package-cap.ts",
+    "firstStart": 133,
+    "hash": "494053bf9cc872e5770c93b64ddbfead89a18cb6d600586691f495e90a8f2a06",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/booking/package-cap.ts",
+    "secondStart": 138
+  },
+  {
+    "first": "src/shared/bunny-cdn.ts",
+    "firstStart": 415,
+    "hash": "db7f36cffffa2ad2a7dedaf8de554c7b538971d4bf848488552a5dc8eb3c8223",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/bunny-cdn.ts",
+    "secondStart": 424
+  },
+  {
+    "first": "src/shared/catalog-fields/fields.ts",
+    "firstStart": 85,
+    "hash": "f62c56d790ec23af993bc0627286c65ce42ba3ba34d69fd58f19171db390815e",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/catalog-fields/fields.ts",
+    "secondStart": 160
+  },
+  {
+    "first": "src/shared/catalog-fields/fields.ts",
+    "firstStart": 112,
+    "hash": "fe02326a812ae4d93fffa835fd7bfefdffb956e3d1ef6d0e9d30c3ffe59abf5a",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/catalog-fields/fields.ts",
+    "secondStart": 165
+  },
+  {
+    "first": "src/shared/crypto/keys.ts",
+    "firstStart": 55,
+    "hash": "e6dfac137c34af25b737cdc3f15543f9781aef158aaff45f567b8a851677d91c",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/payment-crypto.ts",
+    "secondStart": 24
+  },
+  {
+    "first": "src/shared/db/attendee-types.ts",
+    "firstStart": 133,
+    "hash": "a2a4085d406fec23cae89e40628a1f8160420e95fe816cc4c8357da4e424695f",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/attendees/update.ts",
+    "secondStart": 104
+  },
+  {
+    "first": "src/shared/db/attendees/capacity/checks.ts",
+    "firstStart": 73,
+    "hash": "0ace2d24f1df61fe03f76959973c1d8e6f525f3efb62a458c3c91fcdce2e88f3",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/attendees/capacity/checks.ts",
+    "secondStart": 108
+  },
+  {
+    "first": "src/shared/db/attendees/dependent-data.ts",
+    "firstStart": 5,
+    "hash": "4cd0c962617718e258ef1c196e565e4345ee707e15869d6ba41eaf747e6b1708",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/attendees/dependent-data.ts",
+    "secondStart": 11
+  },
+  {
+    "first": "src/shared/db/attendees/dependent-data.ts",
+    "firstStart": 5,
+    "hash": "16e541c0f1adaa88f8c8c251cb60cc07304c144199f01a0d4e6ab49bced53438",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/attendees/dependent-data.ts",
+    "secondStart": 17
+  },
+  {
+    "first": "src/shared/db/attendees/dependent-data.ts",
+    "firstStart": 61,
+    "hash": "46e17f45739d10a45ffd780c42f920ebe5a96c8abc33d272915c547b2099e61c",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/attendees/dependent-data.ts",
+    "secondStart": 67
+  },
+  {
+    "first": "src/shared/db/attendees/dependent-data.ts",
+    "firstStart": 61,
+    "hash": "ab9b441841fe6e94ad791e667bebfee6c96dd5c1f7167ddd7b814cf0b9678d71",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/attendees/dependent-data.ts",
+    "secondStart": 73
+  },
+  {
+    "first": "src/shared/db/attendees/dependent-data.ts",
+    "firstStart": 61,
+    "hash": "def58c549eb738d2c655b3f94beb01bce960b5e5e0ec5b473efefe21c6b68ce0",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/attendees/dependent-data.ts",
+    "secondStart": 79
+  },
+  {
+    "first": "src/shared/db/attendees/dependent-data.ts",
+    "firstStart": 101,
+    "hash": "3d2f0c240f3b555a69a930ff13f25de047c9492744b41b58268d2919164b0cf7",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/attendees/dependent-data.ts",
+    "secondStart": 107
+  },
+  {
+    "first": "src/shared/db/attendees/servicing.ts",
+    "firstStart": 554,
+    "hash": "ccb3d6ddb88f8c0879345deec338e7754a7b808790467c8d3c5b0321ad26a896",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/attendees/servicing.ts",
+    "secondStart": 735
+  },
+  {
+    "first": "src/shared/db/attendees/tokens.ts",
+    "firstStart": 245,
+    "hash": "896e1ab16168952e1a1e07d701878c345c0aba03ebd74729ebc3b4c167a92a75",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/attendees/tokens.ts",
+    "secondStart": 278
+  },
+  {
+    "first": "src/shared/db/attributes.ts",
+    "firstStart": 76,
+    "hash": "378da6b89b74d70764cbf69ee3ae799f6f5193346ff841705513191101f3726f",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/questions/tables.ts",
+    "secondStart": 20
+  },
+  {
+    "first": "src/shared/db/attributes.ts",
+    "firstStart": 311,
+    "hash": "ecfde9612378081df1e8ff2e23d0daaad88bf960a585257d34c265aab1708dc5",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/listings/delete.ts",
+    "secondStart": 9
+  },
+  {
+    "first": "src/shared/db/groups.ts",
+    "firstStart": 500,
+    "hash": "877a03811799227845a23d4e0dbc35267ad46ee8f27ed129f7e599d1367fc984",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/link-table.ts",
+    "secondStart": 140
+  },
+  {
+    "first": "src/shared/db/keyed-cache.ts",
+    "firstStart": 129,
+    "hash": "a456e898e81be87889ef0fa8ec0cf6f8e59b110deeab14900bb6316b06f846f3",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/keyed-cache.ts",
+    "secondStart": 138
+  },
+  {
+    "first": "src/shared/db/listing-prices.ts",
+    "firstStart": 306,
+    "hash": "fc63bd21fca78cd6d0c292c758491194ec8778e2ca664f7f4664a2d772076cc8",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/migrations/schema-sync.ts",
+    "secondStart": 629
+  },
+  {
+    "first": "src/shared/db/logistics-run-sheet.ts",
+    "firstStart": 209,
+    "hash": "eb994f14226959b8a636de1f74e495762ea9077b89507a7a71b1fb23a7986b25",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/logistics-run-sheet.ts",
+    "secondStart": 262
+  },
+  {
+    "first": "src/shared/db/migrations/schema-sync.ts",
+    "firstStart": 434,
+    "hash": "b5256be137b96d980440fb3b8052316d6be55971d6d9b9aa4286f92c8b381c2a",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/migrations/schema-sync.ts",
+    "secondStart": 599
+  },
+  {
+    "first": "src/shared/db/migrations/schema/payments/cases.ts",
+    "firstStart": 31,
+    "hash": "883da780aca2f988b47c3a12b81111d926eafd5393d8dc06cfe6fc42daf3b33f",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/payments/completion-deliveries.ts",
+    "secondStart": 16
+  },
+  {
+    "first": "src/shared/db/migrations/schema/payments/refund-confirmations.ts",
+    "firstStart": 11,
+    "hash": "112270c7e4a440699aa19c061030a2b41efce77989ec191b6330cef99c056ce4",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-attendees.ts",
+    "secondStart": 176
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-attendees.ts",
+    "firstStart": 75,
+    "hash": "ea2839f4e53655598b955b1e79267ecae34e6830e2dd62e3bc8d1a366b311970",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-questions.ts",
+    "secondStart": 80
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-attendees.ts",
+    "firstStart": 252,
+    "hash": "a86926b213caf3f00b5b90859c1c01c4f9675461671f2376c0c3af2763d7b6bf",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-questions.ts",
+    "secondStart": 195
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 17,
+    "hash": "3a79bd75587c2a5ee3b9de7a843bc48a5757128e54e743bbf05cce69d57a94ac",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-core.ts",
+    "secondStart": 109
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 58,
+    "hash": "c2e71967098fa0211db93944e251a1877c102222461a40468fa424d0c21d90d2",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-catalog.ts",
+    "secondStart": 168
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 58,
+    "hash": "010418539d648dbbf91104d7b05552ec4db2f8507021115d9a80a8a7691a49af",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-core.ts",
+    "secondStart": 155
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 58,
+    "hash": "881d3ca903deed47a45f71a759ee81938216515811edd8dd8e91cae2ce94edab",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-questions.ts",
+    "secondStart": 103
+  },
+  {
+    "first": "src/shared/db/migrations/schema/tables-catalog.ts",
+    "firstStart": 180,
+    "hash": "b6e7c901d58cbbedf9b33a81e2c3d8b0c3fe2f8397212b11755d7f21303a129f",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/db/migrations/schema/tables-core.ts",
+    "secondStart": 255
+  },
+  {
+    "first": "src/shared/db/payment-references.ts",
+    "firstStart": 268,
+    "hash": "649215c9f6804e14ce52e6cbaeeff7889ef84d4c2ba4aa051be981a6094e0ba6",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/payment-references.ts",
+    "secondStart": 271
+  },
+  {
+    "first": "src/shared/db/questions/attendee-answers/save.ts",
+    "firstStart": 139,
+    "hash": "b618a53f7f963cbba0a6739cfc7e219568e4b3ad059aea74d1f73b62d1383ca7",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/questions/attendee-answers/save.ts",
+    "secondStart": 300
+  },
+  {
+    "first": "src/shared/db/settings/payment-provider.ts",
+    "firstStart": 297,
+    "hash": "22e0194c6e363296084bee27e713dda291834ff66868344846d9bfa644241ad6",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/db/settings/payment-provider.ts",
+    "secondStart": 306
+  },
+  {
+    "first": "src/shared/forms/field.ts",
+    "firstStart": 111,
+    "hash": "12ca0c5237759048984044c83e7c296ae6f782e715420909bdb883b41d7a32c8",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/forms/field.ts",
+    "secondStart": 136
+  },
+  {
+    "first": "src/shared/ledger/project.ts",
+    "firstStart": 41,
+    "hash": "bdc331c52b2bc3274b9932d5a6281d066002238233f2cbe972d6a2ab55436859",
+    "reason": "the curried tail is the ledger projection convention; both bodies already read through the one balanceOf fold, and the negation is the cost operation itself, not a liftable parameter",
+    "second": "src/shared/ledger/project.ts",
+    "secondStart": 47
+  },
+  {
+    "first": "src/shared/payment-idempotency.ts",
+    "firstStart": 15,
+    "hash": "dda5ab07c7e1887dea8761dbe94db053dc28ab1876646f6896e57300f7b71cc2",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/payment/refund-request-identity.ts",
+    "secondStart": 13
+  },
+  {
+    "first": "src/shared/payment/joint-state.ts",
+    "firstStart": 121,
+    "hash": "15a8f34a4f55459604f30521527e8d52fc7d3612d5c52bbef73b34b7605444fc",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/payment/row-transitions.ts",
+    "secondStart": 147
+  },
+  {
+    "first": "src/shared/payment/refund-authority-choice.ts",
+    "firstStart": 123,
+    "hash": "4b594c71a2df994e37605dfda94498b047c56080d4c1a1713bc6ac70ab1d2d61",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/payment/refund-authority-choice.ts",
+    "secondStart": 131
+  },
+  {
+    "first": "src/shared/payment/refund-authority-choice.ts",
+    "firstStart": 149,
+    "hash": "65c106a824aa5a6308c7242f42aa2b8a2087d1940da1f37c253929885fdc6c5a",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/payment/refund-authority-choice.ts",
+    "secondStart": 155
+  },
+  {
+    "first": "src/shared/payment/refund-machine-spec.ts",
+    "firstStart": 132,
+    "hash": "e756cbbaafde1a1df48a9cf671311cfa09cce6c1c104a028bb11f3571fba683c",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/payment/refund-machine-spec.ts",
+    "secondStart": 138
+  },
+  {
+    "first": "src/shared/payment/refund-machine-spec.ts",
+    "firstStart": 359,
+    "hash": "b6b878279c9e59d87f55f130834ef8d3acc61e719d301c642dc80382272fbd10",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/payment/refund-machine-spec.ts",
+    "secondStart": 367
+  },
+  {
+    "first": "src/shared/payment/refund-machine-spec.ts",
+    "firstStart": 359,
+    "hash": "55e6eb822402eff9ea477601c2504283afe9695ffb93aa57ce3c860847600f11",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/payment/refund-machine-spec.ts",
+    "secondStart": 375
+  },
+  {
+    "first": "src/shared/payment/refund-machine-spec.ts",
+    "firstStart": 359,
+    "hash": "824352b9668a4e17c5043cbbfa320d10a3bac38bdd74354c8040be63722761c2",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/payment/refund-machine-spec.ts",
+    "secondStart": 383
+  },
+  {
+    "first": "src/shared/payment/refund-machine-spec.ts",
+    "firstStart": 390,
+    "hash": "482150ec6ed27402fe5db10150129ba6ba36adff5e9b3db315565b9daec09caf",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/payment/refund-machine-spec.ts",
+    "secondStart": 397
+  },
+  {
+    "first": "src/shared/payment/refund-machine-spec.ts",
+    "firstStart": 390,
+    "hash": "5a06063be0d1842e7d0dc0f4cdd94663ff55d403b64eaae349d9abc3662cb3dd",
+    "reason": "declared data rows — one row per kind, by design (the shared builders are the mechanism)",
+    "second": "src/shared/payment/refund-machine-spec.ts",
+    "secondStart": 404
+  },
+  {
+    "first": "src/shared/provider-refunds/send.ts",
+    "firstStart": 178,
+    "hash": "12a83f359bf8bb5b05c13a8270a29dd2a2f26c9456706fe8f1bc2b6e7b53d69f",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/provider-refunds/target.ts",
+    "secondStart": 118
+  },
+  {
+    "first": "src/shared/sms/e2e.ts",
+    "firstStart": 59,
+    "hash": "b3248bfecb616b9bfd07dca0a966a8300d72a9ec20b938105249c95dcb9fc38d",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/sms/gateway.ts",
+    "secondStart": 76
+  },
+  {
+    "first": "src/shared/square/connection.ts",
+    "firstStart": 47,
+    "hash": "80f6b631baec256eff9fce00cfce3be395ad460bf6c3e9339c0669ecdfe1708c",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/stripe/endpoints.ts",
+    "secondStart": 168
+  },
+  {
+    "first": "src/shared/square/order.ts",
+    "firstStart": 13,
+    "hash": "95ae3fb79727639a50b8e6833df8fbdce850ea118d43305522378b8da67a1a34",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/square/payment-outcomes.ts",
+    "secondStart": 65
+  },
+  {
+    "first": "src/shared/storage.ts",
+    "firstStart": 431,
+    "hash": "94ebb907264540b6624daa9c9e64aaa6106b0466781ee895a4377fbf6375d59a",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/storage.ts",
+    "secondStart": 452
+  },
+  {
+    "first": "src/shared/stripe/schemas.ts",
+    "firstStart": 190,
+    "hash": "facb0079c1448f66cf5b395e64d913d78731885d1f707dec161a716a0afbe8ed",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/stripe/schemas.ts",
+    "secondStart": 196
+  },
+  {
+    "first": "src/shared/tables/layout.ts",
+    "firstStart": 114,
+    "hash": "d9f17a07dc2f173ce7f4523ac0c7ad2da86bcfddd05eabc2af093fea72e9bf10",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/tables/layout.ts",
+    "secondStart": 130
+  },
+  {
+    "first": "src/shared/validation/parse.ts",
+    "firstStart": 9,
+    "hash": "78516d23bb76a5f26569ab291021298b16034f8cd7221546dfe15d95e2c436c6",
+    "reason": "a deliberate API pair: the null-returning and throwing parses of one schema differ in behavior, which is each function's whole contract",
+    "second": "src/shared/validation/parse.ts",
+    "secondStart": 18
+  },
+  {
+    "first": "src/ui/templates/admin/activity-log.tsx",
+    "firstStart": 169,
+    "hash": "1f63f13ff655256c3afcb3a04346d2b80d6c074acd258b04a92310a0d7c4db15",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/attendee-logistics-tab.tsx",
+    "secondStart": 116
+  },
+  {
+    "first": "src/ui/templates/admin/admin-page.tsx",
+    "firstStart": 121,
+    "hash": "3d3c6edab73e436567e9f3c65df019b10d7184f9b6f92964fefe389acaec0f23",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/admin-page.tsx",
+    "secondStart": 143
+  },
+  {
+    "first": "src/ui/templates/admin/attributes.tsx",
+    "firstStart": 143,
+    "hash": "89bce6add1798ebfc87bf947967354d6c98ff41994d8401194774a2f3748ff4a",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/questions.tsx",
+    "secondStart": 218
+  },
+  {
+    "first": "src/ui/templates/admin/attributes.tsx",
+    "firstStart": 220,
+    "hash": "b3378c0b608dc522ea9cfef75dda5c8626b9fe0bdbb61431229b45ebc0af26ed",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/questions.tsx",
+    "secondStart": 382
+  },
+  {
+    "first": "src/ui/templates/admin/bulk-email.tsx",
+    "firstStart": 40,
+    "hash": "e4fdb2943e1474cb754661ad6e843c188f3dae2b4611d640f24c8d195408336b",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/listings/form-pages.tsx",
+    "secondStart": 39
+  },
+  {
+    "first": "src/ui/templates/admin/contact-history.tsx",
+    "firstStart": 126,
+    "hash": "3354da322084df144a1e57f6d0ac10c398e29572f3739f606bba2eaf5992b642",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/provider-refund-cases.tsx",
+    "secondStart": 255
+  },
+  {
+    "first": "src/ui/templates/admin/holidays.tsx",
+    "firstStart": 120,
+    "hash": "f97d58a4677d86f95ef5add521063f52dd38bd2d2fa34219a397ebb7bc30cd3e",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/settings-statuses.tsx",
+    "secondStart": 164
+  },
+  {
+    "first": "src/ui/templates/admin/settings/email-tpl-admin.tsx",
+    "firstStart": 13,
+    "hash": "90b34cb05d91e16161e731d826e21362e8ec558d22e29547bce69d810b92af77",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/admin/settings/email-tpl-confirmation.tsx",
+    "secondStart": 33
+  },
+  {
+    "first": "src/ui/templates/components/labelled-row.tsx",
+    "firstStart": 9,
+    "hash": "dbae47fd2c8fe2164625937399edf7b7b2de073838afc0277378f2e2d2dc0b7b",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/components/prose-heading.tsx",
+    "secondStart": 27
+  },
+  {
+    "first": "src/ui/templates/fields/listing.ts",
+    "firstStart": 208,
+    "hash": "a110eae00bb707863b6f77be44ed81363564cc91051179b0e4623d1f5a2bdc73",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/ui/templates/fields/listing.ts",
+    "secondStart": 233
+  },
+  {
+    "first": "src/ui/templates/setup.tsx",
+    "firstStart": 29,
+    "hash": "815968195a24c2705886e6828b1f75158a18065ce4b0d5dabdb9ba8b09e00fd4",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
+    "second": "src/ui/templates/setup.tsx",
+    "secondStart": 33
+  },
+  {
+    "first": "src/ui/templates/setup.tsx",
+    "firstStart": 29,
+    "hash": "9eef256f5441980fdc6982c2fbeeae76ff5818231458cba9ea910eb4a39e2bb6",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
+    "second": "src/ui/templates/setup.tsx",
+    "secondStart": 37
+  },
+  {
+    "first": "src/ui/templates/setup.tsx",
+    "firstStart": 29,
+    "hash": "c0ae8c224fc47ffa48dc1fb26c5489b54ddd6e2a70befe2127dd8686ab5947cc",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
+    "second": "src/ui/templates/setup.tsx",
+    "secondStart": 41
+  },
+  {
+    "first": "src/ui/templates/setup.tsx",
+    "firstStart": 29,
+    "hash": "4b4bc29b0162dd6021d0a8b7816bd675d1e01f4e76a2c47efccf3fd520e76178",
+    "reason": "declared data rows — one agreement clause per deliberate literal t() key; the i18n coverage review pins those keys as literals in this file",
+    "second": "src/ui/templates/setup.tsx",
+    "secondStart": 45
+  }
+]

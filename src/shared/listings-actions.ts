@@ -5,6 +5,8 @@
  * so that the route handlers remain thin response formatters.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
 import {
@@ -27,7 +29,6 @@ import {
   isSlugTaken,
   listingsTable,
 } from "#db/listings/records.ts";
-import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,
@@ -56,9 +57,7 @@ import {
 
 /** Generate a unique listing slug, retrying on collision */
 export const generateUniqueListingSlug = (excludeListingId?: number) =>
-  generateUniqueSlug(computeSlugIndex, (slug) =>
-    isSlugTaken(slug, excludeListingId),
-  );
+  generateUniqueSlug(hmacHash, (slug) => isSlugTaken(slug, excludeListingId));
 
 /** Parse an update body's optional slug with the listing slug rules: normalise
  * it and recompute its lookup index. A body without a slug keeps the existing
@@ -68,8 +67,8 @@ export const parseUpdatedListingSlug = (
   existingSlug: string,
 ): Promise<{
   slug: string;
-  slugIndex: Awaited<ReturnType<typeof computeSlugIndex>>;
-}> => parseUpdateSlug(body, existingSlug, normalizeSlug, computeSlugIndex);
+  slugIndex: BlindIndex;
+}> => parseUpdateSlug(body, existingSlug, normalizeSlug, hmacHash);
 
 /** Validate max_price is at least unit_price + 100 cents */
 const validateMaxPrice = (input: ListingInput): string | null => {

@@ -14,6 +14,7 @@ import {
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   custom,
+  ExampleCode,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
@@ -239,18 +240,14 @@ export const integrationsSections = (): GuideSection[] => [
             pay-more listings only (in major currency units, e.g. 10.00 for
             &pound;10).
           </p>
-          <p>
-            <strong>Free listing response:</strong>
-          </p>
-          <pre>
-            <code>{API_BOOK_FREE_EXAMPLE_JSON}</code>
-          </pre>
-          <p>
-            <strong>Paid listing response:</strong>
-          </p>
-          <pre>
-            <code>{API_BOOK_PAID_EXAMPLE_JSON}</code>
-          </pre>
+          <ExampleCode
+            code={API_BOOK_FREE_EXAMPLE_JSON}
+            label="Free listing response:"
+          />
+          <ExampleCode
+            code={API_BOOK_PAID_EXAMPLE_JSON}
+            label="Paid listing response:"
+          />
           <p>
             Redirect the user to <code>checkoutUrl</code> to complete payment.
             Possible error responses: 400 (validation error or registration

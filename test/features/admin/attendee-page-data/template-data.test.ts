@@ -4,12 +4,34 @@ import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
   buildCreateForm,
   buildTemplateData,
+  loadPackagePaths,
 } from "#routes/admin/attendee-page-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 
 const blankForm = () => buildCreateForm([], [], new Map(), "");
 
 describeWithEnv("attendee form template data", { db: true }, () => {
+  test("the package editor still offers an inactive member's path", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Dormant Package",
+    });
+    const stall = await createTestListing({
+      groupId: group.id,
+      name: "Dormant Stall",
+    });
+    await deactivateTestListing(stall.id);
+
+    const paths = await loadPackagePaths();
+    const path = paths.find((candidate) => candidate.groupId === group.id);
+    expect(path?.memberListingIds).toEqual([stall.id]);
+  });
+
   test("preserves explicit empty errors and uses the default display values", async () => {
     const data = await buildTemplateData("create", blankForm(), null, {
       attendeeError: "",

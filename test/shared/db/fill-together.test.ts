@@ -1,13 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { fillTogether } from "#db/fill-together.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
 import { allPageItemsRead, getAllPageItems } from "#db/site-page-items.ts";
-import {
-  computeSitePageSlugIndex,
-  sitePages,
-  sitePagesNavRead,
-} from "#db/site-pages.ts";
+import { sitePages, sitePagesNavRead } from "#db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -42,7 +39,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
     const page = await sitePages.table.insert({
       name: "About us",
       slug: "about-us",
-      slugIndex: await computeSitePageSlugIndex("about-us"),
+      slugIndex: await hmacHash("about-us"),
       sortOrder: 3,
     });
 

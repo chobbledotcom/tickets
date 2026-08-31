@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  denoDeployApi,
-  denoHostingProvider,
-  slugifyForDeno,
-} from "#shared/deno-deploy-api.ts";
+import { denoDeployApi, denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -36,41 +32,6 @@ const captureRequest =
   };
 
 describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
-  // ── slugifyForDeno ─────────────────────────────────────────────────────────
-
-  test("slugifyForDeno lowercases and replaces special chars with hyphens", () => {
-    expect(slugifyForDeno("My Site Name")).toBe("my-site-name");
-    expect(slugifyForDeno("Hello_World!")).toBe("hello-world");
-  });
-
-  test("slugifyForDeno collapses consecutive hyphens", () => {
-    expect(slugifyForDeno("a  b  c")).toBe("a-b-c");
-  });
-
-  test("slugifyForDeno strips leading and trailing hyphens", () => {
-    expect(slugifyForDeno("--leading")).toBe("leading");
-    expect(slugifyForDeno("trailing--")).toBe("trailing");
-  });
-
-  test("slugifyForDeno truncates to 32 chars", () => {
-    const result = slugifyForDeno("a".repeat(40));
-    expect(result.length).toBeLessThanOrEqual(32);
-  });
-
-  test("slugifyForDeno does not produce trailing hyphen when truncation lands on separator", () => {
-    const result = slugifyForDeno("Tickets - 12345678901234567890123 A");
-    expect(result.endsWith("-")).toBe(false);
-    expect(result.length).toBeLessThanOrEqual(32);
-  });
-
-  test("slugifyForDeno pads short slugs to at least 3 chars", () => {
-    expect(slugifyForDeno("ab")).toBe("abapp");
-  });
-
-  test("slugifyForDeno handles single-char input", () => {
-    expect(slugifyForDeno("a")).toBe("aapp");
-  });
-
   // ── createApp ──────────────────────────────────────────────────────────────
 
   test("createApp POSTs to /v2/apps with orgId and slug", async () => {

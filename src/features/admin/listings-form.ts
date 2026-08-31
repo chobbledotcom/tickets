@@ -6,6 +6,7 @@
  * dynamic `day_price_*` inputs can be read alongside the validated values.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
 import {
@@ -17,7 +18,6 @@ import {
   writeListingDayCounts,
 } from "#db/listing-prices.ts";
 import { listingsTable } from "#db/listings/records.ts";
-import { computeSlugIndex } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { range } from "#fp";
@@ -203,7 +203,7 @@ const extractListingUpdateInput = async (
   form: FormParams,
 ): Promise<ListingInput> => {
   const slug = normalizeSlug(values.slug);
-  const slugIndex = await computeSlugIndex(slug);
+  const slugIndex = await hmacHash(slug);
   return {
     ...extractCommonFields(values, form, "update"),
     slug,

@@ -2,8 +2,7 @@
 
 /* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { hmacHash } from "#crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
@@ -21,10 +20,6 @@ import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import type { Listing } from "#types";
-
-/** Compute the blind index used for listing slug lookups. */
-export const computeSlugIndex = (slug: string): Promise<BlindIndex> =>
-  hmacHash(slug);
 
 const TZ_SUFFIX_REGEX = /(?:Z|[+-]\d{2}:\d{2})$/i;
 

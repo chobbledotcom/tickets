@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
-import { computeSitePageSlugIndex, sitePages } from "#db/site-pages.ts";
+import { sitePages } from "#db/site-pages.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
@@ -16,7 +17,7 @@ const addPage = async (name: string, slug: string, sortOrder: number) =>
   sitePages.table.insert({
     name,
     slug,
-    slugIndex: await computeSitePageSlugIndex(slug),
+    slugIndex: await hmacHash(slug),
     sortOrder,
   });
 

@@ -101,11 +101,17 @@ const reservedSlugError = (
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
+/** The shared words of a page write: the flash and the log line both name
+ * what happened to the page. */
+const pageWriteWords = (verb: "created" | "updated") => ({
+  flashMessage: t(`site.pages.${verb}`),
+  logMessage: (_page: SitePage, values: SitePageContentValues) =>
+    `Page '${values.name}' ${verb}`,
+});
+
 const content = defineSiteContent("/admin/site/pages", (paths) => ({
   create: {
-    flashMessage: t("site.pages.created"),
-    logMessage: (_page: SitePage, values: SitePageContentValues) =>
-      `Page '${values.name}' created`,
+    ...pageWriteWords("created"),
     validate: (values: SitePageContentValues) =>
       reservedSlugError(values.slug, paths.newPage),
     write: async (values: SitePageContentValues, transaction) =>
@@ -140,9 +146,7 @@ const content = defineSiteContent("/admin/site/pages", (paths) => ({
   renderList: adminSitePagesListPage,
   renderNew: adminSitePageNewPage,
   update: {
-    flashMessage: t("site.pages.updated"),
-    logMessage: (_page: SitePage, values: SitePageContentValues) =>
-      `Page '${values.name}' updated`,
+    ...pageWriteWords("updated"),
     validate: (values: SitePageContentValues, page: SitePage) =>
       reservedSlugError(values.slug, paths.edit(page.id)),
     write: async (values: SitePageContentValues, transaction, page) =>

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { appendImageToItem, getImagesForItem } from "#db/images.ts";
 import {
-  computeNewsSlugIndex,
   deleteNewsPostWithImages,
   getNewsPostById,
   getNewsPostBySlugIndex,
@@ -104,7 +104,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       // The edited slug (and its blind index) now resolve the post.
       expect(updated.value.slug).toBe("edited-slug");
       const bySlug = await getNewsPostBySlugIndex(
-        await computeNewsSlugIndex("edited-slug"),
+        await hmacHash("edited-slug"),
       );
       expect(bySlug?.id).toBe(created.id);
     });
@@ -208,14 +208,10 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       const post = await createTestNewsPost("Findable", {
         created: "2026-07-06T12:00:00.000Z",
       });
-      const found = await getNewsPostBySlugIndex(
-        await computeNewsSlugIndex(post.slug),
-      );
+      const found = await getNewsPostBySlugIndex(await hmacHash(post.slug));
       expect(found?.id).toBe(post.id);
       expect(found?.name).toBe("Findable");
-      expect(
-        await getNewsPostBySlugIndex(await computeNewsSlugIndex("nope")),
-      ).toBeNull();
+      expect(await getNewsPostBySlugIndex(await hmacHash("nope"))).toBeNull();
     });
 
     test("update can keep the existing slug while the name changes", async () => {

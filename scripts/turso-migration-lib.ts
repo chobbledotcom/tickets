@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import {
   checkedSource,
   configuredOrAsked,
@@ -7,7 +8,8 @@ import {
   runMigrationTask,
   type TursoMigrationDeps,
 } from "#scripts/turso-migration-steps.ts";
-import { slugifyForTurso } from "#shared/turso-api.ts";
+import { tursoDatabaseSlug } from "#shared/config.ts";
+/* jscpd:ignore-end */
 
 export const MIGRATE_TURSO_USAGE = "Usage: deno task migrate:turso";
 
@@ -30,7 +32,7 @@ export const runMigrateTursoCli = (
       deps.prompt("Destination Turso database name:"),
       "Destination Turso database name",
     );
-    const name = slugifyForTurso(requestedName);
+    const name = tursoDatabaseSlug(requestedName);
     const apiToken = configuredOrAsked(
       deps,
       "TURSO_API_TOKEN",

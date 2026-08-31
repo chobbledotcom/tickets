@@ -94,34 +94,6 @@ const namesTheNamesakeOf = (field: FieldName): AskAboutAMention => {
   return (node) => withinReach(node) && !namesAMember(node);
 };
 
-/** Ask the service who reads one written-down name, and say where those
- * readers live. An inherited field was written down in the base's file, not in
- * the shape's, so the lookup starts from the file that declares it. */
-const readersOfName = (
-  service: ts.LanguageService,
-  program: ts.Program,
-  root: string,
-  field: FieldName,
-): string[] => {
-  // The language service accepts no position inside a negative number.
-  // Its checker property symbol supplies those references below.
-  if (isNegativeNumericName(field)) return [];
-  const references = answered(
-    service.findReferences(field.getSourceFile().fileName, field.getStart()),
-    `references for ${fieldNameText(field)}`,
-  );
-  const namesTheNamesake = namesTheNamesakeOf(field);
-  const readers: string[] = [];
-  for (const group of references) {
-    for (const reference of group.references) {
-      if (readsHere(program, reference, namesTheNamesake)) {
-        readers.push(reference.fileName.replace(`${root}/`, ""));
-      }
-    }
-  }
-  return readers;
-};
-
 /** The type that holds one negative member mention. */
 const typeAtNegativeMember = (
   checker: ts.TypeChecker,
@@ -173,13 +145,34 @@ const readersOf = (
   names: readonly FieldName[],
   symbols: readonly ts.Symbol[],
   readersBySymbol: ReadonlyMap<ts.Symbol, readonly string[]>,
-): string[] =>
-  unique([
-    ...names.flatMap((name) => readersOfName(service, program, root, name)),
+): string[] => {
+  /** Ask the service who reads one written-down name. */
+  const readersOfName = (field: FieldName): string[] => {
+    // The language service accepts no position inside a negative number.
+    // Its checker property symbol supplies those references below.
+    if (isNegativeNumericName(field)) return [];
+    const references = answered(
+      service.findReferences(field.getSourceFile().fileName, field.getStart()),
+      `references for ${fieldNameText(field)}`,
+    );
+    const namesTheNamesake = namesTheNamesakeOf(field);
+    const readers: string[] = [];
+    for (const group of references) {
+      for (const reference of group.references) {
+        if (readsHere(program, reference, namesTheNamesake)) {
+          readers.push(reference.fileName.replace(`${root}/`, ""));
+        }
+      }
+    }
+    return readers;
+  };
+  return unique([
+    ...names.flatMap(readersOfName),
     ...symbols.flatMap((symbol) =>
       answered(readersBySymbol.get(symbol), `readers for ${symbol.name}`),
     ),
   ]);
+};
 
 /** Read sites for fields the checker creates without a source declaration. */
 const readersOfSymbols = (

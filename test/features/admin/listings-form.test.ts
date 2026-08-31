@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
-import { computeSlugIndex } from "#db/listings/table.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
@@ -248,7 +248,7 @@ describeWithEnv("listings form", { db: true }, () => {
       const created = await createListing();
       const row = await updateListing(created.id, { slug: "  New-Slug  " });
       expect(row.slug).toBe("new-slug");
-      expect(row.slug_index).toBe(await computeSlugIndex("new-slug"));
+      expect(row.slug_index).toBe(await hmacHash("new-slug"));
     });
 
     test("clearing the price on an update stores a real zero", async () => {

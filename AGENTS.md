@@ -331,6 +331,19 @@ GitHub.
   coverage. Write the failing test first, confirm it fails for the right reason,
   then apply the fix and watch it go green. This locks the bug out for good and
   proves the fix actually addresses it.
+- **A branch fixes the defects it introduces**: A review finding about code the
+  branch adds is that branch's work. Fix it in the branch, pin it with a
+  regression test, and merge the branch clean. Never record it as a follow-up
+  issue and merge anyway: the defect exists nowhere but the open branch, and the
+  issue hands work to a future person who must rebuild the context in front of
+  you now. An issue is for a defect that is already on main, or for one that is
+  genuinely outside the branch's scope. If the fix would complicate the branch,
+  split the branch instead of merging a known defect. In a stack, the fix
+  belongs to the layer that introduces it.
+
+  The worked example: issues #2226–#2233 were opened for review findings on PR
+  #2166's own new code, and the defects they describe existed nowhere but that
+  open branch. The fixes belong in the same pull request.
 - **Offensive, not defensive, programming**: Fail loudly and immediately instead
   of tolerating bad states — never suppress, default away, or paper over an
   error. See
@@ -1308,21 +1321,23 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The six scans, and how hard each looks
+### The seven scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
 lower number is a tighter net. Six configs divide the tree, because helper code,
-test bodies and stylesheets each deserve a different net.
+test bodies and stylesheets each deserve a different net. The seventh is a
+wrapper scan that catches what renamed words hide from all of them.
 
-| Config                | Scans                            | minTokens |
-| --------------------- | -------------------------------- | --------- |
-| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
-| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
-| `.jscpd.support.json` | `test/specs/support`             | 18        |
-| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
-| `.jscpd.test.json`    | `test`                           | 48        |
-| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+| Config                   | Scans                            | minTokens             |
+| ------------------------ | -------------------------------- | --------------------- |
+| `.jscpd.json`            | `src`, `e2e-payments`, `scripts` | 19                    |
+| `.jscpd.specs.json`      | `src` + `test/specs/support`     | 19                    |
+| `.jscpd.support.json`    | `test/specs/support`             | 18                    |
+| `.jscpd.helpers.json`    | `src` + `test/test-utils`        | 40                    |
+| `.jscpd.test.json`       | `test`                           | 48                    |
+| `.jscpd.css.json`        | `src/ui/static/style.scss`       | 50                    |
+| `scripts/cpd-renamed.ts` | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
@@ -1332,6 +1347,15 @@ than `src/` can, it gets a second scan of its own — the support helpers are at
 dragging `src/` down too. A test body is different: it repeats by design, and
 the shared mechanism is the test framework itself, so the whole of `test/` stays
 at the loose 48.
+
+The seventh scan (`deno task cpd:renamed`) catches copies that renamed words
+hide. jscpd matches literal token runs, so two copies of one operation with
+different names sit below `minTokens` 19: every renamed word breaks the run. The
+scan runs jscpd at 17 and keeps only the pairs whose two sides share their whole
+punctuation shape — the same code with different words. Every kept pair must be
+merged, or carry a written reason in `scripts/cpd-renamed/allowed.json`. The
+registry only shrinks: merge a pair, delete its entry, and a new word-only copy
+anywhere fails the gate.
 
 **Every helper number ratchets downward** — lower it, bring the tree to it,
 repeat — the same way `check:comments` works. `docs/test-duplication.md`

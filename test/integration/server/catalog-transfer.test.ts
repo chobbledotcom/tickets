@@ -590,7 +590,7 @@ describeWithEnv(
       // round-trip cap (~30) would allow one query/insert each — proves the
       // batched nested-parent check and the set-wise edge insert.
       const { listingsTable } = await import("#db/listings/records.ts");
-      const { computeSlugIndex } = await import("#db/listings/table.ts");
+      const { hmacHash } = await import("#crypto/hashing.ts");
       const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
       for (const name of parentNames) {
         const slug = name.toLowerCase().replace(/\s+/g, "-");
@@ -602,7 +602,7 @@ describeWithEnv(
           maxPrice: 0,
           name,
           slug,
-          slugIndex: await computeSlugIndex(slug),
+          slugIndex: await hmacHash(slug),
         });
       }
       const result = await importCatalog({
@@ -622,14 +622,15 @@ describeWithEnv(
       // the groups directly (like the many-parents case) rather than via
       // createTestGroup, whose trailing getAllGroups() would itself trip the read
       // guard 30 times over in this one test context.
-      const { computeGroupSlugIndex, groups } = await import("#db/groups.ts");
+      const { groups } = await import("#db/groups.ts");
+      const { hmacHash } = await import("#crypto/hashing.ts");
       const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
       for (const name of groupNames) {
         const slug = name.toLowerCase().replace(/\s+/g, "-");
         await groups.table.insert({
           name,
           slug,
-          slugIndex: await computeGroupSlugIndex(slug),
+          slugIndex: await hmacHash(slug),
         });
       }
       const result = await importCatalog({
@@ -712,14 +713,14 @@ describeWithEnv(
 describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
   test("rejects an ambiguous (duplicate-named) reference", async () => {
     const { listingsTable } = await import("#db/listings/records.ts");
-    const { computeSlugIndex } = await import("#db/listings/table.ts");
+    const { hmacHash } = await import("#crypto/hashing.ts");
     for (const slug of ["twin-a", "twin-b"]) {
       await listingsTable.insert({
         maxAttendees: 1,
         maxPrice: 0,
         name: "Twin Parent",
         slug,
-        slugIndex: await computeSlugIndex(slug),
+        slugIndex: await hmacHash(slug),
       });
     }
     const result = await importCatalog({
