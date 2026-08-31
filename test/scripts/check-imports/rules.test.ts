@@ -136,6 +136,50 @@ describe("topLevelImports", () => {
     expect(entry?.namesOnly).toBe(false);
   });
 
+  test("reads the statement's own from, not one inside a comment", () => {
+    const expected = [
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "./right.ts",
+        typeOnly: false,
+      },
+    ];
+    const lineCommented = [
+      "import {",
+      '  // from "./wrong.ts"',
+      "  thing,",
+      '} from "./right.ts";',
+    ].join("\n");
+    expect(topLevelImports(lineCommented)).toEqual(expected);
+    const blockCommented = [
+      "import {",
+      "  /* keep, */ thing,",
+      '} from "./right.ts"; /* from "./wrong.ts" */',
+    ].join("\n");
+    expect(topLevelImports(blockCommented)).toEqual(expected);
+    // A block comment that never closes on the line takes the rest of it.
+    const unclosed = 'import { x } from "./right.ts"; /* trailing note';
+    expect(topLevelImports(unclosed)).toEqual([
+      {
+        line: 1,
+        namesOnly: true,
+        reExport: false,
+        specifier: "./right.ts",
+        typeOnly: false,
+      },
+    ]);
+  });
+
+  test("keeps a module address that carries its own slashes", () => {
+    const source =
+      'import { x } from "https://deno.land/x/mod.ts"; // from "./wrong.ts"';
+    expect(topLevelImports(source)[0]?.specifier).toBe(
+      "https://deno.land/x/mod.ts",
+    );
+  });
+
   test("records a re-export, which loads its module just as an import does", () => {
     const [entry] = topLevelImports('export { a } from "#types";');
     expect(entry?.reExport).toBe(true);

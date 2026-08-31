@@ -1362,7 +1362,7 @@ tree already carries, one per line with the reason it stands, split in two:
   empty**, and that is the state to keep it in: a line added here is a merge
   somebody owes.
 - `coincidences.txt` — two functions with one shape and no shared step to lift.
-  A line earns this file only after somebody tried the write the curry.
+  A line earns this file only after somebody tried writing the curry.
 
 **The list only shrinks.** A match that is not on it fails the check, and an
 entry that matches nothing any more fails too, so a merge has to take its entry

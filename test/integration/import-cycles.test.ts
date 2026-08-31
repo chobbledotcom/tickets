@@ -69,4 +69,30 @@ describe("import cycles", () => {
     const [files, aliases] = await Promise.all([readSource(), readAliases()]);
     expect(importCycles(modulesOf(files, aliases))).toEqual(KNOWN_RINGS);
   });
+
+  test("a recorded ring carries only the edges it was recorded with", async () => {
+    // The ring list names each ring's members, but a ring can gain an edge —
+    // and with it a shorter path around — without gaining a member, which the
+    // members alone cannot say. So the edges between recorded members are held
+    // here too: a new edge inside a ring fails, exactly as a new ring does.
+    const [files, aliases] = await Promise.all([readSource(), readAliases()]);
+    const loads = new Map(
+      modulesOf(files, aliases).map((module) => [module.path, module.loads]),
+    );
+    const edges = KNOWN_RINGS.flatMap((ring) => {
+      const members = new Set(ring);
+      return ring.flatMap((from) =>
+        (loads.get(from) ?? [])
+          .filter((to) => members.has(to))
+          .map((to) => `${from} -> ${to}`),
+      );
+    }).sort();
+    expect(edges).toEqual([
+      "src/shared/db/groups.ts -> src/shared/db/groups/membership.ts",
+      "src/shared/db/groups/membership.ts -> src/shared/db/groups.ts",
+      "src/shared/db/listing-parents.ts -> src/shared/db/listings/records.ts",
+      "src/shared/db/listing-prices.ts -> src/shared/db/listing-parents.ts",
+      "src/shared/db/listings/records.ts -> src/shared/db/listing-prices.ts",
+    ]);
+  });
 });

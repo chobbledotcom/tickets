@@ -4,6 +4,11 @@
  */
 
 import { byLine } from "#scripts/check-report.ts";
+import {
+  endOfComment,
+  endOfQuoted,
+  opensComment,
+} from "#scripts/quoted-run.ts";
 
 /** One `#` alias from the import map. A name ending in `/` covers a folder. */
 export interface Alias {
@@ -126,13 +131,38 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null =>
 const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
 
 /**
+ * The line with its comments taken out, so a `from` inside one cannot end a
+ * wrapped import early or name the wrong module. A string keeps whatever it
+ * quotes, so a module address with `//` of its own survives.
+ */
+const withoutComments = (line: string): string => {
+  let out = "";
+  let index = 0;
+  while (index < line.length) {
+    const character = line[index] as string;
+    if (character === '"' || character === "'" || character === "`") {
+      const end = endOfQuoted(line, index + 1, character);
+      out += line.slice(index, end);
+      index = end;
+    } else if (opensComment(line, index)) {
+      index = endOfComment(line, index);
+    } else {
+      out += character;
+      index++;
+    }
+  }
+  return out;
+};
+
+/**
  * Every top-level statement in `content` that names a module — an import or a
  * re-export. A line that starts in column 0 is the only one that counts, so an
  * example import quoted inside a string is not mistaken for the real thing. The
  * module name is read from the line that ends the statement, which is the line
  * carrying `from`, and the shape from the line that opens it. A statement that
  * ends without a `from`, such as `export { getRawCached };`, names no module
- * and is dropped.
+ * and is dropped. Comments on a line are read as absent, so a `from` inside
+ * one cannot end the statement early or name the wrong module.
  */
 export const topLevelImports = (content: string): ImportLine[] => {
   const found: ImportLine[] = [];
@@ -142,16 +172,17 @@ export const topLevelImports = (content: string): ImportLine[] => {
       open = { head: line, line: index + 1 };
     }
     if (open === null) continue;
+    const bare = withoutComments(line);
     const isEnd =
-      /from\s+["']/.test(line) ||
-      /^import\s+["'][^"']*["']/.test(line) ||
-      /;\s*$/.test(line);
+      /from\s+["']/.test(bare) ||
+      /^import\s+["'][^"']*["']/.test(bare) ||
+      /;\s*$/.test(bare);
     if (!isEnd) continue;
     // A side-effect `import "./x.ts"` names its module without a `from`, and
     // loads it for what it does rather than for what it hands back.
     const specifier =
-      line.match(/from\s+["']([^"']+)["']/)?.[1] ??
-      line.match(/^import\s+["']([^"']+)["']/)?.[1];
+      bare.match(/from\s+["']([^"']+)["']/)?.[1] ??
+      bare.match(/^import\s+["']([^"']+)["']/)?.[1];
     if (specifier !== undefined) {
       found.push({
         line: open.line,

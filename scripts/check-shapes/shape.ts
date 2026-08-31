@@ -7,6 +7,11 @@
  * written, so renaming one copy hides it.
  */
 
+import {
+  endOfComment,
+  endOfQuoted,
+  opensComment,
+} from "#scripts/quoted-run.ts";
 import { SYNTAX_WORDS } from "#scripts/syntax-words.ts";
 
 /** Where a run of text sits in a file, as offsets. */
@@ -54,32 +59,6 @@ const isWordPart = (character: string): boolean =>
  * one of those ends a value, so a slash after it divides. */
 const isStepChange = (character: string): boolean =>
   character === "+" || character === "-";
-
-/** Where a quoted run ends, given the quote that opened it. Escapes are
- * skipped whole, so a quote inside the text does not close it early. */
-const endOfQuoted = (text: string, start: number, quote: string): number => {
-  let index = start;
-  while (index < text.length && text[index] !== quote) {
-    index += text[index] === "\\" ? 2 : 1;
-  }
-  return index + 1;
-};
-
-/** Whether a comment opens at `index`. Neither `//` nor `/*` can open a valid
- * pattern, so this is the first question every reader of a `/` asks. */
-const opensComment = (text: string, index: number): boolean =>
-  text[index] === "/" && /[/*]/.test(text[index + 1] ?? "");
-
-/** Where a comment ends. A line comment runs to the newline, a block comment
- * to its closing pair. */
-const endOfComment = (text: string, start: number): number => {
-  if (text[start + 1] === "/") {
-    const newline = text.indexOf("\n", start);
-    return newline === -1 ? text.length : newline;
-  }
-  const close = text.indexOf("*/", start + 2);
-  return close === -1 ? text.length : close + 2;
-};
 
 /**
  * What the token before a slash counts as, when the boundary scan has to tell
@@ -302,7 +281,10 @@ const HEADER_WORDS = new Set(["for", "if", "while"]);
 
 /** The tokens a `{` sits after when it opens a block rather than a value: the
  * header of a control statement, another statement's end, an arrow's body, or
- * the head of the body itself. */
+ * the head of the body itself. A `{` after a name opens the body of what the
+ * name declares — `class Helper {`, `enum Kind {` — because a value's `{`
+ * always follows an operator, a bracket, or a keyword like `return`, never a
+ * bare name. */
 const BLOCK_BRACE_AFTER = new Set([
   "",
   ")",
@@ -310,6 +292,7 @@ const BLOCK_BRACE_AFTER = new Set([
   "{",
   "}",
   "=>",
+  "ID",
   "do",
   "else",
   "finally",
@@ -389,6 +372,11 @@ const stepAt = (
   }
   if (startsNumber(body, index)) return readNumber(body, index);
   if (isWordStart(character)) return readWord(body, index);
+  // An arrow is one token, the way it is one in JavaScript, so a block rule
+  // can name it: `() => {}` opens a block.
+  if (character === "=" && body[index + 1] === ">") {
+    return { next: index + 2, tokens: ["=>"] };
+  }
   if (isStepChange(character) && body[index + 1] === character) {
     return { next: index + 2, tokens: [character + character] };
   }

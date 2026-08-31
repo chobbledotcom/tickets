@@ -370,6 +370,33 @@ describe("shapeOf reading a pattern", () => {
       "ID",
       ")",
     ]);
+    expect(shapeOf("class Helper {} /foo/.test(value)")).toEqual([
+      "class",
+      "ID",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+    expect(shapeOf("_ = () => {} /x/.test(s)")).toEqual([
+      "ID",
+      "=",
+      "(",
+      ")",
+      "=>",
+      "{",
+      "}",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
   });
 
   test("still divides after a brace that closed a value", () => {
@@ -400,8 +427,7 @@ describe("shapeOf reading a pattern", () => {
       "(",
       "(",
       ")",
-      "=",
-      ">",
+      "=>",
       "{",
       "return",
       "RE",
