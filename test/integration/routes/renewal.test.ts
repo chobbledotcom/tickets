@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -308,6 +309,9 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("free renewal tier still applies the site renewal", async () => {
+      // Renewal extends max(now, the seeded deadline). Freeze the clock
+      // before that deadline, or a wall clock past it moves the base to now.
+      using _time = new FakeTime(new Date("2026-08-01T00:00:00.000Z"));
       const tier = await createTestListing({
         hidden: true,
         maxAttendees: 100,
