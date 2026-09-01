@@ -78,21 +78,30 @@ describe("CSV.generate formula safety", () => {
 
   test("puts a tab in front of every character that can start a formula", () => {
     const inertCells: [string, string][] = [
-      ["=SUM(A1:A2)", "\t=SUM(A1:A2)"],
-      ["+44 20 7946", "\t+44 20 7946"],
-      ["-Maria", "\t-Maria"],
-      ["@handle", "\t@handle"],
-      ["\tTabbed start", "\t\tTabbed start"],
-      ["＝SUM(A1:A2)", "\t＝SUM(A1:A2)"],
-      ["＋44 20 7946", "\t＋44 20 7946"],
-      ["－Maria", "\t－Maria"],
-      ["＠handle", "\t＠handle"],
+      ["=SUM(A1:A2)", '"\t=SUM(A1:A2)"'],
+      ["+44 20 7946", '"\t+44 20 7946"'],
+      ["-Maria", '"\t-Maria"'],
+      ["@handle", '"\t@handle"'],
+      ["\tTabbed start", '"\t\tTabbed start"'],
+      ["＝SUM(A1:A2)", '"\t＝SUM(A1:A2)"'],
+      ["＋44 20 7946", '"\t＋44 20 7946"'],
+      ["－Maria", '"\t－Maria"'],
+      ["＠handle", '"\t＠handle"'],
     ];
     for (const [formulaText, inertCell] of inertCells) {
       expect(CSV.generate([{ value: formulaText }], valueColumn)).toBe(
         `Value\n${inertCell}`,
       );
     }
+  });
+
+  test("quotes the tab marker so a tab-delimited import cannot split it", () => {
+    // Unquoted, `⇥=cmd` splits into an empty field and a live `=cmd` when a
+    // reader takes tabs as delimiters. The quotes keep marker and value one
+    // field under every reader.
+    expect(CSV.generate([{ value: "=cmd" }], valueColumn)).toBe(
+      'Value\n"\t=cmd"',
+    );
   });
 
   test("puts a tab in front of a carriage return that starts a cell", () => {
@@ -125,7 +134,7 @@ describe("CSV.generate formula safety", () => {
 
   test("puts a tab in front of a formula character that starts a header", () => {
     expect(CSV.generate([], [{ header: "=Total", value: () => "" }])).toBe(
-      "\t=Total",
+      '"\t=Total"',
     );
   });
 });

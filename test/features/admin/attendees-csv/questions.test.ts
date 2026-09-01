@@ -91,7 +91,7 @@ describe("CSV with custom questions", () => {
 
   test("stops a free-text answer that starts like a spreadsheet formula", () => {
     const [, row] = freeTextCsv("=2+5*9");
-    expect(row!.endsWith(",\t=2+5*9")).toBe(true);
+    expect(row!.endsWith(',"\t=2+5*9"')).toBe(true);
   });
 
   test("leaves the question column blank when the attendee did not answer it", () => {

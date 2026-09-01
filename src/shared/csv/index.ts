@@ -12,9 +12,10 @@ export type Column<T> = {
   value: (item: T) => string;
 };
 
-/** The first characters that make Excel and Google Sheets run a cell as a
- * formula: the four visible starters, tab, CR, LF, and the full-width
- * forms a Japanese locale accepts. */
+/** The characters OWASP lists as formula starters: the four visible ones,
+ * tab, CR, LF, and the full-width forms a Japanese locale accepts. Tab is
+ * listed there as a caution for import paths, yet a quoted tab is also the
+ * page's neutralizer — see {@link stopFormula} and {@link escapeValue}. */
 const FORMULA_START = /^[=+\-@\t\r\n＝＋－＠]/;
 
 /** Stop a spreadsheet from running a cell as a formula: a tab in front makes
@@ -23,9 +24,13 @@ const FORMULA_START = /^[=+\-@\t\r\n＝＋－＠]/;
 const stopFormula = (value: string): string =>
   FORMULA_START.test(value) ? `\t${value}` : value;
 
-/** Escape one value for CSV (commas, quotes, newlines, carriage returns). */
+/** Escape one value for CSV (commas, quotes, newlines, carriage returns).
+ * A tab marker is wrapped as well, so a tab-delimited import cannot split
+ * the marker off the formula it guards. */
 const escapeValue = (value: string): string =>
-  /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  value.startsWith("\t") || /[",\n\r]/.test(value)
+    ? `"${value.replace(/"/g, '""')}"`
+    : value;
 
 /** Join a header line with already-built data rows. No trailing newline, built
  * in a single pass. */
@@ -35,7 +40,7 @@ const joinRows = (header: string, rows: readonly string[]): string =>
 /**
  * Build CSV text from items and the columns that describe them. The headers
  * and every cell are escaped, and a value that starts like a spreadsheet
- * formula gets a quote in front so no app runs it. Throws only when no
+ * formula gets a quoted tab in front so no app runs it. Throws only when no
  * columns are given — duplicate headers are allowed (e.g. two custom
  * questions sharing a name), matching what spreadsheets accept.
  */
