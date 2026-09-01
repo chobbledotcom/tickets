@@ -52,15 +52,21 @@ const declaredName = (node: AstNode): string | null =>
 /** Nodes that hand a name on to the function inside them. A declaration or a
  * property names what it holds. A call hands on the name it was given, because
  * `const handleBook = withActiveListing(async (…) => …)` names that handler
- * and nothing else does — the call itself has no name of its own. */
+ * and nothing else does — the call itself has no name of its own. So do the
+ * wrappers that only restate a type or group — parentheses, `as`,
+ * `satisfies`, `!` — because what they wrap is still the named thing. */
 const HANDS_A_NAME_ON = new Set([
   "AssignmentExpression",
   "CallExpression",
   "ConditionalExpression",
   "MethodDefinition",
   "ObjectProperty",
+  "ParenthesizedExpression",
   "Property",
   "PropertyDefinition",
+  "TSAsExpression",
+  "TSNonNullExpression",
+  "TSSatisfiesExpression",
   "VariableDeclarator",
 ]);
 

@@ -106,6 +106,33 @@ describe("shapeOf reading a pattern", () => {
     ]);
   });
 
+  test("opens a pattern after a for-await header, but divides an await operand", () => {
+    expect(shapeOf("for await (const item of items) /x/.test(item)")).toEqual([
+      "for",
+      "await",
+      "(",
+      "const",
+      "ID",
+      "of",
+      "ID",
+      ")",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
+    ]);
+    expect(shapeOf("await (total) / 2")).toEqual([
+      "await",
+      "(",
+      "ID",
+      ")",
+      "/",
+      "NUM",
+    ]);
+  });
+
   test("reads a bracket that closes nothing as ending a value", () => {
     // Nothing says what such a bracket belongs to, so it takes the reading
     // that all but a control header wants, and the slash divides.
@@ -410,6 +437,34 @@ describe("shapeOf reading a pattern", () => {
       "RE",
       ".",
       "ID",
+      "(",
+      "ID",
+      ")",
+      ";",
+      "}",
+    ]);
+    expect(
+      shapeOf(
+        template(
+          interpolated(" (rows) => { for await (const r of rows) /x/(r); } "),
+        ),
+      ),
+    ).toEqual([
+      "STR",
+      "(",
+      "ID",
+      ")",
+      "=>",
+      "{",
+      "for",
+      "await",
+      "(",
+      "const",
+      "ID",
+      "of",
+      "ID",
+      ")",
+      "RE",
       "(",
       "ID",
       ")",

@@ -43,27 +43,44 @@ const wordBefore = (text: string, at: number): string | undefined => {
 };
 
 /**
- * The word in front of the `(` that the `)` at `index` closes, or nothing when
- * nothing matches it or when no word stands there: the boundary scan over raw
- * text asks the same header question the token scan asks over shapes.
+ * The position where the bracket that closes at `end` finds its match,
+ * reading backward through `reads`, or -1 when nothing matches it.
  */
-const wordBeforeTheParens = (
-  text: string,
-  index: number,
-): string | undefined => {
+const walkToMatch = (
+  reads: (at: number) => string | undefined,
+  end: number,
+  closes: string,
+  opens: string,
+): number => {
   let depth = 0;
-  for (let at = index; at >= 0; at--) {
-    if (text[at] === ")") depth++;
-    if (text[at] !== "(") continue;
+  for (let at = end; at >= 0; at--) {
+    const item = reads(at);
+    if (item === closes) depth++;
+    if (item !== opens) continue;
     depth--;
-    if (depth === 0) return wordBefore(text, at);
+    if (depth === 0) return at;
   }
-  return;
+  return -1;
 };
 
-/** Whether the `)` at `index` closed an `if`, `while` or `for` header. */
+/**
+ * The position of the `(` that the `)` at `index` closes, or -1 when nothing
+ * matches it: the boundary scan over raw text asks the same header question
+ * the token scan asks over shapes.
+ */
+const parenBefore = (text: string, index: number): number =>
+  walkToMatch((at) => text[at], index, ")", "(");
+
+/** Whether the `)` at `index` closed a control header, with `for await`
+ * counted as one: `await` sits beside the bracket there, but `await (…)`
+ * alone is an operand, so the word before the word decides. */
 const closesAHeaderIn = (text: string, index: number): boolean => {
-  const word = wordBeforeTheParens(text, index);
+  const paren = parenBefore(text, index);
+  if (paren === -1) return false;
+  const word = wordBefore(text, paren);
+  if (word === "await") {
+    return wordBefore(text, paren - "await".length - 1) === "for";
+  }
   return HEADER_WORDS.has(word ?? "");
 };
 
@@ -201,38 +218,26 @@ const BLOCK_BRACE_AFTER = new Set([
  * one at the end, or -1 when nothing matches it. */
 const matchingOpener =
   (closes: string, opens: string) =>
-  (shape: readonly string[]): number => {
-    let depth = 0;
-    for (let at = shape.length - 1; at >= 0; at--) {
-      if (shape[at] === closes) depth++;
-      if (shape[at] !== opens) continue;
-      depth--;
-      if (depth === 0) return at;
-    }
-    return -1;
-  };
+  (shape: readonly string[]): number =>
+    walkToMatch((at) => shape[at], shape.length - 1, closes, opens);
 
 const parenOpensAt = matchingOpener(")", "(");
 const bracketOpensAt = matchingOpener("]", "[");
 const braceOpensAt = matchingOpener("}", "{");
 
-/** The token in front of the bracket the last one matches, or nothing. */
-const tokenBeforeMatching =
-  (openerAt: (shape: readonly string[]) => number) =>
-  (shape: readonly string[]): string | undefined => {
-    const at = openerAt(shape);
-    return at === -1 ? undefined : shape[at - 1];
-  };
-
-const wordBeforeParens = tokenBeforeMatching(parenOpensAt);
-
 /**
- * Whether the `)` at the end of `shape` closed an `if`, `while` or `for`
- * header: the word in front of the matching `(` is the only way to tell that
- * bracket from the one that ends a call or a sum.
+ * Whether the `)` at the end of `shape` closed a control header, `for await`
+ * counted as one: `if (ready)` and `for (const a of b)` close on a statement,
+ * while `total()` closes on a value, and `await (…)` alone is an operand —
+ * the word before the word decides.
  */
-const closesAHeader = (shape: readonly string[]): boolean =>
-  HEADER_WORDS.has(wordBeforeParens(shape) ?? "");
+const closesAHeader = (shape: readonly string[]): boolean => {
+  const at = parenOpensAt(shape);
+  if (at === -1) return false;
+  const word = shape[at - 1] ?? "";
+  if (word !== "await") return HEADER_WORDS.has(word);
+  return shape[at - 2] === "for";
+};
 
 /** The tokens a label or a case clause is made of: the name it labels by, a
  * dotted match value, and the two clause keywords. A bracketed stretch counts

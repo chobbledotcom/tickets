@@ -37,6 +37,11 @@ import type { PaymentProviderType } from "#types";
 
 /* jscpd:ignore-end */
 
+/** The line a wallet configured through host env settings shows: its detail,
+ *  or nothing when no host config stands behind the settings. */
+const hostWalletLabel = (detail: string | undefined): string =>
+  detail === undefined ? "" : `Host env (${detail})`;
+
 /** The provider whose credentials form the settings page shows, and what the
  *  stored credentials for it say. Sales being off does not hide the form: the
  *  provider that owns the payments already taken still needs its keys. */
@@ -131,22 +136,18 @@ const getAdvancedSettingsPageState = async (
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
     googleWalletIssuerId: settings.googleWallet.issuerId,
     googleWalletServiceAccountEmail: settings.googleWallet.serviceAccountEmail,
-    hostAppleWalletLabel: (() => {
-      const hostConfig = settings.appleWallet.hostConfig;
-      if (!hostConfig) return "";
-      return `Host env (${hostConfig.passTypeId})`;
-    })(),
+    hostAppleWalletLabel: hostWalletLabel(
+      settings.appleWallet.hostConfig?.passTypeId,
+    ),
     hostEmailLabel: (() => {
       const hostConfig = hostEmail.getHostConfig();
       if (!hostConfig) return "";
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
-    hostGoogleWalletLabel: (() => {
-      const hostConfig = settings.googleWallet.hostConfig;
-      if (!hostConfig) return "";
-      return `Host env (${hostConfig.issuerId})`;
-    })(),
+    hostGoogleWalletLabel: hostWalletLabel(
+      settings.googleWallet.hostConfig?.issuerId,
+    ),
     listingColumnOrder: settings.listingColumnOrder,
     paymentProviderRecoveryNeeded:
       existingPaymentProvider.recoveryChoices.length > 0,

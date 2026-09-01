@@ -90,6 +90,16 @@ describe("namedFunctions", () => {
     ).toEqual(["verifyName"]);
   });
 
+  test("names through the wrappers that only restate a type or group", () => {
+    expect(
+      names("const save = ((row) => { work(row); }) satisfies Handler;"),
+    ).toEqual(["save"]);
+    expect(names("const load = ((row) => { work(row); }) as Handler;")).toEqual(
+      ["load"],
+    );
+    expect(names("const run = ((row) => { work(row); });")).toEqual(["run"]);
+  });
+
   test("leaves an assignment with no name anywhere alone", () => {
     expect(names("handlers[pick()] = (a) => a + 1;")).toEqual([]);
   });
