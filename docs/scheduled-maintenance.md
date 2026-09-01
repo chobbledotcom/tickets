@@ -39,6 +39,13 @@ monitors from each built site's **Scheduled maintenance** tab:
 - `UPTIME_KUMA_USERNAME`
 - `UPTIME_KUMA_PASSWORD`
 
+Set `UPTIME_KUMA_URL` with `https://` for a host on the public internet. The
+builder refuses cleartext `http://` for a public host, so the login cannot send
+the Kuma credentials unencrypted. Cleartext `http://` works only for a local
+network address: `localhost`, a loopback address, a private block (`10/8`,
+`172.16/12`, `192.168/16`), the CGNAT block `100.64/10`, link-local, or an IPv6
+unique-local address. A VPN address such as a Tailscale IP counts as local.
+
 You can also set `UPTIME_KUMA_INTERVAL_MINUTES` to any positive whole number. It
 defaults to `15`.
 

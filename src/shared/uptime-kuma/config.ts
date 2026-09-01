@@ -22,6 +22,48 @@ const nonBlank = (name: string, value: string): string => {
   return value;
 };
 
+/** The first 16-bit group of a bracketed IPv6 host, or null for any host that
+ * is not one. The URL parser has already rejected a bracketed host that is not
+ * canonical IPv6, whose every group is hex. */
+const ipv6FirstHextet = (hostname: string): number | null => {
+  if (!hostname.startsWith("[")) return null;
+  const to = hostname.indexOf(":");
+  return to > 1 ? Number.parseInt(hostname.slice(1, to), 16) : null;
+};
+
+/** Hosts that may use cleartext http for the Kuma login: loopback, plus the
+ * address ranges no packet can leave the operator's network for — private
+ * blocks, CGNAT space where VPNs such as Tailscale live, and link-local. Any
+ * other host needs HTTPS, so the Kuma password never crosses a public
+ * network unencrypted. */
+const isLocalHttpHost = (hostname: string): boolean => {
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    return true;
+  }
+  if (hostname === "[::1]") return true;
+  const octets = hostname.split(".").map(Number);
+  const [first = -1, second = -1] = octets;
+  // The URL constructor rejects a numeric host with an out-of-range octet, so
+  // four integer labels here can only be a parsed IPv4 address.
+  const isIpv4 = octets.length === 4 && octets.every(Number.isInteger);
+  if (isIpv4) {
+    return (
+      first === 10 || // 10.0.0.0/8
+      first === 127 || // 127.0.0.0/8
+      (first === 100 && second >= 64 && second <= 127) || // 100.64.0.0/10
+      (first === 169 && second === 254) || // 169.254.0.0/16
+      (first === 172 && second >= 16 && second <= 31) || // 172.16.0.0/12
+      (first === 192 && second === 168) // 192.168.0.0/16
+    );
+  }
+  const hextet = ipv6FirstHextet(hostname);
+  return (
+    hextet !== null &&
+    ((hextet & 0xfc00) === 0xfc00 || // fc00::/7 unique local
+      (hextet & 0xffc0) === 0xfe80) // fe80::/10 link local
+  );
+};
+
 const parseBaseUrl = (value: string): string => {
   let url: URL;
   try {
@@ -31,6 +73,9 @@ const parseBaseUrl = (value: string): string => {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("UPTIME_KUMA_URL must use http or https");
+  }
+  if (url.protocol === "http:" && !isLocalHttpHost(url.hostname)) {
+    throw new Error("UPTIME_KUMA_URL must use HTTPS outside a local network");
   }
   if (url.username || url.password) {
     throw new Error("UPTIME_KUMA_URL must not contain a username or password");

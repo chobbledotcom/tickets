@@ -1688,7 +1688,9 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
 - `UPTIME_KUMA_URL` - Uptime Kuma 2.4 or newer base URL used by builder
   instances to inspect and add built-site scheduled maintenance monitors.
   Requires `CAN_BUILD_SITES=true`, `UPTIME_KUMA_USERNAME`, and
-  `UPTIME_KUMA_PASSWORD`.
+  `UPTIME_KUMA_PASSWORD`. A public host must use `https`; cleartext `http` is
+  allowed only for a local network address (loopback, private, CGNAT, or
+  link-local).
 - `UPTIME_KUMA_USERNAME` - Uptime Kuma username. Must be set with
   `UPTIME_KUMA_URL` and `UPTIME_KUMA_PASSWORD`.
 - `UPTIME_KUMA_PASSWORD` - Uptime Kuma password. Must be set with
