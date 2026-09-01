@@ -98,6 +98,9 @@ describe("namedFunctions", () => {
       ["load"],
     );
     expect(names("const run = ((row) => { work(row); });")).toEqual(["run"]);
+    expect(names("const make = <Handler>((row) => { work(row); });")).toEqual([
+      "make",
+    ]);
   });
 
   test("leaves an assignment with no name anywhere alone", () => {

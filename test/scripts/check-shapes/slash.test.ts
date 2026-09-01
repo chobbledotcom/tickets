@@ -131,6 +131,24 @@ describe("shapeOf reading a pattern", () => {
       "/",
       "NUM",
     ]);
+    // A comment inside the header sits between the words, not between the
+    // words and what they name.
+    expect(
+      shapeOf("for /* each row */ await (const row of rows) /x/(r)"),
+    ).toEqual([
+      "for",
+      "await",
+      "(",
+      "const",
+      "ID",
+      "of",
+      "ID",
+      ")",
+      "RE",
+      "(",
+      "ID",
+      ")",
+    ]);
   });
 
   test("reads a bracket that closes nothing as ending a value", () => {
@@ -443,13 +461,9 @@ describe("shapeOf reading a pattern", () => {
       ";",
       "}",
     ]);
-    expect(
-      shapeOf(
-        template(
-          interpolated(" (rows) => { for await (const r of rows) /x/(r); } "),
-        ),
-      ),
-    ).toEqual([
+    // The tokens of a for-await interpolation body, with and without a
+    // comment between the two words of the header.
+    const forAwaitBody = [
       "STR",
       "(",
       "ID",
@@ -465,6 +479,48 @@ describe("shapeOf reading a pattern", () => {
       "ID",
       ")",
       "RE",
+      "(",
+      "ID",
+      ")",
+      ";",
+      "}",
+    ];
+    expect(
+      shapeOf(
+        template(
+          interpolated(" (rows) => { for await (const r of rows) /x/(r); } "),
+        ),
+      ),
+    ).toEqual(forAwaitBody);
+    expect(
+      shapeOf(
+        template(
+          interpolated(
+            " (rows) => { for /* each */ await (const r of rows) /x/(r); } ",
+          ),
+        ),
+      ),
+    ).toEqual(forAwaitBody);
+    // A regex can end in the very characters that open a comment, and a
+    // closer with no opener behind it stops the backward read, so no header
+    // is found and the slash after the bracket divides.
+    expect(
+      shapeOf(template(interpolated(" (rows) => { /x*/ (r) / q; w(r); } "))),
+    ).toEqual([
+      "STR",
+      "(",
+      "ID",
+      ")",
+      "=>",
+      "{",
+      "RE",
+      "(",
+      "ID",
+      ")",
+      "/",
+      "ID",
+      ";",
+      "ID",
       "(",
       "ID",
       ")",

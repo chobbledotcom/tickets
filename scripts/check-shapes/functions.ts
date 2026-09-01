@@ -67,6 +67,7 @@ const HANDS_A_NAME_ON = new Set([
   "TSAsExpression",
   "TSNonNullExpression",
   "TSSatisfiesExpression",
+  "TSTypeAssertion",
   "VariableDeclarator",
 ]);
 

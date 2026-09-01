@@ -33,11 +33,21 @@ const wordStart = (text: string, from: number): number => {
   return start;
 };
 
-/** The word that stands just before `at`, past any whitespace between, or
- * nothing when no word stands there. */
+/** The word that stands just before `at` — past any whitespace or comment
+ * between — or nothing when no word stands there. */
 const wordBefore = (text: string, at: number): string | undefined => {
   let end = at - 1;
-  while (end >= 0 && /\s/.test(text[end] as string)) end--;
+  while (end >= 0) {
+    if (/\s/.test(text[end] as string)) {
+      end--;
+    } else if (text[end] === "/" && text[end - 1] === "*") {
+      const open = text.lastIndexOf("/*", end - 2);
+      if (open === -1) return;
+      end = open - 1;
+    } else {
+      break;
+    }
+  }
   if (end < 0 || !isWordPart(text[end] as string)) return;
   return text.slice(wordStart(text, end), end + 1);
 };
