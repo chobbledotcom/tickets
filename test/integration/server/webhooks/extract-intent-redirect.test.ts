@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
@@ -200,6 +201,9 @@ describeWithEnv(
     });
 
     test("payment success applies multi-tier renewal months cumulatively", async () => {
+      // Renewal extends max(now, the seeded deadline). Freeze the clock
+      // before that deadline, or a wall clock past it moves the base to now.
+      using _time = new FakeTime(new Date("2026-08-01T00:00:00.000Z"));
       await setupStripe();
 
       await createTestListing({
