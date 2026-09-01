@@ -17,10 +17,11 @@ export type Column<T> = {
  * forms a Japanese locale accepts. */
 const FORMULA_START = /^[=+\-@\t\r\n＝＋－＠]/;
 
-/** Stop a spreadsheet from running a cell as a formula: a quote in front keeps
- * the text inert while every app still shows it. */
+/** Stop a spreadsheet from running a cell as a formula: a tab in front makes
+ * the text inert, and Excel keeps a data tab when a saved file is opened
+ * again — it can strip a quote or escape marker instead. */
 const stopFormula = (value: string): string =>
-  FORMULA_START.test(value) ? `'${value}` : value;
+  FORMULA_START.test(value) ? `\t${value}` : value;
 
 /** Escape one value for CSV (commas, quotes, newlines, carriage returns). */
 const escapeValue = (value: string): string =>
