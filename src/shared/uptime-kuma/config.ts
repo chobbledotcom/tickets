@@ -31,32 +31,45 @@ const ipv6FirstHextet = (hostname: string): number | null => {
   return to > 1 ? Number.parseInt(hostname.slice(1, to), 16) : null;
 };
 
-/** Hosts that may use cleartext http for the Kuma login: loopback, plus the
- * address ranges no packet can leave the operator's network for — private
- * blocks, CGNAT space where VPNs such as Tailscale live, and link-local. Any
- * other host needs HTTPS, so the Kuma password never crosses a public
- * network unencrypted. */
-const isLocalHttpHost = (hostname: string): boolean => {
+/** The trailing root dot is the only spelling difference a fully qualified
+ * name carries, e.g. "localhost." for "localhost". */
+const withoutRootDot = (hostname: string): string =>
+  hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+
+/** True for an IPv4 host inside a range no packet can leave the operator's
+ * network for — the private blocks, CGNAT, and link-local. */
+const isPrivateIpv4 = (hostname: string): boolean => {
+  // A real IPv4 host arrives in canonical dotted decimal, digits only. A
+  // lookalike DNS name such as "10.0.0.1e0" — whose fourth label Number()
+  // would coerce to 1 — must not reach the octet checks.
+  const labels = hostname.split(".");
+  const isIpv4 =
+    labels.length === 4 && labels.every((label) => /^\d{1,3}$/.test(label));
+  if (!isIpv4) return false;
+  const first = Number(labels[0]!);
+  const second = Number(labels[1]!);
+  return (
+    first === 10 || // 10.0.0.0/8
+    first === 127 || // 127.0.0.0/8
+    (first === 100 && second >= 64 && second <= 127) || // 100.64.0.0/10
+    (first === 169 && second === 254) || // 169.254.0.0/16
+    (first === 172 && second >= 16 && second <= 31) || // 172.16.0.0/12
+    (first === 192 && second === 168) // 192.168.0.0/16
+  );
+};
+
+/** Hosts that may use cleartext http for the Kuma login. Loopback is one.
+ * The rest are ranges no packet can leave the operator's network for. These
+ * are the private blocks, the CGNAT space where VPNs such as Tailscale live,
+ * and link-local. Every other host needs HTTPS, so the Kuma password never
+ * crosses a public network unencrypted. */
+const isLocalHttpHost = (rawHostname: string): boolean => {
+  const hostname = withoutRootDot(rawHostname);
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     return true;
   }
   if (hostname === "[::1]") return true;
-  const octets = hostname.split(".").map(Number);
-  // The URL constructor rejects a numeric host with an out-of-range octet, so
-  // four integer labels here can only be a parsed IPv4 address.
-  const isIpv4 = octets.length === 4 && octets.every(Number.isInteger);
-  if (isIpv4) {
-    const first = octets[0]!;
-    const second = octets[1]!;
-    return (
-      first === 10 || // 10.0.0.0/8
-      first === 127 || // 127.0.0.0/8
-      (first === 100 && second >= 64 && second <= 127) || // 100.64.0.0/10
-      (first === 169 && second === 254) || // 169.254.0.0/16
-      (first === 172 && second >= 16 && second <= 31) || // 172.16.0.0/12
-      (first === 192 && second === 168) // 192.168.0.0/16
-    );
-  }
+  if (isPrivateIpv4(hostname)) return true;
   const hextet = ipv6FirstHextet(hostname);
   return (
     hextet !== null &&
