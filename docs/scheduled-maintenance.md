@@ -51,7 +51,9 @@ network address:
 - a link-local address: `169.254/16` or `fe80::/10`
 - an IPv6 unique-local address: `fc00::/7`
 
-A VPN address such as a Tailscale IP counts as local.
+A VPN address counts as local only inside the listed ranges. A Tailscale IP is
+inside them: the CGNAT block or the unique-local range. Any other VPN address
+needs HTTPS.
 
 You can also set `UPTIME_KUMA_INTERVAL_MINUTES` to any positive whole number. It
 defaults to `15`.
