@@ -83,6 +83,10 @@ describe("CSV.generate formula safety", () => {
       ["-Maria", "'-Maria"],
       ["@handle", "'@handle"],
       ["\tTabbed start", "'\tTabbed start"],
+      ["＝SUM(A1:A2)", "'＝SUM(A1:A2)"],
+      ["＋44 20 7946", "'＋44 20 7946"],
+      ["－Maria", "'－Maria"],
+      ["＠handle", "'＠handle"],
     ];
     for (const [formulaText, inertCell] of inertCells) {
       expect(CSV.generate([{ value: formulaText }], valueColumn)).toBe(
@@ -95,6 +99,13 @@ describe("CSV.generate formula safety", () => {
     // The CR also trips RFC 4180 quoting, so both guards apply to it.
     expect(CSV.generate([{ value: "\rcmd" }], valueColumn)).toBe(
       'Value\n"\'\rcmd"',
+    );
+  });
+
+  test("puts a quote in front of a line feed that starts a cell", () => {
+    // Same shape as the CR case: LF trips RFC 4180 quoting too.
+    expect(CSV.generate([{ value: "\n=cmd" }], valueColumn)).toBe(
+      'Value\n"\'\n=cmd"',
     );
   });
 

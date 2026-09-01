@@ -107,6 +107,12 @@ describe("generateAttendeesCsv", () => {
     expect(row).toContain("'=cmd|' /C calc'!A0");
   });
 
+  test("stops a value whose formula hides behind a line feed", () => {
+    const attendees = [testAttendee({ name: "\n=SUM(A1:A2)" })];
+    const csv = generateAttendeesCsv(attendees);
+    expect(csv).toContain('"\'\n=SUM(A1:A2)"');
+  });
+
   test("includes empty phone column when phone not collected", () => {
     const attendees = [testAttendee()];
     const csv = generateAttendeesCsv(attendees);

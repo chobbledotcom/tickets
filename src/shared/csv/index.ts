@@ -13,8 +13,9 @@ export type Column<T> = {
 };
 
 /** The first characters that make Excel and Google Sheets run a cell as a
- * formula. */
-const FORMULA_START = /^[=+\-@\t\r]/;
+ * formula: the four visible starters, tab, CR, LF, and the full-width
+ * forms a Japanese locale accepts. */
+const FORMULA_START = /^[=+\-@\t\r\n＝＋－＠]/;
 
 /** Stop a spreadsheet from running a cell as a formula: a quote in front keeps
  * the text inert while every app still shows it. */
