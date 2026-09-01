@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { shapeOf } from "#scripts/check-shapes/shape.ts";
+import { slashDivides } from "#scripts/check-shapes/slash.ts";
 import { interpolated, template } from "./samples.ts";
 
 describe("shapeOf reading a pattern", () => {
@@ -45,6 +46,19 @@ describe("shapeOf reading a pattern", () => {
       ")",
       ";",
     ]);
+  });
+
+  test("classifies a raw slash from the expression before it", () => {
+    const readings = [
+      { divides: true, source: "total!\n / divisor" },
+      { divides: true, source: '"6" / divisor' },
+      { divides: true, source: "amount`6` / divisor" },
+      { divides: false, source: "! /[/*]/" },
+      { divides: false, source: "return ! /[/*]/" },
+    ];
+    for (const { divides, source } of readings) {
+      expect(slashDivides(source, source.indexOf("/"))).toBe(divides);
+    }
   });
 
   test("reads a step operator as one token, the way JavaScript does", () => {
@@ -588,6 +602,23 @@ describe("shapeOf reading a pattern", () => {
       "ID",
       "/",
       "ID",
+    ]);
+    expect(shapeOf(template(interpolated("total! / divisor")))).toEqual([
+      "STR",
+      "ID",
+      "!",
+      "/",
+      "ID",
+    ]);
+    expect(shapeOf(template(interpolated("! /}/.test(value)")))).toEqual([
+      "STR",
+      "!",
+      "RE",
+      ".",
+      "ID",
+      "(",
+      "ID",
+      ")",
     ]);
     // A bracket that closes nothing still ends a value inside one.
     expect(shapeOf(template(interpolated(" ) / width ")))).toEqual([

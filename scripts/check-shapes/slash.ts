@@ -26,6 +26,12 @@ export const isWordPart = (character: string): boolean =>
 export const isStepChange = (character: string): boolean =>
   character === "+" || character === "-";
 
+const previousNonSpace = (text: string, from: number): number => {
+  let at = from;
+  while (/\s/.test(text[at] ?? "")) at--;
+  return at;
+};
+
 /** The place the word that holds `from` starts, reading backward. */
 const wordStart = (text: string, from: number): number => {
   let start = from;
@@ -101,6 +107,12 @@ const wordAt = (text: string, index: number): string => {
   return text.slice(wordStart(text, index), end);
 };
 
+const valueAfterParen = (text: string, index: number): string | undefined =>
+  closesAHeaderIn(text, index) ? undefined : ")";
+
+const valueAfterAssertion = (before: string | undefined): string | undefined =>
+  endsAValue(before === undefined ? [] : [before]) ? before : undefined;
+
 /**
  * What the token before a slash counts as, when the boundary scan has to tell
  * a divide from a pattern. Whitespace keeps whatever came before it, and
@@ -122,10 +134,8 @@ const valueEndingAt = (
     const word = wordAt(text, index);
     return SYNTAX_WORDS.has(word) ? word : "ID";
   }
-  if (character === ")") {
-    if (closesAHeaderIn(text, index)) return;
-    return ")";
-  }
+  if (character === ")") return valueAfterParen(text, index);
+  if (character === "!") return valueAfterAssertion(before);
   if (isStepChange(character) && text[index - 1] === character) {
     return character + character;
   }
@@ -159,7 +169,9 @@ const endOfNested = (
   const run = endOfRunAt(text, index, endOfTemplate);
   if (run !== null) return run;
   if (text[index] !== "/") return null;
-  return ENDS_A_VALUE.has(before ?? "") ? null : endOfRegExp(text, index + 1);
+  return endsAValue(before === undefined ? [] : [before])
+    ? null
+    : endOfRegExp(text, index + 1);
 };
 
 /** Just past the `}` closing the `${` that opened at `start`, read with the
@@ -328,10 +340,14 @@ const braceEndedAValue = (shape: readonly string[]): boolean => {
  * as comment openers inside it.
  */
 export const slashDivides = (text: string, index: number): boolean => {
-  let at = index - 1;
-  while (at >= 0 && /\s/.test(text[at] as string)) at--;
+  let at = previousNonSpace(text, index - 1);
+  while (text[at] === "!") {
+    at = previousNonSpace(text, at - 1);
+  }
   if (at < 0) return false;
-  return ENDS_A_VALUE.has(valueEndingAt(text, at, undefined) ?? "");
+  if (`"'\``.includes(text[at] as string)) return true;
+  const before = valueEndingAt(text, at, undefined);
+  return endsAValue(before === undefined ? [] : [before]);
 };
 
 /**

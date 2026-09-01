@@ -95,6 +95,7 @@ describe("stripComments", () => {
 
   test("takes a pattern whole, so its own characters open no comment", () => {
     expect(stripComments("x = /[/*]/; y")).toBe("x = ; y");
+    expect(stripComments("! /[/*]/")).toBe("! ");
   });
 
   test("takes a template's contents and keeps only its line breaks", () => {
@@ -182,8 +183,7 @@ describe("topLevelImports", () => {
   });
 
   test("reads a from whose specifier waits on the next line", () => {
-    const source = 'import { A }\n  from\n  "#shared/a.ts";';
-    expect(topLevelImports(source)).toEqual([
+    const expected = [
       {
         line: 1,
         namesOnly: true,
@@ -191,19 +191,16 @@ describe("topLevelImports", () => {
         specifier: "#shared/a.ts",
         typeOnly: false,
       },
-    ]);
+    ];
+    const source = 'import { A }\n  from\n  "#shared/a.ts";';
+    expect(topLevelImports(source)).toEqual(expected);
     // The break the statement's lines keep is a separator the join must not
     // lose, even beside an empty line.
     const withGap = 'import { A }\nfrom\n\n"#shared/a.ts";';
-    expect(topLevelImports(withGap)).toEqual([
-      {
-        line: 1,
-        namesOnly: true,
-        reExport: false,
-        specifier: "#shared/a.ts",
-        typeOnly: false,
-      },
-    ]);
+    expect(topLevelImports(withGap)).toEqual(expected);
+    expect(topLevelImports('import { A }\nfrom\n"#shared/a.ts"')).toEqual(
+      expected,
+    );
   });
 
   test("reads the statement's own from, not one inside a comment", () => {
@@ -304,8 +301,7 @@ describe("topLevelImports", () => {
   });
 
   test("keeps reading imports past a pattern with a comment-like inside", () => {
-    const source = 'const kinds = /[/*]/;\nimport { a } from "#types";';
-    expect(topLevelImports(source)).toEqual([
+    const expected = [
       {
         line: 2,
         namesOnly: true,
@@ -313,7 +309,27 @@ describe("topLevelImports", () => {
         specifier: "#types",
         typeOnly: false,
       },
-    ]);
+    ];
+    for (const value of ["/[/*]/", "! /[/*]/"]) {
+      const source = `const kinds = ${value};\nimport { a } from "#types";`;
+      expect(topLevelImports(source)).toEqual(expected);
+    }
+  });
+
+  test("keeps reading imports past divisions after asserted or quoted values", () => {
+    const expected = [
+      {
+        line: 2,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#types",
+        typeOnly: false,
+      },
+    ];
+    for (const value of ["total!", "amount`6`", '"6"', "'6'"]) {
+      const source = `const ratio = ${value} / divisor;\nimport { a } from "#types";`;
+      expect(topLevelImports(source)).toEqual(expected);
+    }
   });
 
   test("records a star re-export", () => {

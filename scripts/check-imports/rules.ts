@@ -210,17 +210,13 @@ export const topLevelImports = (content: string): ImportLine[] => {
     } else {
       held.push(raw);
     }
-    const isEnd =
-      /from\s+["']/.test(line) ||
-      /^import\s+["'][^"']*["']/.test(line) ||
-      /;\s*$/.test(line);
-    if (!isEnd) continue;
     // A side-effect `import "./x.ts"` names its module without a `from`, and
     // loads it for what it does rather than for what it hands back.
     const statement = held.join("\n");
     const specifier =
       statement.match(/from\s+["']([^"']+)["']/)?.[1] ??
       statement.match(/^import\s+["']([^"']+)["']/)?.[1];
+    if (specifier === undefined && !/;\s*$/.test(line)) continue;
     if (specifier !== undefined) {
       found.push({
         line: open.line,
