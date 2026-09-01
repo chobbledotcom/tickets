@@ -23,25 +23,26 @@ const nonBlank = (name: string, value: string): string => {
 };
 
 /** The first 16-bit group of a bracketed IPv6 host, or null for any host that
- * is not one. The URL parser has already rejected a bracketed host that is not
- * canonical IPv6, whose every group is hex. */
-const ipv6FirstHextet = (hostname: string): number | null => {
+ * is not one. The URL parser already rejects a bracketed host that is not
+ * canonical IPv6. Every group of a canonical host is hex. */
+const ipv6FirstGroup = (hostname: string): number | null => {
   if (!hostname.startsWith("[")) return null;
   const to = hostname.indexOf(":");
   return to > 1 ? Number.parseInt(hostname.slice(1, to), 16) : null;
 };
 
-/** The trailing root dot is the only spelling difference a fully qualified
- * name carries, e.g. "localhost." for "localhost". */
+/** A fully qualified name keeps one trailing root dot. "localhost." is still
+ * the name "localhost". */
 const withoutRootDot = (hostname: string): string =>
   hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
 
 /** True for an IPv4 host inside a range no packet can leave the operator's
- * network for — the private blocks, CGNAT, and link-local. */
-const isPrivateIpv4 = (hostname: string): boolean => {
+ * network for. That covers loopback, the private blocks, CGNAT, and
+ * link-local. */
+const isLocalIpv4 = (hostname: string): boolean => {
   // A real IPv4 host arrives in canonical dotted decimal, digits only. A
-  // lookalike DNS name such as "10.0.0.1e0" — whose fourth label Number()
-  // would coerce to 1 — must not reach the octet checks.
+  // lookalike DNS name such as "10.0.0.1e0" must not reach the octet
+  // checks. Number("1e0") is 1, so only digit labels can pass.
   const labels = hostname.split(".");
   const isIpv4 =
     labels.length === 4 && labels.every((label) => /^\d{1,3}$/.test(label));
@@ -58,7 +59,7 @@ const isPrivateIpv4 = (hostname: string): boolean => {
   );
 };
 
-/** Hosts that may use cleartext http for the Kuma login. Loopback is one.
+/** Hosts that can use cleartext http for the Kuma login. Loopback is one.
  * The rest are ranges no packet can leave the operator's network for. These
  * are the private blocks, the CGNAT space where VPNs such as Tailscale live,
  * and link-local. Every other host needs HTTPS, so the Kuma password never
@@ -69,12 +70,12 @@ const isLocalHttpHost = (rawHostname: string): boolean => {
     return true;
   }
   if (hostname === "[::1]") return true;
-  if (isPrivateIpv4(hostname)) return true;
-  const hextet = ipv6FirstHextet(hostname);
+  if (isLocalIpv4(hostname)) return true;
+  const firstGroup = ipv6FirstGroup(hostname);
   return (
-    hextet !== null &&
-    ((hextet & 0xfe00) === 0xfc00 || // fc00::/7 unique local
-      (hextet & 0xffc0) === 0xfe80) // fe80::/10 link local
+    firstGroup !== null &&
+    ((firstGroup & 0xfe00) === 0xfc00 || // fc00::/7 unique local
+      (firstGroup & 0xffc0) === 0xfe80) // fe80::/10 link local
   );
 };
 
