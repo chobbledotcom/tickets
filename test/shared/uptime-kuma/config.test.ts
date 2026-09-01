@@ -89,7 +89,9 @@ describe("Uptime Kuma configuration", () => {
     "http://192.168.1.10:3001",
     "http://[fd00::1]:3001",
     "http://[fd7a:115c:a1e0::1]:3001",
+    "http://[fc00::1]:3001",
     "http://[fe80::1]:3001",
+    "http://[feb0::1]:3001",
   ]) {
     test(`accepts the local network HTTP host ${url}`, () => {
       using _env = withEnv({ ...configuredEnv, UPTIME_KUMA_URL: url });
@@ -110,8 +112,12 @@ describe("Uptime Kuma configuration", () => {
     "http://172.15.0.1:3001",
     "http://172.32.0.1:3001",
     "http://192.169.0.1:3001",
+    "http://10.0.1.x:3001",
     "http://[::ffff:127.0.0.1]",
     "http://[2001:db8::1]:3001",
+    "http://[ff02::1]:3001",
+    "http://[fec0::1]:3001",
+    "http://[ff00::1]:3001",
   ]) {
     test(`rejects the public HTTP host ${url}`, () => {
       using _env = withEnv({ ...configuredEnv, UPTIME_KUMA_URL: url });

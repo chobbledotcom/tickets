@@ -42,11 +42,12 @@ const isLocalHttpHost = (hostname: string): boolean => {
   }
   if (hostname === "[::1]") return true;
   const octets = hostname.split(".").map(Number);
-  const [first = -1, second = -1] = octets;
   // The URL constructor rejects a numeric host with an out-of-range octet, so
   // four integer labels here can only be a parsed IPv4 address.
   const isIpv4 = octets.length === 4 && octets.every(Number.isInteger);
   if (isIpv4) {
+    const first = octets[0]!;
+    const second = octets[1]!;
     return (
       first === 10 || // 10.0.0.0/8
       first === 127 || // 127.0.0.0/8
@@ -59,7 +60,7 @@ const isLocalHttpHost = (hostname: string): boolean => {
   const hextet = ipv6FirstHextet(hostname);
   return (
     hextet !== null &&
-    ((hextet & 0xfc00) === 0xfc00 || // fc00::/7 unique local
+    ((hextet & 0xfe00) === 0xfc00 || // fc00::/7 unique local
       (hextet & 0xffc0) === 0xfe80) // fe80::/10 link local
   );
 };
