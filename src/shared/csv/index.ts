@@ -1,8 +1,9 @@
 /**
  * A pure CSV system. It knows nothing about attendees, listings, or the wider
  * application — only how to turn a list of items plus an ordered set of columns
- * into RFC 4180 CSV text. Callers describe each column with a header and a
- * function that reads its cell from an item, then call {@link CSV.generate}.
+ * into RFC 4180 CSV text whose cells cannot run as spreadsheet formulas.
+ * Callers describe each column with a header and a function that reads its
+ * cell from an item, then call {@link CSV.generate}.
  */
 
 /** A CSV column: its header and how to read a cell from a source item. */
@@ -10,6 +11,15 @@ export type Column<T> = {
   header: string;
   value: (item: T) => string;
 };
+
+/** The first characters that make Excel and Google Sheets run a cell as a
+ * formula. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/** Stop a spreadsheet from running a cell as a formula: a quote in front keeps
+ * the text inert while every app still shows it. */
+const stopFormula = (value: string): string =>
+  FORMULA_START.test(value) ? `'${value}` : value;
 
 /** Escape one value for CSV (commas, quotes, newlines, carriage returns). */
 const escapeValue = (value: string): string =>
@@ -21,10 +31,11 @@ const joinRows = (header: string, rows: readonly string[]): string =>
   rows.length === 0 ? header : `${header}\n${rows.join("\n")}`;
 
 /**
- * Build CSV text from items and the columns that describe them. The headers and
- * every cell are escaped. Throws only when no columns are given — duplicate
- * headers are allowed (e.g. two custom questions sharing a name), matching what
- * spreadsheets accept.
+ * Build CSV text from items and the columns that describe them. The headers
+ * and every cell are escaped, and a value that starts like a spreadsheet
+ * formula gets a quote in front so no app runs it. Throws only when no
+ * columns are given — duplicate headers are allowed (e.g. two custom
+ * questions sharing a name), matching what spreadsheets accept.
  */
 const generate = <T>(
   items: readonly T[],
@@ -34,12 +45,12 @@ const generate = <T>(
     throw new Error("CSV.generate: at least one column is required");
   }
   return joinRows(
-    columns.map((c) => escapeValue(c.header)).join(","),
+    columns.map((c) => escapeValue(stopFormula(c.header))).join(","),
     items.map((item) =>
-      columns.map((c) => escapeValue(c.value(item))).join(","),
+      columns.map((c) => escapeValue(stopFormula(c.value(item)))).join(","),
     ),
   );
 };
 
 /** The pure CSV system. */
-export const CSV = { escape: escapeValue, generate, join: joinRows };
+export const CSV = { generate };

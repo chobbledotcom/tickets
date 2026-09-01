@@ -82,7 +82,29 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("+1 555 123 4567");
+    // The leading + becomes a spreadsheet formula, so the cell keeps it as
+    // text behind a quote.
+    expect(lines[1]).toContain("'+1 555 123 4567");
+  });
+
+  test("stops attacker-controlled attendee values from running as spreadsheet formulas", () => {
+    const attendees = [
+      testAttendee({
+        address: '=HYPERLINK("http://evil.example","Free trips!")',
+        email: "+44@example.com",
+        name: "=SUM(A1:A2)",
+        phone: "+1 555 123 4567",
+        special_instructions: "=cmd|' /C calc'!A0",
+      }),
+    ];
+    const row = generateAttendeesCsv(attendees).split("\n")[1]!;
+    expect(row).toContain("'=SUM(A1:A2)");
+    expect(row).toContain("'+44@example.com");
+    expect(row).toContain("'+1 555 123 4567");
+    expect(row).toContain(
+      '"\'=HYPERLINK(""http://evil.example"",""Free trips!"")"',
+    );
+    expect(row).toContain("'=cmd|' /C calc'!A0");
   });
 
   test("includes empty phone column when phone not collected", () => {

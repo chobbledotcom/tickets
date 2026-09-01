@@ -32,6 +32,13 @@ const DIET_Q = question(2, "Dietary Requirements", [
   { id: 21, text: "Vegetarian" },
 ]);
 
+const NOTES_Q: QuestionWithAnswers = {
+  answers: [],
+  display_type: "free_text",
+  id: 3,
+  text: "Notes",
+};
+
 const csvWithQuestions = (
   attendees: Parameters<typeof generateAttendeesCsv>[0],
   questions: QuestionWithAnswers[],
@@ -40,6 +47,14 @@ const csvWithQuestions = (
   generateAttendeesCsv(attendees, false, undefined, {
     attendeeAnswerMap,
     questions,
+  }).split("\n");
+
+/** CSV lines for one attendee and their free-text answer to "Notes". */
+const freeTextCsv = (answer: string): string[] =>
+  generateAttendeesCsv([testAttendee({ id: 1 })], false, undefined, {
+    attendeeAnswerMap: new Map(),
+    questions: [NOTES_Q],
+    textAnswerMap: new Map([[1, new Map([[3, answer]])]]),
   }).split("\n");
 
 describe("CSV with custom questions", () => {
@@ -69,24 +84,14 @@ describe("CSV with custom questions", () => {
   });
 
   test("renders free-text answers from the text-answer map", () => {
-    const freeTextQ: QuestionWithAnswers = {
-      answers: [],
-      display_type: "free_text",
-      id: 3,
-      text: "Notes",
-    };
-    const [header, row] = generateAttendeesCsv(
-      [testAttendee({ id: 1 })],
-      false,
-      undefined,
-      {
-        attendeeAnswerMap: new Map(),
-        questions: [freeTextQ],
-        textAnswerMap: new Map([[1, new Map([[3, "Coeliac, no nuts"]])]]),
-      },
-    ).split("\n");
+    const [header, row] = freeTextCsv("Coeliac, no nuts");
     expect(header!.endsWith(",Notes")).toBe(true);
     expect(row!.endsWith(',"Coeliac, no nuts"')).toBe(true);
+  });
+
+  test("stops a free-text answer that starts like a spreadsheet formula", () => {
+    const [, row] = freeTextCsv("=2+5*9");
+    expect(row!.endsWith(",'=2+5*9")).toBe(true);
   });
 
   test("leaves the question column blank when the attendee did not answer it", () => {
