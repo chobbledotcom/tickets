@@ -4,6 +4,7 @@
  */
 
 import { shortHash } from "#scripts/checksum.ts";
+import { mapTemplates } from "#scripts/quoted-run.ts";
 
 /** One function, named by the file it lives in. */
 export interface ShapeSite {
@@ -29,19 +30,28 @@ export interface ShapeMatch {
   tokens: number;
 }
 
+/** A body's templates with their line breaks held, so the trim that follows
+ * cannot touch them: a template's whitespace is data the function returns,
+ * not layout. */
+const heldTemplates = (body: string): string =>
+  mapTemplates(body, (run) => run.replaceAll("\n", "\u0000"));
+
 /**
  * A body's fingerprint: seven characters that change when the body's text
  * changes. Lines are read trimmed and blank lines drop out, so moving a
- * function into deeper nesting — which only re-indents it — leaves the
- * fingerprint alone, while any edit to what the body says does not.
+ * function into deeper nesting — which only re-indents its code — leaves the
+ * fingerprint alone, while any edit to what the body says does not. What a
+ * template says is part of the body's text, so its insides stay whole through
+ * the trim.
  */
 export const bodyFingerprint = (body: string): string =>
   shortHash(
-    body
+    heldTemplates(body)
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line !== "")
-      .join("\n"),
+      .join("\n")
+      .replaceAll("\u0000", "\n"),
   );
 
 /**

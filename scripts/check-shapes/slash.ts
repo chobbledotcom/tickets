@@ -313,6 +313,18 @@ const braceEndedAValue = (shape: readonly string[]): boolean => {
 };
 
 /**
+ * Whether the `/` at `index` divides, rather than opening a pattern: the
+ * reader an import scanner borrows, so a pattern's own brackets cannot pose
+ * as comment openers inside it.
+ */
+export const slashDivides = (text: string, index: number): boolean => {
+  let at = index - 1;
+  while (at >= 0 && /\s/.test(text[at] as string)) at--;
+  if (at < 0) return false;
+  return ENDS_A_VALUE.has(valueEndingAt(text, at, undefined) ?? "");
+};
+
+/**
  * Whether the token before a slash ends a value, so the slash divides it. A
  * `)` is the one token that depends on what came before it: `total() / 2`
  * divides, but `if (ready) /foo/.test(value)` opens a pattern. A `}` is the

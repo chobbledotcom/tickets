@@ -4,10 +4,12 @@
  */
 
 import { byLine } from "#scripts/check-report.ts";
+import { endOfRegExp, slashDivides } from "#scripts/check-shapes/slash.ts";
 import {
   endOfComment,
   endOfQuoted,
   endOfTemplateRun,
+  mapRuns,
   opensComment,
 } from "#scripts/quoted-run.ts";
 
@@ -152,7 +154,7 @@ const lineBreaksOf = (run: string): string => run.replace(/[^\n]/g, "");
 const maskedQuote = (
   source: string,
   index: number,
-): { as: string; end: number } => {
+): { as: string; next: number } => {
   const character = source[index] as string;
   const end =
     character === "`"
@@ -160,29 +162,29 @@ const maskedQuote = (
       : endOfQuoted(source, index + 1, character);
   const run = source.slice(index, end);
   const keepsText = character !== "`" && !run.includes("\n");
-  return { as: keepsText ? run : lineBreaksOf(run), end };
+  return { as: keepsText ? run : lineBreaksOf(run), next: end };
 };
 
-export const stripComments = (source: string): string => {
-  let out = "";
-  let index = 0;
-  while (index < source.length) {
+export const stripComments = (source: string): string =>
+  mapRuns(source, (index) => {
     const character = source[index] as string;
     if (character === '"' || character === "'" || character === "`") {
-      const masked = maskedQuote(source, index);
-      out += masked.as;
-      index = masked.end;
-    } else if (opensComment(source, index)) {
-      const end = endOfComment(source, index);
-      out += lineBreaksOf(source.slice(index, end));
-      index = end;
-    } else {
-      out += character;
-      index++;
+      return maskedQuote(source, index);
     }
-  }
-  return out;
-};
+    if (
+      (character === "/" && !slashDivides(source, index)) ||
+      opensComment(source, index)
+    ) {
+      // One run of nothing the reader needs — a comment, or a pattern whose
+      // own characters open no comment from inside it — masked to its line
+      // breaks like every other run.
+      const end = opensComment(source, index)
+        ? endOfComment(source, index)
+        : endOfRegExp(source, index + 1);
+      return { as: lineBreaksOf(source.slice(index, end)), next: end };
+    }
+    return null;
+  });
 
 /**
  * Every top-level statement in `content` that names a module — an import or a

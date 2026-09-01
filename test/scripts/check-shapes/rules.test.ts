@@ -55,6 +55,16 @@ describe("bodyFingerprint", () => {
   test("keeps the spaces inside a line, which no split may drop", () => {
     expect(bodyFingerprint("a + b")).not.toBe(bodyFingerprint("a\n b"));
   });
+
+  test("reads a template's own whitespace as data, not as layout", () => {
+    expect(bodyFingerprint("return `a\n b`")).not.toBe(
+      bodyFingerprint("return `a\nb`"),
+    );
+    // Re-indenting the code around it still changes nothing.
+    expect(bodyFingerprint("return `a\n b`")).toBe(
+      bodyFingerprint("  return `a\n b`"),
+    );
+  });
 });
 
 describe("matchKey", () => {

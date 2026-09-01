@@ -155,3 +155,37 @@ const endOfTemplateGroup: RunReader = (text, start) =>
 
 /** The import reader's template ender, over plain-brace groups. */
 export const endOfTemplateRun: RunReader = templateEndingAt(endOfTemplateGroup);
+
+/** The text with every run the reader names replaced by what the reader says
+ *  about it, the rest kept as written: the walk every character scanner in
+ *  the checks reads from. */
+export const mapRuns = (
+  text: string,
+  runAt: (index: number) => { as: string; next: number } | null,
+): string => {
+  let out = "";
+  let index = 0;
+  while (index < text.length) {
+    const run = runAt(index);
+    if (run === null) {
+      out += text[index];
+      index++;
+      continue;
+    }
+    out += run.as;
+    index = run.next;
+  }
+  return out;
+};
+
+/** The text with every template run replaced by what the reader says: the
+ *  walk a character scanner needs when it must hold template runs whole. */
+export const mapTemplates = (
+  text: string,
+  ofTemplate: (run: string) => string,
+): string =>
+  mapRuns(text, (index) => {
+    if (text[index] !== "`") return null;
+    const end = endOfTemplateRun(text, index + 1);
+    return { as: ofTemplate(text.slice(index, end)), next: end };
+  });

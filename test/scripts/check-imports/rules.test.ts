@@ -93,6 +93,10 @@ describe("stripComments", () => {
     expect(stripComments("a/*x\ny*/b")).toBe("a\nb");
   });
 
+  test("takes a pattern whole, so its own characters open no comment", () => {
+    expect(stripComments("x = /[/*]/; y")).toBe("x = ; y");
+  });
+
   test("takes a template's contents and keeps only its line breaks", () => {
     expect(stripComments("a`x\ny`b")).toBe("a\nb");
     expect(stripComments("`x`")).toBe("");
@@ -297,6 +301,19 @@ describe("topLevelImports", () => {
     const continued =
       "const sample = 'text\\\nimport { x } from \"./wrong.ts\";\nfinish';";
     expect(topLevelImports(continued)).toEqual([]);
+  });
+
+  test("keeps reading imports past a pattern with a comment-like inside", () => {
+    const source = 'const kinds = /[/*]/;\nimport { a } from "#types";';
+    expect(topLevelImports(source)).toEqual([
+      {
+        line: 2,
+        namesOnly: true,
+        reExport: false,
+        specifier: "#types",
+        typeOnly: false,
+      },
+    ]);
   });
 
   test("records a star re-export", () => {
