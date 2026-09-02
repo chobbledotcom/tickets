@@ -6,6 +6,8 @@ src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2   # The
 src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
 src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
+src/shared/uptime-kuma/config.ts::ipv6FirstGroup~1a8w32z  [ → ""   # startsWith("") is always true. A non-bracketed URL hostname can never contain a colon. Every host this lets through still fails the to > 1 check. The result is null either way
+src/shared/uptime-kuma/config.ts::ipv6FirstGroup~16zpdpl  1 → 0   # only "[:"-form hosts have their first colon at index 1. The empty first group parses to NaN. The mask comparisons are false. This refuses the host exactly like the null it replaces
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
