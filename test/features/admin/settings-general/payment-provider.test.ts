@@ -184,6 +184,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("/admin/settings");
       expectFlash(response, "Existing payment provider set to Stripe.");
       expect(settings.paymentProviderSetting).toBe("none");
       expect(settings.paymentProvider).toBeNull();
@@ -196,6 +197,30 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         payment_provider: "stripe",
       });
       expect(settings.paymentProvider).toBe("stripe");
+    });
+
+    test("claims the payment-provider task lock while recovering", async () => {
+      await settings.update.stripe.secretKey("sk_test_task_name");
+      await settings.update.square.accessToken("square-task-name");
+      await settings.update.setPaymentProviderNone();
+      const claimed: string[] = [];
+      const original = settings.withCurrentTask;
+      settings.withCurrentTask = ((name, fn, version) => {
+        claimed.push(name);
+        return original(name, fn, version);
+      }) as typeof settings.withCurrentTask;
+      try {
+        const { response } = await adminFormPost(
+          "/admin/settings/payment-provider-recovery",
+          { existing_payment_provider: "stripe" },
+        );
+
+        expect(response.status).toBe(302);
+        expectFlash(response, "Existing payment provider set to Stripe.");
+        expect(claimed).toEqual(["payment-provider"]);
+      } finally {
+        settings.withCurrentTask = original;
+      }
     });
 
     test("does not recover while another settings task runs", async () => {

@@ -5,6 +5,8 @@
 # fallback itself, so the empty string never reaches this operand.
 src/features/admin/settings-connection-lines.ts::credentialLine.mode~1vqeabi  ?? → ||   # cred.mode on a valid credential is a non-empty mode word or undefined; never the empty string
 
+src/features/admin/confirmation.ts::createConfirmedHandlers.post~11404r2  ?? → ||   # onConfirm answers with a Response or undefined only; every Response is truthy, so a falsy-but-defined answer cannot exist
+src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1   # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → ||   # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy

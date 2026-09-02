@@ -92,6 +92,12 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
     });
 
+    test("names the field Name when no label is given", () => {
+      expect(verifyIdentifierOrJsonError("Test", null)).toBe(
+        "Name does not match. Please provide the exact name in confirm_identifier.",
+      );
+    });
+
     test("treats a value that is not a string as a mismatch", () => {
       expect(verifyIdentifierOrJsonError("Test", null)).toContain(
         "does not match",
@@ -207,6 +213,47 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
 
       expect(await (await response).text()).toBe(
         "page:flash from the blocked POST",
+      );
+    });
+
+    test("keeps an empty flash error over the guard on GET", async () => {
+      const cookie = await testCookie();
+
+      const response = await runWithFlashContext(async () => {
+        setFlashContext({ error: "" });
+        return build({
+          guardError: () => Promise.resolve("guard"),
+          render: (_model, _session, error) =>
+            Promise.resolve(
+              `page<${
+                error === undefined ? "none" : error === "" ? "empty" : error
+              }>`,
+            ),
+        }).get(mockRequest("/admin/test/1/delete", { headers: { cookie } }), 1);
+      });
+
+      expect(await (await response).text()).toBe("page<empty>");
+    });
+
+    test("drops the action suffix when the action label is empty", async () => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+
+      const response = await build({
+        actionLabel: "",
+      }).post(
+        mockFormRequest(
+          "/admin/test/1/delete",
+          { confirm_identifier: "Wrong", csrf_token: csrfToken },
+          cookie,
+        ),
+        1,
+      );
+
+      expectFlash(
+        response,
+        "Name does not match. Please type the exact name to confirm.",
+        false,
       );
     });
 

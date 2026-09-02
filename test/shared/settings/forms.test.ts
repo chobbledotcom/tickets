@@ -5,6 +5,7 @@ import {
   SETTINGS_FORMS,
 } from "#shared/settings/forms.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
 const en = await allEnglishMessages(["settings", "address-lookup", "sms"]);
@@ -251,6 +252,67 @@ describe("settings form schema", () => {
   test("declares the generated settings forms", () => {
     expect(SETTINGS_FORM_DEFINITIONS.map(definitionRow)).toEqual(
       EXPECTED_FORM_ROWS,
+    );
+  });
+
+  test("gives every field of a multi-field form its state field", () => {
+    expect(
+      SETTINGS_FORMS.theme.fields.map((field) => field.stateField),
+    ).toEqual(["theme", "underlineLinks"]);
+    expect(
+      SETTINGS_FORMS.calendarFeeds.fields.map((field) => field.stateField),
+    ).toEqual(["calendarFeedsEnabled", "calendarFeedsGroupBy"]);
+    expect(
+      SETTINGS_FORMS.addressLookup.fields.map((field) =>
+        "stateField" in field ? field.stateField : field.configuredStateField,
+      ),
+    ).toEqual(["addressLookupProvider", "addressLookupApiKeyConfigured"]);
+  });
+
+  test("offers the theme as light or dark, on checkboxes", () => {
+    const [theme, links] = SETTINGS_FORMS.theme.fields;
+
+    expect(theme.options.map((option) => option.value)).toEqual([
+      "light",
+      "dark",
+    ]);
+    expect(links.kind).toBe("checkbox");
+    expect(links.labelClass).toBe("checkbox");
+  });
+
+  test("groups the calendar feeds by attendees or listings", () => {
+    const groupBy = SETTINGS_FORMS.calendarFeeds.fields[1];
+
+    expect(groupBy.options.map((option) => option.value)).toEqual([
+      "attendees",
+      "listings",
+    ]);
+  });
+
+  test("puts no provider ahead of the address lookup providers", () => {
+    const provider = SETTINGS_FORMS.addressLookup.fields[0];
+    const options = provider.options();
+
+    expect(options[0]).toEqual({
+      label: en["address_lookup.settings.provider_none"],
+      value: "none",
+    });
+    expect(options.slice(1).length).toBeGreaterThan(0);
+  });
+
+  test("bounds the booking fee between 0 and 10 in steps of 0.1", () => {
+    expect(SETTINGS_FORMS.bookingFee.max).toBe("10");
+    expect(SETTINGS_FORMS.bookingFee.min).toBe("0");
+    expect(SETTINGS_FORMS.bookingFee.step).toBe("0.1");
+  });
+
+  test("spells out the tags a column order can use", () => {
+    const note = SETTINGS_FORMS.listingColumnOrder.copy.footerText();
+
+    expect(note).toBe(
+      `${en["settings.column_order.available"]} ${configurableTableLayouts.listing.keys
+        .map((key) => `{{${key}}}`)
+        .join(", ")}`,
     );
   });
 

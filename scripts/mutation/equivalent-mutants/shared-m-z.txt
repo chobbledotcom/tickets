@@ -367,3 +367,4 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → ||   # the 
 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → ||   # find returns a refund read object or undefined, and every object is truthy
+src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string

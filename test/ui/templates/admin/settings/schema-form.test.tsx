@@ -43,7 +43,17 @@ describe("settingsForm", () => {
     );
 
     expect(html).toContain('name="business_email"');
-    expect(html).toContain('value=""');
+    // The input itself must carry the empty value, not the empty csrf field.
+    expect(html).toContain('type="email" value=""');
+  });
+
+  test("keeps a number written in the state as it was written", () => {
+    const html = String(
+      settingsForm(SETTINGS_FORMS.bookingFee, { bookingFee: 0 }),
+    );
+
+    expect(html).toContain('name="booking_fee"');
+    expect(html).toContain('type="number" value="0"');
   });
 
   test("uses the definition's declared formId as the form id", () => {
