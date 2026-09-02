@@ -257,7 +257,7 @@ for all optional variables.
 
 <!-- This example is tested - see test/shared/admin-api-example/readme.test.ts -->
 
-```
+```http
 GET /api/admin/groups
 Authorization: Bearer YOUR_API_KEY
 ```
