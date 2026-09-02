@@ -5,15 +5,19 @@
 import * as v from "valibot";
 import { nullIfNotFound } from "#scripts/not-found.ts";
 
-/** JSON that may have been left half-written, as data or as null. */
-const parseOrNull = (text: string): unknown => {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Torn text reads as "nothing here", which every caller already handles.
-    return null;
-  }
-};
+/** Parse JSON text, and let the caller decide what a torn text becomes. */
+export const parseJsonWith =
+  (onParseError: (error: unknown) => unknown) =>
+  (text: string): unknown => {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return onParseError(error);
+    }
+  };
+
+/** Torn text reads as "nothing here", which every caller already handles. */
+const parseOrNull = parseJsonWith(() => null);
 
 /**
  * What the file at `path` holds, checked against `schema`. `null` means there

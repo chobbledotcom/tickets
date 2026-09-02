@@ -45,6 +45,7 @@
     "unit-tests-report": "deno run --allow-read=src,test,deno.json scripts/unit-tests-report.ts",
     "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts",
     "backup": "deno run --env-file --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/backup.ts",
+    "bugs": "deno run --env-file --allow-env --allow-net scripts/bugs.ts",
     "restore": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/restore.ts",
     "snapshot": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/database-snapshot.ts",
     "migrate:turso": "deno run --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/turso-migration.ts",

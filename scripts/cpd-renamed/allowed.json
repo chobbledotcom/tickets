@@ -48,8 +48,16 @@
     "secondStart": 535
   },
   {
+    "first": "scripts/bugs-lib.ts",
+    "firstStart": 135,
+    "hash": "00c4cbd19e8fdeb66bdf78d34a5795af0e9b909bdf3f4a4f35c4c1402ba299fd",
+    "reason": "two external API boundary schemas — a Bugsink project and a Deno Deploy app identity — that name an id, a name and a slug; one shared schema factory would couple the two provider contracts while each keeps its own field types",
+    "second": "src/shared/deno-deploy-schema.ts",
+    "secondStart": 4
+  },
+  {
     "first": "scripts/check-shapes/accepted.ts",
-    "firstStart": 53,
+    "firstStart": 55,
     "hash": "1171f38a79cc385714f1fad06e280960e3d41ed5c89d97c91ee8f1579d187162",
     "reason": "two opening lines only — a set to fill and the entries to walk; the loops share no step after them, one dedupes accepted keys while the gate runs, so a curry has nothing to lift",
     "second": "scripts/mutation/equivalent-audit.ts",
@@ -713,7 +721,7 @@
   },
   {
     "first": "src/ui/templates/admin/bulk-email.tsx",
-    "firstStart": 40,
+    "firstStart": 42,
     "hash": "e4fdb2943e1474cb754661ad6e843c188f3dae2b4611d640f24c8d195408336b",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/admin/listings/form-pages.tsx",

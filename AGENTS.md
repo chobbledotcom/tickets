@@ -1561,6 +1561,12 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` /
   `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details,
   asks for typed confirmation, and reports each restore step in the console.
+- `deno task bugs <issue-url-or-id>` - Print one Bugsink issue and its latest
+  event as JSON, so an LLM can study a live error. The event payload includes
+  the stacktrace rendered as Markdown. `--events N` sets how many events to
+  fetch. `deno task bugs list` prints unresolved issues, newest first, and
+  `--all` adds resolved ones. Reads `SENTRY_BASE_URL` (or `SENTRY_BASE`) and
+  `SENTRY_API_KEY` from `.env`.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database
   to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN`
   from `.env` over shell values. This developer-only task checkpoints and

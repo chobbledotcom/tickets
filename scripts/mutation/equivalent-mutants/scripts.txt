@@ -125,3 +125,8 @@ scripts/unread-fields/fields/walking.ts::answeredWith~0x551x4  ?? → ||   # arm
 scripts/unread-fields/fields/steps.ts::throughTheMap~0kfksbp  ?? → ||   # parent.typeArguments is a NodeArray or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/steps.ts::stepOfTheSettersName.written~0dvznn4  ?? → ||   # quotedInBrackets answers a ts.Node or undefined, and a node is always a truthy object, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/walking.ts::partsOfTheGeneric.argumentNodes~1ulj8jb  ?? → ||   # node.typeArguments is a NodeArray or undefined, and an array is always a truthy object, so nothing falsy-but-defined can reach the fallback
+
+# bugs-lib.ts — getDotPath answers a dotted path for any issue that carries a
+# key, and null for a root-level issue; it never returns a non-null falsy
+# value, so the root fallback agrees under both operators.
+scripts/bugs-lib.ts::getJson~0yt17y4  ?? → ||   # v.getDotPath returns a non-empty dotted path or null, never "", so ?? and || pick the same side for every issue
