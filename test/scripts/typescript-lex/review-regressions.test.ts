@@ -5,6 +5,7 @@ import {
   commentSpans,
   lexicalSpans,
   shapeOf,
+  skipString,
 } from "#scripts/typescript-lex.ts";
 import { interpolated, template } from "#test/scripts/check-shapes/samples.ts";
 
@@ -153,5 +154,16 @@ describe("shape scanner review regressions", () => {
     expect([...commentSpans(astral)]).toEqual([
       { end: astral.length, kind: "comment", start: astral.indexOf("//") },
     ]);
+  });
+
+  test("leaves a JSX apostrophe, opens one after a keyword, wide or not", () => {
+    const jsx = "<p>It's ready</p>";
+    expect(skipString(jsx, jsx.indexOf("'"))).toBe(jsx.indexOf("'"));
+
+    const wide = "𝒳's";
+    expect(skipString(wide, wide.indexOf("'"))).toBe(wide.indexOf("'"));
+
+    const tight = "return'x'";
+    expect(skipString(tight, tight.indexOf("'"))).toBe(tight.length);
   });
 });

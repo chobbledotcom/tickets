@@ -16,4 +16,15 @@ describe("parseProgram", () => {
       "sample.ts does not parse: Unterminated multiline comment",
     );
   });
+
+  test("keeps spans on JavaScript string indices", () => {
+    const source = "// caf\u00e9 \ud83d\ude00\nconst value = 1;";
+
+    const declaration = parseProgram("sample.ts", source).body[0]!;
+    expect(declaration.start).toBe(source.indexOf("const"));
+    expect(declaration.end).toBe(source.indexOf(";") + 1);
+    expect(source.slice(declaration.start, declaration.end)).toBe(
+      "const value = 1;",
+    );
+  });
 });

@@ -92,14 +92,14 @@ const classAfter = (
   inClass: boolean,
 ): boolean => (character === "[" ? true : character === "]" ? false : inClass);
 
+/** Just past a regex body's closing slash. The for-of drives the walk, so
+ * no mutant can freeze an index into an endless loop; the offset it follows
+ * is bookkeeping for the return values alone. */
 const regexBodyEnd = (content: string, start: number): number => {
   let inClass = false;
   let escaped = false;
-  for (const [relative, character] of content
-    .slice(start + 1)
-    .split("")
-    .entries()) {
-    const offset = start + 1 + relative;
+  let offset = start + 1;
+  for (const character of content.slice(start + 1)) {
     const wasEscaped: boolean = escaped;
     const step: RegexBodyStep = wasEscaped
       ? "stay"
@@ -108,19 +108,20 @@ const regexBodyEnd = (content: string, start: number): number => {
     if (step === "reject") return start + 1;
     if (step === "close") return offset + 1;
     if (!wasEscaped) inClass = classAfter(character, inClass);
+    offset += character.length;
   }
   return content.length;
 };
+
+const LOWERCASE_FLAGS = /[a-z]*/y;
 
 /** Just past a regex and its flags, or null when the slash divides. */
 const regexEnd = (content: string, start: number): number | null => {
   const bodyEnd = regexBodyEnd(content, start);
   if (bodyEnd === start + 1) return null;
-  for (const [relative] of content.slice(bodyEnd).split("").entries()) {
-    const offset = bodyEnd + relative;
-    if (!/[a-z]/.test(content[offset] as string)) return offset;
-  }
-  return content.length;
+  LOWERCASE_FLAGS.lastIndex = bodyEnd;
+  const flags = LOWERCASE_FLAGS.exec(content);
+  return bodyEnd + flags![0].length;
 };
 
 /** One stretch of source text that executable code does not read directly. */

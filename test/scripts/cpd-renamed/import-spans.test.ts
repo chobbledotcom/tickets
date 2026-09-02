@@ -168,6 +168,29 @@ describe("renamed-copy import spans", () => {
     }
   });
 
+  test("still exempts imports after non-ASCII comment text", async () => {
+    const comment = "// caf\u00e9 \ud83d\ude00 note";
+    const root = await writeFiles({
+      "a.ts": [
+        comment,
+        "import {",
+        "  alpha, beta, gamma, delta, epsilon, zeta, eta, theta, iota,",
+        '} from "./first.ts";',
+      ].join("\n"),
+      "b.ts": [
+        comment,
+        "import {",
+        "  one, two, three, four, five, six, seven, eight, nine,",
+        '} from "./second.ts";',
+      ].join("\n"),
+    });
+    try {
+      expect(await collect(root, pair("a.ts", "b.ts", 2, 4))).toEqual([]);
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+
   test("rejects an invalid second range when the first side is code", async () => {
     const root = await writeFiles({
       "a.ts": "const first = run(alpha);",
