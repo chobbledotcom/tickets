@@ -5,6 +5,7 @@ import {
   type Step,
   throughConstructedResult,
 } from "#scripts/unread-fields/fields/steps.ts";
+import { answered } from "#scripts/unread-fields/host.ts";
 import { ownerPath } from "#scripts/unread-fields/identity.ts";
 import {
   carriesAModifier,
@@ -55,9 +56,11 @@ export const fieldPath = (
   name: FieldName,
 ): readonly Step[] => [...path, { name: fieldNameText(name) }];
 
+/** The owner path of a shape is always the shape's own name, never a class's
+ * shared path, so the prefix is added fresh every time. */
 export const onTheClass = (path: readonly Step[]): readonly Step[] => {
   const text = ownerPath(path);
-  return [{ way: text.startsWith("typeof ") ? text : `typeof ${text}` }];
+  return [{ way: `typeof ${text}` }];
 };
 
 export const referencedShapeBody = (shape: Shape): readonly ts.Node[] => {
@@ -80,7 +83,9 @@ export const referencedShapeBody = (shape: Shape): readonly ts.Node[] => {
 };
 
 export const insideDeclaration = (node: ts.Node, symbol: ts.Symbol): boolean =>
-  (symbol.declarations ?? []).some(
+  // The current target is the shape a reference was opened for, so its
+  // declarations are always where the walk can find them.
+  answered(symbol.declarations, "the current target's declarations").some(
     (declaration) =>
       declaration.getSourceFile() === node.getSourceFile() &&
       declaration.pos <= node.pos &&

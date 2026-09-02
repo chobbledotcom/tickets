@@ -108,9 +108,11 @@ const createExportedTargetLookup = (
     targetsByFile.set(file, targets);
     return targets;
   };
+  // A target the walk asks about always kept a declaration: it stands for a
+  // name the compiler resolved, or for a shape the walk itself started from.
   return (target) =>
-    (target.declarations ?? []).some((declaration) =>
-      targetsOf(declaration.getSourceFile()).has(target),
+    answered(target.declarations, "the declarations of a walked target").some(
+      (declaration) => targetsOf(declaration.getSourceFile()).has(target),
     );
 };
 

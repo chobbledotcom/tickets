@@ -145,11 +145,7 @@ export const createFieldVisitor = (context: VisitContext): FieldVisitor => {
   };
 
   const targetOfReference = (node: TypeReference): ts.Symbol | undefined => {
-    const referenceName = referenceNameOf(node);
-    const mentioned = checker.getSymbolAtLocation(referenceName);
-    if (!mentioned && ts.isTypeReferenceNode(node)) {
-      answered(mentioned, `type reference ${referenceName.getText()}`);
-    }
+    const mentioned = checker.getSymbolAtLocation(referenceNameOf(node));
     return mentioned ? standsFor(checker, mentioned) : undefined;
   };
 

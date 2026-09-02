@@ -114,9 +114,11 @@ const fixedPartsOf = (
     return { keys, value };
   }
   if (!ts.isMappedTypeNode(node) || node.nameType) return;
-  const keys = node.typeParameter.constraint;
-  const value = node.type;
-  return keys && value ? { keys, value } : undefined;
+  // A mapped type the parser accepts always writes both down. Only a broken
+  // parse holds less, so this fails loudly instead of guessing.
+  const keys = answered(node.typeParameter.constraint, "mapped type keys");
+  const value = answered(node.type, "mapped type value");
+  return { keys, value };
 };
 
 /** The named members a direct fixed mapping writes down in its key node. */

@@ -140,6 +140,7 @@ const COVERAGE_EXCLUSIONS = [
   "e2e-payments/src/cucumber/support/world.ts",
   "e2e-payments/src/cucumber/steps/booking.ts",
   "e2e-payments/src/cucumber/steps/pages.ts",
+  "e2e-payments/src/cucumber/steps/refund.ts",
   "e2e-payments/src/cucumber/steps/setup.ts",
 ];
 

@@ -28,13 +28,10 @@ const typeArgumentsOf = (
   type: ts.Type,
 ): readonly ts.Type[] => {
   if (type.aliasTypeArguments) return type.aliasTypeArguments;
-  if (
-    (type.flags & ts.TypeFlags.Object) !== 0 &&
-    ((type as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference) !== 0
-  ) {
-    return checker.getTypeArguments(type as ts.TypeReference);
-  }
-  return [];
+  // Every container the walk accepts — an array, a tuple, a set, a record, a
+  // map, an async value — resolves to a type reference, so its arguments
+  // are always there to read.
+  return checker.getTypeArguments(type as unknown as ts.TypeReference);
 };
 
 const builtInNameOf = (type: ts.Type): string | undefined => {
@@ -64,15 +61,14 @@ const isAcceptedBuiltIn =
 
 const parameterPath = (
   path: readonly Step[],
-  declaration: ts.ParameterDeclaration | undefined,
+  declaration: ts.ParameterDeclaration,
   index: number,
 ): readonly Step[] => [
   ...path,
   {
-    way:
-      declaration && ts.isIdentifier(declaration.name)
-        ? declaration.name.text
-        : String(index),
+    way: ts.isIdentifier(declaration.name)
+      ? declaration.name.text
+      : String(index),
   },
 ];
 
@@ -92,6 +88,12 @@ export const createTypeVisitor = (
   ): ReadonlyMap<ts.Type, readonly ts.TypeNode[]> => {
     const cached = typeNodesByTarget.get(target);
     if (cached) return cached;
+    // The target a type walk starts from is the shape the walk was opened
+    // for, so it always kept the declaration that named it.
+    const declarations = answered(
+      target.declarations,
+      "the shape a type walk started from",
+    );
     const nodes = new Map<ts.Type, ts.TypeNode[]>();
     const index = (node: ts.Node): void => {
       if (ts.isTypeNode(node)) {
@@ -102,7 +104,7 @@ export const createTypeVisitor = (
       }
       ts.forEachChild(node, index);
     };
-    for (const declaration of target.declarations ?? []) index(declaration);
+    for (const declaration of declarations) index(declaration);
     typeNodesByTarget.set(target, nodes);
     return nodes;
   };
@@ -116,8 +118,12 @@ export const createTypeVisitor = (
   const entersAnotherExport = (name: FieldName, state: WalkState): boolean => {
     const holder = shapeAround(name);
     if (!holder) return false;
-    const symbol = checker.getSymbolAtLocation(holder.name);
-    if (!symbol) return false;
+    // A shape's name is written where the checker can read it, so the symbol
+    // is always there.
+    const symbol = answered(
+      checker.getSymbolAtLocation(holder.name),
+      "the symbol of a shape's name",
+    );
     const target = standsFor(checker, symbol);
     return target !== state.rootTarget && isExportedTarget(target);
   };
@@ -186,20 +192,14 @@ export const createTypeVisitor = (
   ): void => {
     const callPath = throughWay(way)(path);
     signature.getParameters().forEach((parameter, index) => {
-      const declaration =
-        parameter.valueDeclaration ?? parameter.declarations?.[0];
-      const parameterDeclaration =
-        declaration && ts.isParameter(declaration) ? declaration : undefined;
-      const type = checker.getTypeOfSymbolAtLocation(
-        parameter,
-        declaration ??
-          answered(signature.getDeclaration(), "signature declaration"),
-      );
-      visitType(
-        parameterPath(callPath, parameterDeclaration, index),
-        type,
-        state,
-      );
+      // A signature's parameters keep the declaration and the name they were
+      // written with. Only a checker-synthesized signature has none.
+      const declaration = answered(
+        parameter.valueDeclaration,
+        "the declaration of a signature parameter",
+      ) as ts.ParameterDeclaration;
+      const type = checker.getTypeOfSymbolAtLocation(parameter, declaration);
+      visitType(parameterPath(callPath, declaration, index), type, state);
     });
     visitType(
       throughResult(callPath),
