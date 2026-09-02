@@ -100,6 +100,10 @@ describeWithEnv("buildBulkPayload", { encryptionKey: true }, () => {
         unsubscribed: new Set([skipHash]),
       });
       const keepHash = await hashEmail("keep@example.com");
+      const why =
+        "You're receiving this because you registered for one of our listings.";
+      expect(payload.html).toContain(why);
+      expect(payload.text).toContain(why);
       expect(payload.html).toContain(
         `<a href="${BULK_UNSUBSCRIBE_PLACEHOLDER}">`,
       );

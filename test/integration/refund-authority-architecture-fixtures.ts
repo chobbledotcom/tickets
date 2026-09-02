@@ -212,6 +212,7 @@ export const LOWER_SEND_TEST_PATHS = {
     "features/admin/refunds/provider/dispatch-helpers.ts",
   ],
   prepareReadyCandidate: [
+    "features/admin/refunds/attempt/outcomes.test.ts",
     "features/admin/refunds/provider/dispatch-helpers.ts",
   ],
   requestReadyRefund: [],
