@@ -338,5 +338,40 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         mockRetrieve.restore();
       }
     });
+
+    test("shows an owner the staff panel when the checkout is still unpaid", async () => {
+      // The TICKETS-84 shape: the redirect lands while SumUp still reports the
+      // checkout unpaid. The owner testing the flow must see why, in place.
+      await setupStripe();
+
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 500,
+          currency: "gbp",
+          id: "cs_staff_unpaid",
+          metadata: { name: "Still Going" },
+          payment_intent: "pi_staff_unpaid",
+          payment_status: "unpaid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
+      try {
+        const { getTestSession } = await import("#test-utils/session.ts");
+        const { cookie } = await getTestSession();
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_staff_unpaid", {
+            headers: { cookie },
+          }),
+        );
+        const page = await response.text();
+        expect(page).toContain("Staff diagnostics");
+        expect(page).toContain("cs_staff_unpaid");
+        expect(page).toContain("unpaid");
+      } finally {
+        mockRetrieve.restore();
+      }
+    });
   });
 });

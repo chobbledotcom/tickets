@@ -8,6 +8,7 @@ import {
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
 import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
+import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
@@ -54,8 +55,9 @@ const singleListingThankYou = async (listingId: number): Promise<string> => {
 
 const processSessionAndRedirect = async (
   sessionId: string,
+  request: Request,
 ): Promise<Response> => {
-  const validation = await validatePaidSession(sessionId);
+  const validation = await validatePaidSession(sessionId, request);
   if (!validation.ok) return validation.response;
 
   // A parent booking carries an explicit thank-you URL through its signed
@@ -78,7 +80,11 @@ const processSessionAndRedirect = async (
       detail: `[redirect] ${failureDetail(result)}`,
       listingId,
     });
-    return paymentErrorResponse(formatPaymentError(result), result.status);
+    return paymentErrorResponse(
+      formatPaymentError(result),
+      result.status,
+      await staffPaymentDiagnostics(request, { sessionId }),
+    );
   }
 
   // Direct-render path: render the success page here (with the ticket URL drawn
@@ -144,11 +150,13 @@ const renderSuccessFromTokens = async (
 };
 
 /** Handle GET /payment/success after a successful payment. */
-export const handlePaymentSuccess = (request: Request): Promise<Response> => {
+export const handlePaymentSuccess = async (
+  request: Request,
+): Promise<Response> => {
   // Stripe uses session_id via {CHECKOUT_SESSION_ID} template variable;
   // Square appends orderId as a query parameter to the redirect URL.
   const sessionId = redirectSessionId(request);
-  if (sessionId) return processSessionAndRedirect(sessionId);
+  if (sessionId) return processSessionAndRedirect(sessionId, request);
 
   const tokensParam = getSearchParam(request, "tokens");
   if (tokensParam) return renderSuccessFromTokens(tokensParam);
@@ -160,5 +168,9 @@ export const handlePaymentSuccess = (request: Request): Promise<Response> => {
     code: ErrorCode.PAYMENT_SESSION,
     detail: `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
   });
-  return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
+  return paymentErrorResponse(
+    "Invalid payment callback",
+    400,
+    await staffPaymentDiagnostics(request, {}),
+  );
 };

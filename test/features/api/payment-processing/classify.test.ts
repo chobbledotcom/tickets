@@ -14,6 +14,7 @@ import { runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   answerCompletedStripeRefund,
@@ -360,5 +361,91 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(result.data.session.id).toBe("cs_classify");
     expect(result.data.verdict).toEqual({ agreed: 500, verdict: "trusted" });
     expect(result.data.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
+  });
+});
+
+describeWithEnv("showing an owner why a checkout failed", { db: true }, () => {
+  /** The provider answers with the checkout TICKETS-84 saw: still unpaid
+   *  when its redirect landed. */
+  const unpaidAnswers = async (): Promise<Disposable> =>
+    providerAnswers({
+      amountTotal: 500,
+      currency: "GBP",
+      id: "cs_unpaid",
+      metadata: webhookMeta({ name: "Still Going" }),
+      paymentReference: "",
+      paymentStatus: "unpaid" as const,
+      provider: "stripe" as const,
+    });
+
+  const ownerRequest = async (): Promise<Request> =>
+    requestAsSession("/payment/success", await getTestSession());
+
+  /** The refusing check's failure page, with its guard applied. */
+  const refusedPage = async (
+    result: Awaited<ReturnType<typeof validatePaidSession>>,
+  ): Promise<string> => {
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    return await result.response.text();
+  };
+
+  test("hands an owner the diagnostics beside the refusal", async () => {
+    await setupStripe();
+    using _provider = await unpaidAnswers();
+
+    const result = await runWithPendingWork(async () =>
+      validatePaidSession("cs_unpaid", await ownerRequest()),
+    );
+
+    const page = await refusedPage(result);
+    expect(page).toContain("Staff diagnostics");
+    expect(page).toContain("cs_unpaid");
+    expect(page).toContain("unpaid");
+    expect(page).toContain("3-D Secure");
+  });
+
+  test("keeps the buyer's page free of staff detail", async () => {
+    await setupStripe();
+    using _provider = await unpaidAnswers();
+
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_unpaid"),
+    );
+
+    const page = await refusedPage(result);
+    expect(page).toContain("Payment verification failed");
+    expect(page).not.toContain("Staff diagnostics");
+  });
+
+  test("shows the panel to the owner alone", async () => {
+    await setupStripe();
+    using _provider = await unpaidAnswers();
+    const { createTestEditorSession } = await import("#test-utils/session.ts");
+    const editorCookie = (await createTestEditorSession()).cookie;
+
+    const result = await runWithPendingWork(async () =>
+      validatePaidSession(
+        "cs_unpaid",
+        new Request("http://localhost/payment/success", {
+          headers: { cookie: editorCookie },
+        }),
+      ),
+    );
+
+    const page = await refusedPage(result);
+    expect(page).toContain("Payment verification failed");
+    expect(page).not.toContain("Staff diagnostics");
+  });
+
+  test("names what it knows when no provider is configured", async () => {
+    const result = await runWithPendingWork(async () =>
+      validatePaidSession("cs_no_provider", await ownerRequest()),
+    );
+
+    const page = await refusedPage(result);
+    expect(page).toContain("Staff diagnostics");
+    expect(page).toContain("cs_no_provider");
+    expect(page).not.toContain("Provider stripe");
   });
 });

@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import type { StaffDiagnostics } from "#routes/payment-response.ts";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
@@ -141,9 +142,13 @@ export const paymentCancelPage = (
   );
 
 /**
- * Payment error page
+ * Payment error page. When the caller handed over staff diagnostics, an
+ * owner reading the page can open them beside the refusal.
  */
-export const paymentErrorPage = (message: string): string =>
+export const paymentErrorPage = (
+  message: string,
+  diagnostics?: StaffDiagnostics,
+): string =>
   simplePublicPage(
     t("payment.error.title"),
     t("payment.error.heading"),
@@ -152,6 +157,18 @@ export const paymentErrorPage = (message: string): string =>
       <ErrorAlert>
         <p>{message}</p>
       </ErrorAlert>
+      {diagnostics ? (
+        <details class="staff-diagnostics">
+          <summary>{t("payment.staff.heading")}</summary>
+          <LabelledParas items={diagnostics.rows} />
+          <p>{t("payment.staff.reasons_heading")}</p>
+          <ul>
+            {diagnostics.reasons.map((reason) => (
+              <li>{reason}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       <p>
         <a href="/">{t("payment.error.return_home")}</a>
       </p>
