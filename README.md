@@ -237,6 +237,56 @@ for all optional variables.
 - No API key required - it serves the same data as the public booking pages
 - CORS-enabled for cross-origin requests
 
+### Admin API
+
+- Manage listings, groups, and holidays as JSON, with the same operations as the
+  admin area
+- Send an API key with every request: `Authorization: Bearer YOUR_API_KEY`.
+  Owners create keys on the **API Keys** page under **Users**
+- Open `/admin/api-keys/docs` for the complete generated reference, with request
+  and response examples for every endpoint
+- `GET /api/admin/groups` returns every group, including hidden ones. A read
+  never changes public visibility
+- An ordinary group has no member array. Every listing answers with its
+  `group_ids` instead, so join ordinary groups to listings through `group_ids`
+  on `GET /api/admin/listings`
+- A package group adds `package_members`, with one entry per member listing
+
+<details>
+<summary>Example: list every group, then find the members of an ordinary group</summary>
+
+<!-- This example is tested - see test/shared/admin-api-example/readme.test.ts -->
+
+```
+GET /api/admin/groups
+Authorization: Bearer YOUR_API_KEY
+```
+
+```json
+{
+  "groups": [
+    {
+      "description": "Workshops running through the summer.",
+      "hidden": false,
+      "hide_package_listings": false,
+      "id": 3,
+      "is_package": false,
+      "max_attendees": 50,
+      "name": "Summer Series",
+      "slug": "summer-series",
+      "terms_and_conditions": ""
+    }
+  ]
+}
+```
+
+Then call `GET /api/admin/listings`. Keep every listing whose `group_ids` array
+holds the group id, for example `"group_ids": [3]` for the Summer Series group
+above. A package group answers with `package_members`, so read a package's
+members from the group instead.
+
+</details>
+
 ### Webhooks
 
 - Outbound POST on every registration (free or paid) to per-listing and/or
