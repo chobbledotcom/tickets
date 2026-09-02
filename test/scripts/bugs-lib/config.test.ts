@@ -37,12 +37,12 @@ describe("bugsConfig", () => {
   test("reads SENTRY_BASE_URL and strips the trailing slash", () => {
     expect(
       bugsConfig(env({ SENTRY_API_KEY: "k", SENTRY_BASE_URL: `${BASE}/` })),
-    ).toEqual({ apiKey: "k", baseUrl: BASE });
+    ).toEqual({ apiKey: "k", baseUrl: BASE, origin: BASE });
   });
 
   test("falls back to SENTRY_BASE", () => {
     expect(bugsConfig(env({ SENTRY_API_KEY: "k", SENTRY_BASE: BASE }))).toEqual(
-      { apiKey: "k", baseUrl: BASE },
+      { apiKey: "k", baseUrl: BASE, origin: BASE },
     );
   });
 
@@ -55,15 +55,44 @@ describe("bugsConfig", () => {
           SENTRY_BASE_URL: "",
         }),
       ),
-    ).toEqual({ apiKey: "k", baseUrl: BASE });
+    ).toEqual({ apiKey: "k", baseUrl: BASE, origin: BASE });
   });
 
-  test("accepts an http base URL for a local instance", () => {
+  test("accepts an http base URL on a local network host", () => {
     expect(
       bugsConfig(
-        env({ SENTRY_API_KEY: "k", SENTRY_BASE_URL: "http://bugs.local" }),
+        env({ SENTRY_API_KEY: "k", SENTRY_BASE_URL: "http://127.0.0.1:8080" }),
       ),
-    ).toEqual({ apiKey: "k", baseUrl: "http://bugs.local" });
+    ).toEqual({
+      apiKey: "k",
+      baseUrl: "http://127.0.0.1:8080",
+      origin: "http://127.0.0.1:8080",
+    });
+  });
+
+  test("refuses a public http base URL", () => {
+    expect(() =>
+      bugsConfig(
+        env({
+          SENTRY_API_KEY: "k",
+          SENTRY_BASE_URL: "http://bugs.example.com",
+        }),
+      ),
+    ).toThrow("must use HTTPS outside a local network");
+  });
+
+  test("refuses a query in the base URL", () => {
+    expect(() =>
+      bugsConfig(
+        env({ SENTRY_API_KEY: "k", SENTRY_BASE_URL: `${BASE}/?view=all` }),
+      ),
+    ).toThrow("must not contain a query or fragment");
+  });
+
+  test("refuses a fragment in the base URL", () => {
+    expect(() =>
+      bugsConfig(env({ SENTRY_API_KEY: "k", SENTRY_BASE_URL: `${BASE}/#top` })),
+    ).toThrow("must not contain a query or fragment");
   });
 
   test("refuses to run without a base URL", () => {

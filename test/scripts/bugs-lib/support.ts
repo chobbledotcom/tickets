@@ -7,7 +7,11 @@ export const ISSUE_ID = "c9d31a6a-fd2f-4ecf-9369-cc5cb221c606";
 export const OTHER_ISSUE_ID = "11111111-2222-4333-8444-555555555555";
 export const EVENT_ID = "497f6eca-6276-4993-bfeb-53cbbbba6f08";
 export const EVENT_2_ID = "a7a26ff2-e851-45b6-9634-d595f45458b7";
-export const CONFIG = { apiKey: "test-key", baseUrl: BASE };
+export const CONFIG = {
+  apiKey: "test-key",
+  baseUrl: BASE,
+  origin: "https://bugs.example.com",
+};
 export const ENV = { SENTRY_API_KEY: "test-key", SENTRY_BASE_URL: BASE };
 
 export const ISSUE = {

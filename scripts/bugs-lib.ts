@@ -9,11 +9,14 @@ import { sort } from "#fp";
 import { fetchText } from "#scripts/fetch-text.ts";
 import { parseJsonWith } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
+import { isLocalHttpHost } from "#shared/local-host.ts";
 
 export interface BugsConfig {
   apiKey: string;
   /** Bugsink site origin, without a trailing slash. */
   baseUrl: string;
+  /** The URL origin every request, pagination included, stays inside. */
+  origin: string;
 }
 
 const firstSetEnv = (
@@ -37,16 +40,32 @@ export const bugsConfig = (
       "Set SENTRY_API_KEY in .env. Create the token in Bugsink under Tokens.",
     );
   }
-  let origin: URL;
+  let parsed: URL;
   try {
-    origin = new URL(baseUrl);
+    parsed = new URL(baseUrl);
   } catch {
     throw new Error(`SENTRY_BASE_URL is not a URL: ${baseUrl}`);
   }
-  if (origin.protocol !== "https:" && origin.protocol !== "http:") {
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error(`SENTRY_BASE_URL must be an http or https URL: ${baseUrl}`);
   }
-  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, "") };
+  // The API key rides every request as a Bearer token, so cleartext http is
+  // for local networks only, the same rule as UPTIME_KUMA_URL.
+  if (parsed.protocol === "http:" && !isLocalHttpHost(parsed.hostname)) {
+    throw new Error(
+      `SENTRY_BASE_URL must use HTTPS outside a local network: ${baseUrl}`,
+    );
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error(
+      `SENTRY_BASE_URL must not contain a query or fragment: ${baseUrl}`,
+    );
+  }
+  return {
+    apiKey,
+    baseUrl: baseUrl.replace(/\/+$/, ""),
+    origin: parsed.origin,
+  };
 };
 
 const UUID_PATTERN =
@@ -140,6 +159,26 @@ type ProjectRecord = v.InferOutput<typeof ProjectSchema>;
 const listPageSchema = <S extends v.GenericSchema>(item: S) =>
   v.object({ next: v.nullable(v.string()), results: v.array(item) });
 
+/** Pin a pagination URL to the configured origin and the canonical API, so a
+ * tampered response cannot point the Bearer token somewhere else. */
+const pinnedNextUrl = (config: BugsConfig, next: string): string => {
+  let parsed: URL;
+  try {
+    parsed = new URL(next);
+  } catch {
+    throw new Error(`Bugsink sent a pagination URL that is not a URL: ${next}`);
+  }
+  if (
+    parsed.origin !== config.origin ||
+    !parsed.pathname.startsWith("/api/canonical/0/")
+  ) {
+    throw new Error(
+      `Bugsink sent a pagination URL outside its own canonical API: ${next}`,
+    );
+  }
+  return parsed.href;
+};
+
 /** Read a cursor-paginated list until it runs out or reaches the limit. */
 const listAll = async <S extends v.GenericSchema>(
   config: BugsConfig,
@@ -153,7 +192,7 @@ const listAll = async <S extends v.GenericSchema>(
     const page: { next: string | null; results: v.InferOutput<S>[] } =
       await getJson(config, url, listPageSchema(item));
     items.push(...page.results);
-    url = page.next;
+    url = page.next === null ? null : pinnedNextUrl(config, page.next);
   }
   return items.slice(0, limit);
 };

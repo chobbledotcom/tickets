@@ -23,6 +23,16 @@ describe("fetchIssueBundle", () => {
   const fetcher = stubFetchEachTest(new Response("{}", { status: 404 }));
   const answerBy = route(fetcher);
 
+  /** Route an issue whose events page hands back this next URL. */
+  const routeEventsNext = (next: string) =>
+    answerBy((url) => {
+      if (url.endsWith(`/issues/${ISSUE_ID}/`)) return json(ISSUE);
+      if (url.includes("/events/?issue=")) {
+        return json(page([{ id: EVENT_ID }], next));
+      }
+      return json(eventDetail(url.split("/").slice(-2)[0]!));
+    });
+
   test("fetches the issue and its latest event, and keeps the raw payloads", async () => {
     answerBy((url) => {
       if (url === `${BASE}/api/canonical/0/issues/${ISSUE_ID}/`)
@@ -118,6 +128,33 @@ describe("fetchIssueBundle", () => {
     expect(bundle.events.length).toBe(1);
     expect(callsOf(fetcher).some((call) => call.url.includes("cursor=2"))).toBe(
       false,
+    );
+  });
+
+  test("refuses a pagination URL on another origin", async () => {
+    routeEventsNext("https://evil.example/api/canonical/0/events/?cursor=2");
+
+    await expect(fetchIssueBundle(CONFIG, ISSUE_ID, 2)).rejects.toThrow(
+      "pagination URL outside its own canonical API",
+    );
+    expect(
+      callsOf(fetcher).some((call) => call.url.includes("evil.example")),
+    ).toBe(false);
+  });
+
+  test("refuses a pagination URL outside the canonical API", async () => {
+    routeEventsNext(`${BASE}/other?cursor=2`);
+
+    await expect(fetchIssueBundle(CONFIG, ISSUE_ID, 2)).rejects.toThrow(
+      "pagination URL outside its own canonical API",
+    );
+  });
+
+  test("refuses a pagination URL that is not a URL", async () => {
+    routeEventsNext("not a URL");
+
+    await expect(fetchIssueBundle(CONFIG, ISSUE_ID, 2)).rejects.toThrow(
+      "pagination URL that is not a URL",
     );
   });
 
