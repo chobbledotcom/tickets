@@ -20,7 +20,10 @@ import {
   normalizeEntityName,
 } from "#db/name-registry.ts";
 import { settings } from "#db/settings.ts";
-import { TransactionValidationError } from "#db/transaction.ts";
+import {
+  refuseTheWriteOn,
+  TransactionValidationError,
+} from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
@@ -65,11 +68,6 @@ export const requireImportedMembership = (
     throw new TransactionValidationError(t("catalog_transfer.member_missing"));
   }
   if (membership.error) throw new TransactionValidationError(membership.error);
-};
-
-/** Throws a day-price override error as a transaction validation failure. */
-export const requireDayPriceOk = (error: string | null): void => {
-  if (error) throw new TransactionValidationError(error);
 };
 
 export const resolveNames = (
@@ -248,7 +246,7 @@ export const importListing = async (
           membership.dayPrices,
           newMember,
         );
-        requireDayPriceOk(dayError);
+        refuseTheWriteOn(dayError);
       }
       await writeMembershipsTx(
         tx,

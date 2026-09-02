@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { execute, queryOne } from "#db/client.ts";
 import {
@@ -8,7 +9,6 @@ import {
   hashEmail,
   hashPhone,
   saveContactRecord,
-  toContactHashParam,
 } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import {
@@ -151,10 +151,10 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       expect(before).toContain("Stats / notes for alice@example.com");
       expect(before).toContain("Stats / notes for 07700 900333");
       expect(before).toContain(
-        `/admin/history/${toContactHashParam(emailHash)}`,
+        `/admin/history/${base64ToBase64Url(emailHash)}`,
       );
       expect(before).toContain(
-        `/admin/history/${toContactHashParam(phoneHash)}`,
+        `/admin/history/${base64ToBase64Url(phoneHash)}`,
       );
 
       // A bulk-email send gives the email contact outreach history...

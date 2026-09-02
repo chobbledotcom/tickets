@@ -37,6 +37,16 @@ export const collectFiles = async (
   return files.sort();
 };
 
+/** Every file beneath a directory whose path matches, sorted. */
+const collectMatching =
+  (pattern: RegExp): ((directory: string) => Promise<string[]>) =>
+  (directory) =>
+    collectFiles(directory, (path) => pattern.test(path));
+
 /** Every TypeScript file beneath `directory`, sorted. */
-export const collectSourceFiles = (directory: string): Promise<string[]> =>
-  collectFiles(directory, (path) => /\.tsx?$/.test(path));
+export const collectSourceFiles = collectMatching(/\.tsx?$/);
+
+/** Every TypeScript or JavaScript file beneath `directory`, sorted. A browser
+ * script we ship as plain `.js` is source too, so a check that has to read all
+ * of our code reaches for this one. */
+export const collectScriptFiles = collectMatching(/\.[cm]?[jt]sx?$/);

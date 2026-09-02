@@ -35,6 +35,7 @@ import {
   CheckboxLabel,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
@@ -167,10 +168,10 @@ export const adminQuestionsPage = (
     basePath: adminPattern("questions"),
     columns: [
       {
-        cell: (question) => (
-          <a href={adminPath("question", { id: question.id })}>
-            {questionTextFlat(question.text)}
-          </a>
+        cell: linkCell(
+          (question: QuestionWithAnswers) =>
+            adminPath("question", { id: question.id }),
+          (question) => questionTextFlat(question.text),
         ),
         header: t("questions.question_column"),
         key: "question",

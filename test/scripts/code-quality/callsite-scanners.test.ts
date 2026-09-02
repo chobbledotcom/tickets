@@ -203,6 +203,16 @@ describe("extractCallSites", () => {
       name: "punctuation clears the preceding-word guard",
       src: "function; foo()",
     },
+    {
+      expected: [{ args: ["a"], line: 1, name: "tracked" }],
+      name: "a comment keeps the function-declaration guard",
+      src: "function /* note */ foo(a) { tracked(a); }",
+    },
+    {
+      expected: [{ args: ["1"], line: 1, name: "tracked" }],
+      name: "a compact return string stays hidden",
+      src: "function label(){return'/*not comment*/'} tracked(1);",
+    },
   ];
   for (const { name, src, expected } of cases) {
     test(name, () => {
@@ -227,6 +237,12 @@ describe("extractCallSites", () => {
     const src = "foo(`${x`)";
     expect(extractCallSites(src)).toEqual([{ args: [], line: 1, name: "foo" }]);
   });
+
+  test("continues past an apostrophe in JSX text", () => {
+    expect(extractCallSites("<p>It's ready</p>; tracked(1)")).toEqual([
+      { args: ["1"], line: 1, name: "tracked" },
+    ]);
+  });
 });
 
 /** Direct tokenizer tests cover index contracts that call-site extraction does
@@ -245,6 +261,18 @@ describe("skipString", () => {
   test("ignores an apostrophe inside a double-quoted string", () => {
     const source = '"doesn\'t regress" after';
     expect(source.slice(skipString(source, 0))).toBe(" after");
+  });
+
+  test("leaves an apostrophe in JSX text for its caller", () => {
+    const source = "<p>It's ready</p>";
+    const apostrophe = source.indexOf("'");
+    expect(skipString(source, apostrophe)).toBe(apostrophe);
+  });
+
+  test("leaves an apostrophe after a wider letter in JSX text", () => {
+    const source = "𝒳's";
+    const apostrophe = source.indexOf("'");
+    expect(skipString(source, apostrophe)).toBe(apostrophe);
   });
 
   test("skips a template substitution", () => {

@@ -28,6 +28,7 @@ import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
@@ -99,8 +100,10 @@ const legLabel = (time: string): string => time || "—";
 
 const otherAttendeesTable = defineTable<OtherAttendeeLine>([
   {
-    cell: (line) => (
-      <a href={`/admin/attendees/${line.attendeeId}/logistics`}>{line.name}</a>
+    cell: linkCell(
+      (line: OtherAttendeeLine) =>
+        `/admin/attendees/${line.attendeeId}/logistics`,
+      (line) => line.name,
     ),
     header: () => t("attendee_logistics.col_attendee"),
     key: "attendee",

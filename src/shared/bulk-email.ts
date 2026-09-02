@@ -3,10 +3,10 @@
  * unsubscribe footer.
  *
  * *Who* a message goes to (the audience/listing/attendee target registry)
- * lives in `#shared/bulk-email-targets/`; the target API is re-exported here
- * so callers have a single import. Sending itself lives in `#shared/email.ts`
- * (`sendBulkEmails`). This module turns a target into a de-duplicated address
- * list, validates drafts, and builds the send payload + unsubscribe footer.
+ * lives in `#shared/bulk-email-targets/`. Sending itself lives in
+ * `#shared/email/bulk.ts` (`sendBulkEmails`). This module turns a target into a
+ * de-duplicated address list, validates drafts, and builds the send payload
+ * plus unsubscribe footer.
  */
 
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
@@ -42,39 +42,10 @@ import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import { isRecord } from "#types";
 
-// Re-export the target registry's public API so `#shared/bulk-email.ts` stays
-// the single entry point for callers (routes, templates, tests).
-export {
-  describeTarget,
-  targetAllowsEmpty,
-  targetComposeControl,
-  targetComposeCopy,
-  targetFromForm,
-  targetFromQuery,
-  targetIsSingleRecipient,
-  targetLogListingId,
-  targetQuery,
-} from "#shared/bulk-email-targets/registry.ts";
-export {
-  AUDIENCES,
-  type Audience,
-  type AudienceId,
-  AudienceIdSchema,
-  audienceById,
-  type BulkEmailTarget,
-  BulkEmailTargetSchema,
-  type ComposeControl,
-  type ComposeCopy,
-  DEFAULT_AUDIENCE_ID,
-  isAudienceId,
-  isBulkEmailTarget,
-  type TargetDescription,
-} from "#shared/bulk-email-targets/types.ts";
-
 // ── Recipient resolution ────────────────────────────────────────────
 
 /** Trim, drop blanks, de-duplicate case-insensitively, and sort a list of emails. */
-export const dedupeEmails = (emails: string[]): string[] =>
+const dedupeEmails = (emails: string[]): string[] =>
   pipe(
     map((e: string) => e.trim()),
     filter((e) => e !== ""),
@@ -133,7 +104,7 @@ export const parseDraft = (raw: string): BulkEmailDraft | null => {
   return isBulkEmailDraft(parsed) ? parsed : null;
 };
 
-export type DraftValidation =
+type DraftValidation =
   | { valid: true; draft: BulkEmailDraft }
   | { valid: false; error: string };
 
@@ -171,7 +142,7 @@ export const validateDraftInput = (input: {
 // ── Marketing footer + unsubscribe links ────────────────────────────
 
 /** Absolute unsubscribe URL carrying the recipient's opaque email hash. */
-export const unsubscribeUrl = (hash: string): string =>
+const unsubscribeUrl = (hash: string): string =>
   `https://${getEffectiveDomain()}/unsubscribe?email=${encodeURIComponent(
     hash,
   )}`;
@@ -180,12 +151,12 @@ const FOOTER_INTRO =
   "You're receiving this because you registered for one of our listings.";
 
 /** HTML unsubscribe footer appended to marketing emails. */
-export const marketingFooterHtml = (url: string): string =>
+const marketingFooterHtml = (url: string): string =>
   `<hr><p style="font-size:12px;color:#666">${FOOTER_INTRO} ` +
   `<a href="${url}">Unsubscribe or manage your preferences</a>.</p>`;
 
 /** Plain-text unsubscribe footer appended to marketing emails. */
-export const marketingFooterText = (url: string): string =>
+const marketingFooterText = (url: string): string =>
   `\n\n---\n${FOOTER_INTRO}\nUnsubscribe or manage your preferences: ${url}`;
 
 /**

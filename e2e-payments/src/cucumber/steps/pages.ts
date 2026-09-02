@@ -7,7 +7,7 @@
  */
 
 // jscpd:ignore-start -- this #e2e import run is structural
-import type { BrowserSession } from "#e2e/browser.ts";
+import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
 import type { LiveWorld } from "#e2e/cucumber/support/world.ts";
@@ -331,9 +331,9 @@ export const requireSystemMapAnswersClean = async (
 export const submitRenderedRefundForm = async (
   session: BrowserSession,
   bookerName: string,
-): Promise<void> => {
-  await session.fill("confirm_identifier", bookerName);
-  await session.clickButton(
+): Promise<void> =>
+  fillAndSubmit(
+    session,
+    { confirm_identifier: bookerName },
     await catalogWords("attendees", "admin.attendees.refund_submit"),
   );
-};

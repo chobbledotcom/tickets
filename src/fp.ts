@@ -172,6 +172,10 @@ export const sort =
 export const sortStrings = (array: string[]): string[] =>
   sort((a: string, b: string) => a.localeCompare(b))(array);
 
+/** The numbers, each once, smallest first. */
+export const sortedNumbers = (array: readonly number[]): number[] =>
+  unique([...array]).sort((a: number, b: number) => a - b);
+
 /**
  * Remove duplicate values (by reference/value equality), keeping first
  * occurrences in order. Curried adapter over `@std/collections.distinct`.
@@ -202,6 +206,51 @@ export const groupToMap =
       ]),
     );
 
+/**
+ * Key items by their own id, so a caller can look one up. Hand-rolled because
+ * `@std/collections.associateBy` keys by a string and gives back an object,
+ * while every caller here has number ids and wants a Map.
+ */
+export const byId = <T extends { id: number }>(
+  items: readonly T[],
+): Map<number, T> => new Map(items.map((item) => [item.id, item]));
+
+/** Keep the items a test accepts, then take one thing from each. */
+export const keepAndTake =
+  <T, R>(
+    keep: (item: T) => boolean,
+    take: (item: T) => R,
+  ): ((items: readonly T[]) => R[]) =>
+  (items) =>
+    items.filter(keep).map(take);
+
+/** Whether two records hold the same value in every named field. */
+export const sameOn =
+  <T>(...fields: readonly (keyof T)[]): ((left: T, right: T) => boolean) =>
+  (left, right) =>
+    fields.every((field) => left[field] === right[field]);
+
+/** A Map holding an empty list for each key, ready to be filled. */
+export const emptyListsFor = <Key, Value>(
+  keys: readonly Key[],
+): Map<Key, Value[]> => new Map(keys.map((key) => [key, []]));
+
+/**
+ * Whether two sequences hold the same values, in the same order. It stops at
+ * the first difference, so how long it takes says how much matched: never
+ * compare secrets with it.
+ */
+export const sameOrder = <T>(
+  left: ArrayLike<T>,
+  right: ArrayLike<T>,
+): boolean => {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+};
+
 /** Read a required map entry, failing where a broken completeness invariant is
  * first observed instead of passing an undefined value onward. */
 export const requiredMapValue = <Key, Value>(
@@ -222,6 +271,13 @@ export const isNullish = (value: unknown): value is null | undefined =>
 
 export const isNotNullish = <T>(value: T | null | undefined): value is T =>
   !isNullish(value);
+
+/** Ask whether a value is one of a fixed list: `isOneOf(["a", "b"])("a")` is
+ * true. Curried, so a list of words becomes one named check. */
+export const isOneOf =
+  (values: readonly string[]): ((value: string | undefined) => boolean) =>
+  (value) =>
+    value !== undefined && values.includes(value);
 
 export const compact = <T>(array: (T | null | undefined)[]): T[] =>
   array.filter(isNotNullish);
@@ -415,7 +471,7 @@ export const range = (start: number, end: number): number[] =>
  */
 export const mapParallel =
   <T, U>(fn: (item: T) => Promise<U>) =>
-  (array: T[]): Promise<U[]> =>
+  (array: readonly T[]): Promise<U[]> =>
     Promise.all(array.map(fn));
 
 /** Collection cache returned by collectionCache() */

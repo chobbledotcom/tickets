@@ -26,7 +26,7 @@ src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → ||   # input.name?:
 src/shared/app-forms.ts::createAuthedHandler~1q900po  ?? → ||   # config.auth is an AuthPolicy object when present, so it is always truthy
 src/shared/site-assignment.ts::renewalDeadlineBaseMs~00cywnq  ?? → ||   # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts::assignSitesForEntries.site~0c03jq6  ?? → ||   # available.pop(): BuiltSite|undefined, and a BuiltSite object is always truthy
-src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~11vz7t9  ?? → ||   # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~0yvlh8h  ?? → ||   # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → ||   # parseEmail(): ValidEmail|null, always truthy or null
 src/shared/db/listing-prices.ts::sourceRowStatements~0fyy4cr  ?? → ||   # unit_price is number|null, so the only falsy-non-null value is 0 and 0 ?? 0 === 0 || 0
 src/shared/ledger/project.ts::allBalances.add~0gr4ng6  ?? → ||   # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0

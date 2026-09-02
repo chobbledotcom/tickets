@@ -217,26 +217,32 @@ const deriveTokenKey = async (
 };
 
 /**
+ * Locks or unlocks a key with a key derived from a session token. Which way it
+ * goes decides both the derived key's use and the step that runs.
+ */
+const withTokenKey =
+  <TIn, TOut>(
+    use: "decrypt" | "encrypt",
+    step: (subject: TIn, tokenKey: CryptoKey) => Promise<TOut>,
+  ): ((subject: TIn, sessionToken: string) => Promise<TOut>) =>
+  async (subject, sessionToken) =>
+    step(subject, await deriveTokenKey(sessionToken, use));
+
+/**
  * Wrap a key using a session token (derives a wrapping key from the token)
  */
-export const wrapKeyWithToken = async (
-  keyToWrap: CryptoKey,
-  sessionToken: string,
-): Promise<WrappedKey> => {
-  const wrappingKey = await deriveTokenKey(sessionToken, "encrypt");
-  return exportAndWrapKey(keyToWrap, wrappingKey);
-};
+export const wrapKeyWithToken = withTokenKey<CryptoKey, WrappedKey>(
+  "encrypt",
+  exportAndWrapKey,
+);
 
 /**
  * Unwrap a key using a session token
  */
-export const unwrapKeyWithToken = async (
-  wrapped: WrappedKey,
-  sessionToken: string,
-): Promise<CryptoKey> => {
-  const unwrappingKey = await deriveTokenKey(sessionToken, "decrypt");
-  return unwrapAndImportKey(wrapped, unwrappingKey);
-};
+export const unwrapKeyWithToken = withTokenKey<WrappedKey, CryptoKey>(
+  "decrypt",
+  unwrapAndImportKey,
+);
 
 /**
  * Unwrap a session's DATA_KEY from its token. An authenticated session that

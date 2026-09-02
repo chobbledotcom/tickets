@@ -13,6 +13,7 @@
  */
 
 import { EditorView } from "prosemirror-view";
+import { forEachMatch } from "#src/ui/client/dom.ts";
 import {
   createEditorState,
   roundTripsCleanly,
@@ -128,10 +129,8 @@ export const enhanceMarkdownTextarea = (
 };
 
 /** Enhance every markdown-authored textarea on the page. */
-export const initMarkdownEditor = (): void => {
-  for (const textarea of document.querySelectorAll<HTMLTextAreaElement>(
+export const initMarkdownEditor = (): void =>
+  forEachMatch<HTMLTextAreaElement>(
     "textarea[data-markdown-preview]",
-  )) {
-    enhanceMarkdownTextarea(textarea);
-  }
-};
+    enhanceMarkdownTextarea,
+  );

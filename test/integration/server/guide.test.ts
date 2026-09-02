@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import {
-  resetHostEmailConfig,
-  setHostEmailConfigForTest,
-} from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import {
   assertAdminHtml,
   cachedAdminPage,
@@ -284,7 +281,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows host email config and setup instructions when configured", async () => {
-      setHostEmailConfigForTest({
+      hostEmail.setOverride({
         apiKey: "re_test_key",
         fromAddress: validEmail("tickets@example.com"),
         provider: "resend",
@@ -298,7 +295,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
           "Choose your email provider from the dropdown",
         );
       } finally {
-        resetHostEmailConfig();
+        hostEmail.resetOverride();
       }
     });
 

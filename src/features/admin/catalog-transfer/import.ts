@@ -19,7 +19,10 @@ import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
 } from "#db/name-registry.ts";
-import { TransactionValidationError } from "#db/transaction.ts";
+import {
+  refuseTheWriteOn,
+  TransactionValidationError,
+} from "#db/transaction.ts";
 import { identity, mapById } from "#fp";
 import { t } from "#i18n";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
@@ -40,7 +43,6 @@ import {
   membershipSpec,
   missingMemberId,
   nameTakenError,
-  requireDayPriceOk,
   requireImportedMembership,
   resolveNames,
   withNewId,
@@ -180,7 +182,7 @@ const importGroup = async (
           memberResolve.ids,
           members,
         );
-        requireDayPriceOk(dayError);
+        refuseTheWriteOn(dayError);
       }
       await writeMembershipsTx(tx, withNewId(specs, "groupId", newId));
       requireImportedMembership(

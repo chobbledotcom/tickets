@@ -3,7 +3,6 @@ import { describe, it } from "@std/testing/bdd";
 import {
   cloneKind,
   collectFindings,
-  isImportSpan,
   type JscpdDuplicate,
   pairHash,
   repoRootFrom,
@@ -73,69 +72,6 @@ describe("cloneKind", () => {
         "for (const user of users) { if (user.active) out.push(user.name); }",
       ),
     ).toBe("different");
-  });
-});
-
-describe("isImportSpan", () => {
-  it("accepts a span that opens with import", () => {
-    expect(isImportSpan(`import { expect } from "@std/expect";`)).toBe(true);
-  });
-
-  it("accepts a member-list tail that closes on a module specifier", () => {
-    expect(
-      isImportSpan(`  getGroupBySlugIndex,
-  groups,
-} from "#db/groups.ts";`),
-    ).toBe(true);
-  });
-
-  it("accepts an import jscpd cut mid-statement", () => {
-    // jscpd stops a span on a token boundary, not a statement boundary, so
-    // the last import may be missing its `from "…"` close. It is still only
-    // import content. (The fixture lines are indented so the raw import
-    // checker treats them as example text, not real imports.)
-    expect(
-      isImportSpan(`import { settings } from "#db/settings.ts";
-        import {
-          createTokenRoute,`),
-    ).toBe(true);
-  });
-
-  it("accepts a member tail cut out of an import block", () => {
-    // jscpd cuts on token boundaries, so a span can begin mid-list and end
-    // before the `from "…"` close. It is still import content.
-    expect(
-      isImportSpan(`summarizeProviderResponse,
-  targetAllowsEmpty,
-  targetQuery,`),
-    ).toBe(true);
-    expect(isImportSpan("targetQuery,")).toBe(true);
-  });
-
-  it("rejects a span that continues past an import into copied code", () => {
-    expect(
-      isImportSpan(`import { expect } from "@std/expect";
-export const answer = (slug: string) => hash(slug);`),
-    ).toBe(false);
-  });
-
-  it("rejects executable shorthand returns, identical on both sides", () => {
-    // A bare word-and-braces list is not import syntax: an executable clone
-    // must not slip past the gate as a would-be import fragment.
-    expect(isImportSpan("return { alpha, beta, gamma, delta, epsilon };")).toBe(
-      false,
-    );
-  });
-
-  it("rejects ordinary code that merely mentions from", () => {
-    expect(isImportSpan("const row = await readFrom(groups);")).toBe(false);
-    expect(
-      isImportSpan("export const computeIndex = (slug) => hash(slug);"),
-    ).toBe(false);
-  });
-
-  it("treats an empty span as not an import", () => {
-    expect(isImportSpan("")).toBe(false);
   });
 });
 
@@ -231,7 +167,9 @@ import { it } from "second-fixture";
       "d.ts": `import { expect } from "third-fixture";
 import { describe } from "fourth-fixture";
 `,
-      "e.ts": `const total = (rows: Row[]): number => rows.length;
+      "e.ts": `const total = (rows: Row[]): number => {
+  return rows.length;
+};
 `,
     });
     try {

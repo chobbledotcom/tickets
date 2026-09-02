@@ -1,34 +1,13 @@
 /** Shared types and helpers for wallet settings factories. */
 
-import { lazyRef } from "#fp";
 import { getEnv } from "#shared/env.ts";
+import {
+  createHostConfigOverride,
+  type HostConfigOverride,
+} from "#shared/host-config.ts";
 
 export type SnapFn = (key: string) => string;
 export type EncryptedUpdateFn = (key: string) => (v: string) => Promise<void>;
-
-/** Return type of createHostConfigOverride. */
-// deno-lint-ignore no-explicit-any
-export type HostConfigOverride<T = any> = ReturnType<
-  typeof createHostConfigOverride<T>
->;
-
-/**
- * Create a host-config override pair: a getter that falls back to env,
- * and test helpers to set/reset the override.
- */
-export const createHostConfigOverride = <T>(getFromEnv: () => T | null) => {
-  const [getOverride, setOverride] = lazyRef<T | null | undefined>(
-    () => undefined,
-  );
-  return {
-    getHostConfig: () => {
-      const o = getOverride();
-      return o !== undefined ? o : getFromEnv();
-    },
-    resetOverride: () => setOverride(undefined),
-    setOverride: (v: T | null) => setOverride(v),
-  };
-};
 
 /**
  * Mixin shared wallet config resolution properties onto a target object.

@@ -31,7 +31,9 @@ const setupRenewalSite = async () => {
   const sites = await builtSites.getAll();
   const site = sites.find((s) => s.name === "Renewal Test Site")!;
   const { token } = await provisionTestBuiltSite(site.id, {
-    readOnlyFrom: "2026-09-01T00:00:00Z",
+    // A deadline in the far future keeps the renewal stacking on the site's
+    // own date, not on the clock the test runs under.
+    readOnlyFrom: "2030-01-01T00:00:00Z",
   });
   return { site, token };
 };
@@ -112,7 +114,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     test("shows the current deadline in the page", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
-      expect(html).toContain("Tuesday 1 September 2026");
+      expect(html).toContain("Tuesday 1 January 2030");
     });
 
     test("omits the 'current deadline' wording when no deadline is set", async () => {
@@ -348,7 +350,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
           (s) => s.id === site.id,
         )!;
         expect(updated.readOnlyFrom).toBe(
-          addMonthsIso("2026-09-01T00:00:00Z", 2),
+          addMonthsIso("2030-01-01T00:00:00Z", 2),
         );
         const readOnlyCalls = secretStub.calls.filter(
           (c) => c.args[1] === "READ_ONLY_FROM",

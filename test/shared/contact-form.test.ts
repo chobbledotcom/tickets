@@ -6,7 +6,7 @@ import {
   isContactFormActive,
   sendContactMessage,
 } from "#shared/contact-form.ts";
-import { setHostEmailConfigForTest } from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import {
   emailTestSandbox,
   expectSendNoop,
@@ -67,7 +67,7 @@ describe("sendContactMessage", () => {
 
   beforeEach(() => {
     sandbox.setEnv(BOTH_KEYS);
-    setHostEmailConfigForTest(null);
+    hostEmail.setOverride(null);
     setEffectiveDomainForTest("tickets.example.com");
   });
 

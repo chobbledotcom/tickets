@@ -19,6 +19,7 @@ import { ExampleCode } from "#templates/admin/guide/components.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -57,14 +58,15 @@ const OptsFlash = ({
   opts: { error?: string | undefined; success?: string | undefined };
 }): JSX.Element => <Flash error={opts.error} success={opts.success} />;
 
-const ApiKeyLink = ({ apiKey }: { apiKey: ApiKeyDisplay }): JSX.Element => (
-  <a href={`/admin/api-keys/${apiKey.id}`}>{apiKey.name}</a>
-);
-
 const apiKeyColumns: readonly TableColumn<ApiKeyDisplay>[] = [
-  translatedTableColumn("name", "common.name", (apiKey) => (
-    <ApiKeyLink apiKey={apiKey} />
-  )),
+  translatedTableColumn(
+    "name",
+    "common.name",
+    linkCell(
+      (apiKey: ApiKeyDisplay) => `/admin/api-keys/${apiKey.id}`,
+      (apiKey) => apiKey.name,
+    ),
+  ),
   translatedTableColumn("created", "common.created", createdCell),
   translatedTableColumn("last_used", "api_keys.col.last_used", lastUsedCell),
 ];

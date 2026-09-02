@@ -12,7 +12,7 @@ import { defineTable } from "#shared/tables/definition.ts";
 /* jscpd:ignore-end */
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { prosePage, simplePublicPage } from "./prose-page.tsx";
+import { messagePublicPage, prosePage } from "./prose-page.tsx";
 import { AmountLine } from "./shared.tsx";
 
 const orderSummaryTable = defineTable<OrderLine>([
@@ -64,23 +64,23 @@ export const balancePaymentPage = (
   );
 
 /** Shown when the link is valid but there is nothing left to pay. */
-export const balanceSettledPage = (): string =>
-  simplePublicPage(
-    t("public_balance.nothing_to_pay"),
-    t("public_balance.nothing_to_pay"),
-  )(<p>{t("public_balance.balance_settled")}</p>);
+export const balanceSettledPage = messagePublicPage(
+  "public_balance.nothing_to_pay",
+  "public_balance.nothing_to_pay",
+  "public_balance.balance_settled",
+);
 
 /** Shown when the link is invalid or expired. */
-export const balanceInvalidPage = (): string =>
-  simplePublicPage(
-    t("public_balance.link_not_valid"),
-    t("public_balance.payment_link_invalid"),
-  )(<p>{t("public_balance.link_expired_or_mistyped")}</p>);
+export const balanceInvalidPage = messagePublicPage(
+  "public_balance.link_not_valid",
+  "public_balance.payment_link_invalid",
+  "public_balance.link_expired_or_mistyped",
+);
 
 /** Shown when the link is valid but the booking has no bookable (quantity > 0)
  * line to pay into — an honest message rather than "link not valid". */
-export const balanceNoItemsPage = (): string =>
-  simplePublicPage(
-    t("public_balance.no_tickets_title"),
-    t("public_balance.no_tickets_heading"),
-  )(<p>{t("public_balance.no_tickets_message")}</p>);
+export const balanceNoItemsPage = messagePublicPage(
+  "public_balance.no_tickets_title",
+  "public_balance.no_tickets_heading",
+  "public_balance.no_tickets_message",
+);

@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { guardFor } from "#shared/validation/guard.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 
 /**
  * Shared string value types.
@@ -40,10 +41,8 @@ type NonEmptyLiteral<T extends string> = T extends "" ? never : T;
 
 export const isNonEmptyString = guardFor(NonEmptyStringSchema);
 
-export const parseNonEmptyString = (value: string): NonEmptyString | null => {
-  const result = v.safeParse(NonEmptyStringSchema, value);
-  return result.success ? result.output : null;
-};
+export const parseNonEmptyString = (value: string): NonEmptyString | null =>
+  parseOrNull(NonEmptyStringSchema, value);
 
 export const nonEmptyString = <T extends string>(
   value: NonEmptyLiteral<T>,

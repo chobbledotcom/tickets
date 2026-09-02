@@ -20,9 +20,9 @@
  * JavaScript source string directly, even when it contains non-ASCII text.
  */
 
-import { parseSync } from "npm:oxc-parser@0.132.0";
 import { flatMap, unique } from "#fp";
 import { lineColumnAt } from "#scripts/line-column.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
 import { anchorMutants } from "./anchor.ts";
 import {
   assignmentOperators,
@@ -428,8 +428,9 @@ function* walk(
 ): Generator<{ inNonRuntime: boolean; node: AstNode }> {
   const record = node as Record<string, unknown>;
   const nonRuntime = inNonRuntime || record.declare === true;
-  if (typeof record.type === "string")
+  if (typeof record.type === "string") {
     yield { inNonRuntime: nonRuntime, node: record as AstNode };
+  }
   for (const child of childrenOf(record, nonRuntime)) {
     yield* walk(child.node, child.inNonRuntime);
   }
@@ -447,7 +448,7 @@ export const generateMutants = (
 ): Mutant[] => {
   if (filePath.endsWith(".d.ts")) return [];
   const fileName = filePath.split("/").pop() as string;
-  const { program } = parseSync(fileName, content);
+  const program = parseProgram(fileName, content);
   const mutate = mutantsForNode(content, exhaustive);
   const raw = flatMap((entry: { inNonRuntime: boolean; node: AstNode }) =>
     entry.inNonRuntime ? [] : mutate(entry.node),
@@ -458,5 +459,7 @@ export const generateMutants = (
 /** Apply a mutant to the original source, returning the mutated source. */
 export const applyMutant = (content: string, mutant: Mutant): string => {
   const replacement = mutant.replacement ?? mutant.newOperator;
-  return `${content.slice(0, mutant.start)} ${replacement} ${content.slice(mutant.end)}`;
+  return `${content.slice(0, mutant.start)} ${replacement} ${content.slice(
+    mutant.end,
+  )}`;
 };

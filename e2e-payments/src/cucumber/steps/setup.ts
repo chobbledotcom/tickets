@@ -15,20 +15,19 @@ import {
   waitForHostedCheckout,
 } from "#e2e/flow.ts";
 import { buildOrderCatalog, type OrderCatalog } from "#e2e/order-flow.ts";
+import { refuseOtherProvider } from "#e2e/providers/shared.ts";
 import type { ProviderName } from "#e2e/providers/types.ts";
+import type { LiveTarget } from "#e2e/targets.ts";
 import {
   bookAsVisitor,
   requireNoPaymentIncome,
   requireSingleBooking,
 } from "./pages.ts";
 
-const requireProvider = (world: LiveWorld, name: ProviderName): void => {
-  if (world.target !== name) {
-    throw new Error(
-      `this scenario needs ${name}, but the harness is running the ${world.target} target`,
-    );
-  }
-};
+const refuseAnotherTarget = refuseOtherProvider<LiveTarget>(
+  (wanted, running) =>
+    `this scenario needs ${wanted}, but the harness is running the ${running} target`,
+);
 
 /** Set the target's provider up through the admin settings page. */
 const configureCurrentProvider = async (world: LiveWorld): Promise<void> => {
@@ -55,7 +54,7 @@ const publishPricedListing = async (
 Given(
   /^(Stripe|Square|SumUp) is configured with dedicated (?:test|sandbox) credentials$/,
   async function (this: LiveWorld, name: string): Promise<void> {
-    requireProvider(this, name.toLowerCase() as ProviderName);
+    refuseAnotherTarget(name.toLowerCase() as ProviderName, this.target);
     await configureCurrentProvider(this);
   },
 );
@@ -75,7 +74,7 @@ for (const [text, priceMinor] of PUBLISHED_LISTING_STEPS) {
 Given(
   "a separate visitor has begun paying for a priced listing",
   async function (this: LiveWorld): Promise<void> {
-    requireProvider(this, "stripe");
+    refuseAnotherTarget("stripe", this.target);
     await configureCurrentProvider(this);
     await publishPricedListing(this, config.unitPrice);
     // The visitor submits the booking and is now parked on Stripe Checkout,

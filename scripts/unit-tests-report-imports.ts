@@ -17,6 +17,7 @@
  */
 
 import { sort } from "#fp";
+import { replacing } from "#shared/replacements.ts";
 import {
   hasExemptPrefix,
   isTestableSource,
@@ -133,11 +134,11 @@ export const resolveTestImports = (
 
 /** The bare filename of a path, minus its extension and any `.test` marker, so a
  *  test's stem can be compared to its source's (`name.test.ts` ↔ `name.ts`). */
-const stem = (path: string): string =>
-  path
-    .replace(/^.*\//, "")
-    .replace(/\.test\.(?:ts|tsx)$/, "")
-    .replace(/\.(?:ts|tsx)$/, "");
+const stem = replacing(
+  [/^.*\//, ""],
+  [/\.test\.(?:ts|tsx)$/, ""],
+  [/\.(?:ts|tsx)$/, ""],
+);
 
 /** Sort weight: basename matches (rank 0) come before non-matches (rank 1). */
 const confidenceRank = (entry: MisplacedTest): number =>

@@ -25,7 +25,6 @@ import { existingSitePageIdsStatement } from "#db/site-pages.ts";
 import {
   clauseArgs,
   deleteWhere,
-  equals,
   type WhereClause,
   whereSql,
 } from "#db/where-clauses.ts";
@@ -47,10 +46,7 @@ const SELECT_COLS = "page_id, item_type, item_id, sort_order";
 const itemOnPage = (
   pageId: number,
   target: SitePageItemTarget,
-): WhereClause[] => [
-  ...equals("page_id", pageId),
-  ...sitePageItemTargets.where(target),
-];
+): WhereClause[] => sitePageItemTargets.whereAlso(target, "page_id", pageId);
 
 /**
  * The statement that clears every edge pointing at one listing, group, or page,

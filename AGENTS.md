@@ -1107,6 +1107,18 @@ rules, with their reference implementations:
   (`src/edge.ts`); app boot runs `once()` on the _first request_
   (`src/serve-app.ts`). Module-load work is fine only when pure and cheap (for
   example `defineTable` building its schemas once).
+- **A foundation module must not reach the database.** `#shared/env.ts`,
+  `#shared/now.ts` and the crypto modules load before anything else, so a new
+  import in one of them can close a ring back to itself. Whichever module the
+  runtime then evaluates second reads a name the first has not reached yet, and
+  the app dies at startup with "Cannot access X before initialization". Which
+  module loses that race depends on the entry point, so such a ring can pass the
+  whole Deno suite and take every Cucumber Feature down. When a foundation
+  module needs a helper, put the helper in a module that imports nothing, the
+  way `parseDateMs` sits in `#shared/now.ts` rather than in `#shared/dates.ts`,
+  which reads a site's timezone from the database.
+  `test/integration/import-cycles.test.ts` holds `src/` at the rings it already
+  carries, and that list only shrinks.
 - **Lazy singletons via `once`/`lazyRef` from `#fp`.** The DB client (`getDb` in
   `src/shared/db/client.ts`), the dynamically imported Stripe SDK
   (`src/shared/stripe.ts`), the Liquid email engine, crypto key material — all
@@ -1321,23 +1333,70 @@ merge waiting to happen, and the whole point of this exercise. So:
   strict about which case you are in: if the two bodies call even one function
   in common, you are in the curry case, not this one.
 
-### The seven scans, and how hard each looks
+### The renamed copy jscpd cannot see
+
+jscpd compares the tokens as written, so **renaming one copy hides it**. Two
+functions that do the same job under different names, over differently named
+values, match no token run and pass every jscpd config at 0%. The wrapper scan
+below catches the renamed token run; `deno task check:shapes` reads the other
+half. It reduces each named function's body to its _shape_ — every name, number
+and string becomes one symbol — and reports two functions that share one.
+
+It reports whole named functions, not runs of tokens inside them. That is what
+keeps it readable: a config object handed to a shared factory is the shape this
+codebase wants more of, and it never looks like a function body.
+
+It reads every `.ts`, `.tsx` and `.js` file under the trees `.jscpd.json` scans,
+so a browser script we ship as plain JavaScript is compared too. Words a
+component renders become one string, so two components that differ only in their
+wording share a shape, and rewrapped markup does not change one. `#fp` is
+compared like anything else, and only a group whose every site is inside it is
+dropped: its curried pairs match each other by design, but a body elsewhere that
+copies one of them is a real merge to make — call the helper.
+
+The accepted list at `scripts/check-shapes/accepted/` records every match this
+tree already carries, one per line with the reason it stands, split in two:
+
+- `merges-to-make.txt` — the same thing written twice. Every line is work
+  somebody still has to do. Make the merge, delete the line. **This file is
+  empty**, and that is the state to keep it in: a line added here is a merge
+  somebody owes.
+- `coincidences.txt` — two functions with one shape and no shared step to lift.
+  A line earns this file only after somebody tried writing the curry.
+
+**The list only shrinks.** A match that is not on it fails the check, and an
+entry that matches nothing any more fails too, so a merge has to take its entry
+with it. `MIN_TOKENS` in `scripts/check-shapes/run.ts` ratchets downward the
+same way the numbers in `check:comments` do.
+
+A key is every site as `path::name~fingerprint`, sorted. The fingerprint is
+seven characters over the body's text, read line-trimmed so a deeper nesting
+that only re-indents a listed function changes nothing. Any other edit to the
+body changes it, so the entry goes stale and the check says so — re-read the
+note, then refresh the fingerprints, or delete the entry if the pair no longer
+stands. A rename, a move, or a deletion stales an entry the same way. The report
+prints the `to accept:` line to paste, because no one writes a fingerprint by
+hand.
+
+### The eight scans, and how hard each looks
 
 The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is: it sets the shortest run of tokens that counts as a clone, so a
 lower number is a tighter net. Six configs divide the tree, because helper code,
 test bodies and stylesheets each deserve a different net. The seventh is a
-wrapper scan that catches what renamed words hide from all of them.
+wrapper scan that catches what renamed words hide from all of them. The eighth
+matches whole named functions by shape.
 
-| Config                   | Scans                            | minTokens             |
-| ------------------------ | -------------------------------- | --------------------- |
-| `.jscpd.json`            | `src`, `e2e-payments`, `scripts` | 19                    |
-| `.jscpd.specs.json`      | `src` + `test/specs/support`     | 19                    |
-| `.jscpd.support.json`    | `test/specs/support`             | 18                    |
-| `.jscpd.helpers.json`    | `src` + `test/test-utils`        | 40                    |
-| `.jscpd.test.json`       | `test`                           | 48                    |
-| `.jscpd.css.json`        | `src/ui/static/style.scss`       | 50                    |
-| `scripts/cpd-renamed.ts` | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
+| Config                    | Scans                            | minTokens             |
+| ------------------------- | -------------------------------- | --------------------- |
+| `.jscpd.json`             | `src`, `e2e-payments`, `scripts` | 19                    |
+| `.jscpd.specs.json`       | `src` + `test/specs/support`     | 19                    |
+| `.jscpd.support.json`     | `test/specs/support`             | 18                    |
+| `.jscpd.helpers.json`     | `src` + `test/test-utils`        | 40                    |
+| `.jscpd.test.json`        | `test`                           | 48                    |
+| `.jscpd.css.json`         | `src/ui/static/style.scss`       | 50                    |
+| `scripts/cpd-renamed.ts`  | `src`, `e2e-payments`, `scripts` | 17 + word-only filter |
+| `scripts/check-shapes.ts` | `src`, `e2e-payments`, `scripts` | 20, whole functions   |
 
 Both helper trees are scanned **alongside `src/`**, so a helper that
 reimplements production logic is flagged against the source it copied. A
@@ -1519,6 +1578,9 @@ query logging and table-scoped cache invalidation stay automatic.
   confirms by typed site name before changing anything, and prints the new
   `DB_URL`/`DB_TOKEN` so they can be set by hand if the secret update fails. The
   site keeps its existing `DB_ENCRYPTION_KEY`.
+- `deno task check:shapes` - Report two named functions that share a shape under
+  different names — the duplication jscpd cannot see (see
+  [The renamed copy jscpd cannot see](#the-renamed-copy-jscpd-cannot-see))
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The precommit mutation gate, runnable on its
   own: mutation-test every `src/` file this branch changed and demand a 100%

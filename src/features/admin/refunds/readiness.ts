@@ -1,7 +1,10 @@
 import type { TaggedRefundPaymentReference } from "#db/payment-references.ts";
 import { requiredMapValue, uniqueBy } from "#fp";
 import type { ProviderRead } from "#payment/provider-read.ts";
-import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import {
+  type TaggedPaymentReference,
+  taggedPaymentReference,
+} from "#payment/provider-reference.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
 import {
   loadRefundProvider,
@@ -83,11 +86,8 @@ const uniqueReferences = (
 
 const providerIdentity = (
   reference: TaggedRefundPaymentReference,
-): TaggedPaymentReference => ({
-  kind: "tagged",
-  provider: reference.provider,
-  reference: reference.reference,
-});
+): TaggedPaymentReference =>
+  taggedPaymentReference(reference.provider, reference.reference);
 
 type PreparedReference =
   | {

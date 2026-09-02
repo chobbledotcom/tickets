@@ -7,11 +7,13 @@ import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import {
   type BulkEmailDraft,
-  type ComposeControl,
-  type ComposeCopy,
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
-  targetQuery,
 } from "#shared/bulk-email.ts";
+import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
+import type {
+  ComposeControl,
+  ComposeCopy,
+} from "#shared/bulk-email-targets/types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";

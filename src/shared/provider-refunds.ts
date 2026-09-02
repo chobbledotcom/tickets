@@ -3,6 +3,7 @@
 /* jscpd:ignore-start -- imports */
 import type { RefundAuthorityRow } from "#db/provider-refund-authority.ts";
 import { markRefundAuthorityRecorded } from "#db/provider-refund-authority-change.ts";
+import { mapParallel } from "#fp";
 import {
   admitObservedRefund,
   type ObservedRefundAdmission,
@@ -284,7 +285,9 @@ export const requestProviderRefunds = (
   targets: readonly ProviderRefundTarget[],
   dependencies: ProviderRefundDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<ProviderRefundResult[]> =>
-  Promise.all(targets.map((target) => requestOne(target, dependencies)));
+  mapParallel((target: ProviderRefundTarget) =>
+    requestOne(target, dependencies),
+  )(targets);
 
 /** A single refund is the one-or-many operation with an array of one. */
 export const requestProviderRefund = async (

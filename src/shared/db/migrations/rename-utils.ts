@@ -1,4 +1,5 @@
 import { countRows, getDb } from "#db/client.ts";
+import { escapeRegExp } from "#shared/regexp.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import {
   currentSchemaColumnsPresentIn,
@@ -114,9 +115,6 @@ const countColumnValueStats = async ({
     targetCount: Number(row.target_count),
   };
 };
-
-const escapeRegExp = (value: string): string =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const sqlIdentifierPattern = (name: string): RegExp =>
   new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(name)}(?![A-Za-z0-9_])`);
