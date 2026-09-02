@@ -2,6 +2,7 @@
  * Admin attendee merge routes
  */
 
+import { pick } from "@std/collections";
 import { logActivity } from "#db/activity-log.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { decryptAttendeeOrNull, decryptAttendees } from "#db/attendees/pii.ts";
@@ -34,8 +35,6 @@ import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
   MergeAnswerChoice,
-  MergeBookingChoice,
-  MergeMoneyChoice,
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ParamsRoute } from "#shared/response-steps.ts";
@@ -112,22 +111,19 @@ const collectListingIds = (
 type MergeSource = NonNullable<Awaited<ReturnType<typeof loadMergeSource>>>;
 type MergeSummary = Awaited<ReturnType<typeof applyAttendeeMerge>>["summary"];
 
-/** Extract PII subset for merge diff/apply input */
-const extractSourcePii = (source: MergeSource) => ({
-  address: source.address,
-  email: source.email,
-  name: source.name,
-  phone: source.phone,
-  special_instructions: source.special_instructions,
-});
+/** The five values a merge compares, whichever attendee they are read off. */
+const PII_FIELDS = [
+  "address",
+  "email",
+  "name",
+  "phone",
+  "special_instructions",
+] as const;
 
-const extractTargetPii = (target: Attendee) => ({
-  address: target.address,
-  email: target.email,
-  name: target.name,
-  phone: target.phone,
-  special_instructions: target.special_instructions,
-});
+type MergePii = Pick<Attendee, (typeof PII_FIELDS)[number]>;
+
+/** The values a merge compares, read off either attendee. */
+const extractPii = (person: MergePii): MergePii => pick(person, PII_FIELDS);
 
 /** Build merge diff from source + target */
 const buildMergeDiffFor = async (
@@ -143,10 +139,10 @@ const buildMergeDiffFor = async (
     {
       sourceBookings: source.bookings,
       sourceId: source.id,
-      sourcePii: extractSourcePii(source),
+      sourcePii: extractPii(source),
       targetBookings,
       targetId: attendeeId,
-      targetPii: extractTargetPii(target),
+      targetPii: extractPii(target),
     },
     questions,
   );
@@ -321,10 +317,10 @@ const applyMergeDecisions = async (
     diff,
     privateKey: await requireRequestPrivateKey(),
     sourceId: source.id,
-    sourcePii: extractSourcePii(source),
+    sourcePii: extractPii(source),
     targetId: attendeeId,
     targetPii: {
-      ...extractTargetPii(target),
+      ...extractPii(target),
       payment_id: target.payment_id,
       ticket_token: target.ticket_token,
     },
@@ -348,6 +344,21 @@ const applyMergeDecisions = async (
   );
 };
 
+/**
+ * Reads one of a set of choices off the form. A value we do not know falls
+ * back, and a fallback of `undefined` leaves the choice to the operator.
+ */
+const oneChoiceOf =
+  <TChoice extends string, TFallback extends TChoice | undefined>(
+    known: readonly TChoice[],
+    fallback: TFallback,
+  ): ((raw: string) => TChoice | TFallback) =>
+  (raw) =>
+    known.find((choice) => choice === raw) ?? fallback;
+
+/** Which side a PII field takes; anything but "source" keeps the target. */
+const toPiiChoice = oneChoiceOf(["source", "target"], "target");
+
 /** Parse PII decisions from form (each field: "source" or "target") */
 const parsePiiDecisions = (
   form: FormParams,
@@ -356,17 +367,13 @@ const parsePiiDecisions = (
   const pii: Record<string, MergeValueChoice> = {};
   for (const field of diff.piiFields) {
     const val = form.getString(`pii_${field.field}`);
-    pii[field.field] = val === "source" ? "source" : "target";
+    pii[field.field] = toPiiChoice(val);
   }
   return pii;
 };
 
 /** Normalize a raw answer choice string into a MergeAnswerChoice */
-const toAnswerChoice = (raw: string): MergeAnswerChoice => {
-  if (raw === "source") return "source";
-  if (raw === "clear") return "clear";
-  return "target";
-};
+const toAnswerChoice = oneChoiceOf(["source", "clear", "target"], "target");
 
 /** Parse answer decisions from form (only conflicting items) */
 const parseAnswerDecisions = (
@@ -384,11 +391,10 @@ const parseAnswerDecisions = (
 };
 
 /** Normalize a raw booking choice string into a MergeBookingChoice */
-const toBookingChoice = (raw: string): MergeBookingChoice => {
-  if (raw === "take_source") return "take_source";
-  if (raw === "skip_source") return "skip_source";
-  return "keep_target";
-};
+const toBookingChoice = oneChoiceOf(
+  ["take_source", "skip_source", "keep_target"],
+  "keep_target",
+);
 
 /** Build a per-conflict decision Record by parsing each NON-moveable booking's
  *  form field (keyed by "listingId:startAt"). A `parse` result of `undefined`
@@ -406,33 +412,25 @@ const parseConflictDecisions = <T>(
   return out;
 };
 
+/** Reads one decision per conflicting booking, from the fields a prefix names. */
+const conflictDecisions =
+  <T>(prefix: string, toChoice: (raw: string) => T | undefined) =>
+  (form: FormParams, diff: AttendeeMergeDiff): Record<string, T> =>
+    parseConflictDecisions(diff, (key) =>
+      toChoice(form.getString(`${prefix}_${key}`)),
+    );
+
 /** Parse booking decisions from form (only non-moveable items) */
-const parseBookingDecisions = (
-  form: FormParams,
-  diff: AttendeeMergeDiff,
-): Record<string, MergeBookingChoice> =>
-  parseConflictDecisions(diff, (key) =>
-    toBookingChoice(form.getString(`booking_${key}`)),
-  );
+const parseBookingDecisions = conflictDecisions("booking", toBookingChoice);
 
 /** Normalize a raw money choice; an empty/unknown value is left ABSENT so
  *  validation can require an explicit decision (decision 17 — never defaulted). */
-const toMoneyChoice = (raw: string): MergeMoneyChoice | undefined => {
-  if (raw === "credit") return "credit";
-  if (raw === "writeoff") return "writeoff";
-  return;
-};
+const toMoneyChoice = oneChoiceOf(["credit", "writeoff"], undefined);
 
 /** Parse money decisions from form (only conflicting items); a blank choice is
  *  omitted so validateAttendeeMergeDecision rejects the merge until the operator
  *  decides what happens to the discarded booking's money. */
-const parseMoneyDecisions = (
-  form: FormParams,
-  diff: AttendeeMergeDiff,
-): Record<string, MergeMoneyChoice> =>
-  parseConflictDecisions(diff, (key) =>
-    toMoneyChoice(form.getString(`money_${key}`)),
-  );
+const parseMoneyDecisions = conflictDecisions("money", toMoneyChoice);
 
 /** Parse merge decision form data into AttendeeMergeDecisionInput */
 const parseMergeDecisionForm = (

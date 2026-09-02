@@ -11,6 +11,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
+import { emptyListsFor } from "#fp";
 import { serveAndDrain } from "./serve-request.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, medianAbsoluteDeviation } from "./strip-lib.ts";
@@ -23,7 +24,6 @@ import {
   benchmarkListingName,
   requireBenchmarkCatalogue,
   requiredEnv,
-  sampleMap,
   samplesFor,
 } from "./support.ts";
 
@@ -283,7 +283,7 @@ const main = async (): Promise<void> => {
     log("Preparing migrated, setup-complete database file...");
     await prepareDatabase();
 
-    const samples = sampleMap<number, ChildReport>(LATENCIES_MS);
+    const samples = emptyListsFor<number, ChildReport>(LATENCIES_MS);
     const runs: ChildReport[][] = [];
     // Balanced rotation: every latency occupies every position twice.
     for (let run = 0; run < RUNS; run++) {

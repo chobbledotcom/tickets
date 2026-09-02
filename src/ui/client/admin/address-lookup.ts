@@ -16,6 +16,7 @@
 // Type-only: erased at bundle time, so the server module never ships to the
 // browser — the client just shares the endpoint's AddressMatch shape.
 import type { AddressMatch } from "#shared/address-lookup/types.ts";
+import { forEachMatch } from "#src/ui/client/dom.ts";
 import { renderAddressDiff } from "./address-diff.ts";
 import { findPinInputs } from "./pin-inputs.ts";
 
@@ -193,10 +194,5 @@ const setupPanel = (panel: HTMLElement): void => {
 };
 
 /** Boot every address-lookup panel on the page. */
-export const initAddressLookup = (): void => {
-  for (const panel of document.querySelectorAll<HTMLElement>(
-    "[data-address-lookup]",
-  )) {
-    setupPanel(panel);
-  }
-};
+export const initAddressLookup = (): void =>
+  forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);

@@ -26,14 +26,32 @@ const encoder = new TextEncoder();
 export const encodeBody = (text: string): ArrayBuffer =>
   encoder.encode(text).buffer as ArrayBuffer;
 
+/** One response builder of a kind: a body, and a status that defaults to 200. */
+export type EncodedResponse = (body: string, status?: number) => Response;
+
 /**
- * Create HTML response
+ * A response of one kind, ready to take a body. Every kind we send is text we
+ * built ourselves, so the charset is always UTF-8.
  */
-export const htmlResponse = (html: string, status = 200): Response =>
-  new Response(encodeBody(html), {
-    headers: { "content-type": "text/html; charset=utf-8" },
-    status,
-  });
+const encodedResponse =
+  (contentType: string): EncodedResponse =>
+  (body, status = 200) =>
+    new Response(encodeBody(body), {
+      headers: { "content-type": `${contentType}; charset=utf-8` },
+      status,
+    });
+
+/**
+ * Hand on something that was loaded, unless it came back as a Response. A
+ * Response is already the answer — a 404, a 400 — so it goes straight back.
+ */
+export const orResponse = async <T>(
+  loaded: T | Response,
+  use: (value: T) => Response | Promise<Response>,
+): Promise<Response> => (loaded instanceof Response ? loaded : use(loaded));
+
+/** Create HTML response */
+export const htmlResponse: EncodedResponse = encodedResponse("text/html");
 
 /**
  * Create 404 not found response
@@ -194,39 +212,22 @@ export const errorRedirect = (
 export const infoRedirect = (url: string, message: string): Response =>
   redirect(url, message, true, { level: "info" });
 
-/**
- * Create JSON response
- */
+const jsonBody = encodedResponse("application/json");
+
+/** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
-  new Response(encodeBody(JSON.stringify(data)), {
-    headers: { "content-type": "application/json; charset=utf-8" },
-    status,
-  });
+  jsonBody(JSON.stringify(data), status);
 
-/**
- * Create plain text response
- */
-export const plainResponse = (text: string, status = 200): Response =>
-  new Response(encodeBody(text), {
-    headers: { "content-type": "text/plain; charset=utf-8" },
-    status,
-  });
+/** Create plain text response */
+export const plainResponse: EncodedResponse = encodedResponse("text/plain");
 
-/**
- * Create iCalendar response
- */
-export const icsResponse = (ics: string): Response =>
-  new Response(encodeBody(ics), {
-    headers: { "content-type": "text/calendar; charset=utf-8" },
-  });
+/** Create iCalendar response */
+export const icsResponse: EncodedResponse = encodedResponse("text/calendar");
 
-/**
- * Create RSS/XML response
- */
-export const rssResponse = (xml: string): Response =>
-  new Response(encodeBody(xml), {
-    headers: { "content-type": "application/rss+xml; charset=utf-8" },
-  });
+/** Create RSS/XML response */
+export const rssResponse: EncodedResponse = encodedResponse(
+  "application/rss+xml",
+);
 
 /**
  * Build a file-download response: the body, a fixed content-type, and a

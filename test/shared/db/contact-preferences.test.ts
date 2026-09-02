@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/keys.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute, queryOne } from "#db/client.ts";
 import {
   contactHash,
@@ -18,7 +19,6 @@ import {
   recordContacts,
   resubscribeHash,
   saveContactRecord,
-  toContactHashParam,
   unsubscribeHash,
 } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
@@ -85,7 +85,7 @@ describeWithEnv("contact-preferences: hashing", { db: true }, () => {
     // base64 hashes can contain +, / and =, which break a URL path segment;
     // the param form must strip them and decode back to the exact hash.
     const hash = await hashEmail("urlsafe@example.com");
-    const param = toContactHashParam(hash);
+    const param = base64ToBase64Url(hash);
     expect(param).not.toMatch(/[+/=]/);
     expect(fromContactHashParam(param)).toBe(hash);
   });
@@ -93,7 +93,7 @@ describeWithEnv("contact-preferences: hashing", { db: true }, () => {
   test("toContactHashParam makes a slash-bearing base64 hash URL-safe", () => {
     // Synthetic base64 with the exact characters that break path routing.
     const raw = "ab+cd/efGHij/klMNop/qrSTuv==";
-    const param = toContactHashParam(raw);
+    const param = base64ToBase64Url(raw);
     expect(param).not.toMatch(/[+/=]/);
     expect(fromContactHashParam(param)).toBe(raw);
   });

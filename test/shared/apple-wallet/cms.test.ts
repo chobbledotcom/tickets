@@ -2,12 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import {
-  bytesEqual,
   encodeInteger,
   readDerChildren,
   readDerSequence,
   requireDerTag,
 } from "#crypto/der.ts";
+import { sameOrder } from "#fp";
 import { readCertificateBytes } from "#shared/apple-wallet/certificate.ts";
 import {
   isValidAppleSigningPair,
@@ -175,7 +175,7 @@ describe("Apple Wallet signing", () => {
     const intermediate = readCertificateBytes(intermediatePem);
     expect(
       certificates.some((certificate) =>
-        bytesEqual(certificate.encoded, intermediate),
+        sameOrder(certificate.encoded, intermediate),
       ),
     ).toBe(true);
   });

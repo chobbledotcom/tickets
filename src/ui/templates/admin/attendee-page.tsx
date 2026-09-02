@@ -12,7 +12,7 @@ import type { ContactRecord } from "#db/contact-preferences.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { targetQuery } from "#shared/bulk-email.ts";
+import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { renderMarkdown } from "#shared/markdown.ts";

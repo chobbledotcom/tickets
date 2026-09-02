@@ -128,14 +128,30 @@ const accountDescription =
   (transfer, accountCell) =>
     sentenceWithAccount(key, humanAccount(transfer, accountType), accountCell);
 
-const serviceCostDescription: DescriptionRule = (transfer, accountCell) =>
-  sentenceWithAccount(
-    transfer.source.type === COST
-      ? "admin.ledger.human.service_cost"
-      : "admin.ledger.human.service_cost_reduction",
-    humanAccount(transfer, COST),
-    accountCell,
-  );
+/**
+ * A sentence that reads one way when the money went one direction and another
+ * when it came back, naming the account either way.
+ */
+const eitherWayDescription =
+  (
+    accountType: string,
+    wentOut: (transfer: Transfer) => boolean,
+    outKey: string,
+    backKey: string,
+  ): DescriptionRule =>
+  (transfer, accountCell) =>
+    sentenceWithAccount(
+      wentOut(transfer) ? outKey : backKey,
+      humanAccount(transfer, accountType),
+      accountCell,
+    );
+
+const serviceCostDescription = eitherWayDescription(
+  COST,
+  (transfer) => transfer.source.type === COST,
+  "admin.ledger.human.service_cost",
+  "admin.ledger.human.service_cost_reduction",
+);
 
 const serviceCostAmount: AmountRule = (transfer) =>
   transfer.source.type === COST ? -transfer.amount : transfer.amount;
@@ -148,14 +164,12 @@ const adjustmentAmount: AmountRule = (transfer) => {
     : transfer.amount;
 };
 
-const modifierDescription: DescriptionRule = (transfer, accountCell) =>
-  sentenceWithAccount(
-    transfer.destination.type === MODIFIER
-      ? "admin.ledger.human.modifier_increase"
-      : "admin.ledger.human.modifier_reduce",
-    humanAccount(transfer, MODIFIER),
-    accountCell,
-  );
+const modifierDescription = eitherWayDescription(
+  MODIFIER,
+  (transfer) => transfer.destination.type === MODIFIER,
+  "admin.ledger.human.modifier_increase",
+  "admin.ledger.human.modifier_reduce",
+);
 
 const modifierAmount: AmountRule = (transfer) =>
   transfer.destination.type === MODIFIER ? transfer.amount : -transfer.amount;

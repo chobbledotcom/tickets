@@ -12,6 +12,7 @@
  * in a name is percent-encoded.
  */
 
+import { shortHash } from "#scripts/checksum.ts";
 import { percentEncode } from "./percent-encode.ts";
 
 /** Characters an anchor segment may hold unencoded: the ones an identifier or
@@ -24,18 +25,6 @@ const encodeName = (name: string): string =>
   [...name]
     .map((char) => (SAFE_IN_NAME.test(char) ? char : percentEncode(char)))
     .join("");
-
-/** FNV-1a over the expression's text. Short and stable is all this needs to
- * be: it tells two expressions under one name apart, and changes when the
- * expression it was recorded against changes. */
-const fingerprint = (text: string): string => {
-  let hash = 0x811c9dc5;
-  for (const char of text) {
-    hash ^= char.codePointAt(0)!;
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(36).padStart(7, "0").slice(-7);
-};
 
 interface Span {
   end: number;
@@ -279,7 +268,7 @@ export const anchorMutants = <M extends HasLocation>(
     const text = content.slice(context.start, context.end);
     return {
       ...mutant,
-      base: `${name}~${fingerprint(text)}`,
+      base: `${name}~${shortHash(text)}`,
     };
   });
   const totals = new Map<string, number>();

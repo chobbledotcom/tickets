@@ -27,7 +27,7 @@
 
 import { join } from "node:path";
 import * as v from "valibot";
-import { unique } from "#fp";
+import { sameOrder, unique } from "#fp";
 import { sha256Hex } from "#scripts/checksum.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -93,9 +93,6 @@ const sameFile = (
   current: TrackedFile | null,
 ): boolean => current !== null && current.hash === recorded.hash;
 
-const sameList = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((entry, index) => entry === b[index]);
-
 /**
  * Can the assets on disk be trusted? Pure: `look` reports how each recorded
  * file looks now. True only when the bundles are the ones we build today and
@@ -106,7 +103,7 @@ export const manifestStillMatches = (
   outputs: readonly string[],
   look: (path: string) => TrackedFile | null,
 ): boolean =>
-  sameList(manifest.outputs, outputs) &&
+  sameOrder(manifest.outputs, outputs) &&
   manifest.files.every((recorded) => sameFile(recorded, look(recorded.path)));
 
 /** How each recorded file looks on disk now. A path the record never mentioned

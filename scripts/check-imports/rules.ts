@@ -1,22 +1,20 @@
-/**
- * Pure rules for the import checks. Everything here works on text plus the
- * alias table, so the IO shell in `run.ts` only has to find the files.
- */
-
+import { mapNotNullish } from "#fp";
 import { byLine } from "#scripts/check-report.ts";
+import { lineColumnAt } from "#scripts/line-column.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
+import { blankSpans } from "#scripts/typescript-lex.ts";
 
-/** One `#` alias from the import map. A name ending in `/` covers a folder. */
 export interface Alias {
   name: string;
   target: string;
 }
 
-/** Where one import statement sits, and what shape it has. */
 export interface ImportLine {
   line: number;
-  /** True when the statement only brings in names inside `{ }`. */
   namesOnly: boolean;
+  reExport: boolean;
   specifier: string;
+  typeOnly: boolean;
 }
 
 export interface ImportIssue {
@@ -26,12 +24,7 @@ export interface ImportIssue {
 
 const isFolder = (alias: Alias): boolean => alias.name.endsWith("/");
 
-/**
- * Read `text` on one side of an alias and write it out on the other. A folder
- * alias keeps whatever followed the prefix; a plain alias only matches the
- * whole thing. Reading a specifier and writing a spelling are this one
- * translation, run in opposite directions.
- */
+/** Translate between alias names and targets while folder aliases keep suffixes. */
 const across =
   (
     from: keyof Alias,
@@ -43,29 +36,18 @@ const across =
     return alias[to] + text.slice(alias[from].length);
   };
 
-/** The file an alias points at, or null when the alias does not cover it. */
 const pathFor = across("name", "target");
 
 const nameFor = across("target", "name");
 
-/**
- * Whether an alias is one we ask people to write. A folder alias and a one-word
- * alias such as `#types` both are. `#jsx/jsx-runtime` is not: it names a module
- * without its extension for the JSX transform to emit, and no hand-written
- * import spells a module that way.
- */
+/** Whether people write this alias rather than a JSX transform. */
 const isSpellable = (alias: Alias): boolean =>
   isFolder(alias) || !alias.name.includes("/");
 
-/** How an alias would spell `path`, or null when it cannot reach it. */
 const spellingFor = (alias: Alias, path: string): string | null =>
   isSpellable(alias) ? nameFor(alias, path) : null;
 
-/**
- * The winning answer the alias table gives, or null when no alias reaches.
- * `answerFrom` reads one alias, and `beats` says which of two answers wins.
- * Both lookups below are this one walk over the table.
- */
+/** Find the best non-null answer from the alias table. */
 const bestFromAliases = <T>(
   aliases: Alias[],
   answerFrom: (alias: Alias) => T | null,
@@ -80,10 +62,7 @@ const bestFromAliases = <T>(
   return best;
 };
 
-/**
- * The file `specifier` names. Longest alias wins, the way the runtime resolves
- * it, so `#db/x.ts` beats the broader `#shared/` reading of the same path.
- */
+/** Resolve a specifier through its longest matching alias. */
 export const resolveSpecifier = (
   aliases: Alias[],
   specifier: string,
@@ -99,10 +78,7 @@ export const resolveSpecifier = (
   return best === null ? null : best.path;
 };
 
-/**
- * The one spelling we want for `path`: the shortest, then the alphabetically
- * first so two equally short aliases still give one answer.
- */
+/** Choose the shortest alias, then the first in alphabetical order. */
 export const bestSpelling = (aliases: Alias[], path: string): string | null =>
   bestFromAliases(
     aliases,
@@ -112,45 +88,53 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null =>
       (spelling.length === best.length && spelling < best),
   );
 
-/**
- * Every top-level import in `content`. A line that starts in column 0 is the
- * only one that counts, so an example import quoted inside a string is not
- * mistaken for the real thing. The module name is read from the line that ends
- * the statement, which is the line carrying `from`, and the shape from the line
- * that opens it.
- */
-export const topLevelImports = (content: string): ImportLine[] => {
-  const found: ImportLine[] = [];
-  let open: { head: string; line: number } | null = null;
-  for (const [index, line] of content.split("\n").entries()) {
-    if (open === null && /^import[\s{"']/.test(line)) {
-      open = { head: line, line: index + 1 };
-    }
-    if (open === null) continue;
-    const isEnd =
-      /from\s+["']/.test(line) || /^import\s+["'][^"']*["']/.test(line);
-    if (!isEnd) continue;
-    const specifier = line.match(/from\s+["']([^"']+)["']/)?.[1];
-    if (specifier !== undefined) {
-      found.push({
-        line: open.line,
-        namesOnly: /^import\s+(type\s+)?\{/.test(open.head),
-        specifier,
-      });
-    }
-    open = null;
+type ProgramStatement = ReturnType<typeof parseProgram>["body"][number];
+
+const moduleLineFrom = (
+  content: string,
+  statement: ProgramStatement,
+): ImportLine | null => {
+  if (statement.type === "ImportDeclaration") {
+    const beforeSource = blankSpans(
+      content.slice(statement.start, statement.source.start),
+      true,
+    );
+    return {
+      line: lineColumnAt(content, statement.start).line,
+      namesOnly:
+        /\bfrom\s*$/.test(beforeSource) &&
+        statement.specifiers.every(({ type }) => type === "ImportSpecifier"),
+      reExport: false,
+      specifier: statement.source.value,
+      typeOnly: statement.importKind === "type",
+    };
   }
-  return found;
+  if (
+    statement.type !== "ExportNamedDeclaration" &&
+    statement.type !== "ExportAllDeclaration"
+  ) {
+    return null;
+  }
+  if (statement.source === null) return null;
+  return {
+    line: lineColumnAt(content, statement.start).line,
+    namesOnly: false,
+    reExport: true,
+    specifier: statement.source.value,
+    typeOnly: statement.exportKind === "type",
+  };
 };
 
-/**
- * Imports of one module split across two statements. Only a pair that both
- * bring in names can merge, so a namespace import beside named ones is left
- * alone: it reads the whole module on purpose.
- */
+export const topLevelImports = (file: string, content: string): ImportLine[] =>
+  mapNotNullish((statement: ProgramStatement) =>
+    moduleLineFrom(content, statement),
+  )(parseProgram(file, content).body);
+
+/** Find named imports that can merge. Namespace imports remain separate. */
 const findSplitImports = (imports: ImportLine[]): ImportIssue[] => {
   const bySpecifier = new Map<string, ImportLine[]>();
   for (const entry of imports) {
+    if (entry.reExport) continue;
     const found = bySpecifier.get(entry.specifier);
     if (found) found.push(entry);
     else bySpecifier.set(entry.specifier, [entry]);
@@ -166,7 +150,6 @@ const findSplitImports = (imports: ImportLine[]): ImportIssue[] => {
   return issues;
 };
 
-/** Imports that spell a module a longer way than its own alias allows. */
 const findLongSpellings = (
   aliases: Alias[],
   imports: ImportLine[],
@@ -185,12 +168,12 @@ const findLongSpellings = (
   return issues;
 };
 
-/** Everything wrong with one file's imports, in line order. */
 export const findImportIssues = (
+  file: string,
   content: string,
   aliases: Alias[],
 ): ImportIssue[] => {
-  const imports = topLevelImports(content);
+  const imports = topLevelImports(file, content);
   return [
     ...findSplitImports(imports),
     ...findLongSpellings(aliases, imports),

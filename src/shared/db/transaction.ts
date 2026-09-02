@@ -19,3 +19,17 @@ export const txIdSet = async (
 export class TransactionValidationError extends namedError(
   "TransactionValidationError",
 ) {}
+
+/** Stops the containing write when a check has something to say about it.
+ *  A check that finds nothing wrong answers null, and the write carries on. */
+export const refuseTheWriteOn = (error: string | null): void => {
+  if (error) throw new TransactionValidationError(error);
+};
+
+/** The same check, wrapped so the caller runs it and stops on what it finds. */
+export const refusingTheWriteOn =
+  <TArgs extends unknown[]>(
+    check: (...args: TArgs) => Promise<string | null>,
+  ): ((...args: TArgs) => Promise<void>) =>
+  async (...args) =>
+    refuseTheWriteOn(await check(...args));

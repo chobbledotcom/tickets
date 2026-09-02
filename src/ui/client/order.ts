@@ -19,7 +19,7 @@ import type {
   Catalog,
   CatalogListing as CatalogEntry,
 } from "#shared/external-order.ts";
-import { createButton, forEachAnchor } from "./dom.ts";
+import { createButton, forEachMatch } from "./dom.ts";
 
 // Injected by the server immediately above this module body.
 declare const CATALOG: Catalog;
@@ -516,7 +516,8 @@ const init = (): void => {
     });
   };
 
-  const scan = (): void => forEachAnchor("a[data-add-listing]", enhance);
+  const scan = (): void =>
+    forEachMatch<HTMLAnchorElement>("a[data-add-listing]", enhance);
 
   scan();
   new MutationObserver(scan).observe(document.body, {

@@ -9,6 +9,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/keys.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
+import { mapParallel } from "#fp";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 
 type SealedNote = OwnerKeyEncrypted | EnvKeyEncrypted;
@@ -52,4 +53,4 @@ export const openNotes = (
   rows: SystemNoteRow[],
   privateKey: CryptoKey,
 ): Promise<SystemNote[]> =>
-  Promise.all(rows.map((row) => openNote(row, privateKey)));
+  mapParallel((row: SystemNoteRow) => openNote(row, privateKey))(rows);

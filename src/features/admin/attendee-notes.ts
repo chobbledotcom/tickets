@@ -17,7 +17,12 @@ import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
 import { AUTH_FORM, formGuard, requireSessionOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler } from "#routes/entity.ts";
-import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import {
+  htmlResponse,
+  notFoundResponse,
+  orResponse,
+  redirect,
+} from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -52,10 +57,7 @@ const loadAttendeeOr404 = async (
 const withLoadedAttendee = async (
   attendeeId: number,
   then: ResponseHandler<[attendee: Attendee]>,
-): Promise<Response> => {
-  const attendee = await loadAttendeeOr404(attendeeId);
-  return attendee instanceof Response ? attendee : then(attendee);
-};
+): Promise<Response> => orResponse(await loadAttendeeOr404(attendeeId), then);
 
 type NoteRouteParams = { attendeeId: number; noteId: number };
 const loadNote = async ({

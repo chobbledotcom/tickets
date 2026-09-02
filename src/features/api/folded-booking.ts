@@ -1,5 +1,4 @@
 /* jscpd:ignore-start */
-import * as v from "valibot";
 import { buildBookingTree } from "#booking/build-tree.ts";
 import type { FoldBase, FoldChildrenResult } from "#booking/fold-tree.ts";
 import { buildOrderLines, nodeQuantitiesFor } from "#booking/order-lines.ts";
@@ -39,6 +38,7 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import {
   extractContact,
@@ -53,10 +53,7 @@ import { type ContactInfo, isPaidListing, type ListingWithCount } from "#types";
 export const parseApiChildSelections = (
   body: Record<string, unknown>,
   schema: typeof ChildrenSchema | typeof PackageChildrenSchema = ChildrenSchema,
-): ApiChildSelection[] | null => {
-  const result = v.safeParse(schema, body.children);
-  return result.success ? result.output : null;
-};
+): ApiChildSelection[] | null => parseOrNull(schema, body.children);
 
 /** Translate one parent's resolved child selections into the `child_qty_*` /
  * `child_price_*` fields the shared fold reads on `form`, resolving each

@@ -79,11 +79,19 @@ export const setBuildTimestampForTest = (ts: string | null): void => {
   setBuildTimestampOverride(ts);
 };
 
+/** Reads a constant the build baked in, unless a test stood one in front. */
+const effectiveValue =
+  (readOverride: () => string | null, baked: string): (() => string) =>
+  () => {
+    const override = readOverride();
+    return override === null ? baked : override;
+  };
+
 /** Get the effective build timestamp (override or real). */
-const getEffectiveBuildTimestamp = (): string => {
-  const override = getBuildTimestampOverride();
-  return override === null ? BUILD_TIMESTAMP : override;
-};
+const getEffectiveBuildTimestamp = effectiveValue(
+  getBuildTimestampOverride,
+  BUILD_TIMESTAMP,
+);
 
 /** Override for BUILD_COMMIT in tests; null falls back to the compile-time constant. */
 const [getBuildCommitOverride, setBuildCommitOverride] = lazyRef<string | null>(
@@ -96,10 +104,10 @@ export const setBuildCommitForTest = (commit: string | null): void => {
 };
 
 /** Get the effective build commit (override or real). */
-const getEffectiveBuildCommit = (): string => {
-  const override = getBuildCommitOverride();
-  return override === null ? BUILD_COMMIT : override;
-};
+const getEffectiveBuildCommit = effectiveValue(
+  getBuildCommitOverride,
+  BUILD_COMMIT,
+);
 
 /**
  * Check if a release tag is newer than a build timestamp. Defaults to this

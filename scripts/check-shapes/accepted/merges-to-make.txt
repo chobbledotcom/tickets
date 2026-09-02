@@ -1,0 +1,11 @@
+# Functions that share a shape because they are the same thing twice.
+#
+# This file is empty, and that is the state to keep it in. Every merge it once
+# held is made, so a new line here is a merge somebody owes. Make the merge and
+# delete the line. See "Code Duplication" in AGENTS.md for how: a helper first,
+# a curry when no helper jumps out.
+#
+# A group whose sites are not all one thing still belongs here when any two of
+# them are. Merging that pair breaks the group up, and the entry goes with it.
+#
+# Format: the match, two spaces, then `# why it is still here`.

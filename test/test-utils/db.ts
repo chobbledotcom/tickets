@@ -13,10 +13,7 @@ import { runCleanups } from "#scripts/cleanup.ts";
 import { invalidateCachesForTable } from "#shared/cache-registry.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
-import {
-  resetHostEmailConfig,
-  setHostEmailConfigForTest,
-} from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import { setStorageConfigForTest } from "#shared/storage.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
 import {
@@ -204,7 +201,7 @@ export const resetDb = (): void => {
     setTestSession(null);
     setDemoModeForTest(false);
     resetEffectiveDomain();
-    resetHostEmailConfig();
+    hostEmail.resetOverride();
     settings.appleWallet.resetHostConfig();
     settings.googleWallet.resetHostConfig();
     settings.clearTestOverrides();
@@ -217,7 +214,7 @@ export const setupTestDbEnvironment = async (
   triggers = false,
 ): Promise<() => void> => {
   resetTestSlugCounter();
-  setHostEmailConfigForTest(null);
+  hostEmail.setOverride(null);
   settings.appleWallet.setHostConfigForTest(null);
   settings.googleWallet.setHostConfigForTest(null);
   await createTestDbWithSetup("GB", triggers);

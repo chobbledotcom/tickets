@@ -232,12 +232,12 @@ the pairs whose two sides share their whole punctuation shape — identical text
 or the same shape with different words. Import spans are skipped (the one
 sanctioned repeat), and the registry itself is excluded from its own input.
 
-The scan holds 98 pairs today, recorded in `scripts/cpd-renamed/allowed.json`:
+The scan holds 99 pairs today, recorded in `scripts/cpd-renamed/allowed.json`:
 
 | Kind          | Pairs | Meaning                                                                   |
 | ------------- | ----- | ------------------------------------------------------------------------- |
 | declared data | 28    | schema columns, machine edges, nav rows — one row per kind, by design     |
-| by design     | 4     | deliberate API pairs and factory-call twins, each with its reason written |
+| by design     | 5     | deliberate API pairs and factory-call twins, each with its reason written |
 | pending merge | 66    | the same code with different words — unify, then delete the entry         |
 
 A pair leaves the registry one way: merge it (extract a helper, or curry the

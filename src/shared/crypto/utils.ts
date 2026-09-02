@@ -2,6 +2,8 @@
  * Shared crypto primitives: encoding, token generation, constant-time comparison
  */
 
+import { replacing } from "#shared/replacements.ts";
+
 /**
  * Constant-time string comparison to prevent timing attacks
  * Always iterates over the longer string and XORs the lengths
@@ -75,8 +77,11 @@ export const toBase64 = (bytes: Uint8Array): string => bytes.toBase64();
  * Convert standard base64 to base64url (no padding).
  * Works on both strings and Uint8Array (bytes are first encoded to base64).
  */
-export const base64ToBase64Url = (b64: string): string =>
-  b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+export const base64ToBase64Url = replacing(
+  [/\+/g, "-"],
+  [/\//g, "_"],
+  [/=/g, ""],
+);
 
 /**
  * Convert Uint8Array to base64url string (no padding)

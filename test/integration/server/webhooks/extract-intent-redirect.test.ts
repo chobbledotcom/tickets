@@ -118,7 +118,7 @@ describeWithEnv(
         (s) => s.name === "Token Site",
       )!;
       const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
-        readOnlyFrom: "2026-09-01T00:00:00Z",
+        readOnlyFrom: "2030-01-01T00:00:00Z",
       });
 
       const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -240,7 +240,9 @@ describeWithEnv(
         (e) => e.name === "Annual multi-tier renewal",
       )!;
 
-      const initialDeadline = "2026-09-01T00:00:00Z";
+      // A deadline in the far future keeps the stacking on this date, not on
+      // the clock the test runs under.
+      const initialDeadline = "2030-01-01T00:00:00Z";
       await insertBuiltSite(
         "Multi Tier Renewal Site",
         "multi-renew.b-cdn.net",

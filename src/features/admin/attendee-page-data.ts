@@ -6,6 +6,7 @@
  * them, so neither imports the other.
  */
 
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { getAttendeeActivityLog } from "#db/activity-log.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
@@ -18,7 +19,6 @@ import {
   getContactRecordOrRepair,
   hashEmail,
   hashPhone,
-  toContactHashParam,
 } from "#db/contact-preferences.ts";
 import {
   getGroupPackagePricesByGroupIds,
@@ -692,7 +692,7 @@ const loadChannelRecord = async (
   if (!value.trim()) return null;
   const hash = await hashOf(value);
   return {
-    hashParam: toContactHashParam(hash),
+    hashParam: base64ToBase64Url(hash),
     record: await loadChannelRecordOrRepair(hash, privateKey),
   };
 };

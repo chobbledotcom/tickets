@@ -15,7 +15,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import { deleteWhere, equals, type WhereClause } from "#db/where-clauses.ts";
+import { deleteWhere, type WhereClause } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
@@ -166,10 +166,8 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
 
 /** One note, tied to the record it has to belong to, so a stray id can't reach
  *  another record's note. */
-const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] => [
-  ...equals("id", noteId),
-  ...noteTargets.where(target),
-];
+const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] =>
+  noteTargets.whereAlso(target, "id", noteId);
 
 /** A delete over the notes the clauses select. */
 const deleteNotesWhere = deleteWhere("system_notes");

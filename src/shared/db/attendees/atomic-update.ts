@@ -25,7 +25,7 @@ import {
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
-import { buildCapacityCondition } from "#db/capacity.ts";
+import { capacityConditionFor } from "#db/capacity.ts";
 import {
   executeBatchWithResults,
   queryAll,
@@ -69,16 +69,6 @@ const noQuantityResetColumns = (quantity: number): string =>
     ? ", checked_in = 0, start_agent_id = NULL, end_agent_id = NULL," +
       " start_time = '', end_time = '', start_done = 0, end_done = 0"
     : "";
-
-/** Build the self-excluding capacity condition for one desired line. */
-const lineCapacityCondition = (line: AtomicDesiredLine, attendeeId: number) =>
-  buildCapacityCondition(
-    line.listingId,
-    line.quantity,
-    line.date,
-    attendeeId,
-    line.durationDays,
-  );
 
 /** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
  * expect, projected from a desired line. */
@@ -243,7 +233,7 @@ const updateStatementFor = (
       ` WHERE attendee_id = ${attendeeIdSql} AND listing_id = ${listingIdSql} AND start_at IS ${bind(oldPin.startAt)} AND parent_listing_id = ${bind(oldPin.parentListingId)} AND package_group_id = ${bind(oldPin.packageGroupId)}`;
     if (skipCapacityGuard) return setClause;
 
-    const condition = lineCapacityCondition(line, attendeeId)(bind, {
+    const condition = capacityConditionFor(line, attendeeId)(bind, {
       excludeAttendeeId: attendeeIdSql,
       listingId: listingIdSql,
       quantity: quantitySql,

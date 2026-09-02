@@ -18,6 +18,7 @@ import {
 } from "#db/query-log.ts";
 import { compact, reduce } from "#fp";
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 import { getUptimeSeconds } from "#shared/uptime.ts";
@@ -59,10 +60,8 @@ const sumDurations = reduce(
 /** Render a single cache stat line */
 const renderCacheStat = (stat: CacheStat): string =>
   stat.capacity
-    ? `<li>${escapeFooterHtml(
-        stat.name,
-      )}: ${stat.entries}/${stat.capacity}</li>`
-    : `<li>${escapeFooterHtml(stat.name)}: ${stat.entries}</li>`;
+    ? `<li>${escapeHtml(stat.name)}: ${stat.entries}/${stat.capacity}</li>`
+    : `<li>${escapeHtml(stat.name)}: ${stat.entries}</li>`;
 
 /** The debug menu: a collapsible details/summary with render time, SQL queries
  * and cache stats. Shown in the footer only when query logging is active. */
@@ -101,7 +100,7 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
         queries
           .map(
             (q) =>
-              `<li>${escapeFooterHtml(q.sql)} &mdash; ${q.durationMs.toFixed(
+              `<li>${escapeHtml(q.sql)} &mdash; ${q.durationMs.toFixed(
                 1,
               )}ms</li>`,
           )
@@ -170,11 +169,3 @@ export const renderAdminFooter = (): string => {
     : null;
   return adminFooterHtml(debug, adminLevel);
 };
-
-/** Minimal HTML escaping for strings in the footer */
-const escapeFooterHtml = (s: string): string =>
-  s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");

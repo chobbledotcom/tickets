@@ -5,6 +5,7 @@
  * edit form and reading a submitted one.
  */
 
+import { pick } from "@std/collections";
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
@@ -153,13 +154,8 @@ export const contentFieldValues = (row: {
   meta_title: string;
   name: string;
   slug: string;
-}): Record<string, string> => ({
-  content: row.content,
-  meta_description: row.meta_description,
-  meta_title: row.meta_title,
-  name: row.name,
-  slug: row.slug,
-});
+}): Record<string, string> =>
+  pick(row, ["content", "meta_description", "meta_title", "name", "slug"]);
 
 type SeoContentValues = {
   content: string;

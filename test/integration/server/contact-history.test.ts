@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import {
   getContactRecord,
   hashEmail,
   saveContactRecord,
-  toContactHashParam,
 } from "#db/contact-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
@@ -49,7 +49,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
         }),
       );
 
-      const param = toContactHashParam(hash);
+      const param = base64ToBase64Url(hash);
       const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
         contains: ["Contact record", "<strong>VIP</strong> note", param],
         notContains: ["Never"],
@@ -61,7 +61,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
     });
 
     test("renders the private note in the shared markdown editor box, label without '(markdown)'", async () => {
-      const param = toContactHashParam(await hashEmail("mdbox@example.com"));
+      const param = base64ToBase64Url(await hashEmail("mdbox@example.com"));
       const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
         contains: ["Private notes"],
         notContains: ["Private notes (markdown)"],
@@ -78,7 +78,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
 
     test("renders an empty record with a 'Never' placeholder and no note preview", async () => {
       // An unseen hash has no row at all, so every field is zero/empty.
-      const param = toContactHashParam(await hashEmail("unseen@example.com"));
+      const param = base64ToBase64Url(await hashEmail("unseen@example.com"));
       const html = await expectHtml(await adminGet(`/admin/history/${param}`), {
         contains: ["Contact record", "Never"],
         notContains: ["Note preview"],
@@ -92,7 +92,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
     test("overwrites the counts and note, redirecting back to the editor", async () => {
       const pk = await getTestPrivateKey();
       const hash = await hashEmail("saveme@example.com");
-      const param = toContactHashParam(hash);
+      const param = base64ToBase64Url(hash);
       const { response } = await adminFormPost(`/admin/history/${param}`, {
         admin_booking_count: "3",
         admin_notes: "Updated **note**",
@@ -115,7 +115,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
     test("coerces blank/negative counters to zero", async () => {
       const pk = await getTestPrivateKey();
       const hash = await hashEmail("coerce@example.com");
-      await adminFormPost(`/admin/history/${toContactHashParam(hash)}`, {
+      await adminFormPost(`/admin/history/${base64ToBase64Url(hash)}`, {
         admin_booking_count: "-5",
         public_booking_count: "",
         visits: "4",
@@ -130,7 +130,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       const pk = await getTestPrivateKey();
       const hash = await hashEmail("toolong@example.com");
       const { response } = await adminFormPost(
-        `/admin/history/${toContactHashParam(hash)}`,
+        `/admin/history/${base64ToBase64Url(hash)}`,
         {
           admin_notes: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
           public_booking_count: "4",
@@ -148,7 +148,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
     test("opens the editor and overwrites a row with an unreadable stats blob", async () => {
       const pk = await getTestPrivateKey();
       const hash = await hashEmail("repair@example.com");
-      const param = toContactHashParam(hash);
+      const param = base64ToBase64Url(hash);
       // A row whose encrypted note is corrupt, but whose plaintext counts are
       // intact — the exact state the best-effort SMS path can leave behind.
       await execute(

@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import { settings } from "#db/settings.ts";
+import { sameOn } from "#fp";
 import { cachedClientFactory } from "#shared/payment-helpers.ts";
 import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
 import { squareFetch } from "#shared/square/transport.ts";
@@ -122,8 +123,7 @@ const clientCache = cachedClientFactory({
     if (!accessToken) return null;
     return { accessToken, sandbox: settings.square.sandbox };
   },
-  isSameConfig: (a, b) =>
-    a.accessToken === b.accessToken && a.sandbox === b.sandbox,
+  isSameConfig: sameOn("accessToken", "sandbox"),
   missingMessage: "No access token configured, cannot create client",
   provider: "Square",
 });

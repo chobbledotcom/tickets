@@ -32,19 +32,26 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
 import type { Attendee, ListingWithCount } from "#types";
+
 /* jscpd:ignore-end */
 
+/** Read one query parameter, keeping it only when it reads as a real date.
+ *  Anything else is treated as absent, so a typed URL cannot filter by junk. */
+const dateQuery =
+  (
+    key: string,
+    isValid: (value: string) => boolean,
+  ): ((request: Request) => string | null) =>
+  (request) => {
+    const value = new URL(request.url).searchParams.get(key);
+    return value && isValid(value) ? value : null;
+  };
+
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
-export const getDateFilter = (request: Request): string | null => {
-  const date = new URL(request.url).searchParams.get("date");
-  return date && isIsoDate(date) ? date : null;
-};
+export const getDateFilter = dateQuery("date", isIsoDate);
 
 /** Extract and validate ?cal= month parameter (YYYY-MM). Returns null if absent or invalid. */
-export const getMonthFilter = (request: Request): string | null => {
-  const month = new URL(request.url).searchParams.get("cal");
-  return month && isIsoMonth(month) ? month : null;
-};
+export const getMonthFilter = dateQuery("cal", isIsoMonth);
 
 /** Build a CSV file download response */
 export const csvResponse = (csv: string, filename: string): Response =>

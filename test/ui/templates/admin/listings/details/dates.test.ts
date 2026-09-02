@@ -9,9 +9,11 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 describe("listing details table date rows", () => {
   registerListingTemplateHooks();
 
-  /** The countdown a date row shows after its label. */
+  /** The countdown a date row shows after its label. The hours show only when
+   *  they are not zero, so a deadline a whole number of days away reads as
+   *  days alone. */
   const countdown = (): RegExp =>
-    / <small><em>\(\d+ days? and \d+ hours? from now\)<\/em><\/small>/;
+    / <small><em>\(\d+ days?(?: and \d+ hours?)? from now\)<\/em><\/small>/;
 
   test("the listing date links to the calendar and carries its countdown", () => {
     const html = renderListingDetail({

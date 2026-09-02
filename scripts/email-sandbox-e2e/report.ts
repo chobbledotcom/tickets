@@ -3,6 +3,7 @@
  * leg, one Markdown table for the job's step summary, and the verdict.
  */
 
+import { keepAndTake } from "#fp";
 import type { EmailLegOutcome } from "./run.ts";
 
 const STATE_WORDS: Record<EmailLegOutcome["state"], string> = {
@@ -28,10 +29,10 @@ export const emailSummaryMarkdown = (outcomes: EmailLegOutcome[]): string =>
     "",
   ].join("\n");
 
-export const failedProviders = (outcomes: EmailLegOutcome[]): string[] =>
-  outcomes
-    .filter((outcome) => outcome.state === "failed")
-    .map((outcome) => outcome.provider);
+export const failedProviders = keepAndTake(
+  (outcome: EmailLegOutcome) => outcome.state === "failed",
+  (outcome) => outcome.provider,
+);
 
 export const everyLegSkipped = (outcomes: EmailLegOutcome[]): boolean =>
   outcomes.every((outcome) => outcome.state === "skipped");

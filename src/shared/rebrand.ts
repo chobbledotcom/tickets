@@ -14,6 +14,7 @@ import {
   parse,
 } from "@formatjs/icu-messageformat-parser";
 import { range } from "#fp";
+import { escapeRegExp } from "#shared/regexp.ts";
 
 /**
  * A message with neither a `{` (an ICU placeholder) nor a `'` (ICU quote
@@ -35,10 +36,6 @@ export type Replacer = (template: string) => string | MessageFormatElement[];
 
 /** No replacements configured: hand the template straight back, zero overhead. */
 const identity: Replacer = (template) => template;
-
-/** Escape a literal for safe interpolation into a RegExp source. */
-const escapeRegExp = (s: string): string =>
-  s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Capitalise the first character; the caller guarantees `s` is non-empty. */
 const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);

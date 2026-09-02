@@ -1,14 +1,17 @@
 /**
  * Escape the characters that are unsafe in HTML text and attribute values.
  *
- * Kept in its own tiny, dependency-free module so both the server-side JSX
- * runtime and browser-side client scripts (e.g. the duplicate-group preview)
- * can share one escaper without pulling the whole renderer into the client
- * bundle.
+ * Kept in its own tiny module, beside the replacement helper it is built from,
+ * so both the server-side JSX runtime and browser-side client scripts (e.g. the
+ * duplicate-group preview) can share one escaper without pulling the whole
+ * renderer into the client bundle.
  */
-export const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+
+import { replacing } from "#shared/replacements.ts";
+
+export const escapeHtml = replacing(
+  [/&/g, "&amp;"],
+  [/</g, "&lt;"],
+  [/>/g, "&gt;"],
+  [/"/g, "&quot;"],
+);

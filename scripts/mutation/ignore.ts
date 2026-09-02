@@ -23,6 +23,7 @@
 import { fromFileUrl, join } from "@std/path";
 import { namesInDirectory, readTextFileOrNull } from "#scripts/not-found.ts";
 import { rel } from "#scripts/project-root.ts";
+import { entryLines } from "#scripts/registry-lines.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { percentEncode } from "./percent-encode.ts";
@@ -187,17 +188,14 @@ export const parseRegistryText = (
   file: string | URL,
 ): ParsedIgnoreLine[] => {
   const parsed: ParsedIgnoreLine[] = [];
-  for (const line of text.split("\n")) {
+  for (const line of entryLines(text)) {
     const entry = parseIgnoreLine(line);
-    if (entry) {
-      parsed.push(entry);
-      continue;
-    }
-    if (line.trim() !== "" && !line.trimStart().startsWith("#")) {
+    if (!entry) {
       throw new Error(
         `Malformed equivalent-mutant entry in ${registryFilePath(file)}: ${line}`,
       );
     }
+    parsed.push(entry);
   }
   return parsed;
 };

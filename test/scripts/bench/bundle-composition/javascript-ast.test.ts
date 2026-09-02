@@ -9,7 +9,7 @@ describe("bundle JavaScript AST", () => {
 
   test("rejects invalid bundle JavaScript", () => {
     expect(() => countJavaScriptAstNodes("const =")).toThrow(
-      "Bundle JavaScript is invalid: Unexpected token",
+      "bundle.js does not parse: Unexpected token",
     );
   });
 });

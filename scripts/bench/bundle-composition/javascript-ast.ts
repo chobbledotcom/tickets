@@ -1,5 +1,5 @@
-import { parseSync } from "npm:oxc-parser@0.132.0";
 import { map } from "#fp";
+import { parseProgram } from "#scripts/parse-program.ts";
 
 const countAstNodes = (root: object): number => {
   let count = 0;
@@ -13,9 +13,5 @@ const countAstNodes = (root: object): number => {
 };
 
 /** Count the syntax nodes the JavaScript parser builds for a bundle. */
-export const countJavaScriptAstNodes = (source: string): number => {
-  const result = parseSync("bundle.js", source, { sourceType: "module" });
-  const error = result.errors[0];
-  if (error) throw new Error(`Bundle JavaScript is invalid: ${error.message}`);
-  return countAstNodes(result.program);
-};
+export const countJavaScriptAstNodes = (source: string): number =>
+  countAstNodes(parseProgram("bundle.js", source));

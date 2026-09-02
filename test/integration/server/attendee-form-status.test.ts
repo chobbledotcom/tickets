@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
   attendeeStatuses,
   requirePaidDefaultStatus,
@@ -12,7 +13,6 @@ import {
   getContactRecord,
   hashEmail,
   saveContactRecord,
-  toContactHashParam,
 } from "#db/contact-preferences.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -357,7 +357,7 @@ describeWithEnv(
         // row — dropping the channel would hide the only way to fix it.
         expect(response.status).toBe(200);
         expect(await response.text()).toContain(
-          `/admin/history/${toContactHashParam(hash)}`,
+          `/admin/history/${base64ToBase64Url(hash)}`,
         );
       });
     });

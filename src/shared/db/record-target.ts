@@ -69,6 +69,13 @@ export interface RecordTargets<Kind extends string> {
   unique: (targets: readonly RecordTarget<Kind>[]) => RecordTarget<Kind>[];
   /** Ask for one record's rows. Pass a table alias when the read joins. */
   where: (target: RecordTarget<Kind>, alias?: string) => WhereClause[];
+  /** One record's rows, narrowed by one more column: the note with this id,
+   *  the item on this page. A stray id then cannot reach another record's row. */
+  whereAlso: (
+    target: RecordTarget<Kind>,
+    column: string,
+    value: number,
+  ) => WhereClause[];
   /** Ask for the records of one kind that another query chooses. */
   whereChosenBy: (kind: Kind, idsQuery: SqlStatement) => WhereClause[];
   /** Ask for several records of one kind. Asking for none of them is a
@@ -138,6 +145,10 @@ export const defineRecordTarget = <Kind extends string>({
       ...new Map(targets.map((target) => [key(target), target])).values(),
     ],
     where,
+    whereAlso: (target, narrowing, value) => [
+      ...equals(narrowing, value),
+      ...where(target),
+    ],
     whereChosenBy,
     whereMany: (kind, ids, alias) => [
       ...ofKind(alias, kind),

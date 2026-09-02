@@ -17,7 +17,7 @@ import {
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminListingLink } from "#templates/admin/admin-page.tsx";
+import { adminListingLink } from "#templates/admin/admin-page.tsx";
 import {
   BookingStatusBadges,
   InactiveNote,
@@ -71,7 +71,7 @@ const listingNameCell = (
   const label = pathLabel(line, data);
   return (
     <>
-      <AdminListingLink listing={listing} />
+      {adminListingLink(listing)}
       {label ? <span class="muted small booking-path"> {label}</span> : null}
       <InactiveNote active={listing.active} />
       {BookingStatusBadges({

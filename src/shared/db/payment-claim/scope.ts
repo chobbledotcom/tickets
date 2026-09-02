@@ -1,4 +1,4 @@
-import type { LoadedRefundAttendee } from "#db/payment-claim/take.ts";
+import { sortedNumbers } from "#fp";
 import type { ClaimRequest } from "#payment/claim.ts";
 
 type ScopedPaymentRow = {
@@ -6,15 +6,24 @@ type ScopedPaymentRow = {
   readonly sessionId: string;
 };
 
-const sortedUniqueIds = (ids: readonly number[]): number[] =>
-  [...new Set(ids)].sort((left, right) => left - right);
+/**
+ * What claiming reads off an attendee: which one it is, and what its payment
+ * references can match. A `LoadedRefundAttendee` carries more than this, and
+ * fits; naming the narrower shape says which parts this decision rests on.
+ */
+export type ClaimableAttendee = {
+  readonly attendeeId: number;
+  readonly references: readonly {
+    readonly matchingIndexes: readonly string[];
+  }[];
+};
 
 /** Names every initiating attendee whose loaded reference matches this row. */
 export const claimRequestFor = (
-  attendees: readonly LoadedRefundAttendee[],
+  attendees: readonly ClaimableAttendee[],
   row: ScopedPaymentRow,
 ): ClaimRequest => {
-  const attendeeIds = sortedUniqueIds(
+  const attendeeIds = sortedNumbers(
     attendees.flatMap((attendee) =>
       attendee.references.some((reference) =>
         reference.matchingIndexes.includes(row.referenceIndex),

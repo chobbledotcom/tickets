@@ -16,7 +16,6 @@ import {
   dateRange,
   formatDateLabel,
   getBookableStartDates,
-  parseDateMs,
   startOfHour,
   widestDatedEntry,
 } from "#shared/dates.ts";
@@ -137,17 +136,5 @@ describe("dates — pinned values", () => {
     const widest = entry("2026-01-02", "2026-01-10");
     const later = entry("2026-01-03", "2026-01-07");
     expect(widestDatedEntry([first, widest, later])).toBe(widest);
-  });
-
-  test("a parsable timestamp reads back as its epoch milliseconds", () => {
-    expect(parseDateMs("2026-07-01T00:00:00.000Z")).toBe(1782864000000);
-  });
-
-  test("a date with no time reads back as midnight UTC", () => {
-    expect(parseDateMs("2026-07-01")).toBe(1782864000000);
-  });
-
-  test("an unparsable value reads back as nothing, not as a broken number", () => {
-    expect(parseDateMs("not a date")).toBeNull();
   });
 });

@@ -10,8 +10,7 @@ import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import {
   getActiveEmailConfig,
   getEmailConfig,
-  getHostEmailConfig,
-  resetHostEmailConfig,
+  hostEmail,
 } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -45,12 +44,12 @@ const hostConfig = {
 describe("email config resolution", () => {
   beforeEach(() => {
     settings.clearTestOverrides();
-    resetHostEmailConfig();
+    hostEmail.resetOverride();
   });
 
   afterEach(() => {
     settings.clearTestOverrides();
-    resetHostEmailConfig();
+    hostEmail.resetOverride();
   });
 
   describe("getEmailConfig", () => {
@@ -97,18 +96,18 @@ describe("email config resolution", () => {
   describe("getHostEmailConfig", () => {
     test("reads the HOST_EMAIL_* environment", () => {
       using _env = withEnv(hostEnv);
-      expect(getHostEmailConfig()).toEqual(hostConfig);
+      expect(hostEmail.getHostConfig()).toEqual(hostConfig);
     });
 
     test("is null while any host variable is missing", () => {
       using _env = withEnv({ ...hostEnv, HOST_EMAIL_API_KEY: undefined });
-      expect(getHostEmailConfig()).toBeNull();
+      expect(hostEmail.getHostConfig()).toBeNull();
     });
 
     test("logs and refuses an unknown host provider", () => {
       using _env = withEnv({ ...hostEnv, HOST_EMAIL_PROVIDER: "imap" });
       using errors = stub(console, "error");
-      expect(getHostEmailConfig()).toBeNull();
+      expect(hostEmail.getHostConfig()).toBeNull();
       const logged = errors.calls
         .map((call) => String(call.args[0]))
         .join("\n");
@@ -201,32 +200,37 @@ describeWithEnv(
   },
   () => {
     test("returns null when no env vars set", () => {
-      expect(getHostEmailConfig()).toBeNull();
+      expect(hostEmail.getHostConfig()).toBeNull();
     });
 
     test("returns null when HOST_EMAIL_PROVIDER missing", () => {
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      expect(getHostEmailConfig()).toBeNull();
+      expect(hostEmail.getHostConfig()).toBeNull();
     });
 
     test("returns null when HOST_EMAIL_API_KEY missing", () => {
       Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      expect(getHostEmailConfig()).toBeNull();
+      expect(hostEmail.getHostConfig()).toBeNull();
     });
 
     test("returns null when HOST_EMAIL_FROM_ADDRESS missing", () => {
       Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
-      expect(getHostEmailConfig()).toBeNull();
+      expect(hostEmail.getHostConfig()).toBeNull();
     });
 
-    test("returns config with specified provider", () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+    /** Sets the whole host email environment, then reads it back. */
+    const hostConfigFor = (provider: string) => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", provider);
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      expect(getHostEmailConfig()).toEqual({
+      return hostEmail.getHostConfig();
+    };
+
+    test("returns config with specified provider", () => {
+      expect(hostConfigFor("resend")).toEqual({
         apiKey: "key-123",
         fromAddress: "noreply@example.com",
         provider: "resend",
@@ -234,10 +238,7 @@ describeWithEnv(
     });
 
     test("supports mailgun-eu provider", () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-eu");
-      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      expect(getHostEmailConfig()).toEqual({
+      expect(hostConfigFor("mailgun-eu")).toEqual({
         apiKey: "key-123",
         fromAddress: "noreply@example.com",
         provider: "mailgun-eu",
@@ -250,7 +251,7 @@ describeWithEnv(
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       const errorSpy = spy(console, "error");
       try {
-        const config = getHostEmailConfig();
+        const config = hostEmail.getHostConfig();
         expect(config).toBeNull();
         const logs = errorSpy.calls.map((c) => c.args[0] as string);
         expect(

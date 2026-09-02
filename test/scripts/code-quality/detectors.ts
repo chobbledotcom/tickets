@@ -19,9 +19,8 @@ import { join } from "node:path";
 import { compact } from "#fp";
 import {
   blankSpans,
-  skipComment,
+  lexicalSpans,
   skipCommentOrString,
-  skipString,
 } from "#scripts/typescript-lex.ts";
 
 /* -------------------------------------------------------------------------- *
@@ -536,18 +535,19 @@ const resolveLines = (content: string, calls: RawCall[]): CallSite[] => {
 /** Extract every `name(...)` call site from a source file. */
 export const extractCallSites = (content: string): CallSite[] => {
   const calls: RawCall[] = [];
+  const spans = [...lexicalSpans(content)];
+  let spanIndex = 0;
   let prevWord = "";
   let i = 0;
   while (i < content.length) {
     const c = content[i]!;
-    const pastComment = skipComment(content, i);
-    if (pastComment !== i) {
-      i = pastComment;
-      continue;
-    }
-    if (c === '"' || c === "'" || c === "`") {
-      i = skipString(content, i);
-      prevWord = "";
+    const span = spans[spanIndex];
+    if (span?.start === i) {
+      // A comment is invisible to the code around it, so the word before it
+      // still counts; a string is a value of its own and clears the guard.
+      if (span.kind !== "comment") prevWord = "";
+      i = span.end;
+      spanIndex++;
       continue;
     }
     if (isIdentStart(c)) {

@@ -51,6 +51,9 @@ jobs:
       - name: Check for code duplication (CPD)
         run: deno task cpd
 
+      - name: Check for renamed duplicate functions
+        run: deno task check:shapes
+
       - name: Check user-facing copy
         run: deno task check:copy
 

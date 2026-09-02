@@ -135,6 +135,24 @@ const DaysControl = ({
   </ListingSectionFieldset>
 );
 
+/**
+ * Hands one kind's stored value to the control that draws it. The map below
+ * holds every kind at once, so its value type is every kind's value at once;
+ * each control says which one it reads.
+ */
+const controlFor =
+  <TValue,>(
+    Control: (props: {
+      field: ListingDefaultField;
+      value: TValue;
+    }) => JSX.Element,
+  ) =>
+  (
+    field: ListingDefaultField,
+    value: ListingDefaults[keyof ListingDefaults],
+  ): JSX.Element =>
+    Control({ field, value: value as TValue });
+
 /** Per-kind control. Keyed by {@link ListingDefaultKind} so a new kind is a
  * compile error here, matching the parser and listing-form formatter. */
 const KIND_CONTROLS: Record<
@@ -158,15 +176,9 @@ const KIND_CONTROLS: Record<
       />
     </LabeledInput>
   ),
-  days: (field, value) => (
-    <DaysControl field={field} value={value as string[] | undefined} />
-  ),
-  number: (field, value) => (
-    <NumberControl field={field} value={value as number | undefined} />
-  ),
-  url: (field, value) => (
-    <UrlControl field={field} value={value as string | undefined} />
-  ),
+  days: controlFor(DaysControl),
+  number: controlFor(NumberControl),
+  url: controlFor(UrlControl),
 };
 
 const DefaultControl = ({

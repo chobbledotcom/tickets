@@ -1,17 +1,46 @@
-const isQuote = (char: string | undefined): boolean =>
-  char === '"' || char === "'" || char === "`";
-const isIdentifierChar = (char: string | undefined): boolean =>
-  char !== undefined && /[\w$]/.test(char);
-/** In TSX text, a word's apostrophe is punctuation, not a string delimiter. */
-const isQuoteAt = (content: string, index: number): boolean =>
-  isQuote(content[index]) &&
-  !(content[index] === "'" && isIdentifierChar(content[index - 1]));
+import { isOneOf } from "#fp";
+import { SYNTAX_WORDS } from "#scripts/syntax-words.ts";
+import {
+  endsAValue,
+  isStepChange,
+  isWordPart,
+  isWordStart,
+} from "#scripts/typescript-lex/slash.ts";
 
-/** Skip a comment at `start`, or return `start` when there is no comment. */
+/** The character at `index` as one whole letter, so a wider one is one item
+ * to the scanner rather than two surrogate halves. */
+const charAt = (content: string, index: number): string =>
+  String.fromCodePoint(content.codePointAt(index)!);
+
+/** Whether `character` belongs to the word an apostrophe may close. A
+ * surrogate half belongs, so a wider letter joins its word too. */
+const isWordUnit = (character: string): boolean =>
+  isWordPart(character) || (character >= "\uD800" && character <= "\uDFFF");
+
+/** In TSX text, a word's apostrophe is punctuation, not a string
+ * delimiter. The one exception is a keyword a literal can start after:
+ * `return'…'` is a tightly-spelled string, `It's` is text. */
+const isQuoteAt = (content: string, index: number): boolean => {
+  const quote = content[index];
+  if (quote === '"' || quote === "`") return true;
+  if (quote !== "'") return false;
+  let start = index;
+  while (start > 0 && isWordUnit(content[start - 1]!)) start--;
+  const word = content.slice(start, index);
+  return word === "" || SYNTAX_WORDS.has(word);
+};
+
+const isLineTerminator = isOneOf(["\n", "\r", "\u2028", "\u2029"]);
+
+/** Skip a comment at `start`, or return `start` when none starts there. */
 export const skipComment = (content: string, start: number): number => {
   if (content.startsWith("//", start)) {
-    const lineEnd = content.indexOf("\n", start);
-    return lineEnd === -1 ? content.length : lineEnd;
+    for (let index = start + 2; index < content.length; index++) {
+      const character = content[index] as string;
+      if (character === "\r" && content[index + 1] === "\n") return index + 1;
+      if (isLineTerminator(character)) return index;
+    }
+    return content.length;
   }
   if (content.startsWith("/*", start)) {
     const close = content.indexOf("*/", start + 2);
@@ -20,281 +49,336 @@ export const skipComment = (content: string, start: number): number => {
   return start;
 };
 
-type ScanStep = number | "end" | null;
+type RunMove = "close" | number | null;
 
-/** Walk text until a caller finds its end: "end" returns one past the
- * character, a number jumps the cursor there, and null lets the for-of
- * advance one character. The for-of drives the walk, so no manual index
- * step exists to freeze. */
-const scanText = (
+/** Walk one escaped run until its reader closes it or jumps over nested code. */
+const runEnd = (
   content: string,
   start: number,
-  next: (char: string | undefined, index: number) => ScanStep,
+  moveAt: (index: number) => RunMove,
 ): number => {
-  let cursor = start;
-  for (const [relative] of content.slice(start).split("").entries()) {
-    const index = start + relative;
-    if (index < cursor) continue;
-    const step = next(content[index], index);
-    if (step === "end") return index + 1;
-    if (step !== null) cursor = step;
+  let index = start + 1;
+  while (index < content.length) {
+    if (content[index] === "\\") {
+      index += 2;
+    } else {
+      const move = moveAt(index);
+      if (move === "close") return index + 1;
+      index = move ?? index + 1;
+    }
   }
   return content.length;
 };
 
-/** Skip one template substitution, including nested braces and strings. */
-const skipTemplateSubstitution = (content: string, start: number): number => {
-  let depth = 1;
-  return scanText(content, start + 2, (char, index) => {
-    if (char === "{") {
-      depth += 1;
-      return null;
-    }
-    if (char === "}") {
-      depth -= 1;
-      return depth === 0 ? "end" : null;
-    }
-    // Code inside a substitution holds its own comments and strings, whose
-    // brackets must not count.
-    const past = skipCommentOrString(content, index);
-    return past !== index ? past : null;
-  });
-};
+const quotedEnd = (content: string, start: number, quote: string): number =>
+  runEnd(content, start, (index) =>
+    content[index] === quote ? "close" : null,
+  );
 
-/** Skip a string or template literal and return the index after its end. */
-export const skipString = (content: string, start: number): number => {
-  const quote = content[start];
-  return scanText(content, start + 1, (char, index) => {
-    if (char === "\\") return index + 2;
-    if (char === quote) return "end";
-    if (quote === "`" && char === "$" && content[index + 1] === "{") {
-      return skipTemplateSubstitution(content, index);
-    }
-    return null;
-  });
-};
-
-/** Skip lexical text at `start`, or return `start` for executable code. */
-export const skipCommentOrString = (content: string, start: number): number => {
-  const pastComment = skipComment(content, start);
-  if (pastComment !== start) return pastComment;
-  return isQuoteAt(content, start) ? skipString(content, start) : start;
-};
-
-/**
- * Punctuation that cannot end an expression, so a `/` straight after it opens
- * a regular expression rather than dividing.
- */
-const BEFORE_REGEX = new Set("(,=:[!&|?{};+-*%~^<>".split(""));
-
-/** Words that cannot end an expression either. */
-const KEYWORD_BEFORE_REGEX = new Set([
-  "await",
-  "case",
-  "delete",
-  "do",
-  "else",
-  "in",
-  "instanceof",
-  "new",
-  "of",
-  "return",
-  "typeof",
-  "void",
-  "yield",
-]);
-
-/** Whether the doubled `+`/`-` ending at `index` is postfix — applied to an
- * operand that ends right before it — so a following `/` divides. */
-const isPostfixAt = (content: string, index: number): boolean => {
-  if (content.charAt(index - 1) !== content.charAt(index)) return false;
-  const before = content.charAt(index - 2);
-  return isIdentifierChar(before) || before === ")" || before === "]";
-};
-
-/**
- * Whether the `/` at a position opens a regular expression rather than
- * dividing, decided by what precedes it. `consumed` holds the comments already
- * passed, which the scan steps over: a comment is invisible to the code after
- * it, so `x = // note` then `/re/` must read the `=`.
- */
-const regexTester = (
-  content: string,
-  consumed: readonly LexicalSpan[],
-): ((start: number) => boolean) => {
-  /** The comment an index sits inside, if any. Comments never overlap, so
-   * the latest one that started at or before the index is the candidate. */
-  const commentAround = (index: number): LexicalSpan | undefined => {
-    const candidate = consumed.findLast((span) => span.start <= index);
-    return candidate !== undefined && candidate.end > index
-      ? candidate
-      : undefined;
-  };
-  const codeCharBefore = (start: number): number => {
-    // trimEnd walks back past whitespace without index arithmetic.
-    let index = content.slice(0, start).trimEnd().length - 1;
-    // Each comment the scan lands in pushes it further left; comments never
-    // nest, so one bounded pass per comment settles the position.
-    for (const _ of consumed) {
-      const around = commentAround(index);
-      if (around === undefined) return index;
-      index = content.slice(0, around.start).trimEnd().length - 1;
-    }
-    return index;
-  };
-  return (start) => {
-    const index = codeCharBefore(start);
-    if (index < 0) return true;
-    const char = content.charAt(index);
-    // A postfix ++ or -- ends its operand, so the slash after it divides;
-    // every other entry of BEFORE_REGEX leaves a regex open to follow.
-    if (BEFORE_REGEX.has(char)) {
-      return (char !== "+" && char !== "-") || !isPostfixAt(content, index);
-    }
-    if (!isIdentifierChar(char)) return false;
-    // The word the deciding character ends, read by the regex engine rather
-    // than a walked counter, which a mutant could pin in place forever.
-    const word = content.slice(0, index + 1).match(/[\w$]+$/);
-    return word !== null && KEYWORD_BEFORE_REGEX.has(word[0]!);
-  };
-};
-
-/** The four ECMAScript line terminators: LF, CR, line separator,
- * paragraph separator. */
-const isLineTerminator = (char: string | undefined): boolean =>
-  char === "\n" || char === "\r" || char === "\u2028" || char === "\u2029";
-
-/** What one regex-body character does to the scan. */
 type RegexBodyStep = "close" | "escape" | "reject" | "stay";
 
-const regexBodyCharStep = (
-  char: string | undefined,
+const regexBodyStep = (
+  character: string | undefined,
   inClass: boolean,
 ): RegexBodyStep => {
-  if (isLineTerminator(char)) return "reject";
-  if (char === "\\") return "escape";
-  if (char === "/" && !inClass) return "close";
+  if (isLineTerminator(character)) return "reject";
+  if (character === "\\") return "escape";
+  if (character === "/" && !inClass) return "close";
   return "stay";
 };
 
-/**
- * The index just past a regex body's closing slash. A `/` inside a `[…]` class
- * is literal, so the scan tracks whether it is inside one. A newline means the
- * `/` was division after all, so the caller gets back just past it.
- */
-/** The class state after one unescaped body character: a bracket opens or
- * closes the class, anything else leaves it be. */
-const inClassAfter = (char: string | undefined, was: boolean): boolean =>
-  char === "[" ? true : char === "]" ? false : was;
+const classAfter = (
+  character: string | undefined,
+  inClass: boolean,
+): boolean => (character === "[" ? true : character === "]" ? false : inClass);
 
+/** Just past a regex body's closing slash. The for-of drives the walk, so
+ * no mutant can freeze an index into an endless loop; the offset it follows
+ * is bookkeeping for the return values alone. */
 const regexBodyEnd = (content: string, start: number): number => {
   let inClass = false;
   let escaped = false;
-  for (const [relative, char] of content
-    .slice(start + 1)
-    .split("")
-    .entries()) {
-    const offset = start + 1 + relative;
-    // An escaped character is skipped whole — even a line terminator, and
-    // even a bracket, which must not open or close a character class.
+  let offset = start + 1;
+  for (const character of content.slice(start + 1)) {
     const wasEscaped: boolean = escaped;
     const step: RegexBodyStep = wasEscaped
       ? "stay"
-      : regexBodyCharStep(char, inClass);
+      : regexBodyStep(character, inClass);
     escaped = step === "escape";
     if (step === "reject") return start + 1;
     if (step === "close") return offset + 1;
-    if (!wasEscaped) inClass = inClassAfter(char, inClass);
+    if (!wasEscaped) inClass = classAfter(character, inClass);
+    offset += character.length;
   }
-  // Falling through means the body ran to the text's end without closing.
   return content.length;
 };
 
-/** Skip a regular expression literal at `start`, including its flags, or
- * null when the body hit a newline: the slash was division after all. */
-const skipRegex = (content: string, start: number): number | null => {
+const LOWERCASE_FLAGS = /[a-z]*/y;
+
+/** Just past a regex and its flags, or null when the slash divides. */
+const regexEnd = (content: string, start: number): number | null => {
   const bodyEnd = regexBodyEnd(content, start);
-  // A closed body always runs past its opening slash and closing slash, so
-  // one past the start alone means the newline rejection fired.
   if (bodyEnd === start + 1) return null;
-  for (const [relative] of content.slice(bodyEnd).split("").entries()) {
-    const offset = bodyEnd + relative;
-    if (!/[a-z]/.test(content.charAt(offset))) return offset;
-  }
-  return content.length;
+  LOWERCASE_FLAGS.lastIndex = bodyEnd;
+  const flags = LOWERCASE_FLAGS.exec(content);
+  return bodyEnd + flags![0].length;
 };
 
-/** One stretch of non-executable text, and where it sits in the source. */
+/** One stretch of source text that executable code does not read directly. */
 export interface LexicalSpan {
   end: number;
   kind: "comment" | "regex" | "string";
   start: number;
 }
 
-/**
- * Every comment, quoted string, and regular-expression literal, in source
- * order. Walking once from the top is what keeps a `//` inside a string from
- * reading as a comment, and vice versa — so callers that care about only one
- * kind still have to walk them all. A regex body is not executable code, so
- * text scanners must blank it like a comment.
- */
-export function* lexicalSpans(content: string): Generator<LexicalSpan> {
-  // The comments passed so far, which the regex test steps back over.
-  const consumed: LexicalSpan[] = [];
-  const startsRegex = regexTester(content, consumed);
-  // The for-of drives the walk; the cursor only jumps past a whole span, so
-  // no manual step exists for a mutant to freeze.
-  let cursor = 0;
-  for (const [index, char] of content.split("").entries()) {
-    if (index < cursor) continue;
-    const pastComment = skipComment(content, index);
-    if (pastComment !== index) {
-      const span: LexicalSpan = {
-        end: pastComment,
-        kind: "comment",
-        start: index,
-      };
-      consumed.push(span);
-      yield span;
-      cursor = pastComment;
-      continue;
-    }
-    if (isQuoteAt(content, index)) {
-      const end = skipString(content, index);
-      yield { end, kind: "string", start: index };
-      cursor = end;
-    } else if (char === "/" && startsRegex(index)) {
-      const end = skipRegex(content, index);
-      if (end !== null) {
-        yield { end, kind: "regex", start: index };
-        cursor = end;
-      }
-      // A null end means the body hit a newline and the slash divided: no
-      // span, and the walk resumes with the for-of itself.
-    }
-  }
+interface Step {
+  context?: readonly string[];
+  next: number;
+  span?: LexicalSpan;
+  tokens: readonly string[];
 }
 
-/** Just the comments, in source order — the other kinds are walked but not
- * yielded. */
+type StepReader<Result extends Step | null> = (
+  content: string,
+  index: number,
+  context: readonly string[],
+) => Result;
+
+interface ScanResult {
+  end: number;
+  spans: LexicalSpan[];
+  tokens: string[];
+}
+
+const NUMBER_PART = /[eE][+-]|[0-9a-fA-FoOxXbBnE._]/y;
+
+const startsNumber = (content: string, index: number): boolean =>
+  /[0-9]/.test(content[index] as string) ||
+  (content[index] === "." && /[0-9]/.test(content[index + 1] ?? ""));
+
+const numberStep = (content: string, start: number): Step => {
+  let index = start;
+  let dots = 0;
+  while (index < content.length) {
+    const read = content.slice(start, index);
+    const takesDecimal =
+      dots === 0 &&
+      !/[eE]/.test(read) &&
+      !read.endsWith("n") &&
+      !/^0[xXoObB]/.test(read);
+    if (content[index] === ".") {
+      if (!takesDecimal) break;
+      dots++;
+    }
+    NUMBER_PART.lastIndex = index;
+    const part = NUMBER_PART.exec(content);
+    if (part === null) break;
+    index += part[0].length;
+  }
+  return { next: index, tokens: ["NUM"] };
+};
+
+/** Read one source word as a keyword or a chosen name. */
+const wordStep = (
+  content: string,
+  start: number,
+  context: readonly string[],
+): Step => {
+  let index = start;
+  while (index < content.length) {
+    const character = charAt(content, index);
+    if (index > start && !isWordPart(character)) break;
+    index += character.length;
+  }
+  const word = content.slice(start, index);
+  return {
+    next: index,
+    tokens: [SYNTAX_WORDS.has(word) && context.at(-1) !== "." ? word : "ID"],
+  };
+};
+
+/** Read a template and the executable code in each interpolation. */
+function templateStep(content: string, start: number): Step {
+  const tokens: string[] = ["STR"];
+  const end = runEnd(content, start, (index) => {
+    if (content[index] === "`") return "close";
+    if (content[index] === "$" && content[index + 1] === "{") {
+      const group = scanCode(content, index + 2, true, ["="]);
+      tokens.push(...group.tokens);
+      return group.end;
+    }
+    return null;
+  });
+  return {
+    context: ["STR"],
+    next: end,
+    span: { end, kind: "string", start },
+    tokens,
+  };
+}
+
+const commentStep = (content: string, index: number): Step | null => {
+  const end = skipComment(content, index);
+  return end === index
+    ? null
+    : {
+        next: end,
+        span: { end, kind: "comment", start: index },
+        tokens: [],
+      };
+};
+
+/** A JSX closing tag, or a comparison's pattern: `</name>` is a tag only
+ * when no slash follows the `>`, because that slash would be the pattern's
+ * own closing one. */
+const startsJsxClose = (content: string, index: number): boolean =>
+  /^\/(?:[$_.:\-\p{ID_Continue}]+\s*)?>(?!\/)/u.test(content.slice(index));
+
+const regexStep: StepReader<Step | null> = (content, index, context) => {
+  if (
+    content[index] !== "/" ||
+    (content[index - 1] === "<" && startsJsxClose(content, index)) ||
+    endsAValue(context)
+  ) {
+    return null;
+  }
+  const end = regexEnd(content, index);
+  return end === null
+    ? { context: ["ID"], next: index + 1, tokens: ["/"] }
+    : {
+        next: end,
+        span: { end, kind: "regex", start: index },
+        tokens: ["RE"],
+      };
+};
+
+const stringStep = (content: string, index: number): Step | null => {
+  if (!isQuoteAt(content, index)) return null;
+  const character = content[index] as string;
+  if (character === "`") return templateStep(content, index);
+  const end = quotedEnd(content, index, character);
+  return {
+    next: end,
+    span: { end, kind: "string", start: index },
+    tokens: ["STR"],
+  };
+};
+
+const stepAt: StepReader<Step> = (content, index, context) => {
+  const character = charAt(content, index);
+  if (/\s/.test(character)) {
+    return { next: index + character.length, tokens: [] };
+  }
+  const lexical =
+    commentStep(content, index) ??
+    regexStep(content, index, context) ??
+    stringStep(content, index);
+  if (lexical !== null) return lexical;
+  if (startsNumber(content, index)) return numberStep(content, index);
+  if (isWordStart(character)) return wordStep(content, index, context);
+  if (character === "=" && content[index + 1] === ">") {
+    return { next: index + 2, tokens: ["=>"] };
+  }
+  if (isStepChange(character) && content[index + 1] === character) {
+    return { next: index + 2, tokens: [character + character] };
+  }
+  return { next: index + character.length, tokens: [character] };
+};
+
+const nextDepth = (
+  stopsAtBrace: boolean,
+  depth: number,
+  character: string,
+  oneCharacterStep: boolean,
+): number => {
+  if (!stopsAtBrace || !oneCharacterStep) return depth;
+  if (character === "{") return depth + 1;
+  if (character === "}") return depth - 1;
+  return depth;
+};
+
+/** Scan executable code, optionally up to one interpolation's closing brace. */
+function scanCode(
+  content: string,
+  start: number,
+  stopsAtBrace: boolean,
+  initialContext: readonly string[] = [],
+): ScanResult {
+  const context = [...initialContext];
+  const spans: LexicalSpan[] = [];
+  const tokens: string[] = [];
+  let depth = 0;
+  let index = start;
+  while (index < content.length) {
+    const character = content[index] as string;
+    if (stopsAtBrace && character === "}" && depth === 0) {
+      return { end: index + 1, spans, tokens };
+    }
+    const step = stepAt(content, index, context);
+    tokens.push(...step.tokens);
+    context.push(...(step.context ?? step.tokens));
+    if (step.span !== undefined) spans.push(step.span);
+    depth = nextDepth(stopsAtBrace, depth, character, step.next === index + 1);
+    index = step.next;
+  }
+  return { end: content.length, spans, tokens };
+}
+
+/** Skip a string or template, or return `start` when no string starts there. */
+export const skipString = (content: string, start: number): number => {
+  const quote = content[start];
+  if (!isQuoteAt(content, start) || quote === undefined) return start;
+  return quote === "`"
+    ? templateStep(content, start).next
+    : quotedEnd(content, start, quote);
+};
+
+/** Skip a comment or string, or return `start` for executable code. */
+export const skipCommentOrString = (content: string, start: number): number => {
+  const pastComment = skipComment(content, start);
+  return pastComment === start ? skipString(content, start) : pastComment;
+};
+
+/** Every comment, string, template, and regular expression in source order. */
+export function* lexicalSpans(content: string): Generator<LexicalSpan> {
+  yield* scanCode(content, 0, false).spans;
+}
+
+/** Just the comments, after the same complete lexical scan. */
 export function* commentSpans(content: string): Generator<LexicalSpan> {
   for (const span of lexicalSpans(content)) {
     if (span.kind === "comment") yield span;
   }
 }
 
-/** Replace comments, regex bodies, and optionally strings with spaces while
- * keeping offsets. */
+/** Replace each lexical span while source outside every span stays unchanged. */
+export const mapLexicalSpans = (
+  content: string,
+  replace: (run: string, span: LexicalSpan) => string,
+): string => {
+  let result = "";
+  let cursor = 0;
+  for (const span of lexicalSpans(content)) {
+    result += content.slice(cursor, span.start);
+    result += replace(content.slice(span.start, span.end), span);
+    cursor = span.end;
+  }
+  return result + content.slice(cursor);
+};
+
+/** Replace lexical spans with spaces while every line offset stays fixed. */
 export const blankSpans = (content: string, blankStrings: boolean): string => {
-  const chars = content.split("");
+  const characters = content.split("");
   for (const span of lexicalSpans(content)) {
     if (span.kind === "string" && !blankStrings) continue;
-    for (const [offset, char] of content
-      .slice(span.start, span.end)
-      .split("")
-      .entries()) {
-      chars[span.start + offset] = char === "\n" ? "\n" : " ";
+    for (let index = span.start; index < span.end; index++) {
+      const character = content[index] as string;
+      characters[index] = isLineTerminator(character) ? character : " ";
     }
   }
-  return chars.join("");
+  return characters.join("");
 };
+
+/** One body with every chosen word and literal reduced to its shape token. */
+export const shapeOf = (content: string): string[] =>
+  scanCode(content, 0, false).tokens;

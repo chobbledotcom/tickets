@@ -7,8 +7,8 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { Flash } from "#shared/forms/flash.tsx";
 import {
-  AdminListingLink,
   AdminPage,
+  adminListingLink,
   renderAdminPage,
   staffAdminPage,
 } from "#templates/admin/admin-page.tsx";
@@ -80,9 +80,7 @@ describe("the link to a listing's admin page", () => {
   beforeAll(setupAdminPageTest);
 
   test("names the listing and points at its own page", () => {
-    const html = String(
-      AdminListingLink({ listing: { id: 12, name: "Gala Night" } }),
-    );
+    const html = String(adminListingLink({ id: 12, name: "Gala Night" }));
 
     expect(html).toBe('<a href="/admin/listing/12">Gala Night</a>');
   });
