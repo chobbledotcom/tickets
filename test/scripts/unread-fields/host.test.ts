@@ -1,0 +1,156 @@
+import { expect } from "@std/expect";
+import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
+import {
+  answered,
+  compilerOptions,
+  pathIs,
+  serviceHost,
+} from "#scripts/unread-fields/host.ts";
+
+/** A path no repository has. The compiler probes shapes like this constantly,
+ * so every helper here has to answer rather than fail. */
+const NOWHERE = "/nowhere/at/all/probe.ts";
+
+describe("the compiler's view of a repository", () => {
+  let root = "";
+  let file = "";
+
+  beforeAll(async () => {
+    root = await Deno.makeTempDir({ prefix: "unread-fields-host-" });
+    file = `${root}/present.ts`;
+    await Deno.writeTextFile(file, "export const total = 1;\n");
+  });
+
+  afterAll(async () => {
+    await Deno.remove(root, { recursive: true });
+  });
+
+  describe("answered", () => {
+    test("hands back what the compiler said", () => {
+      expect(answered("a program", "program")).toBe("a program");
+    });
+
+    test("hands back a falsy answer the compiler gave on purpose", () => {
+      expect(answered(0, "count")).toBe(0);
+    });
+
+    test("names what was missing when the compiler said nothing", () => {
+      expect(() => answered(undefined, "program for the scan")).toThrow(
+        "The compiler had no program for the scan",
+      );
+    });
+  });
+
+  describe("compilerOptions", () => {
+    test("takes the options the repository asks for", () => {
+      // Strictness changes what a type means, so a scan that left this out
+      // would read a different repository from the one Deno checks.
+      expect(compilerOptions(root, {}, { strict: true }).strict).toBe(true);
+    });
+
+    test("asks for nothing of its own when the repository asks for nothing", () => {
+      expect(compilerOptions(root, {}, undefined).strict).toBeUndefined();
+    });
+
+    test("says which option the compiler refused", () => {
+      expect(() => compilerOptions(root, {}, { target: "nonsense" })).toThrow(
+        "The compiler refused the options in deno.json",
+      );
+    });
+
+    test("names every refused option, not only the first", () => {
+      // Two bad options give two diagnostics, and both have to reach the
+      // person reading the failure, told apart.
+      expect(() =>
+        compilerOptions(root, {}, { jsx: "nope", target: "nonsense" }),
+      ).toThrow(/Argument for '--jsx'.*; Argument for '--target'/);
+    });
+
+    test("keeps the settings that say where the files are", () => {
+      const options = compilerOptions(
+        root,
+        { "#a": ["./a.ts"] },
+        {
+          baseUrl: "/somewhere/else",
+        },
+      );
+      expect(options.baseUrl).toBe(root);
+      expect(options.paths).toEqual({ "#a": ["./a.ts"] });
+    });
+  });
+
+  describe("pathIs", () => {
+    test("knows a file from a directory", () => {
+      expect(pathIs("isFile")(file)).toBe(true);
+      expect(pathIs("isDirectory")(file)).toBe(false);
+    });
+
+    test("knows a directory from a file", () => {
+      expect(pathIs("isDirectory")(root)).toBe(true);
+      expect(pathIs("isFile")(root)).toBe(false);
+    });
+
+    test("does not claim a path that is not there", () => {
+      expect(pathIs("isFile")(NOWHERE)).toBe(false);
+      expect(pathIs("isDirectory")(NOWHERE)).toBe(false);
+    });
+
+    test("does not claim a path below a file", () => {
+      expect(pathIs("isFile")(`${file}/probe.ts`)).toBe(false);
+    });
+
+    test("raises anything that is not the path being absent", () => {
+      expect(() => pathIs("isFile")("a\u0000b")).toThrow(TypeError);
+    });
+  });
+
+  describe("serviceHost", () => {
+    const hostFor = (): ReturnType<typeof serviceHost> =>
+      serviceHost(root, [file], compilerOptions(root, {}, undefined));
+
+    test("offers a snapshot of a file that is there", () => {
+      const snapshot = hostFor().getScriptSnapshot(file);
+      expect(snapshot?.getText(0, 6)).toBe("export");
+    });
+
+    test("offers no snapshot for a path that is not there", () => {
+      expect(hostFor().getScriptSnapshot(NOWHERE)).toBeUndefined();
+    });
+
+    test("reads nothing where a file stands in place of a folder", () => {
+      expect(hostFor().readFile?.(`${file}/probe.ts`)).toBeUndefined();
+    });
+
+    test("raises anything that is not the path being absent", () => {
+      expect(() => hostFor().readFile?.(root)).toThrow(
+        Deno.errors.IsADirectory,
+      );
+    });
+
+    test("reads a file once and answers from memory after that", async () => {
+      const host = hostFor();
+      expect(host.readFile?.(file)).toBe("export const total = 1;\n");
+      const gone = `${root}/fleeting.ts`;
+      await Deno.writeTextFile(gone, "export const n = 2;\n");
+      expect(host.readFile?.(gone)).toBe("export const n = 2;\n");
+      await Deno.remove(gone);
+      expect(host.readFile?.(gone)).toBe("export const n = 2;\n");
+    });
+
+    test("names the files the scan asked it to hold", () => {
+      expect(hostFor().getScriptFileNames()).toEqual([file]);
+    });
+
+    test("hands back the options it was built with", () => {
+      expect(hostFor().getCompilationSettings().baseUrl).toBe(root);
+      expect(hostFor().getCurrentDirectory()).toBe(root);
+    });
+
+    test("finds the repository's own directories and files", () => {
+      const host = hostFor();
+      expect(host.directoryExists?.(root)).toBe(true);
+      expect(host.fileExists?.(file)).toBe(true);
+      expect(host.fileExists?.(NOWHERE)).toBe(false);
+    });
+  });
+});

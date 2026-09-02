@@ -308,35 +308,15 @@ export const SETTINGS_FORM_DEFINITIONS = [
   }),
 ] as const;
 
-export type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
-export type SettingsFormName = SettingsFormDefinition["name"];
-
-/** The definitions that edit one setting through one form field. */
-export type SingleFieldSettingsForm = Exclude<
-  SettingsFormDefinition,
-  { kind: "fields" }
->;
-
-/** The definitions whose state fields all exist on page state `S` — so a
- *  definition rendered against the wrong page fails to compile. */
-export type SettingsFormFor<S> = Extract<
-  SettingsFormDefinition,
-  | { stateField: keyof S & string }
-  | {
-      kind: "fields";
-      fields: readonly (
-        | { stateField: keyof S & string }
-        | { configuredStateField: keyof S & string }
-      )[];
-    }
->;
+type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
+type SettingsFormName = SettingsFormDefinition["name"];
 
 type SettingFormFor<Name extends SettingsFormName> = Extract<
   SettingsFormDefinition,
   { name: Name }
 >;
 
-export type SettingsFormsByName = {
+type SettingsFormsByName = {
   readonly [Name in SettingsFormName]: SettingFormFor<Name>;
 };
 

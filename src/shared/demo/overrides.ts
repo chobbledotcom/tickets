@@ -24,7 +24,7 @@ import {
 } from "#shared/demo/samples.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import type { NamedResource } from "#shared/rest/resource.ts";
+import type { Resource } from "#shared/rest/resource.ts";
 
 /** Maps form field names to arrays of possible demo values */
 export type DemoFieldMap = Record<string, readonly string[]>;
@@ -119,9 +119,9 @@ export const loadAfterDemoOverrides = async <T>(
 
 /** Wrap a named resource so create/update apply demo overrides to the form */
 export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
-  resource: NamedResource<R, I, V>,
+  resource: Resource<R, I, V>,
   mapping: DemoFieldMap,
-): NamedResource<R, I, V> => ({
+): Resource<R, I, V> => ({
   ...resource,
   create: (form) => resource.create(applyDemoOverrides(form, mapping)),
   update: (id, form) => resource.update(id, applyDemoOverrides(form, mapping)),

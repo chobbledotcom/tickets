@@ -9,7 +9,7 @@ describe("aliasPaths", () => {
     });
   });
 
-  test("leaves an alias naming one file exact", () => {
+  test("leaves an alias for one file exact", () => {
     expect(aliasPaths({ "#fp": "./src/fp.ts" })).toEqual({
       "#fp": ["./src/fp.ts"],
     });
@@ -23,5 +23,11 @@ describe("aliasPaths", () => {
 
   test("maps an empty import table to no paths", () => {
     expect(aliasPaths({})).toEqual({});
+  });
+
+  test("maps an absent import table to no paths", () => {
+    // A repository can leave `imports` out of deno.json altogether. That is
+    // a repository with no aliases, not a repository the scan cannot read.
+    expect(aliasPaths(undefined)).toEqual({});
   });
 });

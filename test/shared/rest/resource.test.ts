@@ -52,15 +52,10 @@ const createTestTable = (): Table<TestRow, TestInput> =>
     },
   });
 
-/** Create test resource, optionally with name verification */
-const createTestResource = (
-  withNameField = false,
-): Resource<TestRow, TestInput> => {
+/** Create a test resource. */
+const createTestResource = (): Resource<TestRow, TestInput> => {
   const table = createTestTable();
-  const opts = withNameField
-    ? { form: testForm, nameField: "name" as const, table, toInput }
-    : { form: testForm, table, toInput };
-  return defineResource(opts);
+  return defineResource({ form: testForm, table, toInput });
 };
 
 /** Insert test row and return the resource for chaining */
@@ -118,18 +113,6 @@ describe("rest/resource", () => {
         new FormParams({ name: "Test", value: "1" }),
       );
       expect(result.ok).toBe(true);
-    });
-
-    test("supports name verification when nameField is provided", () => {
-      const resource = createTestResource(true);
-      const row: TestRow = { id: 1, name: "Test", value: 1 };
-      expect(resource.verifyName?.(row, "Test")).toBe(true);
-      expect(resource.verifyName?.(row, "Wrong")).toBe(false);
-    });
-
-    test("does not create verifyName without nameField", () => {
-      const resource = createTestResource();
-      expect(resource.verifyName).toBeUndefined();
     });
   });
 
@@ -319,28 +302,6 @@ describe("rest/resource", () => {
 
     test("returns notFound for non-existent row", async () => {
       expectResultNotFound(await createTestResource().delete(999));
-    });
-  });
-
-  describe("verifyName", () => {
-    const testRow: TestRow = { id: 1, name: "Test Item", value: 10 };
-
-    test("returns true for matching name (case insensitive)", () => {
-      const resource = createTestResource(true);
-      expect(resource.verifyName?.(testRow, "Test Item")).toBe(true);
-      expect(resource.verifyName?.(testRow, "test item")).toBe(true);
-      expect(resource.verifyName?.(testRow, "TEST ITEM")).toBe(true);
-    });
-
-    test("returns true with trimmed whitespace", () => {
-      const resource = createTestResource(true);
-      expect(resource.verifyName?.(testRow, "  Test Item  ")).toBe(true);
-    });
-
-    test("returns false for non-matching name", () => {
-      const resource = createTestResource(true);
-      expect(resource.verifyName?.(testRow, "Wrong Name")).toBe(false);
-      expect(resource.verifyName?.(testRow, "")).toBe(false);
     });
   });
 });

@@ -262,7 +262,6 @@ export const buildCreateListingResource = (form: FormParams) =>
     afterCommit: syncListingPrices,
     afterWrite: writeCreateListingGroups(form),
     form: getListingForm(),
-    nameField: "name",
     table: listingsTable,
     toInput: (values: ListingFormValues) => extractListingInput(values, form),
     validate: listingValidate(form),
@@ -274,7 +273,6 @@ export const buildUpdateListingResource = (form: FormParams) =>
     afterCommit: syncListingPrices,
     afterWrite: writeListingGroups,
     form: getListingEditForm(),
-    nameField: "name",
     table: listingsTable,
     toInput: (values: ListingEditFormValues) =>
       extractListingUpdateInput(values, form),

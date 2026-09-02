@@ -64,6 +64,14 @@
     "secondStart": 193
   },
   {
+    "first": "scripts/coverage-check.ts",
+    "firstStart": 217,
+    "hash": "de890aed588d9efdf99a4e6612f7539bdd5418baaf5e934e4b1e44e8f76d61d9",
+    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "second": "src/shared/order-select.ts",
+    "secondStart": 37
+  },
+  {
     "first": "scripts/deploy-edge-lib.ts",
     "firstStart": 33,
     "hash": "aea0f1c0f42a946a2f334c3ba9dc06878aaec8b8ab9f54f0018a74b6610ff7ca",
@@ -110,14 +118,6 @@
     "reason": "thin wrappers over two different platform calls, Deno.stat vs Deno.lstat; the shared shape is the OrNull convention, already one mechanism",
     "second": "scripts/not-found.ts",
     "secondStart": 54
-  },
-  {
-    "first": "scripts/run-tests.ts",
-    "firstStart": 221,
-    "hash": "de7aafdaa3684d4d183fd38f3dbb4b9f0bbdf1e8c88094a8057fea53abbd0d47",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "src/shared/order-select.ts",
-    "secondStart": 37
   },
   {
     "first": "scripts/unit-tests-report-imports.ts",
@@ -653,7 +653,7 @@
     "hash": "95ae3fb79727639a50b8e6833df8fbdce850ea118d43305522378b8da67a1a34",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/square/payment-outcomes.ts",
-    "secondStart": 65
+    "secondStart": 46
   },
   {
     "first": "src/shared/storage.ts",

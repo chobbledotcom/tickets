@@ -138,11 +138,7 @@ export const defineCrudApi = <
     existing: FullRow | null;
   };
 
-  const prepareSideEffect = async ({
-    input,
-    body,
-    existing,
-  }: WriteInputs): Promise<{ error: string } | { value: Prepared }> =>
+  const prepareSideEffect = async ({ input, body, existing }: WriteInputs) =>
     config.sideEffect
       ? config.sideEffect.validate(input, body, existing)
       : { value: undefined as Prepared };

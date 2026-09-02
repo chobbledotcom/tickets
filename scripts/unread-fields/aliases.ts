@@ -7,9 +7,11 @@
  */
 
 /** Translate the `#` aliases into what a TypeScript program expects. A
- * trailing slash means a folder prefix, so both sides gain a `*`. */
+ * trailing slash means a folder prefix, so both sides gain a `*`. A
+ * repository can leave the import map out altogether, and one that does has
+ * no aliases to translate rather than a fault to report. */
 export const aliasPaths = (
-  imports: Record<string, string>,
+  imports: Record<string, string> = {},
 ): Record<string, string[]> => {
   const paths: Record<string, string[]> = {};
   for (const [alias, target] of Object.entries(imports)) {

@@ -1,0 +1,143 @@
+import { afterAll, beforeAll } from "@std/testing/bdd";
+import type { Finding } from "#scripts/unread-fields/findings.ts";
+import { scanUnreadFields } from "#scripts/unread-fields/scan.ts";
+import { REACHING } from "./reaching.ts";
+import { READERS } from "./readers.ts";
+import { SHAPES } from "./shapes.ts";
+
+/**
+ * A whole repository, small enough to hold in your head. It holds every way a
+ * field can be reached. The scan runs over it once and each test reads one
+ * verdict out of the answer.
+ */
+const FIXTURE: Record<string, string> = {
+  // The compiler options are read as well as the imports, because strictness
+  // changes what a type means.
+  "deno.json": JSON.stringify({
+    compilerOptions: { strict: true },
+    imports: { "#jsx/": "./scripts/jsx/", "#shapes": "./src/shapes.ts" },
+  }),
+
+  // Outside the four scanned folders, so its read does not count.
+  "outside.ts": `
+import { sum } from "./src/produce.ts";
+
+export const ignored = sum.readOnlyFromOutside;
+`,
+
+  // Reached by the prefix form of an alias, "#jsx/*". It lives under scripts/
+  // so its own fields are not findings.
+  "scripts/jsx/jsx-runtime.ts": `
+export namespace JSX {
+  export type Element = { tag: string };
+}
+`,
+
+  "src/badge.tsx": `
+import type { JSX } from "#jsx/jsx-runtime.ts";
+
+export type BadgeProps = { label: string; supplied: string };
+
+export const Badge = ({ label }: BadgeProps): JSX.Element => ({ tag: label });
+
+export const badge = <Badge label="hi" supplied="nothing reads this" />;
+`,
+
+  // A barrel. Its re-exports belong to the file that declares them, so nothing
+  // here is counted twice. The last name is not there to be re-exported, so
+  // the compiler stands in a symbol that was never written down anywhere.
+  "src/barrel.ts": `
+export type { Report, Sum } from "#shapes";
+export type { Gone } from "./nowhere.ts";
+`,
+
+  "src/consume.ts": READERS,
+
+  // Reached by a directory import. The compiler finds it only when the host
+  // says truthfully that "src/inner.ts" is not a file.
+  "src/inner/index.ts": `
+export interface Reached {
+  total: number;
+}
+
+export interface FarBase {
+  paddingSoTheOffsetIsWrongInAnotherFile: number;
+  readFromFarAway: number;
+}
+`,
+
+  // No import and no export, so this file is a script and not a module. It
+  // offers nothing for other files to reach.
+  "src/plain.ts": `
+const kept = 1;
+console.log(kept);
+`,
+
+  // Every field written, none read: on its own this file proves nothing.
+  "src/produce.ts": `
+import type { Report, Sum } from "#shapes";
+
+export const sum: Sum = {
+  noOneReadsThis: 2,
+  readOnlyFromOutside: 4,
+  takenOutByPattern: 3,
+  total: 1,
+};
+export const report: Report = {
+  headline: "hi",
+  onlyTestsRead: "x",
+  nested: { deep: 3 },
+};
+`,
+
+  "src/reaching.ts": REACHING,
+
+  "src/shapes.ts": SHAPES,
+
+  "test/report.test.ts": `
+import { report } from "../src/produce.ts";
+import type { FixedOnlyTestsRead } from "../src/shapes.ts";
+
+export const seen = report.onlyTestsRead;
+declare const fixed: FixedOnlyTestsRead;
+export const fixedSeen = fixed.onlyTestsRead;
+`,
+};
+
+const buildFixture = async (root: string): Promise<void> => {
+  for (const folder of ["cli", "scripts/jsx", "src/inner", "test"]) {
+    await Deno.mkdir(`${root}/${folder}`, { recursive: true });
+  }
+  for (const [path, text] of Object.entries(FIXTURE)) {
+    await Deno.writeTextFile(`${root}/${path}`, text);
+  }
+};
+
+/** Build the repository, scan it once, and hand the suite its answer. The
+ * hooks are registered where this is called, so each suite owns its own copy
+ * and no hook reaches a file that did not ask for one. */
+export const scannedFixture = (): {
+  readonly all: Finding[];
+  verdictOf: (owner: string, field: string) => string | undefined;
+} => {
+  let root = "";
+  let findings: Finding[] = [];
+
+  beforeAll(async () => {
+    root = await Deno.makeTempDir({ prefix: "unread-fields-" });
+    await buildFixture(root);
+    findings = await scanUnreadFields(root);
+  });
+
+  afterAll(async () => {
+    await Deno.remove(root, { recursive: true });
+  });
+
+  return {
+    get all(): Finding[] {
+      return findings;
+    },
+    verdictOf: (owner, field) =>
+      findings.find((f) => f.owner === owner && f.field === field)?.verdict,
+  };
+};

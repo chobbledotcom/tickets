@@ -28,7 +28,7 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
-import { defineNamedResource } from "#shared/rest/resource.ts";
+import { defineResource } from "#shared/rest/resource.ts";
 import {
   addMonthsToRenewalDeadline,
   getQualifyingTierListings,
@@ -91,9 +91,8 @@ const extractBuiltSiteInput = (
 };
 
 /** Built sites resource for REST create/update operations */
-const builtSitesResource = defineNamedResource({
+const builtSitesResource = defineResource({
   form: getBuiltSiteForm(),
-  nameField: "name",
   table: builtSitesCrudTable,
   toInput: extractBuiltSiteInput,
 });

@@ -2,9 +2,8 @@
 import { settings } from "#db/settings.ts";
 import { sameOn } from "#fp";
 import { cachedClientFactory } from "#shared/payment-helpers.ts";
-import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
 import { squareFetch } from "#shared/square/transport.ts";
-import { squareAnswer } from "#shared/square/wire.ts";
+import { type SquareMoney, squareAnswer } from "#shared/square/wire.ts";
 
 /* jscpd:ignore-end */
 
@@ -14,6 +13,13 @@ type SquareLineItem = {
   quantity: string;
   note: string;
   basePriceMoney: { amount: bigint; currency: string };
+};
+
+/** Input to Square's refund transport. */
+export type RefundPaymentInput = {
+  idempotencyKey: string;
+  paymentId: string;
+  amountMoney: SquareMoney;
 };
 
 /** Input accepted by the payment-link endpoint. */

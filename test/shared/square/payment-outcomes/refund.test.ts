@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { squareApi } from "#shared/square/api.ts";
-import type { RefundPaymentInput } from "#shared/square/payment-outcomes.ts";
+import type { RefundPaymentInput } from "#shared/square/client.ts";
 import type { SquareRefund } from "#shared/square/wire.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { gbp } from "#test-utils/payment-state.ts";

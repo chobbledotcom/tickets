@@ -177,12 +177,7 @@ export type ConfirmedHandlers = {
 };
 
 /** Resolve auth option to concrete guard functions */
-const resolveAuth = <TSession>(
-  auth: AuthOption<TSession> | undefined,
-): {
-  requireSession: SessionGuard<TSession>;
-  withForm: FormGuard<TSession>;
-} => {
+const resolveAuth = <TSession>(auth: AuthOption<TSession> | undefined) => {
   if (typeof auth === "object") return auth;
   const isOwner = auth !== "any";
   return {

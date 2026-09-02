@@ -217,7 +217,6 @@ describe("wrapResourceForDemo", () => {
           row: { id: 1, name: "" },
         });
       },
-      verifyName: (_row: unknown, _name: string) => true,
     };
     return {
       getLastCreateForm: () => lastCreateForm,
@@ -257,14 +256,6 @@ describe("wrapResourceForDemo", () => {
     expect(DEMO_HOLIDAY_NAMES as readonly string[]).toContain(
       getLastUpdateForm()!.get("name"),
     );
-  });
-
-  test("preserves verifyName from original resource", () => {
-    const { resource } = makeFakeResource();
-    const wrapped = wrapResourceForDemo(resource, {
-      name: DEMO_NAMES,
-    } as DemoFieldMap);
-    expect(wrapped.verifyName).toBe(resource.verifyName);
   });
 
   test("does not apply overrides when demo mode is off", () => {
