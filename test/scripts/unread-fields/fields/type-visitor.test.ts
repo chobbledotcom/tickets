@@ -20,7 +20,7 @@ interface CarriedByAPick {
 }
 `;
 
-  test("walks a carried call's inputs and result by name and by place", async () => {
+  test("walks a carried call's inputs by name and by place", async () => {
     const paths = pathsOf(
       await fieldsOf(
         `${carried}

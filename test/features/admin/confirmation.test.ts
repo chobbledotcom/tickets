@@ -99,9 +99,9 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
     });
 
     test("treats a value that is not a string as a mismatch", () => {
-      expect(verifyIdentifierOrJsonError("Test", null)).toContain(
-        "does not match",
-      );
+      expect(
+        verifyIdentifierOrJsonError("Test", { not: "a string" }),
+      ).toContain("does not match");
     });
   });
 
@@ -211,9 +211,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         );
       });
 
-      expect(await (await response).text()).toBe(
-        "page:flash from the blocked POST",
-      );
+      expect(await response.text()).toBe("page:flash from the blocked POST");
     });
 
     test("keeps an empty flash error over the guard on GET", async () => {
@@ -232,7 +230,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         }).get(mockRequest("/admin/test/1/delete", { headers: { cookie } }), 1);
       });
 
-      expect(await (await response).text()).toBe("page<empty>");
+      expect(await response.text()).toBe("page<empty>");
     });
 
     test("drops the action suffix when the action label is empty", async () => {
@@ -414,13 +412,13 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       const managerCookie = await createTestManagerSession();
       const csrf = await testCsrfToken();
 
-      const ownerResponse = await build().get(
+      const blocked = await build().get(
         mockRequest("/admin/test/1/delete", {
           headers: { cookie: managerCookie },
         }),
         1,
       );
-      expect(await ownerResponse.text()).not.toBe("page");
+      expect(blocked.status).toBe(403);
 
       const anyResponse = await build({ auth: "any" }).get(
         mockRequest("/admin/test/1/delete", {

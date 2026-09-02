@@ -111,7 +111,9 @@ export type UsesGhostAndReal = GhostBase | ReachedThroughAGhost;
 export type UsesAnAmbientTarget = { held: InAScriptFile };
 `,
         {
-          // No import and no export, so this file offers the walk nothing.
+          // No import and no export, so this file is not a module: its
+          // interface is never an exported target, and the field stays under
+          // the caller that holds it.
           "plain.ts": `
 interface InAScriptFile {
   neverCountedAsExported: number;
