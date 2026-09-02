@@ -11,13 +11,11 @@ import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
-import {
-  resetHostEmailConfig,
-  setHostEmailConfigForTest,
-} from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
+/* jscpd:ignore-start -- imports */
 import {
   assignAndNotifyBuiltSites,
   parseReadOnlyFromMs,
@@ -31,6 +29,8 @@ import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+
+/* jscpd:ignore-end */
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
   let counter = 0;
@@ -172,7 +172,7 @@ describeWithEnv(
     beforeEach(async () => {
       fetchStub = stubFetch(() => new Response());
       secretStub = stubEdgeSecretSuccess();
-      setHostEmailConfigForTest({
+      hostEmail.setOverride({
         apiKey: "re_test",
         fromAddress: validEmail("test@example.com"),
         provider: "resend",
@@ -189,13 +189,22 @@ describeWithEnv(
     afterEach(() => {
       fetchStub.restore();
       if (!secretStub.restored) secretStub.restore();
-      resetHostEmailConfig();
+      hostEmail.resetOverride();
     });
+
+    /** The two live sites every multi-site assignment test starts from. */
+    const insertSitesAAndB = async () => {
+      await insertBuiltSite("Site A", "a.test.net", "", "", true);
+      await insertBuiltSite("Site B", "b.test.net", "", "", true);
+    };
+
+    /** Keeps a deliberate error out of the test output, so the caller can
+     *  read what was logged without printing it. */
+    const silencedErrors = () => stub(console, "error", () => {});
 
     describe("assignAndNotifyBuiltSites", () => {
       test("assigns one site per ticket and sends email", async () => {
-        await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        await insertBuiltSite("Site B", "b.test.net", "", "", true);
+        await insertSitesAAndB();
 
         await assignAndNotifyBuiltSites([siteEntry({ quantity: 2 })]);
 
@@ -220,8 +229,7 @@ describeWithEnv(
       });
 
       test("assigns sites independently per listing", async () => {
-        await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        await insertBuiltSite("Site B", "b.test.net", "", "", true);
+        await insertSitesAAndB();
 
         await assignAndNotifyBuiltSites([
           siteEntry({ attendeeId: 10, listingId: 1, listingName: "Listing 1" }),
@@ -325,8 +333,7 @@ describeWithEnv(
       });
 
       test("sends email with plural subject for multiple sites", async () => {
-        await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        await insertBuiltSite("Site B", "b.test.net", "", "", true);
+        await insertSitesAAndB();
 
         await assignAndNotifyBuiltSites([
           siteEntry({ listingId: 1, listingName: "Listing 1" }),
@@ -367,8 +374,7 @@ describeWithEnv(
         await settings.update.email.apiKey("re_db_key");
         await settings.update.email.fromAddress("db@example.com");
         await settings.update.businessEmail("biz@example.com");
-        resetHostEmailConfig();
-        setHostEmailConfigForTest(null);
+        hostEmail.setOverride(null);
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
@@ -377,8 +383,7 @@ describeWithEnv(
       });
 
       test("skips email when no email config", async () => {
-        resetHostEmailConfig();
-        setHostEmailConfigForTest(null);
+        hostEmail.setOverride(null);
 
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         await assignAndNotifyBuiltSites([siteEntry()]);
@@ -446,7 +451,7 @@ describeWithEnv(
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
         using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
-        const errorSpy = stub(console, "error", () => {});
+        const errorSpy = silencedErrors();
 
         try {
           await assignAndNotifyBuiltSites([
@@ -482,7 +487,7 @@ describeWithEnv(
 
         const buildStub = stubBuildSiteSuccess();
         using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
-        const errorSpy = stub(console, "error", () => {});
+        const errorSpy = silencedErrors();
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 

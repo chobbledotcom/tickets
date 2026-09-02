@@ -16,11 +16,6 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
 
-/** Frozen before the fixtures' deadlines. The renewal base is
- *  max(now, deadline), so a real clock past the deadline stacks the months
- *  onto "now" instead of onto the fixture. */
-const FROZEN_NOW = new Date("2026-08-01T00:00:00Z");
-
 describeWithEnv(
   "server webhooks > extractIntent + redirect/renewal",
   { db: true },
@@ -123,7 +118,7 @@ describeWithEnv(
         (s) => s.name === "Token Site",
       )!;
       const { tokenIndex } = await provisionTestBuiltSite(seedSite.id, {
-        readOnlyFrom: "2026-09-01T00:00:00Z",
+        readOnlyFrom: "2030-01-01T00:00:00Z",
       });
 
       const secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -206,7 +201,9 @@ describeWithEnv(
     });
 
     test("payment success applies multi-tier renewal months cumulatively", async () => {
-      using _time = new FakeTime(FROZEN_NOW);
+      // Renewal extends max(now, the seeded deadline). Freeze the clock
+      // before that deadline, or a wall clock past it moves the base to now.
+      using _time = new FakeTime(new Date("2026-08-01T00:00:00.000Z"));
       await setupStripe();
 
       await createTestListing({
@@ -243,7 +240,9 @@ describeWithEnv(
         (e) => e.name === "Annual multi-tier renewal",
       )!;
 
-      const initialDeadline = "2026-09-01T00:00:00Z";
+      // A deadline in the far future keeps the stacking on this date, not on
+      // the clock the test runs under.
+      const initialDeadline = "2030-01-01T00:00:00Z";
       await insertBuiltSite(
         "Multi Tier Renewal Site",
         "multi-renew.b-cdn.net",

@@ -1,0 +1,30 @@
+# Functions that share a shape and are not the same thing.
+#
+# A shape is a coarse thing: build an object from another object's fields, map
+# then join, compare two fields with `&&`. Enough code does that for two
+# unrelated functions to match without either being a copy of the other.
+#
+# A line belongs here only when there is no shared step to lift, and only when
+# no two of its sites are a pair. When in doubt, try writing the curry first —
+# "these two cannot be merged" is nearly always wrong, and this file is the one
+# place that judgement is recorded.
+#
+# Format: the match, two spaces, then `# why they are not one thing`. Each
+# site carries its body's fingerprint after `~`; the check prints the line to
+# paste, and editing a listed body stales its entry until the note is re-read.
+
+e2e-payments/src/cucumber/steps/pages.ts::bookingIdentity~1k2aqbp,src/features/admin/refunds/candidates.ts::loadedRefundAttendee~0pvtruz  # each builds an object from another object's fields, one in the app and one in the live-payment harness
+scripts/unread-fields/writes.ts::throughTheField~14zz5sg,src/features/admin/listing-page.ts::staffAnd~0mtd9pw  # each is one && between a base check on a pair and an extra check the pair supplies — one asks about the pair’s second node, the other about its first entity — so the only liftable step is the conjunction itself
+
+scripts/specs/evidence/resolve.ts::stableItem~17kncg7,src/features/admin/holidays.ts::extractHolidayInput~0yrzff8,src/features/admin/modifiers.ts::scopeLinksFor.options@1~1rnjmky,src/features/admin/scanner.ts::handleScannerGet.uncheckedIn@2~17fws6w,src/features/public/group-liveness.ts::publicGroupSummary~0pz6i6t,src/shared/db/attendees/tokens.ts::previousBookingLineWithoutAttendee~1h2c7dy,src/shared/db/attributes.ts::rowAttribute~044781f,src/shared/listing-details.ts::listingDetails~0bec3gm,src/shared/provider-refunds/state.ts::receipt~1u1irdq,src/ui/templates/admin/bulk-actions.tsx::adminDuplicateGroupPage.listingsData~04kljc3,src/ui/templates/admin/ledger/entry-form.ts::ledgerEntryAddFields.options~1kffmj0  # eleven functions that each build an object from another object's fields; that is construction, not a shared step
+src/features/admin/content-form-fields.ts::seoContentInput~163x5mq,src/features/api/payment-processing/snapshot/io.ts::loadPaidOrderSnapshot.dayPrices~0j6kzej,src/features/instance.ts::handleSiteCredentials.credentials~1k5q33z,src/shared/db/contact-preferences.ts::statsToBlob~1khdaoh,src/shared/db/logistics.ts::rowToAssignment~1d5xhs8,src/shared/stripe/endpoints.ts::testStripeConnection.webhooks~0j3rs36  # six functions that each build an object from another object's fields
+src/features/admin/listing-qr.ts::loadQrFormContext~1e2jl5v,src/shared/db/payment-anchor/reference.ts::paymentAnchorReference~03ph5fi  # both destructure a Promise.all of two unrelated loads
+src/features/admin/settings-general.ts::handleThemePost.extract~0m0603r,src/features/admin/settings-square.ts::squareRoutes.extraFields~183znec  # both read a settings form into an object; the fields differ and nothing else is shared
+src/shared/db/chosen-columns.ts::chooseColumns.columnsSql~0ggxqnr,src/shared/markdown.ts::rewriteTokens~1i2zylr  # both are `xs.map(fn).join(sep)` over unrelated data. What they share is two language built-ins and no call at all, so a mapJoin helper would only put a name in front of syntax every reader knows
+src/shared/ledger/reverse.ts::isInverseOf~1flz8yv,src/shared/provider-refunds/state.ts::sameConflictDecision~16rpwkp  # both compare three fields with `&&`, over a ledger leg and over a refund decision
+src/shared/payment/refund-machine-spec.ts::family~1lu7m65,src/ui/templates/fields/aggregate.ts::buildAggregateFields~1b5j9sp  # a map with a destructured entry, over machine states and over field specs
+src/ui/templates/admin/settings/schema-form.tsx::renderField~0wsufz9,src/ui/templates/admin/settings/schema-form.tsx::settingsForm~1dbd0zr  # two switch statements over unrelated unions in one file
+
+src/shared/email.ts::sendgridAttachment~1ttdtse,src/shared/payment/transport-error.ts::providerDetail.stripe~17dv4y5  # each names four fields of its own, one for a SendGrid attachment and one for a Stripe error; the field names are the whole content, so there is nothing to lift
+src/ui/templates/components/aggregate-sections.tsx::SectionFieldset~0n3370q,src/ui/templates/components/page-structure.tsx::TitledArticle~0eh8w2m  # both wrap children under a heading, but in different elements: a form section is a fieldset with a legend, which is the accessibility contract AGENTS.md pins, and an article is an h2. A curry over the tag name would hide exactly the thing those rules exist to keep visible
+src/features/admin/built-site-page.tsx::secretsTab~0niakdn,src/features/admin/built-site-page.tsx::updateTab~1p1whcy  # two tabs that each load one thing for a site and hand it to a panel; the panels name that thing differently, view and state, and a curry could only share the await by renaming both to one word that says less

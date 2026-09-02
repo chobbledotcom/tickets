@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import {
   hashEmail,
   hashPhone,
   saveContactRecord,
-  toContactHashParam,
 } from "#db/contact-preferences.ts";
 import {
   EMPTY_CONTACT_RECORDS,
@@ -45,7 +45,7 @@ describeWithEnv("attendee contact records", { db: true }, () => {
     );
 
     expect(records).toEqual({
-      email: { hashParam: toContactHashParam(hash), record: SAVED_RECORD },
+      email: { hashParam: base64ToBase64Url(hash), record: SAVED_RECORD },
       phone: null,
     });
   });
@@ -59,7 +59,7 @@ describeWithEnv("attendee contact records", { db: true }, () => {
     );
 
     expect(records.email).toBeNull();
-    expect(records.phone?.hashParam).toBe(toContactHashParam(hash));
+    expect(records.phone?.hashParam).toBe(base64ToBase64Url(hash));
   });
 
   test("labels a corrupt contact note as contact history in the error log", async () => {
@@ -77,7 +77,7 @@ describeWithEnv("attendee contact records", { db: true }, () => {
 
       expect(records.email?.record.visits).toBe(7);
       expect(errorSpy.calls[0]?.args[0]).toContain(
-        `detail="contact history ${toContactHashParam(hash)}:`,
+        `detail="contact history ${base64ToBase64Url(hash)}:`,
       );
     } finally {
       errorSpy.restore();

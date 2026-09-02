@@ -1,17 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { readCatalog, runLabelCheck } from "#scripts/check-e2e-labels/run.ts";
-import type { CheckOutput } from "#scripts/check-report.ts";
-
-/** An output that captures everything the check says. */
-const capturedOutput = (): CheckOutput & { lines: string[] } => {
-  const lines: string[] = [];
-  return {
-    lines,
-    log: (line: string) => lines.push(line),
-    logError: (line: string) => lines.push(line),
-  };
-};
+import { capturedCheckOutput } from "#test-utils/check-script.ts";
 
 /** Write a file under a temp dir and return its path. */
 const tempFile = async (
@@ -75,7 +65,7 @@ describe("e2e label check run", () => {
 
   test("passes a scan whose labels all come from the catalog", async () => {
     const root = await Deno.makeTempDir();
-    const output = capturedOutput();
+    const output = capturedCheckOutput();
     try {
       await tempFile(
         root,
@@ -94,7 +84,7 @@ describe("e2e label check run", () => {
 
   test("fails a scan whose label no message renders, and names file and line", async () => {
     const root = await Deno.makeTempDir();
-    const output = capturedOutput();
+    const output = capturedCheckOutput();
     try {
       await tempFile(
         root,
@@ -127,7 +117,7 @@ describe("e2e label check run", () => {
 
   test("fails when the catalog cannot be read", async () => {
     const root = await Deno.makeTempDir();
-    const output = capturedOutput();
+    const output = capturedCheckOutput();
     try {
       await tempFile(root, "scan/flow.ts", `await s.clickButton("Login");`);
 

@@ -18,11 +18,6 @@ export const joinBytes = (parts: readonly Uint8Array[]): Uint8Array => {
   return output;
 };
 
-/** Equality for public DER metadata only; this exits early and is not safe for secrets. */
-export const bytesEqual = (left: Uint8Array, right: Uint8Array): boolean =>
-  left.length === right.length &&
-  left.every((byte, index) => byte === right[index]);
-
 /** Big-endian bytes of a non-negative whole number; zero is no bytes. Each
  * step shrinks the value 256-fold, so the recursion always bottoms out. */
 const unsignedBytes = (value: number): number[] =>

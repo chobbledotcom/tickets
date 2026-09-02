@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { setHostEmailConfigForTest } from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import {
   getSupportPageText,
   isSupportEnabled,
@@ -152,7 +152,7 @@ describe("sendSupportMessage", () => {
   beforeEach(() => {
     sandbox.setEnv(ADMIN_ENV);
     settings.setForTest({ business_email: "owner@example.com" });
-    setHostEmailConfigForTest({
+    hostEmail.setOverride({
       apiKey: "host-key",
       fromAddress: validEmail("sender@sending.test"),
       provider: "resend",
@@ -173,7 +173,7 @@ describe("sendSupportMessage", () => {
   });
 
   test("returns false when no email provider is configured", async () => {
-    setHostEmailConfigForTest(null);
+    hostEmail.setOverride(null);
     await expectSendNoop(sandbox, () => sendSupportMessage("Help"));
   });
 

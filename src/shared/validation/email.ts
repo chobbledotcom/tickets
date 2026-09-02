@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 
 /**
  * Email validation — the single source of truth for what counts as a valid
@@ -55,8 +56,7 @@ export function isValidEmail(email: string): boolean {
  * validated address needs to be carried onward in a type-safe way.
  */
 export function parseEmail(email: string): ValidEmail | null {
-  const result = v.safeParse(EmailSchema, email);
-  return result.success ? result.output : null;
+  return parseOrNull(EmailSchema, email);
 }
 
 /**

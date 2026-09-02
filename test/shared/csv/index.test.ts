@@ -70,3 +70,71 @@ describe("CSV.generate", () => {
     expect(csv).toBe('Title,Note\nplain,\n"quoted, ""value""","line\rbreak"');
   });
 });
+
+describe("CSV.generate formula safety", () => {
+  const valueColumn: Column<{ value: string }>[] = [
+    { header: "Value", value: (row) => row.value },
+  ];
+
+  test("puts a tab in front of every character that can start a formula", () => {
+    const inertCells: [string, string][] = [
+      ["=SUM(A1:A2)", '"\t=SUM(A1:A2)"'],
+      ["+44 20 7946", '"\t+44 20 7946"'],
+      ["-Maria", '"\t-Maria"'],
+      ["@handle", '"\t@handle"'],
+      ["\tTabbed start", '"\t\tTabbed start"'],
+      ["＝SUM(A1:A2)", '"\t＝SUM(A1:A2)"'],
+      ["＋44 20 7946", '"\t＋44 20 7946"'],
+      ["－Maria", '"\t－Maria"'],
+      ["＠handle", '"\t＠handle"'],
+    ];
+    for (const [formulaText, inertCell] of inertCells) {
+      expect(CSV.generate([{ value: formulaText }], valueColumn)).toBe(
+        `Value\n${inertCell}`,
+      );
+    }
+  });
+
+  test("quotes the tab marker so a tab-delimited import cannot split it", () => {
+    // Unquoted, `⇥=cmd` splits into an empty field and a live `=cmd` when a
+    // reader takes tabs as delimiters. The quotes keep marker and value one
+    // field under every reader.
+    expect(CSV.generate([{ value: "=cmd" }], valueColumn)).toBe(
+      'Value\n"\t=cmd"',
+    );
+  });
+
+  test("puts a tab in front of a carriage return that starts a cell", () => {
+    // The CR also trips RFC 4180 quoting, so both guards apply to it.
+    expect(CSV.generate([{ value: "\rcmd" }], valueColumn)).toBe(
+      'Value\n"\t\rcmd"',
+    );
+  });
+
+  test("puts a tab in front of a line feed that starts a cell", () => {
+    // Same shape as the CR case: LF trips RFC 4180 quoting too.
+    expect(CSV.generate([{ value: "\n=cmd" }], valueColumn)).toBe(
+      'Value\n"\t\n=cmd"',
+    );
+  });
+
+  test("leaves cells that cannot start a formula alone", () => {
+    const csv = CSV.generate(
+      [{ value: "a=b" }, { value: "1+1" }, { value: "Bob" }, { value: "" }],
+      valueColumn,
+    );
+    expect(csv).toBe("Value\na=b\n1+1\nBob\n");
+  });
+
+  test("stops a formula and quotes the cell when it also has a comma", () => {
+    expect(CSV.generate([{ value: "=a,b" }], valueColumn)).toBe(
+      'Value\n"\t=a,b"',
+    );
+  });
+
+  test("puts a tab in front of a formula character that starts a header", () => {
+    expect(CSV.generate([], [{ header: "=Total", value: () => "" }])).toBe(
+      '"\t=Total"',
+    );
+  });
+});

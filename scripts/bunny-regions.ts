@@ -9,6 +9,7 @@
  *
  * Usage: BUNNY_API_KEY=... deno run --allow-net --allow-env scripts/bunny-regions.ts
  */
+import { keepAndTake } from "#fp";
 
 interface BunnyRegion {
   group: string;
@@ -52,8 +53,10 @@ console.log(fmt(config.primary_regions));
 console.log("\nReplica regions:");
 console.log(fmt(config.replica_regions));
 
-const euIds = (rs: BunnyRegion[]) =>
-  rs.filter((r) => r.group === "EU").map((r) => r.id);
+const euIds = keepAndTake(
+  (region: BunnyRegion) => region.group === "EU",
+  (region) => region.id,
+);
 console.log("\nEuropean storage zone ids:");
 console.log(euIds(config.storage_region_available));
 console.log("European primary region ids:");

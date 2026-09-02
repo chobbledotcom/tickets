@@ -102,8 +102,11 @@ const settingsBase = {
       return snap("address_lookup_api_key") !== "";
     },
     get provider(): AddressLookupSetting {
-      const value = snap("address_lookup_provider");
-      return isAddressLookupSetting(value) ? value : "none";
+      return knownSetting(
+        snap("address_lookup_provider"),
+        isAddressLookupSetting,
+        "none",
+      );
     },
   },
   // --- Apple Wallet ---
@@ -249,8 +252,7 @@ const settingsBase = {
 
   // --- Superuser ---
   get superuserChoice(): SuperuserChoice {
-    const choice = snap("superuser_choice");
-    return isSuperuserChoice(choice) ? choice : "";
+    return knownSetting(snap("superuser_choice"), isSuperuserChoice, "");
   },
   get theme(): Theme {
     return snap("theme");
@@ -362,6 +364,16 @@ const settingsBase = {
 
 /** The namespace: the literal above, plus the two parts that build their own
  *  getters. */
+
+/** A stored setting, kept only when it is one of the values we know. Anything
+ *  else — a value an older build wrote, or one a hand-edit left behind — reads
+ *  as the fallback rather than leaking through. */
+const knownSetting = <TValue extends string>(
+  value: string,
+  isKnown: (candidate: string) => candidate is TValue,
+  fallback: TValue,
+): TValue => (isKnown(value) ? value : fallback);
+
 export const settings = withProperties(
   withProperties(settingsBase, paymentProviderAccessors.getters),
   stringAccessors.getters,

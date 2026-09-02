@@ -2384,17 +2384,11 @@ merge stops it.
 _Origin: the type-2 duplication pass (PR #2172). These are the sites that pass
 left behind, and the scan that finds them._
 
-jscpd compares exact runs of tokens, so two blocks that do the same work with
-different names, numbers, or field counts never match. A second scan finds them:
-replace every identifier and every literal with one symbol, hash a sliding
-window of the result, and report a window that repeats with more than one
-original spelling. Drop import statements and runs that are mostly string
-literals first, or data files and import blocks bury the real answers. At a
-45-token window over `src/` this reported about 40 sites, and reading them found
-eleven merges. The scan is not in the repository, because it needs a person to
-read every hit. Write it again from this paragraph.
-
-These hits were read and left. Each is a real merge, and none is urgent.
+The scan is now `deno task check:shapes`, and `deno task precommit` runs it. See
+[The renamed copy jscpd cannot see](AGENTS.md#the-renamed-copy-jscpd-cannot-see).
+It reads whole named functions rather than a sliding window, so the hits below —
+which the earlier window-based pass found — are outside what it reports. Each is
+a real merge, and none is urgent.
 
 - **One way for a test helper to post a form.** `submitNewAttendeeForm`
   (`test/test-utils/attendee-form/helpers.ts`) and `postLogistics`

@@ -3,6 +3,7 @@
  * (scripts/run-tests.ts) and the scoped runner (scripts/cov-files.ts).
  */
 
+import { sortedNumbers } from "#fp";
 import { requireValue } from "#shared/required-value.ts";
 import { projectRoot } from "./project-root.ts";
 
@@ -43,11 +44,8 @@ const extractUncoveredBranchLines = (record: string): number[] => [
   ...new Set(capturedLineNumbers(record, /^BRDA:(\d+),\d+,\d+,(-|0)$/gm)),
 ];
 
-const uniqueSorted = (nums: number[]): number[] =>
-  [...new Set(nums)].sort((a, b) => a - b);
-
 const formatRanges = (nums: number[]): string => {
-  const sorted = uniqueSorted(nums);
+  const sorted = sortedNumbers(nums);
   if (sorted.length === 0) return "unknown";
 
   const ranges: string[] = [];
@@ -200,7 +198,7 @@ export const findCoverageFailures = (
 };
 
 const snippetLineNumbers = (failure: CoverageFailure): number[] =>
-  uniqueSorted([
+  sortedNumbers([
     ...(failure.lines?.uncovered ?? []),
     ...(failure.branches?.uncovered ?? []),
   ]);

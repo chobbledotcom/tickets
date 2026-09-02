@@ -11,7 +11,7 @@ import {
   isBuilderEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
-import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
+import { EMAIL_PROVIDER_LABELS, hostEmail } from "#shared/email.ts";
 import {
   adminFormattingHelpPage,
   adminGuidePage,
@@ -21,7 +21,7 @@ import {
  * Handle GET /admin/guide
  */
 const handleAdminGuideGet = sessionPage((session) => {
-  const hostEmail = getHostEmailConfig();
+  const hostEmailConfig = hostEmail.getHostConfig();
   return adminGuidePage(session, {
     builderEnabled: isBuilderEnabled(),
     bunnyDnsSubdomainSuffix: isBunnyDnsEnabled()
@@ -29,9 +29,9 @@ const handleAdminGuideGet = sessionPage((session) => {
       : null,
     hostAppleWalletPassTypeId:
       settings.appleWallet.hostConfig?.passTypeId ?? null,
-    hostEmailFromAddress: hostEmail?.fromAddress ?? null,
-    hostEmailProvider: hostEmail
-      ? EMAIL_PROVIDER_LABELS[hostEmail.provider]
+    hostEmailFromAddress: hostEmailConfig?.fromAddress ?? null,
+    hostEmailProvider: hostEmailConfig
+      ? EMAIL_PROVIDER_LABELS[hostEmailConfig.provider]
       : null,
     hostGoogleWalletIssuerId:
       settings.googleWallet.hostConfig?.issuerId ?? null,

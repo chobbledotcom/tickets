@@ -80,10 +80,6 @@ export const requiredEnv = (key: string): string => {
   return value;
 };
 
-export const sampleMap = <Key, Sample>(
-  keys: readonly Key[],
-): Map<Key, Sample[]> => new Map(keys.map((key) => [key, []]));
-
 export const samplesFor = <Key, Sample>(
   samples: ReadonlyMap<Key, Sample[]>,
   key: Key,

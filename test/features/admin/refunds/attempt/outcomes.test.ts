@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
-import type { ReferenceRefund } from "#routes/admin/refunds/attempt.ts";
+import {
+  prepareReadyCandidate,
+  type ReferenceRefund,
+  standDownPreparedCandidate,
+} from "#routes/admin/refunds/attempt.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "#routes/admin/refunds/provider-requests.ts";
 import type { ReadyRefundCandidate } from "#routes/admin/refunds/readiness.ts";
 import type {
@@ -163,6 +167,23 @@ describeWithEnv("admin refund provider", { db: true }, () => {
     );
 
     expect(result).toMatchObject({ outcome: "failed", returned: [] });
+    expect(
+      errors.contains("Admin refund did not complete all 1 payments"),
+    ).toBe(false);
+  });
+
+  test("stands a provider conflict down as withheld", async () => {
+    const candidate = await canonicalReadyCandidate(
+      [{ charge: partlyRefundedCharge(), reference: "pi_partly" }],
+      provider(),
+    );
+
+    const standDown = standDownPreparedCandidate(
+      prepareReadyCandidate(candidate, 7),
+    );
+
+    expect(standDown.outcome).toBe("withheld");
+    expect(standDown.returned).toEqual([]);
   });
 
   for (const [name, answer] of [

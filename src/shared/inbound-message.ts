@@ -60,10 +60,8 @@ export const buildMessageText = (body: MessageBody, intro: string): string => {
  * neither is configured. Returned config carries the envelope `fromAddress`. */
 export const resolveMessageEmailConfig =
   async (): Promise<EmailConfig | null> => {
-    const { getEmailConfig, getHostEmailConfig } = await import(
-      "#shared/email.ts"
-    );
-    const config = getEmailConfig() ?? getHostEmailConfig();
+    const { getEmailConfig, hostEmail } = await import("#shared/email.ts");
+    const config = getEmailConfig() ?? hostEmail.getHostConfig();
     if (!config) {
       logError({
         code: ErrorCode.EMAIL_SEND,

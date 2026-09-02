@@ -10,6 +10,7 @@
  */
 
 import * as v from "valibot";
+import { toMinorUnits } from "#shared/currency.ts";
 
 /** How a modifier's value is interpreted against the base amount. */
 export const CalcKindSchema = v.picklist(["fixed", "percent", "multiply"]);
@@ -81,6 +82,24 @@ const validatePercent = (
  * codes are case-insensitive. The blind index is the HMAC of this. */
 export const normalizeCode = (code: string): string =>
   code.trim().toLowerCase();
+
+/**
+ * The signed value the engine applies, from a modifier's stored magnitude and
+ * direction. A multiplier ignores direction, because its factor already carries
+ * it. A fixed amount is entered in major currency units, so it is converted
+ * here. Both the live resolver and the API snapshot read a modifier this way,
+ * so the rule cannot drift between them.
+ */
+export const signedModifierValue = (calc: {
+  direction: ModifierDirection;
+  kind: CalcKind;
+  value: number;
+}): number => {
+  if (calc.kind === "multiply") return calc.value;
+  const magnitude =
+    calc.kind === "fixed" ? toMinorUnits(calc.value) : calc.value;
+  return calc.direction === "discount" ? -magnitude : magnitude;
+};
 
 /**
  * The signed price change (minor units) a modifier makes to `base`:

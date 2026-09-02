@@ -12,6 +12,7 @@ import {
   CheckboxFieldset,
   CheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -76,7 +77,10 @@ export const userStatus = (user: DisplayUser): string => {
 
 const usersTable = defineTable<DisplayUser>([
   {
-    cell: (user) => <a href={`/admin/users/${user.id}`}>{user.username}</a>,
+    cell: linkCell(
+      (user: DisplayUser) => `/admin/users/${user.id}`,
+      (user) => user.username,
+    ),
     header: () => t("common.username"),
     key: "username",
   },

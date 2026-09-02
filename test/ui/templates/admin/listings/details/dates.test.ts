@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { FakeTime } from "@std/testing/time";
 import {
   registerListingTemplateHooks,
   renderListingDetail,
@@ -10,17 +9,13 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 describe("listing details table date rows", () => {
   registerListingTemplateHooks();
 
-  /** Frozen so each countdown keeps leftover hours: the rendered "N days and M
-   *  hours" text depends on the clock's time of day, and the leftover drops
-   *  to zero hours for one hour each day. */
-  const COUNTDOWN_NOW = new Date("2026-06-01T00:00:00Z");
-
-  /** The countdown a date row shows after its label. */
+  /** The countdown a date row shows after its label. The hours show only when
+   *  they are not zero, so a deadline a whole number of days away reads as
+   *  days alone. */
   const countdown = (): RegExp =>
-    / <small><em>\(\d+ days? and \d+ hours? from now\)<\/em><\/small>/;
+    / <small><em>\(\d+ days?(?: and \d+ hours?)? from now\)<\/em><\/small>/;
 
   test("the listing date links to the calendar and carries its countdown", () => {
-    using _time = new FakeTime(COUNTDOWN_NOW);
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -39,7 +34,6 @@ describe("listing details table date rows", () => {
   });
 
   test("a registration deadline shows its countdown; no deadline says so", () => {
-    using _time = new FakeTime(COUNTDOWN_NOW);
     const deadline = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],

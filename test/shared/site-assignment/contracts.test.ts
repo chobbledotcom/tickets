@@ -5,10 +5,7 @@ import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import {
-  resetHostEmailConfig,
-  setHostEmailConfigForTest,
-} from "#shared/email.ts";
+import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
   assignAndNotifyBuiltSites,
@@ -303,7 +300,7 @@ describeWithEnv(
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
     beforeEach(async () => {
-      setHostEmailConfigForTest({
+      hostEmail.setOverride({
         apiKey: "re_test",
         fromAddress: validEmail("host@example.com"),
         provider: "resend",
@@ -315,7 +312,7 @@ describeWithEnv(
       });
     });
 
-    afterEach(resetHostEmailConfig);
+    afterEach(hostEmail.resetOverride);
 
     test("sends the exact single-site setup message", async () => {
       const body = await sendSetupEmail(["A"]);

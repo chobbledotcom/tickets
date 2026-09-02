@@ -1,6 +1,16 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import type { CheckOutput } from "#scripts/check-report.ts";
 
+/** An output that captures everything a check says, for a test to read back. */
+export const capturedCheckOutput = (): CheckOutput & { lines: string[] } => {
+  const lines: string[] = [];
+  return {
+    lines,
+    log: (line: string) => lines.push(line),
+    logError: (line: string) => lines.push(line),
+  };
+};
+
 /** A fresh temp tree, plus whatever a check printed while it ran. */
 export interface CheckScriptRun {
   /** Lines the check sent to its error logger. */

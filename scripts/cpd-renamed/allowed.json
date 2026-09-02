@@ -1,7 +1,7 @@
 [
   {
     "first": "e2e-payments/src/browser.ts",
-    "firstStart": 261,
+    "firstStart": 277,
     "hash": "d799c52416d3ea813c828091cfc2cdbe26092390b000875ade82776f4a22dd4f",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "e2e-payments/src/entry.ts",
@@ -9,7 +9,7 @@
   },
   {
     "first": "e2e-payments/src/browser.ts",
-    "firstStart": 261,
+    "firstStart": 277,
     "hash": "3a3b494c6f57d31fdbf9550af2eb9db9fc987efa1ed6a0c77786987cb3e4333b",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/logger.ts",
@@ -46,6 +46,14 @@
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "scripts/compact-test-reporter.ts",
     "secondStart": 535
+  },
+  {
+    "first": "scripts/check-shapes/accepted.ts",
+    "firstStart": 53,
+    "hash": "1171f38a79cc385714f1fad06e280960e3d41ed5c89d97c91ee8f1579d187162",
+    "reason": "two opening lines only — a set to fill and the entries to walk; the loops share no step after them, one dedupes accepted keys while the gate runs, so a curry has nothing to lift",
+    "second": "scripts/mutation/equivalent-audit.ts",
+    "secondStart": 193
   },
   {
     "first": "scripts/coverage-check.ts",
@@ -105,7 +113,7 @@
   },
   {
     "first": "scripts/unit-tests-report-imports.ts",
-    "firstStart": 180,
+    "firstStart": 181,
     "hash": "cfb4ab2bd290af4587a9bceb4a123f86e81778105a761ab657c18ff17c67c47c",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "scripts/unit-tests-report-lib.ts",
@@ -129,7 +137,7 @@
   },
   {
     "first": "src/features/admin/content-form-fields.ts",
-    "firstStart": 151,
+    "firstStart": 152,
     "hash": "f9f71fdc2e0ca0b4117f417ffb4aa457e00206b4388a2fcec28f97887a4c4353",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/types.ts",
@@ -141,7 +149,7 @@
     "hash": "907ba41ea4f819afad23b78e0dec6dbc44b32614280dffc100e60b949895974c",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/db/groups/membership.ts",
-    "secondStart": 181
+    "secondStart": 185
   },
   {
     "first": "src/features/admin/questions.ts",
@@ -193,7 +201,7 @@
   },
   {
     "first": "src/features/api/helpers.ts",
-    "firstStart": 91,
+    "firstStart": 92,
     "hash": "7cf69d86f0919dc408e1420b0753b1d86d11b69934e4388b599ac155cabb0e1a",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/features/public/qr-book.ts",
@@ -289,11 +297,11 @@
   },
   {
     "first": "src/shared/db/attendees/capacity/checks.ts",
-    "firstStart": 73,
+    "firstStart": 74,
     "hash": "0ace2d24f1df61fe03f76959973c1d8e6f525f3efb62a458c3c91fcdce2e88f3",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/db/attendees/capacity/checks.ts",
-    "secondStart": 108
+    "secondStart": 103
   },
   {
     "first": "src/shared/db/attendees/dependent-data.ts",
@@ -369,7 +377,7 @@
   },
   {
     "first": "src/shared/db/attributes.ts",
-    "firstStart": 311,
+    "firstStart": 309,
     "hash": "ecfde9612378081df1e8ff2e23d0daaad88bf960a585257d34c265aab1708dc5",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/db/listings/delete.ts",
@@ -677,31 +685,31 @@
     "hash": "1f63f13ff655256c3afcb3a04346d2b80d6c074acd258b04a92310a0d7c4db15",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/admin/attendee-logistics-tab.tsx",
-    "secondStart": 116
+    "secondStart": 119
   },
   {
     "first": "src/ui/templates/admin/admin-page.tsx",
-    "firstStart": 121,
+    "firstStart": 120,
     "hash": "3d3c6edab73e436567e9f3c65df019b10d7184f9b6f92964fefe389acaec0f23",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/admin/admin-page.tsx",
-    "secondStart": 143
+    "secondStart": 142
   },
   {
     "first": "src/ui/templates/admin/attributes.tsx",
-    "firstStart": 143,
+    "firstStart": 136,
     "hash": "89bce6add1798ebfc87bf947967354d6c98ff41994d8401194774a2f3748ff4a",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/admin/questions.tsx",
-    "secondStart": 218
+    "secondStart": 219
   },
   {
     "first": "src/ui/templates/admin/attributes.tsx",
-    "firstStart": 220,
+    "firstStart": 213,
     "hash": "b3378c0b608dc522ea9cfef75dda5c8626b9fe0bdbb61431229b45ebc0af26ed",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/admin/questions.tsx",
-    "secondStart": 382
+    "secondStart": 383
   },
   {
     "first": "src/ui/templates/admin/bulk-email.tsx",

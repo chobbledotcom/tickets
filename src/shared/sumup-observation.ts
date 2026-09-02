@@ -29,6 +29,7 @@ import {
   sumupPaymentFields,
 } from "#shared/sumup/wire.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 
 /* jscpd:ignore-end */
 
@@ -165,10 +166,8 @@ const ourReference = (c: WireCheckout): string | null =>
     : null;
 
 /** The lifecycle SumUp named, or null when it is one we cannot read. */
-const knownStatus = (c: WireCheckout): SumupCheckoutStatus | null => {
-  const status = v.safeParse(SumupCheckoutStatusSchema, c.status);
-  return status.success ? status.output : null;
-};
+const knownStatus = (c: WireCheckout): SumupCheckoutStatus | null =>
+  parseOrNull(SumupCheckoutStatusSchema, c.status);
 
 /** One fetched checkout, read once: the wire body beside the three answers the
  *  rungs judge it by and the accept step then uses. */

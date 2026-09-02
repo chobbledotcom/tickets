@@ -43,13 +43,10 @@ export const initManualCheckin = (): void => {
   const allOptions = () =>
     listbox.querySelectorAll<HTMLLIElement>("[role='option']");
 
-  const showList = () => {
-    listbox.classList.remove("hidden");
-    input.setAttribute("aria-expanded", "true");
-  };
-  const hideList = () => {
-    listbox.classList.add("hidden");
-    input.setAttribute("aria-expanded", "false");
+  /** Opens or closes the suggestion list, telling a screen reader either way. */
+  const setListOpen = (open: boolean) => {
+    listbox.classList.toggle("hidden", !open);
+    input.setAttribute("aria-expanded", String(open));
   };
 
   const filterOptions = () => {
@@ -61,14 +58,13 @@ export const initManualCheckin = (): void => {
       opt.classList.toggle("hidden", !visible);
       if (visible) anyVisible = true;
     }
-    if (anyVisible && document.activeElement === input) showList();
-    else hideList();
+    setListOpen(anyVisible && document.activeElement === input);
   };
 
   const selectOption = (opt: HTMLLIElement) => {
     tokenInput.value = opt.dataset.token!;
     input.value = `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})`;
-    hideList();
+    setListOpen(false);
   };
 
   input.addEventListener("input", () => {
@@ -86,7 +82,7 @@ export const initManualCheckin = (): void => {
       !input.contains(e.target as Node) &&
       !listbox.contains(e.target as Node)
     ) {
-      hideList();
+      setListOpen(false);
     }
   });
 
@@ -113,7 +109,7 @@ export const initManualCheckin = (): void => {
 
   const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
-      hideList();
+      setListOpen(false);
       return;
     }
     const direction = KEY_DIRECTIONS[e.key];

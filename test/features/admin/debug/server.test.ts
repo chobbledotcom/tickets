@@ -24,7 +24,7 @@ import { adminGet, getTestSession } from "#test-utils/session.ts";
 import { activateStripe, enablePublicSite } from "#test-utils/settings.ts";
 
 const debugRow = (label: string, value: string): string =>
-  `<tr><td>${label}</td><td>${value}</td></tr>`;
+  `<tr><th>${label}</th><td>${value}</td></tr>`;
 
 const debugStatusRow = (label: string, configured: boolean): string =>
   debugRow(

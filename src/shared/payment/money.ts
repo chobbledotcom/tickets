@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { sameOn } from "#fp";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
 /**
@@ -49,5 +50,4 @@ export const money = (amount: unknown, currency: unknown): Money | null => {
 };
 
 /** Whether two amounts name exactly the same money. */
-export const sameMoney = (left: Money, right: Money): boolean =>
-  left.amount === right.amount && left.currency === right.currency;
+export const sameMoney = sameOn<Money>("amount", "currency");

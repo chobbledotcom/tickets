@@ -1,5 +1,4 @@
 import {
-  bytesEqual,
   encodeDer,
   encodeInteger,
   encodeNull,
@@ -9,6 +8,7 @@ import {
   requireDerTag,
 } from "#crypto/der.ts";
 import { readPem } from "#crypto/pem.ts";
+import { sameOrder } from "#fp";
 
 // PKCS #1 rsaEncryption. PKCS #8 requires this OID followed by DER NULL.
 const RSA_ENCRYPTION_OID = "1.2.840.113549.1.1.1";
@@ -71,7 +71,7 @@ const rsaCheckPasses = async (
 
 const requireRsaAlgorithm = (algorithm: Uint8Array): void => {
   readDerSequence(algorithm, "RSA algorithm");
-  if (!bytesEqual(algorithm, RSA_ALGORITHM)) {
+  if (!sameOrder(algorithm, RSA_ALGORITHM)) {
     throw new Error("Private key is not RSA");
   }
 };

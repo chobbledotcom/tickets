@@ -118,14 +118,29 @@ const EvidenceAssetSchema = v.strictObject({
   width: PositiveIntegerSchema,
 });
 
-const EvidenceAssetsSchema = v.pipe(
-  v.array(EvidenceAssetSchema),
-  v.minLength(1),
-  v.check(
-    (assets) =>
-      new Set(assets.map(({ profile }) => profile)).size === assets.length,
-    "Evidence asset profiles must be unique",
-  ),
+/**
+ * A list that must hold at least one thing, and no two things that answer to
+ * the same name. The caller says what that name is and what to say when two
+ * share it.
+ */
+const uniqueList = <Item>(
+  member: v.GenericSchema<Item>,
+  nameOf: (item: Item) => unknown,
+  saidWhenTwoShare: string,
+) =>
+  v.pipe(
+    v.array(member),
+    v.minLength(1),
+    v.check(
+      (items: Item[]) => new Set(items.map(nameOf)).size === items.length,
+      saidWhenTwoShare,
+    ),
+  );
+
+const EvidenceAssetsSchema = uniqueList(
+  EvidenceAssetSchema,
+  ({ profile }) => profile,
+  "Evidence asset profiles must be unique",
 );
 
 const EvidenceStepKeywordSchema = v.picklist([
@@ -155,11 +170,9 @@ const EvidenceCaptureSchema = v.strictObject({
 });
 
 const EvidenceCapturesSchema = v.pipe(
-  v.array(EvidenceCaptureSchema),
-  v.minLength(1),
-  v.check(
-    (captures) =>
-      new Set(captures.map(({ id }) => id)).size === captures.length,
+  uniqueList(
+    EvidenceCaptureSchema,
+    ({ id }) => id,
     "Evidence capture ids must be unique",
   ),
   v.check((captures) => {

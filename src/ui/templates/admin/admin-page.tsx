@@ -20,6 +20,7 @@ import {
   type NavActive,
   StaffAdminNav,
 } from "#templates/admin/nav.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession, Theme } from "#types";
@@ -73,15 +74,13 @@ export const AdminPage = ({
   </Layout>
 );
 
-/** A link to a listing's admin page showing its name —
- *  `<a href="/admin/listing/{id}">{name}</a>`. Owned here so the same admin
- *  listing link isn't re-authored (and re-detected as a clone) across the
- *  attendee form and the booking-QR page. */
-export const AdminListingLink = ({
-  listing,
-}: {
-  listing: { id: number; name: string };
-}): JSX.Element => <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>;
+/** A link to a listing's admin page showing its name. Owned here so the same
+ *  admin listing link is not re-authored across the attendee form and the
+ *  booking-QR page. */
+export const adminListingLink = linkCell(
+  (listing: { id: number; name: string }) => `/admin/listing/${listing.id}`,
+  (listing) => listing.name,
+);
 
 /** Render an <AdminPage> to an HTML string from its props and body — the one
  *  `String(<AdminPage …>{body}</AdminPage>)` wrapper every admin opener below

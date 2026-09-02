@@ -8,6 +8,7 @@ import { defineTable } from "#shared/tables/definition.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
@@ -35,8 +36,9 @@ export const BuiltSitesListActions = (): JSX.Element | null =>
     ),
   });
 
-const builtSiteNameCell = (site: BuiltSite): JSX.Element => (
-  <a href={`/admin/built-sites/${site.id}`}>{site.name}</a>
+const builtSiteNameCell = linkCell(
+  (site: BuiltSite) => `/admin/built-sites/${site.id}`,
+  (site) => site.name,
 );
 
 const builtSiteUrlCell = (site: BuiltSite): JSX.Element => (

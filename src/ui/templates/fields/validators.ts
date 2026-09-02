@@ -59,13 +59,30 @@ export const validateNonNegativeInteger =
       : `${label} must be 0 or greater`;
   };
 
+/** Refuses a value the schema turns down, with the message that says why. */
+const checkedBy =
+  <TSchema extends v.GenericSchema>(
+    schema: TSchema,
+    messageKey: string,
+    values?: Record<string, number>,
+  ): ((value: string) => string | null) =>
+  (value) =>
+    v.is(schema, value) ? null : t(messageKey, values);
+
+/** Refuses text longer than a field allows, naming the limit in the message. */
+const atMostLong = (
+  max: number,
+  messageKey: string,
+): ((value: string) => string | null) =>
+  checkedBy(v.pipe(v.string(), v.maxLength(max)), messageKey, { max });
+
 /**
  * Validate email format
  */
-export const validateEmail = (value: string): string | null =>
-  v.safeParse(EmailFormatSchema, value).success
-    ? null
-    : t("fields.validation.email");
+export const validateEmail = checkedBy(
+  EmailFormatSchema,
+  "fields.validation.email",
+);
 
 /**
  * Validate phone number format
@@ -76,8 +93,7 @@ const PhoneSchema = v.pipe(
   v.regex(/^[+\d][\d\s\-()]{5,}$/),
 );
 
-export const validatePhone = (value: string): string | null =>
-  v.safeParse(PhoneSchema, value).success ? null : t("fields.validation.phone");
+export const validatePhone = checkedBy(PhoneSchema, "fields.validation.phone");
 
 /** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
 const UsernameSchema = v.pipe(
@@ -142,11 +158,10 @@ export const validateBookableDays = (value: string): string | null => {
 };
 
 /** Validate description length */
-const DescriptionSchema = v.pipe(v.string(), v.maxLength(MAX_TEXTAREA_LENGTH));
-export const validateDescription = (value: string): string | null =>
-  v.safeParse(DescriptionSchema, value).success
-    ? null
-    : t("fields.validation.description_max", { max: MAX_TEXTAREA_LENGTH });
+export const validateDescription = atMostLong(
+  MAX_TEXTAREA_LENGTH,
+  "fields.validation.description_max",
+);
 
 export const buildDescriptionField = (
   hint: string,
@@ -213,23 +228,16 @@ export const getSlugField = (): InputField<"slug"> => ({
 export const MAX_ADDRESS_LENGTH = 250;
 
 /** Validate address length */
-const AddressSchema = v.pipe(v.string(), v.maxLength(MAX_ADDRESS_LENGTH));
-export const validateAddress = (value: string): string | null =>
-  v.safeParse(AddressSchema, value).success
-    ? null
-    : t("fields.validation.address_max", { max: MAX_ADDRESS_LENGTH });
+export const validateAddress = atMostLong(
+  MAX_ADDRESS_LENGTH,
+  "fields.validation.address_max",
+);
 
 /** Max length for special instructions field (must fit in payment metadata) */
 export const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
 
 /** Validate special instructions length */
-const SpecialInstructionsSchema = v.pipe(
-  v.string(),
-  v.maxLength(MAX_SPECIAL_INSTRUCTIONS_LENGTH),
+export const validateSpecialInstructions = atMostLong(
+  MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+  "fields.validation.special_instructions_max",
 );
-export const validateSpecialInstructions = (value: string): string | null =>
-  v.safeParse(SpecialInstructionsSchema, value).success
-    ? null
-    : t("fields.validation.special_instructions_max", {
-        max: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
-      });

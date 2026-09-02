@@ -75,6 +75,62 @@ describe("Uptime Kuma configuration", () => {
     expect(getUptimeKumaConfigOrNull()?.url).toBe("http://127.0.0.1:3001");
   });
 
+  for (const url of [
+    "http://localhost:3001",
+    "http://kuma.localhost:3001",
+    "http://127.0.0.5:3001",
+    "http://[::1]:3001",
+    "http://10.0.1.2:3001",
+    "http://100.64.0.1:3001",
+    "http://100.127.1.2:3001",
+    "http://169.254.10.5:3001",
+    "http://172.16.0.1:3001",
+    "http://172.31.255.255:3001",
+    "http://192.168.1.10:3001",
+    "http://[fd00::1]:3001",
+    "http://[fd7a:115c:a1e0::1]:3001",
+    "http://[fc00::1]:3001",
+    "http://[fe80::1]:3001",
+    "http://[feb0::1]:3001",
+    "http://localhost.:3001",
+    "http://kuma.localhost.:3001",
+  ]) {
+    test(`accepts the local network HTTP host ${url}`, () => {
+      using _env = withEnv({ ...configuredEnv, UPTIME_KUMA_URL: url });
+
+      expect(getUptimeKumaConfigOrNull()?.url).toBe(url);
+    });
+  }
+
+  for (const url of [
+    "http://kuma.example.test",
+    "http://0.0.0.0",
+    "http://8.8.8.8:3001",
+    "http://9.0.0.1:3001",
+    "http://11.0.0.1:3001",
+    "http://100.63.1.2:3001",
+    "http://100.128.1.2:3001",
+    "http://169.255.1.2:3001",
+    "http://172.15.0.1:3001",
+    "http://172.32.0.1:3001",
+    "http://192.169.0.1:3001",
+    "http://10.0.1.x:3001",
+    "http://10.0.0.1e0:3001",
+    "http://[::ffff:127.0.0.1]",
+    "http://[2001:db8::1]:3001",
+    "http://[ff02::1]:3001",
+    "http://[fec0::1]:3001",
+    "http://[ff00::1]:3001",
+  ]) {
+    test(`rejects the public HTTP host ${url}`, () => {
+      using _env = withEnv({ ...configuredEnv, UPTIME_KUMA_URL: url });
+
+      expect(getUptimeKumaConfigOrNull).toThrow(
+        "UPTIME_KUMA_URL must use HTTPS outside a local network",
+      );
+    });
+  }
+
   test("stays disabled when site building is off", () => {
     using _env = withEnv({ ...configuredEnv, CAN_BUILD_SITES: "false" });
 
@@ -119,13 +175,18 @@ describe("Uptime Kuma configuration", () => {
     );
   });
 
-  test("rejects malformed URLs", () => {
-    using _env = withEnv({ ...configuredEnv, UPTIME_KUMA_URL: "not a URL" });
+  for (const malformed of ["not a URL", "http://999.1.2.3:3001"]) {
+    test(`rejects the malformed URL ${malformed}`, () => {
+      using _env = withEnv({
+        ...configuredEnv,
+        UPTIME_KUMA_URL: malformed,
+      });
 
-    expect(getUptimeKumaConfigOrNull).toThrow(
-      "UPTIME_KUMA_URL must be a valid URL",
-    );
-  });
+      expect(getUptimeKumaConfigOrNull).toThrow(
+        "UPTIME_KUMA_URL must be a valid URL",
+      );
+    });
+  }
 
   for (const url of [
     "https://user@kuma.example.test",

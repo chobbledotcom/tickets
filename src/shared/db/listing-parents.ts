@@ -21,7 +21,10 @@ import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { relationshipErrorTx } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import { TransactionValidationError } from "#db/transaction.ts";
+import {
+  refusingTheWriteOn,
+  TransactionValidationError,
+} from "#db/transaction.ts";
 import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
 import { t } from "#i18n";
 import {
@@ -56,13 +59,7 @@ export const listingChildren = listingEdges.pointsAt;
  * `listingChildren.setIdsTx` replace would. */
 export const listingParents = listingEdges.pointedAtBy;
 
-const requireCurrentRelationshipRules = async (
-  tx: TxScope,
-  edges: readonly { childId: number; parentId: number }[],
-): Promise<void> => {
-  const error = await relationshipErrorTx(tx, edges);
-  if (error) throw new TransactionValidationError(error);
-};
+const requireCurrentRelationshipRules = refusingTheWriteOn(relationshipErrorTx);
 
 /** Recheck every current edge touching a saved listing through the writer's
  * transaction, including edges another writer added after request validation. */

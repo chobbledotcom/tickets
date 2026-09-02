@@ -48,7 +48,7 @@ export const runImportCheck = async (
     const files = await collectSourceFiles(root);
     for (const file of files) {
       const content = await Deno.readTextFile(file);
-      for (const issue of findImportIssues(content, aliases)) {
+      for (const issue of findImportIssues(file, content, aliases)) {
         found.push(formatIssue(file, issue));
       }
     }

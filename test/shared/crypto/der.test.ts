@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  bytesEqual,
   encodeDer,
   encodeInteger,
   encodeNull,
@@ -17,6 +16,7 @@ import {
   requireDerTag,
   sortDerValues,
 } from "#crypto/der.ts";
+import { sameOrder } from "#fp";
 import { thrownError } from "#test-utils/errors.ts";
 
 const bytes = (...values: number[]): Uint8Array => new Uint8Array(values);
@@ -29,9 +29,9 @@ describe("DER", () => {
   });
 
   test("compares complete byte arrays", () => {
-    expect(bytesEqual(bytes(1, 2), bytes(1, 2))).toBe(true);
-    expect(bytesEqual(bytes(1, 2), bytes(1))).toBe(false);
-    expect(bytesEqual(bytes(1, 2), bytes(1, 3))).toBe(false);
+    expect(sameOrder(bytes(1, 2), bytes(1, 2))).toBe(true);
+    expect(sameOrder(bytes(1, 2), bytes(1))).toBe(false);
+    expect(sameOrder(bytes(1, 2), bytes(1, 3))).toBe(false);
   });
 
   test("encodes short and long lengths minimally", () => {

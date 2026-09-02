@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  byId,
   compact,
+  emptyListsFor,
   fieldById,
   filter,
   firstProblem,
@@ -10,13 +12,18 @@ import {
   identity,
   isNotNullish,
   isNullish,
+  isOneOf,
   joinStrings,
+  keepAndTake,
   map,
   mapBy,
   mapById,
   partition,
   pipe,
   requiredMapValue,
+  sameOn,
+  sameOrder,
+  sortedNumbers,
   sumByKey,
 } from "#fp";
 
@@ -300,5 +307,180 @@ describe("fp collections", () => {
     test("empty input gives an empty map", () => {
       expect(itemsById([])).toEqual(new Map());
     });
+  });
+});
+
+describe("byId", () => {
+  test("keys every item by its own id", () => {
+    const rows = [
+      { id: 7, name: "seven" },
+      { id: 2, name: "two" },
+    ];
+    expect([...byId(rows)]).toEqual([
+      [7, rows[0]],
+      [2, rows[1]],
+    ]);
+  });
+
+  test("keeps the last of two items sharing an id", () => {
+    const first = { id: 1, name: "first" };
+    const second = { id: 1, name: "second" };
+    expect(byId([first, second]).get(1)).toBe(second);
+  });
+
+  test("gives an empty map for no items", () => {
+    expect(byId([]).size).toBe(0);
+  });
+});
+
+describe("emptyListsFor", () => {
+  test("holds an empty list for every key", () => {
+    expect([...emptyListsFor([3, 1])]).toEqual([
+      [3, []],
+      [1, []],
+    ]);
+  });
+
+  test("gives each key a list of its own to fill", () => {
+    const lists = emptyListsFor<string, number>(["a", "b"]);
+    lists.get("a")?.push(1);
+    expect(lists.get("b")).toEqual([]);
+  });
+});
+
+describe("sortedNumbers", () => {
+  test("orders the numbers smallest first, below zero included", () => {
+    expect(sortedNumbers([3, 0, -1, -3, 1])).toEqual([-3, -1, 0, 1, 3]);
+  });
+
+  test("keeps each number once", () => {
+    expect(sortedNumbers([2, 2, 1])).toEqual([1, 2]);
+  });
+});
+
+describe("sameOrder", () => {
+  test("matches two sequences holding the same values in the same order", () => {
+    expect(sameOrder([1, 2, 3], [1, 2, 3])).toBe(true);
+  });
+
+  test("refuses sequences of different lengths", () => {
+    expect(sameOrder([1, 2], [1, 2, 3])).toBe(false);
+    expect(sameOrder([1, 2, 3], [1, 2])).toBe(false);
+  });
+
+  test("refuses the same values in a different order", () => {
+    expect(sameOrder(["a", "b"], ["b", "a"])).toBe(false);
+  });
+
+  test("refuses a difference at the very first place", () => {
+    expect(sameOrder([1, 2, 3], [9, 2, 3])).toBe(false);
+  });
+
+  test("refuses a difference at the very last place", () => {
+    expect(sameOrder([1, 2, 3], [1, 2, 4])).toBe(false);
+  });
+
+  test("matches two empty sequences", () => {
+    expect(sameOrder([], [])).toBe(true);
+  });
+
+  test("reads a typed array the same way it reads a list", () => {
+    expect(sameOrder(new Uint8Array([1, 2]), new Uint8Array([1, 2]))).toBe(
+      true,
+    );
+    expect(sameOrder(new Uint8Array([1, 2]), new Uint8Array([1, 3]))).toBe(
+      false,
+    );
+  });
+});
+
+describe("keepAndTake", () => {
+  const rows = [
+    { group: "EU", id: 1 },
+    { group: "US", id: 2 },
+    { group: "EU", id: 3 },
+  ];
+
+  test("takes one thing from each item the test accepts", () => {
+    expect(
+      keepAndTake(
+        (r: (typeof rows)[number]) => r.group === "EU",
+        (r) => r.id,
+      )(rows),
+    ).toEqual([1, 3]);
+  });
+
+  test("gives nothing when the test accepts nothing", () => {
+    expect(
+      keepAndTake(
+        (r: (typeof rows)[number]) => r.group === "AU",
+        (r) => r.id,
+      )(rows),
+    ).toEqual([]);
+  });
+
+  test("keeps the order the items came in", () => {
+    expect(
+      keepAndTake(
+        (r: (typeof rows)[number]) => r.id > 0,
+        (r) => r.group,
+      )(rows),
+    ).toEqual(["EU", "US", "EU"]);
+  });
+});
+
+describe("sameOn", () => {
+  const matches = sameOn<{ amount: number; currency: string; note: string }>(
+    "amount",
+    "currency",
+  );
+
+  test("matches two records that agree on every named field", () => {
+    expect(
+      matches(
+        { amount: 5, currency: "GBP", note: "one" },
+        { amount: 5, currency: "GBP", note: "two" },
+      ),
+    ).toBe(true);
+  });
+
+  test("refuses a difference in the first named field", () => {
+    expect(
+      matches(
+        { amount: 5, currency: "GBP", note: "" },
+        { amount: 6, currency: "GBP", note: "" },
+      ),
+    ).toBe(false);
+  });
+
+  test("refuses a difference in the last named field", () => {
+    expect(
+      matches(
+        { amount: 5, currency: "GBP", note: "" },
+        { amount: 5, currency: "USD", note: "" },
+      ),
+    ).toBe(false);
+  });
+
+  test("matches anything when no field is named", () => {
+    expect(sameOn<{ a: number }>()({ a: 1 }, { a: 2 })).toBe(true);
+  });
+});
+
+describe("isOneOf", () => {
+  const isHttpMethod = isOneOf(["DELETE", "PATCH", "POST", "PUT"]);
+
+  test("accepts a value the list names", () => {
+    expect(isHttpMethod("POST")).toBe(true);
+    expect(isHttpMethod("DELETE")).toBe(true);
+  });
+
+  test("refuses a value the list does not name", () => {
+    expect(isHttpMethod("GET")).toBe(false);
+    expect(isHttpMethod("post")).toBe(false);
+  });
+
+  test("refuses an absent value", () => {
+    expect(isHttpMethod(undefined)).toBe(false);
   });
 });

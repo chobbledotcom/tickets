@@ -1,13 +1,18 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { handleTicketQrGet } from "#routes/public/ticket-routes.ts";
+import {
+  getFromEmailIfConfigured,
+  handleTicketQrGet,
+} from "#routes/public/ticket-routes.ts";
+import { hostEmail } from "#shared/email.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { validEmail } from "#test-utils/email.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   connectResendProvider,
@@ -28,6 +33,10 @@ const reservedOrder = async (slug: string): Promise<string> => {
 };
 
 describeWithEnv("public ticket routes", { db: true }, () => {
+  afterEach(() => {
+    hostEmail.resetOverride();
+  });
+
   test("a listing's QR answers with an SVG of its ticket address", async () => {
     await enablePublicSite();
     const listing = await createTestListing({ name: "Kayak Tour" });
@@ -199,5 +208,33 @@ describeWithEnv("public ticket routes", { db: true }, () => {
       mockRequest(`/ticket/${group.slug}+no-such-listing`),
     );
     expect(mixed.status).toBe(404);
+  });
+
+  describe("getFromEmailIfConfigured", () => {
+    test("gives an empty string when nothing is configured", async () => {
+      hostEmail.setOverride(null);
+      expect(await getFromEmailIfConfigured()).toBe("");
+    });
+
+    test("falls back to the host's from-address", async () => {
+      hostEmail.setOverride({
+        apiKey: "key",
+        fromAddress: validEmail("host@example.com"),
+        provider: "resend",
+      });
+      expect(await getFromEmailIfConfigured()).toBe("host@example.com");
+    });
+
+    test("prefers the site's own from-address over the host's", async () => {
+      hostEmail.setOverride({
+        apiKey: "key",
+        fromAddress: validEmail("host@example.com"),
+        provider: "resend",
+      });
+      await settings.update.email.provider("resend");
+      await settings.update.email.apiKey("re_test_key");
+      await settings.update.email.fromAddress("site@example.com");
+      expect(await getFromEmailIfConfigured()).toBe("site@example.com");
+    });
   });
 });

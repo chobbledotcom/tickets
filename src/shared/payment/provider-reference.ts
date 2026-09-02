@@ -17,6 +17,12 @@ export interface TaggedPaymentReference extends PaymentReferenceBase {
   readonly reference: ResourceId;
 }
 
+/** Name a charge by the provider that holds it and its id there. */
+export const taggedPaymentReference = (
+  provider: PaymentProviderType,
+  reference: ResourceId,
+): TaggedPaymentReference => ({ kind: "tagged", provider, reference });
+
 /** A reference written before provider tags existed. */
 export interface UntaggedPaymentReference extends PaymentReferenceBase {
   readonly kind: "untagged";

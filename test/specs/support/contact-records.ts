@@ -6,13 +6,13 @@
  */
 
 import { expect } from "@std/expect";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import {
   type ContactRecord,
   getContactRecord,
   hashEmail,
   saveContactRecord,
-  toContactHashParam,
 } from "#db/contact-preferences.ts";
 import { mapNotNullish } from "#fp";
 // jscpd:ignore-start
@@ -100,7 +100,7 @@ export const openRecord: ReadAboutOneThing<TestBrowser> = async (
   world,
   email,
 ) => {
-  const code = toContactHashParam(await hashEmail(email));
+  const code = base64ToBase64Url(await hashEmail(email));
   leaveEvidencePage(
     world,
     ["contact-record", "record-put-right", "record-repaired"],

@@ -11,6 +11,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
+import { emptyListsFor } from "#fp";
 import { buildEdgeBundle } from "#scripts/edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
@@ -18,7 +19,6 @@ import {
   BENCHMARK_ROBOTS_BODY,
   BENCHMARK_ROBOTS_CONTENT_TYPE,
   balancedRotation,
-  sampleMap,
   samplesFor,
 } from "./support.ts";
 
@@ -176,7 +176,7 @@ const measureVariants = async (
   for (const variant of variants) {
     await measureOnce(variant.bundle, variant.mode);
   }
-  const samples = sampleMap<string, ChildTimings>(
+  const samples = emptyListsFor<string, ChildTimings>(
     variants.map((variant) => variant.name),
   );
   for (let run = 0; run < RUNS; run++) {

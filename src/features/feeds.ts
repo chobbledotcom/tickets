@@ -36,6 +36,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import { nowIso } from "#shared/now.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
+import { replacing } from "#shared/replacements.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
@@ -44,12 +45,12 @@ import {
 import type { Attendee, NewsPostSummary } from "#types";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
-export const escapeIcs = (text: string): string =>
-  text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
+export const escapeIcs = replacing(
+  [/\\/g, "\\\\"],
+  [/;/g, "\\;"],
+  [/,/g, "\\,"],
+  [/\n/g, "\\n"],
+);
 
 /** Escape text for XML (extends HTML escaping with apostrophe) */
 export const escapeXml = (text: string): string =>
@@ -372,25 +373,26 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
 };
 /* jscpd:ignore-end */
 
+/** A feed route: build the body, then send it, but only on a public site. */
+const feedRoute =
+  (send: (body: string) => Response, build: () => Promise<string>) =>
+  (): Promise<Response> =>
+    requirePublicSite(async () => send(await build())) as Promise<Response>;
+
 /** Handle GET /feeds/listings.ics */
-const handleIcs = (): Promise<Response> =>
-  requirePublicSite(async () =>
-    icsResponse(buildIcs(await loadFeedData())),
-  ) as Promise<Response>;
+const handleIcs = feedRoute(icsResponse, async () =>
+  buildIcs(await loadFeedData()),
+);
 
 /** Handle GET /feeds/listings.rss */
-const handleRss = (): Promise<Response> =>
-  requirePublicSite(async () =>
-    rssResponse(buildRss(await loadFeedData())),
-  ) as Promise<Response>;
+const handleRss = feedRoute(rssResponse, async () =>
+  buildRss(await loadFeedData()),
+);
 
 /** Handle GET /feeds/news.rss */
-const handleNewsRss = (): Promise<Response> =>
-  requirePublicSite(async () =>
-    rssResponse(
-      buildNewsRss(await getNewsPostSummaries(), getEffectiveDomain()),
-    ),
-  ) as Promise<Response>;
+const handleNewsRss = feedRoute(rssResponse, async () =>
+  buildNewsRss(await getNewsPostSummaries(), getEffectiveDomain()),
+);
 
 /** Feed routes */
 export const routeFeed = createRouter(

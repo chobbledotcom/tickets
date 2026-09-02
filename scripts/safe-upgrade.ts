@@ -288,14 +288,23 @@ async function main() {
   }
 }
 
-function printUpToDate(upToDate: UpgradeResult[]): void {
-  if (upToDate.length === 0) return;
-  console.log(`Up to date (${upToDate.length}):`);
-  for (const r of upToDate) {
-    console.log(`  ${r.name} @ ${r.currentVersion}`);
-  }
-  console.log("");
-}
+/** Print a headed list of results, or nothing when the list is empty. */
+const printResults =
+  (
+    heading: string,
+    line: (result: UpgradeResult) => string,
+  ): ((results: UpgradeResult[]) => void) =>
+  (results) => {
+    if (results.length === 0) return;
+    console.log(`${heading} (${results.length}):`);
+    for (const r of results) console.log(line(r));
+    console.log("");
+  };
+
+const printUpToDate = printResults(
+  "Up to date",
+  (r) => `  ${r.name} @ ${r.currentVersion}`,
+);
 
 function printUpgrades(upgrades: AvailableUpgrade[], minAgeDays: number): void {
   if (upgrades.length === 0) return;
@@ -316,14 +325,7 @@ function printUpgrades(upgrades: AvailableUpgrade[], minAgeDays: number): void {
   console.log("");
 }
 
-function printErrors(errors: UpgradeResult[]): void {
-  if (errors.length === 0) return;
-  console.log(`Errors (${errors.length}):`);
-  for (const r of errors) {
-    console.log(`  ${r.name}: ${r.error}`);
-  }
-  console.log("");
-}
+const printErrors = printResults("Errors", (r) => `  ${r.name}: ${r.error}`);
 
 async function applyUpgrades(upgrades: AvailableUpgrade[]): Promise<void> {
   let denoJsonText = await Deno.readTextFile(DENO_JSON_PATH);

@@ -14,7 +14,7 @@ import { envNameSource } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
 import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
 /* jscpd:ignore-start */
-import { mapParallel } from "#fp";
+import { byId, mapParallel } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -175,7 +175,7 @@ export const getAllListings = (): Promise<ListingWithCount[]> =>
 /** Read every listing keyed by id. */
 export const getListingsById = async (): Promise<
   Map<number, ListingWithCount>
-> => new Map((await getAllListings()).map((listing) => [listing.id, listing]));
+> => byId(await getAllListings());
 
 /** Read the narrow listing option projection used by item pickers. */
 export const getAllListingOptions = (): Promise<ListingOption[]> =>

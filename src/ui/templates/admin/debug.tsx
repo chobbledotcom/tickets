@@ -11,6 +11,7 @@ import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import type { AdminSession, Theme } from "#types";
 /* jscpd:ignore-end */
@@ -91,26 +92,12 @@ export type DebugPageState = {
   theme: Theme;
 };
 
-/** A two-column label/value row in a debug section table. */
-const Row = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: Child;
-}): JSX.Element => (
-  <tr>
-    <td>{label}</td>
-    <td>{value}</td>
-  </tr>
-);
-
 /** A row declared as data: a label plus a value (string or JSX). */
 type RowSpec = { label: string; value: Child };
 
-/** Render a list of row specs as <tr><td>…</td><td>…</td></tr> rows. */
+/** Render a list of row specs as heading-and-value rows. */
 const renderRows = (rows: readonly RowSpec[]): JSX.Element[] =>
-  rows.map((r) => <Row label={r.label} value={r.value} />);
+  rows.map((r) => <LabelledRow label={r.label}>{r.value}</LabelledRow>);
 
 /** A row spec factory for the common "label + Configured/Not configured badge"
  *  shape used throughout the debug sections. */

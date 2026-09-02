@@ -82,7 +82,35 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain("+1 555 123 4567");
+    // The leading + would become a spreadsheet formula, so a quoted tab
+    // keeps the value readable as text.
+    expect(lines[1]).toContain('"\t+1 555 123 4567"');
+  });
+
+  test("stops attacker-controlled attendee values from running as spreadsheet formulas", () => {
+    const attendees = [
+      testAttendee({
+        address: '=HYPERLINK("http://evil.example","Free trips!")',
+        email: "+44@example.com",
+        name: "=SUM(A1:A2)",
+        phone: "+1 555 123 4567",
+        special_instructions: "=cmd|' /C calc'!A0",
+      }),
+    ];
+    const row = generateAttendeesCsv(attendees).split("\n")[1]!;
+    expect(row).toContain('"\t=SUM(A1:A2)"');
+    expect(row).toContain('"\t+44@example.com"');
+    expect(row).toContain('"\t+1 555 123 4567"');
+    expect(row).toContain(
+      '"\t=HYPERLINK(""http://evil.example"",""Free trips!"")"',
+    );
+    expect(row).toContain("\"\t=cmd|' /C calc'!A0\"");
+  });
+
+  test("stops a value whose formula hides behind a line feed", () => {
+    const attendees = [testAttendee({ name: "\n=SUM(A1:A2)" })];
+    const csv = generateAttendeesCsv(attendees);
+    expect(csv).toContain('"\t\n=SUM(A1:A2)"');
   });
 
   test("includes empty phone column when phone not collected", () => {

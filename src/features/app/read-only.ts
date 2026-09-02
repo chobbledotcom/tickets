@@ -1,3 +1,4 @@
+import { isOneOf } from "#fp";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 
@@ -31,18 +32,10 @@ const READ_ONLY_SAFE_PATHS = [
   /^\/checkin\/[^/]+$/,
 ];
 
-const isMutatingMethod = (method: string): boolean =>
-  method === "DELETE" ||
-  method === "PATCH" ||
-  method === "POST" ||
-  method === "PUT";
+const isMutatingMethod = isOneOf(["DELETE", "PATCH", "POST", "PUT"]);
 
 const isAdminMutation = (path: string, method: string): boolean =>
   isMutatingMethod(method) && path.startsWith("/admin/");
-
-const isAllowedAdminOperation = (path: string, method: string): boolean =>
-  method === "POST" &&
-  READ_ONLY_ADMIN_OPERATION_PATTERNS.some((pattern) => pattern.test(path));
 
 type ReadOnlyRequest = {
   method: string;
@@ -62,6 +55,28 @@ const fixedDecision =
   (_request: ReadOnlyRequest): ReadOnlyDecision =>
     decision;
 
+/** Whether a path is one of a list. */
+const pathIn =
+  (patterns: readonly RegExp[]): ((path: string) => boolean) =>
+  (path) =>
+    patterns.some((pattern) => pattern.test(path));
+
+/** Whether a request asks for one of a list of paths, by one method. */
+const sentTo = (
+  method: string,
+  patterns: readonly RegExp[],
+): ((request: ReadOnlyRequest) => boolean) => {
+  const listed = pathIn(patterns);
+  return (request) => request.method === method && listed(request.path);
+};
+
+const isAllowedAdminOperation = sentTo(
+  "POST",
+  READ_ONLY_ADMIN_OPERATION_PATTERNS,
+);
+
+const isSafePath = pathIn(READ_ONLY_SAFE_PATHS);
+
 /** Ordered from the most specific request to the default public-write rule. */
 const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
   {
@@ -70,13 +85,10 @@ const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
   },
   {
     decide: fixedDecision("page"),
-    matches: ({ method, path }) =>
-      method === "GET" &&
-      READ_ONLY_GET_PATTERNS.some((pattern) => pattern.test(path)),
+    matches: sentTo("GET", READ_ONLY_GET_PATTERNS),
   },
   {
-    decide: ({ method, path }) =>
-      isAllowedAdminOperation(path, method) ? null : "page",
+    decide: (request) => (isAllowedAdminOperation(request) ? null : "page"),
     matches: ({ method, path }) => isAdminMutation(path, method),
   },
   {
@@ -84,10 +96,7 @@ const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
     matches: ({ mutating }) => !mutating,
   },
   {
-    decide: ({ path }) =>
-      READ_ONLY_SAFE_PATHS.some((pattern) => pattern.test(path))
-        ? null
-        : "page",
+    decide: ({ path }) => (isSafePath(path) ? null : "page"),
     matches: () => true,
   },
 ];

@@ -40,6 +40,7 @@ import {
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import { openSection } from "#templates/components/open-section.tsx";
 import type {
   AdminSession,
   DisplayAttendee,
@@ -180,35 +181,31 @@ const newestAttendeesSection = (
 
   const count = tableRows.length;
 
-  return String(
-    <details open>
-      <summary>{t("admin.dashboard.newest_attendees", { count })}</summary>
-      <AttendeeTableBlock
-        options={{
-          allowedDomain: getEffectiveDomain(),
-          presorted: true,
-          rows: tableRows,
-          showCheckin: false,
-          showDate: false,
-          showListing: true,
-        }}
-      />
-    </details>,
+  return openSection(
+    t("admin.dashboard.newest_attendees", { count }),
+    <AttendeeTableBlock
+      options={{
+        allowedDomain: getEffectiveDomain(),
+        presorted: true,
+        rows: tableRows,
+        showCheckin: false,
+        showDate: false,
+        showListing: true,
+      }}
+    />,
   );
 };
 
 /** Upcoming holidays section shown on the admin dashboard. */
 const upcomingHolidaysSection = (holidays: Holiday[]): string =>
-  String(
-    <details open>
-      <summary>{t("holidays.upcoming_heading")}</summary>
-      <Raw
-        html={HolidayTable({
-          holidays,
-          scrollClass: "dashboard-holidays-scroll",
-        })}
-      />
-    </details>,
+  openSection(
+    t("holidays.upcoming_heading"),
+    <Raw
+      html={HolidayTable({
+        holidays,
+        scrollClass: "dashboard-holidays-scroll",
+      })}
+    />,
   );
 
 /**
