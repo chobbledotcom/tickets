@@ -83,7 +83,11 @@ const processSessionAndRedirect = async (
     return paymentErrorResponse(
       formatPaymentError(result),
       result.status,
-      await staffPaymentDiagnostics(request, { sessionId }),
+      await staffPaymentDiagnostics(request, {
+        provider: validation.data.session.provider,
+        sessionId,
+        status: validation.data.session.paymentStatus,
+      }),
     );
   }
 

@@ -5,6 +5,7 @@
  */
 
 import { getIframeMode } from "#shared/iframe.ts";
+import type { LabelledLine } from "#templates/components/labelled-para.tsx";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import { htmlResponse, redirectResponse } from "./response.ts";
 
@@ -13,7 +14,7 @@ export interface StaffDiagnostics {
   /** Static, known reasons a payment can sit unconfirmed. */
   reasons: string[];
   /** Labelled checkout facts the refusing branch knew. */
-  rows: { label: string; value: string }[];
+  rows: LabelledLine[];
 }
 
 /**

@@ -1,4 +1,7 @@
-import { isSessionRejection } from "#payment/validated-session.ts";
+import {
+  isSessionRejection,
+  type SessionRejection,
+} from "#payment/validated-session.ts";
 import type {
   ValidatedPaymentSession,
   WebhookSessionResult,
@@ -61,4 +64,17 @@ export const asSession = (
     throw new Error(`expected a session, got ${JSON.stringify(result)}`);
   }
   return result;
+};
+
+/** Makes the Stripe provider answer every session retrieval with this value —
+ *  a session, a rejection, or null (a checkout it never heard of) — for as
+ *  long as the test runs. */
+export const stubSessionRetrieval = async (
+  answer: ValidatedPaymentSession | SessionRejection | null,
+): Promise<Disposable> => {
+  const { stub } = await import("@std/testing/mock");
+  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
+  return stub(stripePaymentProvider, "retrieveSession", () =>
+    Promise.resolve(answer),
+  );
 };

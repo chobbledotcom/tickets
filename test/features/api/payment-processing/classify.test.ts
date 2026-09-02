@@ -12,9 +12,15 @@ import type {
 } from "#shared/payments.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { expectBuyerRefusalWithoutStaffPanel } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
-import { getTestSession, requestAsSession } from "#test-utils/session.ts";
+import { stubSessionRetrieval } from "#test-utils/payment-session.ts";
+import {
+  createTestEditorSession,
+  getTestSession,
+  requestAsSession,
+} from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   answerCompletedStripeRefund,
@@ -24,15 +30,9 @@ import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
-const providerAnswers = async (
+const providerAnswers = (
   answer: ValidatedPaymentSession | SessionRejection | null,
-): Promise<Disposable> => {
-  const { stub } = await import("@std/testing/mock");
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "retrieveSession", () =>
-    Promise.resolve(answer),
-  );
-};
+): Promise<Disposable> => stubSessionRetrieval(answer);
 
 /** A paid checkout for one ticket at the given price, with a price proof made
  *  with this site's own key unless the caller replaces it. */
@@ -401,7 +401,9 @@ describeWithEnv("showing an owner why a checkout failed", { db: true }, () => {
     const page = await refusedPage(result);
     expect(page).toContain("Staff diagnostics");
     expect(page).toContain("cs_unpaid");
-    expect(page).toContain("unpaid");
+    // The row markup (label, then value) cannot pass because the session id
+    // carries the word, so this reads the status itself, not the id.
+    expect(page).toContain("Payment status</strong> unpaid");
     expect(page).toContain("3-D Secure");
   });
 
@@ -413,15 +415,17 @@ describeWithEnv("showing an owner why a checkout failed", { db: true }, () => {
       validatePaidSession("cs_unpaid"),
     );
 
-    const page = await refusedPage(result);
-    expect(page).toContain("Payment verification failed");
-    expect(page).not.toContain("Staff diagnostics");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    await expectBuyerRefusalWithoutStaffPanel(
+      result.response,
+      "Payment verification failed. Please contact support.",
+    );
   });
 
-  test("shows the panel to the owner alone", async () => {
+  test("keeps the panel away from a logged-in editor", async () => {
     await setupStripe();
     using _provider = await unpaidAnswers();
-    const { createTestEditorSession } = await import("#test-utils/session.ts");
     const editorCookie = (await createTestEditorSession()).cookie;
 
     const result = await runWithPendingWork(async () =>
@@ -433,9 +437,12 @@ describeWithEnv("showing an owner why a checkout failed", { db: true }, () => {
       ),
     );
 
-    const page = await refusedPage(result);
-    expect(page).toContain("Payment verification failed");
-    expect(page).not.toContain("Staff diagnostics");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    await expectBuyerRefusalWithoutStaffPanel(
+      result.response,
+      "Payment verification failed. Please contact support.",
+    );
   });
 
   test("names what it knows when no provider is configured", async () => {
@@ -446,6 +453,8 @@ describeWithEnv("showing an owner why a checkout failed", { db: true }, () => {
     const page = await refusedPage(result);
     expect(page).toContain("Staff diagnostics");
     expect(page).toContain("cs_no_provider");
-    expect(page).not.toContain("Provider stripe");
+    // LabelledParas renders the label and value as separate nodes, so the
+    // label alone states the provider row is absent.
+    expect(page).not.toContain("Provider");
   });
 });

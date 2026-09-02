@@ -696,3 +696,15 @@ export const expectBrokenImageResponse = async (
     BROKEN_IMAGE_PNG,
   );
 };
+
+/** Assert a payment-failure response reads as the buyer's named refusal and
+ *  carries no staff detail — the guard the payment-failure viewer tests
+ *  share. The message names the branch's own buyer copy. */
+export const expectBuyerRefusalWithoutStaffPanel = async (
+  response: Response,
+  message: string,
+): Promise<void> => {
+  const page = await response.text();
+  expect(page).toContain(message);
+  expect(page).not.toContain("Staff diagnostics");
+};

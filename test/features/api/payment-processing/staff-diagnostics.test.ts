@@ -4,6 +4,7 @@ import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-di
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestEditorSession,
+  getTestSession,
   requestAsSession,
 } from "#test-utils/session.ts";
 
@@ -12,7 +13,6 @@ describeWithEnv(
   { db: true },
   () => {
     test("hands an owner every known fact and the known reasons", async () => {
-      const { getTestSession } = await import("#test-utils/session.ts");
       const request = await requestAsSession(
         "/payment/success",
         await getTestSession(),
