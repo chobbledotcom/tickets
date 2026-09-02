@@ -65,7 +65,7 @@ export const modulesOf = (
 ): Module[] => {
   const known = new Set(files.map((file) => file.path));
   return files.map((file) => ({
-    loads: topLevelImports(file.content)
+    loads: topLevelImports(file.path, file.content)
       .filter((line) => !line.typeOnly)
       .map((line) => fileFor(aliases, file.path, line.specifier))
       .filter((path): path is string => path !== null && known.has(path)),

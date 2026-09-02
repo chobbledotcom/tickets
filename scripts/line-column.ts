@@ -1,4 +1,4 @@
-/** The 1-based line and column of byte-offset `index` within `content`. */
+/** The 1-based line and column of UTF-16 offset `index` within `content`. */
 export const lineColumnAt = (
   content: string,
   index: number,

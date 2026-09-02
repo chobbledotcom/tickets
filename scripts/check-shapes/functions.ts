@@ -5,7 +5,7 @@
  */
 
 import { mapNotNullish } from "#fp";
-import type { Masked, Span } from "./shape.ts";
+import type { Masked, Span } from "./mask-spans.ts";
 
 /** One named function's body, located in the file it came from. */
 export interface NamedFunction extends Span {

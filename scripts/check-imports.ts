@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read
+#!/usr/bin/env -S deno run --allow-read --allow-env --allow-sys --allow-ffi
 
 /**
  * Check that every import names its module one way: once per file, and by the

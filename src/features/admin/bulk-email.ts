@@ -42,15 +42,17 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import {
-  type BulkEmailTarget,
   buildBulkPayload,
   buildMailtoLink,
   contactFrequencySummary,
-  describeTarget,
   parseDraft,
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
+  validateDraftInput,
+} from "#shared/bulk-email.ts";
+import {
+  describeTarget,
   targetAllowsEmpty,
   targetComposeControl,
   targetComposeCopy,
@@ -59,8 +61,8 @@ import {
   targetIsSingleRecipient,
   targetLogListingId,
   targetQuery,
-  validateDraftInput,
-} from "#shared/bulk-email.ts";
+} from "#shared/bulk-email-targets/registry.ts";
+import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import { sendBulkEmails } from "#shared/email/bulk.ts";
 import {
   EMAIL_PROVIDER_LABELS,

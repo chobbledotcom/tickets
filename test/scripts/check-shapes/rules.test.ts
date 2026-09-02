@@ -8,7 +8,7 @@ import {
   type ShapeSite,
   shapeMatches,
 } from "#scripts/check-shapes/rules.ts";
-import { shapeOf } from "#scripts/check-shapes/shape.ts";
+import { shapeOf } from "#scripts/typescript-lex.ts";
 
 const site = (name: string, body: string, file = "src/a.ts"): ShapeSite => ({
   body,

@@ -10,6 +10,11 @@ import { fromFileUrl } from "@std/path";
 import * as v from "valibot";
 import { sha256Hex } from "#scripts/checksum.ts";
 import { SYNTAX_WORDS } from "#scripts/syntax-words.ts";
+import {
+  isImportSpan,
+  type JscpdSide,
+  staticImportSpans,
+} from "./import-spans.ts";
 
 /** The repository root as a filesystem path for a module that sits at its
  * top level. URL pathnames keep percent escapes, which breaks project paths
@@ -60,42 +65,6 @@ export const cloneKind = (a: string, b: string): CloneKind => {
   return skeleton(first) === skeleton(second) ? "words" : "different";
 };
 
-/** The first word of a statement, which names what the statement is. */
-const head = (statement: string): string => {
-  const limit = statement.search(/[\s{]/);
-  return limit === -1 ? statement : statement.slice(0, limit);
-};
-
-/** Import blocks are the one sanctioned repeat in this repository, so a span
- * that only names imports is not a finding. A span counts as an import span
- * when every statement in it either closes with a `from "…"` module specifier
- * or is an import member fragment: bare names, braces, and commas whose head
- * word is either a plain name or an import-syntax word. An executable
- * shorthand (`return { a, b };`) heads with a control keyword, so it is not
- * exempt. */
-const memberFragment = /^[A-Za-z0-9_$\s{},"']*$/;
-
-/** The words import member lists legitimately start with. */
-const importSyntaxHeads = new Set(["import", "type", "from", "of", "in"]);
-
-export const isImportSpan = (code: string): boolean => {
-  const statements = code
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter((statement) => statement !== "");
-  return (
-    statements.length > 0 &&
-    statements.every(
-      (statement) =>
-        /from\s+["'][^"']+["']$/.test(statement) ||
-        (memberFragment.test(statement) &&
-          (importSyntaxHeads.has(head(statement)) ||
-            !SYNTAX_WORDS.has(head(statement)))),
-    )
-  );
-};
-
-/** One side of a pair for hashing: where it sits and what it says. */
 export type CloneSide = { file: string; snippet: string };
 
 /** Windows checkouts keep carriage returns, which a hash must not see: the
@@ -103,20 +72,20 @@ export type CloneSide = { file: string; snippet: string };
 const lfOnly = (text: string): string => text.replace(/\r\n/g, "\n");
 
 /** A stable identity for a pair: the hash of both files and both snippets.
- * Line numbers drift, so they stay out; the files stay in, so the same
- * snippets copied into new files read as a new pair that needs its own
- * review. Edit either side and the entry goes stale on purpose. */
+ * Line numbers drift and the files stay in, so the same snippets copied
+ * into new files read as a new pair needing its own review. */
 export const pairHash = async (
   first: CloneSide,
   second: CloneSide,
 ): Promise<string> =>
   await sha256Hex(
     new TextEncoder().encode(
-      `${first.file}\n${lfOnly(first.snippet.trim())}\n<==>\n${second.file}\n${lfOnly(second.snippet.trim())}`,
+      `${first.file}\n${lfOnly(first.snippet.trim())}\n<==>\n${second.file}\n${lfOnly(
+        second.snippet.trim(),
+      )}`,
     ),
   );
 
-/** Where a copy sits: both sides and the content identity of the pair. */
 export type ClonePlace = {
   first: string;
   firstStart: number;
@@ -125,7 +94,6 @@ export type ClonePlace = {
   hash: string;
 };
 
-/** One reviewed pair. `reason` must say why the repeat is allowed to stay. */
 export type AllowedClone = ClonePlace & {
   reason: string;
 };
@@ -139,14 +107,12 @@ const allowedCloneSchema = v.object({
   secondStart: v.number(),
 });
 
-/** One pair the scan holds: where it sits, its identity, and both snippets. */
 export type Finding = ClonePlace & {
   kind: CloneKind;
   firstSnippet: string;
   secondSnippet: string;
 };
 
-export type JscpdSide = { name: string; start: number; end: number };
 export type JscpdDuplicate = { firstFile: JscpdSide; secondFile: JscpdSide };
 
 /** Resolve a reported name against the directories names may be relative to.
@@ -170,18 +136,29 @@ export const resolvePath = (roots: string[], name: string): string => {
 export type CheckOptions = {
   /** Absolute directory the reported names resolve against (the repo root). */
   roots: string[];
-  /** The pairs jscpd found, verbatim from its report. */
   duplicates: JscpdDuplicate[];
-  /** Path of the registry file (allowed.json). */
   registryFile: string;
-  /** Where the check writes its report. */
   output: { log: (line: string) => void };
   /** Rewrite the registry, keeping reasons for pairs that did not change. */
   update?: boolean;
 };
 
-const snippetAt = (roots: string[], side: JscpdSide): string =>
-  Deno.readTextFileSync(resolvePath(roots, side.name))
+interface ParsedSource {
+  imports: ReturnType<typeof staticImportSpans>;
+  source: string;
+}
+
+const parsedSource = (roots: string[], side: JscpdSide): ParsedSource => {
+  const path = resolvePath(roots, side.name);
+  const source = Deno.readTextFileSync(path);
+  const imports = /\.[cm]?[jt]sx?$/.test(path)
+    ? staticImportSpans(path, source)
+    : [];
+  return { imports, source };
+};
+
+const snippetAt = (source: string, side: JscpdSide): string =>
+  source
     .split("\n")
     .slice(side.start - 1, side.end)
     .join("\n");
@@ -193,10 +170,26 @@ export const collectFindings = async (
   options: CheckOptions,
 ): Promise<Finding[]> => {
   const findings: Finding[] = [];
+  const sources = new Map<string, ParsedSource>();
+  const sourceFor = (side: JscpdSide): ParsedSource => {
+    const known = sources.get(side.name);
+    if (known !== undefined) return known;
+    const parsed = parsedSource(options.roots, side);
+    sources.set(side.name, parsed);
+    return parsed;
+  };
   for (const dup of options.duplicates) {
-    const first = snippetAt(options.roots, dup.firstFile);
-    const second = snippetAt(options.roots, dup.secondFile);
-    if (isImportSpan(first) && isImportSpan(second)) continue;
+    const firstSource = sourceFor(dup.firstFile);
+    const secondSource = sourceFor(dup.secondFile);
+    const first = snippetAt(firstSource.source, dup.firstFile);
+    const second = snippetAt(secondSource.source, dup.secondFile);
+    // Both calls run, so a bad range on either side fails loudly even when
+    // the other side already rules the exemption out.
+    const [firstIsImport, secondIsImport] = [
+      isImportSpan(firstSource.source, dup.firstFile, firstSource.imports),
+      isImportSpan(secondSource.source, dup.secondFile, secondSource.imports),
+    ];
+    if (firstIsImport && secondIsImport) continue;
     const kind = cloneKind(first, second);
     if (kind === "different") continue;
     findings.push({
@@ -229,7 +222,9 @@ const loadRegistry = (registryFile: string): AllowedClone[] => {
     // A hand-edited entry with no reason would otherwise ride its hash through
     // the check as a silent exemption, so refuse the whole file.
     throw new Error(
-      `registry entries are malformed in ${registryFile}: ${result.issues[0].message}`,
+      `registry entries are malformed in ${registryFile}: ${
+        result.issues[0].message
+      }`,
     );
   }
   return result.output as AllowedClone[];
@@ -244,7 +239,9 @@ const describe = (finding: Finding): string => {
       .join("\n");
   return (
     `${finding.first}:${finding.firstStart} vs ${finding.second}:${finding.secondStart} (${finding.kind})` +
-    `\n  A:\n${head(finding.firstSnippet)}\n  B:\n${head(finding.secondSnippet)}`
+    `\n  A:\n${head(finding.firstSnippet)}\n  B:\n${head(
+      finding.secondSnippet,
+    )}`
   );
 };
 

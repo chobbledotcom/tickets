@@ -4,7 +4,7 @@ import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeFilter } from "#shared/attendee-list-controls.ts";
-import { targetQuery } from "#shared/bulk-email.ts";
+import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";

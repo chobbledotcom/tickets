@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { maskSpans, shapeOf } from "#scripts/check-shapes/shape.ts";
+import { maskSpans } from "#scripts/check-shapes/mask-spans.ts";
+import { shapeOf } from "#scripts/typescript-lex.ts";
 
 describe("maskSpans", () => {
   /** Masks the whole of `source`, given each run and what stands for it. Each

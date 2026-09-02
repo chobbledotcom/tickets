@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { shapeOf } from "#scripts/check-shapes/shape.ts";
-import { interpolated, template } from "./samples.ts";
+import { shapeOf } from "#scripts/typescript-lex.ts";
+import { interpolated, template } from "#test/scripts/check-shapes/samples.ts";
 
 describe("shapeOf", () => {
   test("gives two functions that differ only in names one shape", () => {

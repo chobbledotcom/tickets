@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+
 import type {
   ObservedRefundAdmission,
   WithheldRefund,
@@ -197,6 +198,14 @@ export const prepareReadyCandidate = (
 type ReferenceRefundResult = ReferenceRefund & {
   readonly reference: TaggedRefundReference;
 };
+type ReturnedRefundResult = Extract<
+  ReferenceRefundResult,
+  { readonly outcome: "refunded" }
+>;
+
+const isReturnedRefundResult = (
+  result: ReferenceRefundResult,
+): result is ReturnedRefundResult => result.outcome === "refunded";
 
 const candidateResult = (
   prepared: PreparedCandidateRefund,
@@ -204,11 +213,10 @@ const candidateResult = (
   incompleteListingId?: number,
 ): CandidateRefund => {
   const outcome = combineRefundOutcomes(results.map(({ outcome }) => outcome));
-  const returned = results.flatMap((result) =>
-    result.outcome === "refunded"
-      ? [{ authority: result.authority, reference: result.reference }]
-      : [],
-  );
+  const returned = results.filter(isReturnedRefundResult).map((result) => ({
+    authority: result.authority,
+    reference: result.reference,
+  }));
   if (
     incompleteListingId !== undefined &&
     outcome === "failed" &&

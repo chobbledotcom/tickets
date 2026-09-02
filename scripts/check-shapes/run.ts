@@ -4,18 +4,19 @@
  * cover. Kept thin so the rules beside it stay testable.
  */
 
-import { parseSync } from "npm:oxc-parser@0.132.0";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
+import { shapeOf } from "#scripts/typescript-lex.ts";
 import { collectScriptFiles } from "#scripts/walk-files.ts";
 import { acceptedProblems, formatProblem, parseAccepted } from "./accepted.ts";
 import { maskedRuns, namedFunctions } from "./functions.ts";
+import { maskSpans } from "./mask-spans.ts";
 import {
   formatMatch,
   outsideSharedMechanism,
   type ShapeSite,
   shapeMatches,
 } from "./rules.ts";
-import { maskSpans, shapeOf } from "./shape.ts";
 
 /**
  * The shortest body that counts. This number ratchets downward: lower it,
@@ -69,13 +70,7 @@ export const collectSites = async (
     for (const file of await collectScriptFiles(root)) {
       if (isFrozen(file)) continue;
       const source = await Deno.readTextFile(file);
-      // A file the parser could not read whole leaves a recovered tree, whose
-      // missing functions would read as nothing to report rather than as a
-      // fault. Say so loudly instead.
-      const { errors, program } = parseSync(file, source);
-      if (errors.length > 0) {
-        throw new Error(`${file} does not parse: ${errors[0]?.message}`);
-      }
+      const program = parseProgram(file, source);
       const runs = maskedRuns(program, source);
       const found = namedFunctions(program, source);
       const names = distinctNames(found);
@@ -142,6 +137,8 @@ export const runShapeCheck = async (
     found,
     guide: '"Code Duplication" in AGENTS.md',
     noun: "shape",
-    success: `No two named functions in ${roots.join(", ")} share a shape of ${MIN_TOKENS}+ tokens, beyond the ${accepted.size} on the accepted list.`,
+    success: `No two named functions in ${roots.join(
+      ", ",
+    )} share a shape of ${MIN_TOKENS}+ tokens, beyond the ${accepted.size} on the accepted list.`,
   });
 };

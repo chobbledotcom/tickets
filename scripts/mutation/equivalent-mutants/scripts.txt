@@ -46,9 +46,6 @@ scripts/test-tree-scan.ts::scanTestTree.subjectsOf~0mczjth  ?? → ||   # subjec
 scripts/mutation/test-map.ts::mirrorOwnerOrNull~0tdqf2c  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
 scripts/mutation/test-map.ts::buildMutationTestMap.integrationTestFiles~12ldm3l  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
 
-# Bundle AST bench: the parser's filename argument is a diagnostic label only.
-scripts/bench/bundle-composition/javascript-ast.ts::countJavaScriptAstNodes.result~0qowwnh  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
-
 # Script cleanup: the second length check can never see a single error.
 scripts/cleanup.ts::throwCollectedErrors~0ppty15  1 → 0   # the line above already throws when there is exactly one error, so this check only ever runs with 0 or 2+ errors, where > 1 and > 0 agree
 
@@ -110,4 +107,3 @@ scripts/check-comments/rules.ts::widestLine.width~1myoetc  0 → 1   # same firs
 scripts/check-comments/rules.ts::namesMentioned~1nnu9xx  ?? → ||   # String.match with a global regex returns null or a non-empty array, and every array is truthy, so only null reaches the fallback and both operators yield the same []
 scripts/check-comments/rules.ts::findDeadLinks.line~1my9h0w  0 → 1   # the count runs from the comment's own start, and a comment always begins with "/", so skipping character 0 can never miss a newline
 scripts/check-comments/rules.ts::namesMentioned~1ugmzzy  %20 → ""   # the link pattern captures identifier characters greedily, so the character after every match is always a non-identifier that already separates the tokens — replacing a link with a space and with nothing give the same names for every input
-scripts/check-imports/rules.ts::topLevelImports.specifier~14l0966  ?? → ||   # both fallbacks come from String.match with a [^"']+ capture, which yields undefined or a non-empty string, never a falsy defined value, so ?? and || read the same

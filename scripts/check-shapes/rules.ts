@@ -4,7 +4,7 @@
  */
 
 import { shortHash } from "#scripts/checksum.ts";
-import { mapTemplates } from "#scripts/quoted-run.ts";
+import { mapLexicalSpans } from "#scripts/typescript-lex.ts";
 
 /** One function, named by the file it lives in. */
 export interface ShapeSite {
@@ -34,7 +34,11 @@ export interface ShapeMatch {
  * cannot touch them: a template's whitespace is data the function returns,
  * not layout. */
 const heldTemplates = (body: string): string =>
-  mapTemplates(body, (run) => run.replaceAll("\n", "\u0000"));
+  mapLexicalSpans(body, (run, span) =>
+    span.kind === "string" && run.startsWith("`")
+      ? run.replaceAll("\n", "\u0000")
+      : run,
+  );
 
 /**
  * A body's fingerprint: seven characters that change when the body's text

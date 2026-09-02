@@ -1,10 +1,10 @@
-import { parseSync } from "npm:oxc-parser@0.132.0";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { maskedRuns, namedFunctions } from "#scripts/check-shapes/functions.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
 
 const found = (source: string) =>
-  namedFunctions(parseSync("sample.ts", source).program, source);
+  namedFunctions(parseProgram("sample.ts", source), source);
 
 const names = (source: string) => found(source).map((entry) => entry.name);
 
@@ -137,7 +137,7 @@ describe("namedFunctions naming what a function sits inside", () => {
 /** What each masked run covers and what stands for it, so a test reads text
  *  rather than offsets. */
 const masked = (source: string): [string, string][] =>
-  maskedRuns(parseSync("sample.tsx", source).program, source).map((run) => [
+  maskedRuns(parseProgram("sample.tsx", source), source).map((run) => [
     source.slice(run.start, run.end),
     run.as,
   ]);

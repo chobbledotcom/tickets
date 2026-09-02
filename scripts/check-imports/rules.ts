@@ -1,38 +1,19 @@
-/**
- * Pure rules for the import checks. Everything here works on text plus the
- * alias table, so the IO shell in `run.ts` only has to find the files.
- */
-
+import { mapNotNullish } from "#fp";
 import { byLine } from "#scripts/check-report.ts";
-import { endOfRegExp, slashDivides } from "#scripts/check-shapes/slash.ts";
-import {
-  endOfComment,
-  endOfQuoted,
-  endOfTemplateRun,
-  mapRuns,
-  opensComment,
-} from "#scripts/quoted-run.ts";
+import { lineColumnAt } from "#scripts/line-column.ts";
+import { parseProgram } from "#scripts/parse-program.ts";
+import { blankSpans } from "#scripts/typescript-lex.ts";
 
-/** One `#` alias from the import map. A name ending in `/` covers a folder. */
 export interface Alias {
   name: string;
   target: string;
 }
 
-/** Where one statement that names a module sits, and what shape it has. */
 export interface ImportLine {
   line: number;
-  /** True when the statement only brings in names inside `{ }`. */
   namesOnly: boolean;
-  /** True when the statement re-exports rather than imports. Both load the
-   *  module at run time, but only two imports can merge into one statement. */
   reExport: boolean;
   specifier: string;
-  /** True when the statement opens `import type` or `export type`, so nothing
-   *  it names survives to run time. A statement whose names all carry an
-   *  inline `type` reads here as a run-time import on purpose: whether that
-   *  spelling is erased or left as `import {} from "…"` depends on how the
-   *  code is built, and a reader of the text cannot tell. */
   typeOnly: boolean;
 }
 
@@ -43,12 +24,7 @@ export interface ImportIssue {
 
 const isFolder = (alias: Alias): boolean => alias.name.endsWith("/");
 
-/**
- * Read `text` on one side of an alias and write it out on the other. A folder
- * alias keeps whatever followed the prefix; a plain alias only matches the
- * whole thing. Reading a specifier and writing a spelling are this one
- * translation, run in opposite directions.
- */
+/** Translate between alias names and targets while folder aliases keep suffixes. */
 const across =
   (
     from: keyof Alias,
@@ -60,29 +36,18 @@ const across =
     return alias[to] + text.slice(alias[from].length);
   };
 
-/** The file an alias points at, or null when the alias does not cover it. */
 const pathFor = across("name", "target");
 
 const nameFor = across("target", "name");
 
-/**
- * Whether an alias is one we ask people to write. A folder alias and a one-word
- * alias such as `#types` both are. `#jsx/jsx-runtime` is not: it names a module
- * without its extension for the JSX transform to emit, and no hand-written
- * import spells a module that way.
- */
+/** Whether people write this alias rather than a JSX transform. */
 const isSpellable = (alias: Alias): boolean =>
   isFolder(alias) || !alias.name.includes("/");
 
-/** How an alias would spell `path`, or null when it cannot reach it. */
 const spellingFor = (alias: Alias, path: string): string | null =>
   isSpellable(alias) ? nameFor(alias, path) : null;
 
-/**
- * The winning answer the alias table gives, or null when no alias reaches.
- * `answerFrom` reads one alias, and `beats` says which of two answers wins.
- * Both lookups below are this one walk over the table.
- */
+/** Find the best non-null answer from the alias table. */
 const bestFromAliases = <T>(
   aliases: Alias[],
   answerFrom: (alias: Alias) => T | null,
@@ -97,10 +62,7 @@ const bestFromAliases = <T>(
   return best;
 };
 
-/**
- * The file `specifier` names. Longest alias wins, the way the runtime resolves
- * it, so `#db/x.ts` beats the broader `#shared/` reading of the same path.
- */
+/** Resolve a specifier through its longest matching alias. */
 export const resolveSpecifier = (
   aliases: Alias[],
   specifier: string,
@@ -116,10 +78,7 @@ export const resolveSpecifier = (
   return best === null ? null : best.path;
 };
 
-/**
- * The one spelling we want for `path`: the shortest, then the alphabetically
- * first so two equally short aliases still give one answer.
- */
+/** Choose the shortest alias, then the first in alphabetical order. */
 export const bestSpelling = (aliases: Alias[], path: string): string | null =>
   bestFromAliases(
     aliases,
@@ -129,113 +88,49 @@ export const bestSpelling = (aliases: Alias[], path: string): string | null =>
       (spelling.length === best.length && spelling < best),
   );
 
-/** Where a statement that names a module opens. A re-export names one as
- * surely as an import does, and loads it just the same. */
-const OPENS_A_MODULE_STATEMENT = /^(?:import[\s{"']|export\s+(?:type\s+)?[{*])/;
+type ProgramStatement = ReturnType<typeof parseProgram>["body"][number];
 
-/**
- * The source with every comment and every template taken out, newlines kept
- * where they were so a reader can still count lines. A comment that spans
- * lines stays absent on each of them, because the walk carries it from the
- * line it opens to the line it closes. A template keeps only its line breaks,
- * so an example import written at column zero inside one is not mistaken for
- * the real thing — no import sits inside a template. A string keeps whatever
- * it quotes, so a module address with `//` of its own survives.
- */
-/** The line breaks of a run, which is all the count needs to keep. */
-const lineBreaksOf = (run: string): string => run.replace(/[^\n]/g, "");
-
-/**
- * What stands where the quoted run that opens at `index` stands, and where it
- * ends. A one-line string keeps its text — a specifier is exactly that —
- * while a template and any string a backslash-newline carried across a line
- * keep only their line breaks, so no module statement shares their lines.
- */
-const maskedQuote = (
-  source: string,
-  index: number,
-): { as: string; next: number } => {
-  const character = source[index] as string;
-  const end =
-    character === "`"
-      ? endOfTemplateRun(source, index + 1)
-      : endOfQuoted(source, index + 1, character);
-  const run = source.slice(index, end);
-  const keepsText = character !== "`" && !run.includes("\n");
-  return { as: keepsText ? run : lineBreaksOf(run), next: end };
-};
-
-export const stripComments = (source: string): string =>
-  mapRuns(source, (index) => {
-    const character = source[index] as string;
-    if (character === '"' || character === "'" || character === "`") {
-      return maskedQuote(source, index);
-    }
-    if (
-      (character === "/" && !slashDivides(source, index)) ||
-      opensComment(source, index)
-    ) {
-      // One run of nothing the reader needs — a comment, or a pattern whose
-      // own characters open no comment from inside it — masked to its line
-      // breaks like every other run.
-      const end = opensComment(source, index)
-        ? endOfComment(source, index)
-        : endOfRegExp(source, index + 1);
-      return { as: lineBreaksOf(source.slice(index, end)), next: end };
-    }
-    return null;
-  });
-
-/**
- * Every top-level statement in `content` that names a module — an import or a
- * re-export — however its opening line is indented: templates, spanning
- * strings, and comments are masked to their line breaks before the lines are
- * read, so no quoted example can start a line and pose as one. The
- * statement's lines are held while it is open, so the module name is read
- * from the whole statement — a `from` and its specifier can wait on different
- * lines — and the shape from the line that opens it. A statement that ends
- * without a `from`, such as `export { getRawCached };`, names no module and
- * is dropped.
- */
-export const topLevelImports = (content: string): ImportLine[] => {
-  const found: ImportLine[] = [];
-  let open: { head: string; line: number } | null = null;
-  let held: string[] = [];
-  for (const [index, raw] of stripComments(content).split("\n").entries()) {
-    const line = raw.trimStart();
-    if (open === null) {
-      if (!OPENS_A_MODULE_STATEMENT.test(line)) continue;
-      open = { head: line, line: index + 1 };
-      held = [line];
-    } else {
-      held.push(raw);
-    }
-    // A side-effect `import "./x.ts"` names its module without a `from`, and
-    // loads it for what it does rather than for what it hands back.
-    const statement = held.join("\n");
-    const specifier =
-      statement.match(/from\s+["']([^"']+)["']/)?.[1] ??
-      statement.match(/^import\s+["']([^"']+)["']/)?.[1];
-    if (specifier === undefined && !/;\s*$/.test(line)) continue;
-    if (specifier !== undefined) {
-      found.push({
-        line: open.line,
-        namesOnly: /^import\s+(type\s+)?\{/.test(open.head),
-        reExport: /^export\b/.test(open.head),
-        specifier,
-        typeOnly: /^(?:import|export)\s+type\b/.test(open.head),
-      });
-    }
-    open = null;
+const moduleLineFrom = (
+  content: string,
+  statement: ProgramStatement,
+): ImportLine | null => {
+  if (statement.type === "ImportDeclaration") {
+    const beforeSource = blankSpans(
+      content.slice(statement.start, statement.source.start),
+      true,
+    );
+    return {
+      line: lineColumnAt(content, statement.start).line,
+      namesOnly:
+        /\bfrom\s*$/.test(beforeSource) &&
+        statement.specifiers.every(({ type }) => type === "ImportSpecifier"),
+      reExport: false,
+      specifier: statement.source.value,
+      typeOnly: statement.importKind === "type",
+    };
   }
-  return found;
+  if (
+    statement.type !== "ExportNamedDeclaration" &&
+    statement.type !== "ExportAllDeclaration"
+  ) {
+    return null;
+  }
+  if (statement.source === null) return null;
+  return {
+    line: lineColumnAt(content, statement.start).line,
+    namesOnly: false,
+    reExport: true,
+    specifier: statement.source.value,
+    typeOnly: statement.exportKind === "type",
+  };
 };
 
-/**
- * Imports of one module split across two statements. Only a pair that both
- * bring in names can merge, so a namespace import beside named ones is left
- * alone: it reads the whole module on purpose.
- */
+export const topLevelImports = (file: string, content: string): ImportLine[] =>
+  mapNotNullish((statement: ProgramStatement) =>
+    moduleLineFrom(content, statement),
+  )(parseProgram(file, content).body);
+
+/** Find named imports that can merge. Namespace imports remain separate. */
 const findSplitImports = (imports: ImportLine[]): ImportIssue[] => {
   const bySpecifier = new Map<string, ImportLine[]>();
   for (const entry of imports) {
@@ -255,7 +150,6 @@ const findSplitImports = (imports: ImportLine[]): ImportIssue[] => {
   return issues;
 };
 
-/** Imports that spell a module a longer way than its own alias allows. */
 const findLongSpellings = (
   aliases: Alias[],
   imports: ImportLine[],
@@ -274,12 +168,12 @@ const findLongSpellings = (
   return issues;
 };
 
-/** Everything wrong with one file's imports, in line order. */
 export const findImportIssues = (
+  file: string,
   content: string,
   aliases: Alias[],
 ): ImportIssue[] => {
-  const imports = topLevelImports(content);
+  const imports = topLevelImports(file, content);
   return [
     ...findSplitImports(imports),
     ...findLongSpellings(aliases, imports),
