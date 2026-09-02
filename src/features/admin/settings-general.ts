@@ -35,10 +35,8 @@ import {
 } from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
-import {
-  SETTINGS_FORMS,
-  type SingleFieldSettingsForm,
-} from "#shared/settings/forms.ts";
+import type { SettingsFormConfig } from "#shared/settings/form-schema.ts";
+import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 import {
@@ -46,6 +44,8 @@ import {
   type PaymentProviderType,
   type Theme,
 } from "#types";
+
+type SingleFieldSettingsForm = Exclude<SettingsFormConfig, { kind: "fields" }>;
 
 const formRoute = (definition: SingleFieldSettingsForm) => ({
   advanced: definition.page === "advanced",

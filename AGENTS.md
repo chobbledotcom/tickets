@@ -1461,6 +1461,11 @@ query logging and table-scoped cache invalidation stay automatic.
 - `deno task test:files <file>...` - Run only the given test files with the same
   setup as the full runner (makes sure the static assets are current, starts
   stripe-mock, cleans up after)
+- `deno task cov:files <file>... [--only <part>]` - Run only the given test
+  files with the same setup as `test:files`, then print the lines and branches
+  this run left uncovered. Pass `--only <part>` to limit the report to files
+  whose path contains `part`. This is a fast diagnostic slice. The full
+  `test:coverage` gate stays the authority.
 - `deno task test:screenshot-contract` - Run the real-browser screenshot timing
   and responsive-layout contracts (requires Chromium)
 - `deno task specs` - Run every Cucumber Feature through the shared test harness

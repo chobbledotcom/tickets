@@ -28,10 +28,6 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ])(["listing"]),
   ...identitiesAt([
     ["src/shared/db/attendee-types.ts", [{ name: "DesiredListingLine" }]],
-    [
-      "src/shared/db/attendees/atomic-update.ts",
-      [{ name: "AtomicDesiredLine" }],
-    ],
   ])(PARENT_LISTING_FIELDS),
   ...identitiesAt([
     [
@@ -62,7 +58,6 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ])(["manifest", "statementCount"]),
   ...identitiesAt([
     ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSite" }]],
-    ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSitePlainFields" }]],
   ])(ASSIGNED_LISTING_FIELDS),
   ...identitiesAt([
     ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSiteBlobInput" }]],
@@ -72,16 +67,13 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ])(["dbProvider", "hostingProvider", "updates"]),
   ...identitiesAt([
     ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSiteInput" }]],
-  ])([...BUILT_SITE_INPUT_FIELDS, "siteData", "updates"]),
+  ])(["siteData"]),
   ...identitiesAt([
     ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSitePlainInput" }]],
   ])([...BUILT_SITE_INPUT_FIELDS, "updates"]),
   ...identitiesAt([
     ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSiteRow" }]],
   ])([...BUILT_SITE_ROW_FIELDS, "site_data_revision", "updates"]),
-  ...identitiesAt([
-    ["src/shared/db/built-sites/types.ts", [{ name: "BuiltSiteUpdate" }]],
-  ])(["assignedListingId", "renewalToken"]),
   ...identitiesAt([
     [
       "src/shared/db/common-schema.ts",
@@ -118,7 +110,7 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ]),
   ...identitiesAt([
     ["src/shared/db/news-posts.ts", [{ name: "NewsPostInput" }]],
-  ])(["created", "slugIndex"]),
+  ])(["created"]),
   ...identitiesAt([
     ["src/shared/db/numbered-statement.ts", [{ name: "SqlParameterToken" }]],
   ])(["sql"]),
@@ -156,7 +148,7 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
       "src/shared/db/provider-refund-cases.ts",
       [{ name: "ProviderRefundCase" }],
     ],
-  ])(["decision", "updatedAt"]),
+  ])(["decision"]),
   ...identitiesAt([
     [
       "src/shared/db/provider-refund-cases.ts",
@@ -201,7 +193,7 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ]),
   ...identitiesAt([
     ["src/shared/db/site-pages.ts", [{ name: "SitePageInput" }]],
-  ])(["slugIndex", "sortOrder"]),
+  ])(["sortOrder"]),
   ...identitiesAt([
     [
       "src/shared/db/slugged-content-input.ts",

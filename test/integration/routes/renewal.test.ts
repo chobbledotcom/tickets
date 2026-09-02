@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -17,6 +18,11 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+
+/** Frozen before the fixture's deadline. The renewal base is
+ *  max(now, deadline), so a real clock past the deadline stacks the months
+ *  onto "now" instead of onto the fixture. */
+const FROZEN_NOW = new Date("2026-08-01T00:00:00Z");
 
 const setupRenewalSite = async () => {
   await insertBuiltSite(
@@ -308,6 +314,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("free renewal tier still applies the site renewal", async () => {
+      using _time = new FakeTime(FROZEN_NOW);
       const tier = await createTestListing({
         hidden: true,
         maxAttendees: 100,

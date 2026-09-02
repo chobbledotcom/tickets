@@ -89,6 +89,27 @@ export type MapsItsValues = { sharedWithAMapped: string } & {
   [K in "one"]: { sharedWithAMapped: number };
 };
 
+export type MapsFixedNames = {
+  [K in "word" | "unread" | 2 | -3 | \`templated\`]: { id: number };
+};
+
+export type EmptyFixedMapping = {
+  [K in never]: { mustStayOut: number };
+};
+
+type FixedKeyAlias = "throughAlias";
+export type MapsThroughAnAlias = {
+  [K in FixedKeyAlias]: { keptUnderTheIndex: number };
+};
+
+export type MapsAnOpenDomain = {
+  [K in string]: { keptUnderTheOpenIndex: number };
+};
+
+export type RemapsAKey = {
+  [K in "source" as "target"]: { keptUnderTheRemappedIndex: number };
+};
+
 // A generic puts its argument somewhere of its own, under a named member the
 // way this one does, so the argument's fields never reach the outer shape's
 // path. Before, both \`shared\` declarations shared one key.

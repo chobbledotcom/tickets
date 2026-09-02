@@ -10,36 +10,17 @@ import {
 } from "#payment/refund-attempt.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { SquareClient } from "#shared/square/client.ts";
 import {
   namedSquareRefund,
   readSquareResource,
   squareRefundFailure,
 } from "#shared/square/outcomes.ts";
-import type {
-  SquareMoney,
-  SquarePayment,
-  SquareRefund,
-} from "#shared/square/wire.ts";
+import type { SquarePayment, SquareRefund } from "#shared/square/wire.ts";
 /* jscpd:ignore-end */
 
-/** Input to Square's refund transport. */
-export type RefundPaymentInput = {
-  idempotencyKey: string;
-  paymentId: string;
-  amountMoney: SquareMoney;
-};
-
 /** The two client methods payment reads and refunds need. */
-export type SquarePaymentClient = {
-  payments: {
-    get(input: { paymentId: string }): Promise<{
-      payment: SquarePayment | null;
-    }>;
-  };
-  refunds: {
-    refundPayment(input: RefundPaymentInput): Promise<{ refund: SquareRefund }>;
-  };
-};
+export type SquarePaymentClient = Pick<SquareClient, "payments" | "refunds">;
 
 type GetSquarePaymentClient = () => Promise<SquarePaymentClient | null>;
 

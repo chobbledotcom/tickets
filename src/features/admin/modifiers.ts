@@ -57,7 +57,7 @@ import {
   normalizeCode,
   validateCalcValue,
 } from "#shared/price-modifier.ts";
-import { defineNamedResource } from "#shared/rest/resource.ts";
+import { defineResource } from "#shared/rest/resource.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
 import type {
@@ -232,9 +232,8 @@ const validateModifier = (
 };
 
 const getModifiersResource = once(() =>
-  defineNamedResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
+  defineResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
     form: getModifierForm(),
-    nameField: "name",
     table: modifiersTable,
     toInput: extractModifierInput,
     validate: validateModifier,

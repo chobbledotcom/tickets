@@ -29,7 +29,7 @@ import {
 import { redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import { defineNamedResource } from "#shared/rest/resource.ts";
+import { defineResource } from "#shared/rest/resource.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import {
   adminLogisticsPage,
@@ -55,7 +55,6 @@ const extractLogisticsAgentInput = (
  * first clears any booking references so no attendee points at a missing id. */
 const logisticsAgentsResourceConfig = {
   form: logisticsAgentForm,
-  nameField: "name",
   onDelete: async (id: InValue): Promise<void> => {
     await clearLogisticsAgentReferences(Number(id));
     await agentUsers.clear(Number(id));
@@ -65,16 +64,14 @@ const logisticsAgentsResourceConfig = {
   toInput: extractLogisticsAgentInput,
 } as const;
 
-const logisticsAgentsResource = defineNamedResource(
-  logisticsAgentsResourceConfig,
-);
+const logisticsAgentsResource = defineResource(logisticsAgentsResourceConfig);
 
 /** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
  * so a crafted form can't link an editor (or unknown id) as a driver. */
 const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
   selectedIdsFromForm(form, "user_ids", await loadAgentUserOptions());
 
-const logisticsAgentEditResource = defineNamedResource({
+const logisticsAgentEditResource = defineResource({
   ...logisticsAgentsResourceConfig,
   afterWrite: async (tx, id, _input, form, _state): Promise<void> => {
     await agentUsers.setIdsTx(tx, id, await parseAssignedUserIds(form));

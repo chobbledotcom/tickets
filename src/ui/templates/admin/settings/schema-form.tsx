@@ -12,10 +12,10 @@ import type {
   RadiosFieldSpec,
   SecretFieldSpec,
   SelectFieldSpec,
+  SettingsFormConfig,
   TextareaSettingsFormConfig,
   TextSettingsFormConfig,
 } from "#shared/settings/form-schema.ts";
-import type { SettingsFormFor } from "#shared/settings/forms.ts";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
@@ -29,6 +29,25 @@ import { TextField } from "#templates/components/text-field.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 /* jscpd:ignore-end */
+
+type StateFieldOf<Value> = Value extends {
+  stateField: infer Field extends string;
+}
+  ? Field
+  : Value extends { configuredStateField: infer Field extends string }
+    ? Field
+    : never;
+
+type FormStateField<Definition> = Definition extends {
+  fields: readonly (infer Field)[];
+}
+  ? StateFieldOf<Field>
+  : StateFieldOf<Definition>;
+
+type FitsState<Definition, State> =
+  Exclude<FormStateField<Definition>, keyof State & string> extends never
+    ? unknown
+    : never;
 
 const stateValue = (state: object, field: string): unknown =>
   (state as Record<string, unknown>)[field];
@@ -55,15 +74,11 @@ const description = (copy: FormCopyBase): Child => {
   return copy.descriptionHtml === "block" ? body : <p>{body}</p>;
 };
 
-const submitLabel = (copy: { submitLabelKey?: string | undefined }): string =>
-  copy.submitLabelKey !== undefined ? t(copy.submitLabelKey) : t("common.save");
+const submitLabel = (copy: SettingsFormConfig["copy"]): string =>
+  "submitLabelKey" in copy ? t(copy.submitLabelKey) : t("common.save");
 
 const formSection = (
-  definition: {
-    action: string;
-    formId: string;
-    copy: FormCopyBase & { submitLabelKey?: string | undefined };
-  },
+  definition: Pick<SettingsFormConfig, "action" | "copy" | "formId">,
   children: Child,
 ): JSX.Element =>
   settingsSectionWith(
@@ -243,9 +258,12 @@ const fieldsForm = (
 /** Render a settings form from its registry definition. The definition's
  * state fields must be real fields of the page state handed in, so a typo'd
  * or misplaced definition fails to compile instead of rendering blank. */
-export const settingsForm = <S extends object>(
-  definition: SettingsFormFor<S>,
-  state: S,
+export const settingsForm = <
+  const Definition extends SettingsFormConfig,
+  State extends object,
+>(
+  definition: Definition & FitsState<Definition, State>,
+  state: State,
 ): JSX.Element => {
   switch (definition.kind) {
     case "boolean":

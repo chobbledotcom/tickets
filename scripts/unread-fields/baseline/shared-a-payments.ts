@@ -82,14 +82,9 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([["src/shared/email.ts", [{ name: "EmailListing" }]]])([
     "active",
     "assign_built_site",
-    "attendee_count",
-    "can_pay_more",
-    "day_prices",
     "hidden",
     "initial_site_months",
     "listing_type",
-    "max_attendees",
-    "unit_price",
   ]),
   ...identitiesAt([
     ["src/shared/email/bulk.ts", [{ name: "BulkBatchResponse" }]],
@@ -238,7 +233,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ])(["authority", "reason", "rows"]),
   ...identitiesAt([
     ["src/shared/payment/refund-attempt.ts", [{ name: "RefundActionResult" }]],
-  ])(["admission", "proof"]),
+  ])(["admission"]),
   ...identitiesAt([
     ["src/shared/payment/refund-attempt.ts", [{ name: "RefundAttemptResult" }]],
   ])(["proof"]),
@@ -279,8 +274,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     "balanceAttendeeId",
     "date",
     "dayCount",
-    "listingAnswerIds",
-    "listingTextAnswerIds",
   ]),
   ...identitiesAt([
     ["src/shared/payments.ts", [{ name: "CheckoutSessionResult" }]],

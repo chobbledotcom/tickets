@@ -335,4 +335,18 @@ describe("what the walk goes into", () => {
       verdictOf('HoldsThingsInGenerics.inARecord["[]"]', "insideARecord"),
     ).toBe("never read");
   });
+
+  test("reads through each named type a borrowed field holds", () => {
+    expect(verdictOf("BorrowsNested.detail", "readDeep")).toBe("read");
+    expect(verdictOf("BorrowsNested.detail", "unreadDeep")).toBe("never read");
+  });
+
+  test("reads each arm of an asynchronous result", () => {
+    expect(verdictOf("ReadsAnAsyncResult.validate.result", "error")).toBe(
+      "read",
+    );
+    expect(verdictOf("ReadsAnAsyncResult.validate.result", "value")).toBe(
+      "read",
+    );
+  });
 });

@@ -3,10 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { type HolidayInput, holidays } from "#db/holidays.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import {
-  defineNamedResource,
-  type NamedOperations,
-} from "#shared/rest/resource.ts";
+import { defineResource, type NamedOperations } from "#shared/rest/resource.ts";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -24,9 +21,8 @@ const toHolidayInput = (values: HolidayFormValues): HolidayInput => ({
   startDate: values.start_date,
 });
 
-const holidayResource = defineNamedResource({
+const holidayResource = defineResource({
   form: getHolidayForm(),
-  nameField: "name",
   table: holidays.table,
   toInput: toHolidayInput,
 });

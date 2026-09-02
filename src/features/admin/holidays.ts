@@ -14,7 +14,7 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import { defineNamedResource } from "#shared/rest/resource.ts";
+import { defineResource } from "#shared/rest/resource.ts";
 import {
   adminHolidaysPage,
   getHolidayPages,
@@ -43,9 +43,8 @@ export const validateDateRange = (
 
 /** Holidays resource for REST create/update operations */
 const holidaysResource = wrapResourceForDemo(
-  defineNamedResource({
+  defineResource({
     form: getHolidayForm(),
-    nameField: "name",
     table: holidays.table,
     toInput: extractHolidayInput,
     validate: validateDateRange,

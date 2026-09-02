@@ -90,15 +90,9 @@ describe("what the scan counts as a shape", () => {
     ]);
   });
 
-  test("gives a filtered shape one line per field, not two", () => {
-    // `Extract<Result, { ok: true }>` writes the discriminant down as a
-    // filter. Read as a member, it becomes a second line that disagrees with
-    // the first about whether anything reads the field.
+  test("keeps a filter's fields under their exported source", () => {
     const lines = scanned.all.filter((f) => f.owner === "PickedByAFilter");
-    expect(lines.map((f) => f.field).sort()).toEqual([
-      "onlyOnTheFirst",
-      "sharedByBothArms",
-    ]);
+    expect(lines).toEqual([]);
   });
 
   test("counts a shape exported under two names once", () => {

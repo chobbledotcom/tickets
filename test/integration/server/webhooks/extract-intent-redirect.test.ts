@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
@@ -14,6 +15,11 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 // jscpd:ignore-end
+
+/** Frozen before the fixtures' deadlines. The renewal base is
+ *  max(now, deadline), so a real clock past the deadline stacks the months
+ *  onto "now" instead of onto the fixture. */
+const FROZEN_NOW = new Date("2026-08-01T00:00:00Z");
 
 describeWithEnv(
   "server webhooks > extractIntent + redirect/renewal",
@@ -200,6 +206,7 @@ describeWithEnv(
     });
 
     test("payment success applies multi-tier renewal months cumulatively", async () => {
+      using _time = new FakeTime(FROZEN_NOW);
       await setupStripe();
 
       await createTestListing({

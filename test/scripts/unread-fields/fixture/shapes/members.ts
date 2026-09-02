@@ -109,7 +109,14 @@ export class RunsItAsAProperty {
 
 export class HoldsAClassInAStatic {
   static inner = class {
+    dead = 1;
     static dead = 1;
+
+    options: { id: string };
+
+    constructor(options: { id: number }) {
+      this.options = { id: "held" };
+    }
   };
 }
 

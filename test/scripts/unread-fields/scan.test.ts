@@ -66,18 +66,19 @@ describe("the reads the scan counts", () => {
     expect(verdictOf("Borrowed", "takenAwayByDelete")).toBe("never read");
   });
 
-  test("looks a field up in the file that declares it", () => {
-    expect(verdictOf("ExtendsFarBase", "readFromFarAway")).toBe("read");
+  test("keeps an inherited field under its exported source", () => {
+    expect(verdictOf("FarBase", "readFromFarAway")).toBe("read");
+    expect(verdictOf("ExtendsFarBase", "readFromFarAway")).toBeUndefined();
   });
 
-  test("names the declaring file, not the shape that hands the field on", () => {
+  test("names the source export once", () => {
     const found = scanned.all.find(
-      (f) => f.owner === "ExtendsFarBase" && f.field === "readFromFarAway",
+      (f) => f.owner === "FarBase" && f.field === "readFromFarAway",
     );
 
     expect(found?.file).toBe("src/inner/index.ts");
-    expect(found?.exportedFrom).toBe("src/shapes.ts");
-    expect(found?.path).toEqual([{ name: "ExtendsFarBase" }]);
+    expect(found?.exportedFrom).toBe("src/inner/index.ts");
+    expect(found?.path).toEqual([{ name: "FarBase" }]);
   });
 
   test("sees a field read through a directory import", () => {

@@ -32,10 +32,9 @@ import {
  * run that says every one of no fields is read reads like a clean bill. */
 const REPORTED = "src";
 
-/** Folders that only add readers, so the scan can tell a field only its tests
- * read from one nothing reads. `test/` is one, and so are the two live
- * end-to-end harnesses, which read production fields the same way. A
- * repository without one of these is normal, so the walk skips it. */
+/** Other folders that can read reported fields. They include tests, live
+ * end-to-end harnesses, and supported CLI and maintenance tools. A repository
+ * without one of these folders is normal, so the walk skips it. */
 const ALSO_READ = ["test", "scripts", "cli", "e2e-payments/src"];
 
 const isDirectory = pathIs("isDirectory");
@@ -138,6 +137,59 @@ const symbolsAtMember = (
   return property ? checker.getRootSymbols(property) : [];
 };
 
+interface NameReaderContext {
+  hasSymbols: boolean;
+  program: ts.Program;
+  root: string;
+  service: ts.LanguageService;
+}
+
+const readerFilesOf = (
+  context: NameReaderContext,
+  field: FieldName,
+  references: readonly ts.ReferencedSymbol[],
+): string[] => {
+  const namesTheNamesake = namesTheNamesakeOf(field);
+  const readers: string[] = [];
+  for (const group of references) {
+    for (const reference of group.references) {
+      if (readsHere(context.program, reference, namesTheNamesake)) {
+        readers.push(reference.fileName.replace(`${context.root}/`, ""));
+      }
+    }
+  }
+  return readers;
+};
+
+const uncachedReadersOfName = (
+  context: NameReaderContext,
+  field: FieldName,
+): string[] => {
+  if (isNegativeNumericName(field)) return [];
+  const references = context.service.findReferences(
+    field.getSourceFile().fileName,
+    field.getStart(),
+  );
+  if (!references && context.hasSymbols) return [];
+  return readerFilesOf(
+    context,
+    field,
+    answered(references, `references for ${fieldNameText(field)}`),
+  );
+};
+
+const readersOfName = (
+  context: NameReaderContext,
+  cache: Map<FieldName, readonly string[]>,
+  field: FieldName,
+): string[] => {
+  const cached = cache.get(field);
+  if (cached) return [...cached];
+  const readers = uncachedReadersOfName(context, field);
+  cache.set(field, readers);
+  return readers;
+};
+
 /** Everyone who reads a field, wherever it was written down. */
 const readersOf = (
   service: ts.LanguageService,
@@ -145,30 +197,12 @@ const readersOf = (
   root: string,
   names: readonly FieldName[],
   symbols: readonly ts.Symbol[],
+  readersByName: Map<FieldName, readonly string[]>,
   readersBySymbol: ReadonlyMap<ts.Symbol, readonly string[]>,
 ): string[] => {
-  /** Ask the service who reads one written-down name. */
-  const readersOfName = (field: FieldName): string[] => {
-    // The language service accepts no position inside a negative number.
-    // Its checker property symbol supplies those references below.
-    if (isNegativeNumericName(field)) return [];
-    const references = answered(
-      service.findReferences(field.getSourceFile().fileName, field.getStart()),
-      `references for ${fieldNameText(field)}`,
-    );
-    const namesTheNamesake = namesTheNamesakeOf(field);
-    const readers: string[] = [];
-    for (const group of references) {
-      for (const reference of group.references) {
-        if (readsHere(program, reference, namesTheNamesake)) {
-          readers.push(reference.fileName.replace(`${root}/`, ""));
-        }
-      }
-    }
-    return readers;
-  };
+  const context = { hasSymbols: symbols.length > 0, program, root, service };
   return unique([
-    ...names.flatMap(readersOfName),
+    ...names.flatMap((field) => readersOfName(context, readersByName, field)),
     ...symbols.flatMap((symbol) =>
       answered(readersBySymbol.get(symbol), `readers for ${symbol.name}`),
     ),
@@ -225,6 +259,7 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   );
   const program = answered(service.getProgram(), "program for the scan");
   const checker = program.getTypeChecker();
+  const fieldsOf = exportedFields(checker);
 
   // The program also holds every locale JSON that `src/` imports, and every
   // file it reached outside `src/`. Only the TypeScript the walk found counts.
@@ -235,7 +270,7 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
     .getSourceFiles()
     .filter((source) => scanned.has(source.fileName))
     .flatMap((source) =>
-      exportedFields(checker, source).map((field) => ({
+      fieldsOf(source).map((field) => ({
         exportedFrom: source.fileName,
         field,
       })),
@@ -248,6 +283,7 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
     symbols,
     root,
   );
+  const nameReaders = new Map<FieldName, readonly string[]>();
   const findings: Finding[] = [];
   for (const {
     exportedFrom,
@@ -262,7 +298,15 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
       owner: ownerPath(owner),
       path: owner,
       verdict: verdictFor(
-        readersOf(service, program, root, names, fieldSymbols, symbolReaders),
+        readersOf(
+          service,
+          program,
+          root,
+          names,
+          fieldSymbols,
+          nameReaders,
+          symbolReaders,
+        ),
       ),
     });
   }

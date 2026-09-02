@@ -3,40 +3,12 @@ import {
   identitiesAt,
 } from "#scripts/unread-fields/identity.ts";
 
-const RESOURCE_FIELDS = [
-  "fields",
-  "parseInput",
-  "table",
-  "verifyName",
-] as const;
-const SETTINGS_CONFIG_FIELDS = [
-  "action",
-  "formId",
-  "kind",
-  "name",
-  "page",
-  "routeLabel",
-] as const;
+const RESOURCE_FIELDS = ["fields", "parseInput", "table"] as const;
+const SETTINGS_IDENTITY_FIELDS = ["name"] as const;
+const SETTINGS_CONFIG_FIELDS = SETTINGS_IDENTITY_FIELDS;
 const KEYED_SETTINGS_CONFIG_FIELDS = [
   ...SETTINGS_CONFIG_FIELDS,
   "key",
-] as const;
-const SINGLE_SETTINGS_FORM_FIELDS = [
-  "action",
-  "copy",
-  "inputType",
-  "key",
-  "markdownPreview",
-  "max",
-  "min",
-  "required",
-  "stateField",
-  "step",
-  "valueFallback",
-] as const;
-const SETTINGS_FORM_FIELDS = [
-  ...SINGLE_SETTINGS_FORM_FIELDS,
-  "fields",
 ] as const;
 const CONTENT_META_FIELDS = [
   "meta_description",
@@ -51,10 +23,9 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
       [{ name: "ReservationDepositAllocation" }],
     ],
   ])(["perItemTotals", "total"]),
-  ...identitiesAt([
-    ["src/shared/rest/resource.ts", [{ name: "NamedResource" }]],
-    ["src/shared/rest/resource.ts", [{ name: "Resource" }]],
-  ])(RESOURCE_FIELDS),
+  ...identitiesAt([["src/shared/rest/resource.ts", [{ name: "Resource" }]]])(
+    RESOURCE_FIELDS,
+  ),
   ...identitiesAt([
     ["src/shared/schema-atlas/machine-spec.ts", [{ name: "DerivedNodeIds" }]],
   ])(["terminal"]),
@@ -75,7 +46,6 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
       "src/shared/settings/form-schema.ts",
       [{ name: "BooleanSettingsFormConfig" }],
     ],
-    ["src/shared/settings/form-schema.ts", [{ name: "SettingsFormConfig" }]],
     [
       "src/shared/settings/form-schema.ts",
       [{ name: "TextareaSettingsFormConfig" }],
@@ -86,21 +56,14 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
     ],
   ])(KEYED_SETTINGS_CONFIG_FIELDS),
   ...identitiesAt([
-    ["src/shared/settings/form-schema.ts", [{ name: "FieldFormCopy" }]],
-  ])(["submitLabelKey"]),
+    ["src/shared/settings/form-schema.ts", [{ name: "SettingsFormConfig" }]],
+  ])([...SETTINGS_IDENTITY_FIELDS, "key"]),
   ...identitiesAt([
     [
       "src/shared/settings/form-schema.ts",
       [{ name: "FieldsSettingsFormConfig" }],
     ],
   ])(SETTINGS_CONFIG_FIELDS),
-  ...identitiesAt([
-    ["src/shared/settings/forms.ts", [{ name: "SettingsFormDefinition" }]],
-    ["src/shared/settings/forms.ts", [{ name: "SettingsFormFor" }]],
-  ])(SETTINGS_FORM_FIELDS),
-  ...identitiesAt([
-    ["src/shared/settings/forms.ts", [{ name: "SingleFieldSettingsForm" }]],
-  ])(SINGLE_SETTINGS_FORM_FIELDS),
   ...identitiesAt([["src/shared/site-pages/types.ts", [{ name: "NavLevel" }]]])(
     ["label", "nodes"],
   ),
@@ -118,21 +81,6 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/sms/gateway.ts", [{ name: "EncryptedMessagePayload" }]],
   ])(["isEncrypted", "phoneNumbers", "textMessage", "withDeliveryReport"]),
-  ...identitiesAt([
-    ["src/shared/square/client.ts", [{ name: "SquareClient" }]],
-  ])(["payments", "refunds"]),
-  ...identitiesAt([
-    [
-      "src/shared/square/payment-outcomes.ts",
-      [
-        { name: "SquarePaymentClient" },
-        { name: "payments" },
-        { name: "get" },
-        { way: "()" },
-        { way: "input" },
-      ],
-    ],
-  ])(["paymentId"]),
   ...identitiesAt([
     ["src/shared/stripe/client.ts", [{ name: "StripeCheckoutLineItemParams" }]],
   ])(["price_data", "quantity"]),
@@ -173,8 +121,6 @@ export const SHARED_PROVIDER_Z_BASELINE: readonly FindingIdentity[] = [
   ]),
   ...identitiesAt([
     ["src/shared/types.ts", [{ name: "EncryptedContentRecord" }]],
-    ["src/shared/types.ts", [{ name: "NewsPost" }]],
-    ["src/shared/types.ts", [{ name: "SitePage" }]],
   ])(CONTENT_META_FIELDS),
   ...identitiesAt([["src/shared/types.ts", [{ name: "ImageUse" }]]])([
     "image_id",

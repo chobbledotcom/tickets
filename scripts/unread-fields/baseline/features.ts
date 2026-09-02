@@ -25,13 +25,13 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
   ])(["day_prices", "listing_id", "price", "quantity"]),
   ...identitiesAt([
     ["src/features/admin/api-groups.ts", [{ name: "UpdateGroupBody" }]],
-  ])(["name", "package_members", "slug"]),
+  ])(["slug"]),
   ...identitiesAt([
     ["src/features/admin/api-listing-body.ts", [{ name: "CreateListingBody" }]],
   ])(LISTING_BODY_FIELDS),
   ...identitiesAt([
     ["src/features/admin/api-listing-body.ts", [{ name: "UpdateListingBody" }]],
-  ])([...LISTING_BODY_FIELDS, "slug"]),
+  ])(["slug"]),
   ...identitiesAt([
     [
       "src/features/admin/attendee-form-model.ts",
@@ -110,15 +110,8 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([["src/features/public/types.ts", [{ name: "TicketCtx" }]]])([
     "attributesByListing",
     "baseUrl",
-    "cartDateItems",
-    "childDatesById",
-    "galleryImages",
-    "groupDescription",
-    "groupImage",
-    "groupName",
     "nav",
     "prefill",
-    "promoCodesEnabled",
   ]),
   ...identitiesAt([
     ["src/features/public/types.ts", [{ name: "TicketSharedContext" }]],

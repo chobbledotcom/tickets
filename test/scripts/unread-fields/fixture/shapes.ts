@@ -8,5 +8,6 @@ import { combined } from "./shapes/combined.ts";
 import { declared } from "./shapes/declared.ts";
 import { members } from "./shapes/members.ts";
 import { reached } from "./shapes/reached.ts";
+import { references } from "./shapes/references.ts";
 
-export const SHAPES = declared + combined + members + reached;
+export const SHAPES = declared + combined + members + reached + references;

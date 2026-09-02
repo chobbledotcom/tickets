@@ -22,7 +22,10 @@ export const isShape = (node: ts.Node): node is Shape =>
 
 /** An export list names a symbol that stands for the declaration, so ask what
  * it stands for before it asks where the declaration was written down. */
-const standsFor = (checker: ts.TypeChecker, exported: ts.Symbol): ts.Symbol =>
+export const standsFor = (
+  checker: ts.TypeChecker,
+  exported: ts.Symbol,
+): ts.Symbol =>
   (exported.flags & ts.SymbolFlags.Alias) === 0
     ? exported
     : checker.getAliasedSymbol(exported);
@@ -69,6 +72,11 @@ export const exportedShapes = (
  * shape itself. */
 export const shapeBody = (shape: Shape): readonly ts.Node[] =>
   ts.isTypeAliasDeclaration(shape) ? [shape.type] : shape.members;
+
+export const inheritedTypesOf = (shape: Shape): readonly ts.Node[] => {
+  if (ts.isTypeAliasDeclaration(shape)) return [];
+  return shape.heritageClauses?.flatMap((clause) => clause.types) ?? [];
+};
 
 /** Whether a shape takes fields from somewhere else. An alias always does,
  * because anything it is made of can be a type it only names:

@@ -50,7 +50,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { defineNamedResource } from "#shared/rest/resource.ts";
+import { defineResource } from "#shared/rest/resource.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
@@ -271,17 +271,15 @@ const crudConfig = {
  * with {@link validateGroupWithPackage} so a new group's name uniqueness is
  * enforced on create too; the package checks it runs are no-ops on create (the
  * group has no members yet) and the auto-generated slug is already unique. */
-/** Config shared by both group resources: the same table, name field, delete
- * hook and package validation — the create/edit variants differ only in which
- * fields they accept and how they read the form. */
+/** Config shared by both group resources: the same table, delete hook and
+ * package validation. The variants accept and read different form fields. */
 const groupResourceBase = {
-  nameField: "name",
   onDelete: deleteGroup,
   table: groups.table,
   validate: validateGroupWithPackage,
 } as const;
 
-const groupsCreateResource = defineNamedResource({
+const groupsCreateResource = defineResource({
   ...groupResourceBase,
   form: getGroupCreateForm(),
   toInput: extractGroupCreateInput,
@@ -294,7 +292,7 @@ const groupsCreateResource = defineNamedResource({
  *  the raw form, clears all overrides when the group is not a package, and
  *  rechecks the sold-hidden invariant so a checkout that committed between the
  *  request-level check and this write rolls the change back. */
-const groupsResource = defineNamedResource({
+const groupsResource = defineResource({
   ...groupResourceBase,
   afterWrite: (tx, id, input, form, flags) =>
     writePackageMembersTx(

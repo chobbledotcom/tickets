@@ -101,13 +101,41 @@ describe("the steps a reader takes", () => {
     ).toBe("never read");
   });
 
-  test("gives a mapped member its own step", () => {
-    // `m.sharedWithAMapped` and `m.one.sharedWithAMapped` are two fields. The
-    // mapped value takes the step an index signature takes.
+  test("keeps each direct fixed mapped key as a named member", () => {
+    // `m.sharedWithAMapped` and `m.one.sharedWithAMapped` are two fields. A
+    // direct fixed key names the mapped member the way a fixed Record does.
     expect(verdictOf("MapsItsValues", "sharedWithAMapped")).toBe("read");
-    expect(verdictOf('MapsItsValues["[]"]', "sharedWithAMapped")).toBe(
+    expect(verdictOf("MapsItsValues", "one")).toBe("never read");
+    expect(verdictOf("MapsItsValues.one", "sharedWithAMapped")).toBe(
       "never read",
     );
+    expect(
+      verdictOf('MapsItsValues["[]"]', "sharedWithAMapped"),
+    ).toBeUndefined();
+  });
+
+  test("connects every supported fixed mapped key to its readers", () => {
+    expect(verdictOf("MapsFixedNames", "word")).toBe("read");
+    expect(verdictOf("MapsFixedNames", "2")).toBe("read");
+    expect(verdictOf("MapsFixedNames", "-3")).toBe("read");
+    expect(verdictOf("MapsFixedNames", "templated")).toBe("read");
+    expect(verdictOf("MapsFixedNames", "unread")).toBe("never read");
+  });
+
+  test("keeps unsupported mapped domains under the index step", () => {
+    expect(verdictOf('MapsThroughAnAlias["[]"]', "keptUnderTheIndex")).toBe(
+      "never read",
+    );
+    expect(verdictOf('MapsAnOpenDomain["[]"]', "keptUnderTheOpenIndex")).toBe(
+      "never read",
+    );
+    expect(verdictOf('RemapsAKey["[]"]', "keptUnderTheRemappedIndex")).toBe(
+      "never read",
+    );
+  });
+
+  test("leaves the value of an empty mapped type out", () => {
+    expect(verdictOf('EmptyFixedMapping["[]"]', "mustStayOut")).toBeUndefined();
   });
 
   test("gives a tuple element its own step", () => {

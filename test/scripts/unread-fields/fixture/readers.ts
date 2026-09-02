@@ -10,6 +10,7 @@ import {
   type Borrowed,
   type BothArmsWriteIt,
   BothSides,
+  type BorrowsNested,
   type Callable,
   type CarriesATuple,
   type CarriesTwoElementsOfOneName,
@@ -23,12 +24,14 @@ import {
   HasAStaticAndAccessors,
   type HoldsAClass,
   type HoldsBothEndsOfAMap,
+  HoldsAClassInAStatic,
   type HoldsClasses,
   type HoldsAListOfTheSameName,
   type HoldsThingsInGenerics,
   type HoldsTwoKeyDomains,
   type InlineArmsShareIt,
   type MapsItsValues,
+  type MapsFixedNames,
   type NamedByALiteral,
   NamedItsParameter,
   type Passed,
@@ -45,6 +48,7 @@ import {
   type PassedThroughReadonly,
   type PassedThroughRequired,
   type ReachesThroughAGeneric,
+  type ReadsAnAsyncResult,
   type RunsItAsAProperty,
   type ServesSettingsThroughASetter,
   type ServesItsValueThroughAGetter,
@@ -149,6 +153,22 @@ export const handOver = (h: HandsAnObjectOver): void => {
 };
 
 export const readTheClassSide = (): number => BothSides.heldByTheClass;
+
+export const readTheNestedClassSide = (): number =>
+  HoldsAClassInAStatic.inner.dead;
+
+export const readTheNestedClassValue = (): string =>
+  new HoldsAClassInAStatic.inner({ id: 1 }).options.id;
+
+export const readTheNamedDetail = (held: BorrowsNested): number =>
+  held.detail.readDeep;
+
+export const readTheAsyncResult = async (
+  held: ReadsAnAsyncResult,
+): Promise<string | number> => {
+  const result = await held.validate();
+  return "error" in result ? result.error : result.value;
+};
 
 export const takeOutByAComputedKey = (
   k: UsedAsAKey,
@@ -320,6 +340,9 @@ export const readBesideTheTuple = (c: CarriesATuple): string =>
 // Reads the field beside the mapping, and never the mapped one.
 export const readBesideTheMapping = (m: MapsItsValues): string =>
   m.sharedWithAMapped;
+
+export const readTheFixedMappedNames = (m: MapsFixedNames): number =>
+  m.word.id + m[2].id + m[-3].id + m.templated.id;
 
 // Reads a member the Readonly pass-through kept, at the outer path.
 export const readFrozen = (r: PassedThroughReadonly): number => r.heldNested.deepInsideTheFreeze;

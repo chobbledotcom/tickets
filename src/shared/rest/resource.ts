@@ -1,6 +1,6 @@
 /**
  * Ties a table definition, its form fields and its HTTP handlers into one CRUD
- * surface. `nameField` is the column a delete asks the operator to type back.
+ * surface.
  */
 
 /* jscpd:ignore-start */
@@ -41,7 +41,7 @@ export type UpdateResult<Row> =
 /** Result type for delete operations */
 export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
 
-/** The small CRUD contract route factories need. A full NamedResource satisfies
+/** The small CRUD contract route factories need. A full Resource satisfies
  * it, while transaction-backed domains can implement it without pretending to
  * be a table-backed resource. */
 export interface NamedOperations<Row, Id = number> {
@@ -64,7 +64,6 @@ export interface Resource<Row, Input, _Values extends FieldValues = FieldValues>
   readonly fields: readonly Field[];
   parseInput: (form: FormParams) => Promise<Result<Input>>;
   readonly table: Table<Row, Input>;
-  verifyName?: (row: Row, confirmName: string) => boolean;
 }
 
 /**
@@ -88,7 +87,6 @@ export interface ResourceConfig<
     state: State | null,
   ) => Promise<void>;
   form: FormSchema<Values>;
-  nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
   /** Read only the pre-update fields needed by transactional hooks. */
@@ -147,25 +145,6 @@ const parseAndValidate = async <Input, Id>(
   return validationError ?? parsed;
 };
 
-/** Resource with required name verification (created when nameField is provided) */
-export type NamedResource<
-  Row,
-  Input,
-  Values extends FieldValues = FieldValues,
-> = Resource<Row, Input, Values> & {
-  verifyName: (row: Row, confirmName: string) => boolean;
-};
-
-type NamedResourceConfig<
-  Row,
-  Input,
-  Id,
-  Values extends FieldValues,
-  State,
-> = ResourceConfig<Row, Input, Id, Values, State> & {
-  nameField: keyof Row & string;
-};
-
 /**
  * Define a REST resource with typed CRUD operations.
  */
@@ -178,7 +157,7 @@ export const defineResource = <
 >(
   config: ResourceConfig<Row, Input, Id, Values, State>,
 ): Resource<Row, Input, Values> => {
-  const { table, form: schema, toInput, nameField } = config;
+  const { table, form: schema, toInput } = config;
 
   const parseInput = (form: FormParams): Promise<Result<Input>> =>
     validateAndParse<Input, Values>(
@@ -275,13 +254,6 @@ export const defineResource = <
       return { ok: true };
     });
 
-  const verifyName = nameField
-    ? (row: Row, confirmName: string): boolean => {
-        const name = String(row[nameField]);
-        return name.trim().toLowerCase() === confirmName.trim().toLowerCase();
-      }
-    : undefined;
-
   return {
     create,
     delete: deleteRow,
@@ -290,20 +262,5 @@ export const defineResource = <
     parseInput,
     table,
     update,
-    ...(verifyName && { verifyName }),
   };
 };
-
-/**
- * Define a named REST resource - requires nameField and guarantees verifyName is present.
- */
-export const defineNamedResource = <
-  Row extends { id: number },
-  Input,
-  Id = InValue,
-  V extends FieldValues = FieldValues,
-  State = never,
->(
-  config: NamedResourceConfig<Row, Input, Id, V, State>,
-): NamedResource<Row, Input, V> =>
-  defineResource(config) as NamedResource<Row, Input, V>;

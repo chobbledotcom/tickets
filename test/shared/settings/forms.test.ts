@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   SETTINGS_FORM_DEFINITIONS,
   SETTINGS_FORMS,
-  type SettingsFormDefinition,
 } from "#shared/settings/forms.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
@@ -12,6 +11,7 @@ const en = await allEnglishMessages(["settings", "address-lookup", "sms"]);
 
 type FormName = keyof typeof SETTINGS_FORMS;
 type Page = "main" | "advanced";
+type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
 
 /** Expected identity of a form that edits one setting via one field. */
 const single = (

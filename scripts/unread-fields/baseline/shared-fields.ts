@@ -14,24 +14,13 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
     ["src/shared/db/modifier-resolve.ts", [{ name: "ListingGroupMembership" }]],
   ])(["active"]),
   ...identitiesAt([
-    ["src/shared/payment/refund-machine-spec.ts", [{ name: "RefundNode" }]],
-    ["src/shared/payment/review-machine-spec.ts", [{ name: "ReviewNode" }]],
-    ["src/shared/payment/row-machine-spec.ts", [{ name: "RowNode" }]],
-    [
-      "src/shared/payment/sumup-recovery-machine-spec.ts",
-      [{ name: "RecoveryNode" }],
-    ],
     ["src/shared/schema-atlas/machine-spec.ts", [{ name: "MachineNode" }]],
   ])(["awaits"]),
   ...identitiesAt([
     ["src/shared/ledger/types.ts", [{ name: "LedgerError" }]],
-    ["src/shared/db/modifiers.ts", [{ name: "ModifierRow" }]],
     ["src/shared/types.ts", [{ name: "Modifier" }]],
   ])(["code"]),
   ...identitiesAt([
-    ["src/features/admin/api-groups.ts", [{ name: "DeleteGroupBody" }]],
-    ["src/features/admin/api-holidays.ts", [{ name: "DeleteHolidayBody" }]],
-    ["src/features/admin/api.ts", [{ name: "DeleteListingBody" }]],
     ["src/shared/rest/crud-parsers.ts", [{ name: "DeleteBody" }]],
   ])(["confirm_identifier"]),
   ...identitiesAt([
@@ -46,7 +35,6 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
   ])(["dbConfigured", "envConfigured", "source"]),
   ...identitiesAt([
     ["src/shared/provider-types.ts", [{ name: "DatabaseCredentials" }]],
-    ["src/shared/turso-api.ts", [{ name: "TursoDatabaseCredentials" }]],
   ])(["dbId"]),
   ...identitiesAt([
     ["src/shared/balance-link.ts", [{ name: "BalancePayload" }]],
@@ -54,28 +42,13 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
   ])(["e"]),
   ...identitiesAt([
     ["src/features/admin/api-holidays.ts", [{ name: "CreateHolidayBody" }]],
-    ["src/features/admin/api-holidays.ts", [{ name: "UpdateHolidayBody" }]],
   ])(["end_date", "name", "start_date"]),
-  ...identitiesAt([
-    ["src/shared/db/notes/types.ts", [{ name: "SystemNote" }]],
-    ["src/shared/db/notes/types.ts", [{ name: "SystemNoteRow" }]],
-  ])(["entity_type"]),
+  ...identitiesAt([["src/shared/db/notes/types.ts", [{ name: "SystemNote" }]]])(
+    ["entity_type"],
+  ),
   ...identitiesAt([
     ["src/shared/admin-surface/sections.ts", [{ name: "AdminSectionDef" }]],
     ["src/shared/db/activity-log.ts", [{ name: "ActivityLogEntry" }]],
-    [
-      "src/shared/payment/refund-machine-spec.ts",
-      [{ name: "RefundMachineEvent" }],
-    ],
-    [
-      "src/shared/payment/review-machine-spec.ts",
-      [{ name: "ReviewMachineEvent" }],
-    ],
-    ["src/shared/payment/row-machine-spec.ts", [{ name: "RowMachineEvent" }]],
-    [
-      "src/shared/payment/sumup-recovery-machine-spec.ts",
-      [{ name: "RecoveryMachineEvent" }],
-    ],
     ["src/shared/schema-atlas/machine-spec.ts", [{ name: "MachineEvent" }]],
     [
       "src/shared/square/wire.ts",
@@ -94,10 +67,11 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
       [{ name: "RefundReadinessRead" }],
     ],
   ])(["index"]),
-  ...identitiesAt([
-    ["src/shared/db/table.ts", [{ name: "CrudTable" }]],
-    ["src/shared/db/table.ts", [{ name: "Table" }]],
-  ])(["inputKeyMap", "schema", "toDbValues"]),
+  ...identitiesAt([["src/shared/db/table.ts", [{ name: "Table" }]]])([
+    "inputKeyMap",
+    "schema",
+    "toDbValues",
+  ]),
   ...identitiesAt([
     ["src/shared/admin-surface/sections.ts", [{ name: "AdminNavEntry" }]],
     ["src/shared/db/attendees/servicing.ts", [{ name: "ServicingEvent" }]],
@@ -137,10 +111,9 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
     ],
     ["src/shared/superuser.ts", [{ name: "SuperuserState" }]],
   ])(["reason"]),
-  ...identitiesAt([
-    ["src/shared/payments.ts", [{ name: "ExistingPaymentProvider" }]],
-    ["src/shared/payments.ts", [{ name: "PaymentProvider" }]],
-  ])(["setupWebhookEndpoint"]),
+  ...identitiesAt([["src/shared/payments.ts", [{ name: "PaymentProvider" }]]])([
+    "setupWebhookEndpoint",
+  ]),
   ...identitiesAt([
     ["src/shared/db/images.ts", [{ name: "OrderedImage" }]],
     [
@@ -159,8 +132,7 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
       [{ name: "EncryptedMessagePayload" }, { name: "textMessage" }],
     ],
   ])(["text"]),
-  ...identitiesAt([
-    ["src/shared/jsx/jsx-runtime.ts", [{ name: "Child" }]],
-    ["src/shared/jsx/jsx-runtime.ts", [{ name: "SafeHtml" }]],
-  ])(["toString"]),
+  ...identitiesAt([["src/shared/jsx/jsx-runtime.ts", [{ name: "SafeHtml" }]]])([
+    "toString",
+  ]),
 ];

@@ -76,6 +76,7 @@ export const holdsElements =
   (checker: ts.TypeChecker): ((node: ts.Node) => boolean) =>
   (node) => {
     if (!anElementContainer(checker)(node)) return false;
+    if (!aRecord(checker)(node)) return true;
     const reference = node as ts.TypeReferenceNode;
     // An element container always writes its arguments down — the name
     // does not typecheck without them.
@@ -87,30 +88,52 @@ const anElementContainer = builtInNamed(ELEMENT_CONTAINERS);
 
 const aRecord = builtInNamed(new Set(["Record"]));
 
-export interface NamedRecordMember {
+export interface FixedMember {
   name: FieldName;
   symbol: ts.Symbol;
   value: ts.TypeNode;
 }
 
-/** The named members a fixed-key `Record` writes down in its key argument. */
-export const namedRecordMembers =
-  (checker: ts.TypeChecker): ((node: ts.Node) => NamedRecordMember[]) =>
-  (node) => {
-    if (!aRecord(checker)(node)) return [];
+interface FixedParts {
+  keys: ts.TypeNode;
+  value: ts.TypeNode;
+}
+
+/** The two nodes that declare a direct fixed mapping. A remapped type keeps
+ * the index path because its source keys do not name its output members. */
+const fixedPartsOf = (
+  checker: ts.TypeChecker,
+  node: ts.Node,
+): FixedParts | undefined => {
+  if (aRecord(checker)(node)) {
     const reference = node as ts.TypeReferenceNode;
     const [keys, value] = reference.typeArguments as unknown as [
       ts.TypeNode,
       ts.TypeNode,
     ];
+    return { keys, value };
+  }
+  if (!ts.isMappedTypeNode(node) || node.nameType) return;
+  const keys = node.typeParameter.constraint;
+  const value = node.type;
+  return keys && value ? { keys, value } : undefined;
+};
+
+/** The named members a direct fixed mapping writes down in its key node. */
+export const fixedMembers =
+  (checker: ts.TypeChecker): ((node: ts.Node) => FixedMember[] | undefined) =>
+  (node) => {
+    const parts = fixedPartsOf(checker, node);
+    if (!parts) return;
+    const { keys, value } = parts;
     const names = fixedKeysOf(keys);
-    if (!names) return [];
-    const type = checker.getTypeFromTypeNode(reference);
+    if (!names) return;
+    const type = checker.getTypeAtLocation(node);
     return names.map((name) => ({
       name,
       symbol: answered(
         checker.getPropertyOfType(type, fieldNameText(name)),
-        `property ${fieldNameText(name)} of a fixed Record`,
+        `property ${fieldNameText(name)} of a fixed mapping`,
       ),
       value,
     }));
@@ -131,10 +154,26 @@ export const passesMembersThrough: TypeQuestion = builtInNamed(
   new Set(["Partial", "Required", "Readonly"]),
 );
 
+/** A built-in asynchronous value whose fulfilled value a reader receives. */
+export const holdsAnAsyncResult: TypeQuestion = builtInNamed(
+  new Set(["Promise", "PromiseLike"]),
+);
+
 /** One step down to a field. A `name` is what a field is called, and a `way`
  * is how a reader reaches through a member with no name of its own. The two
  * are kept apart, because a field can be called `"()"` and a call is not one. */
 export type Step = { name: string } | { way: string };
+
+export type PathChange = (path: readonly Step[]) => readonly Step[];
+
+export type PathFromNode<Result> = (
+  path: readonly Step[],
+  node: ts.Node,
+) => Result;
+
+export const throughWay =
+  (way: string): PathChange =>
+  (path) => [...path, { way }];
 
 export const stepText = (step: Step): string =>
   "name" in step ? step.name : step.way;
@@ -163,6 +202,21 @@ const ENTERS_THROUGH = "new ()";
 
 /** The type a call hands back and a caller receives. */
 const ITS_RESULT = "result";
+
+/** Put a value under the result a call gives back. Promise wrappers can sit
+ * inside a declared return type, so an existing result step stays one step. */
+export const throughResult = (path: readonly Step[]): readonly Step[] => {
+  const last = path.at(-1);
+  return last && "way" in last && last.way === ITS_RESULT
+    ? path
+    : [...path, { way: ITS_RESULT }];
+};
+
+/** The value that a held class creates. The constructor input and its result
+ * need both steps so two same-named fields cannot share one identity. */
+export const throughConstructedResult = (
+  path: readonly Step[],
+): readonly Step[] => throughResult([...path, { way: ENTERS_THROUGH }]);
 
 /** The step a caller's input to a constructor takes before its own name. The
  * parameters that arrive at `underAnUnnamedPart` are the inputs a caller
@@ -269,6 +323,7 @@ const fallThroughText = (
   node: ts.Node,
 ): string | undefined => {
   if (handsBackItsResult(node)) return ITS_RESULT;
+  if (fixedMembers(checker)(node) !== undefined) return;
   return holdsElements(checker)(node)
     ? ELEMENT
     : REACHED_THROUGH.get(node.kind);
@@ -289,34 +344,29 @@ const fallThroughText = (
  * A setter is a step of its own name, because a setter is nobody's to read
  * but its input is everybody's to supply. */
 export const underAnUnnamedPart =
-  (
-    checker: ts.TypeChecker,
-  ): ((path: readonly Step[], node: ts.Node) => readonly Step[]) =>
-  (path, node) =>
-    stepOfANamelessPart(checker, path, node);
+  (checker: ts.TypeChecker): PathFromNode<readonly Step[]> =>
+  (path, node) => {
+    const written = stepsWrittenOnThePart(node);
+    if (written) return [...path, ...written];
+    const throughMap = throughTheMap(checker, node);
+    if (throughMap) return [...path, throughMap];
+    const fallThrough = fallThroughText(checker, node);
+    return fallThrough === undefined ? path : throughWay(fallThrough)(path);
+  };
 
-const stepOfANamelessPart = (
-  checker: ts.TypeChecker,
-  path: readonly Step[],
-  node: ts.Node,
-): readonly Step[] => {
-  if (ts.isParameter(node)) {
-    return [...path, ...stepsOfAParameter(node)];
-  }
+const stepsWrittenOnThePart = (node: ts.Node): readonly Step[] | undefined => {
+  if (ts.isParameter(node)) return stepsOfAParameter(node);
   if (ts.isSetAccessorDeclaration(node)) {
     const step = stepOfTheSettersName(node.name);
-    return step ? [...path, step] : path;
+    return step ? [step] : [];
   }
   if (ts.isTupleTypeNode(node.parent)) {
-    return [...path, stepOfTheTuplePlace(node, node.parent)];
+    return [stepOfTheTuplePlace(node, node.parent)];
   }
   if (ts.isIndexSignatureDeclaration(node)) {
-    return [...path, stepOfTheIndexSignature(node)];
+    return [stepOfTheIndexSignature(node)];
   }
-  const throughMap = throughTheMap(checker, node);
-  if (throughMap) return [...path, throughMap];
-  const fallThrough = fallThroughText(checker, node);
-  return fallThrough === undefined ? path : [...path, { way: fallThrough }];
+  return;
 };
 
 /** The steps a parameter adds: its own name, and the way its caller supplied

@@ -1,7 +1,12 @@
 import type { SiteDataBlob } from "#db/built-sites/blob.ts";
 import type { PublicListing } from "#routes/api/public-listing.ts";
-import { compareFindingIdentities } from "#scripts/unread-fields/identity.ts";
+import type { Step } from "#scripts/unread-fields/fields/steps.ts";
 import {
+  compareFindingIdentities,
+  identitiesAt,
+} from "#scripts/unread-fields/identity.ts";
+import {
+  type ExemptionReason,
   exemptFieldsAt,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
@@ -136,7 +141,136 @@ const warningDeleteProps = exemptFieldsAt<WarningDeleteProps>(
   warning: "exempt",
 });
 
+interface ExactFieldGroup {
+  fields: readonly string[];
+  path: readonly Step[];
+  reason: ExemptionReason;
+  source: string;
+}
+
+const exactFieldsFrom =
+  (source: string) =>
+  (
+    path: readonly Step[],
+    fields: readonly string[],
+    reason: ExemptionReason,
+  ): ExactFieldGroup => ({ fields, path, reason, source });
+
+const exactFieldExemptions = (
+  groups: readonly ExactFieldGroup[],
+): FindingExemption[] =>
+  groups.flatMap(({ fields, path, reason, source }) =>
+    identitiesAt([[source, path]])(fields).map((identity) => ({
+      identity,
+      reason,
+    })),
+  );
+
+const schemaReason = (evidence: string): ExemptionReason => ({
+  evidence,
+  kind: "schema-driven",
+});
+
+const liquidReason = (subject: string): ExemptionReason => ({
+  evidence: `Liquid reads each ${subject} field by its template name`,
+  kind: "dynamic-read",
+});
+
+const stripeReason: ExemptionReason = {
+  evidence: "createStripeRequest serialises the complete Stripe request",
+  kind: "provider-input",
+};
+
+const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
+const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
+const resourceFields = exactFieldsFrom("src/shared/rest/resource.ts");
+const selectFields = exactFieldsFrom("src/shared/settings/form-schema.ts");
+const stripeFields = exactFieldsFrom("src/shared/stripe/client.ts");
+
+const templateEntryPath = (...tail: Step[]): Step[] => [
+  { name: "TemplateData" },
+  { name: "entries" },
+  { way: "[]" },
+  ...tail,
+];
+
+const exactExemptions = exactFieldExemptions([
+  attendeeFields(
+    [{ name: "DecryptedAttendeeRow" }],
+    ["price_paid", "refunded"],
+    schemaReason("the conditional type preserves each selected money column"),
+  ),
+  liquidFields(
+    templateEntryPath(),
+    ["listing"],
+    liquidReason("template entry"),
+  ),
+  liquidFields(
+    templateEntryPath({ name: "attendee" }),
+    ["price_paid", "quantity"],
+    liquidReason("attendee"),
+  ),
+  liquidFields(
+    templateEntryPath({ name: "listing" }),
+    ["is_paid", "name", "slug"],
+    liquidReason("listing"),
+  ),
+  selectFields(
+    [
+      { name: "SelectFieldSpec" },
+      { name: "options" },
+      { way: "()" },
+      { way: "result" },
+      { way: "[]" },
+    ],
+    ["label", "value"],
+    schemaReason(
+      "SelectField reads each built option through its structural type",
+    ),
+  ),
+  ...["delete", "update"].map((method) =>
+    resourceFields(
+      [
+        { name: "Resource" },
+        { name: method },
+        { way: "()" },
+        {
+          way: "result",
+        },
+      ],
+      ["notFound"],
+      schemaReason("operationResponse reads notFound through OperationFailure"),
+    ),
+  ),
+  stripeFields(
+    [{ name: "StripeCheckoutLineItemParams" }, { name: "price_data" }],
+    ["currency", "product_data", "unit_amount"],
+    stripeReason,
+  ),
+  stripeFields(
+    [
+      { name: "StripeCheckoutLineItemParams" },
+      { name: "price_data" },
+      { name: "product_data" },
+    ],
+    ["description", "name"],
+    stripeReason,
+  ),
+  stripeFields(
+    [
+      { name: "StripeClient" },
+      { name: "refunds" },
+      { name: "create" },
+      { way: "()" },
+      { way: "params" },
+    ],
+    ["amount", "payment_intent"],
+    stripeReason,
+  ),
+]);
+
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
+  ...exactExemptions,
   ...publicListings,
   ...settingsPageStates,
   ...siteDataBlobs,

@@ -216,10 +216,10 @@ The rule is about the syntax a mention sits in, never about the name alone. In
 writes. In `const s = { sum: total }` and `class S { sum = total }`, `total` is
 the value rather than the name, so both read it.
 
-A field is reported when nothing reads it, or when only a test does. The test
-readers are `test/`, `scripts/`, `cli/`, and `e2e-payments/src/`. A field only
-these folders read is kept alive by non-production code. No production code
-needs it, so it is dead under another name.
+A field is reported when nothing reads it, or when only a test does. Test
+readers live in `test/`, `scripts/email-sandbox-e2e/`, and `e2e-payments/src/`.
+The scan also reads general `scripts/` and `cli/` files. These supported tools
+are real consumers, so their reads keep a field live.
 
 ## What it cannot see
 

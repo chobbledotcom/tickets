@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { reportLines } from "#scripts/unread-fields/findings.ts";
 import { scannedFixture } from "#test/scripts/unread-fields/fixture/build.ts";
 
 /**
@@ -108,12 +109,47 @@ describe("how a field is named", () => {
   });
 
   test("keeps a nested class object's path for its static fields", () => {
-    expect(verdictOf("typeof HoldsAClassInAStatic", "inner")).toBe(
-      "never read",
+    expect(verdictOf("typeof HoldsAClassInAStatic", "inner")).toBe("read");
+    expect(verdictOf("typeof HoldsAClassInAStatic.inner", "dead")).toBe("read");
+  });
+
+  test("keeps a nested class instance apart from its static side", () => {
+    const fields = scanned.all.filter(
+      (finding) =>
+        finding.owner.startsWith("typeof HoldsAClassInAStatic.inner") &&
+        finding.field === "dead",
     );
-    expect(verdictOf("typeof HoldsAClassInAStatic.inner", "dead")).toBe(
-      "never read",
-    );
+    expect(fields.map(({ owner, verdict }) => ({ owner, verdict }))).toEqual([
+      {
+        owner: 'typeof HoldsAClassInAStatic.inner["new ()"].result',
+        verdict: "never read",
+      },
+      { owner: "typeof HoldsAClassInAStatic.inner", verdict: "read" },
+    ]);
+    expect(fields.map(({ path }) => path)).toEqual([
+      [
+        { way: "typeof HoldsAClassInAStatic" },
+        { name: "inner" },
+        { way: "new ()" },
+        { way: "result" },
+      ],
+      [{ way: "typeof HoldsAClassInAStatic" }, { name: "inner" }],
+    ]);
+    expect(reportLines(fields).slice(2)).toEqual([
+      '  never read          typeof HoldsAClassInAStatic.inner["new ()"].result.dead  src/shapes.ts',
+    ]);
+  });
+
+  test("keeps a nested constructor input apart from its instance field", () => {
+    expect(
+      verdictOf('typeof HoldsAClassInAStatic.inner["new ()"].options', "id"),
+    ).toBe("never read");
+    expect(
+      verdictOf(
+        'typeof HoldsAClassInAStatic.inner["new ()"].result.options',
+        "id",
+      ),
+    ).toBe("read");
   });
 
   test("tells a name that holds a dot from a path built with dots", () => {

@@ -31,8 +31,12 @@ describe("verdictFor", () => {
     );
   });
 
-  test("calls a field one shipped reader reads read", () => {
+  test("counts a supported script as a real reader", () => {
     expect(verdictFor(["test/a.test.ts", "scripts/b.ts"])).toBe("read");
+  });
+
+  test("counts a supported CLI as a real reader", () => {
+    expect(verdictFor(["cli/read.ts"])).toBe("read");
   });
 
   test("counts the live end-to-end harness as a test", () => {
