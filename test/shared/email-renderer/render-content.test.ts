@@ -87,6 +87,55 @@ describeEmailRenderer(() => {
       expect(result.text).toContain("Notes: Wheelchair");
     });
 
+    test("escapes HTML and script-like values in booking fields", async () => {
+      const data = await buildTestData([
+        makeEntry(
+          {},
+          {
+            address: `7 <b>Elm</b> St & "Sign"`,
+            email: "jane@example.com",
+            name: `Jane <script>alert("x")</script> Doe`,
+            phone: "<img src=x onerror=alert(1)>",
+            special_instructions: "<iframe></iframe>",
+          },
+        ),
+      ]);
+      const admin = await renderEmailContent("admin", data);
+
+      const { html } = admin;
+      expect(html).not.toContain("<script>");
+      expect(html).not.toContain("<img");
+      expect(html).not.toContain("<iframe>");
+      expect(html).toContain(
+        "Jane &lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; Doe",
+      );
+      expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+      expect(html).toContain(
+        "7 &lt;b&gt;Elm&lt;/b&gt; St &amp; &#34;Sign&#34;",
+      );
+      expect(html).toContain("&lt;iframe&gt;&lt;/iframe&gt;");
+      expect(admin.subject).toContain(`Jane <script>alert("x")</script> Doe`);
+      expect(admin.text).toContain(
+        `Name: Jane <script>alert("x")</script> Doe`,
+      );
+    });
+
+    test("escapes booking fields in a custom HTML template", async () => {
+      await settings.update.email.template(
+        "admin",
+        "html",
+        "Booked for {{ attendee.name }} ({{ attendee.phone }})",
+      );
+      const data = await buildTestData([
+        makeEntry({}, { name: "<b>Hostile</b>", phone: "<i>555</i>" }),
+      ]);
+      const result = await renderEmailContent("admin", data);
+
+      expect(result.html).toBe(
+        "Booked for &lt;b&gt;Hostile&lt;/b&gt; (&lt;i&gt;555&lt;/i&gt;)",
+      );
+    });
+
     test("omits empty contact fields in admin notification", async () => {
       const data = await buildTestData([
         makeEntry({}, { address: "", phone: "", special_instructions: "" }),

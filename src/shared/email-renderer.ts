@@ -24,9 +24,11 @@ import {
   isPaidListing,
 } from "#types";
 
-/** Create a configured Liquid engine with custom filters */
-const createEngine = (): Liquid => {
-  const engine = createBaseLiquidEngine();
+/** Create a configured Liquid engine with custom filters. The HTML body
+ * engine escapes every interpolation, because booking fields hold whatever
+ * the attendee typed. Subject and text stay plain: they are not HTML. */
+const createEngine = (outputEscape?: "escape"): Liquid => {
+  const engine = createBaseLiquidEngine({ outputEscape });
 
   engine.registerFilter(
     "pluralize",
@@ -37,12 +39,17 @@ const createEngine = (): Liquid => {
   return engine;
 };
 
-/** Lazy-initialized singleton engine instance */
-const [getEngine, setEngine] = lazyRef<Liquid>(createEngine);
+/** Lazy-initialized singleton engine instances */
+const [getPlainEngine, setPlainEngine] = lazyRef<Liquid>(() => createEngine());
+const [getHtmlEngine, setHtmlEngine] = lazyRef<Liquid>(() =>
+  createEngine("escape"),
+);
 
-/** For testing: reset the engine (so filters can be re-registered after currency changes) */
+/** For testing: reset the engines (so filters can be re-registered after
+ * currency changes) */
 export const resetEngine = (): void => {
-  setEngine(null);
+  setPlainEngine(null);
+  setHtmlEngine(null);
 };
 
 /** Template entry shape exposed to Liquid templates */
@@ -280,12 +287,15 @@ export const buildTemplateData = async (
 };
 
 /** Render a single Liquid template string with the given data. Module-private:
- * `renderEmailContent` is how a template reaches the outside world. */
+ * `renderEmailContent` is how a template reaches the outside world. Pass
+ * `escapeHtml` for a template whose output is HTML. */
 const renderTemplate = async (
   template: string,
   data: TemplateData,
+  escapeHtml: boolean,
 ): Promise<string> => {
-  const result = await getEngine().parseAndRender(template, data);
+  const engine = escapeHtml ? getHtmlEngine() : getPlainEngine();
+  const result = await engine.parseAndRender(template, data);
   return result.trim();
 };
 
@@ -307,9 +317,14 @@ export const renderEmailContent = async (
   const custom = settings.email.templateSet(type);
 
   const [subject, html, text] = await Promise.all([
-    safeRender(custom.subject || defaults.subject, data, defaults.subject),
-    safeRender(custom.html || defaults.html, data, defaults.html),
-    safeRender(custom.text || defaults.text, data, defaults.text),
+    safeRender(
+      custom.subject || defaults.subject,
+      data,
+      defaults.subject,
+      false,
+    ),
+    safeRender(custom.html || defaults.html, data, defaults.html, true),
+    safeRender(custom.text || defaults.text, data, defaults.text, false),
   ]);
 
   return {
@@ -329,13 +344,14 @@ const safeRender = async (
   template: string,
   data: TemplateData,
   fallbackTemplate: string,
+  escapeHtml: boolean,
 ): Promise<RenderedTemplate> => {
   try {
-    return { value: await renderTemplate(template, data) };
+    return { value: await renderTemplate(template, data, escapeHtml) };
   } catch (error) {
     return {
       error,
-      value: await renderTemplate(fallbackTemplate, data),
+      value: await renderTemplate(fallbackTemplate, data, escapeHtml),
     };
   }
 };
@@ -346,7 +362,7 @@ const safeRender = async (
  */
 export const validateTemplate = (template: string): string | null => {
   try {
-    getEngine().parse(template);
+    getPlainEngine().parse(template);
     return null;
   } catch (error) {
     return errorMessage(error);
