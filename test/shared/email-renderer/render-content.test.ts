@@ -148,6 +148,7 @@ describeEmailRenderer(() => {
       const result = await renderEmailContent("admin", data);
 
       expect(result.html).not.toContain("<b>Hostile</b>");
+      expect(result.html).toContain("&lt;b&gt;Hostile&lt;/b&gt;");
       expect(result.errors).toHaveLength(1);
     });
 
