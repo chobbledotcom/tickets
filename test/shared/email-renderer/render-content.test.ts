@@ -136,6 +136,21 @@ describeEmailRenderer(() => {
       );
     });
 
+    test("falls back to the default template when a custom HTML template uses raw", async () => {
+      await settings.update.email.template(
+        "admin",
+        "html",
+        "{{ attendee.name | raw }}",
+      );
+      const data = await buildTestData([
+        makeEntry({}, { name: "<b>Hostile</b>" }),
+      ]);
+      const result = await renderEmailContent("admin", data);
+
+      expect(result.html).not.toContain("<b>Hostile</b>");
+      expect(result.errors).toHaveLength(1);
+    });
+
     test("omits empty contact fields in admin notification", async () => {
       const data = await buildTestData([
         makeEntry({}, { address: "", phone: "", special_instructions: "" }),

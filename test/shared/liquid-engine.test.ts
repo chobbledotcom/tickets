@@ -32,6 +32,13 @@ describe("createBaseLiquidEngine", () => {
     );
   });
 
+  test("an escaping engine has no raw filter to undo the escaping", () => {
+    const engine = createBaseLiquidEngine({ outputEscape: "escape" });
+    expect(() =>
+      engine.parseAndRenderSync("{{ v | raw }}", { v: "<b>x</b>" }),
+    ).toThrow();
+  });
+
   test("keeps template markup intact while escaping values", () => {
     const engine = createBaseLiquidEngine({ outputEscape: "escape" });
     expect(
