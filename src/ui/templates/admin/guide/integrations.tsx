@@ -267,6 +267,7 @@ export const integrationsSections = (): GuideSection[] => [
       faq("how_do_i_create_an_api_key"),
       faq("how_do_i_authenticate"),
       faq("what_admin_endpoints_are_available"),
+      faq("how_do_i_read_groups_and_members"),
       faq("how_do_i_revoke_an_api_key"),
       faq("what_happens_to_api_keys_if_their"),
     ],

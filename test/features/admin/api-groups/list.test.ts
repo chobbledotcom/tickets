@@ -3,6 +3,7 @@
 // whole-file mutants meet their real covering tests.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import {
   groupWithMember,
@@ -39,6 +40,26 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       await assertJson(apiRequest("/api/admin/groups"), 200, (body) => {
         expect(body.groups).toEqual([]);
       });
+    });
+
+    test("lists a hidden group and reading it keeps it hidden", async () => {
+      const hidden = await createTestGroup({
+        hidden: true,
+        name: "Hidden Season",
+      });
+
+      await assertJson(apiRequest("/api/admin/groups"), 200, (body) => {
+        const found = body.groups.find(
+          (group: { id: number }) => group.id === hidden.id,
+        );
+        expect(found?.hidden).toBe(true);
+      });
+
+      // The API read must not publish the group: the stored row keeps the flag.
+      const stored = await groups.table.read.pick(["hidden"]).one({
+        id: hidden.id,
+      });
+      expect(stored?.hidden).toBe(true);
     });
 
     test("batch-hydrates package_members (and day_prices) across the list", async () => {
