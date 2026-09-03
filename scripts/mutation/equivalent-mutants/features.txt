@@ -110,6 +110,7 @@ src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → +=   # crea
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
+src/features/api/payment-processing/cancel.ts::cancelPageResponse.listingId~1s2pbem  ?? → ||   # extractIntent emits null or a schema-valid intent whose items are non-empty with a positive e, so a null intent hits the 0 fallback under either operator and every present e is truthy
 src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts::validateAllItems.staleNonStandaloneChild~0bp0o7q  ?? → ||   # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
