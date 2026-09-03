@@ -86,10 +86,10 @@ const returnAgainHref = (sessionId: string): string =>
 /** The reload count the return URL carries, held to a whole number between
  * 0 and the limit, so a forged `wait` value changes no other page fact. */
 const reloadsSoFarOn = (request: Request | undefined): number => {
-  const raw = request === undefined ? "" : getSearchParam(request, "wait");
-  const count = Number(raw);
-  if (!Number.isInteger(count) || count < 0) return 0;
-  return Math.min(count, WAITING_PAGE_RELOAD_LIMIT);
+  if (request === undefined) return 0;
+  const count = Number(getSearchParam(request, "wait"));
+  if (!Number.isInteger(count)) return 0;
+  return Math.max(0, Math.min(count, WAITING_PAGE_RELOAD_LIMIT));
 };
 
 /**

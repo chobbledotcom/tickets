@@ -118,11 +118,17 @@ describeWithEnv(
       const forged = await runWithPendingWork(() =>
         validatePaidSession("cs_unpaid", visitReturn("banana")),
       );
+      const negative = await runWithPendingWork(() =>
+        validatePaidSession("cs_unpaid", visitReturn("-3")),
+      );
       const huge = await runWithPendingWork(() =>
         validatePaidSession("cs_unpaid", visitReturn("9999")),
       );
 
+      // Every unreadable value, including a negative one, opens a fresh
+      // window of one reload.
       expect(await waitingPageOf(forged)).toContain("&amp;wait=1");
+      expect(await waitingPageOf(negative)).toContain("&amp;wait=1");
       expect(await waitingPageOf(huge)).not.toContain("http-equiv=");
     });
 

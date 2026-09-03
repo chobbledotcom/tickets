@@ -289,6 +289,7 @@ describe("paymentWaitingPage", () => {
     expect(html).toContain("your ticket will be sent to you by email");
     expect(html).toContain("Check again");
     expect(html).toContain('href="/payment/success?session_id=cs_1"');
+    expect(html).toContain('class="prose"');
     expect(html).toContain('class="btn outline"');
   });
 
