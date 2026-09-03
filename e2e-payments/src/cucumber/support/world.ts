@@ -77,6 +77,7 @@ export class LiveWorld extends World {
   private ownerPrepared = false;
   private builtOrder: BuiltOrderCatalog | null = null;
   private heldReturnUrl: string | null = null;
+  private pendingReturnPageText: string | null = null;
   private refusalProbeReport: RefusalProbeReport | null = null;
   private orderNames: OrderCatalog | null = null;
 
@@ -240,6 +241,18 @@ export class LiveWorld extends World {
     return required(
       this.heldReturnUrl,
       "the held browser return URL (no return was intercepted yet)",
+    );
+  }
+
+  rememberPendingReturn(body: string): void {
+    this.pendingReturnPageText = body;
+  }
+
+  /** What the payment return page told the visitor before they paid. */
+  get pendingReturnBody(): string {
+    return required(
+      this.pendingReturnPageText,
+      "the pending return page's words (the visitor never opened it)",
     );
   }
 

@@ -12,7 +12,7 @@ import {
   hostedCheckout,
   noProviderCleanup,
   providerFetch,
-  readLoggedId,
+  readSumupCheckoutId,
   refundObservationVia,
   requiredField,
   saveCredentials,
@@ -51,12 +51,6 @@ const CARD = {
 
 const SUMUP_API_BASE = "https://api.sumup.com";
 
-/** The id line createCheckout logs once the staged row carries the SumUp id. */
-const SUMUP_ID_LINE = {
-  expected: "[SumUp] Checkout created id=…",
-  pattern: "\\[SumUp\\] Checkout created id=(\\S+)",
-} as const;
-
 /** Authenticated SumUp REST call; throws with the status on a non-2xx. */
 const sumupFetch = (apiKey: string, path: string): Promise<unknown> =>
   providerFetch("sumup", `${SUMUP_API_BASE}${path}`, {
@@ -78,7 +72,7 @@ type SumupTransactionBody = {
  * boundary: the database (and its log) are fresh, so the one logged id is the
  * one this scenario's booking created. It immediately becomes typed state. */
 const checkoutIdFor = (logPath: string): Promise<string> =>
-  readLoggedId(logPath, SUMUP_ID_LINE.pattern, SUMUP_ID_LINE.expected);
+  readSumupCheckoutId(logPath);
 
 /** The transaction id a paid SumUp checkout names — the refund/payment
  * reference the app (and this harness's refund observation) uses. */

@@ -196,8 +196,13 @@ export const sumupApi: {
       // sees the payment URL, so no webhook can race it.
       await setSumupCheckoutId(reference, checkout.id);
       // Logged so the payment-sandbox e2e can deliver this checkout's own
-      // callback; Square logs its created orderId the same way.
-      logDebug("SumUp", `Checkout created id=${checkout.id}`);
+      // callback and rebuild its return URL before payment; Square logs its
+      // created orderId the same way. The reference never rests in the
+      // database, only its one-way code.
+      logDebug(
+        "SumUp",
+        `Checkout created id=${checkout.id} reference=${reference}`,
+      );
       return { reference, url };
     }, ErrorCode.PAYMENT_CHECKOUT);
   },

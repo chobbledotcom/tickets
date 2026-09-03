@@ -58,7 +58,7 @@ Given/When steps rather than disappearing into hooks.
 `e2e-payments/specs/live-payment-providers.feature` is the human contract: each
 Rule names one safe-durable result, and every step states a visible outcome.
 
-The six scenarios:
+The seven scenarios:
 
 - **free-booking-once** — the no-provider journey proves setup, the public form
   and the admin assertions work before a third-party provider is involved.
@@ -70,6 +70,9 @@ The six scenarios:
 - **sumup-refund-safe** — a SumUp payment is replayed (genuine self-delivered
   callback); forged ids receive the one fixed refusal without a read; the
   keyless refund reaches a safe result.
+- **sumup-return-pending** — the visitor opens the payment return before paying;
+  the waiting page says the payment is not confirmed yet and keeps checking, no
+  error is logged, and the same return books once the payment is confirmed.
 - **stripe-invalidated-checkout-refunded** — the owner changes the price while a
   visitor is paying; the webhook processes the later charge, retains the booking
   at quantity 0, and automatically refunds.

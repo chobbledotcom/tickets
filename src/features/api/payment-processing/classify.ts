@@ -17,13 +17,20 @@ import type {
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
+import { htmlResponse } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import {
+  paymentWaitingPage,
+  WAITING_PAGE_RELOAD_LIMIT,
+  waitingPageStillReloads,
+} from "#templates/payment.tsx";
 /* jscpd:ignore-end */
 
 /** Makes a logger that records a payment-session error, prefixed with the
@@ -70,6 +77,20 @@ const sessionUnavailable = async (
 
 /** Raise a checkout we can prove is ours but whose booking will not read. */
 const logUnreadableBooking = paymentSessionErrorLogger("booking");
+
+/** The return URL that names this session — where one click re-asks the
+ * provider, and where the waiting page's timed reload goes. */
+const returnAgainHref = (sessionId: string): string =>
+  `/payment/success?session_id=${encodeURIComponent(sessionId)}`;
+
+/** The reload count the return URL carries, held to a whole number between
+ * 0 and the limit, so a forged `wait` value changes no other page fact. */
+const reloadsSoFarOn = (request: Request | undefined): number => {
+  if (request === undefined) return 0;
+  const count = Number(getSearchParam(request, "wait"));
+  if (!Number.isInteger(count)) return 0;
+  return Math.max(0, Math.min(count, WAITING_PAGE_RELOAD_LIMIT));
+};
 
 /**
  * Evaluate a session's price proof against its metadata:
@@ -188,19 +209,28 @@ export const validatePaidSession = async (
   }
 
   if (session.paymentStatus !== "paid") {
-    logRedirectError(
-      `Payment not verified as paid (session=${sessionId}, status=${session.paymentStatus})`,
+    // A hosted checkout redirects on flow completion, and its transaction
+    // status can settle later, so this is a normal state: tell the buyer,
+    // not the owner's error channel.
+    const reloads = reloadsSoFarOn(request);
+    logDebug(
+      "Payment",
+      `Payment not confirmed yet (session=${sessionId}, status=${session.paymentStatus})`,
     );
     return {
       ok: false,
-      response: await failurePage(
-        request,
-        "Payment verification failed. Please contact support.",
-        {
-          provider: session.provider,
-          sessionId,
-          status: session.paymentStatus,
-        },
+      response: htmlResponse(
+        paymentWaitingPage({
+          checkAgainHref: returnAgainHref(sessionId),
+          diagnostics: await staffPaymentDiagnostics(request, {
+            provider: session.provider,
+            sessionId,
+            status: session.paymentStatus,
+          }),
+          refreshUrl: waitingPageStillReloads(reloads)
+            ? `${returnAgainHref(sessionId)}&wait=${reloads + 1}`
+            : null,
+        }),
       ),
     };
   }
@@ -231,7 +261,7 @@ export const validatePaidSession = async (
       ok: false,
       response: await failurePage(
         request,
-        "Payment verification failed. Please contact support.",
+        t("payment.error.verification_failed"),
         knownFacts,
         503,
       ),

@@ -6,7 +6,10 @@ import {
   paymentCancelPage,
   paymentErrorPage,
   paymentPage,
+  paymentWaitingPage,
   successPage,
+  WAITING_PAGE_RELOAD_LIMIT,
+  waitingPageStillReloads,
 } from "#templates/payment.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListing } from "#test-utils/factories.ts";
@@ -266,6 +269,78 @@ describe("checkoutPopupPage", () => {
   test("includes scroll-into-view marker for parent scroll", () => {
     const html = checkoutPopupPage("https://checkout.stripe.com/session123");
     expect(html).toContain("data-scroll-into-view");
+  });
+});
+
+describe("paymentWaitingPage", () => {
+  beforeAll(setupAdminPageTest);
+
+  const page = (refreshUrl: string | null) =>
+    paymentWaitingPage({
+      checkAgainHref: "/payment/success?session_id=cs_1",
+      diagnostics: undefined,
+      refreshUrl,
+    });
+
+  test("renders the waiting copy and the check-again link", () => {
+    const html = page("/payment/success?session_id=cs_1&wait=1");
+    expect(html).toContain("Payment not confirmed yet");
+    expect(html).toContain("We have not received your payment yet");
+    expect(html).toContain("your ticket will be sent to you by email");
+    expect(html).toContain("Check again");
+    expect(html).toContain('href="/payment/success?session_id=cs_1"');
+    expect(html).toContain('class="prose"');
+    expect(html).toContain('class="btn outline"');
+  });
+
+  test("does not tell a popup that the payment was cancelled", () => {
+    const html = page("/payment/success?session_id=cs_1&wait=1");
+    expect(html).not.toContain("data-payment-result");
+  });
+
+  test("reloads itself on a timer while the window is open", () => {
+    const html = page("/payment/success?session_id=cs_1&wait=3");
+    expect(html).toContain('http-equiv="refresh"');
+    expect(html).toContain("30;url=/payment/success?session_id=cs_1");
+    expect(html).toContain("This page will keep checking for you.");
+  });
+
+  test("stops reloading at the end of the window", () => {
+    const html = page(null);
+    expect(html).not.toContain('http-equiv="refresh"');
+    expect(html).not.toContain("This page will keep checking for you.");
+    expect(html).toContain("Check again");
+  });
+
+  test("renders the staff diagnostics panel for an owner", () => {
+    const html = paymentWaitingPage({
+      checkAgainHref: "/payment/success?session_id=cs_1",
+      diagnostics: {
+        reasons: ["The provider has not told us yet."],
+        rows: [{ label: "Payment status", value: "unpaid" }],
+      },
+      refreshUrl: null,
+    });
+    expect(html).toContain('class="staff-diagnostics"');
+    expect(html).toContain("Known reasons a payment can sit unconfirmed:");
+    expect(html).toContain("Payment status");
+    expect(html).toContain("unpaid");
+  });
+
+  test("the reload window closes once the limit is reached", () => {
+    expect(WAITING_PAGE_RELOAD_LIMIT).toBe(10);
+    const answers = [0, 1, 9, 10, 11, 999].map((reloadsSoFar) => [
+      reloadsSoFar,
+      waitingPageStillReloads(reloadsSoFar),
+    ]);
+    expect(answers).toEqual([
+      [0, true],
+      [1, true],
+      [9, true],
+      [10, false],
+      [11, false],
+      [999, false],
+    ]);
   });
 });
 

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { config } from "#e2e/config.ts";
 import { log } from "#e2e/log.ts";
 import { pollUntil } from "#e2e/util.ts";
-import { readLoggedId } from "./shared.ts";
+import { readSumupCheckoutId } from "./shared.ts";
 
 /**
  * SumUp's unsigned callback contract, exercised against the real sandbox.
@@ -27,12 +27,6 @@ export const FIXED_REFUSAL = {
   body: "Payment verification failed",
   contentType: "text/plain; charset=utf-8",
   status: 503,
-} as const;
-
-/** The id line createCheckout logs once the staged row carries the SumUp id. */
-const SUMUP_ID_LINE = {
-  expected: "[SumUp] Checkout created id=…",
-  pattern: "\\[SumUp\\] Checkout created id=(\\S+)",
 } as const;
 
 /** Server-log lines that show what a callback cost. The app writes
@@ -89,15 +83,10 @@ const expectProcessed = answerCheck((answer, body) => {
     : `expected {"processed":true}, got: ${body.slice(0, 300)}`;
 });
 
-/** This scenario's genuine checkout id, from its fresh app log. */
+/** This scenario's genuine SumUp checkout id, from its fresh app log. */
 export const sumupCheckoutId = async (
   target: SumupCallbackTarget,
-): Promise<string> =>
-  await readLoggedId(
-    target.serverLogPath,
-    SUMUP_ID_LINE.pattern,
-    SUMUP_ID_LINE.expected,
-  );
+): Promise<string> => readSumupCheckoutId(target.serverLogPath);
 
 /**
  * Deliver the staged checkout's own callback twice (SumUp redelivers) and

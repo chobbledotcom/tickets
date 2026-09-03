@@ -56,7 +56,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("returns error when payment not verified", async () => {
+    test("shows the waiting page when the payment is not verified yet", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -84,8 +84,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           await expectHtmlResponse(
             response,
-            400,
-            "Payment verification failed",
+            200,
+            "We have not received your payment yet",
           );
         },
       );

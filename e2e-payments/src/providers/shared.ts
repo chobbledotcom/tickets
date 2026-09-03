@@ -17,15 +17,17 @@ import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
 /**
  * The last value the app server has logged for this pattern, or null when its
- * log carries none — the pattern's first group is the value. The pattern is
- * source text, not a `RegExp`, so a caller cannot hand over the one shape
- * `matchAll` refuses (a non-global pattern): this compiles it global itself.
- * A log file that does not exist yet reads as "nothing logged so far"; any
- * other read failure is a real fault and is raised rather than polled past.
+ * log carries none — the pattern's chosen group is the value (default: the
+ * first). The pattern is source text, not a `RegExp`, so a caller cannot
+ * hand over the one shape `matchAll` refuses (a non-global pattern): this
+ * compiles it global itself. A log file that does not exist yet reads as
+ * "nothing logged so far"; any other read failure is a real fault and is
+ * raised rather than polled past.
  */
 export const lastLoggedMatch = (
   logPath: string,
   pattern: string,
+  group = 1,
 ): string | null => {
   let text = "";
   try {
@@ -33,27 +35,29 @@ export const lastLoggedMatch = (
   } catch (err) {
     if ((err as { code?: string }).code !== "ENOENT") throw err;
   }
-  const values = mapNotNullish((match: RegExpMatchArray) => match[1])([
+  const values = mapNotNullish((match: RegExpMatchArray) => match[group])([
     ...text.matchAll(new RegExp(pattern, "g")),
   ]);
   return values.at(-1) ?? null;
 };
 
 /**
- * Recover a provider-side id the app logged while creating a checkout (e.g.
- * `[Square] Payment link created orderId=…`, `[SumUp] Checkout created id=…`).
- * The database (and so the log) is fresh per scenario, so the id found here
- * belongs to this scenario alone; polled briefly because the log write and our
- * read race the redirect. The last match wins so a retried creation reads the
- * id that actually went live.
+ * Recover a provider-side id or label the app logged while creating a
+ * checkout (e.g. `[Square] Payment link created orderId=…`,
+ * `[SumUp] Checkout created id=…`). The database (and so the log) is fresh
+ * per scenario, so the value found here belongs to this scenario alone;
+ * polled briefly because the log write and our read race the redirect. The
+ * last match wins so a retried creation reads the value that actually went
+ * live.
  */
 export const readLoggedId = async (
   logPath: string,
   pattern: string,
   expectedLine: string,
+  group = 1,
 ): Promise<string> => {
   const found = await pollUntil(10_000, () =>
-    Promise.resolve(lastLoggedMatch(logPath, pattern)),
+    Promise.resolve(lastLoggedMatch(logPath, pattern, group)),
   );
   if (found) return found;
   throw new Error(
@@ -61,6 +65,33 @@ export const readLoggedId = async (
       `Expected a '${expectedLine}' line.`,
   );
 };
+
+/**
+ * The line the app logs once a staged SumUp checkout exists, carrying the
+ * provider's checkout id (group 1) and the session reference its return URL
+ * names (group 2). One place reads it, so the callback driver and the return
+ * driver cannot drift apart on what the line looks like.
+ */
+export const SUMUP_CHECKOUT_CREATED =
+  "\\[SumUp\\] Checkout created id=(\\S+) reference=(\\S+)";
+
+/** Read one group of the last checkout-creation line the app logged. */
+const sumupCheckoutLine =
+  (group: number): ((logPath: string) => Promise<string>) =>
+  (logPath: string): Promise<string> =>
+    readLoggedId(
+      logPath,
+      SUMUP_CHECKOUT_CREATED,
+      "[SumUp] Checkout created id=…",
+      group,
+    );
+
+/** The SumUp checkout id of the last checkout the app created. */
+export const readSumupCheckoutId = sumupCheckoutLine(1);
+
+/** The session reference of the last SumUp checkout the app created — the
+ * `session_id` its payment return URL carries. */
+export const readSumupReturnReference = sumupCheckoutLine(2);
 
 /**
  * A documented provider field that is absent is a broken boundary, not a
