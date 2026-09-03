@@ -191,7 +191,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     const page = await refusedPageOf(result);
-    expect(page).toContain("Payment provider not configured");
+    expect(page).toContain("Online payment is not set up on this site yet.");
     expect(page).toContain("Staff diagnostics");
     expect(page).toContain("cs_no_provider");
     // LabelledParas renders the label and value as separate nodes, so the
@@ -314,7 +314,9 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     // The listing is gone, so the page says so rather than offering a retry.
-    expect(await result.response.text()).toContain("Listing not found");
+    expect(await result.response.text()).toContain(
+      "We could not find the tickets you were booking.",
+    );
   });
 
   // The waiting page for a checkout the provider has not confirmed has its
@@ -331,7 +333,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     expect(await result.response.text()).toContain(
-      "Payment session not recognized",
+      "We could not confirm that this payment belongs to this site.",
     );
     expect(await loggedAbout("redirect", "Unrecognized payment session")).toBe(
       true,

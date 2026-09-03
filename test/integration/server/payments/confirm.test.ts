@@ -60,7 +60,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           // No valid proof → ignored as not ours: shown the not-recognized page
           // and never refunded (the session may belong to a different instance).
-          await expectHtmlResponse(response, 400, "not recognized");
+          await expectHtmlResponse(response, 400, "belongs to this site");
           expect(mockRefund.calls.length).toBe(0);
         },
       );

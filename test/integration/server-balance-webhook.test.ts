@@ -47,7 +47,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_unsigned"),
       );
-      expect(await response.text()).toContain("not recognized");
+      expect(await response.text()).toContain("belongs to this site");
       // The balance is untouched — nothing was settled.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);

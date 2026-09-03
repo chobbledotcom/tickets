@@ -9,6 +9,7 @@
 import { lineGroupIds } from "#booking/signed-metadata.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { t } from "#i18n";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import {
@@ -57,7 +58,7 @@ export const cancelPageResponse = async (
     logFailure(
       `Listing not found (session=${session.id}, listingId=${listingId})`,
     );
-    return paymentErrorResponse("Listing not found", 404);
+    return paymentErrorResponse(t("payment.error.listing_not_found"), 404);
   }
   // A package checkout retries against the bundle's own page, not a member's
   // standalone page (which may hide members or use override prices/quantities).

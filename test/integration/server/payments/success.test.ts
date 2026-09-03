@@ -39,7 +39,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        "Payment provider not configured",
+        "Online payment is not set up on this site yet.",
       );
     });
 

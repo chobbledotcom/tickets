@@ -193,7 +193,7 @@ describeWithEnv(
         );
         expect(response.status).toBe(400);
         expect(await response.text()).toContain(
-          "Payment session not recognized",
+          "We could not confirm that this payment belongs to this site.",
         );
       } finally {
         mockRetrieve.restore();

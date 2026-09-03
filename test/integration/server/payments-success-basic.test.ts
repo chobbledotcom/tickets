@@ -333,7 +333,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_bad_multi"),
         );
         // No valid proof (unsigned, and the items don't parse) → ignored.
-        await expectHtmlResponse(response, 400, "not recognized");
+        await expectHtmlResponse(response, 400, "belongs to this site");
       } finally {
         mockRetrieve.restore();
       }
