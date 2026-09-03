@@ -237,6 +237,18 @@ for all optional variables.
 - No API key required - it serves the same data as the public booking pages
 - CORS-enabled for cross-origin requests
 
+### Admin API
+
+- Manage listings, groups, and holidays as JSON, with the same operations as the
+  admin area
+- Send an API key with every request: `Authorization: Bearer YOUR_API_KEY`.
+  Owners create keys on the **API Keys** page under **Users**
+- Open `/admin/api-keys/docs` for the complete generated reference, with request
+  and response examples for every endpoint
+- Detailed questions — such as how a group's members are found through
+  `group_ids`, or which groups include hidden ones — are answered in the
+  built-in admin guide's Admin API section (`/admin/guide`)
+
 ### Webhooks
 
 - Outbound POST on every registration (free or paid) to per-listing and/or
