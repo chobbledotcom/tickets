@@ -6,7 +6,7 @@ import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import type { StaffDiagnostics } from "#routes/payment-response.ts";
 import { getIframeMode } from "#shared/iframe.ts";
-import { Icon } from "#templates/components/actions.tsx";
+import { ActionButton, Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { LabelledParas } from "#templates/components/labelled-para.tsx";
 import { NewTabLink } from "#templates/components/new-tab-link.tsx";
@@ -108,6 +108,17 @@ export const successPage = ({
   );
 };
 
+/** The action row the payment pages share: one outline link with a rotate
+ * icon that starts their respective step over — the cancel page's "Try
+ * again" and the waiting page's "Check again". */
+const outlineActionRow = (href: string, label: string): JSX.Element => (
+  <p>
+    <ActionButton href={href} icon="rotate-ccw" variant="outline">
+      {label}
+    </ActionButton>
+  </p>
+);
+
 /**
  * Payment cancelled page
  */
@@ -125,19 +136,88 @@ export const paymentCancelPage = (
         {/* No retry link when the listing has lost its own booking page mid-
             checkout (now a non-standalone child or hidden package member): the
             /ticket/<slug> link would 404. Offer a way home instead. */}
-        <p>
-          {ticketUrl ? (
-            <a class="btn outline" href={ticketUrl}>
-              <Icon name="rotate-ccw" />
-              <span>{t("payment.cancel.try_again")}</span>
-            </a>
-          ) : (
-            <a class="btn outline" href="/">
-              <span>{t("payment.cancel.return_home")}</span>
-            </a>
-          )}
-        </p>
+        {ticketUrl ? (
+          outlineActionRow(ticketUrl, t("payment.cancel.try_again"))
+        ) : (
+          <p>
+            <ActionButton href="/" variant="outline">
+              {t("payment.cancel.return_home")}
+            </ActionButton>
+          </p>
+        )}
       </div>
+    </Layout>,
+  );
+
+/** How often the waiting page reloads itself while a payment settles. */
+export const WAITING_PAGE_RELOAD_SECONDS = 30;
+
+/** How many timed reloads one visit may spend, so a tab nobody watches stops
+ * costing the provider and the database reads after a few minutes. */
+export const WAITING_PAGE_RELOAD_LIMIT = 10;
+
+/** Whether the waiting page still reloads itself after this many reloads.
+ * The ninth reload schedules the tenth; the tenth renders the page without a
+ * timer, leaving only the "Check again" link. */
+export const waitingPageStillReloads = (reloadsSoFar: number): boolean =>
+  reloadsSoFar < WAITING_PAGE_RELOAD_LIMIT;
+
+/** The owner's diagnostics panel, shared by the waiting and error pages.
+ * Renders nothing when no facts arrived. */
+const StaffDiagnosticsDetails = ({
+  diagnostics,
+}: {
+  diagnostics: StaffDiagnostics | undefined;
+}): JSX.Element | null =>
+  diagnostics === undefined ? null : (
+    <details class="staff-diagnostics">
+      <summary>{t("payment.staff.heading")}</summary>
+      <LabelledParas items={diagnostics.rows} />
+      <p>{t("payment.staff.reasons_heading")}</p>
+      <ul>
+        {diagnostics.reasons.map((reason) => (
+          <li>{reason}</li>
+        ))}
+      </ul>
+    </details>
+  );
+
+/**
+ * Waiting page for a return that landed while the provider had not confirmed
+ * the payment — a normal state when a hosted checkout redirects before its
+ * transaction settles. No `data-payment-result` attribute: the popup
+ * notifier would tell the embedding page the payment was cancelled, which
+ * could push a buyer who has paid to pay twice.
+ */
+export const paymentWaitingPage = ({
+  checkAgainHref,
+  diagnostics,
+  refreshUrl,
+}: {
+  /** The same return URL, so one click re-asks the provider. */
+  checkAgainHref: string;
+  /** Owner-only facts, rendered for an owner session only. */
+  diagnostics: StaffDiagnostics | undefined;
+  /** The return URL with the next reload count, or null when the window is
+   * over and only the link remains. */
+  refreshUrl: string | null;
+}): string =>
+  String(
+    <Layout
+      {...(refreshUrl
+        ? {
+            headExtra: `<meta http-equiv="refresh" content="${WAITING_PAGE_RELOAD_SECONDS};url=${escapeHtml(refreshUrl)}">`,
+          }
+        : {})}
+      title={t("payment.pending.title")}
+    >
+      <div class="prose">
+        <h1>{t("payment.pending.heading")}</h1>
+        <p>{t("payment.pending.message")}</p>
+        {refreshUrl ? <p>{t("payment.pending.auto_check")}</p> : null}
+      </div>
+      <StaffDiagnosticsDetails diagnostics={diagnostics} />
+      {outlineActionRow(checkAgainHref, t("payment.pending.check_again"))}
     </Layout>,
   );
 
@@ -157,18 +237,7 @@ export const paymentErrorPage = (
       <ErrorAlert>
         <p>{message}</p>
       </ErrorAlert>
-      {diagnostics ? (
-        <details class="staff-diagnostics">
-          <summary>{t("payment.staff.heading")}</summary>
-          <LabelledParas items={diagnostics.rows} />
-          <p>{t("payment.staff.reasons_heading")}</p>
-          <ul>
-            {diagnostics.reasons.map((reason) => (
-              <li>{reason}</li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      <StaffDiagnosticsDetails diagnostics={diagnostics} />
       <p>
         <a href="/">{t("payment.error.return_home")}</a>
       </p>

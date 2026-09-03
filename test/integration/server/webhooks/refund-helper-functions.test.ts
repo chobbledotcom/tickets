@@ -98,35 +98,33 @@ describeWithEnv(
     test("formatPaymentError returns plain error when refunded is undefined", async () => {
       await setupStripe();
 
-      // This tests the case where result.refunded is undefined
-      // This happens when validatePaidSession fails (no refund attempt)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 0,
-          currency: "gbp",
-          id: "cs_plain_error",
-          metadata: {
-            email: "john@example.com",
-            items: singleItem(1, 1, 0),
-            name: "John",
-          },
-          payment_intent: "pi_test",
-          payment_status: "unpaid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const { reserveSession } = await import("#db/processed-payments.ts");
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Another delivery holds this session's reservation, so the booking
+      // fails without any refund attempt: refunded stays undefined.
+      await reserveSession("cs_plain_error");
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        email: "john@example.com",
+        items: singleItem(listing.id, 1, 1000),
+        name: "John",
+        paymentIntent: "pi_test",
+        sessionId: "cs_plain_error",
+      });
 
       try {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_plain_error"),
         );
-        const html = await expectHtmlResponse(
-          response,
-          400,
-          "Payment verification failed",
-        );
-        // Should NOT contain refund-related text
+        expect(response.status).toBe(409);
+        const html = await response.text();
+        // The error is plain: it says the payment is being processed, and
+        // nothing about a refund.
+        expect(html).toContain("Payment is being processed");
         expect(html).not.toContain("refunded");
         expect(html).not.toContain("contact support for a refund");
       } finally {

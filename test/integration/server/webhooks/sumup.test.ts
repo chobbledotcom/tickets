@@ -9,17 +9,27 @@ import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
+import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
   chargeMoney,
   foundCharge,
   fullyRefundedMoney,
 } from "#test-utils/payment-state.ts";
-import { stageSignedSumupCheckout } from "#test-utils/sumup.ts";
+import {
+  expectBookedExactlyOnce,
+  stageSignedSumupCheckout,
+} from "#test-utils/sumup.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > SumUp", { db: true }, () => {
+  // The waiting page speaks through debug output, and a normal provider
+  // state must not page the owner, so capture both channels.
+  const errors = setupErrorSpy();
+  const debugSpy = useDebugLogSpy();
+
   /** Stage a real, signed checkout mapped to the id the callbacks name, and
    * hand back the listing it was staged for — the tests that change the
    * listing have to change that one, not another. */
@@ -32,11 +42,11 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   };
 
   /** Stub SumUp's checkout lookup for the staged `reference` with the given
-   *  outcome — the end-to-end and cancel-page tests share everything but the
-   *  status/transactionId. */
+   * outcome — the end-to-end and cancel-page tests share everything but the
+   * status/transactionId. */
   const stubRetrieveCheckoutById = (
     reference: string,
-    status: "FAILED" | "PAID",
+    status: "FAILED" | "PAID" | "PENDING",
     transactionId: string,
     currency = "GBP",
   ) =>
@@ -110,6 +120,76 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
         mockRequest(`/payment/success?session_id=${reference}`),
       );
       await expectHtmlResponse(response, 200, "Payment Cancelled");
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("renders the waiting page when the return lands before payment confirms", async () => {
+    const { reference } = await stageSumupCheckout();
+    const restore = stubRetrieveCheckoutById(reference, "PENDING", "");
+    try {
+      const response = await handleRequest(
+        mockRequest(`/payment/success?session_id=${reference}`),
+      );
+
+      expect(response.status).toBe(200);
+      // The page's copy and link contract live with the classify and
+      // template tests; this route-level leg proves the staged row opened,
+      // the reload scheduled itself, and no error was paged.
+      expect(await response.text()).toContain(
+        "30;url=/payment/success?session_id=",
+      );
+      expect(debugLogged(debugSpy, "not confirmed yet")).toBe(true);
+      expect(errors.contains("E_PAYMENT_SESSION")).toBe(false);
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("the same return books successfully once the callback completes it", async () => {
+    const { reference } = await stageSumupCheckout();
+    let status: "PAID" | "PENDING" = "PENDING";
+    const restore = stub(sumupApi, "readCheckoutById", () =>
+      Promise.resolve({
+        resource: {
+          amountMinor: 1000,
+          currency: "GBP",
+          reference,
+          status,
+          transactionId: "txn_e2e",
+        },
+        status: "found" as const,
+      }),
+    );
+    try {
+      const waiting = await handleRequest(
+        mockRequest(`/payment/success?session_id=${reference}`),
+      );
+      // Nothing booked yet: the payment is unconfirmed, so the buyer is
+      // still waiting rather than holding a ticket.
+      expect(waiting.status).toBe(200);
+      expect(await waiting.text()).not.toContain(
+        'data-payment-result="success"',
+      );
+
+      status = "PAID";
+      const booked = await handleRequest(mockWebhookRequest(sumupWebhookEvent));
+      expect((await booked.json()).processed).toBe(true);
+      await expectBookedExactlyOnce();
+
+      // Re-checking the exact same return now books for the browser: it
+      // redirects to the ticket tokens and the success page behind them.
+      const returned = await handleRequest(
+        mockRequest(`/payment/success?session_id=${reference}`),
+      );
+      expect(returned.status).toBe(302);
+      const tokensLocation = returned.headers.get("location") ?? "";
+      expect(tokensLocation).toContain("/payment/success?tokens=");
+      const success = await handleRequest(mockRequest(tokensLocation));
+      expect(success.status).toBe(200);
+      expect(await success.text()).toContain('data-payment-result="success"');
+      await expectBookedExactlyOnce();
     } finally {
       restore.restore();
     }

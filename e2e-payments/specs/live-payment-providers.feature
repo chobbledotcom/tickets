@@ -109,6 +109,29 @@ Feature: Real sandbox payments finish safely
       And no second Refund action is available
       And the owner's system map answers clean
 
+  @rule:payments.live-sumup-return-pending-is-waited @surface:public @surface:return @surface:webhook
+  Rule: A SumUp return that lands before the payment is confirmed ends well
+    SumUp can send the visitor home before it confirms the payment. The
+    visitor is told the payment is not confirmed yet and the page keeps
+    checking for them. No error is recorded. Once the payment is confirmed,
+    the same return shows their booking.
+
+    @case:live-payments.sumup-return-pending
+    Scenario: A visitor returns before SumUp confirms the payment
+      Given SumUp is configured with dedicated sandbox credentials
+      And the owner has published a priced listing
+      When a separate visitor goes to SumUp's hosted checkout
+      And the visitor opens the payment return before paying
+      Then the visitor is told the payment is not confirmed yet
+      And the page keeps checking for the visitor
+      And no payment error is logged
+      When the visitor pays on SumUp's hosted checkout
+      And the genuine checkout callback is delivered twice
+      And the visitor retries the exact payment return
+      Then the visitor sees the booking confirmation
+      And the owner sees one attendee and the captured income once
+      And the owner's system map answers clean
+
   @rule:payments.live-invalidated-checkout-is-refunded @surface:admin @surface:public @surface:return @surface:webhook
   Rule: A checkout invalidated while the visitor pays is retained and refunded
     A listing can change after checkout begins. A later successful charge must

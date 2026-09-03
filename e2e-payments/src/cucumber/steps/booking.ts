@@ -23,7 +23,10 @@ import {
 } from "#e2e/flow.ts";
 import { bookComplexOrder, verifyComplexOrder } from "#e2e/order-flow.ts";
 import { pageTextCount, pageTextIncludes } from "#e2e/page-text.ts";
-import { lastLoggedMatch } from "#e2e/providers/shared.ts";
+import {
+  lastLoggedMatch,
+  readSumupReturnReference,
+} from "#e2e/providers/shared.ts";
 import {
   deliverGenuineCallbackTwice,
   deliverRefusalProbes,
@@ -105,6 +108,10 @@ const HOSTED_PAYMENT_STEPS: [string, (world: LiveWorld) => Promise<void>][] = [
     payOnHostedPage,
   ],
   ["a separate visitor pays through SumUp's hosted checkout", payOnHostedPage],
+  // The pending-return scenario books first, then pays: this step only drives
+  // the hosted page that is already on screen, so the booking is not paid for
+  // twice.
+  ["the visitor pays on SumUp's hosted checkout", payHosted],
   ["the visitor completes Stripe Checkout", payStripeWithHeldReturn],
 ];
 
@@ -242,6 +249,79 @@ for (const [text, urlOf] of RETURN_REPLAY_STEPS) {
     this.recordPhase("return-replayed");
   });
 }
+
+/** The visitor's tab still sits on the hosted checkout while their second tab
+ * opens the payment return the checkout has already stashed — the shape
+ * TICKETS-84 recorded, arrived at from the visitor's own browser history. */
+When(
+  "a separate visitor goes to SumUp's hosted checkout",
+  async function (this: LiveWorld): Promise<void> {
+    await sendVisitorToCheckout(this);
+    this.recordPhase("visitor-on-hosted-checkout");
+  },
+);
+
+When(
+  "the visitor opens the payment return before paying",
+  async function (this: LiveWorld): Promise<void> {
+    const reference = await readSumupReturnReference(
+      this.resources.server.logPath,
+    );
+    this.rememberPendingReturn(
+      await this.resources.visitor.openExtraPage(async (page) => {
+        await page.goto(`/payment/success?session_id=${reference}`, {
+          waitUntil: "domcontentloaded",
+        });
+        return await page.locator("body").innerText({ timeout: 30_000 });
+      }),
+    );
+    this.recordPhase("return-opened-before-payment");
+  },
+);
+
+/** One copy claim about what the pending return page told the visitor: the
+ * step text, the catalog key it reads, and the journal phase it records. The
+ * words come from the catalog the app renders, so a rename travels with it. */
+const PENDING_RETURN_STEPS: readonly [string, string, string][] = [
+  [
+    "the visitor is told the payment is not confirmed yet",
+    "payment.pending.message",
+    "told-payment-not-confirmed",
+  ],
+  [
+    "the page keeps checking for the visitor",
+    "payment.pending.auto_check",
+    "told-page-keeps-checking",
+  ],
+];
+
+for (const [text, key, phase] of PENDING_RETURN_STEPS) {
+  Then(text, async function (this: LiveWorld): Promise<void> {
+    const expected = await catalogWords("payment", key);
+    const body = this.pendingReturnBody;
+    if (!body.includes(expected)) {
+      throw new Error(
+        `the pending return page did not say "${expected}":\n${body.slice(0, 800)}`,
+      );
+    }
+    this.recordPhase(phase);
+  });
+}
+
+Then("no payment error is logged", function (this: LiveWorld): void {
+  const logged = lastLoggedMatch(
+    this.resources.server.logPath,
+    "E_PAYMENT_SESSION",
+    0,
+  );
+  if (logged !== null) {
+    throw new Error(
+      "the app logged a payment session error while the payment was only " +
+        "unconfirmed — a normal state must not page the owner: " +
+        logged,
+    );
+  }
+});
 
 Then(
   "the owner sees one attendee and the captured income once",

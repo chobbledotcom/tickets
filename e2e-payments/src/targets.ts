@@ -32,6 +32,7 @@ export type LiveCaseId =
   | "live-payments.square-refund-safe"
   | "live-payments.complex-square"
   | "live-payments.sumup-refund-safe"
+  | "live-payments.sumup-return-pending"
   | "live-payments.complex-sumup";
 
 /** Every case each target must execute — the whole contract in one record. */
@@ -43,7 +44,11 @@ export const TARGET_CASES: Record<LiveTarget, readonly LiveCaseId[]> = {
     "live-payments.stripe-invalidated-checkout-refunded",
     "live-payments.complex-stripe",
   ],
-  sumup: ["live-payments.sumup-refund-safe", "live-payments.complex-sumup"],
+  sumup: [
+    "live-payments.sumup-refund-safe",
+    "live-payments.sumup-return-pending",
+    "live-payments.complex-sumup",
+  ],
 };
 
 /** Parse the target name the command was invoked with. */
