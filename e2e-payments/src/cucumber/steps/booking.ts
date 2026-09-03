@@ -267,21 +267,36 @@ When(
     const reference = await readSumupReturnReference(
       this.resources.server.logPath,
     );
-    this.rememberPendingReturn(
-      await this.resources.visitor.openExtraPage(async (page) => {
-        await page.goto(`/payment/success?session_id=${reference}`, {
-          waitUntil: "domcontentloaded",
-        });
-        return await page.locator("body").innerText({ timeout: 30_000 });
-      }),
-    );
+    const url = `/payment/success?session_id=${reference}`;
+    const page = await this.resources.visitor.openKeptPage();
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    this.rememberPendingReturn(page, url);
     this.recordPhase("return-opened-before-payment");
   },
 );
 
-/** One copy claim about what the pending return page told the visitor: the
- * step text, the catalog key it reads, and the journal phase it records. The
- * words come from the catalog the app renders, so a rename travels with it. */
+/** The page text of the visitor's open pending-return tab, read live so a
+ * step sees the same visit the browser itself is on. */
+const pendingReturnText = (world: LiveWorld): Promise<string> =>
+  world.pendingReturnPage.locator("body").innerText({ timeout: 30_000 });
+
+/** One claim about what the open pending-return tab says. The words come
+ * from the catalog the app renders, so a rename travels with it. */
+const pendingReturnSays = async (
+  world: LiveWorld,
+  expected: string,
+): Promise<string> => {
+  const body = await pendingReturnText(world);
+  if (!body.includes(expected)) {
+    throw new Error(
+      `the pending return page did not say "${expected}":\n${body.slice(0, 800)}`,
+    );
+  }
+  return body;
+};
+
+/** One copy claim about the pending return: the step text, the catalog key
+ * it reads, and the journal phase it records. */
 const PENDING_RETURN_STEPS: readonly [string, string, string][] = [
   [
     "the visitor is told the payment is not confirmed yet",
@@ -297,16 +312,100 @@ const PENDING_RETURN_STEPS: readonly [string, string, string][] = [
 
 for (const [text, key, phase] of PENDING_RETURN_STEPS) {
   Then(text, async function (this: LiveWorld): Promise<void> {
-    const expected = await catalogWords("payment", key);
-    const body = this.pendingReturnBody;
-    if (!body.includes(expected)) {
-      throw new Error(
-        `the pending return page did not say "${expected}":\n${body.slice(0, 800)}`,
-      );
-    }
+    await pendingReturnSays(this, await catalogWords("payment", key));
     this.recordPhase(phase);
   });
 }
+
+Then(
+  "the page schedules its next check on the exact return",
+  async function (this: LiveWorld): Promise<void> {
+    // The number of seconds belongs to the app, so the night only demands
+    // a timed check that names this return, one count up.
+    const scheduled = await this.pendingReturnPage
+      .locator('meta[http-equiv="refresh"]')
+      .getAttribute("content", { timeout: 30_000 });
+    const expected = `;url=${this.pendingReturnUrl}&wait=1`;
+    if (
+      scheduled === null ||
+      !scheduled.endsWith(expected) ||
+      !/^\d+;url=/.test(scheduled)
+    ) {
+      throw new Error(
+        `the waiting page should schedule its next check at "${expected}", ` +
+          `got: ${scheduled ?? "(no reload tag at all)"}`,
+      );
+    }
+  },
+);
+
+/** Wait until the pending-return tab carries a `wait` count, and answer the
+ * URL it reached — proof the page checked again without the visitor. */
+const pendingSelfReload = async (world: LiveWorld): Promise<string> => {
+  const page = world.pendingReturnPage;
+  const reloaded = await pollUntil(config.paymentConfirmTimeoutMs, () =>
+    Promise.resolve(
+      new URL(page.url()).searchParams.get("wait") === null ? null : page.url(),
+    ),
+  );
+  if (reloaded === null) {
+    throw new Error(
+      `the waiting page never reloaded itself (still at ${page.url()})`,
+    );
+  }
+  return reloaded;
+};
+
+Then(
+  "the page checks again by itself",
+  async function (this: LiveWorld): Promise<void> {
+    await pendingSelfReload(this);
+    await pendingReturnSays(
+      this,
+      await catalogWords("payment", "payment.pending.message"),
+    );
+    this.recordPhase("page-checked-again-by-itself");
+  },
+);
+
+When(
+  "the visitor opens the waiting page's last timed check",
+  async function (this: LiveWorld): Promise<void> {
+    await this.pendingReturnPage.goto(`${this.pendingReturnUrl}&wait=10`, {
+      waitUntil: "domcontentloaded",
+    });
+    this.recordPhase("waiting-window-last-check-opened");
+  },
+);
+
+Then(
+  "only the visitor's click on Check again starts the checking again",
+  async function (this: LiveWorld): Promise<void> {
+    const page = this.pendingReturnPage;
+    const autoCheck = await catalogWords(
+      "payment",
+      "payment.pending.auto_check",
+    );
+
+    const atEnd = await pendingReturnText(this);
+    if (atEnd.includes(autoCheck)) {
+      throw new Error(
+        `the timed checking should have stopped at the window's end, but ` +
+          `the page still says:\n${atEnd.slice(0, 800)}`,
+      );
+    }
+
+    const checkAgain = await catalogWords(
+      "payment",
+      "payment.pending.check_again",
+    );
+    await page.getByRole("link", { name: checkAgain }).click();
+    await page.waitForLoadState("domcontentloaded");
+    await pendingReturnSays(this, autoCheck);
+    await page.close();
+    this.recordPhase("check-again-reopened-the-window");
+  },
+);
 
 Then("no payment error is logged", function (this: LiveWorld): void {
   const logged = lastLoggedMatch(

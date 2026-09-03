@@ -71,8 +71,10 @@ The seven scenarios:
   callback); forged ids receive the one fixed refusal without a read; the
   keyless refund reaches a safe result.
 - **sumup-return-pending** — the visitor opens the payment return before paying;
-  the waiting page says the payment is not confirmed yet and keeps checking, no
-  error is logged, and the same return books once the payment is confirmed.
+  the waiting page says the payment is not confirmed yet and keeps checking on
+  its own, no error is logged, the timed window stops after ten checks with a
+  click on Check again opening a fresh one, and the same return books once the
+  payment is confirmed.
 - **stripe-invalidated-checkout-refunded** — the owner changes the price while a
   visitor is paying; the webhook processes the later charge, retains the booking
   at quantity 0, and automatically refunds.

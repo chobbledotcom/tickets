@@ -1,5 +1,6 @@
 // jscpd:ignore-start -- imports
 import { World } from "@cucumber/cucumber";
+import type { Page } from "playwright";
 import type { AppBrowser, BrowserSession } from "#e2e/browser.ts";
 import {
   type BookerIdentity,
@@ -77,7 +78,8 @@ export class LiveWorld extends World {
   private ownerPrepared = false;
   private builtOrder: BuiltOrderCatalog | null = null;
   private heldReturnUrl: string | null = null;
-  private pendingReturnPageText: string | null = null;
+  private pendingReturnTab: Page | null = null;
+  private pendingReturnTarget: string | null = null;
   private refusalProbeReport: RefusalProbeReport | null = null;
   private orderNames: OrderCatalog | null = null;
 
@@ -244,15 +246,27 @@ export class LiveWorld extends World {
     );
   }
 
-  rememberPendingReturn(body: string): void {
-    this.pendingReturnPageText = body;
+  /** The second tab the visitor opened on the pending payment return, and
+   * the exact return URL it sits on — kept open together, because the
+   * waiting steps read and drive the same live tab. */
+  rememberPendingReturn(page: Page, url: string): void {
+    this.pendingReturnTab = page;
+    this.pendingReturnTarget = url;
   }
 
-  /** What the payment return page told the visitor before they paid. */
-  get pendingReturnBody(): string {
+  /** The visitor's open tab on the pending payment return. */
+  get pendingReturnPage(): Page {
     return required(
-      this.pendingReturnPageText,
-      "the pending return page's words (the visitor never opened it)",
+      this.pendingReturnTab,
+      "the pending return tab (the visitor never opened it)",
+    );
+  }
+
+  /** The exact return URL the pending tab first opened. */
+  get pendingReturnUrl(): string {
+    return required(
+      this.pendingReturnTarget,
+      "the pending return URL (the visitor never opened it)",
     );
   }
 
