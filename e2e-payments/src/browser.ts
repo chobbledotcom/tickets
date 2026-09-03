@@ -31,9 +31,10 @@ export interface BrowserSession {
   dumpPage: (label: string) => Promise<void>;
   fill: (name: string, value: string) => Promise<void>;
   goto: (path: string) => Promise<void>;
-  /** Open one more page in this session's context and run it — the same
-   * person's second tab. The page closes when run ends. */
-  openExtraPage: <T>(run: (page: Page) => Promise<T>) => Promise<T>;
+  /** Open one more page in this session's context and leave it open: the
+   * same person's second tab, kept across steps. The caller closes it; the
+   * scenario's teardown closes the whole context for anything left open. */
+  openKeptPage: () => Promise<Page>;
   page: Page;
   screenshot: (label: string) => Promise<void>;
   select: (name: string, value: string) => Promise<void>;
@@ -355,14 +356,7 @@ export const launchAppBrowser = async (
         await page.goto(path, { waitUntil: "domcontentloaded" });
         await logWhere("goto");
       },
-      openExtraPage: async <T>(run: (extra: Page) => Promise<T>) => {
-        const extra = await context.newPage();
-        try {
-          return await run(extra);
-        } finally {
-          await extra.close().catch(() => {});
-        }
-      },
+      openKeptPage: (): Promise<Page> => context.newPage(),
       page,
       screenshot: (label) => dumpPage(label),
       select: async (name, value) => {

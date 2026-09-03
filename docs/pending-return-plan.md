@@ -284,12 +284,14 @@ Direct tests, written first:
    three TICKETS-84 owner tests keep the owner panel and the buyer-editor
    separation, now beside the waiting page.
 4. `e2e-payments`: the new scenario drives visitor to the hosted checkout, reads
-   the reference from the extended log line, opens the return in a second page,
-   asserts the waiting copy through the catalog and that the page keeps checking
-   for the visitor, asserts no payment error line in the app log, pays on the
-   hosted page, delivers the genuine callback twice, then replays the exact
-   payment return and asserts the booking confirmation, one attendee, and the
-   captured income once.
+   the reference from the extended log line, opens the return in a second tab it
+   keeps open, asserts the waiting copy through the catalog, asserts the page
+   schedules its next timed check on the exact return, observes that timed
+   reload really happen in the tab, asserts no payment error line in the app
+   log, drives the window's last check (no timed reload left) and clicks Check
+   again to open a fresh window, then closes the tab, pays on the hosted page,
+   delivers the genuine callback twice, and replays the exact payment return to
+   assert the booking confirmation, one attendee, and the captured income once.
 
 Regression proof: each new direct test fails against today's code for the named
 reason before the fix lands.

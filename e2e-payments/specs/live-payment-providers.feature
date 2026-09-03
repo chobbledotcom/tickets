@@ -112,9 +112,10 @@ Feature: Real sandbox payments finish safely
   @rule:payments.live-sumup-return-pending-is-waited @surface:public @surface:return @surface:webhook
   Rule: A SumUp return that lands before the payment is confirmed ends well
     SumUp can send the visitor home before it confirms the payment. The
-    visitor is told the payment is not confirmed yet and the page keeps
-    checking for them. No error is recorded. Once the payment is confirmed,
-    the same return shows their booking.
+    visitor is told the payment is not confirmed yet, and the page keeps
+    checking for them on the same return. No error is recorded. When the
+    timed checks run out, one click on Check again opens a fresh window.
+    Once the payment is confirmed, the same return shows their booking.
 
     @case:live-payments.sumup-return-pending
     Scenario: A visitor returns before SumUp confirms the payment
@@ -124,7 +125,11 @@ Feature: Real sandbox payments finish safely
       And the visitor opens the payment return before paying
       Then the visitor is told the payment is not confirmed yet
       And the page keeps checking for the visitor
+      And the page schedules its next check on the exact return
+      And the page checks again by itself
       And no payment error is logged
+      When the visitor opens the waiting page's last timed check
+      Then only the visitor's click on Check again starts the checking again
       When the visitor pays on SumUp's hosted checkout
       And the genuine checkout callback is delivered twice
       And the visitor retries the exact payment return
