@@ -38,6 +38,7 @@ describe("paymentPage", () => {
       "£10.00",
     );
     expect(html).toContain("https://checkout.stripe.com/session");
+    expect(html).toContain('class="btn"');
     expect(html).toContain("Pay Now");
   });
 
@@ -67,6 +68,7 @@ describe("successPage", () => {
     });
     expect(html).toContain("Thank you for your order");
     expect(html).toContain("https://example.com/thanks");
+    expect(html).toContain('class="prose"');
   });
 
   test("renders order success message when not paid", () => {
@@ -112,6 +114,9 @@ describe("successPage", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123" });
     expect(html).toContain('href="/t/abc123"');
     expect(html).toContain("View your ticket");
+    // The plural link text contains the singular as a prefix, so the exact
+    // plural words are what proves this one-token link reads as singular.
+    expect(html).not.toContain("View your tickets");
   });
 
   test("renders both ticket link and redirect when both provided", () => {
@@ -196,6 +201,8 @@ describe("paymentCancelPage", () => {
     expect(html).toContain("Payment Cancelled");
     expect(html).toContain("/ticket/ab12c");
     expect(html).toContain("Try again");
+    expect(html).toContain('class="prose"');
+    expect(html).toContain('class="btn outline"');
   });
 
   test("includes data-payment-result attribute for popup postMessage", () => {
@@ -211,6 +218,7 @@ describe("paymentCancelPage", () => {
     expect(html).toContain("Payment Cancelled");
     expect(html).toContain("Return home");
     expect(html).toContain('href="/"');
+    expect(html).toContain('class="btn outline"');
     expect(html).not.toContain("Try again");
   });
 });
@@ -227,9 +235,11 @@ describe("checkoutPopupPage", () => {
 
   test("renders Pay Now link with target _blank", () => {
     const html = checkoutPopupPage("https://checkout.stripe.com/session123");
-    expect(html).toContain('target="_blank"');
+    // The waiting hint's new-tab link also carries target="_blank", so the
+    // popup anchor is matched through its own data-open-checkout attribute.
+    expect(html).toMatch(/data-open-checkout[^>]*target="_blank"/);
+    expect(html).toContain('class="btn"');
     expect(html).toContain("Pay Now");
-    expect(html).toContain("data-open-checkout");
   });
 
   test("includes waiting element for popup state", () => {
@@ -277,5 +287,20 @@ describe("paymentErrorPage", () => {
   test("includes home link", () => {
     const html = paymentErrorPage("Error");
     expect(html).toContain('href="/"');
+  });
+
+  test("renders the staff diagnostics panel for an owner", () => {
+    const html = paymentErrorPage("Payment verification failed", {
+      reasons: [
+        "The card step was never finished. For example, the 3-D Secure window was closed.",
+      ],
+      rows: [{ label: "Session id", value: "cs_test_123" }],
+    });
+    expect(html).toContain('class="staff-diagnostics"');
+    expect(html).toContain("Staff diagnostics");
+    expect(html).toContain("Session id");
+    expect(html).toContain("cs_test_123");
+    expect(html).toContain("Known reasons a payment can sit unconfirmed:");
+    expect(html).toContain("The card step was never finished");
   });
 });

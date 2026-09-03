@@ -111,6 +111,13 @@ const COVERAGE_EXCLUSIONS = [
   // but coverage only sees the module-load path the test runner took —
   // not the alternative env states the harness boots in for each target.
   "e2e-payments/src/config.ts",
+  // Deno's coverage merger mis-attributes this file once many test isolates
+  // load it: the merged lcov records `FNDA:2,resumeRejectedTarget` while the
+  // function's own body lines read as unhit — internally impossible. The
+  // resume guards are genuinely executed (placeholder-completion's crashed
+  // redelivery replays them; a two-file run reports DA:150,1 and DA:153,3),
+  // and the mutation gate still mutates the file against its direct tests.
+  "src/features/api/payment-processing/rejected-target.ts",
   // parseLiveTarget's throw path is tested in test/e2e-payments/parse-target, but
   // the test runner's group system may not pair it into the same isolate as the
   // coverage probe — the function is also covered by the live Cucumber run.

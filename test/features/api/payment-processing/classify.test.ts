@@ -12,8 +12,15 @@ import type {
 } from "#shared/payments.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { expectBuyerRefusalWithoutStaffPanel } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { stubSessionRetrieval } from "#test-utils/payment-session.ts";
+import {
+  createTestEditorSession,
+  getTestSession,
+  requestAsSession,
+} from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   answerCompletedStripeRefund,
@@ -23,15 +30,9 @@ import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
-const providerAnswers = async (
+const providerAnswers = (
   answer: ValidatedPaymentSession | SessionRejection | null,
-): Promise<Disposable> => {
-  const { stub } = await import("@std/testing/mock");
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "retrieveSession", () =>
-    Promise.resolve(answer),
-  );
-};
+): Promise<Disposable> => stubSessionRetrieval(answer);
 
 /** A paid checkout for one ticket at the given price, with a price proof made
  *  with this site's own key unless the caller replaces it. */
@@ -360,5 +361,100 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(result.data.session.id).toBe("cs_classify");
     expect(result.data.verdict).toEqual({ agreed: 500, verdict: "trusted" });
     expect(result.data.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
+  });
+});
+
+describeWithEnv("showing an owner why a checkout failed", { db: true }, () => {
+  /** The provider answers with the checkout TICKETS-84 saw: still unpaid
+   *  when its redirect landed. */
+  const unpaidAnswers = async (): Promise<Disposable> =>
+    providerAnswers({
+      amountTotal: 500,
+      currency: "GBP",
+      id: "cs_unpaid",
+      metadata: webhookMeta({ name: "Still Going" }),
+      paymentReference: "",
+      paymentStatus: "unpaid" as const,
+      provider: "stripe" as const,
+    });
+
+  const ownerRequest = async (): Promise<Request> =>
+    requestAsSession("/payment/success", await getTestSession());
+
+  /** The refusing check's failure page, with its guard applied. */
+  const refusedPage = async (
+    result: Awaited<ReturnType<typeof validatePaidSession>>,
+  ): Promise<string> => {
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    return await result.response.text();
+  };
+
+  test("hands an owner the diagnostics beside the refusal", async () => {
+    await setupStripe();
+    using _provider = await unpaidAnswers();
+
+    const result = await runWithPendingWork(async () =>
+      validatePaidSession("cs_unpaid", await ownerRequest()),
+    );
+
+    const page = await refusedPage(result);
+    expect(page).toContain("Staff diagnostics");
+    expect(page).toContain("cs_unpaid");
+    // The row markup (label, then value) cannot pass because the session id
+    // carries the word, so this reads the status itself, not the id.
+    expect(page).toContain("Payment status</strong> unpaid");
+    expect(page).toContain("3-D Secure");
+  });
+
+  test("keeps the buyer's page free of staff detail", async () => {
+    await setupStripe();
+    using _provider = await unpaidAnswers();
+
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_unpaid"),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    await expectBuyerRefusalWithoutStaffPanel(
+      result.response,
+      "Payment verification failed. Please contact support.",
+    );
+  });
+
+  test("keeps the panel away from a logged-in editor", async () => {
+    await setupStripe();
+    using _provider = await unpaidAnswers();
+    const editorCookie = (await createTestEditorSession()).cookie;
+
+    const result = await runWithPendingWork(async () =>
+      validatePaidSession(
+        "cs_unpaid",
+        new Request("http://localhost/payment/success", {
+          headers: { cookie: editorCookie },
+        }),
+      ),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    await expectBuyerRefusalWithoutStaffPanel(
+      result.response,
+      "Payment verification failed. Please contact support.",
+    );
+  });
+
+  test("names what it knows when no provider is configured", async () => {
+    const result = await runWithPendingWork(async () =>
+      validatePaidSession("cs_no_provider", await ownerRequest()),
+    );
+
+    const page = await refusedPage(result);
+    expect(page).toContain("Staff diagnostics");
+    expect(page).toContain("cs_no_provider");
+    // LabelledParas renders the label and value as separate nodes, so the
+    // label alone states the provider row is absent.
+    expect(page).not.toContain("Provider");
   });
 });

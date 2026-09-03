@@ -48,6 +48,7 @@ import {
   type ReturnedRejectionReceipt,
   refundRejectedCharge,
 } from "#routes/api/payment-processing/refunds.ts";
+import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import {
   datelessGhostBookings,
   storeClaimedPlaceholder,
@@ -185,11 +186,13 @@ const resumeRejectedTarget = async (
 /**
  * The answer a buyer-facing callback gives for a rejected session. A charge
  * left unsettled answers 503, so the caller comes back for it rather than
- * acknowledging money that is still out there.
+ * acknowledging money that is still out there. When the caller saw a browser
+ * request, an owner reading the page also gets the checkout's facts.
  */
 export const answerRejectedSession = async (
   rejection: SessionRejection,
   log: (detail: string) => void,
+  request?: Request,
 ): Promise<Response> => {
   const { refunded, settled } = await settleRejectedCharge(rejection);
   log(
@@ -200,6 +203,9 @@ export const answerRejectedSession = async (
       ? t("payment.error.refunded")
       : t("payment.error.session_not_found"),
     settled ? 400 : 503,
+    await staffPaymentDiagnostics(request, {
+      sessionId: rejection.sessionId,
+    }),
   );
 };
 

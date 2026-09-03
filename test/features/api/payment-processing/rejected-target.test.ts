@@ -1,11 +1,13 @@
-/** The Money target for a refunded rejection.
+/** The Money target for a refunded rejection, and the answer its callback
+ * gives.
  *
  * Before this module existed, refunding a paid-but-unreadable session left
  * its authority parked in completed/due with a "recorded in Money" answer
  * that had nothing to record against. These tests prove the fix end to end:
  * the quantity-0 ghost exists, the payment and refund legs land under the
  * session's own event group, the authority finishes recorded, and replays
- * change nothing. */
+ * change nothing. The answer tests stay on the page the callback renders,
+ * because a blank reference needs no money work. */
 
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
@@ -16,25 +18,98 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import {
   finalizeSessionIfUnresolved,
+  parseSessionFailure,
   reserveSession,
 } from "#db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
-import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
+import type { SessionRejection } from "#payment/validated-session.ts";
+import {
+  answerRejectedSession,
+  settleRejectedCharge,
+} from "#routes/api/payment-processing/rejected-target.ts";
+import { runWithPendingWork } from "#shared/pending-work.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
   expectOnePairOfLegs,
   ourRejection,
+  withRefundAnswering,
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
+import { getTestSession, requestAsSession } from "#test-utils/session.ts";
+import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 
 setupTestEncryptionKey();
+
+/** A checkout we cannot even name a charge for: the answer needs no money
+ *  work, so the test stays on the page the branch renders. */
+const blankReference = (): SessionRejection => ({
+  provider: "sumup",
+  reason: "blank_reference",
+  sessionId: "cs_blank",
+});
+
+describeWithEnv("the rejected-checkout answer", { db: true }, () => {
+  it("tells the buyer the session could not be found", async () => {
+    const response = await answerRejectedSession(blankReference(), () => {});
+
+    expect(response.status).toBe(400);
+    const page = await response.text();
+    expect(page).toContain("We could not find this payment session.");
+    expect(page).not.toContain("Staff diagnostics");
+  });
+
+  it("hands an owner the diagnostics beside the refusal", async () => {
+    const response = await runWithPendingWork(async () =>
+      answerRejectedSession(
+        blankReference(),
+        () => {},
+        await requestAsSession("/payment/success", await getTestSession()),
+      ),
+    );
+
+    const page = await response.text();
+    expect(page).toContain("Staff diagnostics");
+    expect(page).toContain("cs_blank");
+  });
+
+  it("tells the buyer the money went back when the refund succeeded", async () => {
+    const { result: response } = await withSucceedingRefundFor(750)(() =>
+      answerRejectedSession(ourRejection("pi_answer_refunded"), () => {}),
+    );
+
+    expect(response.status).toBe(400);
+    const page = await response.text();
+    expect(page).toContain("We have sent your money back");
+    expect(page).not.toContain("Staff diagnostics");
+  });
+
+  it("asks the caller to come back while the refund is still out there", async () => {
+    // The provider took the refund request but has not confirmed it yet, so
+    // the money is neither here nor there: nothing is settled.
+    const { result: response } = await withRefundAnswering((request) => ({
+      ...completedStripeRefund(
+        request.paymentReference,
+        "re_pending",
+        request.charge.captured.amount,
+      ),
+      kind: "accepted" as const,
+    }))(() =>
+      answerRejectedSession(ourRejection("pi_answer_pending"), () => {}),
+    );
+
+    expect(response.status).toBe(503);
+    const page = await response.text();
+    expect(page).toContain("We could not find this payment session.");
+  });
+});
 
 describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
   const CAPTURED = 750;
@@ -117,6 +192,22 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
       [ghosts[0]!.id],
     );
     expect(mirror?.protected_state).toBe("");
+  });
+
+  it("stores the outcome a later delivery replays to the buyer", async () => {
+    const { rejection } = await rejectionFor("pi_stored_outcome");
+    await withSucceedingRefundFor(CAPTURED)(() =>
+      settleRejectedCharge(rejection),
+    );
+
+    const stored = await getProcessedPayment(rejection.sessionId);
+    const outcome = await parseSessionFailure(stored!.failure_data);
+    expect(outcome).toEqual({
+      completion: { code: "malformed_charge" },
+      error: "The payment could not be read, so it was refunded.",
+      refunded: true,
+      status: 400,
+    });
   });
 
   it("replays as a no-op: one ghost, one pair of legs", async () => {

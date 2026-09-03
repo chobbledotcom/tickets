@@ -11,6 +11,7 @@ import { isSessionRejection } from "#payment/validated-session.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
+import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
   SignedVerdict,
@@ -38,15 +39,32 @@ export const paymentSessionErrorLogger =
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
 
+/** The failure page for one refused checkout. When the refuser saw a browser
+ * request, an owner reading the page also gets the facts this branch knows. */
+const failurePage = async (
+  request: Request | undefined,
+  message: string,
+  facts: { provider?: string; sessionId?: string; status?: string } = {},
+  status = 400,
+): Promise<Response> =>
+  paymentErrorResponse(
+    message,
+    status,
+    await staffPaymentDiagnostics(request, facts),
+  );
+
 /** A session that could not be read: log why and return the shared refusal. */
-const sessionUnavailable = (
+const sessionUnavailable = async (
   sessionId: string,
   why: string,
-): SessionValidation => {
+  request?: Request,
+): Promise<SessionValidation> => {
   logRedirectError(`Session ${why} (session=${sessionId})`);
   return {
     ok: false,
-    response: paymentErrorResponse(t("payment.error.session_not_found")),
+    response: await failurePage(request, t("payment.error.session_not_found"), {
+      sessionId,
+    }),
   };
 };
 
@@ -132,6 +150,7 @@ export const classifySessionIntent = async (
 
 export const validatePaidSession = async (
   sessionId: string,
+  request?: Request,
 ): Promise<SessionValidation> => {
   // An in-flight checkout may complete after the operator switched new sales
   // off, so resolve the provider that captured the payment rather than the
@@ -141,7 +160,9 @@ export const validatePaidSession = async (
     logRedirectError(`No payment provider configured (session=${sessionId})`);
     return {
       ok: false,
-      response: paymentErrorResponse("Payment provider not configured"),
+      response: await failurePage(request, "Payment provider not configured", {
+        sessionId,
+      }),
     };
   }
 
@@ -149,11 +170,11 @@ export const validatePaidSession = async (
   if (isSessionRejection(session)) {
     return {
       ok: false,
-      response: await answerRejectedSession(session, logRedirectError),
+      response: await answerRejectedSession(session, logRedirectError, request),
     };
   }
   if (!session) {
-    return sessionUnavailable(sessionId, "not found");
+    return sessionUnavailable(sessionId, "not found", request);
   }
 
   // Declined or expired checkout: SumUp's hosted page has a single redirect
@@ -172,8 +193,14 @@ export const validatePaidSession = async (
     );
     return {
       ok: false,
-      response: paymentErrorResponse(
+      response: await failurePage(
+        request,
         "Payment verification failed. Please contact support.",
+        {
+          provider: session.provider,
+          sessionId,
+          status: session.paymentStatus,
+        },
       ),
     };
   }
@@ -183,18 +210,29 @@ export const validatePaidSession = async (
   // corrupt data), so we neither process nor refund it — refunding an
   // unverifiable session could refund another instance's payment.
   const classified = await classifySessionIntent(session);
+  const knownFacts = {
+    provider: session.provider,
+    sessionId,
+    status: session.paymentStatus,
+  };
   if (classified.kind === "unverifiable") {
     logRedirectError(`Unrecognized payment session (session=${sessionId})`);
     return {
       ok: false,
-      response: paymentErrorResponse("Payment session not recognized"),
+      response: await failurePage(
+        request,
+        "Payment session not recognized",
+        knownFacts,
+      ),
     };
   }
   if (classified.kind === "unreadable") {
     return {
       ok: false,
-      response: paymentErrorResponse(
+      response: await failurePage(
+        request,
         "Payment verification failed. Please contact support.",
+        knownFacts,
         503,
       ),
     };

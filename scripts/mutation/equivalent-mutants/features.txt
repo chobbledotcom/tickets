@@ -244,3 +244,22 @@ src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0ec
 src/features/admin/attendee-page-data.ts::assembleTemplateData.questions~0wxrma2  ?? → ||   # opts.questions is an array or undefined, and arrays are truthy
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedTextAnswers~0av0z2p  ?? → ||   # the value is a Map or undefined, and Maps are truthy
 src/features/admin/attendee-page-data.ts::loadQuestionsForExisting.selectedAnswerIds~0qpejdr  ?? → ||   # the answer map answers an array or undefined, and arrays are truthy
+
+# Rejected-charge resume guard (rejected-target.ts): the guard runs only when
+# reserveSession returned an existing row, and a stored session row is in
+# exactly one of three shapes — finalized (attendee set, empty failure), a
+# fresh hold (both empty), or failed (both set, the resume case). An anchor
+# row is written in the same transaction as the session's failure_data
+# (storeClaimedPlaceholder), so a fresh hold never coexists with a held anchor.
+src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~1ufjyb7  || → &&   # on a fresh hold the mutant falls through to findHeldAnchor, but no anchor can be held then (atomic store above), so that path returns as the guard does; finalized and failed rows agree under both operators
+src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~0qkpy0s  →"mutated"   # failure_data is encrypted row state that is never the literal "mutated", so the skip dies only for a fresh hold, whose atomic store leaves no held anchor for findHeldAnchor to find — the resume returns as the real guard does
+
+# Success-redirect ticket URLs (payment-success.ts): the join separator never
+# appears because every producer of result.ticketTokens hands over at most one
+# token — a fresh booking stores [firstAttendee.token] (batchFinalizeStatements
+# encrypts that single token, and balance/ledger replays store none), and an
+# already-processed replay splits that same single-token form. A multi-token
+# URL is only ever built by the buyer from the ?tokens= parameter, which the
+# redirect paths never produce.
+src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@1  + → ""   # ["tok"].join("+") === ["tok"].join(""): the array holds at most one token (proof above), so the separator never renders
+src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@2  + → ""   # same single-token producer for the redirect URL's encoded token list
