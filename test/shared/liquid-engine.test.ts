@@ -13,6 +13,11 @@ describe("createBaseLiquidEngine", () => {
     expect(() => engine.parseAndRenderSync("{{ 1 | nope }}")).toThrow();
   });
 
+  test("renders a missing variable as empty", () => {
+    const engine = createBaseLiquidEngine();
+    expect(engine.parseAndRenderSync("a{{ missing }}b", {})).toBe("ab");
+  });
+
   test("leaves interpolations unescaped by default", () => {
     const engine = createBaseLiquidEngine();
     expect(engine.parseAndRenderSync("{{ v }}", { v: '<b>"&"</b>' })).toBe(
