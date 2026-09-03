@@ -45,32 +45,35 @@ row keeps its existing lifecycle.
 
 The answer of `GET /payment/success?session_id=<id>` is one of:
 
-| Provider answer                   | Rendered result                           | HTTP       | Log                     |
-| --------------------------------- | ----------------------------------------- | ---------- | ----------------------- |
-| No remembered provider            | Error page: provider not configured       | 400        | Error (unchanged)       |
-| Checkout not found, or foreign    | "We could not find this payment session." | 400        | Error (unchanged)       |
-| Rejected session                  | Existing rejection page                   | Varies     | Error (unchanged)       |
-| Status `failed`                   | Cancel page with "Try again"              | 200        | Cancel path (unchanged) |
-| Status `unpaid`                   | **Waiting page, new**                     | **200**    | **Debug, new**          |
-| Status `paid`, proof invalid      | "Payment session not recognized"          | 400        | Error (unchanged)       |
-| Status `paid`, booking unreadable | Verification failed page                  | 503        | Error (unchanged)       |
-| Status `paid`, booking readable   | Process, then token redirect or render    | 200 or 302 | As today (unchanged)    |
-
-The waiting page carries: the page title and heading, the message, a "Check
-again" link to `/payment/success?session_id=<id>`, and the owner diagnostics
-panel for an owner session. It carries no `data-payment-result` attribute, so
-the popup notifier (`src/ui/client/admin/payment-result.ts`) posts nothing. A
-false "payment-cancel" message could push a visitor to pay twice.
+| Provider answer                                                                | Rendered result                           | HTTP       | Log                     |
+| ------------------------------------------------------------------------------ | ----------------------------------------- | ---------- | ----------------------- |
+| No remembered provider                                                         | Error page: provider not configured       | 400        | Error (unchanged)       |
+| Checkout not found, or foreign                                                 | "We could not find this payment session." | 400        | Error (unchanged)       |
+| Rejected session                                                               | Existing rejection page                   | Varies     | Error (unchanged)       |
+| Status `failed`                                                                | Cancel page with "Try again"              | 200        | Cancel path (unchanged) |
+| Status `unpaid`                                                                | **Waiting page, new**                     | **200**    | **Debug, new**          |
+| Status `paid`, proof invalid                                                   | "Payment session not recognized"          | 400        | Error (unchanged)       |
+| Status `paid`, booking unreadable                                              | Verification failed page                  | 503        | Error (unchanged)       |
+| Status `paid`, booking readable                                                | Process, then token redirect or render    | 200 or 302 | As today (unchanged)    |
+| The waiting page carries: the page title and heading, the message, a timed     |                                           |            |                         |
+| reload of the same URL every 30 seconds while the reload counter is under 10,  |                                           |            |                         |
+| so a tab left open stops reloading after about five minutes. The "Check again" |                                           |            |                         |
+| link goes to `/payment/success?session_id=<id>` and resets the reload window.  |                                           |            |                         |
+| The owner diagnostics panel renders for an owner session. The page carries no  |                                           |            |                         |
+| `data-payment-result` attribute, so the popup notifier                         |                                           |            |                         |
+| (`src/ui/client/admin/payment-result.ts`) posts nothing. A false               |                                           |            |                         |
+| "payment-cancel" message could push a visitor to pay twice.                    |                                           |            |                         |
 
 ## Commands and events
 
-| Starting state            | Command or event                                             | Required result                              |
-| ------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
-| Any staged checkout       | Visitor opens the return while the provider answers `unpaid` | Waiting page, HTTP 200, debug log. No write. |
-| Waiting page shown        | Visitor clicks "Check again"                                 | The same read and render again. No write.    |
-| Checkout answers `paid`   | Webhook or recovery task or return                           | Existing booking path. No change.            |
-| Checkout stays `unpaid`   | Recovery task first check, then recheck                      | Existing recovery machine moves. No change.  |
-| Checkout expires or fails | Provider answer                                              | Cancel page, existing. No change.            |
+| Starting state            | Command or event                                             | Required result                                                        |
+| ------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Any staged checkout       | Visitor opens the return while the provider answers `unpaid` | Waiting page, HTTP 200, debug log. No write.                           |
+| Waiting page shown        | The page's timed reload reaches it again                     | The same read and render, with the reload counter up by one. No write. |
+| Waiting page shown        | Visitor clicks "Check again"                                 | The same read and render, reload counter reset. No write.              |
+| Checkout answers `paid`   | Webhook or recovery task or return                           | Existing booking path. No change.                                      |
+| Checkout stays `unpaid`   | Recovery task first check, then recheck                      | Existing recovery machine moves. No change.                            |
+| Checkout expires or fails | Provider answer                                              | Cancel page, existing. No change.                                      |
 
 One authoritative implementation exists per command: the branch in
 `validatePaidSession` renders the waiting page. No second path renders it.
@@ -94,6 +97,9 @@ and the recovery task at 3 hours, then every 6 hours.
   re-reads the provider and renders the waiting page again, or the success path
   when the payment completed.
 - The waiting page is idempotent by construction: it performs no write.
+- The timed reload and the "Check again" link are replays of the same command.
+  The `wait` counter in the reload URL counts them: a tab left open stops
+  reloading at 10, and a click on the link starts a fresh window.
 - The webhook and the recovery task already retry by the same identity and carry
   their own tests.
 - Two requests cannot double-act on this state: there is no action to repeat.
@@ -117,23 +123,25 @@ already-processed return renders the success page
 
 ## Owner choices
 
-Three decisions need a human answer before implementation.
+The human approved all three decisions on 3 September 2026: debug log only,
+bounded auto-refresh, and the reference in the log line. The decisions are
+recorded here as decided.
 
-1. **Alert level.** Stop the error alert and log a debug line for the
-   unconfirmed return. The owner keeps the on-page panel and the 24-hour system
-   map line for unanswered rows. Alternative: keep the error alert and change
-   only the page. I recommend the debug line: a normal provider state is not an
-   outage. The ten-event "spate" then stops.
-2. **Auto-refresh.** No auto-refresh. The page offers the "Check again" link
-   only. An abandoned tab that refreshes itself burns provider and database
-   reads forever on the edge budget. Alternative: a timed reload of the same
-   URL. I recommend the link only.
-3. **Reference in the checkout log line.** Extend
+1. **Alert level.** Log a debug line only for the unconfirmed return. The owner
+   keeps the on-page panel and the 24-hour system map line for unanswered rows.
+   A normal provider state is not an outage. The ten-event "spate" then stops.
+2. **Auto-refresh.** Decide: approved with auto-refresh. The page reloads itself
+   every 30 seconds for up to 10 reloads, about five minutes, then it offers the
+   "Check again" link only. A `wait` counter in the return URL counts the
+   reloads, so a tab left open stops costing provider and database reads. The
+   visitor's "Check again" link opens a fresh window without the counter. The
+   counter is untrusted input and moves nothing but the render.
+3. **Reference in the checkout log line.** Approved. Extend
    `[SumUp] Checkout created id=…` with `reference=<our session id>`, so the
    nightly can reconstruct the return URL before payment. Square logs its own
    created order id the same way, and SumUp order ids already flow through
    browser URLs and error logs. The reference still never rests in the database:
-   only its one-way code is stored. I recommend the extension.
+   only its one-way code is stored.
 
 ## Security and privacy
 
@@ -144,8 +152,11 @@ Three decisions need a human answer before implementation.
   editors never see it.
 - The waiting page adds no secret. The session id in the link is the id the
   visitor already holds in the URL.
-- Untrusted input: the session id. It costs one indexed staged read and one
-  provider read, as today. No provider write path is reachable from this page.
+- Untrusted input: the session id and the `wait` counter. The session id costs
+  one indexed staged read and one provider read, as today. The counter moves
+  nothing but the render: the branch clamps it to a whole number between 0 and
+  the cap, so a forged value changes no other page fact. No provider write path
+  is reachable from this page.
 - The log debug line carries the session id only, which error lines at this
   boundary already carry today.
 
@@ -161,10 +172,17 @@ Three decisions need a human answer before implementation.
   - `payment.pending.message`: "We have not received your payment yet. If you
     have paid, your ticket will be sent to you by email. This can take a few
     minutes."
+  - `payment.pending.auto_check`: "This page will keep checking for you." —
+    rendered only while the timed reload is on.
   - `payment.pending.check_again`: "Check again"
   - `payment.error.verification_failed`: "We could not confirm your payment.
     Please contact support." — replaces both hard-coded copies in `classify.ts`.
     The unreadable-booking branch keeps it; the unpaid branch stops using it.
+- The reload window is one pure rule beside the template: the seconds and the
+  cap are constants there, and one function answers whether the timed reload
+  renders for a `wait` value. `classify` reads the `wait` value from the
+  request, clamps it to a whole number between 0 and the cap, and passes it to
+  the template.
 - IO stays a thin shell: `validatePaidSession` decides, the template renders,
   and the page performs no database write.
 
@@ -186,6 +204,10 @@ Three decisions need a human answer before implementation.
 - **The visitor reloads after an interruption.** Render reads per request. A
   reload shows the waiting page or the success page, whichever the provider
   answer then supports.
+- **A tab keeps reloading forever.** It cannot. The reload URL carries the
+  counter, the counter climbs by one on every timed reload, and the render stops
+  emitting the reload tag at the cap. A forged counter cannot loop either: the
+  branch clamps it to the same range.
 - **The same resource appears on another record.** The staged row opens only on
   a reference match, so a foreign checkout cannot render the waiting page for
   our session id.
@@ -247,24 +269,27 @@ Direct tests, written first:
 1. `test/integration/server/webhooks/sumup.test.ts`: stage a signed SumUp
    checkout, stub `readCheckoutById` to answer `PENDING`, open
    `/payment/success?session_id=<ref>`. Assert HTTP 200, the waiting copy in the
-   catalog, the `Check again` link to the same session id, no
-   `E_PAYMENT_SESSION` in the error spy, and the new debug line present. This
-   test fails today: the branch answers 400 with the verification failed copy
-   and logs the error.
+   catalog, the `Check again` link to the same session id, the timed reload tag
+   with the counter at one, no `E_PAYMENT_SESSION` in the error spy, and the new
+   debug line present. This test fails today: the branch answers 400 with the
+   verification failed copy and logs the error.
 2. Same file: the reload-recovery leg. Book through the pinned webhook stub
    (`PAID`), then open the same return. Assert the success page and the one
    attendee row. This proves the remedy the page promises.
 3. `test/features/api/payment-processing/classify.test.ts`: rewrite "refuses a
    checkout the provider does not call paid" as "shows the waiting page for an
    unconfirmed checkout". Assert page copy, link target, and debug-not-error
-   logging. The three TICKETS-84 owner tests keep the owner panel and the
-   buyer-editor separation, now beside the waiting page.
+   logging. A pure-table case loads the reload window: the tag renders below the
+   cap, not at the cap, and a clamped forged counter cannot restart it. The
+   three TICKETS-84 owner tests keep the owner panel and the buyer-editor
+   separation, now beside the waiting page.
 4. `e2e-payments`: the new scenario drives visitor to the hosted checkout, reads
    the reference from the extended log line, opens the return in a second page,
-   asserts the waiting copy through the catalog, asserts no payment error line
-   in the app log, pays on the hosted page, delivers the genuine callback twice,
-   then replays the exact payment return and asserts the booking confirmation,
-   one attendee, and the captured income once.
+   asserts the waiting copy through the catalog and that the page keeps checking
+   for the visitor, asserts no payment error line in the app log, pays on the
+   hosted page, delivers the genuine callback twice, then replays the exact
+   payment return and asserts the booking confirmation, one attendee, and the
+   captured income once.
 
 Regression proof: each new direct test fails against today's code for the named
 reason before the fix lands.
