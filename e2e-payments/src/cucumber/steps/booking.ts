@@ -386,13 +386,21 @@ Then(
       "payment",
       "payment.pending.auto_check",
     );
+    const reloadTag = page.locator('meta[http-equiv="refresh"]');
 
-    const atEnd = await pendingReturnText(this);
+    // The window's last page still waits, but no longer checks on its own.
+    const atEnd = await pendingReturnSays(
+      this,
+      await catalogWords("payment", "payment.pending.message"),
+    );
     if (atEnd.includes(autoCheck)) {
       throw new Error(
         `the timed checking should have stopped at the window's end, but ` +
           `the page still says:\n${atEnd.slice(0, 800)}`,
       );
+    }
+    if ((await reloadTag.count()) !== 0) {
+      throw new Error("the waiting page still schedules an automatic check");
     }
 
     const checkAgain = await catalogWords(
@@ -402,6 +410,12 @@ Then(
     await page.getByRole("link", { name: checkAgain }).click();
     await page.waitForLoadState("domcontentloaded");
     await pendingReturnSays(this, autoCheck);
+    if ((await reloadTag.count()) !== 1) {
+      throw new Error(
+        `one click on "${checkAgain}" did not open a fresh ` +
+          "checking window with a scheduled check",
+      );
+    }
     await page.close();
     this.recordPhase("check-again-reopened-the-window");
   },
