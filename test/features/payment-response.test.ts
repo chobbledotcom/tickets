@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { paymentErrorResponse } from "#routes/payment-response.ts";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
+import {
+  checkoutResponse,
+  paymentErrorResponse,
+} from "#routes/payment-response.ts";
+import { detectIframeMode } from "#shared/iframe.ts";
 
 describe("paymentErrorResponse", () => {
   test("renders the message on a 400 by default", async () => {
@@ -27,5 +31,28 @@ describe("paymentErrorResponse", () => {
     expect(page).toContain("Session id");
     expect(page).toContain("cs_panel");
     expect(page).toContain("The card step was never finished.");
+  });
+});
+
+describe("checkoutResponse", () => {
+  afterEach(() => {
+    detectIframeMode(new URL("https://example.com/"));
+  });
+
+  test("redirects straight to the checkout outside an iframe", () => {
+    const response = checkoutResponse("https://checkout.example.com/pay");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "https://checkout.example.com/pay",
+    );
+  });
+
+  test("renders the popup page inside an iframe", () => {
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
+
+    const response = checkoutResponse("https://checkout.example.com/pay");
+
+    expect(response.status).toBe(200);
   });
 });

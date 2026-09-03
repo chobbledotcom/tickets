@@ -6,7 +6,7 @@ import type {
   ValidatedPaymentSession,
   WebhookSessionResult,
 } from "#shared/payments.ts";
-import { webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
 
 /**
  * Every metadata field the price signature covers, blank. The boundary hands
@@ -76,5 +76,39 @@ export const stubSessionRetrieval = async (
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
   return stub(stripePaymentProvider, "retrieveSession", () =>
     Promise.resolve(answer),
+  );
+};
+
+/** One signed checkout line: the listing id, its unit price, and a quantity.
+ *  A package line carries its edge tag (`k`) and package group (`r`) too. */
+export type CheckoutLine = {
+  e: number;
+  p: number;
+  q: number;
+  [key: string]: unknown;
+};
+
+/** Makes the provider answer every retrieval with a PAID checkout whose signed
+ *  metadata names these listing lines at their signed total, for as long as the
+ *  test runs. Extra metadata rides along (a package tag, a thank-you URL). */
+export const stubPaidCheckout = (
+  sessionId: string,
+  items: readonly CheckoutLine[],
+  extraMetadata: Record<string, string> = {},
+): Promise<Disposable> => {
+  const total = items.reduce((sum, item) => sum + item.p * item.q, 0);
+  return stubSessionRetrieval(
+    paidSession(sessionId, {
+      amountTotal: total,
+      metadata: signedMeta(
+        {
+          email: "buyer@example.com",
+          items: JSON.stringify(items),
+          name: "Payer",
+          ...extraMetadata,
+        },
+        total,
+      ),
+    }),
   );
 };

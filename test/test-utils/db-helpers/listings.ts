@@ -144,6 +144,17 @@ const changeListingStatus =
 export const deactivateTestListing = changeListingStatus("deactivate");
 export const reactivateTestListing = changeListingStatus("reactivate");
 
+/** Delete a listing the way the admin's confirmed delete form does. */
+export const deleteTestListing = async (
+  listing: Pick<ListingWithCount, "id" | "name">,
+): Promise<void> =>
+  doAuthenticatedFormRequest(
+    `/admin/listing/${listing.id}/delete`,
+    { confirm_identifier: listing.name },
+    async () => {},
+    "delete listing",
+  );
+
 export const createDailyTestListing = (overrides: TestListingOverrides = {}) =>
   createTestListing({
     bookableDays: allDays,
