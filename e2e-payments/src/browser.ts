@@ -172,23 +172,39 @@ const armWitnessedAttempt = async (
   };
 };
 
+/** What acting through the page's own DOM APIs may be told. `onlyIfUnchecked`
+ * leaves an already checked checkbox or radio alone, because a scripted click
+ * would uncheck it where Locator.check leaves it checked. */
+type DomActOptions = { onlyIfUnchecked?: boolean };
+
 /** Act on a control through the page's own DOM APIs: `requestSubmit` for
  * a form's submit control (which runs browser validation and the app's
  * submit handlers), a scripted click for anything else. Typed without the
  * DOM library so both compile configs can check this module. */
-const actThroughDom = async (locator: Locator): Promise<void> => {
-  await locator.evaluate((element) => {
+const actThroughDom = async (
+  locator: Locator,
+  { onlyIfUnchecked = false }: DomActOptions = {},
+): Promise<void> => {
+  await locator.evaluate((element, onlyIfUnchecked) => {
     const control = element as {
       click: () => void;
       form?: { requestSubmit: (submitter?: unknown) => void } | null;
       type?: string;
+      checked?: boolean;
     };
+    if (
+      onlyIfUnchecked &&
+      (control.type === "checkbox" || control.type === "radio") &&
+      control.checked
+    ) {
+      return;
+    }
     if (control.type === "submit" && control.form) {
       control.form.requestSubmit(control);
       return;
     }
     control.click();
-  });
+  }, onlyIfUnchecked);
 };
 
 /** Whether this page's renderer is currently producing animation frames.
@@ -228,27 +244,30 @@ const frameProbeOf = (page: Page): (() => Promise<boolean>) => {
 const throughDomIfInteractable = async (
   page: Page,
   control: Locator,
+  options: DomActOptions = {},
 ): Promise<void> => {
   if (!(await interactable(control))) {
     throw new Error(`control is not visible or enabled at ${page.url()}`);
   }
-  await actThroughDom(control);
+  await actThroughDom(control, options);
 };
 
 /** Act on a control like a person when the renderer is healthy, and through
  * the page's own DOM APIs when it is frame-idle — or when the ordinary action
- * provably failed before its click dispatched (see armWitnessedAttempt). */
+ * provably failed before its click dispatched (see armWitnessedAttempt).
+ * `onlyIfUnchecked` reaches the DOM fallback, for check's idempotence. */
 const actOnControl = async (
   page: Page,
   control: Locator,
   ordinary: () => Promise<void>,
+  options: DomActOptions = {},
 ): Promise<void> => {
   const healthyRenderer = await frameProbeOf(page)();
   if (healthyRenderer) {
     const attempt = await armWitnessedAttempt(control);
     if (await attempt(ordinary)) return;
   }
-  await throughDomIfInteractable(page, control);
+  await throughDomIfInteractable(page, control, options);
 };
 
 /** Click a control on any page of a session's context — the session's own
@@ -353,7 +372,9 @@ export const launchAppBrowser = async (
                   `[name="${cssEscape(name)}"][value="${cssEscape(value)}"]`,
                 )
                 .first();
-        await actOnControl(page, control, () => control.check({ timeout: T }));
+        await actOnControl(page, control, () => control.check({ timeout: T }), {
+          onlyIfUnchecked: true,
+        });
       },
       clickButton: async (text) => {
         log(`  submit "${text}"`);

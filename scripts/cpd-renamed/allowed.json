@@ -1,27 +1,19 @@
 [
   {
-    "first": "e2e-payments/src/browser.ts",
-    "firstStart": 244,
-    "hash": "dc8f0616619849faa1966fcf464e6327c6a46368825928038472c62766136e1d",
-    "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a guarded interaction fallback, a run-failure report, a best-effort write); a curry has nothing to lift",
-    "second": "e2e-payments/src/entry.ts",
-    "secondStart": 12
-  },
-  {
-    "first": "e2e-payments/src/browser.ts",
-    "firstStart": 244,
-    "hash": "16516f8c30d58757bc3cb24349cac40fe0bc98cc21b19e1871bc1acd91a58b5d",
-    "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a guarded interaction fallback, a run-failure report, a best-effort write); a curry has nothing to lift",
-    "second": "src/shared/logger.ts",
-    "secondStart": 365
-  },
-  {
     "first": "e2e-payments/src/cucumber/support/hooks.ts",
     "firstStart": 170,
     "hash": "1a420aa2d0567ed853db524423095caa0fbb5fafdb1a842ef02f6946fdf4ff90",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "e2e-payments/src/cucumber/support/hooks.ts",
     "secondStart": 178
+  },
+  {
+    "first": "e2e-payments/src/entry.ts",
+    "firstStart": 12,
+    "hash": "e4a16de1c0af265f3fcc1cfaefc479accbca3a1f415adb61a8622ff8ea829aff",
+    "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a run-failure report, a best-effort write); a curry has nothing to lift",
+    "second": "src/shared/logger.ts",
+    "secondStart": 365
   },
   {
     "first": "e2e-payments/src/providers/card.ts",
