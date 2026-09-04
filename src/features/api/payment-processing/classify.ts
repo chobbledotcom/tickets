@@ -46,19 +46,21 @@ export const paymentSessionErrorLogger =
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
 
-/** The failure page for one refused checkout. When the refuser saw a browser
- * request, an owner reading the page also gets the facts this branch knows. */
-const failurePage = async (
+/** The refusal for one refused checkout: a message page that, when the
+ * refuser saw a browser request, also carries the facts this branch knows. */
+const refusalPage = async (
   request: Request | undefined,
   message: string,
   facts: { provider?: string; sessionId?: string; status?: string } = {},
   status = 400,
-): Promise<Response> =>
-  paymentErrorResponse(
+): Promise<SessionValidation> => ({
+  ok: false,
+  response: paymentErrorResponse(
     message,
     status,
     await staffPaymentDiagnostics(request, facts),
-  );
+  ),
+});
 
 /** A session that could not be read: log why and return the shared refusal. */
 const sessionUnavailable = async (
@@ -67,12 +69,9 @@ const sessionUnavailable = async (
   request?: Request,
 ): Promise<SessionValidation> => {
   logRedirectError(`Session ${why} (session=${sessionId})`);
-  return {
-    ok: false,
-    response: await failurePage(request, t("payment.error.session_not_found"), {
-      sessionId,
-    }),
-  };
+  return refusalPage(request, t("payment.error.session_not_found"), {
+    sessionId,
+  });
 };
 
 /** Raise a checkout we can prove is ours but whose booking will not read. */
@@ -179,12 +178,9 @@ export const validatePaidSession = async (
   const provider = await getPaymentProviderForExistingPayments();
   if (!provider) {
     logRedirectError(`No payment provider configured (session=${sessionId})`);
-    return {
-      ok: false,
-      response: await failurePage(request, "Payment provider not configured", {
-        sessionId,
-      }),
-    };
+    return refusalPage(request, t("payment.error.provider_not_configured"), {
+      sessionId,
+    });
   }
 
   const session = await provider.retrieveSession(sessionId);
@@ -247,25 +243,19 @@ export const validatePaidSession = async (
   };
   if (classified.kind === "unverifiable") {
     logRedirectError(`Unrecognized payment session (session=${sessionId})`);
-    return {
-      ok: false,
-      response: await failurePage(
-        request,
-        "Payment session not recognized",
-        knownFacts,
-      ),
-    };
+    return refusalPage(
+      request,
+      t("payment.error.session_not_recognized"),
+      knownFacts,
+    );
   }
   if (classified.kind === "unreadable") {
-    return {
-      ok: false,
-      response: await failurePage(
-        request,
-        t("payment.error.verification_failed"),
-        knownFacts,
-        503,
-      ),
-    };
+    return refusalPage(
+      request,
+      t("payment.error.verification_failed"),
+      knownFacts,
+      503,
+    );
   }
   return {
     data: {

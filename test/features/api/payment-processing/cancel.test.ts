@@ -167,7 +167,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       const { html, logged, status } = await renderCancelPage(items);
 
       expect(status).toBe(404);
-      expect(html).toContain("Listing not found");
+      expect(html).toContain("We could not find the tickets you were booking.");
       expect(logged).toEqual([
         `Listing not found (session=cs_cancelled, listingId=${listingId})`,
       ]);

@@ -56,7 +56,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         // Unsigned → ignored as not ours: not-recognized page, never refunded
         // (the session may belong to a different instance sharing the provider).
-        await expectHtmlResponse(response, 400, "not recognized");
+        await expectHtmlResponse(response, 400, "belongs to this site");
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockRetrieve.restore();

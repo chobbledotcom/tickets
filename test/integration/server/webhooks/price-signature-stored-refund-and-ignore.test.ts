@@ -317,7 +317,7 @@ describeWithEnv(
       });
       try {
         const response = await redirectRequest("cs_foreign_redirect");
-        expect(await response.text()).toContain("not recognized");
+        expect(await response.text()).toContain("belongs to this site");
         expect(refund.calls.length).toBe(0);
       } finally {
         retrieve.restore();
