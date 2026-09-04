@@ -1,17 +1,17 @@
 [
   {
     "first": "e2e-payments/src/browser.ts",
-    "firstStart": 277,
-    "hash": "d799c52416d3ea813c828091cfc2cdbe26092390b000875ade82776f4a22dd4f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "firstStart": 244,
+    "hash": "dc8f0616619849faa1966fcf464e6327c6a46368825928038472c62766136e1d",
+    "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a guarded interaction fallback, a run-failure report, a best-effort write); a curry has nothing to lift",
     "second": "e2e-payments/src/entry.ts",
     "secondStart": 12
   },
   {
     "first": "e2e-payments/src/browser.ts",
-    "firstStart": 277,
-    "hash": "3a3b494c6f57d31fdbf9550af2eb9db9fc987efa1ed6a0c77786987cb3e4333b",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
+    "firstStart": 244,
+    "hash": "16516f8c30d58757bc3cb24349cac40fe0bc98cc21b19e1871bc1acd91a58b5d",
+    "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a guarded interaction fallback, a run-failure report, a best-effort write); a curry has nothing to lift",
     "second": "src/shared/logger.ts",
     "secondStart": 365
   },
@@ -49,7 +49,7 @@
   },
   {
     "first": "scripts/bugs-lib.ts",
-    "firstStart": 135,
+    "firstStart": 154,
     "hash": "00c4cbd19e8fdeb66bdf78d34a5795af0e9b909bdf3f4a4f35c4c1402ba299fd",
     "reason": "two external API boundary schemas — a Bugsink project and a Deno Deploy app identity — that name an id, a name and a slug; one shared schema factory would couple the two provider contracts while each keeps its own field types",
     "second": "src/shared/deno-deploy-schema.ts",
@@ -65,7 +65,7 @@
   },
   {
     "first": "scripts/coverage-check.ts",
-    "firstStart": 217,
+    "firstStart": 223,
     "hash": "de890aed588d9efdf99a4e6612f7539bdd5418baaf5e934e4b1e44e8f76d61d9",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/order-select.ts",

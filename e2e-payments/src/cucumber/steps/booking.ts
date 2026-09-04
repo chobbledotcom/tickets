@@ -7,6 +7,7 @@
 import { Then, When } from "@cucumber/cucumber";
 import {
   type BrowserSession,
+  clickControlOn,
   holdFirstAppReturn,
   requirePageText,
 } from "#e2e/browser.ts";
@@ -407,7 +408,7 @@ Then(
       "payment",
       "payment.pending.check_again",
     );
-    await page.getByRole("link", { name: checkAgain }).click();
+    await clickControlOn(page, page.getByRole("link", { name: checkAgain }));
     await page.waitForLoadState("domcontentloaded");
     await pendingReturnSays(this, autoCheck);
     if ((await reloadTag.count()) !== 1) {
