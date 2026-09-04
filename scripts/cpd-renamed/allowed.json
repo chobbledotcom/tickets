@@ -1,27 +1,19 @@
 [
   {
-    "first": "e2e-payments/src/browser.ts",
-    "firstStart": 277,
-    "hash": "d799c52416d3ea813c828091cfc2cdbe26092390b000875ade82776f4a22dd4f",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "e2e-payments/src/entry.ts",
-    "secondStart": 12
-  },
-  {
-    "first": "e2e-payments/src/browser.ts",
-    "firstStart": 277,
-    "hash": "3a3b494c6f57d31fdbf9550af2eb9db9fc987efa1ed6a0c77786987cb3e4333b",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "src/shared/logger.ts",
-    "secondStart": 365
-  },
-  {
     "first": "e2e-payments/src/cucumber/support/hooks.ts",
     "firstStart": 170,
     "hash": "1a420aa2d0567ed853db524423095caa0fbb5fafdb1a842ef02f6946fdf4ff90",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "e2e-payments/src/cucumber/support/hooks.ts",
     "secondStart": 178
+  },
+  {
+    "first": "e2e-payments/src/entry.ts",
+    "firstStart": 12,
+    "hash": "e4a16de1c0af265f3fcc1cfaefc479accbca3a1f415adb61a8622ff8ea829aff",
+    "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a run-failure report, a best-effort write); a curry has nothing to lift",
+    "second": "src/shared/logger.ts",
+    "secondStart": 365
   },
   {
     "first": "e2e-payments/src/providers/card.ts",
@@ -49,7 +41,7 @@
   },
   {
     "first": "scripts/bugs-lib.ts",
-    "firstStart": 135,
+    "firstStart": 154,
     "hash": "00c4cbd19e8fdeb66bdf78d34a5795af0e9b909bdf3f4a4f35c4c1402ba299fd",
     "reason": "two external API boundary schemas — a Bugsink project and a Deno Deploy app identity — that name an id, a name and a slug; one shared schema factory would couple the two provider contracts while each keeps its own field types",
     "second": "src/shared/deno-deploy-schema.ts",
@@ -65,7 +57,7 @@
   },
   {
     "first": "scripts/coverage-check.ts",
-    "firstStart": 217,
+    "firstStart": 223,
     "hash": "de890aed588d9efdf99a4e6612f7539bdd5418baaf5e934e4b1e44e8f76d61d9",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/order-select.ts",

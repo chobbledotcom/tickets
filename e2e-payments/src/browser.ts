@@ -33,7 +33,9 @@ export interface BrowserSession {
   goto: (path: string) => Promise<void>;
   /** Open one more page in this session's context and leave it open: the
    * same person's second tab, kept across steps. The caller closes it; the
-   * scenario's teardown closes the whole context for anything left open. */
+   * scenario's teardown closes the whole context for anything left open.
+   * Act on its controls with clickControlOn, which carries the frame-idle
+   * fallback the session's own clicks have. */
   openKeptPage: () => Promise<Page>;
   page: Page;
   screenshot: (label: string) => Promise<void>;
@@ -170,6 +172,112 @@ const armWitnessedAttempt = async (
   };
 };
 
+/** What acting through the page's own DOM APIs may be told. `onlyIfUnchecked`
+ * leaves an already checked checkbox or radio alone, because a scripted click
+ * would uncheck it where Locator.check leaves it checked. */
+type DomActOptions = { onlyIfUnchecked?: boolean };
+
+/** Act on a control through the page's own DOM APIs: `requestSubmit` for
+ * a form's submit control (which runs browser validation and the app's
+ * submit handlers), a scripted click for anything else. Typed without the
+ * DOM library so both compile configs can check this module. */
+const actThroughDom = async (
+  locator: Locator,
+  { onlyIfUnchecked = false }: DomActOptions = {},
+): Promise<void> => {
+  await locator.evaluate((element, onlyIfUnchecked) => {
+    const control = element as {
+      click: () => void;
+      form?: { requestSubmit: (submitter?: unknown) => void } | null;
+      type?: string;
+      checked?: boolean;
+    };
+    if (
+      onlyIfUnchecked &&
+      (control.type === "checkbox" || control.type === "radio") &&
+      control.checked
+    ) {
+      return;
+    }
+    if (control.type === "submit" && control.form) {
+      control.form.requestSubmit(control);
+      return;
+    }
+    control.click();
+  }, onlyIfUnchecked);
+};
+
+/** Whether this page's renderer is currently producing animation frames.
+ * Some headless Chromium builds stop scheduling compositor frames once a
+ * form POST has happened; the page stays fully functional but Playwright's
+ * pointer-action stability wait then hangs past its own timeout. Probing
+ * once per navigation lets interaction skip the doomed ordinary attempt
+ * instead of burning its whole timeout on every action. */
+const frameProbes = new WeakMap<Page, () => Promise<boolean>>();
+
+const frameProbeOf = (page: Page): (() => Promise<boolean>) => {
+  const cached = frameProbes.get(page);
+  if (cached) return cached;
+  let framesLive: Promise<boolean> | null = null;
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) framesLive = null;
+  });
+  const framesAreLive = (): Promise<boolean> => {
+    framesLive ??= page.evaluate(
+      () =>
+        new Promise<boolean>((resolve) => {
+          const frames = globalThis as {
+            requestAnimationFrame?: (callback: () => void) => number;
+          };
+          frames.requestAnimationFrame?.(() => resolve(true));
+          setTimeout(() => resolve(false), 1_200);
+        }),
+    );
+    return framesLive;
+  };
+  frameProbes.set(page, framesAreLive);
+  return framesAreLive;
+};
+
+/** Act through the page's own DOM APIs (see actThroughDom), but only for a
+ * control that is genuinely visible and enabled. */
+const throughDomIfInteractable = async (
+  page: Page,
+  control: Locator,
+  options: DomActOptions = {},
+): Promise<void> => {
+  if (!(await interactable(control))) {
+    throw new Error(`control is not visible or enabled at ${page.url()}`);
+  }
+  await actThroughDom(control, options);
+};
+
+/** Act on a control like a person when the renderer is healthy, and through
+ * the page's own DOM APIs when it is frame-idle — or when the ordinary action
+ * provably failed before its click dispatched (see armWitnessedAttempt).
+ * `onlyIfUnchecked` reaches the DOM fallback, for check's idempotence. */
+const actOnControl = async (
+  page: Page,
+  control: Locator,
+  ordinary: () => Promise<void>,
+  options: DomActOptions = {},
+): Promise<void> => {
+  const healthyRenderer = await frameProbeOf(page)();
+  if (healthyRenderer) {
+    const attempt = await armWitnessedAttempt(control);
+    if (await attempt(ordinary)) return;
+  }
+  await throughDomIfInteractable(page, control, options);
+};
+
+/** Click a control on any page of a session's context — the session's own
+ * page or a kept page from openKeptPage — with the same frame-idle fallback
+ * as the session's own clicks (see actOnControl). */
+export const clickControlOn = (page: Page, control: Locator): Promise<void> =>
+  actOnControl(page, control, () =>
+    control.click({ timeout: config.actionTimeoutMs }),
+  );
+
 export const launchAppBrowser = async (
   baseUrl: string,
 ): Promise<AppBrowser> => {
@@ -216,81 +324,9 @@ export const launchAppBrowser = async (
       log(`  saved artifacts: ${png} (+ .html)`);
     };
 
-    /**
-     * Whether this page's renderer is currently producing animation frames.
-     * Some headless Chromium builds stop scheduling compositor frames once a
-     * form POST has happened; the page stays fully functional but Playwright's
-     * pointer-action stability wait then hangs past its own timeout. Probing
-     * once per navigation lets interaction skip the doomed ordinary attempt
-     * instead of burning its whole timeout on every action.
-     */
-    let framesLive: Promise<boolean> | null = null;
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) framesLive = null;
-    });
-    const framesAreLive = (): Promise<boolean> => {
-      framesLive ??= page.evaluate(
-        () =>
-          new Promise<boolean>((resolve) => {
-            const frames = globalThis as {
-              requestAnimationFrame?: (callback: () => void) => number;
-            };
-            frames.requestAnimationFrame?.(() => resolve(true));
-            setTimeout(() => resolve(false), 1_200);
-          }),
-      );
-      return framesLive;
-    };
-
-    /** Act on a control through the page's own DOM APIs: `requestSubmit` for
-     * a form's submit control (which runs browser validation and the app's
-     * submit handlers), a scripted click for anything else. Typed without the
-     * DOM library so both compile configs can check this module. */
-    const actThroughDom = async (locator: Locator): Promise<void> => {
-      await locator.evaluate((element) => {
-        const control = element as {
-          click: () => void;
-          form?: { requestSubmit: (submitter?: unknown) => void } | null;
-          type?: string;
-        };
-        if (control.type === "submit" && control.form) {
-          control.form.requestSubmit(control);
-          return;
-        }
-        control.click();
-      });
-    };
-
-    /** Act through the page's own DOM APIs (see actThroughDom), but only
-     * for a control that is genuinely visible and enabled. */
-    const throughDomIfInteractable = async (
-      control: Locator,
-    ): Promise<void> => {
-      if (!(await interactable(control))) {
-        throw new Error(`control is not visible or enabled at ${page.url()}`);
-      }
-      await actThroughDom(control);
-    };
-
-    /** Act on a control like a person when the renderer is healthy, and
-     * through the page's own DOM APIs when it is frame-idle — or when the
-     * ordinary action provably failed before its click dispatched (see
-     * armWitnessedAttempt). */
-    const actOnControl = async (
-      control: Locator,
-      ordinary: () => Promise<void>,
-    ): Promise<void> => {
-      const healthyRenderer = await framesAreLive();
-      if (healthyRenderer) {
-        const attempt = await armWitnessedAttempt(control);
-        if (await attempt(ordinary)) return;
-      }
-      await throughDomIfInteractable(control);
-    };
-
     /** Click a control like a person (see actOnControl for the fallback). */
     const clickControl = (control: Locator): Promise<void> =>
-      actOnControl(control, () => control.click({ timeout: T }));
+      clickControlOn(page, control);
 
     /** Click and let the resulting navigation settle. A scripted submit's
      * navigation starts only after the click returns, so when the URL has not
@@ -336,7 +372,9 @@ export const launchAppBrowser = async (
                   `[name="${cssEscape(name)}"][value="${cssEscape(value)}"]`,
                 )
                 .first();
-        await actOnControl(control, () => control.check({ timeout: T }));
+        await actOnControl(page, control, () => control.check({ timeout: T }), {
+          onlyIfUnchecked: true,
+        });
       },
       clickButton: async (text) => {
         log(`  submit "${text}"`);
