@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { detectIframeMode } from "#shared/iframe.ts";
+import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
 import {
   checkoutPopupPage,
   paymentCancelPage,
@@ -234,6 +234,14 @@ describe("checkoutPopupPage", () => {
     expect(html).toContain(
       'data-checkout-popup="https://checkout.stripe.com/session123"',
     );
+  });
+
+  test("renders the iframe confirmation URL for the parent navigation", () => {
+    const html = runWithIframeContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      return checkoutPopupPage("https://checkout.stripe.com/session123");
+    });
+    expect(html).toContain('data-success-href="/ticket/reserved?iframe=true"');
   });
 
   test("renders Pay Now link with target _blank", () => {

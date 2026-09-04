@@ -9,6 +9,8 @@ export const initCheckoutPopup = (): void => {
   if (!checkoutPopup) return;
 
   const checkoutUrl = checkoutPopup.dataset.checkoutPopup!;
+  // Rendered by checkoutPopupPage with the iframe param already applied.
+  const successHref = checkoutPopup.dataset.successHref!;
   const waitingEl = checkoutPopup.querySelector<HTMLElement>(
     "[data-checkout-waiting]",
   )!;
@@ -27,7 +29,7 @@ export const initCheckoutPopup = (): void => {
     if (e.origin !== location.origin) return;
     if (e.data?.type === "payment-success") {
       // Navigate the iframe to the real success page — single code path
-      location.href = "/ticket/reserved";
+      location.href = successHref;
     } else if (e.data?.type === "payment-cancel") {
       showPayButton();
     }

@@ -14,6 +14,7 @@ import {
   runWithFlashContext,
   setFlashContext,
 } from "#shared/flash-context.ts";
+import { detectIframeMode, runWithIframeContext } from "#shared/iframe.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -156,6 +157,17 @@ describe("Layout document shell", () => {
     expect(html).toContain(
       `<img alt="" class="header-image" src="${getImageProxyUrl("header.jpg")}">`,
     );
+  });
+
+  test("hides the configured header image in iframe mode", () => {
+    settings.setForTest({ header_image_url: "header.jpg" });
+    const html = runWithIframeContext(() => {
+      detectIframeMode(new URL("https://example.com/?iframe=true"));
+      return String(Layout({ children: "", title: "Test" }));
+    });
+
+    expect(html).not.toContain("header-image");
+    expect(html).not.toContain(getImageProxyUrl("header.jpg"));
   });
 
   test("renders the demo banner only in demo mode", () => {

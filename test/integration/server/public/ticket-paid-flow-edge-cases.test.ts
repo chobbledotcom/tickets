@@ -210,6 +210,7 @@ describeWithEnv(
           "data-checkout-popup",
           "Pay Now",
           'target="_blank"',
+          'data-success-href="/ticket/reserved?iframe=true"',
         );
       });
 

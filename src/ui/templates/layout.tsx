@@ -12,6 +12,7 @@ import {
 import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
+import { getIframeMode } from "#shared/iframe.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
@@ -74,7 +75,10 @@ export const Layout = ({
           </a>
           {isDemoMode() && <Raw html={demoBanner()} />}
           <main id="main-content" tabindex="-1">
-            {headerImage && (
+            {/* No header image in iframe embed mode: the host page already
+                carries its own branding, and the image request would only
+                duplicate it. */}
+            {headerImage && !getIframeMode() && (
               <img
                 alt=""
                 class="header-image"
