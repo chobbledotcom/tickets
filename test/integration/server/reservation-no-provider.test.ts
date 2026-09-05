@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { requirePublicDefaultStatus } from "#db/attendee-statuses.ts";
 import { settings } from "#db/settings.ts";
 import { bookFreeOrder } from "#test/integration/server/_shared-setup.ts";
+import { stubWebhookFetch } from "#test/shared/webhook/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -19,6 +20,8 @@ describeWithEnv(
   "server (booking without a payment provider)",
   { db: true },
   () => {
+    const webhook = stubWebhookFetch();
+
     test("books a paid listing owing its full value when no provider is set up", async () => {
       // No setupStripe: payments are disabled. A booking fee is configured to
       // prove it is never folded into the amount owed when no payment is taken.
@@ -32,6 +35,7 @@ describeWithEnv(
         maxQuantity: 5,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
+        webhookUrl: "https://example.com/hook",
       });
 
       // The order comes through just like a normal free reservation.
@@ -45,6 +49,9 @@ describeWithEnv(
       expect(attendee.pricePaid).toBe(2000);
       expect(attendee.remainingBalance).toBe(2000);
       expect(attendee.statusId).toBe(status!.id);
+      const payload = webhook.firstBody();
+      expect(payload.price_paid).toBe(0);
+      expect(payload.amount_owed).toBe(2000);
     });
 
     test("a free listing still owes nothing without a provider", async () => {
@@ -57,6 +64,7 @@ describeWithEnv(
       const response = await submitBuyerOrder(listing);
 
       expect(response.status).toBe(302);
+      expect(response.headers.get("x-robots-tag")).toBe("index, follow");
       const attendee = await latestAttendee();
       expect(attendee.pricePaid).toBe(0);
       expect(attendee.remainingBalance).toBe(0);

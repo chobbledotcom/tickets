@@ -226,6 +226,9 @@ src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz
 src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
 src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3  ?? → ||   # URLSearchParams.get answers a string or null, and the only falsy string is the empty fallback
+src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3   → "mutated"   # an absent quantity uses the fallback, and both fallback strings fail the positive-integer parser
+src/features/public/ticket-submit.ts::renderTicketFlow.prefill~160lbzo  ?? → ||   # a supplied prefill is an object, so every present value is truthy
 src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices answers a DayPrices Map or undefined, never a falsy value, so the || fallback is unreachable
 src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds builds its map over the same id list hydrate passes it, so requiredMapValue always finds the entry; the message is an impossible-state guard (AGENTS.md: do not defend against the impossible)
 src/features/public/ticket-routes.ts::getFromEmailIfConfigured.config~15giq6g  ?? → ||   # getEmailConfig answers a populated config object or null (email.ts returns null when apiKey or fromAddress is missing), so the || fallback is unreachable

@@ -38,8 +38,13 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });
-        await assertPublicHtml(
-          `/ticket/${listing.slug}`,
+        const response = await handleRequest(
+          mockRequest(`/ticket/${listing.slug}`),
+        );
+        expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+        await expectHtmlResponse(
+          response,
+          200,
           "Continue",
           `action="/ticket/${listing.slug}"`,
         );

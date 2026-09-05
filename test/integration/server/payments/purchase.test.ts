@@ -106,6 +106,24 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       await expectFreeListingRedirectsToThanks();
     });
 
+    test("a hidden listing submit keeps its robots policy", async () => {
+      await setupStripe("sk_test_fake_key");
+      const listing = await createTestListing({
+        hidden: true,
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 0,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        email: "hidden@example.com",
+        name: "Hidden buyer",
+      });
+
+      expectRedirect(response, "https://example.com/thanks");
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    });
+
     test("free customisable-days booking reserves the chosen number of days", async () => {
       await setupStripe("sk_test_fake_key");
 
@@ -244,7 +262,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      const listing = await setupPaidListing(1000);
+      const listing = await setupPaidListing(1);
 
       const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
@@ -255,8 +273,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location");
       expect(location).not.toBeNull();
-      // stripe-mock returns a URL starting with https://
-      expect(location?.startsWith("https://")).toBe(true);
+      expect(location).toContain("checkout.stripe.com");
     });
 
     test("rejects paid listing registration when sold out before payment", async () => {

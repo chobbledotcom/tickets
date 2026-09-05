@@ -12,11 +12,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
-import { assertPublicHtml } from "#test-utils/assertions.ts";
+import {
+  assertPublicHtml,
+  expectHtmlResponse,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
 
@@ -50,7 +55,11 @@ describeWithEnv(
       const listing = await createTestListing({ name: "Illustrated" });
       await twoPictures("listing", listing.id);
 
-      const html = await assertPublicHtml(`/ticket/${listing.slug}`);
+      const response = await handleRequest(
+        mockRequest(`/ticket/${listing.slug}`),
+      );
+      expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+      const html = await expectHtmlResponse(response, 200);
       expect(html).toContain('class="news-gallery"');
       expect(html).toContain("gallery-one.webp");
       expect(html).toContain('alt="First alt"');
