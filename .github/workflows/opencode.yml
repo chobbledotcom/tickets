@@ -67,12 +67,36 @@ jobs:
 
           file="opencode-${target}.tar.gz"
           url="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/${file}"
+
+          # sha256 of each archive for the pinned version above. The archive
+          # runs with NEURALWATT_API_KEY in its environment, so an unlisted
+          # target fails instead of skipping verification.
+          case "$file" in
+            opencode-linux-arm64.tar.gz)
+              sha256="23aad358a8489cda9e9c46cde7ce87b2fc4847203ddb4d2179be34215ad6eeae" ;;
+            opencode-linux-arm64-musl.tar.gz)
+              sha256="ec753c4fcc2b5e2e6948f06c18c82c1160976a0cd85e7c6c7e911c35c82ebb5f" ;;
+            opencode-linux-x64.tar.gz)
+              sha256="0e1353771192c7d2dc0c610d61ff70668bb8a4420dc4d9e35cfd33d7245f3e67" ;;
+            opencode-linux-x64-musl.tar.gz)
+              sha256="782c5d6fc3762fbdfaebcebc7457ed797acbab199969b3b237acfac195fd09d8" ;;
+            opencode-linux-x64-baseline.tar.gz)
+              sha256="de0c16440b50f04823dc5fa240d24899e444a626ec8e4b8ebb6083bdf2176ad0" ;;
+            opencode-linux-x64-baseline-musl.tar.gz)
+              sha256="ea69bfdacfbfab9d1efc435b8326dc5b19692e1ce534c4cf6ee6dd00c7dfb9c9" ;;
+            *)
+              echo "No pinned sha256 for ${file}" >&2
+              exit 1
+              ;;
+          esac
+
           install_dir="${HOME}/.opencode/bin"
           tmp_dir="$(mktemp -d)"
           trap 'rm -rf "${tmp_dir}"' EXIT
 
           mkdir -p "${install_dir}"
           curl -fsSL "${url}" -o "${tmp_dir}/${file}"
+          echo "${sha256}  ${tmp_dir}/${file}" | sha256sum --check --strict -
           tar -xzf "${tmp_dir}/${file}" -C "${tmp_dir}"
           install -m 755 "${tmp_dir}/opencode" "${install_dir}/opencode"
           echo "${install_dir}" >> "${GITHUB_PATH}"
