@@ -24,25 +24,14 @@ import {
   isPaidListing,
 } from "#types";
 
-/** Create a configured Liquid engine with custom filters. The HTML body
- * engine escapes every interpolation, because booking fields hold whatever
- * the attendee typed. Subject and text stay plain: they are not HTML. */
-const createEngine = (outputEscape?: "escape"): Liquid => {
-  const engine = createBaseLiquidEngine({ outputEscape });
-
-  engine.registerFilter(
-    "pluralize",
-    (count: number, singular: string, plural: string) =>
-      count === 1 ? singular : plural,
-  );
-
-  return engine;
-};
-
-/** Lazy-initialized singleton engine instances */
-const [getPlainEngine, setPlainEngine] = lazyRef<Liquid>(() => createEngine());
+/** Lazy-initialized singleton engine instances. The HTML body engine escapes
+ * every interpolation, because booking fields hold whatever the attendee
+ * typed. Subject and text stay plain: they are not HTML. */
+const [getPlainEngine, setPlainEngine] = lazyRef<Liquid>(() =>
+  createBaseLiquidEngine(),
+);
 const [getHtmlEngine, setHtmlEngine] = lazyRef<Liquid>(() =>
-  createEngine("escape"),
+  createBaseLiquidEngine({ outputEscape: "escape" }),
 );
 
 /** For testing: reset the engines (so filters can be re-registered after

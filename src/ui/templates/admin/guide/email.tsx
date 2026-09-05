@@ -3,12 +3,17 @@
  */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import {
   custom,
   faq,
   type GuideHostConfig,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+import {
+  LOOP_EXAMPLE,
+  TEMPLATE_VARIABLES,
+} from "#templates/components/email-template-reference.tsx";
 /* jscpd:ignore-end */
 
 export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
@@ -25,14 +30,20 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
               <strong>{hostConfig.hostEmailProvider}</strong> with from address{" "}
               <code>{hostConfig.hostEmailFromAddress}</code>. You can override
               this by entering your own provider and API key in{" "}
-              <a href="/admin/settings">Settings</a>. If you provide your own
-              settings, they take priority over the server configuration.
+              <a href="/admin/settings-advanced#settings-email">
+                Advanced Settings
+              </a>
+              . If you provide your own settings, they take priority over the
+              server configuration.
             </p>
           )}
           <ol>
             <li>
-              Go to <a href="/admin/settings">Settings</a> and find the{" "}
-              <strong>Email</strong> section
+              Go to{" "}
+              <a href="/admin/settings-advanced#settings-email">
+                Advanced Settings
+              </a>{" "}
+              and find the <strong>Email</strong> section
             </li>
             <li>Choose your email provider from the dropdown</li>
             <li>
@@ -68,38 +79,18 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
         "template_variables",
         <>
           <ul>
-            <li>
-              <code>{"{{ listing_names }}"}</code> &mdash; all listing names
-              joined with &ldquo;and&rdquo;
-            </li>
-            <li>
-              <code>{"{{ ticket_url }}"}</code> &mdash; link to view tickets
-            </li>
-            <li>
-              <code>{"{{ currency }}"}</code> &mdash; currency code (e.g. GBP)
-            </li>
-            <li>
-              <code>{"{{ attendee.name }}"}</code>,{" "}
-              <code>{"{{ attendee.email }}"}</code>,{" "}
-              <code>{"{{ attendee.phone }}"}</code>,{" "}
-              <code>{"{{ attendee.address }}"}</code>,{" "}
-              <code>{"{{ attendee.special_instructions }}"}</code>
-            </li>
-            <li>
-              <code>{"{{ attendee.quantity }}"}</code>,{" "}
-              <code>{"{{ attendee.price_paid }}"}</code>,{" "}
-              <code>{"{{ attendee.date }}"}</code>
-            </li>
+            {TEMPLATE_VARIABLES.map(([code, key]) => (
+              <li>
+                <code>{code}</code> &mdash;{" "}
+                {t(`settings.advanced.email_variables.${key}`)}
+              </li>
+            ))}
           </ul>
-          <p>
-            For multi-listing bookings, loop through the <code>entries</code>{" "}
-            array: <code>{"{% for entry in entries %}"}</code>. Each entry has{" "}
-            <code>entry.listing.name</code>,{" "}
-            <code>entry.attendee.quantity</code>,{" "}
-            <code>entry.attendee.date</code>, etc. The quantity and date are
-            per-listing &mdash; each entry shows the values for that specific
-            listing registration.
-          </p>
+          <p>{t("settings.advanced.email_variables.example_intro")}</p>
+          <pre>
+            <code>{LOOP_EXAMPLE}</code>
+          </pre>
+          <p>{t("settings.advanced.email_variables.not_available")}</p>
         </>,
       ),
       custom(

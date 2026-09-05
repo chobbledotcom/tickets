@@ -6,29 +6,14 @@
 import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { emailTemplateFields } from "#templates/components/email-template-fields.tsx";
+import {
+  LOOP_EXAMPLE,
+  TEMPLATE_VARIABLES,
+} from "#templates/components/email-template-reference.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 
 /* jscpd:ignore-end */
-
-// Liquid variables the confirmation template can use, shown in the reference
-// table below: [what you type, the message key describing it].
-const TEMPLATE_VARIABLES: [code: string, key: string][] = [
-  ["{{ listing_names }}", "listing_names"],
-  ["{{ ticket_url }}", "ticket_url"],
-  ["{{ attendee.name }}", "attendee_name"],
-  ["{{ attendee.email }}", "attendee_email"],
-  ["{{ attendee.phone }}", "attendee_phone"],
-  ["{{ attendee.address }}", "attendee_address"],
-  ["{{ attendee.special_instructions }}", "attendee_special_instructions"],
-  ["{{ entries }}", "entries"],
-  ["{{ entry.listing.name }}", "entry_listing_name"],
-  ["{{ entry.listing.is_paid }}", "entry_listing_is_paid"],
-  ["{{ entry.attendee.quantity }}", "entry_attendee_quantity"],
-  ["{{ entry.attendee.price_paid | currency }}", "entry_attendee_price_paid"],
-  ["{{ entry.attendee.date }}", "entry_attendee_date"],
-  ['{{ 2 | pluralize: "ticket", "tickets" }}', "pluralize"],
-];
 
 export const ConfirmationEmailTemplateForm = (
   s: AdvancedSettingsPageState,
@@ -63,6 +48,10 @@ export const ConfirmationEmailTemplateForm = (
           ))}
         </table>
       </div>
+      <p>{t("settings.advanced.email_variables.example_intro")}</p>
+      <pre>{LOOP_EXAMPLE}</pre>
+      <p>{t("settings.advanced.email_variables.filters_note")}</p>
+      <p>{t("settings.advanced.email_variables.not_available")}</p>
     </details>
     {emailTemplateFields("confirmation")(
       s.confirmationTemplates,
