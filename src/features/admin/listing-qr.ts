@@ -69,11 +69,8 @@ export const loadBookableDates = async (
 
 const withListing = withEntityLoader(getListingWithCount);
 
-/** Run `fn` only when `listing` has a standalone booking entry point; otherwise
- * 404. A child and a hidden package's member both have no public
- * page — their /ticket slug 404s — so the QR generator (which signs
- * `/ticket/<slug>/qr-book`) would mint a dead-end link. No query for either when
- * the respective feature is off, so existing behaviour is unchanged. */
+/** Run `fn` only when `listing` has a standalone booking entry point. A child
+ * without its own page cannot use a standalone booking QR. */
 const unlessChild = async (
   listing: ListingWithCount,
   fn: () => Promise<Response>,

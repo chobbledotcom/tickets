@@ -31,6 +31,7 @@ const validated = (overrides: Partial<ValidatedItem> = {}): ValidatedItem => ({
     slug: "priced",
     unit_price: 1000,
   }),
+  name: "Test Listing",
   ...overrides,
 });
 

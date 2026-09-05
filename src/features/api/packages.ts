@@ -42,12 +42,7 @@ import type { ServerContext } from "#routes/types.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import {
-  concealLineNames,
-  ctxStandInNames,
-  namesConcealed,
-  packagePrivacy,
-} from "#shared/package-privacy.ts";
+import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
 import type { Group } from "#types";
 
 /* jscpd:ignore-end */
@@ -111,9 +106,8 @@ const withPackageContext = withSlugLoaded<PackageContext>(
 
 /** The contact-field requirement a package booking can validate against: the
  * members' settings merged with their children's (a chosen add-on can add a
- * field). Published as one package-level value, so an API client — which cannot
- * see a hidden package's members through the listing API — knows what to submit
- * before POSTing. */
+ * field). Published as one package-level value, so a client knows what the
+ * package booking requires before it posts. */
 const packageMergedFields = (ctx: TicketCtx): string =>
   mergeListingFields(
     ctx.listings.flatMap((e) => [
@@ -143,9 +137,7 @@ export const handleGetPackage = withPackageContext(
     const holidays = await getActiveHolidays();
     const memberQuantities = fixedQuantitiesByListingId(tree);
     const bookableChildren = bookableChildIds(ctx.childrenByParentId);
-    const members = namesConcealed(
-      packagePrivacy(group.hide_package_listings, group.name),
-    )
+    const members = group.hide_package_listings
       ? undefined
       : ctx.listings.map((e) => {
           const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])

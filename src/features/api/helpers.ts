@@ -1,6 +1,5 @@
 import { bookingError, parseCustomPrice } from "#booking/form.ts";
 import { bookingLimiter } from "#db/booking-attempts.ts";
-import { isHiddenPackageMember } from "#db/groups.ts";
 import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
@@ -81,19 +80,13 @@ export const resolveCustomPrice = (
   return priceResult.ok ? priceResult.price : apiError(priceResult.error);
 };
 
-/** Look up an active listing by slug, returning a 404 response if
- * missing/inactive, or if it is the member of a HIDDEN package — such a member is
- * reachable only through its package, so the API must never expose or book it
- * standalone (mirroring the `/ticket/<member>` 404 on the web). Guards the detail,
- * availability, and book endpoints in one place. */
+/** Look up an active listing by slug. */
 export const findActiveListing = async (
   slug: string,
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return apiError(LISTING_NOT_FOUND, 404);
-  return (await isHiddenPackageMember(listing.id))
-    ? apiError(LISTING_NOT_FOUND, 404)
-    : listing;
+  return listing;
 };
 
 /** Parse a JSON request body, returning a 400 API response on failure */
@@ -153,9 +146,8 @@ export const withSlugLoaded =
       : handler(request, loaded, server);
   };
 
-/** Look up an active listing by slug, or respond — see {@link findActiveListing}.
- * The listing detail, availability, and book endpoints route through this, so
- * the slug-lookup + 404 (and the hidden-package-member suppression) live once. */
+/** Look up an active listing by slug, or respond. The detail, availability,
+ * and book endpoints share this slug lookup and 404. */
 export const withActiveListing =
   withSlugLoaded<ListingWithCount>(findActiveListing);
 

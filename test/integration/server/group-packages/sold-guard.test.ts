@@ -136,7 +136,7 @@ describeWithEnv(
         400,
         (body) => {
           expect(String(body.error)).toContain(
-            "hidden package has sold tickets",
+            "sold tickets that hide listing names",
           );
         },
       );

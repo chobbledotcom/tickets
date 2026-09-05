@@ -248,9 +248,7 @@ describeWithEnv("public API packages", { db: true }, () => {
   });
 
   test("GET merges a member's child fields into the package fields", async () => {
-    // A hidden package's members 404 through the listing API, so the bundle's
-    // field requirement — including what a chosen add-on can demand — must be
-    // discoverable at package level.
+    // The package reports every field that its own booking path requires.
     const { a, group } = await fixedPackage("Hidden Fields", "hidden-fields");
     const child = await createTestListing({
       fields: "email,phone",

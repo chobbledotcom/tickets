@@ -316,7 +316,6 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     expect(snapshot.parentsByChildId).toEqual(
       new Map([[child.id, [parent.id]]]),
     );
-    expect(snapshot.hiddenPackageMemberIds).toEqual(new Set([parent.id]));
     expect(snapshot.notificationPackages.displays.get(pkg.id)).toEqual({
       hideListings: true,
       name: "Snapshot package",

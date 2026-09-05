@@ -64,16 +64,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
-    test("a multi-item session with a now-hidden, deactivated member refunds without leaking the member name", async () => {
+    test("a standalone session keeps its listing name after it joins a concealing package", async () => {
       await setupStripe();
       const visible = await createTestListing({
         name: "Open Add-On",
         unitPrice: 500,
       });
       const group = await createHiddenPackageGroup();
-      // The standalone session was signed before this listing became a hidden
-      // package member; it is then deactivated, so per-item validation fails on
-      // it. The failure message must not expose the concealed member's name.
+      // Package concealment does not apply to this standalone booking path.
       const member = await createTestListing({
         groupId: group.id,
         name: "Concealed Member XYZ",
@@ -109,7 +107,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
         );
         const body = await response.text();
-        expect(body).not.toContain("Concealed Member XYZ");
+        expect(body).toContain("Concealed Member XYZ");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

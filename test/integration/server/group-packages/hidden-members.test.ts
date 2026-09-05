@@ -1,7 +1,6 @@
 /**
- * A package sold by its own name alone. Nothing it holds may be reached or
- * advertised on its own — not its page, not its QR code, not a share link on
- * the organiser's own screens.
+ * A package can conceal its contents on package booking and ticket surfaces.
+ * Its members keep their independent listing and booking paths.
  *
  * Sits beside the story `@story:bookings.selling-things-as-one-bundle`: these
  * own the branch cover, and the invariants that have no journey behind them.
@@ -48,7 +47,7 @@ describeWithEnv(
       expect(body).not.toContain("SecretVenue");
     });
 
-    test("a hidden package member's own /ticket slug 404s, never a standalone page", async () => {
+    test("a concealed package member keeps its own booking page", async () => {
       const { handleRequest } = await import("#routes");
       const { mockRequest } = await import("#test-utils/mocks.ts");
       const group = await createTestGroup({
@@ -59,13 +58,12 @@ describeWithEnv(
       await groups.table.update(group.id, { hidePackageListings: true });
       const listing = await member(group, "DirectMember");
 
-      // Only the package (group slug) is public; the member's own slug must not
-      // resolve to a standalone booking page.
       const res = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("DirectMember");
     });
 
-    test("a hidden package member's QR and qr-book 404 like its page", async () => {
+    test("a concealed package member keeps its QR booking paths", async () => {
       const { handleRequest } = await import("#routes");
       const { mockRequest } = await import("#test-utils/mocks.ts");
       const group = await createTestGroup({
@@ -77,9 +75,7 @@ describeWithEnv(
       const listing = await member(group, "QrMember");
 
       const qr = await handleRequest(mockRequest(`/ticket/${listing.slug}/qr`));
-      expect(qr.status).toBe(404);
-      // A validly-signed qr-book token for the member is still rejected — a
-      // hidden member is never bookable on its own, even direct-to-checkout.
+      expect(qr.status).toBe(200);
       const { buildQrBookPayload, signQrBookToken } = await import(
         "#shared/qr-token.ts"
       );
@@ -92,10 +88,10 @@ describeWithEnv(
           `/ticket/${listing.slug}/qr-book?t=${encodeURIComponent(token)}`,
         ),
       );
-      expect(qrBook.status).toBe(404);
+      expect(qrBook.status).not.toBe(404);
     });
 
-    test("a non-package group never exposes a hidden package's members", async () => {
+    test("a regular group shows a shared concealed-package member", async () => {
       const { handleRequest } = await import("#routes");
       const { mockRequest } = await import("#test-utils/mocks.ts");
       const pkg = await createTestGroup({
@@ -113,11 +109,11 @@ describeWithEnv(
         groupIds: [pkg.id, regular.id],
         name: "SharedMember",
       });
+      await member(regular, "OtherMember");
 
-      // The regular group's page must not show the member; with no other member
-      // it has nothing to book and 404s rather than leaking it.
       const res = await handleRequest(mockRequest(`/ticket/${regular.slug}`));
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("SharedMember");
     });
 
     test("a direct /ticket/<package> URL 404s once a member is deactivated", async () => {
@@ -143,26 +139,25 @@ describeWithEnv(
       expect(after.status).toBe(404);
     });
 
-    test("a hidden package member's admin detail suppresses share/QR affordances", async () => {
+    test("a concealed package member's admin detail offers share actions", async () => {
       const listing = await hiddenPackageMember("HideShare");
       const body = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      expect(body).not.toContain(`/admin/listing/${listing.id}/qr`);
-      expect(body).not.toContain(`/ticket/${listing.slug}`);
-      expect(body).toContain("buyers book it only through the package");
-      expect(body).not.toContain(`embed-script-${listing.id}`);
-      expect(body).not.toContain(`embed-iframe-${listing.id}`);
+      expect(body).toContain(`/admin/listing/${listing.id}/qr`);
+      expect(body).toContain(`/ticket/${listing.slug}`);
+      expect(body).toContain(`embed-script-${listing.id}`);
+      expect(body).toContain(`embed-iframe-${listing.id}`);
     });
 
-    test("a hidden package member's admin QR generator route 404s", async () => {
+    test("a concealed package member's admin QR generator serves", async () => {
       const listing = await hiddenPackageMember("HideQr");
       const res = await adminGet(`/admin/listing/${listing.id}/qr`);
-      res.body?.cancel();
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      await res.body?.cancel();
       const json = await adminGet(`/admin/listing/${listing.id}/qr.json`);
-      json.body?.cancel();
-      expect(json.status).toBe(404);
+      expect(json.status).toBe(200);
+      await json.body?.cancel();
     });
 
     test("a package's admin share links are gated on bookability", async () => {
@@ -184,10 +179,7 @@ describeWithEnv(
       expect(after).toContain("isn't currently bookable");
     });
 
-    test("a regular group whose only members are hidden-package members offers no share links", async () => {
-      // The member belongs to a hidden package AND a regular group. The public
-      // /ticket/<regular> drops the hidden member, leaving an empty visible set, so
-      // it 404s — the admin detail must not advertise that dead link.
+    test("a regular group can share a concealed-package member", async () => {
       const pkg = await createTestGroup({ isPackage: true, name: "HideOnly" });
       await groups.table.update(pkg.id, { hidePackageListings: true });
       const shared = await member(pkg, "Hidden Shared Member");
@@ -198,8 +190,7 @@ describeWithEnv(
       await assignListingsToGroup([shared.id], regular.id);
 
       const html = await (await adminGet(`/admin/groups/${regular.id}`)).text();
-      expect(html).not.toContain(`/ticket/${regular.slug}`);
-      expect(html).toContain("isn't currently bookable");
+      expect(html).toContain(`/ticket/${regular.slug}`);
     });
   },
 );

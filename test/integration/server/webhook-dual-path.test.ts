@@ -17,9 +17,7 @@ import type { Group, Listing } from "#types";
 /**
  * Paid orders booking the SAME listing through two paths at once — a package
  * line plus its own standalone line — exercised through the webhook: the
- * refund-placeholder path must keep per-line package identity (identical
- * slots would crash the store-and-refund), and the stale checks must judge
- * the standalone PATH even though a tagged line shares its listing id.
+ * refund-placeholder and success paths must keep per-line package identity.
  */
 
 /** A one-member paid bundle: the member sells for 1000 inside the package. */
@@ -138,7 +136,7 @@ const expectSavedAndRefunded = () =>
     },
   );
 
-describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
+describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => {
   test("stores one placeholder per path and refunds when capacity fails", async () => {
     await setupStripe();
     // One spot only: the two-path order (2 units) can never be honoured.
@@ -161,7 +159,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     await expectDualPathRefused(listing, group, stubs);
   });
 
-  test("a listing gone hidden mid-checkout refuses its standalone path", async () => {
+  test("package concealment does not invalidate its standalone path", async () => {
     await setupStripe();
     const { group, listing } = await paidBundle(
       "Quiet Bundle",
@@ -169,7 +167,6 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       "Quiet Tent",
       10,
     );
-    // Signed while the package showed its members…
     const stubs = await dualPathSession(
       "stale_dual",
       group,
@@ -177,15 +174,26 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       "stale@example.com",
       "Stale Buyer",
     );
-    // …then the operator hides them mid-checkout: the standalone page now
-    // 404s, so the untagged path must fail the stale check even though a
-    // tagged line shares its listing id — saved and refunded (one quantity-0
-    // placeholder per path), never a standalone ticket for a concealed
-    // listing.
     const { groups } = await import("#db/groups.ts");
     await groups.table.update(group.id, { hidePackageListings: true });
 
-    await expectDualPathRefused(listing, group, stubs);
+    try {
+      await assertJson(
+        handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        ),
+        200,
+        (json) => expect(json.processed).toBe(true),
+      );
+      await expectPathRows(listing.id, [
+        [0, 1],
+        [group.id, 1],
+      ]);
+      expect(stubs.mockRefund.calls.length).toBe(0);
+    } finally {
+      stubs.mockVerify.restore();
+      stubs.mockRefund.restore();
+    }
   });
 
   test("a non-first line deleted mid-checkout keeps a ghost for EVERY signed line", async () => {

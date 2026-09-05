@@ -1,4 +1,5 @@
-import { getHiddenPackageMemberIds } from "#db/groups.ts";
+import { lineGroupIds } from "#booking/signed-metadata.ts";
+import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { clearSessionTokens } from "#db/processed-payments.ts";
 import { unique } from "#fp";
@@ -18,6 +19,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { namesConcealedIn } from "#shared/package-privacy.ts";
 import { successPage } from "#templates/payment.tsx";
 
 /** The `session_id` query param of a payment callback, or "" when absent. */
@@ -41,14 +43,23 @@ const renderPaidSuccessPage = async (
   );
 };
 
-/** The thank-you redirect for a single-listing purchase, or "" when there is no
- * URL — suppressed entirely when the listing is a HIDDEN package's member. Its
- * `thank_you_url` would meta-refresh the success page to a listing the package
- * concealed, exposing it to a buyer who only ever saw the package name (the same
- * privacy invariant the signed-intent/free-redirect guard upholds, here for the
- * paid single-member fallback both success render paths share). */
-const singleListingThankYou = async (listingId: number): Promise<string> => {
-  if ((await getHiddenPackageMemberIds([listingId])).size > 0) return "";
+/** Whether any booked package path conceals listing names. */
+const pathsConcealListings = async (
+  packageGroupIds: Iterable<number>,
+): Promise<boolean> => {
+  const groupIds = [...packageGroupIds];
+  if (groupIds.length === 0) return false;
+  const displays = await getPackageDisplaysByIds(groupIds);
+  return namesConcealedIn(displays, groupIds);
+};
+
+/** The thank-you redirect for one listing, unless its booked package path
+ * conceals listing names. */
+const singleListingThankYou = async (
+  listingId: number,
+  packageGroupIds: Iterable<number>,
+): Promise<string> => {
+  if (await pathsConcealListings(packageGroupIds)) return "";
   const listing = await getListingWithCount(listingId);
   return listing?.thank_you_url.trim() ?? "";
 };
@@ -66,7 +77,12 @@ const processSessionAndRedirect = async (
   // booked listing ids, so it can't recover that URL once >1 listing is booked
   // — that path renders the success page directly here (below), where the
   // verified intent still holds it, rather than redirecting to the token path.
-  const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
+  const intent = validation.data.intent;
+  const packageGroupIds = lineGroupIds(intent.items);
+  const explicitThankYou =
+    intent.thankYouUrl && !(await pathsConcealListings(packageGroupIds))
+      ? intent.thankYouUrl
+      : "";
 
   // The ticket token is finalized atomically with the booking, so a racing
   // webhook and redirect always resolve the same attendee and token.
@@ -118,8 +134,11 @@ const processSessionAndRedirect = async (
   // listing lazily (the only place a thank-you URL is needed) so the webhook
   // path never loads it; a since-deleted listing simply yields no URL.
   let thankYouUrl = explicitThankYou;
-  if (!thankYouUrl && validation.data.intent.items.length === 1) {
-    thankYouUrl = await singleListingThankYou(result.listingId);
+  if (!thankYouUrl && intent.items.length === 1) {
+    thankYouUrl = await singleListingThankYou(
+      result.listingId,
+      packageGroupIds,
+    );
   }
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
@@ -134,7 +153,8 @@ const renderSuccessFromTokens = async (
   // Only tokens with a real (quantity > 0) line are valid: an all-ghost token's
   // /t link would 404, and a ghost line must not inflate the single-listing
   // thank-you check.
-  const { verifiedTokens, listingIds } = await verifyTokensWithRealLine(tokens);
+  const { verifiedTokens, listingIds, packageGroupIds } =
+    await verifyTokensWithRealLine(tokens);
 
   if (verifiedTokens.length === 0) {
     return paymentErrorResponse("Invalid payment callback");
@@ -142,12 +162,11 @@ const renderSuccessFromTokens = async (
 
   const ticketUrl = `/t/${verifiedTokens.join("+")}`;
 
-  // Only use thank_you_url for single-listing purchases — and never for a hidden
-  // package's sole member, whose URL would reveal the listing it concealed.
+  // Only use thank_you_url for one listing on paths that show listing names.
   const uniqueListingIds = unique(listingIds);
   const thankYouUrl =
     uniqueListingIds.length === 1
-      ? await singleListingThankYou(uniqueListingIds[0]!)
+      ? await singleListingThankYou(uniqueListingIds[0]!, packageGroupIds)
       : "";
 
   return renderPaidSuccessPage(thankYouUrl, ticketUrl);

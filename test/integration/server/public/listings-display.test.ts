@@ -12,6 +12,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
@@ -322,6 +323,29 @@ describeWithEnv(
 
       test("tells robots to index a listing anybody can find", async () => {
         const listing = await createTestListing();
+        expect(
+          (await robotsTagFor(`/ticket/${listing.slug}`)).get("x-robots-tag"),
+        ).toBe("index, follow");
+      });
+
+      test("indexes a visible listing inside a concealing package", async () => {
+        await enablePublicSite();
+        const group = await createTestGroup({
+          isPackage: true,
+          name: "Private Kit",
+        });
+        await groups.table.update(group.id, { hidePackageListings: true });
+        const listing = await createTestListing({
+          groupId: group.id,
+          name: "Separate Unit",
+        });
+
+        const html = await assertPublicHtml(
+          "/listings",
+          "Private Kit",
+          "Separate Unit",
+        );
+        expect(html).toContain(`href="/ticket/${listing.slug}"`);
         expect(
           (await robotsTagFor(`/ticket/${listing.slug}`)).get("x-robots-tag"),
         ).toBe("index, follow");

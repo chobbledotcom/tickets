@@ -87,7 +87,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     });
   });
 
-  test("refunds an inactive single listing without exposing its name", async () => {
+  test("names an inactive standalone listing", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 5,
@@ -107,7 +107,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       ),
     ).toEqual({
       detail: undefined,
-      error: "This listing is no longer accepting registrations.",
+      error: "Private workshop is no longer accepting registrations.",
       refunded: true,
       status: 410,
       success: false,
@@ -145,7 +145,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(refund.calls).toHaveLength(1);
   });
 
-  test("conceals an inactive member name in a hidden package", async () => {
+  test("names the package for an inactive concealed member", async () => {
     await setupStripe();
     const group = await createHiddenPackageGroup("Hidden pair");
     const first = await createTestListing({
@@ -175,11 +175,11 @@ describeWithEnv("paid item validation", { db: true }, () => {
           intent,
         ),
       ).error,
-    ).toBe("This listing is no longer accepting registrations.");
+    ).toBe("Hidden pair is no longer accepting registrations.");
     expect(refund.calls).toHaveLength(1);
   });
 
-  test("conceals a stale standalone member and fails the order closed", async () => {
+  test("keeps a standalone line after its listing joins a concealing package", async () => {
     await setupStripe();
     const group = await createHiddenPackageGroup("New hidden package");
     const member = await createTestListing({
@@ -204,7 +204,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
           intent,
         ),
       ).map((item) => item.expectedPrice),
-    ).toEqual([null, null]);
+    ).toEqual([500, 200]);
 
     await deactivateTestListing(member.id);
     using refund = stubRefundPayment("re_stale_hidden", 700);
@@ -215,7 +215,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
           intent,
         ),
       ).error,
-    ).toBe("This listing is no longer accepting registrations.");
+    ).toBe("Now secret is no longer accepting registrations.");
     expect(refund.calls).toHaveLength(1);
   });
 

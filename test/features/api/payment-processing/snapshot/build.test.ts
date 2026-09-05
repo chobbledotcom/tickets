@@ -9,7 +9,6 @@ import type {
 const rows = (overrides: Partial<SnapshotRows> = {}): SnapshotRows => ({
   childEdges: [],
   groups: [],
-  hiddenMemberIds: [],
   ledger: { hasLegs: false, ownerAttendeeId: null },
   listings: [],
   memberships: [],
@@ -101,12 +100,11 @@ describe("paid order snapshot builder", () => {
     ]);
   });
 
-  test("builds ledger, relationships, and hidden members", () => {
+  test("builds ledger and relationships", () => {
     const snapshot = buildPaidOrderSnapshot(
       [],
       rows({
         childEdges: [{ childId: 12, parentId: 11 }],
-        hiddenMemberIds: [12],
         ledger: { hasLegs: true, ownerAttendeeId: 5 },
         publicStatusIds: [9],
       }),
@@ -116,7 +114,6 @@ describe("paid order snapshot builder", () => {
     expect(snapshot.ledger).toEqual({ attendeeId: 5, status: "booked" });
     expect(snapshot.childrenByParentId).toEqual(new Map([[11, [12]]]));
     expect(snapshot.parentsByChildId).toEqual(new Map([[12, [11]]]));
-    expect(snapshot.hiddenPackageMemberIds).toEqual(new Set([12]));
     expect(snapshot.publicStatusId).toBe(9);
   });
 

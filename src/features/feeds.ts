@@ -21,10 +21,7 @@ import type { CoreListingFields } from "#routes/api/public-listing.ts";
 import { withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  classifyForDiscovery,
-  dropHiddenPackageMembers,
-} from "#routes/public/discovery.ts";
+import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {
   loadBookablePackages,
   publicGroupSummary,
@@ -95,16 +92,12 @@ type FeedData = { items: FeedItem[]; domain: string; title: string };
  * never syndicated (a feed item is a standalone `/ticket/<slug>` link, which a
  * booking can't start from), and a parent with no bookable child
  * is omitted (it would publish a link the gate rejects as sold out).
- * Packages are first-class products: the bundle itself is syndicated (booked
- * whole at `/ticket/<group-slug>`), so a hidden package stays discoverable even
- * though its member listings are dropped. */
+ * Packages are first-class products, so the bundle itself is syndicated at
+ * `/ticket/<group-slug>`. */
 const loadFeedData = async (): Promise<FeedData> => {
-  const { listings: allListings } = await loadSortedListings(
+  const { listings } = await loadSortedListings(
     (e) => isPublicListing(e) && !e.purchase_only && !isRegistrationClosed(e),
   );
-  // A hidden package's members are never syndicated standalone — only the
-  // package name is public.
-  const listings = await dropHiddenPackageMembers(allListings);
   const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(listings);
   const packages = (await loadBookablePackages()).map(
@@ -327,8 +320,9 @@ const filterCalendarFeedAttendees = async (
 
 /* jscpd:ignore-start */
 const buildCalendarFeed = async (request: Request): Promise<Response> => {
-  if (!settings.calendarFeedsEnabled)
+  if (!settings.calendarFeedsEnabled) {
     return new Response("Not found", { status: 404 });
+  }
   return withAuth(
     request,
     { allowApiKey: true, body: "json", roles: ["owner", "manager", "agent"] },

@@ -216,14 +216,6 @@
     "secondStart": 212
   },
   {
-    "first": "src/features/public/group-liveness.ts",
-    "firstStart": 270,
-    "hash": "acbab56af7ba36263258b6a4365f0a9eda046e576a78cf8b4138ac5d29d80071",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "src/features/public/groups.ts",
-    "secondStart": 107
-  },
-  {
     "first": "src/features/public/ticket-form.ts",
     "firstStart": 160,
     "hash": "f9f7319d095cdd723a406d0f86468fe859e7c7bc5a786c44fb598bfdffb2cfd7",

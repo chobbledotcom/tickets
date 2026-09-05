@@ -1,54 +1,5 @@
 import type { PackageDisplay } from "#db/groups.ts";
 
-/**
- * HIDDEN-PACKAGE PRIVACY — the one chokepoint deciding what a BUYER may see of
- * a package's member listings. A member name must NEVER reach a buyer-facing
- * surface, and every such surface resolves visibility through THIS module,
- * never by an ad hoc read of `hide_package_listings`.
- *
- * A surface added tomorrow takes a `PackagePrivacy` and cannot leak a name
- * without a visible bypass. Access-level guards live in db/groups.ts.
- */
-
-export type PackagePrivacy =
-  | { readonly kind: "visible" }
-  | { readonly kind: "hidden"; readonly packageName: string };
-
-const VISIBLE: PackagePrivacy = { kind: "visible" };
-
-/** The privacy of a package whose row is in hand (the booking ctx build, the
- * package API's group): hidden members stand behind the package's name. */
-export const packagePrivacy = (
-  hideListings: boolean,
-  packageName: string,
-): PackagePrivacy => (hideListings ? { kind: "hidden", packageName } : VISIBLE);
-
-/** The privacy of an order's loaded {@link PackageDisplay} (emails, SVG
- * tickets, ticket cards); a null display — not a package order — is visible. */
-export const packagePrivacyOfDisplay = (
-  display: PackageDisplay | null,
-): PackagePrivacy =>
-  display === null
-    ? VISIBLE
-    : packagePrivacy(display.hideListings, display.name);
-
-/** Whether the member names are concealed from buyers. */
-export const namesConcealed = (privacy: PackagePrivacy): boolean =>
-  privacy.kind === "hidden";
-
-/** For a HIDDEN package, replace each line's buyer-facing name with the
- * package name — hosted checkouts (Stripe/Square render the item name), the
- * /calculate quote, and the stored registration items all pass through here.
- * Prices, quantities and listing ids are untouched, so the webhook still
- * revalidates each member. A no-op for a visible package or a non-package. */
-export const concealMemberNames = <T extends { name: string }>(
-  items: T[],
-  privacy: PackagePrivacy,
-): T[] =>
-  privacy.kind === "hidden"
-    ? items.map((item) => ({ ...item, name: privacy.packageName }))
-    : items;
-
 /** Whether a SIGNED order's member names must be concealed, read fail-safe from
  * its persisted package group ids against displays the caller already holds.
  * Hidden when ANY booked package hides its listings.
@@ -65,21 +16,11 @@ export const namesConcealedIn = (
     (groupId) => displays.get(groupId)?.hideListings ?? true,
   );
 
-/** The stand-in names concealing a page's hidden bundles, for pages selling
- * several packages at once — the several-bundles form of
- * {@link concealMemberNames}. */
+/** Stand-in names for pages that sell several packages. */
 export type PackageStandIns = {
-  /** Hidden package name by ITS group id: renames the checkout lines TAGGED
-   * with that package. A line booked through a different path — a visible
-   * package, or the listing's own row — keeps its real name: the hidden
-   * bundle's contents stay concealed because only ITS OWN line is renamed,
-   * and a wrong-bundle label would mislead the buyer about what each line
-   * charges for. */
+  /** Package name by group id for lines booked through that package. */
   byGroupId: ReadonlyMap<number, string>;
-  /** Hidden package name by member/child listing id: renames UNTAGGED lines
-   * (a required child folded under a hidden bundle's member rides an untagged
-   * line) and feeds per-listing error text. Fail-safe by listing — an error
-   * about a hidden package's member never names it, whatever path it took. */
+  /** Package name by member id for package-page errors and conflict text. */
   byListingId: ReadonlyMap<number, string>;
 };
 
@@ -113,11 +54,7 @@ export const packageStandIns = (
   return { byGroupId, byListingId };
 };
 
-/** This page's hidden-package stand-ins: every HIDDEN package's name by group
- * id (for its tagged lines) and by member/child listing id (for folded-child
- * lines, error text, and conflict notes). Buyer-facing line names and error
- * text resolve through these maps so a concealed member is never named. Empty
- * when nothing on the page is concealed. */
+/** Build stand-ins from the package facts already loaded for a booking page. */
 export const ctxStandInNames = (ctx: {
   packages: readonly StandInPackage[];
   childrenByParentId: ReadonlyMap<
@@ -131,10 +68,9 @@ export const ctxStandInNames = (ctx: {
     ),
   );
 
-/** Replace each concealed line's buyer-facing name with its package's name: a
- * line TAGGED with a hidden package takes that package's name; an untagged
- * line (a folded child) is concealed by listing id. Prices, quantities and
- * listing ids are untouched. A no-op when nothing on the page is concealed. */
+/** Replace each concealed package line's buyer-facing name with its package's
+ * name. Standalone and visible-package lines keep the listing name. Prices,
+ * quantities and listing ids are untouched. */
 export const concealLineNames = <
   T extends {
     name: string;
@@ -150,7 +86,7 @@ export const concealLineNames = <
     : items.map((item) => {
         const standIn =
           item.packageGroupId === undefined
-            ? standIns.byListingId.get(item.listingId)
+            ? undefined
             : standIns.byGroupId.get(item.packageGroupId);
         return standIn === undefined ? item : { ...item, name: standIn };
       });

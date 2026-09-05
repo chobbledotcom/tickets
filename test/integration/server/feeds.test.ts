@@ -81,7 +81,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
     });
   });
 
-  test("syndicates a hidden package's bundle, never its members", async () => {
+  test("syndicates a package and its standalone member", async () => {
     await enablePublicSite();
     const group = await createHiddenPackageGroup("Bundle");
     await createTestListing({
@@ -89,11 +89,9 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
       maxAttendees: 100,
       name: "Hidden Member",
     });
-    // The package is the public product: the bundle itself rides the feed
-    // (linking /ticket/<group-slug>) while its concealed member stays out.
     await expectHtml(await handleRequest(mockRequest(feedPath)), {
-      contains: ["Bundle", `/ticket/${group.slug}`],
-      notContains: ["Hidden Member"],
+      contains: ["Bundle", `/ticket/${group.slug}`, "Hidden Member"],
+      notContains: [],
     });
   });
 

@@ -40,6 +40,7 @@ const allocatedUnitsByChild = (intent: BookingIntent): Map<number, number> => {
 export type ValidatedItem = {
   item: BookingItem;
   listing: ListingWithCount;
+  name: string;
   expectedPrice: number | null;
 };
 

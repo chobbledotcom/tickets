@@ -582,7 +582,7 @@ describeWithEnv(
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      expect(result.error).toContain("hidden package");
+      expect(result.error).toContain("package hides listing names");
     });
 
     test("imports a listing with many parents in one batched insert", async () => {

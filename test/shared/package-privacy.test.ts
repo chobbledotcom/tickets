@@ -4,54 +4,13 @@ import { buildTicketListing } from "#booking/model.ts";
 
 import {
   concealLineNames,
-  concealMemberNames,
   ctxStandInNames,
-  namesConcealed,
   namesConcealedIn,
-  packagePrivacy,
-  packagePrivacyOfDisplay,
   packageStandIns,
 } from "#shared/package-privacy.ts";
 
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { treePackage } from "#test-utils/package-cap-fixtures.ts";
-
-const HIDDEN = packagePrivacy(true, "Welcome Pack");
-const SHOWN = packagePrivacy(false, "Welcome Pack");
-
-describe("package privacy (pure)", () => {
-  test("a hidden package conceals member names behind the package name", () => {
-    expect(namesConcealed(HIDDEN)).toBe(true);
-  });
-
-  test("a visible package (and a non-package) names members as usual", () => {
-    expect(namesConcealed(SHOWN)).toBe(false);
-    expect(packagePrivacyOfDisplay(null)).toEqual({ kind: "visible" });
-  });
-
-  test("a display resolves through the same constructor", () => {
-    expect(
-      packagePrivacyOfDisplay({ hideListings: true, name: "Box" }),
-    ).toEqual({ kind: "hidden", packageName: "Box" });
-  });
-
-  test("concealMemberNames renames every line, keeping ids and prices", () => {
-    const items = [
-      { listingId: 1, name: "Secret A", unitPrice: 500 },
-      { listingId: 2, name: "Secret B", unitPrice: 700 },
-    ];
-    const result = concealMemberNames(items, HIDDEN);
-    expect(result.map((i) => i.name)).toEqual(["Welcome Pack", "Welcome Pack"]);
-    // Ids/prices are untouched so the webhook still revalidates each member.
-    expect(result.map((i) => i.listingId)).toEqual([1, 2]);
-    expect(result.map((i) => i.unitPrice)).toEqual([500, 700]);
-  });
-
-  test("concealMemberNames is a no-op for a visible order", () => {
-    const items = [{ name: "Member" }];
-    expect(concealMemberNames(items, SHOWN)).toBe(items);
-  });
-});
 
 describe("per-path stand-in names (several bundles per page)", () => {
   const packages = [
@@ -110,12 +69,10 @@ describe("per-path stand-in names (several bundles per page)", () => {
       { listingId: 1, name: "Secret A", packageGroupId: 8, unitPrice: 500 },
       { listingId: 1, name: "Secret A", unitPrice: 500 },
     ];
-    // The untagged line is concealed by listing id (fail-safe: a folded child
-    // of a hidden member rides an untagged line); the visible package's
-    // tagged line keeps its real name.
+    // Neither line uses the hidden package path.
     expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
       "Secret A",
-      "Secret Box",
+      "Secret A",
     ]);
   });
 

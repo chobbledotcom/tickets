@@ -83,25 +83,18 @@ export const packageMemberIds = (
 /** The member listings a page ALSO sells standalone: those the visitor added
  * by the listing's own slug (beside its package). Non-members always sell
  * standalone, so they are not listed here; on a package-less page the set is
- * empty and unused. A HIDDEN package's member never sells standalone — only
- * its package's name is public — whatever the URL claims. */
+ * empty and unused. */
 export const explicitStandaloneIds = (
   listings: readonly { id: number; slug: string }[],
   packages: readonly TreePackage[],
   slugs: readonly string[],
 ): Set<number> => {
   const memberIds = packageMemberIds(packages);
-  const concealedIds = packageMemberIds(
-    packages.filter((pkg) => pkg.hideListings),
-  );
   const slugSet = new Set(slugs);
   return new Set(
     listings
       .filter(
-        (listing) =>
-          memberIds.has(listing.id) &&
-          !concealedIds.has(listing.id) &&
-          slugSet.has(listing.slug),
+        (listing) => memberIds.has(listing.id) && slugSet.has(listing.slug),
       )
       .map((listing) => listing.id),
   );

@@ -20,11 +20,7 @@ import {
 } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import {
-  getHiddenPackageMemberIds,
-  groups,
-  listingGroups,
-} from "#db/groups.ts";
+import { groups, listingGroups } from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
@@ -105,9 +101,9 @@ export const getListingAndGroups = async (
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
- * tab may gate on. A child listing or a hidden package's member has no
- * standalone public page, so its share / QR / booking-link affordances are
- * suppressed (invariant I3). `hasEmailableAttendees` gates the owner-only Email
+ * tab may gate on. A child listing has no standalone public page, so its share,
+ * QR, and booking-link actions are suppressed. `hasEmailableAttendees` gates
+ * the owner-only Email
  * action so it never links to the compose page's 404 (empty-recipient) path; it
  * is resolved lazily by the Actions tab's `prepare` hook (via
  * {@link listingHasEmailableAttendees}) rather than in the page-wide load, so
@@ -116,7 +112,6 @@ export const getListingAndGroups = async (
 export type LoadedListing = {
   listing: ListingWithCount;
   isChild: boolean;
-  isHiddenPackageMember: boolean;
   hasEmailableAttendees: boolean;
 };
 
@@ -125,16 +120,11 @@ export type LoadedListing = {
  *  deferred to the Actions tab, the only surface that reads it. */
 export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
   loadListingOr(id, async (listing) => {
-    const [isChild, hiddenMemberIds] = await Promise.all([
-      // A `bookable_alone` child keeps its standalone share / QR affordances, so
-      // gate on non-standalone children only (matches the public booking guard).
-      anyNonStandaloneChild([id]),
-      getHiddenPackageMemberIds([id]),
-    ]);
+    // A child that can be booked alone keeps its share and QR actions.
+    const isChild = await anyNonStandaloneChild([id]);
     return {
       hasEmailableAttendees: false,
       isChild,
-      isHiddenPackageMember: hiddenMemberIds.size > 0,
       listing,
     };
   });
@@ -197,7 +187,7 @@ const noteAuthorNames = async (
  *  individual attendee rows are never loaded or decrypted here (see
  *  {@link getListingOverviewStats}). */
 export const loadListingOverviewPanel = async (
-  { listing, isChild, isHiddenPackageMember }: LoadedListing,
+  { listing, isChild }: LoadedListing,
   canViewLedger = false,
 ): Promise<JSX.Element> => {
   // Housekeeping the old detail view ran on every load: clear reservations
@@ -220,7 +210,6 @@ export const loadListingOverviewPanel = async (
     allowedDomain: getEffectiveDomain(),
     groupContext,
     isChild,
-    isHiddenPackageMember,
     ...(canViewLedger ? { ledgerHref: listingLedgerHref(listing.id) } : {}),
     isOwner: canViewLedger,
     listing,

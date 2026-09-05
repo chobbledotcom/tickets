@@ -12,10 +12,7 @@ import {
 } from "#routes/api/public-listing.ts";
 /* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
-import {
-  classifyForDiscovery,
-  dropHiddenPackageMembers,
-} from "#routes/public/discovery.ts";
+import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {
   loadBookablePackages,
   publicGroupSummary,
@@ -46,11 +43,8 @@ export const handleListListings = async (): Promise<Response> => {
   // client lists it as bookable then hits the parent-sold-out outcome at detail.
   const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(visibleListings);
-  // Drop the members of a HIDDEN package too: they have no standalone page (their
-  // /ticket slug 404s), so the API must not list them as bookable either. A
-  // `bookable_alone` child is NOT dropped — it keeps its own catalog entry.
-  const bookableListings = await dropHiddenPackageMembers(
-    visibleListings.filter((e) => !nonStandaloneChildIds.has(e.id)),
+  const bookableListings = visibleListings.filter(
+    (e) => !nonStandaloneChildIds.has(e.id),
   );
   const groupRemaining = await getGroupRemainingByListingId(bookableListings);
   const listings = bookableListings.map((e) => {
@@ -65,8 +59,7 @@ export const handleListListings = async (): Promise<Response> => {
       : publicListing;
   });
   // Packages are first-class products: a bookable package bundle is listed by
-  // name/slug (booked whole at /ticket/<group-slug>), so a hidden package stays
-  // discoverable even though its member listings are dropped above.
+  // name/slug and is booked whole at /ticket/<group-slug>.
   const packages = (await loadBookablePackages()).map((loaded) => ({
     ...publicGroupSummary(loaded),
     url: `/ticket/${loaded.group.slug}`,

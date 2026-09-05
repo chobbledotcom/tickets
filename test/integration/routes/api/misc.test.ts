@@ -121,8 +121,8 @@ describePublicApi(() => {
     });
   });
 
-  describe("hidden package members are never exposed by the API", () => {
-    /** A hidden package with one member listing, returning the member. */
+  describe("package concealment stays within package booking", () => {
+    /** A concealing package with one member listing. */
     const hiddenPackageMember = async () => {
       const group = await createTestGroup({
         isPackage: true,
@@ -132,12 +132,10 @@ describePublicApi(() => {
       return createTestListing({ groupId: group.id, name: "Secret Member" });
     };
 
-    test("lists the bundle, not the member, on GET /api/listings", async () => {
-      await hiddenPackageMember();
+    test("lists the bundle and the standalone member", async () => {
+      const member = await hiddenPackageMember();
       const { listings } = await fetchListingsList();
-      expect(listings).toEqual([]);
-      // The package itself is a first-class product: discoverable by
-      // name/slug with its /ticket booking URL, members withheld.
+      expect(listings.map((listing) => listing.slug)).toContain(member.slug);
       const raw = await (
         await handleRequest(jsonRequest("/api/listings"))
       ).json();
@@ -146,11 +144,11 @@ describePublicApi(() => {
       expect(raw.packages[0].url).toBe(`/ticket/${raw.packages[0].slug}`);
     });
 
-    test("404s the member's detail, availability and book endpoints", async () => {
+    test("serves the member's detail, availability and book endpoints", async () => {
       const member = await hiddenPackageMember();
-      expect((await fetchListingBySlug(member.slug)).response.status).toBe(404);
-      expect((await fetchAvailability(member.slug)).response.status).toBe(404);
-      expect((await bookListing(member.slug)).response.status).toBe(404);
+      expect((await fetchListingBySlug(member.slug)).response.status).toBe(200);
+      expect((await fetchAvailability(member.slug)).response.status).toBe(200);
+      expect((await bookListing(member.slug)).response.status).toBe(200);
     });
 
     test("a VISIBLE package member stays listable and bookable", async () => {

@@ -90,10 +90,7 @@ export const handleTicketQrGet = async (
   { slug }: { slug: string },
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  // A child has no standalone booking page, so its QR — which
-  // encodes `/ticket/<child>` — would be a dead end. A hidden package's member
-  // is the same: its page now 404s, so its QR must too. Suppress both like the
-  // rest of the listing's share affordances.
+  // A child has no standalone booking page, so its QR would be a dead end.
   if (listing) {
     return (await lacksStandalonePublicPage(listing.id))
       ? notFoundResponse()

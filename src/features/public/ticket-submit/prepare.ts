@@ -27,6 +27,7 @@ import type { TicketCtx } from "#routes/public/types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import {
   applyQrTokenOverride,
@@ -95,11 +96,24 @@ export const prepareOrder = async (
   // concealed member — resolved per listing, since a page can carry several
   // packages with different hide flags.
   const standIns = ctxStandInNames(ctx);
+  const shownSelectedIds = new Set(
+    tree.nodes
+      .filter(
+        (node) =>
+          node.visibility === "SHOWN" && nodeQuantities.get(node.nodeKey)! > 0,
+      )
+      .map((node) => node.listingId),
+  );
+  const dayErrorStandIns = new Map(
+    [...standIns.byListingId].filter(
+      ([listingId]) => !shownSelectedIds.has(listingId),
+    ),
+  );
   const dayResult = await resolveDayCount(
     pageSelected,
     form,
     date,
-    standIns.byListingId,
+    dayErrorStandIns,
   );
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
@@ -211,14 +225,18 @@ export const prepareOrder = async (
   };
 };
 
-/** The thank-you URL to honour for a submission's post-booking redirect: a
- * genuine single standalone listing's configured URL. A hidden package is never
- * treated as "single listing" here — even with one member, redirecting to that
- * member's thank-you page would reveal the member the package concealed — so it
- * resolves to null and the booking lands on the generic reserved page. (Folding
- * a required child is handled separately: the single page ctx still drives this,
- * so a child fold never drops a single parent's URL.) */
-export const singleListingThankYouUrl = (ctx: TicketCtx): string | null =>
-  ctx.listings.length === 1 && !ctx.packages.some((pkg) => pkg.hideListings)
+/** The thank-you URL for one listing unless the order uses a concealing package
+ * path. Folded children do not change the page listing count. */
+export const singleListingThankYouUrl = (
+  ctx: TicketCtx,
+  items: readonly CheckoutItem[],
+): string | null =>
+  ctx.listings.length === 1 &&
+  !items.some(
+    (item) =>
+      item.packageGroupId !== undefined &&
+      ctx.packages.find((pkg) => pkg.groupId === item.packageGroupId)!
+        .hideListings,
+  )
     ? ctx.listings[0]!.listing.thank_you_url
     : null;

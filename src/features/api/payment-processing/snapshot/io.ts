@@ -124,14 +124,6 @@ const snapshotStatements = (
       groupIds,
     ),
     statement(
-      `SELECT DISTINCT groupListing.listing_id
-       FROM group_listings AS groupListing
-       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
-       WHERE ${selectIn("groupListing.listing_id", listingIds)}
-         AND groupRow.is_package = 1 AND groupRow.hide_package_listings = 1`,
-      listingIds,
-    ),
-    statement(
       `SELECT parent_listing_id, child_listing_id
        FROM listing_parents AS listingParent
        WHERE ${selectIn("listingParent.parent_listing_id", listingIds)}
@@ -272,7 +264,6 @@ export const loadPaidOrderSnapshot = async (
     groupsResult,
     membershipsResult,
     dayPricesResult,
-    hiddenMembersResult,
     childEdgesResult,
     modifiersResult,
     modifierScopesResult,
@@ -286,9 +277,6 @@ export const loadPaidOrderSnapshot = async (
       parentId: row.parent_listing_id,
     })),
     groups: await mapGroups(resultRows<RawGroupRow>(groupsResult!)),
-    hiddenMemberIds: resultRows<ListingIdRow>(hiddenMembersResult!).map(
-      (row) => row.listing_id,
-    ),
     ledger: {
       hasLegs: ledger.has_legs === 1,
       ownerAttendeeId: ledger.owner_attendee_id,

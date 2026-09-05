@@ -66,7 +66,7 @@ const closedPackage = async (
 };
 
 describeWithEnv("paid item validation boundaries", { db: true }, () => {
-  test("returns the generic closed result for a single listing", async () => {
+  test("names a closed standalone listing", async () => {
     await setupStripe();
     const listing = await createTestListing({
       closesAt: pastCloseTime(),
@@ -83,7 +83,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       ),
     ).toEqual({
       detail: undefined,
-      error: "Sorry, registration closed while you were completing payment.",
+      error: `Sorry, registration for ${listing.name} closed while you were completing payment.`,
       refunded: true,
       status: 410,
       success: false,
@@ -140,7 +140,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
     expect(refund.calls).toHaveLength(1);
   });
 
-  test("fails one standalone listing that joined a hidden package", async () => {
+  test("keeps a standalone listing that joined a concealing package", async () => {
     const group = await createHiddenPackageGroup("Hidden after checkout");
     const member = await createTestListing({
       groupId: group.id,
@@ -152,7 +152,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
     ]);
     const intent = bookingIntent([{ e: member.id, p: 500, q: 1 }]);
 
-    expect(await pricesFor("cs_items_one_hidden", 500, intent)).toEqual([null]);
+    expect(await pricesFor("cs_items_one_hidden", 500, intent)).toEqual([500]);
   });
 
   test("fails one child that can no longer be booked by itself", async () => {

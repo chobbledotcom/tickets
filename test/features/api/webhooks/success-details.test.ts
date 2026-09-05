@@ -190,7 +190,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
     expect(html).toContain("https://visible.example.com/thanks");
   });
 
-  test("tokens hide the thank-you URL of a hidden package member", async () => {
+  test("tokens hide the thank-you URL for a concealing package path", async () => {
     const group = await createHiddenPackageGroup();
     const listing = await createTestListing({
       groupId: group.id,

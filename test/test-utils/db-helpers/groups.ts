@@ -51,9 +51,7 @@ export const createTestGroup = async (
   return group;
 };
 
-/** Create a package group and hide its member listings — the "hidden package"
- * setup the buyer-privacy tests share (the members must never surface publicly;
- * only the package itself is a product). Returns the created group. */
+/** Create a package that hides member names on its own buyer surfaces. */
 export const createHiddenPackageGroup = async (
   name = "Bundle",
 ): Promise<Group> => {
@@ -144,10 +142,7 @@ export type SoldPackageMember = {
   member: { id: number; max_attendees: number; name: string; slug: string };
 };
 
-/** Creates a package group with one member listing and one attendee booked onto
- *  that member, then links the attendee to the package group. The `hidden`
- *  flag picks between a hidden package (members concealed from public listing)
- *  and a visible package (members shown normally). */
+/** Create one sold package member. The flag controls its package-path name. */
 export const createSoldPackageMember = async (
   name: string,
   hidden: boolean,

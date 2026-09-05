@@ -69,7 +69,6 @@ export const renderListingDetail = (opts: DetailOptions): string =>
       allowedDomain: opts.allowedDomain,
       groupContext: opts.groupContext,
       isChild: opts.isChild,
-      isHiddenPackageMember: opts.isHiddenPackageMember,
       isOwner: opts.isOwner ?? false,
       ledgerHref: opts.moneyTotals
         ? listingLedgerHref(opts.listing.id)

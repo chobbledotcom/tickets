@@ -10,7 +10,7 @@
  */
 
 import { fillTogether } from "#db/fill-together.ts";
-import { getHiddenPackageMemberIds, groups } from "#db/groups.ts";
+import { groups } from "#db/groups.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
 import { allPageItemsRead } from "#db/site-page-items.ts";
@@ -69,25 +69,19 @@ const resolveTargets = async (
     });
   };
   // A referenced listing is live iff its own booking page would serve: it is
-  // active and not a renewal tier, has a standalone public page (not a
-  // non-standalone child, not a hidden package member — both 404 their
-  // /ticket/<slug>), and is not a parent the classifier projects sold out. One
+  // active and not a renewal tier, has a standalone public page, and is not a
+  // parent the classifier projects sold out. One
   // classification over the referenced listings serves the whole set; it loads
   // each parent's children itself, so the sold-out projection is complete.
-  const [{ nonStandaloneChildIds, soldOutParentIds }, hiddenMemberIds] =
-    await Promise.all([
-      referenced.length > 0
-        ? classifyForDiscovery(referenced)
-        : {
-            nonStandaloneChildIds: new Set<number>(),
-            soldOutParentIds: new Set<number>(),
-          },
-      getHiddenPackageMemberIds(listingIds),
-    ]);
+  const { nonStandaloneChildIds, soldOutParentIds } =
+    referenced.length > 0
+      ? await classifyForDiscovery(referenced)
+      : {
+          nonStandaloneChildIds: new Set<number>(),
+          soldOutParentIds: new Set<number>(),
+        };
   const bookableLeaf = (listing: { id: number }): boolean =>
-    !nonStandaloneChildIds.has(listing.id) &&
-    !soldOutParentIds.has(listing.id) &&
-    !hiddenMemberIds.has(listing.id);
+    !nonStandaloneChildIds.has(listing.id) && !soldOutParentIds.has(listing.id);
   for (const listing of referenced) {
     setLeaf(
       "listing",

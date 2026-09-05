@@ -47,7 +47,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
 
     expect(await processPaymentSession(id, data)).toEqual({
       detail: undefined,
-      error: "This listing is no longer accepting registrations.",
+      error: `${listing.name} is no longer accepting registrations.`,
       refunded: false,
       status: 410,
       success: false,

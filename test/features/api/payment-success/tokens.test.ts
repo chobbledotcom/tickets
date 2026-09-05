@@ -124,7 +124,7 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     await expectTokenLinkWithoutRedirect(response, tokens);
   });
 
-  test("hides a hidden package member's thank-you URL", async () => {
+  test("hides the thank-you URL for a concealing package path", async () => {
     await setupStripe();
     const group = await createHiddenPackageGroup("Concealed Pkg");
     const member = await paidListing({
@@ -139,6 +139,25 @@ describeWithEnv("the paid success token page", { db: true }, () => {
 
     const page = await expectTokenLinkWithoutRedirect(response, tokens);
     expect(page).not.toContain("concealed-thanks");
+  });
+
+  test("shows a concealing package member's standalone thank-you URL", async () => {
+    await setupStripe();
+    const group = await createHiddenPackageGroup("Other booking path");
+    const member = await paidListing({
+      groupId: group.id,
+      thankYouUrl: "https://example.com/standalone-thanks",
+    });
+
+    const { response } = await renderTokenPage({
+      items: [lineFor(member)],
+      sessionId: "cs_tok_hidden_member_standalone",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "url=https://example.com/standalone-thanks",
+    );
   });
 
   test("shows a visible package member's thank-you URL", async () => {

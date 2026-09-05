@@ -355,19 +355,11 @@ export const createAttendeeForSession = async (
 
   // All-or-nothing: a capacity failure rolled the transaction back (no legs).
   if (!result.success) {
-    // A package order must never name a member in the capacity error — a hidden
-    // package would leak the listing it conceals. Same guard as the free path.
-    // A non-package order names the first validated item whose listing the
-    // refusal says is out of room, else its first item.
-    const errorName = pricingIntent.items.some(
-      (item) => item.packageGroupId !== undefined,
-    )
-      ? ""
-      : refusedOrderItem(
-          validatedItems,
-          (item) => item.listing.id,
-          result.listingIds,
-        ).listing.name;
+    const errorName = refusedOrderItem(
+      validatedItems,
+      (item) => item.listing.id,
+      result.listingIds,
+    ).name;
     return {
       detail: formatPostPaymentError(errorName),
       ok: false,

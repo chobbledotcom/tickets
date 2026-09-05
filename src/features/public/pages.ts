@@ -45,11 +45,7 @@ import {
   type GroupWithMembers,
   type ListingWithCount,
 } from "#types";
-import {
-  applyParentSoldOut,
-  classifyForDiscovery,
-  dropHiddenPackageMembers,
-} from "./discovery.ts";
+import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { loadPublicGroups } from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -187,14 +183,11 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
   request,
 ) =>
   requirePublicSite(async () => {
-    const [publicGroups, { listings: allListings }, nav] = await Promise.all([
+    const [publicGroups, { listings }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
     ]);
-    // A hidden package's members never appear standalone — only the package
-    // name is public — so drop them before building the individual cards.
-    const listings = await dropHiddenPackageMembers(allListings);
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
     const classification = await classifyForDiscovery(listings);

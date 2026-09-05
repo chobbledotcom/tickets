@@ -247,10 +247,7 @@ describeWithEnv(
         );
       });
 
-      test("a date search still splits out a sold-out package whose daily member is hidden", async () => {
-        // With hide_package_listings the daily member never appears as its own
-        // card, so the page has no date-filter form — but a ?date= URL must
-        // still judge the package and move it into the Unavailable section.
+      test("a date search splits out a sold-out package and member", async () => {
         await enablePublicSite();
         const date = addDays(todayInTz("UTC"), 2);
         const pkg = await createTestGroup({
@@ -275,7 +272,7 @@ describeWithEnv(
           "Hidden Member Package",
           "Plain Listing",
         );
-        expect(filtered).not.toContain("listings-date-filter");
+        expect(filtered).toContain("listings-date-filter");
         expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
         expect(filtered.indexOf("Plain Listing")).toBeLessThan(
           filtered.indexOf("Unavailable"),

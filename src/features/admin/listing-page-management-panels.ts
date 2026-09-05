@@ -103,9 +103,7 @@ export const loadListingAttributesPanel: ListingPanelLoader =
       ListingAttributesPanel({ attributes, listing, selectedOptionIds }),
   );
 
-/** Build the QR tab: the booking-QR generation form. The tab is hidden for a
- *  child / hidden-package listing (no standalone booking page), so the loader
- *  assumes a QR-eligible listing. */
+/** Build the QR tab. A child without a standalone page does not show this tab. */
 export const loadListingQrPanel = async ({
   listing,
 }: LoadedListing): Promise<JSX.Element> => {

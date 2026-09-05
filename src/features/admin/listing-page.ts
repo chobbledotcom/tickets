@@ -212,8 +212,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       "entity.tab.questions",
       loadListingQuestionsPanel,
     ),
-    // Staff-only, and a child / hidden-package listing has no standalone
-    // booking page, so its booking QR would point at a dead /ticket link.
+    // Staff-only. A non-standalone child's QR would point at a dead link.
     // Hidden in read-only mode too: the QR form posts to
     // POST /admin/listing/:id/qr, which the read-only guard default-denies —
     // so a followable tab would carry an unsubmittable form.
@@ -221,7 +220,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       "qr",
       "entity.tab.qr",
       (entity) => loadListingQrPanel(entity),
-      staffAnd((entity) => !entity.isChild && !entity.isHiddenPackageMember),
+      staffAnd((entity) => !entity.isChild),
     ),
     {
       labelKey: "entity.tab.activity",

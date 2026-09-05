@@ -111,22 +111,16 @@ const PublicUrlRow = ({
   listing,
   allowedDomain,
   ticketUrl,
-  shareSuppressed,
   isChild,
 }: {
   listing: ListingWithCount;
   allowedDomain: string;
   ticketUrl: string;
-  shareSuppressed: boolean;
   isChild: boolean;
 }): JSX.Element =>
-  shareSuppressed ? (
+  isChild ? (
     UnavailablePublicUrlRow({
-      message: t(
-        isChild
-          ? "listings_table.child_share_suppressed"
-          : "listings_table.package_member_share_suppressed",
-      ),
+      message: t("listings_table.child_share_suppressed"),
     })
   ) : (
     <tr>
@@ -211,7 +205,6 @@ export const ListingDetailsTable = ({
   capacity,
   sharedRows,
   isChild,
-  isHiddenPackageMember,
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
@@ -222,9 +215,8 @@ export const ListingDetailsTable = ({
   capacity: ListingCapacityRowsProps;
   sharedRows: DetailRow[];
   isChild: boolean;
-  isHiddenPackageMember: boolean;
 }): JSX.Element => {
-  const shareSuppressed = isChild || isHiddenPackageMember;
+  const shareSuppressed = isChild;
   const copyRows = buildListingCopyRows(
     listing,
     embedScriptCode,
@@ -305,7 +297,6 @@ export const ListingDetailsTable = ({
           allowedDomain={allowedDomain}
           isChild={isChild}
           listing={listing}
-          shareSuppressed={shareSuppressed}
           ticketUrl={ticketUrl}
         />
         {copyRows.map(CopyableInputRow)}
