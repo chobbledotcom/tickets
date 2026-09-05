@@ -212,7 +212,7 @@ describeWithEnv(
     test("a zero-quantity line books on an over-full listing and both paths agree", async () => {
       // The no-op line demands nothing, so the preflight admits the cart and
       // the write lands every row. The listing's running total sits past its
-      // cap, which today refuses the write the preflight passed.
+      // cap, which the pre-change write refused while the preflight passed.
       const listing = await createTestListing({ maxAttendees: 2 });
       await bookAttendee(listing, { quantity: 2 });
       await listingAggregates.update(listing.id, {
