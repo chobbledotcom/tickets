@@ -39,8 +39,14 @@ export const dateToRange = (date: string, durationDays = 1): DayRange => {
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
 };
 
+/** The day-window expressions a counting subquery compares against: bound
+ * parameter tokens in the write predicate, dayDemand column references in
+ * the batch clauses. Never a raw date — a date reaches the statement only
+ * through bind, so this type is deliberately not a DayRange. */
+export type CountingDayRange = { endSql: string; startSql: string };
+
 type CountSqlValues = {
-  dayRange: DayRange | null;
+  dayRange: CountingDayRange | null;
   excludeAttendeeId: SqlParameterToken | null;
   listingId: SqlParameterToken;
 };
@@ -63,7 +69,7 @@ const attendeeExclusionSql = (
     : `AND ${alias}.attendee_id != ${excludeAttendeeId} `;
 
 const dailyListingCountSql = (
-  values: CountSqlValues & { dayRange: DayRange },
+  values: CountSqlValues & { dayRange: CountingDayRange },
 ): string =>
   `(SELECT CASE
           WHEN ${capacityRuleTypeSql("perDateCap", "listing.listing_type")} THEN (
@@ -73,8 +79,8 @@ const dailyListingCountSql = (
                "attendee",
                values.excludeAttendeeId,
              )}
-               AND attendee.start_at < ${values.dayRange.endAt}
-               AND attendee.end_at > ${values.dayRange.startAt}
+               AND attendee.start_at < ${values.dayRange.endSql}
+               AND attendee.end_at > ${values.dayRange.startSql}
           )
           ELSE listing.booked_quantity
         END
@@ -136,7 +142,7 @@ const buildGroupExclusionSql = (
 // (Self-exclusion is write-only — the batch never excludes — so those branches
 // keep the correlated "groupRow.id" they are only ever emitted with.)
 const buildDailyGroupCountSql = (
-  dayRange: DayRange,
+  dayRange: CountingDayRange,
   excludeAttendeeId: SqlParameterToken | null,
   groupRef: string,
 ): string =>
@@ -161,8 +167,8 @@ const buildDailyGroupCountSql = (
                "attendee",
                excludeAttendeeId,
              )}
-              AND attendee.start_at < ${dayRange.endAt}
-              AND attendee.end_at > ${dayRange.startAt}
+              AND attendee.start_at < ${dayRange.endSql}
+              AND attendee.end_at > ${dayRange.startSql}
          ), 0))`;
 
 const buildUndatedGroupCountSql = (
@@ -179,7 +185,7 @@ const buildUndatedGroupCountSql = (
          ${buildGroupExclusionSql(excludeAttendeeId, ALL_GROUP_MEMBER_SQL)})`;
 
 export const buildGroupCountSql = (
-  dayRange: DayRange | null,
+  dayRange: CountingDayRange | null,
   excludeAttendeeId: SqlParameterToken | null,
   groupRef = "groupRow.id",
 ): string => {
@@ -224,10 +230,10 @@ const buildDayCapacitySql = (
 const bindDayRange = (
   bind: SqlParameter,
   dayRange: DayRange | null,
-): DayRange | null =>
+): CountingDayRange | null =>
   dayRange === null
     ? null
-    : { endAt: bind(dayRange.endAt), startAt: bind(dayRange.startAt) };
+    : { endSql: bind(dayRange.endAt), startSql: bind(dayRange.startAt) };
 
 /**
  * Build the WHERE clause for capacity checking on listing_attendees.

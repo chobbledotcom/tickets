@@ -6,7 +6,7 @@ import type {
 import { buildCapacityCondition, capacityConditionFor } from "#db/capacity.ts";
 import {
   buildBatchCapacitySql,
-  buildManyFitsSql,
+  buildFitsSql,
   type CapacityBucket,
   type CartDemand,
 } from "#db/capacity-batch.ts";
@@ -29,7 +29,7 @@ import type { ListingCapacityRow } from "./types.ts";
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity condition: it demands no places,
- * so it must land on a full or inactive listing too. An order-level extra
+ * so it can land on a full or inactive listing too. An order-level extra
  * condition still applies to it. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
@@ -271,15 +271,15 @@ const linesDemand = (
   return demand;
 };
 
-/** One primary round trip answering whether each cart demand fits. */
-const manyFitsOnPrimary = async (demands: CartDemand[]): Promise<boolean[]> => {
-  const { sql, args } = buildManyFitsSql(demands);
+/** One primary round trip answering whether one cart demand fits. */
+const fitsOnPrimary = async (demand: CartDemand): Promise<boolean> => {
+  const { sql, args } = buildFitsSql(demand);
   const [result] = await queryBatchPrimary([{ args, sql }]);
   const row = requireValue(
-    resultRows<Record<string, number>>(result!)[0],
+    resultRows<{ fits: number }>(result!)[0],
     "The fits query returned no row",
   );
-  return demands.map((_, index) => row[`fit${index}`] === 1);
+  return row.fits === 1;
 };
 
 /** The write's guarded statements run in write order, each seeing the rows the
@@ -328,9 +328,7 @@ export const refusedOrderUnfitListingIds = async (
   }
 
   const prefixFits = async (length: number): Promise<boolean> =>
-    (
-      await manyFitsOnPrimary([linesDemand(lines.slice(0, length), factsById)])
-    )[0]!;
+    fitsOnPrimary(linesDemand(lines.slice(0, length), factsById));
   // A race that freed the room again before this read names no listing.
   if (await prefixFits(lines.length)) return [];
   let shortestUnfit = lines.length;

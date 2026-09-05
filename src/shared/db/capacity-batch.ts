@@ -13,7 +13,7 @@
 import {
   buildGroupCountSql,
   buildListingCountSql,
-  type DayRange,
+  type CountingDayRange,
   dateToRange,
 } from "#db/capacity.ts";
 import type { SqlStatement } from "#db/client.ts";
@@ -63,9 +63,9 @@ const dayDemandRows = (bucket: CapacityBucket, bind: SqlParameter): string =>
     })
     .join(", ");
 
-const DAY_RANGE: DayRange = {
-  endAt: "dayDemand.column2",
-  startAt: "dayDemand.column1",
+const DAY_RANGE: CountingDayRange = {
+  endSql: "dayDemand.column2",
+  startSql: "dayDemand.column1",
 };
 
 /** Refuse when any single day's occupancy plus that day's cart demand, on
@@ -201,19 +201,11 @@ export const buildBatchCapacitySql = (
       `SELECT ${fitExpression({ groupDemand, listingDemand }, bind)} AS fits`,
   );
 
-/** One SELECT answering several cart demands at once — `fit0`, `fit1`, … each
- * 1/0. A refusal diagnosis asks every prefix of an order this way, so its
- * cost stays one query however long the order is. */
-export const buildManyFitsSql = (demands: CartDemand[]): SqlStatement => {
-  if (demands.length === 0) {
-    throw new Error("A fits query needs at least one cart demand");
-  }
-  return numberedStatement(
-    (bind) =>
-      `SELECT ${demands
-        .map(
-          (demand, index) => `(${fitExpression(demand, bind)}) AS fit${index}`,
-        )
-        .join(", ")}`,
+/** One SELECT answering one cart demand with `fits` (1/0). A refusal
+ * diagnosis asks each prefix probe this way; the probes are sequential (each
+ * halving step depends on the last), so one demand per query is all the
+ * search needs. */
+export const buildFitsSql = (demand: CartDemand): SqlStatement =>
+  numberedStatement(
+    (bind) => `SELECT (${fitExpression(demand, bind)}) AS fits`,
   );
-};

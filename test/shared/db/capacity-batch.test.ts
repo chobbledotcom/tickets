@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { dateToRange } from "#db/capacity.ts";
 import {
   buildBatchCapacitySql,
-  buildManyFitsSql,
+  buildFitsSql,
   type CapacityBucket,
   type CartDemand,
 } from "#db/capacity-batch.ts";
@@ -152,7 +152,7 @@ describe("buildBatchCapacitySql", () => {
   });
 });
 
-describe("buildManyFitsSql", () => {
+describe("buildFitsSql", () => {
   const demandFor = (listingId: number, undated: number): CartDemand => ({
     groupDemand: new Map(),
     listingDemand: new Map([
@@ -160,30 +160,17 @@ describe("buildManyFitsSql", () => {
     ]),
   });
 
-  test("answers each cart demand in its own numbered column", () => {
-    const { args, sql } = buildManyFitsSql([
-      demandFor(LISTING, 2),
-      demandFor(8, 3),
-    ]);
-    expect(sql).toContain(") AS fit0");
-    expect(sql).toContain(") AS fit1");
-    // One comma between the two demand columns keeps them separate selects.
-    expect(sql).toContain(") AS fit0, (");
+  test("answers one cart demand's fit in one column", () => {
+    const { args, sql } = buildFitsSql(demandFor(LISTING, 2));
+    expect(sql).toContain("AS fits");
     expect(sql).toContain("+ 2 <=");
-    expect(sql).toContain("+ 3 <=");
-    expect(args).toEqual([LISTING, 8]);
+    expect(args).toEqual([LISTING]);
   });
 
   test("a demand with no clauses trivially fits", () => {
-    expect(buildManyFitsSql([demandFor(LISTING, 0)])).toEqual({
+    expect(buildFitsSql(demandFor(LISTING, 0))).toEqual({
       args: [],
-      sql: "SELECT (1) AS fit0",
+      sql: "SELECT (1) AS fits",
     });
-  });
-
-  test("refuses to build a query for no demands at all", () => {
-    expect(() => buildManyFitsSql([])).toThrow(
-      "A fits query needs at least one cart demand",
-    );
   });
 });

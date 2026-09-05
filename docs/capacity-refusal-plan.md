@@ -3,8 +3,9 @@
 Issue: chobbledotcom/tickets#2194. Review thread:
 <https://github.com/chobbledotcom/tickets/pull/2127#discussion_r3842274321>.
 
-Status: behaviour contract, revised after an adversarial review. A human must
-approve this version before implementation starts.
+Status: approved by a human after an adversarial revision, then implemented in
+this repository. This document points at the code and tests that carry each
+decision; where they differ from the plan, the code is the authority.
 
 ## Current-system value
 
@@ -72,7 +73,7 @@ still enforces every order-level condition (modifier stock, ledger replay)
 through the extra condition, and the row still writes, so the operator keeps the
 record.
 
-This choice needs human approval before implementation.
+This choice was approved before implementation.
 
 ## Valid states
 
@@ -208,15 +209,16 @@ the write aborts on.
 ## PR shape
 
 One vertical pull request. The three gaps are one invariant — the read paths and
-the write path agree, and refusals name a culprit — and they land in the same
-two files. Splitting the SQL rewrite from the diagnosis change would stack two
-PRs over the same contract with no independent behavior between them.
+the write path agree, and refusals name a culprit. Splitting the SQL rewrite
+from the diagnosis change would stack two PRs over the same contract with no
+independent behavior between them.
 
 The built modules: `src/shared/db/capacity-batch.ts` holds the cart read SQL
-(`CapacityBucket`, `CartDemand`, `buildBatchCapacitySql`, `buildManyFitsSql`);
-`src/shared/db/capacity.ts` keeps the write predicate and now exports the
-counting subqueries (`buildListingCountSql`, `buildGroupCountSql`) the batch
-clauses reuse; the diagnosis and the demand aggregation live in
+(`CapacityBucket`, `CartDemand`, `buildBatchCapacitySql`, `buildFitsSql`);
+`src/shared/db/capacity.ts` keeps the write predicate and exports the counting
+subqueries (`buildListingCountSql`, `buildGroupCountSql`) the batch clauses
+reuse, over the `CountingDayRange` expressions that keep dates bound; the
+diagnosis and the demand aggregation live in
 `src/shared/db/attendees/capacity/checks.ts`. `capacity.ts` dropped from 425 to
 292 lines, so no file sits over the 400-line target.
 
@@ -242,5 +244,6 @@ clauses reuse; the diagnosis and the demand aggregation live in
    and the logarithmic refusal budget; the test that names the deleted per-line
    mechanism is renamed to pin the flat search.
 
-After the candidate is stable: `nix develop -c deno task precommit` and
-`nix develop -c deno task precommit:mutation`.
+After the candidate was stable, both gates ran clean:
+`nix develop -c deno task precommit` and
+`nix develop -c deno task precommit:mutation` (all mutants killed).
