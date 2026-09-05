@@ -33,6 +33,27 @@ inputs:
 runs:
   using: composite
   steps:
+    # The CLI runs with SENTRY_AUTH_TOKEN in its environment, so it is
+    # downloaded at a pinned version and verified against a recorded sha256
+    # before it runs. The standalone binary is the same one the npm wrapper
+    # spawns, without npm's unpinned dependency resolution.
+    - name: Install sentry-cli
+      if: ${{ inputs.auth_token != '' }}
+      shell: bash
+      env:
+        SENTRY_CLI_VERSION: "3.7.0"
+        # sha256 of sentry-cli-Linux-x86_64 for the version above.
+        SENTRY_CLI_SHA256: cec71d46a7cc394c94b6e75f1601985c710d457376c546ef3975567b3671563b
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/bin"
+        curl -fsSL -o "$RUNNER_TEMP/bin/sentry-cli" \
+          "https://github.com/getsentry/sentry-cli/releases/download/${SENTRY_CLI_VERSION}/sentry-cli-Linux-x86_64"
+        echo "${SENTRY_CLI_SHA256}  $RUNNER_TEMP/bin/sentry-cli" \
+          | sha256sum --check --strict -
+        chmod +x "$RUNNER_TEMP/bin/sentry-cli"
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
     # Inject debug IDs into the bundle and its map *before* deploy, so the code
     # that actually runs in Bunny carries the IDs Sentry matches maps by. This
     # is filename-independent, which matters because we can't predict the path
@@ -49,7 +70,7 @@ runs:
       run: |
         js="$(deno run --allow-read --allow-write \
           scripts/sentry-debug-ids.ts prepare "${{ inputs.file }}")"
-        npx @sentry/cli@^2 sourcemaps inject "$js" "$js.map"
+        sentry-cli sourcemaps inject "$js" "$js.map"
         grep -q "_sentryDebugIds" "$js" || {
           echo "::error::sentry-cli injected no debug ID into $js"
           exit 1
@@ -74,6 +95,6 @@ runs:
       run: |
         js="$(deno run --allow-read scripts/sentry-debug-ids.ts \
           js-path "${{ inputs.file }}")"
-        npx @sentry/cli@^2 sourcemaps upload \
+        sentry-cli sourcemaps upload \
           --release "${{ inputs.release }}" \
           "$js" "$js.map"

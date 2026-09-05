@@ -65,11 +65,17 @@ jobs:
         uses: ./.github/actions/setup-deno
 
       - name: Install cloudflared
+        env:
+          CLOUDFLARED_VERSION: "2026.8.3"
+          # sha256 of cloudflared-linux-amd64 for the version above.
+          CLOUDFLARED_SHA256: f29324fe934d1e100617484c78deef803c4dc2cd351d645bbde42e96b4fccc5e
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bin"
           curl -fsSL -o "$RUNNER_TEMP/bin/cloudflared" \
-            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+            "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64"
+          echo "${CLOUDFLARED_SHA256}  $RUNNER_TEMP/bin/cloudflared" \
+            | sha256sum --check --strict -
           chmod +x "$RUNNER_TEMP/bin/cloudflared"
           # $GITHUB_PATH only affects later steps, so verify via the full path here.
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
