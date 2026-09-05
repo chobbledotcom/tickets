@@ -2,12 +2,13 @@
  * The cart read preflight's SQL: whether a whole cart's demand fits right now.
  * It reuses the write predicate's counting subqueries from `#db/capacity.ts`,
  * so the read-time preflight and the write-time guard can never count
- * capacity differently.
+ * capacity differently. The public checkout books every dated line on one
+ * date and filters zero quantities before the preflight, so multi-date carts
+ * and zero-quantity lines reach these clauses only from an operator's
+ * hand-built creation or edit.
  *
- * One clause per listing and per group, whatever the day count. Each clause
- * carries the bucket's per-day demands as a VALUES table, so a cart of 12
- * daily lines at the 90-day maximum stays far under SQLite's expression-depth
- * limit instead of emitting 1080 ANDed clauses.
+ * One clause per listing and per group, the bucket's per-day demands as a
+ * VALUES table — far under SQLite's expression-depth limit at 12 x 90 days.
  */
 
 import {
@@ -185,26 +186,13 @@ const fitExpression = (demand: CartDemand, bind: SqlParameter): string => {
       GROUP_UNDATED,
     ),
   ];
-  return clauses.length === 0
-    ? "1"
-    : `CASE WHEN ${clauses.join(" AND ")} THEN 1 ELSE 0 END`;
+  return clauses.length === 0 ? "1" : `(${clauses.join(" AND ")})`;
 };
 
-/** One SELECT returning `fits` (1/0) for a whole cart's combined demand. */
-export const buildBatchCapacitySql = (
-  listingDemand: Map<number, CapacityBucket>,
-  groupDemand: Map<number, CapacityBucket>,
-): SqlStatement =>
-  numberedStatement(
-    (bind) =>
-      `SELECT ${fitExpression({ groupDemand, listingDemand }, bind)} AS fits`,
-  );
-
-/** One SELECT answering one cart demand with `fits` (1/0). A refusal
- * diagnosis asks each prefix probe this way; the probes are sequential (each
+/** One SELECT returning `fits` (1/0): does this cart demand fit right now?
+ * The checkout preflight asks once for the whole cart; a refusal diagnosis
+ * asks each write-order prefix this way. The probes are sequential (each
  * halving step depends on the last), so one demand per query is all the
  * search needs. */
-export const buildFitsSql = (demand: CartDemand): SqlStatement =>
-  numberedStatement(
-    (bind) => `SELECT (${fitExpression(demand, bind)}) AS fits`,
-  );
+export const buildCartCapacitySql = (demand: CartDemand): SqlStatement =>
+  numberedStatement((bind) => `SELECT ${fitExpression(demand, bind)} AS fits`);

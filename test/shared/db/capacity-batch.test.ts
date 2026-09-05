@@ -2,15 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { dateToRange } from "#db/capacity.ts";
 import {
-  buildBatchCapacitySql,
-  buildFitsSql,
+  buildCartCapacitySql,
   type CapacityBucket,
   type CartDemand,
 } from "#db/capacity-batch.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
 /**
- * Pure unit tests for the cart read preflight's SQL builders. Behaviour
+ * Pure unit tests for the cart read preflight's SQL builder. Behaviour
  * against a real database lives in the availability suites; these lock the
  * clause shape — one clause per listing and per group, whatever the day
  * count — and the argument order the preflight and the diagnosis probes
@@ -22,7 +21,7 @@ const QTY = 2;
 const DAY = "2026-05-01";
 const { startAt, endAt } = dateToRange(DAY);
 
-describe("buildBatchCapacitySql", () => {
+describe("buildCartCapacitySql", () => {
   /** A bucket as the demand fold produces it: every unit in `everyDay` is a
    * date-less line, so the running total and its last-undated snapshot both
    * hold the bucket's whole demand. */
@@ -44,8 +43,14 @@ describe("buildBatchCapacitySql", () => {
     };
   };
 
+  /** A cart demand carrying only listing buckets — the common shape. */
+  const demandWith = (listing: Map<number, CapacityBucket>): CartDemand => ({
+    groupDemand: new Map(),
+    listingDemand: listing,
+  });
+
   test("no demand at all trivially fits", () => {
-    expect(buildBatchCapacitySql(new Map(), new Map())).toEqual({
+    expect(buildCartCapacitySql(demandWith(new Map()))).toEqual({
       args: [],
       sql: "SELECT 1 AS fits",
     });
@@ -53,25 +58,23 @@ describe("buildBatchCapacitySql", () => {
 
   test("an empty bucket produces no clause", () => {
     expect(
-      buildBatchCapacitySql(new Map([[LISTING, bucket([], 0)]]), new Map()),
+      buildCartCapacitySql(demandWith(new Map([[LISTING, bucket([], 0)]]))),
     ).toEqual({ args: [], sql: "SELECT 1 AS fits" });
   });
 
   test("date-less listing demand checks the running total against the cap", () => {
-    const { sql, args } = buildBatchCapacitySql(
-      new Map([[LISTING, bucket([], QTY)]]),
-      new Map(),
+    const { sql, args } = buildCartCapacitySql(
+      demandWith(new Map([[LISTING, bucket([], QTY)]])),
     );
     expect(args).toEqual([LISTING]);
     expect(sql).toContain(`+ ${QTY} <=`);
     expect(sql).toContain("id = ?1 AND active = 1");
-    expect(sql).toContain("THEN 1 ELSE 0 END AS fits");
+    expect(sql).toContain(") AS fits");
   });
 
   test("a single remaining unit of demand still gets its clause", () => {
-    const { sql } = buildBatchCapacitySql(
-      new Map([[LISTING, bucket([], 1)]]),
-      new Map(),
+    const { sql } = buildCartCapacitySql(
+      demandWith(new Map([[LISTING, bucket([], 1)]])),
     );
     expect(sql).toContain("+ 1 <=");
   });
@@ -96,9 +99,8 @@ describe("buildBatchCapacitySql", () => {
         undatedOnly: 1,
       },
     ]) {
-      const { sql } = buildBatchCapacitySql(
-        new Map([[LISTING, component]]),
-        new Map(),
+      const { sql } = buildCartCapacitySql(
+        demandWith(new Map([[LISTING, component]])),
       );
       expect(sql).toContain("+ 1 <=");
     }
@@ -108,23 +110,24 @@ describe("buildBatchCapacitySql", () => {
     // A two-day dated unit bumps the running total once, and a date-less
     // unit after it reads that total — not the dated unit once per occupied
     // day. The whole bucket would say 5; the undated statements see 3.
-    const { sql } = buildBatchCapacitySql(
-      new Map([
-        [
-          LISTING,
-          {
-            everyDay: 0,
-            perDay: new Map([
-              [DAY, 2],
-              ["2026-05-02", 2],
-            ]),
-            runningTotal: 3,
-            throughLastUndated: 3,
-            undatedOnly: 1,
-          },
-        ],
-      ]),
-      new Map(),
+    const { sql } = buildCartCapacitySql(
+      demandWith(
+        new Map([
+          [
+            LISTING,
+            {
+              everyDay: 0,
+              perDay: new Map([
+                [DAY, 2],
+                ["2026-05-02", 2],
+              ]),
+              runningTotal: 3,
+              throughLastUndated: 3,
+              undatedOnly: 1,
+            },
+          ],
+        ]),
+      ),
     );
     expect(sql).toContain("+ 3 <=");
     expect(sql).not.toContain("+ 5 <=");
@@ -132,20 +135,21 @@ describe("buildBatchCapacitySql", () => {
 
   test("per-day listing demand is one clause carrying a VALUES row per day", () => {
     const other = dateToRange("2026-05-02");
-    const { args, sql } = buildBatchCapacitySql(
-      new Map([
-        [
-          LISTING,
-          bucket(
-            [
-              [DAY, 1],
-              ["2026-05-02", 3],
-            ],
-            0,
-          ),
-        ],
-      ]),
-      new Map(),
+    const { args, sql } = buildCartCapacitySql(
+      demandWith(
+        new Map([
+          [
+            LISTING,
+            bucket(
+              [
+                [DAY, 1],
+                ["2026-05-02", 3],
+              ],
+              0,
+            ),
+          ],
+        ]),
+      ),
     );
     expect(args).toEqual([LISTING, startAt, endAt, other.startAt, other.endAt]);
     expect(occurrences(flatSql(sql), "dayDemand.column3")).toBe(1);
@@ -155,10 +159,10 @@ describe("buildBatchCapacitySql", () => {
   });
 
   test("group demand folds the cart's date-less units into every day and keeps the running-total clause", () => {
-    const { args, sql } = buildBatchCapacitySql(
-      new Map(),
-      new Map([[9, bucket([[DAY, 2]], 3)]]),
-    );
+    const { args, sql } = buildCartCapacitySql({
+      groupDemand: new Map([[9, bucket([[DAY, 2]], 3)]]),
+      listingDemand: new Map(),
+    });
     // The per-day clause carries the day's 2 booked units beside the 3
     // date-less units that occupy the group every day; the undated clause
     // counts the whole 5-unit bucket against the group's running total.
@@ -170,9 +174,8 @@ describe("buildBatchCapacitySql", () => {
 
   test("several group days share one VALUES table and one group id slot", () => {
     const other = dateToRange("2026-05-02");
-    const { args, sql } = buildBatchCapacitySql(
-      new Map(),
-      new Map([
+    const { args, sql } = buildCartCapacitySql({
+      groupDemand: new Map([
         [
           9,
           bucket(
@@ -184,7 +187,8 @@ describe("buildBatchCapacitySql", () => {
           ),
         ],
       ]),
-    );
+      listingDemand: new Map(),
+    });
 
     expect(args).toEqual([9, startAt, endAt, other.startAt, other.endAt]);
     expect(sql.match(/group_id = \?1/gu)).toHaveLength(2);
@@ -192,44 +196,34 @@ describe("buildBatchCapacitySql", () => {
   });
 
   test("date-less-only group demand emits a single total clause", () => {
-    const { args, sql } = buildBatchCapacitySql(
-      new Map(),
-      new Map([[9, bucket([], 3)]]),
-    );
+    const { args, sql } = buildCartCapacitySql({
+      groupDemand: new Map([[9, bucket([], 3)]]),
+      listingDemand: new Map(),
+    });
     expect(sql).toContain("+ 3 <=");
     expect(sql).not.toContain("start_at");
     expect(args).toEqual([9]);
   });
-});
-
-describe("buildFitsSql", () => {
-  const demandFor = (listingId: number, undated: number): CartDemand => ({
-    groupDemand: new Map(),
-    listingDemand: new Map([
-      [
-        listingId,
-        {
-          everyDay: undated,
-          perDay: new Map(),
-          runningTotal: undated,
-          throughLastUndated: undated,
-          undatedOnly: 0,
-        },
-      ],
-    ]),
-  });
 
   test("answers one cart demand's fit in one column", () => {
-    const { args, sql } = buildFitsSql(demandFor(LISTING, 2));
+    const { args, sql } = buildCartCapacitySql(
+      demandWith(
+        new Map([
+          [
+            LISTING,
+            {
+              everyDay: 0,
+              perDay: new Map(),
+              runningTotal: 2,
+              throughLastUndated: 2,
+              undatedOnly: 2,
+            },
+          ],
+        ]),
+      ),
+    );
     expect(sql).toContain("AS fits");
     expect(sql).toContain("+ 2 <=");
     expect(args).toEqual([LISTING]);
-  });
-
-  test("a demand with no clauses trivially fits", () => {
-    expect(buildFitsSql(demandFor(LISTING, 0))).toEqual({
-      args: [],
-      sql: "SELECT (1) AS fits",
-    });
   });
 });

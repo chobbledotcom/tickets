@@ -5,8 +5,7 @@ import type {
 } from "#db/attendee-types.ts";
 import { buildCapacityCondition, capacityConditionFor } from "#db/capacity.ts";
 import {
-  buildBatchCapacitySql,
-  buildFitsSql,
+  buildCartCapacitySql,
   type CapacityBucket,
   type CartDemand,
 } from "#db/capacity-batch.ts";
@@ -244,7 +243,7 @@ export const checkBatchAvailabilityImpl = async (
   const groupDemand = aggregateDemand(context, (_listing, item) =>
     listingGroups.idsFor(membership, item.listingId),
   );
-  const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
+  const { sql, args } = buildCartCapacitySql({ groupDemand, listingDemand });
   const row = await requireOne<{ fits: number }>(sql, args);
   return row.fits === 1;
 };
@@ -294,7 +293,7 @@ const linesDemand = (
 
 /** One primary round trip answering whether one cart demand fits. */
 const fitsOnPrimary = async (demand: CartDemand): Promise<boolean> => {
-  const { sql, args } = buildFitsSql(demand);
+  const { sql, args } = buildCartCapacitySql(demand);
   const [result] = await queryBatchPrimary([{ args, sql }]);
   const row = requireValue(
     resultRows<{ fits: number }>(result!)[0],
@@ -309,7 +308,8 @@ const fitsOnPrimary = async (demand: CartDemand): Promise<boolean> => {
  * its predecessors is the one named — the statement the write aborted on. A
  * shared group limit counts, whatever dates the lines sit on. Prefix fits
  * only shrink as lines are added, so a binary search finds the first unfit
- * prefix in a logarithmic number of probes.
+ * prefix in a logarithmic number of probes. The order is trustworthy:
+ * annotateOrderParents maps the caller's bookings 1:1 without sorting.
  *
  * The reads run on the primary because the refused write did. A replica can lag
  * behind the booking that took the last place, and the isolate's caches can
