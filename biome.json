@@ -18,7 +18,9 @@
       "**/*.tsx",
       "!src/static",
       "!src/ui/static",
-      "!src/ui/client/scanner.js"
+      "!src/ui/client/scanner.js",
+      "!**/.pi-worktrees/**",
+      "!**/.security-worktrees/**"
     ]
   },
   "formatter": {

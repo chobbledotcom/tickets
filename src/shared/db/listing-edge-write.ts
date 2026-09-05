@@ -77,6 +77,31 @@ const requireExists = (
   if (count !== expected) throw new TransactionValidationError(message);
 };
 
+/** Whether any of these listings sits inside a package group. The hidden-only
+ *  form also requires the package to hide what is inside it. */
+const packageMembershipExists = (
+  listingSlots: string,
+  hiddenOnly: boolean,
+): string =>
+  `EXISTS(SELECT 1
+           FROM group_listings AS membership
+                JOIN groups AS package
+                  ON package.id = membership.group_id
+           WHERE membership.listing_id IN (${listingSlots})
+             AND package.is_package = 1${hiddenOnly ? " AND package.hide_package_listings = 1" : ""})`;
+
+/** Whether any parent→child edge names one of these listings on that side of
+ *  the edge. */
+const edgeExists = (
+  edgeColumn: "child_listing_id" | "parent_listing_id",
+  listingSlots: string,
+): string =>
+  `EXISTS(SELECT 1 FROM listing_parents
+           WHERE ${edgeColumn} IN (${listingSlots}))`;
+
+const listingCount = (listingSlots: string): string =>
+  `(SELECT COUNT(*) FROM listings WHERE id IN (${listingSlots}))`;
+
 /** The edge-state checks shared by both writers, in one SELECT. `parentIds`/`
  *  `childIds` are the role id sets; each set is bound once and its slots
  *  reused by every check that reads it, so the query never builds an empty
@@ -95,33 +120,14 @@ export const guardEdgeWriteTx = async (
       numberedStatement((bind) => {
         const childSlots = uniqueChildIds.map(bind).join(", ");
         const parentSlots = uniqueParentIds.map(bind).join(", ");
-        return `SELECT EXISTS(
-                        SELECT 1
-                          FROM group_listings AS childMembership
-                          JOIN groups AS childGroup
-                            ON childGroup.id = childMembership.group_id
-                         WHERE childMembership.listing_id IN (${childSlots})
-                           AND childGroup.is_package = 1
-                     ) AS child_is_package_member,
-                     EXISTS(
-                       SELECT 1
-                         FROM group_listings AS parentMembership
-                         JOIN groups AS parentGroup
-                           ON parentGroup.id = parentMembership.group_id
-                        WHERE parentMembership.listing_id IN (${parentSlots})
-                          AND parentGroup.is_package = 1
-                          AND parentGroup.hide_package_listings = 1
-                     ) AS parent_is_hidden_package_member,
-                     (SELECT COUNT(*) FROM listings
-                        WHERE id IN (${childSlots})) AS child_count,
-                     (SELECT COUNT(*) FROM listings
-                        WHERE id IN (${parentSlots})) AS parent_count,
-                     EXISTS(SELECT 1 FROM listing_parents
-                              WHERE child_listing_id IN (${parentSlots}))
-                        AS parent_has_parent,
-                     EXISTS(SELECT 1 FROM listing_parents
-                              WHERE parent_listing_id IN (${childSlots}))
-                        AS child_has_children`;
+        // One fact per line, named for the role set it reads.
+        return `SELECT
+          ${packageMembershipExists(childSlots, false)} AS child_is_package_member,
+          ${packageMembershipExists(parentSlots, true)} AS parent_is_hidden_package_member,
+          ${listingCount(childSlots)} AS child_count,
+          ${listingCount(parentSlots)} AS parent_count,
+          ${edgeExists("child_listing_id", parentSlots)} AS parent_has_parent,
+          ${edgeExists("parent_listing_id", childSlots)} AS child_has_children`;
       }),
     ),
   );
