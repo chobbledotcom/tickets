@@ -238,15 +238,18 @@ describeWithEnv(
         maxAttendees: 10,
       });
       expect(
-        await assertConsistent([
-          {
-            date: "2026-05-01",
-            durationDays: 2,
-            listingId: daily.id,
-            quantity: 1,
-          },
-          { listingId: standard.id, quantity: 1 },
-        ]),
+        await assertConsistent(
+          [
+            {
+              date: "2026-05-01",
+              durationDays: 2,
+              listingId: daily.id,
+              quantity: 1,
+            },
+            { listingId: standard.id, quantity: 1 },
+          ],
+          "2026-05-01",
+        ),
       ).toBe(true);
     });
 

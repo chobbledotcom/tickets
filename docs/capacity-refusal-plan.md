@@ -152,9 +152,8 @@ and refuses when any day violates the cap:
 - Group clause: `NOT EXISTS (SELECT 1 FROM (VALUES …) AS dayDemand WHERE (cap
   subquery) > 0 AND (shared count subquery + dayDemand.column3
   - everyDay) > (cap subquery))`. The`> 0`gate is the write's`max_attendees >
-    0`: an uncapped group never refuses. The`+ everyDay` is required, not a
-    subtraction: date-less-cap demand consumes the shared group capacity on
-    every date.
+    0`: an uncapped group never refuses. The`+ everyDay` is required:
+    date-less-cap demand consumes the shared group capacity on every date.
 - Undated clause, emitted beside the per-day clauses when the bucket holds any
   date-less demand: `(running-total basis) + throughLastUndated <= cap`, gated
   the same way. `throughLastUndated` is the bucket's running total (every line
