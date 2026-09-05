@@ -1,3 +1,4 @@
+import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -14,6 +15,7 @@ import {
   queryAll,
   queryBatchPrimary,
   requireOne,
+  requireOnePrimary,
   resultRows,
   type SqlStatement,
 } from "#db/client.ts";
@@ -22,7 +24,6 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
@@ -243,10 +244,22 @@ export const checkBatchAvailabilityImpl = async (
   const groupDemand = aggregateDemand(context, (_listing, item) =>
     listingGroups.idsFor(membership, item.listingId),
   );
-  const { sql, args } = buildCartCapacitySql({ groupDemand, listingDemand });
-  const row = await requireOne<{ fits: number }>(sql, args);
-  return row.fits === 1;
+  return await fitsThrough(requireOne)({ groupDemand, listingDemand });
 };
+
+/** Ask one cart demand's fit through one required-row read. The checkout
+ * preflight reads on the default route; the refusal diagnosis reads on the
+ * primary, because the refused write did. */
+const fitsThrough =
+  (read: <T>(sql: string, args: InValue[]) => Promise<T>) =>
+  async (demand: CartDemand): Promise<boolean> => {
+    const { sql, args } = buildCartCapacitySql(demand);
+    const row = await read<{ fits: number }>(sql, args);
+    return row.fits === 1;
+  };
+
+/** One primary round trip answering whether one cart demand fits. */
+const fitsOnPrimary = fitsThrough(requireOnePrimary);
 
 type LineListingFacts = {
   groupIds: number[];
@@ -289,17 +302,6 @@ const linesDemand = (
     }
   }
   return demand;
-};
-
-/** One primary round trip answering whether one cart demand fits. */
-const fitsOnPrimary = async (demand: CartDemand): Promise<boolean> => {
-  const { sql, args } = buildCartCapacitySql(demand);
-  const [result] = await queryBatchPrimary([{ args, sql }]);
-  const row = requireValue(
-    resultRows<{ fits: number }>(result!)[0],
-    "The fits query returned no row",
-  );
-  return row.fits === 1;
 };
 
 /** The write's guarded statements run in write order, each seeing the rows the
