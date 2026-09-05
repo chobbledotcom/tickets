@@ -6,7 +6,7 @@ import {
   getPaymentProviderForExistingPayments,
 } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describeWithEnv("getActivePaymentProvider", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
@@ -14,7 +14,7 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
   test("returns null when no provider is configured", async () => {
     expect(await getActivePaymentProvider()).toBeNull();
     expect(
-      debugLogged(
+      logLogged(
         debugSpy,
         "[Payment] No payment provider configured in settings",
       ),
@@ -25,7 +25,7 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     await settings.update.paymentProvider("stripe");
     await getActivePaymentProvider();
     expect(
-      debugLogged(debugSpy, "[Payment] Resolving payment provider: stripe"),
+      logLogged(debugSpy, "[Payment] Resolving payment provider: stripe"),
     ).toBe(true);
   });
 
@@ -34,7 +34,7 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     await settings.update.paymentProvider("stripe");
     await getPaymentProviderForExistingPayments();
     expect(
-      debugLogged(
+      logLogged(
         debugSpy,
         "[Payment] Resolving payment provider for existing payments: stripe",
       ),

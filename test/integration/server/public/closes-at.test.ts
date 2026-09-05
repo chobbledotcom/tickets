@@ -21,7 +21,7 @@ import {
   expectFlash,
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
-import { getTicketCsrfToken } from "#test-utils/csrf.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -43,7 +43,7 @@ const expectClosesDuringSubmission = async (
   listingIdToClose: number,
 ): Promise<void> => {
   const getResponse = await handleRequest(mockRequest(path));
-  const csrfToken = getTicketCsrfToken(await getResponse.text());
+  const csrfToken = extractCsrfToken(await getResponse.text());
   if (!csrfToken) throw new Error("No CSRF token");
 
   await updateTestListing(listingIdToClose, { closesAt: pastCloseTime() });

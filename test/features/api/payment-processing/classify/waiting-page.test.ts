@@ -5,7 +5,7 @@ import type { SessionValidation } from "#routes/api/webhook-types.ts";
 import { runWithPendingWork } from "#shared/pending-work.ts";
 import { expectBuyerRefusalWithoutStaffPanel } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 import {
@@ -75,7 +75,7 @@ describeWithEnv(
       expect(page).toContain("Check again");
       expect(page).not.toContain("Payment verification failed");
       // A normal provider state is not an outage: a debug line, not an error.
-      expect(debugLogged(debugSpy, "not confirmed yet")).toBe(true);
+      expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
       expect(errors.contains("E_PAYMENT_SESSION")).toBe(false);
     });
 

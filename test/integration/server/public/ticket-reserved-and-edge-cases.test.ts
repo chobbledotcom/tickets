@@ -13,7 +13,7 @@ import {
 import {
   bookTwoListings,
   expectBookOneEachRejected,
-  getTicketCsrfToken,
+  extractCsrfToken,
   submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils/csrf.ts";
@@ -129,7 +129,7 @@ describeWithEnv(
         const getResponse = await handleRequest(
           mockRequest(`/ticket/${listing.slug}?iframe=true`),
         );
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
+        const csrfToken = extractCsrfToken(await getResponse.text());
         expect(csrfToken).not.toBe(null);
 
         const response = await handleRequest(

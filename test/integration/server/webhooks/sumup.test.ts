@@ -9,7 +9,7 @@ import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
-import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
@@ -140,7 +140,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       expect(await response.text()).toContain(
         "30;url=/payment/success?session_id=",
       );
-      expect(debugLogged(debugSpy, "not confirmed yet")).toBe(true);
+      expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
       expect(errors.contains("E_PAYMENT_SESSION")).toBe(false);
     } finally {
       restore.restore();

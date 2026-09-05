@@ -3,12 +3,9 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   csrfTokenOrSignedFallback,
+  extractCsrfToken,
   extractInputValue,
-  getAdminLoginCsrfToken,
   getCsrfTokenFromCookie,
-  getJoinCsrfToken,
-  getSetupCsrfToken,
-  getTicketCsrfToken,
   hasCheckedInput,
   hasInputWithValue,
   hasSelectedOption,
@@ -221,33 +218,19 @@ describe("test-utils — csrf & form helpers", () => {
     });
   });
 
-  describe("getAdminLoginCsrfToken", () => {
+  describe("extractCsrfToken", () => {
     test("returns null when html is null", () => {
-      expect(getAdminLoginCsrfToken(null)).toBe(null);
+      expect(extractCsrfToken(null)).toBe(null);
     });
 
     test("returns null when html has no csrf_token field", () => {
-      expect(getAdminLoginCsrfToken("<form><input type='text'></form>")).toBe(
-        null,
+      expect(extractCsrfToken("<form><input type='text'></form>")).toBe(null);
+    });
+
+    test("extracts csrf_token value from html form", () => {
+      expect(extractCsrfToken('<input name="csrf_token" value="abc123">')).toBe(
+        "abc123",
       );
-    });
-
-    test("extracts csrf_token value from html form", () => {
-      expect(
-        getAdminLoginCsrfToken('<input name="csrf_token" value="abc123">'),
-      ).toBe("abc123");
-    });
-  });
-
-  describe("getJoinCsrfToken", () => {
-    test("returns null when html is null", () => {
-      expect(getJoinCsrfToken(null)).toBe(null);
-    });
-
-    test("extracts csrf_token value from html form", () => {
-      expect(
-        getJoinCsrfToken('<input name="csrf_token" value="join-token-123">'),
-      ).toBe("join-token-123");
     });
   });
 
@@ -262,38 +245,6 @@ describe("test-utils — csrf & form helpers", () => {
       expect(
         requireJoinCsrfToken('<input name="csrf_token" value="abc123">'),
       ).toBe("abc123");
-    });
-  });
-
-  describe("getSetupCsrfToken", () => {
-    test("returns null when html is null", () => {
-      expect(getSetupCsrfToken(null)).toBe(null);
-    });
-
-    test("returns null when html has no csrf_token field", () => {
-      expect(getSetupCsrfToken("<form><input type='text'></form>")).toBe(null);
-    });
-
-    test("extracts csrf_token value from html form", () => {
-      expect(
-        getSetupCsrfToken('<input name="csrf_token" value="setup-token-789">'),
-      ).toBe("setup-token-789");
-    });
-  });
-
-  describe("getTicketCsrfToken", () => {
-    test("returns null when html is null", () => {
-      expect(getTicketCsrfToken(null)).toBe(null);
-    });
-
-    test("returns null when html has no csrf_token field", () => {
-      expect(getTicketCsrfToken("<form><input type='text'></form>")).toBe(null);
-    });
-
-    test("extracts csrf_token value from html form", () => {
-      expect(
-        getTicketCsrfToken('<input name="csrf_token" value="ticket-xyz789">'),
-      ).toBe("ticket-xyz789");
     });
   });
 });

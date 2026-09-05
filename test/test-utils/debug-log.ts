@@ -18,11 +18,5 @@ export const useDebugLogSpy = (): (() => Spy) => {
 /** Capture console.error (where logError routes) per test. */
 export const useErrorLogSpy = (): (() => Spy) => useConsoleSpy("error");
 
-const logLogged = (logSpy: () => Spy, needle: string): boolean =>
+export const logLogged = (logSpy: () => Spy, needle: string): boolean =>
   logSpy().calls.some((call) => String(call.args[0]).includes(needle));
-
-export const errorLogged = (logSpy: () => Spy, needle: string): boolean =>
-  logLogged(logSpy, needle);
-
-export const debugLogged = (logSpy: () => Spy, needle: string): boolean =>
-  logLogged(logSpy, needle);

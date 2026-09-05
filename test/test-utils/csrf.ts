@@ -57,12 +57,6 @@ export const hasSelectedOption = (html: string, value: string): boolean => {
   );
 };
 
-export const getAdminLoginCsrfToken = (html: string | null): string | null =>
-  extractCsrfToken(html);
-
-export const getJoinCsrfToken = (html: string | null): string | null =>
-  extractCsrfToken(html);
-
 export const requireJoinCsrfToken = (html: string | null): string => {
   const token = extractCsrfToken(html);
   if (!token) throw new Error("Failed to get CSRF token for join flow");
@@ -72,12 +66,6 @@ export const requireJoinCsrfToken = (html: string | null): string => {
 export const csrfTokenOrSignedFallback = async (
   html: string,
 ): Promise<string> => extractCsrfToken(html) ?? (await signCsrfToken());
-
-export const getSetupCsrfToken = (html: string | null): string | null =>
-  extractCsrfToken(html);
-
-export const getTicketCsrfToken = (html: string | null): string | null =>
-  extractCsrfToken(html);
 
 /** GETs a page and returns its rendered HTML plus its signed CSRF token. This
  *  is the shared first half of any test that must inspect the page —

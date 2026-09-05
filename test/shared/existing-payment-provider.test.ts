@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { getPaymentProviderForExistingPayments } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
@@ -19,7 +19,7 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
       "stripe",
     );
     expect(
-      debugLogged(
+      logLogged(
         debugSpy,
         "Resolving payment provider for existing payments: stripe",
       ),
@@ -35,7 +35,7 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
       "stripe",
     );
     expect(
-      debugLogged(
+      logLogged(
         debugSpy,
         "Resolving payment provider for existing payments: stripe",
       ),

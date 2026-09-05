@@ -14,8 +14,7 @@ import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  debugLogged,
-  errorLogged,
+  logLogged,
   useDebugLogSpy,
   useErrorLogSpy,
 } from "#test-utils/debug-log.ts";
@@ -122,7 +121,7 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
         await upload("leaflet.pdf");
 
         expect(
-          debugLogged(debugSpy, 'Attachment field "attachment" is string'),
+          logLogged(debugSpy, 'Attachment field "attachment" is string'),
         ).toBe(true);
       });
     });
@@ -158,7 +157,7 @@ describeWithEnv("uploading a listing's attachment", { db: true }, () => {
       await withCdnRejecting(new Error("storage is down"), async () => {
         await upload(leaflet());
 
-        expect(errorLogged(errorSpy, "Attachment upload failed")).toBe(true);
+        expect(logLogged(errorSpy, "Attachment upload failed")).toBe(true);
       });
     });
   });

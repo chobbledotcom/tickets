@@ -13,7 +13,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 // jscpd:ignore-end
 
-import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import {
   setupMismatchWithFailingRefund,
   setupMultiMismatchWithFailingRefund,
@@ -31,7 +31,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       await handleRequest(mockRequest("/payment/success"))
     ).text();
     expect(html).toContain("Invalid payment callback");
-    expect(errorLogged(E, "params=[none] referer=none")).toBe(true);
+    expect(logLogged(E, "params=[none] referer=none")).toBe(true);
   });
 
   test("bad-token callback rejects without session_id error", async () => {
@@ -39,13 +39,13 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?tokens=bad"),
     );
     await expectHtmlResponse(response, 400, "Invalid payment callback");
-    expect(errorLogged(E, "missing session_id")).toBe(false);
+    expect(logLogged(E, "missing session_id")).toBe(false);
   });
 
   test("cancel with no session_id returns Invalid payment callback", async () => {
     const res = await handleRequest(mockRequest("/payment/cancel"));
     await expectHtmlResponse(res, 400, "Invalid payment callback");
-    expect(errorLogged(E, "missing session_id parameter")).toBe(true);
+    expect(logLogged(E, "missing session_id parameter")).toBe(true);
   });
 
   test("cancel with no provider returns 400", async () => {
@@ -53,7 +53,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/cancel?session_id=cs_x"),
     );
     await expectHtmlResponse(res, 400, "Payment provider not configured");
-    expect(errorLogged(E, "[cancel] No provider")).toBe(true);
+    expect(logLogged(E, "[cancel] No provider")).toBe(true);
   });
 
   test("cancel with missing session returns 400", async () => {
@@ -66,7 +66,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       400,
       "We could not find this payment session.",
     );
-    expect(errorLogged(E, "Session not found")).toBe(true);
+    expect(logLogged(E, "Session not found")).toBe(true);
   });
 
   test("cancel renders an existing Stripe session while new sales are off", async () => {
@@ -219,7 +219,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     req.headers.set("referer", "https://evil.example.com");
     await handleRequest(req);
     expect(
-      errorLogged(E, "params=[foo,baz] referer=https://evil.example.com"),
+      logLogged(E, "params=[foo,baz] referer=https://evil.example.com"),
     ).toBe(true);
   });
 
@@ -284,8 +284,8 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const req = mockRequest("/payment/success?foo=bar");
     req.headers.set("referer", "");
     await handleRequest(req);
-    expect(errorLogged(E, "referer=")).toBe(true);
-    expect(errorLogged(E, "referer=none")).toBe(false);
+    expect(logLogged(E, "referer=")).toBe(true);
+    expect(logLogged(E, "referer=none")).toBe(false);
   });
 
   test("redirect error path uses result.error when detail is absent", async () => {
@@ -305,7 +305,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_de_detail"),
     );
     expect(await res.text()).toContain("saved your details");
-    expect(errorLogged(E, "[redirect]")).toBe(true);
+    expect(logLogged(E, "[redirect]")).toBe(true);
   });
 
   test("redirect failure logs the first listing in a multi-listing order", async () => {
@@ -330,8 +330,8 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_multi_redirect"),
     );
 
-    expect(errorLogged(E, `listing=${first.id}`)).toBe(true);
-    expect(errorLogged(E, `listing=${second.id}`)).toBe(false);
+    expect(logLogged(E, `listing=${first.id}`)).toBe(true);
+    expect(logLogged(E, `listing=${second.id}`)).toBe(false);
   });
 
   test("already-processed session without thank-you URL renders without redirect", async () => {

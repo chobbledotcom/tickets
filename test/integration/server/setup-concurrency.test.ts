@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { getSetupCsrfToken } from "#test-utils/csrf.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { mockRequest, mockSetupFormRequest } from "#test-utils/mocks.ts";
 
@@ -35,7 +35,7 @@ describeWithEnv("server (setup concurrency)", { db: true }, () => {
     try {
       const getToken = async (): Promise<string> => {
         const response = await handleRequest(mockRequest("/setup/"));
-        const token = getSetupCsrfToken(await response.text());
+        const token = extractCsrfToken(await response.text());
         if (!token) throw new Error("Setup page did not include a CSRF token");
         return token;
       };

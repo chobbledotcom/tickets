@@ -44,10 +44,10 @@ export const bookingPageHtml = async (slugs: string): Promise<string> =>
  * sold-out because it has no bookable child), falls back to a freshly-minted
  * token so the submit-side gate can still be exercised. */
 export const bookingPageToken = async (slugs: string): Promise<string> => {
-  const { getTicketCsrfToken } = await import("#test-utils/csrf.ts");
+  const { extractCsrfToken } = await import("#test-utils/csrf.ts");
   const { signCsrfToken } = await import("#shared/csrf.ts");
   return (
-    getTicketCsrfToken(await bookingPageHtml(slugs)) ?? (await signCsrfToken())
+    extractCsrfToken(await bookingPageHtml(slugs)) ?? (await signCsrfToken())
   );
 };
 

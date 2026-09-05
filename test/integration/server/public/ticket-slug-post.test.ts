@@ -10,7 +10,7 @@ import {
 } from "#test-utils/assertions.ts";
 import {
   expectMissingCsrfRejected,
-  getTicketCsrfToken,
+  extractCsrfToken,
   submitTicketForm,
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -63,7 +63,7 @@ describeWithEnv(
         const getResponse = await handleRequest(
           mockRequest(`/ticket/${group.slug}`),
         );
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
+        const csrfToken = extractCsrfToken(await getResponse.text());
         if (!csrfToken) throw new Error("Failed to get CSRF token");
 
         const response = await handleRequest(
@@ -114,7 +114,7 @@ describeWithEnv(
         const getResponse1 = await handleRequest(
           mockRequest(`/ticket/${group.slug}`),
         );
-        const csrfToken1 = getTicketCsrfToken(await getResponse1.text());
+        const csrfToken1 = extractCsrfToken(await getResponse1.text());
         if (!csrfToken1) throw new Error("Failed to get CSRF token");
         const r1 = await handleRequest(
           mockFormRequest(
@@ -135,7 +135,7 @@ describeWithEnv(
         const getResponse2 = await handleRequest(
           mockRequest(`/ticket/${group.slug}`),
         );
-        const csrfToken2 = getTicketCsrfToken(await getResponse2.text());
+        const csrfToken2 = extractCsrfToken(await getResponse2.text());
         if (!csrfToken2) throw new Error("Failed to get CSRF token");
         const r2 = await handleRequest(
           mockFormRequest(
