@@ -83,13 +83,17 @@ guarded writes. The inputs are:
 - `LineBooking`: `listingId` (positive, existing), `quantity` (0 or more),
   `date` (null or YYYY-MM-DD), `durationDays` (1 to 90). Negative quantities are
   refused upstream and stay refused.
-- One demand bucket per listing and per group, holding three components:
+- One demand bucket per listing and per group, holding five components:
   - `perDay`: dated lines on per-date-cap listings (a listing bucket) or dated
     lines on any member (a group bucket), keyed by day;
   - `everyDay`: all lines on date-less-cap listings or members, dated or not,
     whose only capacity effect is the running total they bump;
   - `undatedOnly`: date-less lines on per-date-cap listings or members, which no
-    dated statement can ever see.
+    dated statement can ever see;
+  - `runningTotal`: every line's quantity once, in write order — what the
+    aggregate trigger adds to `booked_quantity` per inserted line;
+  - `throughLastUndated`: the running total as of the bucket's last date-less
+    line, the state the write's last undated statement reads.
 
 ## Commands and events
 
@@ -97,7 +101,7 @@ guarded writes. The inputs are:
 | ---------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Any cart                           | Checkout preflight (`checkBatchAvailabilityImpl`) | One boolean; refuses when any listing or group cap would be exceeded; never throws on a 12 x 90-day cart                                                                                                                    |
 | Refused write                      | Diagnosis (`refusedOrderUnfitListingIds`)         | Exactly the first line in write order that does not fit on top of its predecessors, or `[]` when the whole order now fits or a listing is gone. Today's multi-date branch can name several listings; the set narrows to one |
-| Zero-quantity line on any path     | Write, preflight, diagnosis, edit preflight       | No capacity or active condition applies; the row still writes; the line is never named                                                                                                                                      |
+| Zero-quantity line on any path     | Write, preflight, diagnosis, edit preflight       | No capacity or active condition applies; the listing row must still exist unless the caller overbooks (the payment ghost store does); the line is never named                                                               |
 | Edit preflight (`unfitListingIds`) | Line changed to quantity 0                        | Fits, regardless of the listing's occupancy or active flag                                                                                                                                                                  |
 
 ## Failure table
@@ -148,12 +152,16 @@ and refuses when any day violates the cap:
 - Group clause: `NOT EXISTS (SELECT 1 FROM (VALUES …) AS dayDemand WHERE (cap
   subquery) > 0 AND (shared count subquery + dayDemand.column3
   - everyDay) > (cap subquery))`. The`> 0`gate is the write's`max_attendees >
-    0`: an uncapped group never refuses.
+    0`: an uncapped group never refuses. The`+ everyDay` is required, not a
+    subtraction: date-less-cap demand consumes the shared group capacity on
+    every date.
 - Undated clause, emitted beside the per-day clauses when the bucket holds any
-  date-less demand: `(running-total basis) + whole bucket <= cap`, gated the
-  same way. "Whole bucket" is the sum of all three components, because the
-  trigger bumps `booked_quantity` for every insert, so the state the write's
-  next undated statement sees is exactly the prefix's whole demand.
+  date-less demand: `(running-total basis) + throughLastUndated <= cap`, gated
+  the same way. `throughLastUndated` is the bucket's running total (every line
+  once, in write order) as of its last date-less line — a dated line booked
+  after that raises the running total but no undated statement of the write runs
+  after it, and a multi-day dated line adds its quantity once, not once per
+  occupied day.
 
 The counting subqueries keep their text; their day-range expressions widen from
 branded bind tokens to plain SQL strings so they can reference `dayDemand`
@@ -170,7 +178,7 @@ day's clause. Both diverge from the write: a daily listing booked with a dated
 and a date-less line can be refused by the write with the read paths naming
 nothing, and a date-less line on a per-date group member is counted against the
 group's day caps although no dated statement of the write can ever see it. The
-three-component bucket with the undated clause makes the read count exactly what
+five-component bucket with the undated clause makes the read count exactly what
 the write counts.
 
 ## The cumulative diagnosis
@@ -199,12 +207,23 @@ A challenge pass found four breaks in the first draft, all folded into this
 version: the `AS t(a,b)` VALUES alias does not parse in SQLite (use
 `column1..3`); a shared `IS NULL` clause shape refuses every booking on an
 uncapped group (the `> 0` gate is kept); a mixed listing bucket under-counts and
-can name nothing (the undated clause with the whole bucket); and the group
-`extra` fold counts a date-less line on a per-date member against the group's
-days, where the write never sees it (the `everyDay` / `undatedOnly` split). The
-flat prefix search itself held under attack: write order is preserved end to
-end, and prefix fits are monotone, so the first unfit prefix is the statement
-the write aborts on.
+can name nothing (the undated clause); and the group `extra` fold counts a
+date-less line on a per-date member against the group's days, where the write
+never sees it (the `everyDay` / `undatedOnly` split). The flat prefix search
+itself held under attack: write order is preserved end to end, and prefix fits
+are monotone, so the first unfit prefix is the statement the write aborts on.
+
+A review round on the built code found three more, all folded in the same way:
+the undated clause counted a multi-day dated line once per occupied day,
+although the trigger adds it once (the `runningTotal` component); the undated
+clause applied a dated line booked after the last date-less line, although no
+undated statement of the write runs after that (the `throughLastUndated`
+snapshot); and the zero-quantity insert had lost the only check that its listing
+row still exists, so a listing deleted between validation and the write
+committed an orphan row (a pure `EXISTS` clause, with no capacity or active
+condition). The exact undated clause also dominates the per-day clause's
+`everyDay` term at every prefix, so a per-day snapshot of the date-less demand
+is not needed.
 
 ## PR shape
 
@@ -220,7 +239,7 @@ subqueries (`buildListingCountSql`, `buildGroupCountSql`) the batch clauses
 reuse, over the `CountingDayRange` expressions that keep dates bound; the
 diagnosis and the demand aggregation live in
 `src/shared/db/attendees/capacity/checks.ts`. `capacity.ts` dropped from 425 to
-292 lines, so no file sits over the 400-line target.
+297 lines, so no file sits over the 400-line target.
 
 ## Tests that prove the contract
 
@@ -243,6 +262,10 @@ diagnosis and the demand aggregation live in
 8. The existing tests keep their results, including the two-call fitting budget
    and the logarithmic refusal budget; the test that names the deleted per-line
    mechanism is renamed to pin the flat search.
+9. The review-round regressions: a multi-day dated line beside a date-less line
+   counts once on both paths; an undated guard never sees a dated line booked
+   after the last date-less line; and a zero-quantity line refuses when its
+   listing row is gone.
 
 After the candidate was stable, both gates ran clean:
 `nix develop -c deno task precommit` and

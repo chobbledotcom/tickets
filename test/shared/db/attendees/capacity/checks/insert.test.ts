@@ -67,15 +67,44 @@ describe("buildCapacityCheckedInsert", () => {
 
   test("a zero-quantity booking carries no capacity or active condition", () => {
     // A line that books no places cannot make any capacity state worse, so
-    // its insert is unconditional — the row must land on a full or inactive
-    // listing too.
+    // it can land on a full or inactive listing too. Its clause only asks
+    // that the listing row still exists.
     const statement = buildCapacityCheckedInsert({
       date: "2026-06-24",
       listingId: 17,
       quantity: 0,
     });
 
+    expect(statement.sql).toContain(
+      "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1)",
+    );
+    expect(statement.sql).not.toContain("max_attendees");
+    expect(statement.sql).not.toContain("active = 1");
+  });
+
+  test("an overbook caller writes a zero-quantity ghost unconditionally", () => {
+    // The payment ghost store passes allowOverbook and must always land its
+    // row, even against a listing deleted since checkout — its documented
+    // contract is that the row always writes.
+    const statement = buildCapacityCheckedInsert(
+      { date: "2026-06-24", listingId: 17, quantity: 0 },
+      (bind) => bind(41),
+      true,
+    );
+
     expect(statement.sql).not.toContain("WHERE");
+  });
+
+  test("an overbook caller keeps an extra condition the caller passed", () => {
+    const statement = buildCapacityCheckedInsert(
+      { date: "2026-06-24", listingId: 17, quantity: 2 },
+      (bind) => bind(41),
+      true,
+      () => "order_not_yet_recorded",
+    );
+
+    expect(statement.sql).toContain("WHERE order_not_yet_recorded");
+    expect(statement.sql).not.toContain("max_attendees");
   });
 
   test("a zero-quantity booking keeps an extra condition the caller passed", () => {
@@ -86,8 +115,9 @@ describe("buildCapacityCheckedInsert", () => {
       () => "order_not_yet_recorded",
     );
 
-    expect(statement.sql).toContain("WHERE");
-    expect(statement.sql).toContain("order_not_yet_recorded");
+    expect(statement.sql).toContain(
+      "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1) AND (order_not_yet_recorded)",
+    );
     expect(statement.sql).not.toContain("max_attendees");
   });
 });

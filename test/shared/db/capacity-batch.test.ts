@@ -23,14 +23,26 @@ const DAY = "2026-05-01";
 const { startAt, endAt } = dateToRange(DAY);
 
 describe("buildBatchCapacitySql", () => {
+  /** A bucket as the demand fold produces it: every unit in `everyDay` is a
+   * date-less line, so the running total and its last-undated snapshot both
+   * hold the bucket's whole demand. */
   const bucket = (
     perDay: [string, number][],
     undated: number,
-  ): CapacityBucket => ({
-    everyDay: undated,
-    perDay: new Map(perDay),
-    undatedOnly: 0,
-  });
+  ): CapacityBucket => {
+    const perDayMap = new Map(perDay);
+    const datedTotal = [...perDayMap.values()].reduce(
+      (sum, qty) => sum + qty,
+      0,
+    );
+    return {
+      everyDay: undated,
+      perDay: perDayMap,
+      runningTotal: datedTotal + undated,
+      throughLastUndated: datedTotal + undated,
+      undatedOnly: 0,
+    };
+  };
 
   test("no demand at all trivially fits", () => {
     expect(buildBatchCapacitySql(new Map(), new Map())).toEqual({
@@ -69,8 +81,20 @@ describe("buildBatchCapacitySql", () => {
     // produce no clause at exactly one, on the every-day side or on the
     // date-less side of a per-date listing.
     for (const component of [
-      { everyDay: 1, perDay: new Map(), undatedOnly: 0 },
-      { everyDay: 0, perDay: new Map(), undatedOnly: 1 },
+      {
+        everyDay: 1,
+        perDay: new Map(),
+        runningTotal: 1,
+        throughLastUndated: 1,
+        undatedOnly: 0,
+      },
+      {
+        everyDay: 0,
+        perDay: new Map(),
+        runningTotal: 1,
+        throughLastUndated: 1,
+        undatedOnly: 1,
+      },
     ]) {
       const { sql } = buildBatchCapacitySql(
         new Map([[LISTING, component]]),
@@ -78,6 +102,32 @@ describe("buildBatchCapacitySql", () => {
       );
       expect(sql).toContain("+ 1 <=");
     }
+  });
+
+  test("the undated clause reads the running total as of the last date-less line, not the whole bucket", () => {
+    // A two-day dated unit bumps the running total once, and a date-less
+    // unit after it reads that total — not the dated unit once per occupied
+    // day. The whole bucket would say 5; the undated statements see 3.
+    const { sql } = buildBatchCapacitySql(
+      new Map([
+        [
+          LISTING,
+          {
+            everyDay: 0,
+            perDay: new Map([
+              [DAY, 2],
+              ["2026-05-02", 2],
+            ]),
+            runningTotal: 3,
+            throughLastUndated: 3,
+            undatedOnly: 1,
+          },
+        ],
+      ]),
+      new Map(),
+    );
+    expect(sql).toContain("+ 3 <=");
+    expect(sql).not.toContain("+ 5 <=");
   });
 
   test("per-day listing demand is one clause carrying a VALUES row per day", () => {
@@ -156,7 +206,16 @@ describe("buildFitsSql", () => {
   const demandFor = (listingId: number, undated: number): CartDemand => ({
     groupDemand: new Map(),
     listingDemand: new Map([
-      [listingId, { everyDay: undated, perDay: new Map(), undatedOnly: 0 }],
+      [
+        listingId,
+        {
+          everyDay: undated,
+          perDay: new Map(),
+          runningTotal: undated,
+          throughLastUndated: undated,
+          undatedOnly: 0,
+        },
+      ],
     ]),
   });
 

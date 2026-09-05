@@ -28,9 +28,12 @@ import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
- * zero-quantity booking carries no capacity condition: it demands no places,
- * so it can land on a full or inactive listing too. An order-level extra
- * condition still applies to it. */
+ * zero-quantity booking carries no capacity or active condition: it demands
+ * no places, so it can land on a full or inactive listing too — but by
+ * default it still names a listing that must exist, because
+ * listing_attendees has no foreign key. An overbook caller (the payment
+ * ghost store) explicitly asks for the row whatever the listing state. An
+ * order-level extra condition still applies. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
   attendeeIdSql: NumberedSql = () => "last_insert_rowid()",
@@ -55,10 +58,16 @@ export const buildCapacityCheckedInsert = (
     const quantitySql = bind(quantity);
     const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
           SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
-    if (allowOverbook || quantity === 0) {
-      return extraCondition === undefined
-        ? insertSelect
-        : `${insertSelect}\n          WHERE ${extraCondition(bind)}`;
+    if (allowOverbook) {
+      if (extraCondition === undefined) return insertSelect;
+      return `${insertSelect}\n          WHERE ${extraCondition(bind)}`;
+    }
+    if (quantity === 0) {
+      const exists = `EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ${listingIdSql})`;
+      if (extraCondition === undefined) {
+        return `${insertSelect}\n          WHERE ${exists}`;
+      }
+      return `${insertSelect}\n          WHERE ${exists} AND (${extraCondition(bind)})`;
     }
 
     const capacity = buildCapacityCondition(
@@ -139,7 +148,13 @@ const getOrCreateBucket = <K>(
 ): CapacityBucket => {
   let bucket = buckets.get(key);
   if (!bucket) {
-    bucket = { everyDay: 0, perDay: new Map(), undatedOnly: 0 };
+    bucket = {
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 0,
+      throughLastUndated: 0,
+      undatedOnly: 0,
+    };
     buckets.set(key, bucket);
   }
   return bucket;
@@ -149,7 +164,10 @@ const getOrCreateBucket = <K>(
  * zero-quantity line demands nothing and adds nothing. Dated lines on
  * per-date counting listings occupy their days; every other line only
  * bumps the running total the write's statements count — a date-less line
- * on a per-date listing is visible to that total alone. */
+ * on a per-date listing is visible to that total alone. A date-less line
+ * also pins the running total its write statement reads: no undated
+ * statement of the write runs after it, so a dated line booked later never
+ * raises that state. */
 const addDemandToBucket = (
   bucket: CapacityBucket,
   listing: Pick<ListingCapacityRow, "listing_type">,
@@ -157,12 +175,15 @@ const addDemandToBucket = (
   date: string | null | undefined,
 ): void => {
   if (item.quantity <= 0) return;
+  bucket.runningTotal += item.quantity;
   if (!countsPerDate(listing.listing_type)) {
     bucket.everyDay += item.quantity;
+    bucket.throughLastUndated = bucket.runningTotal;
     return;
   }
   if (!date) {
     bucket.undatedOnly += item.quantity;
+    bucket.throughLastUndated = bucket.runningTotal;
     return;
   }
   for (const day of expandDailyRange(date, item.durationDays ?? 1)) {

@@ -28,11 +28,18 @@ import {
  * occupies the cap on every date too — lines on date-less-cap listings, whose
  * running total every statement counts. `undatedOnly` holds date-less lines
  * on per-date listings, which no dated statement of the write can ever see:
- * only the undated clause counts them. */
+ * only the undated clause counts them. `runningTotal` holds every line's
+ * quantity once, in write order — what the aggregate trigger adds to
+ * `booked_quantity` per inserted line. `throughLastUndated` snapshots that
+ * total at the bucket's last date-less line: the state the write's last
+ * undated statement reads, because a dated line booked after it raises the
+ * running total but no undated statement runs after that. */
 export type CapacityBucket = {
   everyDay: number;
   perDay: Map<string, number>;
   undatedOnly: number;
+  runningTotal: number;
+  throughLastUndated: number;
 };
 
 /** One cart's whole demand, listing buckets beside group buckets. */
@@ -40,14 +47,6 @@ export type CartDemand = {
   groupDemand: Map<number, CapacityBucket>;
   listingDemand: Map<number, CapacityBucket>;
 };
-
-/** A bucket's total demand — the undated clauses count the whole prefix,
- * because the write's aggregate trigger bumps the running total for every
- * line it inserts, whatever its date. */
-const wholeBucket = (bucket: CapacityBucket): number =>
-  bucket.everyDay +
-  bucket.undatedOnly +
-  [...bucket.perDay.values()].reduce((sum, qty) => sum + qty, 0);
 
 const hasUndatedDemand = (bucket: CapacityBucket): boolean =>
   bucket.everyDay > 0 || bucket.undatedOnly > 0;
@@ -148,12 +147,12 @@ const GROUP_UNDATED = (
   )})`;
 
 /** The undated clause for a bucket whose cart carries date-less demand:
- * `running total + the whole bucket <= cap`. */
+ * `running total + the demand its last date-less line saw <= cap`. */
 const undatedClause = (
   countSql: string,
   capSql: string,
   bucket: CapacityBucket,
-): string => `(${countSql}) + ${wholeBucket(bucket)} <= ${capSql}`;
+): string => `(${countSql}) + ${bucket.throughLastUndated} <= ${capSql}`;
 
 const demandClauses = (
   demand: Map<number, CapacityBucket>,

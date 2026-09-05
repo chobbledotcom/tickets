@@ -6,7 +6,7 @@ import type {
 } from "#db/attendee-types.ts";
 import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#db/attendees/capacity/checks.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
-import { queryAll } from "#db/client.ts";
+import { execute, queryAll } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -222,6 +222,48 @@ describeWithEnv(
       expect(
         await assertConsistent([{ listingId: listing.id, quantity: 0 }]),
       ).toBe(true);
+    });
+
+    test("a multi-day dated daily line beside a standard line counts the dated units once on both paths", async () => {
+      // The two-day daily line bumps the group's running total once; the
+      // standard line's undated guard reads one unit from it, not one per
+      // occupied day. Both lines write against a group cap of 2.
+      const group = await createTestGroup({ maxAttendees: 2 });
+      const daily = await createDailyTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      const standard = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      expect(
+        await assertConsistent([
+          {
+            date: "2026-05-01",
+            durationDays: 2,
+            listingId: daily.id,
+            quantity: 1,
+          },
+          { listingId: standard.id, quantity: 1 },
+        ]),
+      ).toBe(true);
+    });
+
+    test("a zero-quantity line refuses when its listing row is gone", async () => {
+      // The no-op line demands no places, but it still names a listing that
+      // must exist: listing_attendees has no foreign key, so an unconditional
+      // insert would commit an orphan row when a listing is deleted between
+      // validation and the write. The preflight refuses a missing listing
+      // outright, so this pins the write side alone.
+      const listing = await createTestListing({ maxAttendees: 2 });
+      await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
+      const write = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 0 }],
+        email: "gone@example.com",
+        name: "Gone",
+      });
+      expect(write.success).toBe(false);
     });
   },
 );

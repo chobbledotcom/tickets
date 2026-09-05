@@ -157,6 +157,68 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     ).toEqual([daily.id]);
   });
 
+  /** A capped group with three roomy daily members, so only the shared group
+   * cap can bind a cross-listing order. */
+  const groupWithThreeDailyMembers = async (
+    groupCap: number,
+  ): Promise<[{ id: number }, { id: number }, { id: number }]> => {
+    const group = await createTestGroup({ maxAttendees: groupCap });
+    const member = (): Promise<{ id: number }> =>
+      createDailyTestListing({ groupId: group.id, maxAttendees: 10 });
+    return [await member(), await member(), await member()];
+  };
+
+  test("a multi-day dated line counts once toward the running total the undated guards read", async () => {
+    // The trigger bumps the group's running total once per line, whatever the
+    // line's day count. A two-day dated unit plus a date-less unit both write
+    // against a cap of 2, so only the third line can be the culprit — the
+    // undated clause must not count the dated unit once per occupied day.
+    const [dated, first, second] = await groupWithThreeDailyMembers(2);
+
+    expect(
+      await refusedOrderUnfitListingIds([
+        { date: DAY, durationDays: 2, listingId: dated.id, quantity: 1 },
+        line(first.id),
+        line(second.id),
+      ]),
+    ).toEqual([second.id]);
+  });
+
+  test("an undated guard does not see a dated line booked after the last date-less line", async () => {
+    // The undated statements run before the dated one, and the dated
+    // statement never sees the undated row because its range is null. So
+    // [date-less 3, dated 3] both write against a cap of 5, and only a later
+    // date-less line can abort the order.
+    const [undated, dated, after] = await groupWithThreeDailyMembers(5);
+
+    expect(
+      await refusedOrderUnfitListingIds([
+        line(undated.id, null, 3),
+        line(dated.id, DAY, 3),
+        line(after.id, null, 3),
+      ]),
+    ).toEqual([after.id]);
+  });
+
+  test("two date-less lines in one bucket read each other's totals once", async () => {
+    // Each date-less statement reads the running total the earlier lines
+    // left: one unit each against a cap of 2 fits line by line, so the whole
+    // order fits. Adding the totals together would refuse it.
+    const group = await createTestGroup({ maxAttendees: 2 });
+    const first = await createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+    });
+    const second = await createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+    });
+
+    expect(
+      await refusedOrderUnfitListingIds([line(first.id), line(second.id)]),
+    ).toEqual([]);
+  });
+
   test("an order that fits again costs two calls across several dates", async () => {
     const lines: LineBooking[] = [];
     for (let index = 0; index < 8; index++) {
