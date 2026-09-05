@@ -13,12 +13,12 @@
 import {
   deleteByField,
   executeBatch,
-  inPlaceholders,
   queryAll,
   resultRows,
   type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
+import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -69,20 +69,24 @@ type ReadIdsByKeys = (
 /** Rows of one link table, as the two id columns this module works in. */
 type LinkRow = { key_id: number; value_id: number };
 
+/** Rows of one link table, as the two id columns this module works in. The
+ *  where body is built through the numbered binder, so a where that reads one
+ *  id list through several columns binds that list once. */
 const linkRows = (
   table: string,
   keyColumn: string,
   valueColumn: string,
-  where: string,
-  args: number[],
-): Promise<LinkRow[]> =>
-  queryAll<LinkRow>(
+  where: NumberedSql,
+): Promise<LinkRow[]> => {
+  const { sql, args } = numberedStatement(where);
+  return queryAll<LinkRow>(
     `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
        FROM ${table}
-       WHERE ${where}
+       WHERE ${sql}
        ORDER BY ${keyColumn}, ${valueColumn}`,
     args,
   );
+};
 
 /** One direction's reader: its own query, remembered per request. */
 const oneDirectionReader = (
@@ -99,8 +103,7 @@ const oneDirectionReader = (
       table,
       keyColumn,
       valueColumn,
-      `${keyColumn} IN (${inPlaceholders(keys)})`,
-      keys,
+      (bind) => `${keyColumn} IN (${keys.map(bind).join(", ")})`,
     );
     return reduce((acc: Map<number, number[]>, row: LinkRow) => {
       requiredMapValue(acc, row.key_id, "Unexpected link key").push(
@@ -237,14 +240,12 @@ export const selfLinkTableSides = (
   ): Promise<Map<number, BothDirections>> => {
     const linksById = emptyBothDirections(ids);
     if (ids.length === 0) return linksById;
-    const slots = inPlaceholders(ids);
-    const rows = await linkRows(
-      table,
-      keyColumn,
-      valueColumn,
-      `${keyColumn} IN (${slots}) OR ${valueColumn} IN (${slots})`,
-      [...ids, ...ids],
-    );
+    // Both directions read the same ids, so the list is bound once and its
+    // slots appear under both columns.
+    const rows = await linkRows(table, keyColumn, valueColumn, (bind) => {
+      const idSlots = ids.map(bind).join(", ");
+      return `${keyColumn} IN (${idSlots}) OR ${valueColumn} IN (${idSlots})`;
+    });
     for (const { key_id, value_id } of rows) {
       // A row matched on either column, so only one of its two records has to
       // be one the caller asked about.
