@@ -8,7 +8,8 @@
  * two writers in step.
  */
 
-import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
@@ -77,8 +78,9 @@ const requireExists = (
 };
 
 /** The edge-state checks shared by both writers, in one SELECT. `parentIds`/`
- *  `childIds` are the role id sets; each `IN` clause is filled by its own bound
- *  args so the query never builds an empty `IN ()`. */
+ *  `childIds` are the role id sets; each set is bound once and its slots
+ *  reused by every check that reads it, so the query never builds an empty
+ *  `IN ()`. */
 export const guardEdgeWriteTx = async (
   input: GuardEdgeWriteInput,
 ): Promise<PackageChildEdgeBlock | null> => {
@@ -89,43 +91,39 @@ export const guardEdgeWriteTx = async (
   const uniqueChildIds = [...childSet];
 
   const [state] = resultRows<EdgeState>(
-    await tx.execute({
-      args: [
-        ...uniqueChildIds,
-        ...uniqueParentIds,
-        ...uniqueChildIds,
-        ...uniqueParentIds,
-        ...uniqueParentIds,
-        ...uniqueChildIds,
-      ],
-      sql: `SELECT EXISTS(
-                      SELECT 1
-                        FROM group_listings AS childMembership
-                        JOIN groups AS childGroup
-                          ON childGroup.id = childMembership.group_id
-                       WHERE childMembership.listing_id IN (${inPlaceholders(uniqueChildIds)})
-                         AND childGroup.is_package = 1
-                    ) AS child_is_package_member,
-                    EXISTS(
-                      SELECT 1
-                        FROM group_listings AS parentMembership
-                        JOIN groups AS parentGroup
-                          ON parentGroup.id = parentMembership.group_id
-                       WHERE parentMembership.listing_id IN (${inPlaceholders(uniqueParentIds)})
-                         AND parentGroup.is_package = 1
-                         AND parentGroup.hide_package_listings = 1
-                    ) AS parent_is_hidden_package_member,
-                    (SELECT COUNT(*) FROM listings
-                       WHERE id IN (${inPlaceholders(uniqueChildIds)})) AS child_count,
-                    (SELECT COUNT(*) FROM listings
-                       WHERE id IN (${inPlaceholders(uniqueParentIds)})) AS parent_count,
-                    EXISTS(SELECT 1 FROM listing_parents
-                             WHERE child_listing_id IN (${inPlaceholders(uniqueParentIds)}))
-                       AS parent_has_parent,
-                    EXISTS(SELECT 1 FROM listing_parents
-                             WHERE parent_listing_id IN (${inPlaceholders(uniqueChildIds)}))
-                       AS child_has_children`,
-    }),
+    await tx.execute(
+      numberedStatement((bind) => {
+        const childSlots = uniqueChildIds.map(bind).join(", ");
+        const parentSlots = uniqueParentIds.map(bind).join(", ");
+        return `SELECT EXISTS(
+                        SELECT 1
+                          FROM group_listings AS childMembership
+                          JOIN groups AS childGroup
+                            ON childGroup.id = childMembership.group_id
+                         WHERE childMembership.listing_id IN (${childSlots})
+                           AND childGroup.is_package = 1
+                     ) AS child_is_package_member,
+                     EXISTS(
+                       SELECT 1
+                         FROM group_listings AS parentMembership
+                         JOIN groups AS parentGroup
+                           ON parentGroup.id = parentMembership.group_id
+                        WHERE parentMembership.listing_id IN (${parentSlots})
+                          AND parentGroup.is_package = 1
+                          AND parentGroup.hide_package_listings = 1
+                     ) AS parent_is_hidden_package_member,
+                     (SELECT COUNT(*) FROM listings
+                        WHERE id IN (${childSlots})) AS child_count,
+                     (SELECT COUNT(*) FROM listings
+                        WHERE id IN (${parentSlots})) AS parent_count,
+                     EXISTS(SELECT 1 FROM listing_parents
+                              WHERE child_listing_id IN (${parentSlots}))
+                        AS parent_has_parent,
+                     EXISTS(SELECT 1 FROM listing_parents
+                              WHERE parent_listing_id IN (${childSlots}))
+                        AS child_has_children`;
+      }),
+    ),
   );
 
   // Existence: the parent side must still exist (the parent itself on the

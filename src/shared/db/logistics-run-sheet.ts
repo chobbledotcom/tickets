@@ -14,6 +14,10 @@ import {
   type DeliveryBookingRef,
   mapBookingRows,
 } from "#db/logistics.ts";
+import {
+  numberedStatement,
+  type SqlParameter,
+} from "#db/numbered-statement.ts";
 import { columnFrom } from "#db/query.ts";
 import { compact, flatMap, uniqueBy } from "#fp";
 
@@ -66,16 +70,44 @@ const buildLeg = (
   };
 };
 
-const runSheetLegWhere = (
-  sourceName: string,
-  agentPlaceholders: string,
-  datePlaceholders: string,
-): string => {
-  const column = columnFrom(sourceName);
-  return `((${column("start_agent_id")} IN (${agentPlaceholders}) AND DATE(${column("start_at")}) IN (${datePlaceholders}))
-        OR (${column("end_agent_id")} IN (${agentPlaceholders}) AND DATE(${column("end_at")}, '-1 day') IN (${datePlaceholders})))
+/** The alias every run-sheet read walks `listing_attendees` rows under. */
+const SOURCE = "listingAttendee";
+
+const runSheetLegWhere = (agentSlots: string, dateSlots: string): string => {
+  const column = columnFrom(SOURCE);
+  return `((${column("start_agent_id")} IN (${agentSlots}) AND DATE(${column("start_at")}) IN (${dateSlots}))
+        OR (${column("end_agent_id")} IN (${agentSlots}) AND DATE(${column("end_at")}, '-1 day') IN (${dateSlots})))
         AND ${column("quantity")} > 0`;
 };
+
+/** Runs a run-sheet read for the given agents and dates: both id lists bind
+ *  once, and the writer receives the slot lists its SQL reads wherever it
+ *  needs them again. Callers must return early on empty id lists. */
+const queryRunSheetLegs = async <Row>(
+  agentIds: number[],
+  dates: string[],
+  write: (
+    slots: { agentSlots: string; dateSlots: string },
+    bind: SqlParameter,
+  ) => string,
+): Promise<Row[]> => {
+  const { sql, args } = numberedStatement((bind) =>
+    write(
+      {
+        agentSlots: agentIds.map(bind).join(", "),
+        dateSlots: dates.map(bind).join(", "),
+      },
+      bind,
+    ),
+  );
+  return queryAll<Row>(sql, args);
+};
+
+/** The run-sheet rows' source: every listing_attendees row whose drop-off or
+ *  collection leg one of the bound agents owns on one of the bound dates. */
+const runSheetRowsWhere = (agentSlots: string, dateSlots: string): string =>
+  `FROM listing_attendees AS ${SOURCE}
+      WHERE ${runSheetLegWhere(agentSlots, dateSlots)}`;
 
 /** Collapse the identical legs a multi-path booking yields (a listing booked
  *  * through a package beside its standalone or second-package row is several
@@ -121,16 +153,14 @@ export const getAgentRunSheet = async (
   dates: string[],
 ): Promise<AgentRunLeg[]> => {
   if (agentIds.length === 0 || dates.length === 0) return [];
-  const sourceName = "listingAttendee";
-  const agentPlaceholders = inPlaceholders(agentIds);
-  const datePlaceholders = inPlaceholders(dates);
-  const rows = await queryAll<RunSheetRow>(
-    `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
+  const rows = await queryRunSheetLegs<RunSheetRow>(
+    agentIds,
+    dates,
+    ({ agentSlots, dateSlots }) =>
+      `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
             start_time, end_time, start_done, end_done,
             DATE(start_at) AS start_date, DATE(end_at, '-1 day') AS end_date
-     FROM listing_attendees AS ${sourceName}
-     WHERE ${runSheetLegWhere(sourceName, agentPlaceholders, datePlaceholders)}`,
-    [...agentIds, ...dates, ...agentIds, ...dates],
+     ${runSheetRowsWhere(agentSlots, dateSlots)}`,
   );
   const agentSet = new Set(agentIds);
   const dateSet = new Set(dates);
@@ -147,12 +177,6 @@ export const getAgentRunSheet = async (
 
 const bookingRefKey = (booking: DeliveryBookingRef): string =>
   bookingAssignmentKey(booking.attendeeId, booking.listingId);
-
-const bookingRefValues = (bookings: DeliveryBookingRef[]): string =>
-  bookings.map(() => "(?, ?)").join(", ");
-
-const bookingRefArgs = (bookings: DeliveryBookingRef[]): number[] =>
-  bookings.flatMap((booking) => [booking.attendeeId, booking.listingId]);
 
 /** A booking row matched on an agent's run sheet, with its full slot identity
  * (attendee + listing + date + parent + package) populated from the database
@@ -212,37 +236,35 @@ export const getAgentRunSheetBookings = async (
   if (bookings.length === 0) return [];
 
   const uniqueBookings = uniqueBy(bookingRefKey)(bookings);
-  const agentPlaceholders = inPlaceholders(agentIds);
-  const datePlaceholders = inPlaceholders(dates);
-  const sourceName = "listingAttendee";
-  const rows = await queryAll<{
+  // The agent and date lists bind first; the VALUES pairs bind through the
+  // same binder, so no list is bound twice.
+  const rows = await queryRunSheetLegs<{
     attendee_id: number;
     date: string | null;
     listing_id: number;
     parent_listing_id: number;
     package_group_id: number;
-  }>(
-    `WITH requested_booking(attendee_id, listing_id) AS (
-       VALUES ${bookingRefValues(uniqueBookings)}
+  }>(agentIds, dates, ({ agentSlots, dateSlots }, bind) => {
+    const bookingPairs = uniqueBookings
+      .map(
+        (booking) =>
+          `(${bind(booking.attendeeId)}, ${bind(booking.listingId)})`,
+      )
+      .join(", ");
+    return `WITH requested_booking(attendee_id, listing_id) AS (
+       VALUES ${bookingPairs}
      )
-     SELECT DISTINCT ${sourceName}.attendee_id,
-                      ${sourceName}.listing_id,
-                      DATE(${sourceName}.start_at) AS date,
-                      ${sourceName}.parent_listing_id,
-                      ${sourceName}.package_group_id
-     FROM listing_attendees AS ${sourceName}
+     SELECT DISTINCT ${SOURCE}.attendee_id,
+                      ${SOURCE}.listing_id,
+                      DATE(${SOURCE}.start_at) AS date,
+                      ${SOURCE}.parent_listing_id,
+                      ${SOURCE}.package_group_id
+     FROM listing_attendees AS ${SOURCE}
      JOIN requested_booking AS requestedBooking
-       ON requestedBooking.attendee_id = ${sourceName}.attendee_id
-      AND requestedBooking.listing_id = ${sourceName}.listing_id
-     WHERE ${runSheetLegWhere(sourceName, agentPlaceholders, datePlaceholders)}`,
-    [
-      ...bookingRefArgs(uniqueBookings),
-      ...agentIds,
-      ...dates,
-      ...agentIds,
-      ...dates,
-    ],
-  );
+       ON requestedBooking.attendee_id = ${SOURCE}.attendee_id
+      AND requestedBooking.listing_id = ${SOURCE}.listing_id
+     WHERE ${runSheetLegWhere(agentSlots, dateSlots)}`;
+  });
   return mapBookingRows(rows, (row) => ({
     date: row.date,
     packageGroupId: row.package_group_id,
@@ -261,19 +283,20 @@ export const getAgentRunSheetDates = async (
   agentIds: number[],
 ): Promise<string[]> => {
   if (agentIds.length === 0) return [];
-  const placeholders = inPlaceholders(agentIds);
-  const rows = await queryAll<{ date: string }>(
+  // Both UNION arms read the same agents, so the list is bound once.
+  const { sql, args } = numberedStatement((bind) => {
+    const agentSlots = agentIds.map(bind).join(", ");
     // quantity > 0 mirrors the run-sheet query: a no-quantity sentinel line is
     // never an operational delivery, so it must not offer a date to open.
-    `SELECT DATE(start_at) AS date FROM listing_attendees
-        WHERE start_agent_id IN (${placeholders})
+    return `SELECT DATE(start_at) AS date FROM listing_attendees
+        WHERE start_agent_id IN (${agentSlots})
           AND start_at IS NOT NULL AND quantity > 0
       UNION
       SELECT DATE(end_at, '-1 day') AS date FROM listing_attendees
-        WHERE end_agent_id IN (${placeholders})
-          AND end_at IS NOT NULL AND quantity > 0`,
-    [...agentIds, ...agentIds],
-  );
+        WHERE end_agent_id IN (${agentSlots})
+          AND end_at IS NOT NULL AND quantity > 0`;
+  });
+  const rows = await queryAll<{ date: string }>(sql, args);
   return rows.map((row) => row.date).sort((a, b) => a.localeCompare(b));
 };
 

@@ -235,3 +235,8 @@ src/shared/db/listings/records.ts::withDayPrices~12esd4i  ?? → ||   # a provid
 src/shared/db/listings/records.ts::withDayPrices~0jasiuh  ?? → ||   # a projected image column set is an object (always truthy), so the fetch fallback runs only when it is undefined
 src/shared/db/listings/records.ts::getStoredListingWithCount~0s7oh7g  ?? → ||   # the array element is a listing object or undefined; a present listing is truthy
 src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a2j2  ?? → ||   # the day-price map holds record objects, and a record is always truthy even when empty
+
+# The one-direction link reader's fold throws when a row's key falls outside
+# the requested key set, but the reader's WHERE clause already restricts every
+# returned row to a requested key, so the throw is unreachable.
+src/shared/db/link-table.ts::oneDirectionReader.fetchIdsByKeys~0a4lik4 Unexpected link key→""   # unreachable: WHERE key_id IN (...) lets only requested keys through

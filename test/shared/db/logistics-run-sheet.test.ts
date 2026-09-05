@@ -11,6 +11,7 @@ import { logisticsAgents } from "#db/logistics-agents.ts";
 import {
   type DeliveryLegKind,
   getAgentRunSheet,
+  getAgentRunSheetBookings,
   getAgentRunSheetDates,
   setLegDone,
 } from "#db/logistics-run-sheet.ts";
@@ -207,6 +208,32 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       expect(legs.map((l) => l.kind).sort()).toEqual(["end", "start"]);
     });
 
+    test("yields each agent's legs when several agents share the window", async () => {
+      const a = await makeBooking({
+        endAgentId: null,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+        startTime: "09:00",
+      });
+      const b = await makeBooking({
+        endAgentId: other,
+        endDate: D3,
+        startAgentId: other,
+        startDate: D1,
+        startTime: "10:00",
+      });
+      const legs = await getAgentRunSheet([van, other], [D1]);
+      expect(
+        legs
+          .map((l) => [l.agentId, l.attendeeId] as const)
+          .sort((x, y) => x[0] - y[0]),
+      ).toEqual([
+        [other, b.attendeeId],
+        [van, a.attendeeId],
+      ]);
+    });
+
     test("excludes legs whose date is outside the window", async () => {
       // Drop-off on D3 and collection on D3 (end_at = D4), both past [D1, D2].
       await makeBooking({
@@ -380,6 +407,87 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
     });
   });
 
+  describe("getAgentRunSheetBookings", () => {
+    test("returns [] for no agent ids", async () => {
+      expect(
+        await getAgentRunSheetBookings(
+          [],
+          [D1],
+          [{ attendeeId: 1, listingId: 1 }],
+        ),
+      ).toEqual([]);
+    });
+
+    test("returns [] for no dates", async () => {
+      expect(
+        await getAgentRunSheetBookings(
+          [van],
+          [],
+          [{ attendeeId: 1, listingId: 1 }],
+        ),
+      ).toEqual([]);
+    });
+
+    test("returns [] for no bookings", async () => {
+      expect(await getAgentRunSheetBookings([van], [D1], [])).toEqual([]);
+    });
+
+    test("returns the requested bookings whose legs two agents own on the dates", async () => {
+      const a = await makeBooking({
+        endAgentId: other,
+        endDate: D3,
+        startAgentId: van,
+        startDate: D1,
+      });
+      const b = await makeBooking({
+        endAgentId: van,
+        endDate: D3,
+        startAgentId: other,
+        startDate: D1,
+      });
+      const rows = await getAgentRunSheetBookings(
+        [van, other],
+        [D1],
+        [
+          { attendeeId: a.attendeeId, listingId: a.listingId },
+          { attendeeId: b.attendeeId, listingId: b.listingId },
+        ],
+      );
+      expect(
+        rows
+          .map((r) => [r.attendeeId, r.listingId, r.date] as const)
+          .sort((x, y) => x[0] - y[0]),
+      ).toEqual([
+        [a.attendeeId, a.listingId, D1],
+        [b.attendeeId, b.listingId, D1],
+      ]);
+    });
+
+    test("leaves out a requested booking whose legs fall outside the dates", async () => {
+      const inside = await makeBooking({
+        endAgentId: null,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+      });
+      const outside = await makeBooking({
+        endAgentId: null,
+        endDate: D3,
+        startAgentId: van,
+        startDate: D3,
+      });
+      const rows = await getAgentRunSheetBookings(
+        [van],
+        [D1],
+        [
+          { attendeeId: inside.attendeeId, listingId: inside.listingId },
+          { attendeeId: outside.attendeeId, listingId: outside.listingId },
+        ],
+      );
+      expect(rows.map((r) => r.attendeeId)).toEqual([inside.attendeeId]);
+    });
+  });
+
   describe("getAgentRunSheetDates", () => {
     test("returns [] for no agent ids without hitting the database", async () => {
       const { entries, dates } = await runWithQueryLogContext(async () => {
@@ -418,6 +526,22 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startDate: D1,
       });
       expect(await getAgentRunSheetDates([van])).toEqual([]);
+    });
+
+    test("collects dates from every agent in the set", async () => {
+      await makeBooking({
+        endAgentId: null,
+        endDate: D2,
+        startAgentId: van,
+        startDate: D1,
+      });
+      await makeBooking({
+        endAgentId: null,
+        endDate: D3,
+        startAgentId: other,
+        startDate: D2,
+      });
+      expect(await getAgentRunSheetDates([van, other])).toEqual([D1, D2]);
     });
 
     test("ignores no-quantity sentinel lines", async () => {
@@ -511,6 +635,29 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       expect(ok).toBe(false);
       const legs = await getAgentRunSheet([van], [D3]);
       expect(legs[0]?.done).toBe(false);
+    });
+
+    test("marks each leg on its own date when drop-off and collection differ", async () => {
+      // start D1, end D3: the collection's run-sheet day is D2, so the two
+      // date predicates must stay on their own legs' arms.
+      const { attendeeId, listingId } = await makeBooking({
+        endAgentId: van,
+        endDate: D3,
+        startAgentId: van,
+        startDate: D1,
+      });
+      expect(
+        await setLegDone(attendeeId, listingId, "start", D1, true, [van]),
+      ).toBe(true);
+      expect(
+        await setLegDone(attendeeId, listingId, "end", D1, true, [van]),
+      ).toBe(false);
+      const legs = await getAgentRunSheet([van], [D1, D2]);
+      expect(legs.find((l) => l.kind === "start")?.done).toBe(true);
+      expect(legs.find((l) => l.kind === "end")?.done).toBe(false);
+      expect(
+        await setLegDone(attendeeId, listingId, "end", D2, true, [van]),
+      ).toBe(true);
     });
   });
 });

@@ -153,6 +153,38 @@ describeWithEnv(
       ).rejects.toThrow(t("error.child_listing_deleted"));
     });
 
+    test("accepts several children and several parents when nothing blocks them", async () => {
+      // Both id sets reach the checks through a multi-value IN list, so a
+      // multi-id save on each contract must pass every check at once.
+      const parent = await createTestListing({ name: "Multi parent" });
+      const childA = await createTestListing({ name: "Child A" });
+      const childB = await createTestListing({ name: "Child B" });
+      await expect(
+        guard({
+          childIds: [childA.id, childB.id],
+          contract: "children",
+          missingParentError: t("error.listing_deleted"),
+          parentIds: [parent.id],
+        }),
+      ).resolves.toBeNull();
+
+      const importParentA = await createTestListing({
+        name: "Import parent A",
+      });
+      const importParentB = await createTestListing({
+        name: "Import parent B",
+      });
+      const importChild = await createTestListing({ name: "Import child" });
+      await expect(
+        guard({
+          childIds: [importChild.id],
+          contract: "parents",
+          missingParentError: t("catalog_transfer.parent_missing"),
+          parentIds: [importParentA.id, importParentB.id],
+        }),
+      ).resolves.toBeNull();
+    });
+
     test("returns the package conflict for the children contract", async () => {
       const { assignListingsToGroup } = await import(
         "#db/groups/membership.ts"

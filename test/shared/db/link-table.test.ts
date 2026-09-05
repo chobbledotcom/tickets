@@ -218,4 +218,13 @@ describeWithEnv("db link-table", { db: true }, () => {
       });
     });
   });
+
+  test("a write makes a plain side's next read fetch again", async () => {
+    await byUser.setIds(1, [3]);
+    await runWithRequestCache(async () => {
+      expect(await byAgent.getIds(3)).toEqual([1]);
+      await byUser.setIds(2, [3]);
+      expect(await byAgent.getIds(3)).toEqual([1, 2]);
+    });
+  });
 });
