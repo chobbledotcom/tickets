@@ -755,6 +755,9 @@ export const ticketGalleryTarget = (
   return null;
 };
 
+const ticketPageHidden = (listings: TicketListing[], group?: Group): boolean =>
+  group?.hidden ?? listings.some(({ listing }) => listing.hidden);
+
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
@@ -846,6 +849,7 @@ export const getTicketContext = async (
     packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
     packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
     packages,
+    pageHidden: ticketPageHidden(activeListings, group),
     promoCodesEnabled,
     terms,
     ...questionsResult,

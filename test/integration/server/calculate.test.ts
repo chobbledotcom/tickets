@@ -324,6 +324,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const group = await createTestGroup({ name: "Festival", slug: "festival" });
     const listing = await createTestListing({
       groupId: group.id,
+      hidden: true,
       maxQuantity: 5,
       name: "Day Pass",
       unitPrice: 2000,
@@ -333,6 +334,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       [`quantity_${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     const html = await response.text();
     expect(html).toContain("Day Pass");
     expect(html).toContain(formatCurrency(2000));
@@ -345,17 +347,17 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const listing = await createTestListing({
       maxQuantity: 5,
       name: "Paid Seat",
-      unitPrice: 2500,
+      unitPrice: 1,
     });
 
     const html = await (
       await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "2",
+        [`quantity_${listing.id}`]: "1",
       })
     ).text();
-    // Two seats at £25.00 = £50.00 owed, taken with no online payment.
+    // The smallest paid value must remain distinct from a free booking.
     expect(html).toContain("you'll owe");
-    expect(html).toContain(formatCurrency(5000));
+    expect(html).toContain(formatCurrency(1));
   });
 
   test("shows no amount owed for a free booking when payments are disabled", async () => {
@@ -399,13 +401,18 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
     await setModifierAnswers(tier.id, [answer.id]);
 
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`question_${question.id}`]: String(answer.id),
-        [`quantity_${listing.id}`]: "1",
-      })
-    ).text();
-    expect(html).toContain("no longer available");
+    const selection = {
+      [`question_${question.id}`]: String(answer.id),
+      [`quantity_${listing.id}`]: "1",
+    };
+    expect(await quote(listing.slug, selection)).toContain(
+      "no longer available",
+    );
+
+    await modifiersTable.update(tier.id, { minVisits: 1 });
+    expect(await quote(listing.slug, selection)).not.toContain(
+      "no longer available",
+    );
   });
 
   test("reports unavailable tickets when capacity is exhausted", async () => {

@@ -606,6 +606,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       packageGroupRemainingByGroupId: new Map(),
       packageMemberGroupIds: new Map(),
       packages: [],
+      pageHidden: false,
       questionListingMap: new Map(),
       questions: [],
       slugs: [],

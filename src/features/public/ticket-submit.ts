@@ -211,16 +211,15 @@ const processSubmission = async (
   const breakdownIntent: CheckoutIntent = paymentsEnabled
     ? intent
     : { ...intent, reservationAmount: "0" };
-  // The ledger order for a provider-less booking is the breakdown order with the
-  // booking fee removed up front (`feeSubtotal: 0` — payments-off charges no fee)
-  // and then recast as an OWED order: nothing was collected and no fee is booked,
-  // so `owedOrderForLedger` drops every extra and zeroes the total. That posts the
+  // A provider-less booking is recast as an OWED order: nothing was collected
+  // and no fee is booked, so `owedOrderForLedger` drops every extra and zeroes the
+  // total. That posts the
   // gross `sale`/owed legs (and any surcharge add-on as its own `modifier` leg)
   // with NO `fee` and NO `payment` leg — the breakdown intent (kept fee-bearing)
   // still drives the displayed remaining balance below.
   const ledgerOrder = paymentsEnabled
     ? finalPricedOrder
-    : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
+    : owedOrderForLedger(priceCheckout(breakdownIntent));
   return handleFreePath({
     allocations,
     contact,
@@ -453,7 +452,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
 /** Handle ticket GET/POST orchestrator: render on GET, quote when in calculate
  * mode, otherwise submit. */
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
-  const { request, listings, mode } = args;
+  const { request, mode } = args;
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
@@ -461,13 +460,7 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
       : mode === "calculate"
         ? await calculateTicket(request, ctx)
         : await submitTicket(request, ctx);
-  return applyHiddenNoindex(
-    response,
-    listings.some((e) => e.listing.hidden) ||
-      allChildListings(ctx.childrenByParentId).some(
-        (listing) => listing.hidden,
-      ),
-  );
+  return applyHiddenNoindex(response, ctx.pageHidden);
 };
 
 /**
