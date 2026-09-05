@@ -64,14 +64,20 @@ describe("buildBatchCapacitySql", () => {
     expect(sql).toContain("+ 1 <=");
   });
 
-  test("a single date-less unit still gets its running-total clause", () => {
+  test("a single undated unit on either demand component gets its clause", () => {
     // One undated unit is undated demand: the bucket must not silently
-    // produce no clause at exactly one.
-    const { sql } = buildBatchCapacitySql(
-      new Map([[LISTING, { everyDay: 1, perDay: new Map(), undatedOnly: 0 }]]),
-      new Map(),
-    );
-    expect(sql).toContain("+ 1 <=");
+    // produce no clause at exactly one, on the every-day side or on the
+    // date-less side of a per-date listing.
+    for (const component of [
+      { everyDay: 1, perDay: new Map(), undatedOnly: 0 },
+      { everyDay: 0, perDay: new Map(), undatedOnly: 1 },
+    ]) {
+      const { sql } = buildBatchCapacitySql(
+        new Map([[LISTING, component]]),
+        new Map(),
+      );
+      expect(sql).toContain("+ 1 <=");
+    }
   });
 
   test("per-day listing demand is one clause carrying a VALUES row per day", () => {
