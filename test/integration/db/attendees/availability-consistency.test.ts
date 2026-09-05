@@ -7,6 +7,7 @@ import type {
 import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#db/attendees/capacity/checks.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { queryAll } from "#db/client.ts";
+import { listingAggregates } from "#db/listings/aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -138,21 +139,27 @@ describeWithEnv(
       return listing;
     };
 
+    /** One daily ticket on the cart date beside one undated standard ticket —
+     * the smallest cart whose two lines a shared cap can bind together. */
+    const dailyAndStandardCart = (
+      dailyId: number,
+      standardId: number,
+    ): Promise<boolean> =>
+      assertConsistent(
+        [
+          { date: "2026-05-01", listingId: dailyId, quantity: 1 },
+          { listingId: standardId, quantity: 1 },
+        ],
+        "2026-05-01",
+      );
+
     test("a mixed standard+daily dated cart agrees when the standard line is full", async () => {
       // The date must not leak into the standard line's counting: its running
       // total is what's full, on every date.
       const standard = await createTestListing({ maxAttendees: 2 });
       await bookAttendee(standard, { quantity: 2 });
       const daily = await createDailyTestListing({ maxAttendees: 5 });
-      expect(
-        await assertConsistent(
-          [
-            { date: "2026-05-01", listingId: daily.id, quantity: 1 },
-            { listingId: standard.id, quantity: 1 },
-          ],
-          "2026-05-01",
-        ),
-      ).toBe(false);
+      expect(await dailyAndStandardCart(daily.id, standard.id)).toBe(false);
     });
 
     test("daily per-date capacity agrees on a full date", async () => {
@@ -181,6 +188,40 @@ describeWithEnv(
           "2026-05-01",
         ),
       ).toBe(false);
+    });
+
+    test("a date-less line on a daily member counts against the group's running total on both paths", async () => {
+      // The daily member holds two booked units from another day, so its
+      // running total is what tips the group cap. The write's date-less
+      // statement counts every member's running total; the preflight must
+      // run the same undated check beside its per-day one.
+      const group = await createTestGroup({ maxAttendees: 3 });
+      const daily = await createDailyTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      const standard = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      await bookAttendee(daily, { date: "2026-05-05", quantity: 2 });
+
+      expect(await dailyAndStandardCart(daily.id, standard.id)).toBe(false);
+    });
+
+    test("a zero-quantity line books on an over-full listing and both paths agree", async () => {
+      // The no-op line demands nothing, so the preflight admits the cart and
+      // the write lands every row. The listing's running total sits past its
+      // cap, which today refuses the write the preflight passed.
+      const listing = await createTestListing({ maxAttendees: 2 });
+      await bookAttendee(listing, { quantity: 2 });
+      await listingAggregates.update(listing.id, {
+        booked_quantity: 5,
+        tickets_count: 0,
+      });
+      expect(
+        await assertConsistent([{ listingId: listing.id, quantity: 0 }]),
+      ).toBe(true);
     });
   },
 );

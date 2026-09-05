@@ -8,11 +8,9 @@
  */
 
 import type { LineBooking } from "#db/attendee-types.ts";
-import type { SqlStatement } from "#db/client.ts";
-import {
-  numberedStatement,
-  type SqlParameter,
-  type SqlParameterToken,
+import type {
+  SqlParameter,
+  SqlParameterToken,
 } from "#db/numbered-statement.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
@@ -41,13 +39,14 @@ export const dateToRange = (date: string, durationDays = 1): DayRange => {
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
 };
 
-type BoundDayRange = {
-  endAt: SqlParameterToken;
-  startAt: SqlParameterToken;
-};
+/** The day-window expressions a counting subquery compares against: bound
+ * parameter tokens in the write predicate, dayDemand column references in
+ * the batch clauses. Never a raw date — a date reaches the statement only
+ * through bind, so this type is deliberately not a DayRange. */
+export type CountingDayRange = { endSql: string; startSql: string };
 
 type CountSqlValues = {
-  dayRange: BoundDayRange | null;
+  dayRange: CountingDayRange | null;
   excludeAttendeeId: SqlParameterToken | null;
   listingId: SqlParameterToken;
 };
@@ -70,7 +69,7 @@ const attendeeExclusionSql = (
     : `AND ${alias}.attendee_id != ${excludeAttendeeId} `;
 
 const dailyListingCountSql = (
-  values: CountSqlValues & { dayRange: BoundDayRange },
+  values: CountSqlValues & { dayRange: CountingDayRange },
 ): string =>
   `(SELECT CASE
           WHEN ${capacityRuleTypeSql("perDateCap", "listing.listing_type")} THEN (
@@ -80,8 +79,8 @@ const dailyListingCountSql = (
                "attendee",
                values.excludeAttendeeId,
              )}
-               AND attendee.start_at < ${values.dayRange.endAt}
-               AND attendee.end_at > ${values.dayRange.startAt}
+               AND attendee.start_at < ${values.dayRange.endSql}
+               AND attendee.end_at > ${values.dayRange.startSql}
           )
           ELSE listing.booked_quantity
         END
@@ -101,7 +100,7 @@ const undatedListingCountSql = (values: CountSqlValues): string => {
   return `(SELECT booked_quantity FROM listings WHERE id = ${values.listingId})`;
 };
 
-const buildListingCountSql = (values: CountSqlValues): string =>
+export const buildListingCountSql = (values: CountSqlValues): string =>
   values.dayRange === null
     ? undatedListingCountSql(values)
     : dailyListingCountSql({ ...values, dayRange: values.dayRange });
@@ -143,7 +142,7 @@ const buildGroupExclusionSql = (
 // (Self-exclusion is write-only — the batch never excludes — so those branches
 // keep the correlated "groupRow.id" they are only ever emitted with.)
 const buildDailyGroupCountSql = (
-  dayRange: BoundDayRange,
+  dayRange: CountingDayRange,
   excludeAttendeeId: SqlParameterToken | null,
   groupRef: string,
 ): string =>
@@ -168,8 +167,8 @@ const buildDailyGroupCountSql = (
                "attendee",
                excludeAttendeeId,
              )}
-              AND attendee.start_at < ${dayRange.endAt}
-              AND attendee.end_at > ${dayRange.startAt}
+              AND attendee.start_at < ${dayRange.endSql}
+              AND attendee.end_at > ${dayRange.startSql}
          ), 0))`;
 
 const buildUndatedGroupCountSql = (
@@ -185,8 +184,8 @@ const buildUndatedGroupCountSql = (
         ), 0)
          ${buildGroupExclusionSql(excludeAttendeeId, ALL_GROUP_MEMBER_SQL)})`;
 
-const buildGroupCountSql = (
-  dayRange: BoundDayRange | null,
+export const buildGroupCountSql = (
+  dayRange: CountingDayRange | null,
   excludeAttendeeId: SqlParameterToken | null,
   groupRef = "groupRow.id",
 ): string => {
@@ -231,10 +230,10 @@ const buildDayCapacitySql = (
 const bindDayRange = (
   bind: SqlParameter,
   dayRange: DayRange | null,
-): BoundDayRange | null =>
+): CountingDayRange | null =>
   dayRange === null
     ? null
-    : { endAt: bind(dayRange.endAt), startAt: bind(dayRange.startAt) };
+    : { endSql: bind(dayRange.endAt), startSql: bind(dayRange.startAt) };
 
 /**
  * Build the WHERE clause for capacity checking on listing_attendees.
@@ -275,151 +274,24 @@ export const buildCapacityCondition =
     ).join(" AND ");
   };
 
-/** One listing's or one group's cart demand, split into per-day (dated daily)
- * buckets and a date-less `total` — the shape the batch read aggregates. */
-export type CapacityBucket = { perDay: Map<string, number>; total: number };
-
-/** Wrap a count subquery into a `<= cap` availability clause. */
-const capClause = (
-  countSql: string,
-  wrapSql: (countSql: string) => string,
-): string => wrapSql(countSql);
-
-/** A `<= cap` clause for one listing's demand against its OWN cap, reusing the
- * same count subquery the write predicate uses. `active = 1` matches the write
- * (an inactive listing's cap is NULL, so the clause — and the AND — is NULL,
- * which the enclosing CASE resolves to "not available"). */
-const listingCapClause = (
-  listingId: SqlParameterToken,
-  dayRange: BoundDayRange | null,
-  demand: number,
-): string =>
-  capClause(
-    buildListingCountSql({
-      dayRange,
-      excludeAttendeeId: null,
-      listingId,
-    }),
-    (countSql) =>
-      `((${countSql}) + ${demand} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1))`,
-  );
-
-/** A `<= cap` clause for one group's demand against its cap, reusing the write
- * predicate's group count subquery. An uncapped group (`max_attendees = 0`)
- * always passes, matching the write's `max_attendees > 0` gate. */
-const groupCapClause = (
-  groupId: SqlParameterToken,
-  dayRange: BoundDayRange | null,
-  demand: number,
-): string => {
-  const cap = `(SELECT max_attendees FROM groups WHERE id = ${groupId})`;
-  return capClause(
-    buildGroupCountSql(dayRange, null, groupId),
-    (countSql) => `(${cap} = 0 OR (${countSql}) + ${demand} <= ${cap})`,
-  );
-};
-
-/** Append the clauses for one demand bucket. Daily (per-day) demand emits one
- * clause per day; a date-less bucket emits a single total clause. `extra` is
- * added to every day's demand — the group case folds its non-daily cart demand
- * into each day, since those units occupy the group on every date too. */
-const bucketClauses = (
-  bucket: CapacityBucket,
-  extra: number,
-  clauseFor: (dayRange: DayRange | null, demand: number) => string,
-): string[] => {
-  if (bucket.perDay.size > 0) {
-    return [...bucket.perDay].map(([day, qty]) =>
-      clauseFor(dateToRange(day), qty + extra),
-    );
-  }
-  return bucket.total > 0 ? [clauseFor(null, bucket.total)] : [];
-};
-
-/**
- * One SELECT returning `fits` (1/0) for a whole cart's combined demand, built
- * from the SAME listing/group count subqueries the atomic write predicate uses
- * — so the read-time preflight and the write-time guard can never count
- * capacity differently. Listing demand is checked per listing; group demand is
- * checked per group with the cart's non-daily demand folded into each day.
- */
-/** The cap clauses for every bucket in one demand map. The id binds once per
- * bucket, on its first clause; `extraOf` is the demand every day's clause adds
- * on top of its own (zero for listings, the group's whole-cart total). */
-const demandClauses = (
-  demand: Map<number, CapacityBucket>,
-  bind: SqlParameter,
-  extraOf: (bucket: CapacityBucket) => number,
-  clauseOf: typeof listingCapClause,
-): string[] =>
-  [...demand].flatMap(([id, bucket]) => {
-    let idSql: SqlParameterToken | undefined;
-    return bucketClauses(bucket, extraOf(bucket), (dayRange, dayDemand) => {
-      idSql ??= bind(id);
-      return clauseOf(idSql, bindDayRange(bind, dayRange), dayDemand);
-    });
-  });
-
-/** One cart's whole demand, listing buckets beside group buckets. */
-export type CartDemand = {
-  groupDemand: Map<number, CapacityBucket>;
-  listingDemand: Map<number, CapacityBucket>;
-};
-
-/** A 1/0 expression: does this cart demand fit right now? */
-const fitExpression = (demand: CartDemand, bind: SqlParameter): string => {
-  const clauses = [
-    ...demandClauses(demand.listingDemand, bind, () => 0, listingCapClause),
-    ...demandClauses(
-      demand.groupDemand,
-      bind,
-      (bucket) => bucket.total,
-      groupCapClause,
-    ),
-  ];
-  return clauses.length === 0
-    ? "1"
-    : `CASE WHEN ${clauses.join(" AND ")} THEN 1 ELSE 0 END`;
-};
-
-export const buildBatchCapacitySql = (
-  listingDemand: Map<number, CapacityBucket>,
-  groupDemand: Map<number, CapacityBucket>,
-): SqlStatement =>
-  numberedStatement(
-    (bind) =>
-      `SELECT ${fitExpression({ groupDemand, listingDemand }, bind)} AS fits`,
-  );
-
-/** One SELECT answering several cart demands at once — `fit0`, `fit1`, … each
- * 1/0. A refusal diagnosis asks every prefix of an order this way, so its
- * cost stays one query however long the order is. */
-export const buildManyFitsSql = (demands: CartDemand[]): SqlStatement => {
-  if (demands.length === 0) {
-    throw new Error("A fits query needs at least one cart demand");
-  }
-  return numberedStatement(
-    (bind) =>
-      `SELECT ${demands
-        .map(
-          (demand, index) => `(${fitExpression(demand, bind)}) AS fit${index}`,
-        )
-        .join(", ")}`,
-  );
-};
+/** A clause that refuses nothing: the zero-quantity line's demand. */
+const alwaysFits: CapacitySql = () => "1";
 
 /**
  * The capacity condition for one booked line. An edit passes the attendee whose
- * own row must not count against the room it is asking for.
+ * own row must not count against the room it is asking for. A zero-quantity
+ * line demands no places, so it carries no capacity or active condition.
  */
 export const capacityConditionFor = (
   booking: LineBooking,
   excludeAttendeeId?: number,
 ): CapacitySql =>
-  buildCapacityCondition(
-    booking.listingId,
-    booking.quantity,
-    booking.date,
-    excludeAttendeeId,
-    booking.durationDays,
-  );
+  booking.quantity === 0
+    ? alwaysFits
+    : buildCapacityCondition(
+        booking.listingId,
+        booking.quantity,
+        booking.date,
+        excludeAttendeeId,
+        booking.durationDays,
+      );
