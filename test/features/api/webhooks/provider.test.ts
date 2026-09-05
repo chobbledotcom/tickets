@@ -22,8 +22,7 @@ import { stripeClient } from "#test-utils/stripe/fixtures.ts";
 
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
-  debugLogged,
-  errorLogged,
+  logLogged,
   useDebugLogSpy,
   useErrorLogSpy,
 } from "#test-utils/debug-log.ts";
@@ -92,7 +91,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     expect(await res.text()).toBe("Payment verification failed");
     expect(E().calls.length).toBe(0);
-    expect(debugLogged(D, "Refused a payment callback retryably")).toBe(true);
+    expect(logLogged(D, "Refused a payment callback retryably")).toBe(true);
   });
 
   test("Stripe fallback read failure stays retryable", async () => {
@@ -119,7 +118,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
 
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("PRIVATE_STRIPE_READ_FAILURE");
-    expect(errorLogged(E, "PRIVATE_STRIPE_READ_FAILURE")).toBe(false);
+    expect(logLogged(E, "PRIVATE_STRIPE_READ_FAILURE")).toBe(false);
   });
 
   test("site-signed unreadable booking stays retryable without local state", async () => {
@@ -173,9 +172,9 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       }),
       (j) => {
         expect(j.status).toBe("pending");
-        expect(errorLogged(E, "not yet paid")).toBe(true);
-        expect(debugLogged(D, "Waiting for a completed payment")).toBe(true);
-        expect(debugLogged(D, "pi_unp2")).toBe(false);
+        expect(logLogged(E, "not yet paid")).toBe(true);
+        expect(logLogged(D, "Waiting for a completed payment")).toBe(true);
+        expect(logLogged(D, "pi_unp2")).toBe(false);
       },
     );
   });
@@ -193,8 +192,8 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       (j) => {
         expect(j.received).toBe(true);
         expect(j.processed).toBeUndefined();
-        expect(debugLogged(D, "unrecognized payment session")).toBe(true);
-        expect(debugLogged(D, "pi_unrec3")).toBe(false);
+        expect(logLogged(D, "unrecognized payment session")).toBe(true);
+        expect(logLogged(D, "pi_unrec3")).toBe(false);
       },
     );
   });
@@ -217,9 +216,9 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       (j) => {
         expect(j.received).toBe(true);
         expect(j.processed).toBeUndefined();
-        expect(debugLogged(D, "unverifiable session")).toBe(true);
-        expect(debugLogged(D, "pi_uv3")).toBe(false);
-        expect(debugLogged(D, "f@e.com")).toBe(false);
+        expect(logLogged(D, "unverifiable session")).toBe(true);
+        expect(logLogged(D, "pi_uv3")).toBe(false);
+        expect(logLogged(D, "f@e.com")).toBe(false);
       },
     );
   });
@@ -230,8 +229,8 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     );
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Payment provider not configured");
-    expect(errorLogged(E, "provider not configured")).toBe(true);
-    expect(debugLogged(D, "Rejected webhook")).toBe(true);
+    expect(logLogged(E, "provider not configured")).toBe(true);
+    expect(logLogged(D, "Rejected webhook")).toBe(true);
   });
 
   test("webhook with missing signature returns 400 and logs", async () => {
@@ -241,9 +240,9 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
     );
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Missing signature");
-    expect(errorLogged(E, "missing signature header")).toBe(true);
-    expect(debugLogged(D, "Rejected webhook")).toBe(true);
-    expect(debugLogged(D, "PRIVATE_WEBHOOK_BODY")).toBe(false);
+    expect(logLogged(E, "missing signature header")).toBe(true);
+    expect(logLogged(D, "Rejected webhook")).toBe(true);
+    expect(logLogged(D, "PRIVATE_WEBHOOK_BODY")).toBe(false);
   });
 
   test("webhook with bad signature returns 400 and logs", async () => {
@@ -252,8 +251,8 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       mockWebhookRequest({}, { "stripe-signature": "bad" }),
     );
     expect(res.status).toBe(400);
-    expect(errorLogged(E, "verification failed")).toBe(true);
-    expect(debugLogged(D, "Rejected webhook")).toBe(true);
+    expect(logLogged(E, "verification failed")).toBe(true);
+    expect(logLogged(D, "Rejected webhook")).toBe(true);
   });
 
   test("processed webhook returns received=true and processed=true", async () => {
@@ -317,7 +316,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
         expect(String(j.error)).toContain("saved your details");
       },
     );
-    expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
+    expect(logLogged(E, `listing=${l.id}`)).toBe(true);
   });
 
   test("multi-listing webhook failure logs the first listing", async () => {
@@ -340,8 +339,8 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       (json) => expect(json.processed).toBe(false),
     );
 
-    expect(errorLogged(E, `listing=${first.id}`)).toBe(true);
-    expect(errorLogged(E, `listing=${second.id}`)).toBe(false);
+    expect(logLogged(E, `listing=${first.id}`)).toBe(true);
+    expect(logLogged(E, `listing=${second.id}`)).toBe(false);
   });
 
   test("validation-failure refund returns 503 status", async () => {

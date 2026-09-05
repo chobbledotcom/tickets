@@ -7,7 +7,7 @@ import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   makeSumupCheckoutDue,
@@ -138,7 +138,7 @@ describeWithEnv("sumup recovery run", { db: true }, () => {
         nextCheckAt: "2999-01-01T00:00:00.000Z",
         state: "waiting",
       });
-      expect(debugLogged(debug, "beaten")).toBe(true);
+      expect(logLogged(debug, "beaten")).toBe(true);
     } finally {
       read.restore();
     }

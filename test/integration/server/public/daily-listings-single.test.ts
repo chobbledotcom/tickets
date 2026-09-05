@@ -10,7 +10,7 @@ import {
   expectFlash,
   expectRedirect,
 } from "#test-utils/assertions.ts";
-import { getTicketCsrfToken, submitTicketForm } from "#test-utils/csrf.ts";
+import { extractCsrfToken, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -141,7 +141,7 @@ describeWithEnv(
         const getResponse = await handleRequest(
           mockRequest(`/ticket/${listing.slug}`),
         );
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
+        const csrfToken = extractCsrfToken(await getResponse.text());
         if (!csrfToken) throw new Error("Failed to get CSRF token");
 
         const response = await handleRequest(

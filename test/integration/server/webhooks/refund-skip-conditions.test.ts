@@ -24,7 +24,7 @@ import {
 
 // jscpd:ignore-end
 
-import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 
 describeWithEnv(
   "server webhooks > refund skip conditions",
@@ -132,7 +132,7 @@ describeWithEnv(
         // Stripe retries silently, so the log is the operator's only sign
         // that a captured charge is sitting unrefunded.
         expect(
-          errorLogged(
+          logLogged(
             errorSpy,
             "Webhook session rejected as malformed_charge (refunded: false)",
           ),

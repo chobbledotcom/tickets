@@ -38,8 +38,7 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 // jscpd:ignore-end
 
 import {
-  debugLogged,
-  errorLogged,
+  logLogged,
   useDebugLogSpy,
   useErrorLogSpy,
 } from "#test-utils/debug-log.ts";
@@ -127,7 +126,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_refund_log"),
         );
         await expectHtmlResponse(res, 410, "no longer accepting", "refunded");
-        expect(debugLogged(debugSpy, "Refund completed")).toBe(true);
+        expect(logLogged(debugSpy, "Refund completed")).toBe(true);
       });
     } finally {
       mockRetrieve.restore();
@@ -142,7 +141,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "pi_already_refunded",
       "r2@e.com",
       "R2",
-      async () => expect(debugLogged(debugSpy, "Refund completed")).toBe(true),
+      async () => expect(logLogged(debugSpy, "Refund completed")).toBe(true),
     );
   });
 
@@ -156,7 +155,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
       "R3",
       async () =>
         expect(
-          errorLogged(
+          logLogged(
             errorSpy,
             "Refund needs an owner decision for stripe payment (provider_rejected)",
           ),

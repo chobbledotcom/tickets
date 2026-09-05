@@ -10,7 +10,7 @@ import {
 } from "#shared/sumup/checkout-resolution.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
@@ -49,8 +49,8 @@ describeWithEnv("sumup checkout resolution", { db: true }, () => {
     // was running says whether a customer was waiting on the answer.
     await resolveSumupCheckoutById("", "SumUp");
 
-    expect(debugLogged(debug, "[SumUp]")).toBe(true);
-    expect(debugLogged(debug, "[Webhook]")).toBe(false);
+    expect(logLogged(debug, "[SumUp]")).toBe(true);
+    expect(logLogged(debug, "[Webhook]")).toBe(false);
   });
 
   test("keeps SumUp's own word for a checkout nobody has paid", async () => {

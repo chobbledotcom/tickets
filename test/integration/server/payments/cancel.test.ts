@@ -21,7 +21,7 @@ import {
 
 // jscpd:ignore-end
 
-import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
+import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 
 /** A cancelled (unpaid) checkout session for the given id and items metadata —
  *  the shape every /payment/cancel test stubs, differing only in the id and
@@ -130,7 +130,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         // The buyer's page does not name the session, so the log is the
         // operator's only record of which one was refused.
         expect(
-          errorLogged(
+          logLogged(
             errorSpy,
             "Session rejected as malformed_charge (session=cs_rejected, refunded: true)",
           ),

@@ -15,7 +15,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import {
-  getTicketCsrfToken,
+  extractCsrfToken,
   submitMultiTicketForm,
   submitTicketForm,
 } from "#test-utils/csrf.ts";
@@ -207,7 +207,7 @@ describeWithEnv(
         expect(html).toContain("Sold Out");
 
         // POST with quantity for both listings - sold out listing's quantity is ignored
-        const csrfToken = getTicketCsrfToken(html);
+        const csrfToken = extractCsrfToken(html);
         if (!csrfToken) throw new Error("Failed to get CSRF token");
 
         const response = await handleRequest(

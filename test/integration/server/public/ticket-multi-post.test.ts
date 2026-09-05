@@ -9,7 +9,7 @@ import {
   expectHtmlResponse,
   expectReservedRedirectWithTokens,
 } from "#test-utils/assertions.ts";
-import { getTicketCsrfToken } from "#test-utils/csrf.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -28,7 +28,7 @@ describeWithEnv(
       ): Promise<Response> => {
         const path = `/ticket/${slugs.join("+")}`;
         const getResponse = await handleRequest(mockRequest(path));
-        const csrfToken = getTicketCsrfToken(await getResponse.text());
+        const csrfToken = extractCsrfToken(await getResponse.text());
         if (!csrfToken) throw new Error("Failed to get CSRF token");
 
         return handleRequest(

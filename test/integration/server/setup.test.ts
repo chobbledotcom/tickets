@@ -12,7 +12,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
 } from "#test-utils/assertions.ts";
-import { getSetupCsrfToken } from "#test-utils/csrf.ts";
+import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import {
@@ -43,7 +43,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
     fields: Record<string, string>,
   ): Promise<Response> {
     const getResponse = await handleRequest(mockRequest("/setup/"));
-    const csrfToken = getSetupCsrfToken(await getResponse.text());
+    const csrfToken = extractCsrfToken(await getResponse.text());
     expect(csrfToken).not.toBeNull();
     return handleRequest(mockSetupFormRequest(fields, csrfToken as string));
   }
@@ -74,7 +74,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
     );
     expect(getResponse.status).toBe(200);
 
-    const csrfToken = getSetupCsrfToken(await getResponse.text());
+    const csrfToken = extractCsrfToken(await getResponse.text());
     expect(csrfToken).not.toBeNull();
 
     const postResponse = await handleRequest(
@@ -457,7 +457,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const { settings } = await import("#db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
+        const csrfToken = extractCsrfToken(await getResponse.text());
 
         await withExpectedError(async () => {
           await withMocks(
@@ -544,7 +544,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
       await createTestDb();
 
       const getResponse = await handleRequest(mockRequest("/setup/"));
-      const csrfToken = getSetupCsrfToken(await getResponse.text());
+      const csrfToken = extractCsrfToken(await getResponse.text());
 
       await handleRequest(
         mockSetupFormRequest(
