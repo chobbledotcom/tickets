@@ -180,4 +180,26 @@ describeWithEnv("db > attendees > unfitListingIds", { db: true }, () => {
       ]),
     ).toEqual([full.id]);
   });
+
+  test("an all-zero-quantity edit carries no unused exclusion binding", async () => {
+    // The edit preflight passes the attendee whose own rows must not count.
+    // A quantity-0 line carries no capacity clause, so when every line is
+    // zero the statement holds no placeholder — the exclusion must not be
+    // bound anyway, or the database rejects the parameter count and a
+    // no-quantity edit cannot save.
+    const roomy = await createTestListing({ maxAttendees: 10 });
+    const attendee = await createTestAttendee(
+      roomy.id,
+      roomy.slug,
+      "Zero",
+      "zero@example.com",
+    );
+
+    expect(
+      await unfitListingIds(
+        [{ date: null, durationDays: 1, listingId: roomy.id, quantity: 0 }],
+        attendee.id,
+      ),
+    ).toEqual([]);
+  });
 });

@@ -37,8 +37,8 @@ earlier line through `booked_quantity`, whatever the line's date or listing
 type, and sees earlier dated lines through their booking ranges. A read path
 that predicts or explains the write must therefore answer, for each prefix of
 the write order: does the demand of lines 1..k fit into the database state as it
-was before the write? Today two read paths break that invariant, and one of them
-can fail to run at all.
+was before the write? Before this change, two read paths broke that invariant,
+and one of them could fail to run at all.
 
 ## Trusted facts
 
@@ -59,11 +59,11 @@ other read error propagates.
 It contributes no demand to the preflight and the diagnosis, its write carries
 no capacity or active condition, and it is never named as a culprit.
 
-This is a policy flip, not only a bug fix. Today the write and the reads agree
-on refusing a zero line on an inactive or full dated-daily listing, because the
-same clause machinery runs on both sides. They diverge only for a date-less zero
-line, where the write refuses and the preflight passes. The proposed rule makes
-every path accept it.
+This was a policy flip, not only a bug fix. Before this change, the write and
+the reads agreed on refusing a zero line on an inactive or full dated-daily
+listing, because the same clause machinery ran on both sides. They diverged only
+for a date-less zero line, where the write refused and the preflight passed. The
+rule makes every path accept it.
 
 For the flip: the pinned batch test already promises "treats a zero-quantity
 item as a no-op that fits"; the no-quantity attendee is a real operator record;
@@ -97,12 +97,12 @@ guarded writes. The inputs are:
 
 ## Commands and events
 
-| Starting state                     | Command                                           | Required result                                                                                                                                                                                                             |
-| ---------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any cart                           | Checkout preflight (`checkBatchAvailabilityImpl`) | One boolean; refuses when any listing or group cap would be exceeded; never throws on a 12 x 90-day cart                                                                                                                    |
-| Refused write                      | Diagnosis (`refusedOrderUnfitListingIds`)         | Exactly the first line in write order that does not fit on top of its predecessors, or `[]` when the whole order now fits or a listing is gone. Today's multi-date branch can name several listings; the set narrows to one |
-| Zero-quantity line on any path     | Write, preflight, diagnosis, edit preflight       | No capacity or active condition applies; the listing row must still exist unless the caller overbooks (the payment ghost store does); the line is never named                                                               |
-| Edit preflight (`unfitListingIds`) | Line changed to quantity 0                        | Fits, regardless of the listing's occupancy or active flag                                                                                                                                                                  |
+| Starting state                     | Command                                           | Required result                                                                                                                                                                                                          |
+| ---------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Any cart                           | Checkout preflight (`checkBatchAvailabilityImpl`) | One boolean; refuses when any listing or group cap would be exceeded; never throws on a 12 x 90-day cart                                                                                                                 |
+| Refused write                      | Diagnosis (`refusedOrderUnfitListingIds`)         | Exactly the first line in write order that does not fit on top of its predecessors, or `[]` when the whole order now fits or a listing is gone. The former multi-date branch could name several listings; the set is one |
+| Zero-quantity line on any path     | Write, preflight, diagnosis, edit preflight       | No capacity or active condition applies; the listing row must still exist unless the caller overbooks (the payment ghost store does); the line is never named                                                            |
+| Edit preflight (`unfitListingIds`) | Line changed to quantity 0                        | Fits, regardless of the listing's occupancy or active flag                                                                                                                                                               |
 
 ## Failure table
 
@@ -171,14 +171,14 @@ under the limit.
 
 ### The mixed-bucket fixes this shape brings
 
-Today a bucket that holds both per-day and running-total demand drops the
-undated side, and a group bucket folds its whole running-total demand into every
-day's clause. Both diverge from the write: a daily listing booked with a dated
-and a date-less line can be refused by the write with the read paths naming
-nothing, and a date-less line on a per-date group member is counted against the
-group's day caps although no dated statement of the write can ever see it. The
-five-component bucket with the undated clause makes the read count exactly what
-the write counts.
+Before this change, a bucket that held both per-day and running-total demand
+dropped the undated side, and a group bucket folded its whole running-total
+demand into every day's clause. Both diverged from the write: a daily listing
+booked with a dated and a date-less line could be refused by the write with the
+read paths naming nothing, and a date-less line on a per-date group member was
+counted against the group's day caps although no dated statement of the write
+could ever see it. The five-component bucket with the undated clause makes the
+read count exactly what the write counts.
 
 ## The cumulative diagnosis
 
