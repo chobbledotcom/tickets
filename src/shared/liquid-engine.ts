@@ -22,6 +22,11 @@ export const createBaseLiquidEngine = (
   engine.registerFilter("currency", (value: string | number) =>
     formatCurrency(value),
   );
+  engine.registerFilter(
+    "pluralize",
+    (count: number, singular: string, plural: string) =>
+      count === 1 ? singular : plural,
+  );
   if (escaping.outputEscape) {
     // `raw` hands the value through unescaped, undoing the escape mode.
     delete engine.filters.raw;

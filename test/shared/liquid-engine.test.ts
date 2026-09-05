@@ -8,6 +8,16 @@ describe("createBaseLiquidEngine", () => {
     expect(engine.parseAndRenderSync("{{ 2000 | currency }}")).toBe("£20");
   });
 
+  test("renders values through the pluralize filter", () => {
+    const engine = createBaseLiquidEngine();
+    expect(
+      engine.parseAndRenderSync('{{ 1 | pluralize: "ticket", "tickets" }}'),
+    ).toBe("ticket");
+    expect(
+      engine.parseAndRenderSync('{{ 2 | pluralize: "ticket", "tickets" }}'),
+    ).toBe("tickets");
+  });
+
   test("rejects an unknown filter", () => {
     const engine = createBaseLiquidEngine();
     expect(() => engine.parseAndRenderSync("{{ 1 | nope }}")).toThrow();
