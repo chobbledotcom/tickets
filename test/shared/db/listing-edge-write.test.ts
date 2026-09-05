@@ -17,20 +17,25 @@ describeWithEnv(
     ): Promise<unknown> =>
       withTransaction((tx) => guardEdgeWriteTx({ ...params, tx }));
 
+    /** Assert the guard lets an edge write through. */
+    const expectAccepted = async (
+      params: Omit<Parameters<typeof guardEdgeWriteTx>[0], "tx">,
+    ): Promise<void> => {
+      await expect(guard(params)).resolves.toBeNull();
+    };
+
     test("allows clearing an empty child set regardless of the parent's own state", async () => {
       // An empty save clears edges and is always allowed: when the parent is a
       // hidden-package member (the package conflict only applies once child
       // edges exist) and when the parent is itself a child (the nesting gate is
       // skipped once there are no edges to write).
       const expectEmptyClear = async (parentId: number): Promise<void> => {
-        await expect(
-          guard({
-            childIds: [],
-            contract: "children",
-            missingParentError: t("error.listing_deleted"),
-            parentIds: [parentId],
-          }),
-        ).resolves.toBeNull();
+        await expectAccepted({
+          childIds: [],
+          contract: "children",
+          missingParentError: t("error.listing_deleted"),
+          parentIds: [parentId],
+        });
       };
 
       const { assignListingsToGroup } = await import(
@@ -154,35 +159,27 @@ describeWithEnv(
     });
 
     test("accepts several children and several parents when nothing blocks them", async () => {
-      // Both id sets reach the checks through a multi-value IN list, so a
-      // multi-id save on each contract must pass every check at once.
-      const parent = await createTestListing({ name: "Multi parent" });
+      // Both id sets reach the checks through multi-value IN lists, so a
+      // multi-id save on each contract must pass every check at once. The
+      // guard is read-only, so both contracts share one fixture.
+      const parentA = await createTestListing({ name: "Parent A" });
+      const parentB = await createTestListing({ name: "Parent B" });
       const childA = await createTestListing({ name: "Child A" });
       const childB = await createTestListing({ name: "Child B" });
-      await expect(
-        guard({
-          childIds: [childA.id, childB.id],
-          contract: "children",
-          missingParentError: t("error.listing_deleted"),
-          parentIds: [parent.id],
-        }),
-      ).resolves.toBeNull();
+      await expectAccepted({
+        childIds: [childA.id, childB.id],
+        contract: "children",
+        missingParentError: t("error.listing_deleted"),
+        parentIds: [parentA.id, parentB.id],
+      });
 
-      const importParentA = await createTestListing({
-        name: "Import parent A",
-      });
-      const importParentB = await createTestListing({
-        name: "Import parent B",
-      });
       const importChild = await createTestListing({ name: "Import child" });
-      await expect(
-        guard({
-          childIds: [importChild.id],
-          contract: "parents",
-          missingParentError: t("catalog_transfer.parent_missing"),
-          parentIds: [importParentA.id, importParentB.id],
-        }),
-      ).resolves.toBeNull();
+      await expectAccepted({
+        childIds: [importChild.id],
+        contract: "parents",
+        missingParentError: t("catalog_transfer.parent_missing"),
+        parentIds: [parentA.id, parentB.id],
+      });
     });
 
     test("returns the package conflict for the children contract", async () => {
