@@ -5,7 +5,7 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import type { StaffDiagnostics } from "#routes/payment-response.ts";
-import { getIframeMode } from "#shared/iframe.ts";
+import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
 import { ActionButton, Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { LabelledParas } from "#templates/components/labelled-para.tsx";
@@ -251,7 +251,14 @@ export const paymentErrorPage = (
 export const checkoutPopupPage = (checkoutUrl: string): string =>
   String(
     <Layout bodyClass="iframe" title={t("payment.popup.title")}>
-      <div data-checkout-popup={escapeHtml(checkoutUrl)} data-scroll-into-view>
+      <div
+        data-checkout-popup={escapeHtml(checkoutUrl)}
+        data-scroll-into-view
+        /* The popup page only exists in iframe mode, so the confirmation the
+           client navigates the iframe to must keep ?iframe=true — without it
+           the normal header would return after payment. */
+        data-success-href={appendIframeParam("/ticket/reserved")}
+      >
         <p>{t("payment.popup.instructions")}</p>
         <p>
           <a

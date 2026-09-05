@@ -17,7 +17,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
+import { enablePublicSite, withSetting } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -155,6 +155,24 @@ describeWithEnv(
         expect(html).not.toContain("A <b>great</b> listing");
         // The site menu is dropped inside an embedded iframe.
         expect(html).not.toContain("admin-nav-group");
+      });
+
+      test("hides the configured header image in iframe mode", async () => {
+        const listing = await createTestListing({ maxAttendees: 50 });
+        const html = await withSetting({ header_image_url: "header.jpg" }, () =>
+          assertPublicHtml(`/ticket/${listing.slug}?iframe=true`),
+        );
+        expect(html).not.toContain("header-image");
+        expect(html).not.toContain("/image/header.jpg");
+      });
+
+      test("shows the configured header image without iframe param", async () => {
+        const listing = await createTestListing({ maxAttendees: 50 });
+        const html = await withSetting({ header_image_url: "header.jpg" }, () =>
+          assertPublicHtml(`/ticket/${listing.slug}`),
+        );
+        expect(html).toContain('class="header-image"');
+        expect(html).toContain("/image/header.jpg");
       });
 
       test("shows header and description without iframe param", async () => {
