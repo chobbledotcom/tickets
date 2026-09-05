@@ -266,7 +266,7 @@ export type EmailDeliveryResult =
   | { delivered: true; status: number }
   | {
       delivered: false;
-      /** For the console line: the provider and the status alone. */
+      /** The provider and status, safe for every error sink. */
       detail: string;
       /** The provider's own error message, safe to show to the operator.
        * Empty when there is no usable message — a network failure has no

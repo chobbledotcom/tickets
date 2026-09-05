@@ -55,7 +55,7 @@ describe("formatErrorMessage", () => {
     expect(formatErrorMessage(context)).not.toContain("42");
   });
 
-  test("ignores the operator-only detail (it must not reach Sentry)", () => {
+  test("ignores the operator-only detail", () => {
     const context: ErrorContext = {
       code: ErrorCode.EMAIL_SEND,
       detail: "provider=postmark status=422",

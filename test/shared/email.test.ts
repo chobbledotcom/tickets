@@ -30,12 +30,7 @@ const sendWithProvider = (
 ) => sendEmail({ ...testEmailConfig, provider }, msg);
 
 type ExpectedFailure = {
-  /** Substring the E_EMAIL_SEND console line must carry — pass the whole
-   * `detail="…"` fragment to pin the exact detail. The scrubbed reply itself
-   * reaches only the encrypted activity log. */
   logged: string;
-  /** The operator-facing reason, asserted exactly when given. The console
-   * line names it (as an activity-log pointer) but never quotes it. */
   reason?: string;
   status: number | undefined;
 };
@@ -57,11 +52,8 @@ const sendEmailExpectingError = async (
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
     expect(logs.join("\n")).not.toContain(msg.to);
     const line = logs.find((l) => l.includes("E_EMAIL_SEND"));
-    expect(line).toBeDefined();
-    expect(line!.includes(expected.logged)).toBe(true);
-    expect(line!.includes('operatorDetail="(activity log)"')).toBe(
-      (expected.reason ?? "") !== "",
-    );
+    expect(line).toBe(`[Error] E_EMAIL_SEND ${expected.logged}`);
+    if (expected.reason) expect(line).not.toContain(expected.reason);
   } finally {
     errorSpy.restore();
   }
@@ -239,17 +231,17 @@ describe("sendEmail", () => {
   const restubReply = (body: string | null, status: number): void =>
     fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
 
-  test("logs the provider's reply body on a non-OK response", async () => {
-    restubReply("Error", 500);
+  test("keeps the provider reply body out of the console", async () => {
+    restubReply("provider-reply-marker", 500);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
       logged: 'detail="provider=resend status=500"',
-      reason: "Error",
+      reason: "provider-reply-marker",
       status: 500,
     });
   });
 
-  test("logs SendGrid's message from its errors array", async () => {
+  test("reads SendGrid's message from its errors array", async () => {
     const message =
       "The from address does not match a verified Sender Identity";
     restubReply(
@@ -340,7 +332,7 @@ describe("sendEmail", () => {
     );
   });
 
-  test("puts a multi-line reply onto one log line", async () => {
+  test("puts a multi-line reply onto one reason line", async () => {
     restubReply("Access\n\n  denied", 403);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {

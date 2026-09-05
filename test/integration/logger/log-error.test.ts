@@ -7,6 +7,7 @@ import {
   trackSql,
 } from "#db/query-log.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sendEmail } from "#shared/email.ts";
 import {
   bestEffort,
   ErrorCode,
@@ -19,6 +20,7 @@ import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { minimalEmailMessage, testEmailConfig } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -207,21 +209,22 @@ describe("log-error", () => {
         expect(match).toBeDefined();
       });
 
-      test("persists the operator-only detail to the activity log", async () => {
-        await runWithPendingWork(async () => {
-          logError({
-            code: ErrorCode.EMAIL_SEND,
-            detail: "provider=postmark status=422",
-            operatorDetail: "Suppressed recipient",
-          });
-          await flushPendingWork();
-        });
+      test("persists a failed email provider reason", async () => {
+        using _fetch = stubFetch(
+          new Response('{"message":"provider-activity-marker"}', {
+            status: 422,
+          }),
+        );
+
+        await runWithPendingWork(() =>
+          sendEmail(testEmailConfig, minimalEmailMessage),
+        );
 
         const messages = (await getAllActivityLog()).map(
           ({ message }) => message,
         );
         expect(messages).toContain(
-          "Error: Email send failed (provider=postmark status=422) — Suppressed recipient",
+          "Error: Email send failed (provider=resend status=422) — provider-activity-marker",
         );
       });
 

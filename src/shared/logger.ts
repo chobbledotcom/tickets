@@ -218,7 +218,7 @@ export const logRequest = (entry: RequestLogEntry): void => {
 };
 
 /**
- * Error log context (privacy-safe metadata only)
+ * Error facts routed to the applicable sinks.
  */
 export type ErrorContext = {
   /** Error code for classification */
@@ -227,14 +227,9 @@ export type ErrorContext = {
   listingId?: number | undefined;
   /** Optional: attendee ID */
   attendeeId?: number | undefined;
-  /** Optional: additional safe context */
+  /** Optional context that is safe for every error sink. */
   detail?: string | undefined;
-  /**
-   * Optional operator-only context. Reaches only the encrypted activity log —
-   * never the console line, ntfy, or Sentry — so a caller may quote here what
-   * an operator must read and every other sink must not carry (a provider's
-   * reply, after the caller has scrubbed personal data from it).
-   */
+  /** Activity-log context. It can contain personal data and must not reach other sinks. */
   operatorDetail?: string | undefined;
   /**
    * Optional original thrown error. Forwarded to Sentry (never to the console
@@ -255,8 +250,7 @@ export const formatRequestError = (
   return `${method} ${redactPath(path)}: ${msg}`;
 };
 
-/** Format an error context into the shared safe message: the shape the console
- *  line and the Sentry report both carry, without any operator-only detail. */
+/** Format the safe Sentry message and activity-log base. */
 export const formatErrorMessage = (context: ErrorContext): string => {
   const label = errorCodeLabel[context.code];
   return context.detail
@@ -264,8 +258,6 @@ export const formatErrorMessage = (context: ErrorContext): string => {
     : `Error: ${label}`;
 };
 
-/** Format an error context for the encrypted activity log: the operator's copy
- *  also carries the operator-only detail. */
 export const formatOperatorMessage = (context: ErrorContext): string => {
   const base = formatErrorMessage(context);
   return context.operatorDetail ? `${base} — ${context.operatorDetail}` : base;
@@ -297,23 +289,29 @@ const persistErrorToActivityLog = async (
   });
 };
 
-/**
- * Log a classified error to console.error only (no ntfy, no activity log).
- * Use this where calling logError would cause infinite recursion (e.g. ntfy.ts).
- */
-export const logErrorLocal = (context: ErrorContext): void => {
+const writeConsoleError = (
+  context: ErrorContext,
+  showMarker: boolean,
+): void => {
   const parts = [
     `[Error] ${context.code}`,
     context.listingId !== undefined ? `listing=${context.listingId}` : null,
     context.attendeeId !== undefined ? `attendee=${context.attendeeId}` : null,
     context.detail ? `detail="${context.detail}"` : null,
-    // Name the operator-only detail without quoting it: the console line says
-    // a fuller version sits in the encrypted activity log.
-    context.operatorDetail ? `operatorDetail="(activity log)"` : null,
+    context.operatorDetail && showMarker
+      ? `operatorDetail="(activity log)"`
+      : null,
   ].filter(Boolean);
 
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 };
+
+/**
+ * Log a classified error to console.error only (no ntfy, no activity log).
+ * Use this where calling logError would cause infinite recursion (e.g. ntfy.ts).
+ */
+export const logErrorLocal = (context: ErrorContext): void =>
+  writeConsoleError(context, false);
 
 /** Deliver a reporter's copy of an error. The reporter modules are imported
  * on first error, not at module load: each reporter reports its own delivery
@@ -345,7 +343,7 @@ const sentryCopy = async (context: ErrorContext): Promise<void> => {
  * Activity log entry is encrypted and visible to admins on the log pages.
  */
 export const logError = (context: ErrorContext): void => {
-  logErrorLocal(context);
+  writeConsoleError(context, hasPendingWorkScope());
   const deferred = deferredErrorReports.current();
   if (deferred !== undefined) {
     deferred.push(context);
