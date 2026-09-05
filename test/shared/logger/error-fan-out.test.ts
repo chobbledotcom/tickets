@@ -4,6 +4,7 @@ import { type Spy, spy } from "@std/testing/mock";
 import {
   ErrorCode,
   logError,
+  logErrorLocal,
   runWithRequestId,
   withDeferredErrorReports,
 } from "#shared/logger.ts";
@@ -34,6 +35,16 @@ describe("error fan-out", () => {
   const ntfyCalls = (): number =>
     fetchStub.calls.filter((call) => String(call.args[0]).includes("ntfy"))
       .length;
+  const operatorError = {
+    code: ErrorCode.EMAIL_SEND,
+    detail: "provider=postmark status=422",
+    operatorDetail: "Suppressed recipient boss@example.com",
+  } as const;
+  const firstErrorLine = (): string => String(errorSpy.calls[0]?.args[0]);
+  const expectOperatorDetailHidden = (line: string): void => {
+    expect(line).not.toContain("Suppressed");
+    expect(line).not.toContain("boss@example.com");
+  };
 
   test("writes the console line for every error", () => {
     logError({ code: ErrorCode.DB_QUERY, detail: "select failed" });
@@ -49,6 +60,38 @@ describe("error fan-out", () => {
     expect(String(errorSpy.calls[0]?.args[0])).toBe(
       '[Error] E_DB_QUERY listing=7 detail="boom"',
     );
+  });
+
+  test("does not promise an activity-log copy outside a request", () => {
+    logError(operatorError);
+
+    const line = firstErrorLine();
+    expect(line).toContain('detail="provider=postmark status=422"');
+    expect(line).not.toContain("operatorDetail");
+    expectOperatorDetailHidden(line);
+  });
+
+  test("marks operator detail when its activity-log copy is queued", async () => {
+    await runWithRequestId(async () => {
+      logError(operatorError);
+
+      const line = firstErrorLine();
+      expect(line).toContain('operatorDetail="(activity log)"');
+      expectOperatorDetailHidden(line);
+    });
+  });
+
+  test("does not mark operator detail for local-only errors", async () => {
+    await runWithRequestId(async () => {
+      logErrorLocal(operatorError);
+      expect(firstErrorLine()).not.toContain("operatorDetail");
+    });
+  });
+
+  test("omits the operator marker when there is no operator-only detail", () => {
+    logError({ code: ErrorCode.DB_QUERY, detail: "boom" });
+
+    expect(String(errorSpy.calls[0]?.args[0])).not.toContain("operatorDetail");
   });
 
   test("sends the report out from inside a request", async () => {

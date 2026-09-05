@@ -30,10 +30,7 @@ const sendWithProvider = (
 ) => sendEmail({ ...testEmailConfig, provider }, msg);
 
 type ExpectedFailure = {
-  /** Substring the E_EMAIL_SEND log line must carry — pass the whole
-   * `detail="…"` fragment to pin the exact detail. */
   logged: string;
-  /** The operator-facing reason, asserted exactly when given. */
   reason?: string;
   status: number | undefined;
 };
@@ -54,11 +51,9 @@ const sendEmailExpectingError = async (
     }
     const logs = errorSpy.calls.map((c) => c.args[0] as string);
     expect(logs.join("\n")).not.toContain(msg.to);
-    expect(
-      logs.some(
-        (l) => l.includes("E_EMAIL_SEND") && l.includes(expected.logged),
-      ),
-    ).toBe(true);
+    const line = logs.find((l) => l.includes("E_EMAIL_SEND"));
+    expect(line).toBe(`[Error] E_EMAIL_SEND ${expected.logged}`);
+    if (expected.reason) expect(line).not.toContain(expected.reason);
   } finally {
     errorSpy.restore();
   }
@@ -236,17 +231,17 @@ describe("sendEmail", () => {
   const restubReply = (body: string | null, status: number): void =>
     fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
 
-  test("logs the provider's reply body on a non-OK response", async () => {
-    restubReply("Error", 500);
+  test("keeps the provider reply body out of the console", async () => {
+    restubReply("provider-reply-marker", 500);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
-      logged: 'detail="provider=resend status=500: Error"',
-      reason: "Error",
+      logged: 'detail="provider=resend status=500"',
+      reason: "provider-reply-marker",
       status: 500,
     });
   });
 
-  test("logs SendGrid's message from its errors array", async () => {
+  test("reads SendGrid's message from its errors array", async () => {
     const message =
       "The from address does not match a verified Sender Identity";
     restubReply(
@@ -258,7 +253,7 @@ describe("sendEmail", () => {
       { ...testEmailConfig, provider: "sendgrid" },
       minimalEmailMessage,
       {
-        logged: `detail="provider=sendgrid status=403: ${message}"`,
+        logged: 'detail="provider=sendgrid status=403"',
         reason: message,
         status: 403,
       },
@@ -269,7 +264,7 @@ describe("sendEmail", () => {
     restubReply('{"error":"Invalid API key"}', 401);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
-      logged: 'detail="provider=resend status=401: Invalid API key"',
+      logged: 'detail="provider=resend status=401"',
       reason: "Invalid API key",
       status: 401,
     });
@@ -282,7 +277,8 @@ describe("sendEmail", () => {
       { ...testEmailConfig, provider: "postmark" },
       minimalEmailMessage,
       {
-        logged: 'detail="provider=postmark status=401: Bad API token"',
+        logged: 'detail="provider=postmark status=401"',
+        reason: "Bad API token",
         status: 401,
       },
     );
@@ -298,8 +294,8 @@ describe("sendEmail", () => {
       testEmailConfig,
       { ...minimalEmailMessage, replyTo: validEmail("reply@test.com") },
       {
-        logged:
-          'detail="provider=resend status=400: [redacted] [redacted] and [redacted] are not allowed"',
+        logged: 'detail="provider=resend status=400"',
+        reason: "[redacted] [redacted] and [redacted] are not allowed",
         status: 400,
       },
     );
@@ -312,8 +308,7 @@ describe("sendEmail", () => {
     );
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
-      logged:
-        'detail="provider=resend status=403: You can only send testing emails to your own email address [redacted]"',
+      logged: 'detail="provider=resend status=403"',
       reason:
         "You can only send testing emails to your own email address [redacted]",
       status: 403,
@@ -330,19 +325,18 @@ describe("sendEmail", () => {
       { ...testEmailConfig, provider: "sendgrid" },
       minimalEmailMessage,
       {
-        logged:
-          'detail="provider=sendgrid status=403: The from address [redacted] is not a verified Sender Identity"',
+        logged: 'detail="provider=sendgrid status=403"',
         reason: "The from address [redacted] is not a verified Sender Identity",
         status: 403,
       },
     );
   });
 
-  test("puts a multi-line reply onto one log line", async () => {
+  test("puts a multi-line reply onto one reason line", async () => {
     restubReply("Access\n\n  denied", 403);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
-      logged: 'detail="provider=resend status=403: Access denied"',
+      logged: 'detail="provider=resend status=403"',
       reason: "Access denied",
       status: 403,
     });
@@ -352,7 +346,7 @@ describe("sendEmail", () => {
     restubReply("x".repeat(1000), 500);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
-      logged: `detail="provider=resend status=500: ${"x".repeat(300)}..."`,
+      logged: 'detail="provider=resend status=500"',
       reason: `${"x".repeat(300)}...`,
       status: 500,
     });
@@ -362,7 +356,8 @@ describe("sendEmail", () => {
     restubReply("y".repeat(300), 500);
 
     await sendEmailExpectingError(testEmailConfig, minimalEmailMessage, {
-      logged: `detail="provider=resend status=500: ${"y".repeat(300)}"`,
+      logged: 'detail="provider=resend status=500"',
+      reason: "y".repeat(300),
       status: 500,
     });
   });

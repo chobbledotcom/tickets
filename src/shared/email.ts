@@ -266,7 +266,7 @@ export type EmailDeliveryResult =
   | { delivered: true; status: number }
   | {
       delivered: false;
-      /** For the log line: provider, status, and the reason when known. */
+      /** The provider and status, safe for every error sink. */
       detail: string;
       /** The provider's own error message, safe to show to the operator.
        * Empty when there is no usable message — a network failure has no
@@ -330,12 +330,10 @@ const emailDelivery =
         signal,
       );
       if (ok) return { delivered: true, status };
-      const reason = failureReason(text);
-      const base = `provider=${config.provider} status=${status}`;
       return {
         delivered: false,
-        detail: reason ? `${base}: ${reason}` : base,
-        reason,
+        detail: `provider=${config.provider} status=${status}`,
+        reason: failureReason(text),
         status,
       };
     } catch (error) {
@@ -355,7 +353,11 @@ export const deliverRegistrationEmail: EmailDeliveryFn = emailDelivery(
 export const sendEmail: EmailDeliveryFn = async (config, msg, signal) => {
   const delivery = await reportedEmailDelivery(config, msg, signal);
   if (!delivery.delivered) {
-    logError({ code: ErrorCode.EMAIL_SEND, detail: delivery.detail });
+    logError({
+      code: ErrorCode.EMAIL_SEND,
+      detail: delivery.detail,
+      operatorDetail: delivery.reason || undefined,
+    });
   }
   return delivery;
 };
