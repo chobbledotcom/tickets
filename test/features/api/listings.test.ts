@@ -44,7 +44,7 @@ describePublicApi(() => {
       expect(listings[0]!.slug).toBe(listing.slug);
     });
 
-    test("filters hidden listings from listing", async () => {
+    test("omits hidden listings", async () => {
       await createTestListing({ hidden: false, name: "Visible" });
       await createTestListing({ hidden: true, name: "Hidden" });
       const { listings } = await fetchListingsList();
