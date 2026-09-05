@@ -23,4 +23,15 @@ describe("confirmation email template form", () => {
       t("settings.advanced.email_variables.not_available"),
     );
   });
+
+  test("the form wires its action, anchors, and links exactly", () => {
+    expect(html).toContain(
+      'action="/admin/settings/email-templates/confirmation"',
+    );
+    expect(html).toContain('id="settings-email-tpl-confirmation"');
+    expect(html).toContain('<div class="table-scroll">');
+    expect(html).toContain(
+      'sent to attendees (<a href="/admin/guide#email-templates">template guide</a>). Uses <a href="https://liquidjs.com/" rel="noopener" target="_blank">Liquid</a> template syntax. Leave blank',
+    );
+  });
 });
