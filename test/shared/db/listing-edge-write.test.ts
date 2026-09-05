@@ -182,6 +182,14 @@ describeWithEnv(
       });
     });
 
+    /** Assert the guard stops the write with the given package conflict. */
+    const expectBlocked = async (
+      params: Omit<Parameters<typeof guardEdgeWriteTx>[0], "tx">,
+      block: "child_is_member" | "gate_in_hidden",
+    ): Promise<void> => {
+      await expect(guard(params)).resolves.toBe(block);
+    };
+
     test("returns the package conflict for the children contract", async () => {
       const { assignListingsToGroup } = await import(
         "#db/groups/membership.ts"
@@ -194,14 +202,65 @@ describeWithEnv(
       const group = await createTestGroup({ isPackage: true, name: "Pkg" });
       await assignListingsToGroup([child.id], group.id);
 
-      await expect(
-        guard({
+      await expectBlocked(
+        {
           childIds: [child.id],
           contract: "children",
           missingParentError: t("error.listing_deleted"),
           parentIds: [parent.id],
-        }),
-      ).resolves.toBe("child_is_member");
+        },
+        "child_is_member",
+      );
+    });
+
+    test("returns the package conflict when the parent sits in a hidden package", async () => {
+      const { assignListingsToGroup } = await import(
+        "#db/groups/membership.ts"
+      );
+      const { createHiddenPackageGroup } = await import(
+        "#test-utils/db-helpers/groups.ts"
+      );
+      const parent = await createTestListing({ name: "Hidden-package parent" });
+      const child = await createTestListing({ name: "Child" });
+      const hidden = await createHiddenPackageGroup("Hidden pkg");
+      await assignListingsToGroup([parent.id], hidden.id);
+
+      await expectBlocked(
+        {
+          childIds: [child.id],
+          contract: "children",
+          missingParentError: t("error.listing_deleted"),
+          parentIds: [parent.id],
+        },
+        "gate_in_hidden",
+      );
+    });
+
+    test("lets a parent inside a visible package take child edges", async () => {
+      // Only a package that HIDES its members gates the write, so a parent
+      // inside a visible package may take children normally.
+      const { assignListingsToGroup } = await import(
+        "#db/groups/membership.ts"
+      );
+      const { createTestGroup } = await import(
+        "#test-utils/db-helpers/groups.ts"
+      );
+      const parent = await createTestListing({
+        name: "Visible-package parent",
+      });
+      const child = await createTestListing({ name: "Child" });
+      const visible = await createTestGroup({
+        isPackage: true,
+        name: "Visible pkg",
+      });
+      await assignListingsToGroup([parent.id], visible.id);
+
+      await expectAccepted({
+        childIds: [child.id],
+        contract: "children",
+        missingParentError: t("error.listing_deleted"),
+        parentIds: [parent.id],
+      });
     });
   },
 );
