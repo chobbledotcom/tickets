@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildCapacityCondition, dateToRange } from "#db/capacity.ts";
+import {
+  buildCapacityCondition,
+  capacityConditionFor,
+  dateToRange,
+} from "#db/capacity.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
@@ -119,5 +123,31 @@ describe("buildCapacityCondition", () => {
     expect(capacityStatement(LISTING, QTY, DAY, undefined, 0)).toEqual(
       capacityStatement(LISTING, QTY, DAY, undefined, 1),
     );
+  });
+
+  test("a zero-quantity line's condition refuses nothing", () => {
+    // The no-op contract at the builder: a line that books no places carries
+    // the trivially-true clause, so no full or inactive listing can strand
+    // it — while any real quantity still gets the full condition.
+    expect(
+      numberedStatement(
+        capacityConditionFor({
+          date: null,
+          durationDays: 1,
+          listingId: LISTING,
+          quantity: 0,
+        }),
+      ).sql,
+    ).toBe("1");
+    expect(
+      numberedStatement(
+        capacityConditionFor({
+          date: null,
+          durationDays: 1,
+          listingId: LISTING,
+          quantity: QTY,
+        }),
+      ).sql,
+    ).not.toBe("1");
   });
 });

@@ -64,6 +64,16 @@ describe("buildBatchCapacitySql", () => {
     expect(sql).toContain("+ 1 <=");
   });
 
+  test("a single date-less unit still gets its running-total clause", () => {
+    // One undated unit is undated demand: the bucket must not silently
+    // produce no clause at exactly one.
+    const { sql } = buildBatchCapacitySql(
+      new Map([[LISTING, { everyDay: 1, perDay: new Map(), undatedOnly: 0 }]]),
+      new Map(),
+    );
+    expect(sql).toContain("+ 1 <=");
+  });
+
   test("per-day listing demand is one clause carrying a VALUES row per day", () => {
     const other = dateToRange("2026-05-02");
     const { args, sql } = buildBatchCapacitySql(
@@ -151,6 +161,8 @@ describe("buildManyFitsSql", () => {
     ]);
     expect(sql).toContain(") AS fit0");
     expect(sql).toContain(") AS fit1");
+    // One comma between the two demand columns keeps them separate selects.
+    expect(sql).toContain(") AS fit0, (");
     expect(sql).toContain("+ 2 <=");
     expect(sql).toContain("+ 3 <=");
     expect(args).toEqual([LISTING, 8]);
