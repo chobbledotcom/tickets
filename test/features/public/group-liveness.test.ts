@@ -74,7 +74,7 @@ const recordGroupPageQueries = async (
 };
 
 describeWithEnv(
-  "server public > listings query scaling",
+  "public group query scaling",
   { db: true, triggers: true },
   () => {
     test("checks all regular groups with one batched classification", async () => {

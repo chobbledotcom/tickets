@@ -146,7 +146,7 @@ const scanWithCheckoutResult = async (
   return await scanRequest(listing);
 };
 
-describeWithEnv("qr-book scan handler", { db: true }, () => {
+describeWithEnv("QR booking", { db: true }, () => {
   describe("error paths", () => {
     test("missing ?t= token renders the error page", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });

@@ -137,7 +137,7 @@ const packageCap = async (slug: string): Promise<number> =>
   (await (await apiGet(`/api/packages/${slug}`)).json()).package
     .maxPurchasable as number;
 
-describeWithEnv("public API packages", { db: true }, () => {
+describeWithEnv("API package routes", { db: true }, () => {
   beforeEach(async () => {
     await settings.update.showPublicApi(true);
   });

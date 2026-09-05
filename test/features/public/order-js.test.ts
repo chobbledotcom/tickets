@@ -35,7 +35,7 @@ const slugByName = async (name: string): Promise<string> => {
   return match.slug;
 };
 
-describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
+describeWithEnv("order.js", { db: true, triggers: true }, () => {
   test("disabled by default: returns the console stub with ACAO *", async () => {
     const res = await orderJs("https://shop.example.com");
     const body = await res.text();

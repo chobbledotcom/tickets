@@ -130,7 +130,7 @@ const assertAddOnNote = async (childSlug: string) => {
 };
 
 describeWithEnv(
-  "server > parents discovery suppression",
+  "listing parent discovery",
   { db: true, triggers: true },
   () => {
     describe("public listing cards (/listings)", () => {

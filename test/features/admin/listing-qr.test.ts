@@ -58,7 +58,7 @@ const setupParentWithMondayChild = async () => {
   return { child, childDates, parent, parentDates };
 };
 
-describeWithEnv("admin listing-qr route", { db: true }, () => {
+describeWithEnv("admin listing QR routes", { db: true }, () => {
   describe("GET /admin/listing/:id/qr", () => {
     testRequiresAuth("/admin/listing/1/qr", {
       setup: async () => {
