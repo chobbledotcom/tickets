@@ -207,6 +207,24 @@ describe("log-error", () => {
         expect(match).toBeDefined();
       });
 
+      test("persists the operator-only detail to the activity log", async () => {
+        await runWithPendingWork(async () => {
+          logError({
+            code: ErrorCode.EMAIL_SEND,
+            detail: "provider=postmark status=422",
+            operatorDetail: "Suppressed recipient",
+          });
+          await flushPendingWork();
+        });
+
+        const messages = (await getAllActivityLog()).map(
+          ({ message }) => message,
+        );
+        expect(messages).toContain(
+          "Error: Email send failed (provider=postmark status=422) — Suppressed recipient",
+        );
+      });
+
       test("persists every independent error in one request", async () => {
         await runWithPendingWork(async () => {
           logError({ code: ErrorCode.DB_CONNECTION });

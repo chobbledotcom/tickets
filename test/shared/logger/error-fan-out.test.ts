@@ -51,6 +51,26 @@ describe("error fan-out", () => {
     );
   });
 
+  test("names the operator-only detail without quoting it", () => {
+    logError({
+      code: ErrorCode.EMAIL_SEND,
+      detail: "provider=postmark status=422",
+      operatorDetail: "Suppressed recipient boss@example.com",
+    });
+
+    const line = String(errorSpy.calls[0]?.args[0]);
+    expect(line).toContain('detail="provider=postmark status=422"');
+    expect(line).toContain('operatorDetail="(activity log)"');
+    expect(line).not.toContain("Suppressed");
+    expect(line).not.toContain("boss@example.com");
+  });
+
+  test("omits the operator marker when there is no operator-only detail", () => {
+    logError({ code: ErrorCode.DB_QUERY, detail: "boom" });
+
+    expect(String(errorSpy.calls[0]?.args[0])).not.toContain("operatorDetail");
+  });
+
   test("sends the report out from inside a request", async () => {
     using _env = withEnv({ NTFY_URL });
 

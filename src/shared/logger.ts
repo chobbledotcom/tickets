@@ -230,6 +230,13 @@ export type ErrorContext = {
   /** Optional: additional safe context */
   detail?: string | undefined;
   /**
+   * Optional operator-only context. Reaches only the encrypted activity log —
+   * never the console line, ntfy, or Sentry — so a caller may quote here what
+   * an operator must read and every other sink must not carry (a provider's
+   * reply, after the caller has scrubbed personal data from it).
+   */
+  operatorDetail?: string | undefined;
+  /**
    * Optional original thrown error. Forwarded to Sentry (never to the console
    * line, ntfy, or the activity log) so server-side reports carry a real stack
    * trace. Attach it wherever a `catch` would otherwise stringify the error
@@ -248,12 +255,20 @@ export const formatRequestError = (
   return `${method} ${redactPath(path)}: ${msg}`;
 };
 
-/** Format an error context into a human-readable activity log message */
+/** Format an error context into the shared safe message: the shape the console
+ *  line and the Sentry report both carry, without any operator-only detail. */
 export const formatErrorMessage = (context: ErrorContext): string => {
   const label = errorCodeLabel[context.code];
   return context.detail
     ? `Error: ${label} (${context.detail})`
     : `Error: ${label}`;
+};
+
+/** Format an error context for the encrypted activity log: the operator's copy
+ *  also carries the operator-only detail. */
+export const formatOperatorMessage = (context: ErrorContext): string => {
+  const base = formatErrorMessage(context);
+  return context.operatorDetail ? `${base} — ${context.operatorDetail}` : base;
 };
 
 /** Only logging raised by the persistence itself is recursive. Independent
@@ -272,7 +287,10 @@ const persistErrorToActivityLog = async (
       // drag the activity-log table — and the listing helpers it queries with —
       // into every page's graph.
       const { logActivity } = await import("#db/activity-log.ts");
-      await logActivity(formatErrorMessage(context), context.listingId ?? null);
+      await logActivity(
+        formatOperatorMessage(context),
+        context.listingId ?? null,
+      );
     } catch {
       // An error log cannot recover when its own durable log is unavailable.
     }
@@ -289,6 +307,9 @@ export const logErrorLocal = (context: ErrorContext): void => {
     context.listingId !== undefined ? `listing=${context.listingId}` : null,
     context.attendeeId !== undefined ? `attendee=${context.attendeeId}` : null,
     context.detail ? `detail="${context.detail}"` : null,
+    // Name the operator-only detail without quoting it: the console line says
+    // a fuller version sits in the encrypted activity log.
+    context.operatorDetail ? `operatorDetail="(activity log)"` : null,
   ].filter(Boolean);
 
   console.error(`${getLogPrefix()}${parts.join(" ")}`);

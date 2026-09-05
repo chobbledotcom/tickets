@@ -6,6 +6,7 @@ import {
   type ErrorContext,
   errorCodeLabel,
   formatErrorMessage,
+  formatOperatorMessage,
   formatRequestError,
 } from "#shared/logger.ts";
 
@@ -52,6 +53,52 @@ describe("formatErrorMessage", () => {
       "Error: Payment session error (price mismatch)",
     );
     expect(formatErrorMessage(context)).not.toContain("42");
+  });
+
+  test("ignores the operator-only detail (it must not reach Sentry)", () => {
+    const context: ErrorContext = {
+      code: ErrorCode.EMAIL_SEND,
+      detail: "provider=postmark status=422",
+      operatorDetail: "Suppressed recipient",
+    };
+    expect(formatErrorMessage(context)).toBe(
+      "Error: Email send failed (provider=postmark status=422)",
+    );
+    expect(formatErrorMessage(context)).not.toContain("Suppressed");
+  });
+});
+
+describe("formatOperatorMessage", () => {
+  test("carries the operator-only detail after the shared message", () => {
+    const context: ErrorContext = {
+      code: ErrorCode.EMAIL_SEND,
+      detail: "provider=postmark status=422",
+      operatorDetail: "Suppressed recipient",
+    };
+    expect(formatOperatorMessage(context)).toBe(
+      "Error: Email send failed (provider=postmark status=422) — Suppressed recipient",
+    );
+  });
+
+  test("is the shared message when there is no operator-only detail", () => {
+    const context: ErrorContext = {
+      code: ErrorCode.DB_CONNECTION,
+      detail: "pool drained",
+    };
+    expect(formatOperatorMessage(context)).toBe(
+      "Error: Database connection failed (pool drained)",
+    );
+  });
+
+  test("treats an empty operator-only detail as absent", () => {
+    const context: ErrorContext = {
+      code: ErrorCode.EMAIL_SEND,
+      detail: "provider=resend status=500",
+      operatorDetail: "",
+    };
+    expect(formatOperatorMessage(context)).toBe(
+      "Error: Email send failed (provider=resend status=500)",
+    );
   });
 });
 

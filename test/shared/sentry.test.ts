@@ -223,6 +223,23 @@ describe("sentry", () => {
       );
     });
 
+    test("keeps the operator-only detail out of the report", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+
+      await captureServerError({
+        code: ErrorCode.EMAIL_SEND,
+        detail: "provider=postmark status=422",
+        operatorDetail: "Suppressed recipient boss@example.com",
+      });
+
+      const body = firstFetchBody();
+      expect(body).toContain("provider=postmark status=422");
+      expect(body).not.toContain("Suppressed recipient");
+      expect(body).not.toContain("boss@example.com");
+      expect(body).not.toContain("operatorDetail");
+    });
+
     test("marks the event as level error", async () => {
       const levels =
         (await captureDbErrorBody()).match(/"level":"[^"]*"/g) ?? [];
