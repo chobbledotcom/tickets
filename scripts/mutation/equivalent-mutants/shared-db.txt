@@ -213,7 +213,6 @@ src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → 
 # YYYY-MM-DD string or null, never ""; and the halving search needs at most
 # the logarithm of the order's lines, under the step bound from 0 or 1 alike.
 src/shared/db/attendees/capacity/checks.ts::manyFitsOnPrimary.row~0sd8971 The fits query returned no row→""   # a SELECT of expressions always returns one row; the throw is unreachable
-src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.onDay.date~1lroc7z ??→||   # days[0] is a validated date string or undefined; never ""
 src/shared/db/attendees/capacity/checks.ts::refusedOrderUnfitListingIds.step~1qj9zxs 0→1   # halving needs at most log2(lines) steps, below the bound either way
 
 # attendees/create.ts — the refusal's booking-to-line mapping. A booking's

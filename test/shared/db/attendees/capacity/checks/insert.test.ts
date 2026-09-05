@@ -64,4 +64,30 @@ describe("buildCapacityCheckedInsert", () => {
 
     expect(statement.sql).not.toContain("WHERE");
   });
+
+  test("a zero-quantity booking carries no capacity or active condition", () => {
+    // A line that books no places cannot make any capacity state worse, so
+    // its insert is unconditional — the row must land on a full or inactive
+    // listing too.
+    const statement = buildCapacityCheckedInsert({
+      date: "2026-06-24",
+      listingId: 17,
+      quantity: 0,
+    });
+
+    expect(statement.sql).not.toContain("WHERE");
+  });
+
+  test("a zero-quantity booking keeps an extra condition the caller passed", () => {
+    const statement = buildCapacityCheckedInsert(
+      { date: "2026-06-24", listingId: 17, quantity: 0 },
+      (bind) => bind(41),
+      false,
+      () => "order_not_yet_recorded",
+    );
+
+    expect(statement.sql).toContain("WHERE");
+    expect(statement.sql).toContain("order_not_yet_recorded");
+    expect(statement.sql).not.toContain("max_attendees");
+  });
 });

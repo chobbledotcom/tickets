@@ -16,6 +16,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
+  deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
@@ -198,6 +199,23 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     ).toBe(true);
   });
 
+  test("an uncapped group never refuses a dated cart", async () => {
+    // A package group's cap of 0 means no limit — the write's group clause
+    // passes it, so the preflight's per-day clause must pass it too and not
+    // read a 0 cap as "no place left".
+    const group = await createTestGroup({ maxAttendees: 0 });
+    const member = await createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+    });
+    expect(
+      await checkBatchAvailability(
+        [{ durationDays: 2, listingId: member.id, quantity: 3 }],
+        "2026-05-01",
+      ),
+    ).toBe(true);
+  });
+
   /** One more ticket on an already-full standard listing, checked against an
    * optional cart date — the running total must reject it either way. */
   const oneMoreOnFullStandardListing = async (
@@ -235,6 +253,45 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     expect(
       await checkBatchAvailability([{ listingId: listing.id, quantity: 0 }]),
     ).toBe(true);
+  });
+
+  test("a zero-quantity line fits a dated daily listing that is over-full", async () => {
+    // The listing's running total sits past its cap from earlier sales. A
+    // line that books no places cannot make that worse, so the preflight
+    // must not refuse it.
+    const listing = await createDailyTestListing({ maxAttendees: 1 });
+    await listingAggregates.update(listing.id, {
+      booked_quantity: 5,
+      tickets_count: 0,
+    });
+    expect(
+      await checkBatchAvailability(
+        [{ listingId: listing.id, quantity: 0 }],
+        "2026-05-01",
+      ),
+    ).toBe(true);
+  });
+
+  test("a zero-quantity line fits an inactive listing", async () => {
+    // An inactive listing's cap subquery returns NULL. A line that demands
+    // nothing carries no capacity clause, so the NULL cannot refuse it.
+    const listing = await createTestListing({ maxAttendees: 1 });
+    await deactivateTestListing(listing.id);
+    expect(
+      await checkBatchAvailability([{ listingId: listing.id, quantity: 0 }]),
+    ).toBe(true);
+  });
+
+  test("a cart of twelve 90-day lines on one date stays inside the SQL depth limit", async () => {
+    // One clause per listing-day would emit 12 x 90 ANDed clauses and pass
+    // SQLite's expression-depth limit at checkout time. The grouped per-day
+    // counting keeps the clause count at one per listing.
+    const items = [];
+    for (let index = 0; index < 12; index++) {
+      const listing = await createDailyTestListing({ maxAttendees: 5 });
+      items.push({ durationDays: 90, listingId: listing.id, quantity: 1 });
+    }
+    expect(await checkBatchAvailability(items, "2026-05-01")).toBe(true);
   });
 
   test("rejects a standard listing exceeding total capacity", async () => {

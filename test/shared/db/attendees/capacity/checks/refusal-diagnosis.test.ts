@@ -56,9 +56,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
 
   test("dated lines on ONE shared day still get the cumulative check", async () => {
     // Each line fits alone; only the prefix check can name the second one.
-    const shared = await createTestGroup({ maxAttendees: 1 });
-    const first = await createDailyTestListing({ groupId: shared.id });
-    const second = await createDailyTestListing({ groupId: shared.id });
+    const { first, second } = await createTwoListingsSharingOnePlace("daily");
 
     expect(
       await refusedOrderUnfitListingIds([
@@ -106,16 +104,69 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     ]);
   });
 
-  test("asks each line alone when the lines sit on different days", async () => {
-    const daily = await dailyTakenOnDay();
-    const roomyDaily = await createDailyTestListing({ maxAttendees: 10 });
+  test("lines on one date of a multi-date order still get the cumulative check", async () => {
+    // Two same-date lines share a one-place group: each fits alone, only the
+    // prefix check can name the second one. A third line sits on another
+    // date, so the order spans two dates.
+    const { first, second } = await createTwoListingsSharingOnePlace("daily");
+    const otherDay = await createDailyTestListing({ maxAttendees: 10 });
 
     expect(
       await refusedOrderUnfitListingIds([
-        line(roomyDaily.id, "2026-10-02"),
-        line(daily.id, DAY),
+        line(first.id, DAY),
+        line(second.id, DAY),
+        line(otherDay.id, "2026-10-05"),
+      ]),
+    ).toEqual([second.id]);
+  });
+
+  test("lines on different dates that share a running total get the cumulative check", async () => {
+    // A standard listing's cap is one running total across all dates: 1
+    // booked + 2 + 2 fits line by line but not line two on top of line one.
+    const standard = await createTestListing({ maxAttendees: 3 });
+    await attendeesApi.createAttendeeAtomic({
+      bookings: [{ listingId: standard.id, quantity: 1 }],
+      email: "first@example.com",
+      name: "First",
+    });
+
+    expect(
+      await refusedOrderUnfitListingIds([
+        line(standard.id, "2026-10-01", 2),
+        line(standard.id, "2026-10-02", 2),
+      ]),
+    ).toEqual([standard.id]);
+  });
+
+  test("a daily listing's date-less line counts against its running total", async () => {
+    // Two booked units sit in the running total from another day. The dated
+    // line fits the day; the date-less line then tips the total over. The
+    // diagnosis must see both demands in one bucket.
+    const daily = await createDailyTestListing({ maxAttendees: 3 });
+    await attendeesApi.createAttendeeAtomic({
+      bookings: [{ date: "2026-10-05", listingId: daily.id, quantity: 2 }],
+      email: "first@example.com",
+      name: "First",
+    });
+
+    expect(
+      await refusedOrderUnfitListingIds([
+        line(daily.id, DAY, 1),
+        line(daily.id, null, 1),
       ]),
     ).toEqual([daily.id]);
+  });
+
+  test("an order that fits again costs two calls across several dates", async () => {
+    const lines: LineBooking[] = [];
+    for (let index = 0; index < 8; index++) {
+      const listing = await createDailyTestListing({ maxAttendees: 10 });
+      lines.push(line(listing.id, index % 2 ? DAY : "2026-10-05"));
+    }
+
+    expect(
+      await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
+    ).toBe(2);
   });
 
   test("a line whose listing is gone names nothing", async () => {
