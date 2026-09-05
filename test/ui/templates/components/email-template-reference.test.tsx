@@ -29,6 +29,13 @@ describe("email template reference declaration", () => {
     const used = [...LOOP_EXAMPLE.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map(
       (match) => match[1]!.split("|")[0]!.trim(),
     );
-    for (const path of used) expect(declared).toContain(path);
+    // The loop's iterable is a top-level variable too, so `{% for entry in
+    // entries %}` binds `entries` to the same declaration rule.
+    const iterables = [
+      ...LOOP_EXAMPLE.matchAll(/\{%\s*for\s+\w+\s+in\s+(\w+)\s*%\}/g),
+    ].map((match) => match[1]!);
+    for (const path of [...used, ...iterables]) {
+      expect(declared).toContain(path);
+    }
   });
 });
