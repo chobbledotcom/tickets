@@ -1,34 +1,39 @@
+import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
   ListingBooking,
 } from "#db/attendee-types.ts";
+import { buildCapacityCondition, capacityConditionFor } from "#db/capacity.ts";
 import {
-  buildBatchCapacitySql,
-  buildCapacityCondition,
-  buildManyFitsSql,
+  buildCartCapacitySql,
   type CapacityBucket,
   type CartDemand,
-  capacityConditionFor,
-} from "#db/capacity.ts";
+} from "#db/capacity-batch.ts";
 import {
   inPlaceholders,
   queryAll,
   queryBatchPrimary,
   requireOne,
+  requireOnePrimary,
   resultRows,
   type SqlStatement,
 } from "#db/client.ts";
 import { listingGroups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
-import { compact, identity, map, mapById, requiredMapValue, unique } from "#fp";
+import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
-/** Build an INSERT into listing_attendees, capacity-checked by default. */
+/** Build an INSERT into listing_attendees, capacity-checked by default. A
+ * zero-quantity booking carries no capacity or active condition: it demands
+ * no places, so it can land on a full or inactive listing too — but by
+ * default it still names a listing that must exist, because
+ * listing_attendees has no foreign key. An overbook caller (the payment
+ * ghost store) explicitly asks for the row whatever the listing state. An
+ * order-level extra condition still applies. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
   attendeeIdSql: NumberedSql = () => "last_insert_rowid()",
@@ -53,7 +58,17 @@ export const buildCapacityCheckedInsert = (
     const quantitySql = bind(quantity);
     const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
           SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
-    if (allowOverbook) return insertSelect;
+    if (allowOverbook) {
+      if (extraCondition === undefined) return insertSelect;
+      return `${insertSelect}\n          WHERE ${extraCondition(bind)}`;
+    }
+    if (quantity === 0) {
+      const exists = `EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ${listingIdSql})`;
+      if (extraCondition === undefined) {
+        return `${insertSelect}\n          WHERE ${exists}`;
+      }
+      return `${insertSelect}\n          WHERE ${exists} AND (${extraCondition(bind)})`;
+    }
 
     const capacity = buildCapacityCondition(
       listingId,
@@ -127,32 +142,52 @@ export const checkListingAvailability = async (
   )[0]!;
 };
 
-type DemandBucket = CapacityBucket;
-
 const getOrCreateBucket = <K>(
-  buckets: Map<K, DemandBucket>,
+  buckets: Map<K, CapacityBucket>,
   key: K,
-): DemandBucket => {
+): CapacityBucket => {
   let bucket = buckets.get(key);
   if (!bucket) {
-    bucket = { perDay: new Map(), total: 0 };
+    bucket = {
+      everyDay: 0,
+      perDay: new Map(),
+      runningTotal: 0,
+      throughLastUndated: 0,
+      undatedOnly: 0,
+    };
     buckets.set(key, bucket);
   }
   return bucket;
 };
 
+/** Add one cart line's demand to its listing's or group's bucket. A
+ * zero-quantity line demands nothing and adds nothing. Dated lines on
+ * per-date counting listings occupy their days; every other line only
+ * bumps the running total the write's statements count — a date-less line
+ * on a per-date listing is visible to that total alone. A date-less line
+ * also pins the running total its write statement reads: no undated
+ * statement of the write runs after it, so a dated line booked later never
+ * raises that state. */
 const addDemandToBucket = (
-  bucket: DemandBucket,
+  bucket: CapacityBucket,
   listing: Pick<ListingCapacityRow, "listing_type">,
   item: BatchAvailabilityItem,
   date: string | null | undefined,
 ): void => {
-  if (countsPerDate(listing.listing_type) && date) {
-    for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
-      bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
-    }
-  } else {
-    bucket.total += item.quantity;
+  if (item.quantity <= 0) return;
+  bucket.runningTotal += item.quantity;
+  if (!countsPerDate(listing.listing_type)) {
+    bucket.everyDay += item.quantity;
+    bucket.throughLastUndated = bucket.runningTotal;
+    return;
+  }
+  if (!date) {
+    bucket.undatedOnly += item.quantity;
+    bucket.throughLastUndated = bucket.runningTotal;
+    return;
+  }
+  for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
+    bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
   }
 };
 
@@ -168,9 +203,9 @@ const aggregateDemand = (
     listing: ListingCapacityRow,
     item: BatchAvailabilityItem,
   ) => number[],
-): Map<number, DemandBucket> => {
+): Map<number, CapacityBucket> => {
   const { items, listingsById, date } = context;
-  const buckets = new Map<number, DemandBucket>();
+  const buckets = new Map<number, CapacityBucket>();
   for (const item of items) {
     const listing = listingsById.get(item.listingId)!;
     for (const key of keysFor(listing, item)) {
@@ -209,10 +244,22 @@ export const checkBatchAvailabilityImpl = async (
   const groupDemand = aggregateDemand(context, (_listing, item) =>
     listingGroups.idsFor(membership, item.listingId),
   );
-  const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
-  const row = await requireOne<{ fits: number }>(sql, args);
-  return row.fits === 1;
+  return await fitsThrough(requireOne)({ groupDemand, listingDemand });
 };
+
+/** Ask one cart demand's fit through one required-row read. The checkout
+ * preflight reads on the default route; the refusal diagnosis reads on the
+ * primary, because the refused write did. */
+const fitsThrough =
+  (read: <T>(sql: string, args: InValue[]) => Promise<T>) =>
+  async (demand: CartDemand): Promise<boolean> => {
+    const { sql, args } = buildCartCapacitySql(demand);
+    const row = await read<{ fits: number }>(sql, args);
+    return row.fits === 1;
+  };
+
+/** One primary round trip answering whether one cart demand fits. */
+const fitsOnPrimary = fitsThrough(requireOnePrimary);
 
 type LineListingFacts = {
   groupIds: number[];
@@ -257,24 +304,14 @@ const linesDemand = (
   return demand;
 };
 
-/** One primary round trip answering whether each cart demand fits. */
-const manyFitsOnPrimary = async (demands: CartDemand[]): Promise<boolean[]> => {
-  const { sql, args } = buildManyFitsSql(demands);
-  const [result] = await queryBatchPrimary([{ args, sql }]);
-  const row = requireValue(
-    resultRows<Record<string, number>>(result!)[0],
-    "The fits query returned no row",
-  );
-  return demands.map((_, index) => row[`fit${index}`] === 1);
-};
-
-/** Each prefix of the order is asked as one cumulative demand, so the first
- * line that does not fit on top of its predecessors is the one named. A shared
- * group limit counts.
- *
- * Prefix fits only shrink as lines are added, so a binary search finds the
- * first unfit prefix. The probe count grows with the logarithm of the order,
- * and no probe's SQL is bigger than the whole-order preflight's.
+/** The write's guarded statements run in write order, each seeing the rows the
+ * earlier ones inserted. Each prefix of the order is asked as one cumulative
+ * demand over that same order, so the first line that does not fit on top of
+ * its predecessors is the one named — the statement the write aborted on. A
+ * shared group limit counts, whatever dates the lines sit on. Prefix fits
+ * only shrink as lines are added, so a binary search finds the first unfit
+ * prefix in a logarithmic number of probes. The order is trustworthy:
+ * annotateOrderParents maps the caller's bookings 1:1 without sorting.
  *
  * The reads run on the primary because the refused write did. A replica can lag
  * behind the booking that took the last place, and the isolate's caches can
@@ -313,31 +350,24 @@ export const refusedOrderUnfitListingIds = async (
     ).groupIds.push(row.group_id);
   }
 
-  const days = unique(compact(lines.map((line) => line.date)));
-  if (days.length > 1) {
-    const fits = await manyFitsOnPrimary(
-      lines.map((line) => linesDemand([line], factsById)),
-    );
-    return unique(
-      lines.filter((_, index) => !fits[index]).map((line) => line.listingId),
-    );
-  }
-  const onDay = lines.map((line) => ({ ...line, date: days[0] ?? null }));
   const prefixFits = async (length: number): Promise<boolean> =>
-    (
-      await manyFitsOnPrimary([linesDemand(onDay.slice(0, length), factsById)])
-    )[0]!;
+    fitsOnPrimary(linesDemand(lines.slice(0, length), factsById));
   // A race that freed the room again before this read names no listing.
-  if (await prefixFits(onDay.length)) return [];
-  let shortestUnfit = onDay.length;
+  if (await prefixFits(lines.length)) return [];
+  let shortestUnfit = lines.length;
   let longestFit = 0;
   // Halving needs fewer steps than the order has lines, so the step bound
   // never cuts the search short — it only keeps the loop finite.
-  for (let step = 0; step < onDay.length; step++) {
+  for (let step = 0; step < lines.length; step++) {
     if (longestFit + 1 >= shortestUnfit) break;
     const middle = Math.floor((longestFit + shortestUnfit) / 2);
     if (await prefixFits(middle)) longestFit = middle;
     else shortestUnfit = middle;
   }
+  // The probes are separate reads, so a booking that frees the room between
+  // them can leave every later probe fitting on top of the whole-order
+  // probe's stale refusal. Re-ask the whole order once: a full order that
+  // now fits names nothing, exactly like the race guard above.
+  if (await prefixFits(lines.length)) return [];
   return [lines[shortestUnfit - 1]!.listingId];
 };
