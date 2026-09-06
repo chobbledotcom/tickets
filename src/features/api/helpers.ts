@@ -53,11 +53,12 @@ export const checkoutFailedResponse = (error?: string): Response =>
 export const resolvePositiveQuantity = (
   body: Record<string, unknown>,
 ): number | Response => {
-  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
+  const parsedQuantity = parseNonNegativeInt(String(body.quantity));
+  if (parsedQuantity === null) return 1;
   if (parsedQuantity === 0) {
     return apiError("Quantity must be at least 1");
   }
-  return parsedQuantity ?? 1;
+  return parsedQuantity;
 };
 
 /** Resolve a pay-more listing's submitted `customPrice` (from the JSON body's
@@ -81,7 +82,7 @@ export const resolveCustomPrice = (
 };
 
 /** Look up an active listing by slug. */
-export const findActiveListing = async (
+const findActiveListing = async (
   slug: string,
 ): Promise<ListingWithCount | Response> => {
   const listing = await getListingWithCountBySlug(slug);
