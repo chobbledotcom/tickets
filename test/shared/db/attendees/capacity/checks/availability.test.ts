@@ -181,12 +181,13 @@ describeWithEnv("db > attendees > unfitListingIds", { db: true }, () => {
     ).toEqual([full.id]);
   });
 
-  test("an all-zero-quantity edit carries no unused exclusion binding", async () => {
+  test("an all-zero-quantity edit preflights with the exclusion set", async () => {
     // The edit preflight passes the attendee whose own rows must not count.
     // A quantity-0 line carries no capacity clause, so when every line is
-    // zero the statement holds no placeholder — the exclusion must not be
-    // bound anyway, or the database rejects the parameter count and a
-    // no-quantity edit cannot save.
+    // zero the statement holds no placeholder while the exclusion stays
+    // bound — libsql accepts the surplus argument, and the preflight must
+    // still answer fits for a no-quantity edit. If a future client tightens
+    // surplus-argument handling, this test fails loudly.
     const roomy = await createTestListing({ maxAttendees: 10 });
     const attendee = await createTestAttendee(
       roomy.id,
