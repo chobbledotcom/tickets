@@ -7,6 +7,7 @@
  */
 
 import {
+  bookedOutsideParent,
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
@@ -26,6 +27,8 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { allocatedChildIds } from "#shared/child-parents.ts";
+import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
 
@@ -60,15 +63,36 @@ const validateListingForPayment = (
 
 /** The name safe to show for one signed booking path. */
 const buyerLineName = (
+  intent: BookingIntent,
+  snapshot: PaidOrderSnapshot,
+): ((
   item: BookingIntent["items"][number],
   listing: ListingWithCount,
-  snapshot: PaidOrderSnapshot,
-): string => {
-  const groupId = lineGroupId(item);
-  if (groupId === undefined) return listing.name;
-  const display = snapshot.notificationPackages.displays.get(groupId);
-  if (!display) return "";
-  return display.hideListings ? display.name : listing.name;
+) => string) => {
+  const allocations = intent.allocations ?? [];
+  const outsideParent = bookedOutsideParent(allocations);
+  const displays = snapshot.notificationPackages.displays;
+  return (item, listing) => {
+    const groupId = lineGroupId(item);
+    if (groupId === undefined && outsideParent(item)) return listing.name;
+    const groupIds =
+      groupId === undefined
+        ? intent.items
+            .filter(
+              (parent) =>
+                parent.q > 0 &&
+                allocations.some(
+                  (allocation) =>
+                    allocation.childId === item.e &&
+                    allocation.parentId === parent.e,
+                ),
+            )
+            .map((parent) => lineGroupId(parent) ?? 0)
+        : [groupId];
+    if (hasNamedBookingPath(displays, groupIds)) return listing.name;
+    // Missing package facts must not reveal a member or its allocated child.
+    return displays.get(groupIds[0] ?? 0)?.name ?? "";
+  };
 };
 
 interface BookingPaths {
@@ -87,11 +111,7 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
       .map((item) => item.e),
   );
   // Children folded under a tagged member book as part of that bundle.
-  const bundledChildIds = new Set(
-    allocations
-      .filter((allocation) => taggedParentIds.has(allocation.parentId))
-      .map((allocation) => allocation.childId),
-  );
+  const bundledChildIds = allocatedChildIds(allocations, taggedParentIds);
   // Standalone-ness is judged per LINE, not per listing: an order may book
   // the same listing through a package AND its own row, and the standalone
   // path must still take the stale checks below even though a tagged line
@@ -141,6 +161,7 @@ export const validateAllItems = async (
       snapshot.parentsByChildId,
     );
   const listingsById = snapshot.listingsById;
+  const nameFor = buyerLineName(intent, snapshot);
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const listing = listingsById.get(item.e);
@@ -151,7 +172,7 @@ export const validateAllItems = async (
         item.e,
       );
     }
-    const name = buyerLineName(item, listing, snapshot);
+    const name = nameFor(item, listing);
     const vp = validateListingForPayment(listing, name);
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);

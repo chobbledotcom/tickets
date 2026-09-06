@@ -26,6 +26,7 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { allocatedChildIds } from "#shared/child-parents.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   concealLineNames,
@@ -175,9 +176,7 @@ export const prepareOrder = async (
   );
   const namedListingIds = new Set([
     ...shownSelectedIds,
-    ...fold.allocations
-      .filter((allocation) => shownSelectedIds.has(allocation.parentId))
-      .map((allocation) => allocation.childId),
+    ...allocatedChildIds(fold.allocations, shownSelectedIds),
   ]);
   const items = concealLineNames(
     buildOrderLines(
