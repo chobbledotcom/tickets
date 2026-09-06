@@ -5,6 +5,7 @@ import { buildTicketListing } from "#booking/model.ts";
 import {
   concealLineNames,
   ctxStandInNames,
+  hasNamedBookingPath,
   namesConcealedIn,
   packageStandIns,
 } from "#shared/package-privacy.ts";
@@ -112,6 +113,21 @@ describe("namesConcealedIn (fail-safe)", () => {
     [1, { hideListings: false, name: "Open Kit" }],
     [2, { hideListings: true, name: "Box Kit" }],
   ]);
+
+  for (const [ids, expected] of [
+    [[], false],
+    [[0], true],
+    [[1], true],
+    [[2], false],
+    [[99], false],
+    [[2, 0], true],
+    [[2, 1], true],
+    [[2, 99], false],
+  ] as const) {
+    test(`identifies a named path in ${JSON.stringify(ids)}`, () => {
+      expect(hasNamedBookingPath(DISPLAYS, ids)).toBe(expected);
+    });
+  }
 
   test("an order booking no packages never conceals", () => {
     expect(namesConcealedIn(DISPLAYS, [])).toBe(false);

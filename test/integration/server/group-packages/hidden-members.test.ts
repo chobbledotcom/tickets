@@ -88,7 +88,10 @@ describeWithEnv(
           `/ticket/${listing.slug}/qr-book?t=${encodeURIComponent(token)}`,
         ),
       );
-      expect(qrBook.status).not.toBe(404);
+      expect(qrBook.status).toBe(200);
+      const page = await qrBook.text();
+      expect(page).toContain("QrMember");
+      expect(page).toContain('value="Ada"');
     });
 
     test("a regular group shows a shared concealed-package member", async () => {

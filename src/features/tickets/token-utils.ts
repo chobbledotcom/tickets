@@ -231,7 +231,8 @@ export const verifyTokensWithRealLine = async (
 ): Promise<{
   verifiedTokens: string[];
   listingIds: number[];
-  packageGroupIds: number[];
+  /** Group 0 retains the evidence of a standalone booking. */
+  bookingGroupIds: number[];
 }> => {
   const attendees = tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
   const verified = tokens
@@ -241,13 +242,11 @@ export const verifyTokensWithRealLine = async (
     }))
     .filter((entry) => entry.realBookings.length > 0);
   return {
+    bookingGroupIds: verified.flatMap((e) =>
+      e.realBookings.map((booking) => booking.package_group_id),
+    ),
     listingIds: verified.flatMap((e) =>
       e.realBookings.map((b) => b.listing_id),
-    ),
-    packageGroupIds: verified.flatMap((e) =>
-      e.realBookings.flatMap((booking) =>
-        booking.package_group_id > 0 ? [booking.package_group_id] : [],
-      ),
     ),
     verifiedTokens: verified.map((e) => e.token),
   };

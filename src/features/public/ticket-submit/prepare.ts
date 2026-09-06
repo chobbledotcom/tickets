@@ -26,7 +26,11 @@ import {
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
+import {
+  concealLineNames,
+  ctxStandInNames,
+  hasNamedBookingPath,
+} from "#shared/package-privacy.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import {
@@ -225,18 +229,18 @@ export const prepareOrder = async (
   };
 };
 
-/** The thank-you URL for one listing unless the order uses a concealing package
- * path. Folded children do not change the page listing count. */
+/** Folded children cannot reveal the parent's URL or change the page listing
+ * count. */
 export const singleListingThankYouUrl = (
   ctx: TicketCtx,
   items: readonly CheckoutItem[],
 ): string | null =>
   ctx.listings.length === 1 &&
-  !items.some(
-    (item) =>
-      item.packageGroupId !== undefined &&
-      ctx.packages.find((pkg) => pkg.groupId === item.packageGroupId)!
-        .hideListings,
+  hasNamedBookingPath(
+    new Map(ctx.packages.map((pkg) => [pkg.groupId, pkg])),
+    items
+      .filter((item) => item.listingId === ctx.listings[0]!.listing.id)
+      .map((item) => item.packageGroupId ?? 0),
   )
     ? ctx.listings[0]!.listing.thank_you_url
     : null;

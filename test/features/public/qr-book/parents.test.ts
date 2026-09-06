@@ -5,7 +5,7 @@ import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { expectStripeRedirect, qrBookPath, stubStripe } from "./helpers.ts";
+import { expectStripeRedirect, qrBookPath, withStripe } from "./helpers.ts";
 
 interface ParentChildToken {
   child: Awaited<ReturnType<typeof createTestListing>>;
@@ -38,14 +38,11 @@ describeWithEnv("QR booking parent gate", { db: true }, () => {
 
   test("a parent with a required child renders the form", async () => {
     const { token, tokenSlug } = await parentChildToken((ids) => ids.parent);
-    const stripe = stubStripe();
-    try {
+    await withStripe(async (stripe) => {
       const response = await awaitTestRequest(qrBookPath(tokenSlug, token));
       expect(response.status).toBe(200);
       expect(stripe.calls()).toBe(0);
-    } finally {
-      stripe.restore();
-    }
+    });
   });
 
   test("a required child's QR has no fallback booking link", async () => {
@@ -70,12 +67,9 @@ describeWithEnv("QR booking parent gate", { db: true }, () => {
       listing.slug,
       buildQrBookPayload({ name: "Ada", value: 1000 }),
     );
-    const stripe = stubStripe();
-    try {
+    await withStripe(async (stripe) => {
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expectStripeRedirect(response, stripe);
-    } finally {
-      stripe.restore();
-    }
+    });
   });
 });

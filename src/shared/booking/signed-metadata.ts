@@ -7,7 +7,7 @@ import {
   packageMemberNodeKey,
 } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, sumByKey } from "#fp";
 import type { BookingItem } from "#shared/booking-intent.ts";
 
 /**
@@ -102,21 +102,21 @@ const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
  * The caller fails such an order closed, so it takes the `price_changed` refund
  * and never books a stale bundle. Per-line price drift is checked separately.
  */
-/** Total folded (allocated) quantity per child id across every allocation. */
-const allocatedQtyByChild = (
+/** A child also has its own path when its quantity exceeds its parent
+ * allocations. */
+export const bookedOutsideParent = (
   allocations: readonly ChildAllocation[],
-): Map<number, number> => {
-  const byChild = new Map<number, number>();
-  for (const alloc of allocations) {
-    byChild.set(alloc.childId, (byChild.get(alloc.childId) ?? 0) + alloc.qty);
-  }
-  return byChild;
+): ((item: BookingItem) => boolean) => {
+  const byChild = sumByKey(
+    (allocation: ChildAllocation) => allocation.childId,
+    (allocation) => allocation.qty,
+  )(allocations);
+  return (item) => item.q > (byChild.get(item.e) ?? 0);
 };
 
 type LineDriftContext = {
   allocatedParentIds: ReadonlySet<number>;
   childIdsByParentKey: ReadonlyMap<string, readonly number[]>;
-  foldedQty: ReadonlyMap<number, number>;
   keys: ReadonlySet<string>;
   lineByListing: ReadonlyMap<number, BookingItem>;
 };
@@ -127,10 +127,6 @@ const lineEdgeDrifted = (
   line: BookingItem,
   context: LineDriftContext,
 ): boolean => {
-  // A folded child collapses to one line whose folded units live in
-  // `allocations`; skip it ONLY when every unit is folded. A bookable_alone
-  // child can carry standalone SURPLUS, which still needs its own validation.
-  if ((context.foldedQty.get(line.e) ?? 0) >= line.q) return false;
   const key = lineNodeKey(line);
   if (!context.keys.has(key)) return true;
   const childIds = context.childIdsByParentKey.get(key);
@@ -161,18 +157,18 @@ export const edgeDrifted = (
 ): boolean => {
   const keys = treeNodeKeys(tree);
   const childIdsByParentKey = childIdsByParentNodeKey(tree);
-  const foldedQty = allocatedQtyByChild(allocations);
   const allocatedParentIds = new Set(allocations.map((a) => a.parentId));
   const lineByListing = new Map(items.map((item) => [item.e, item]));
   const context: LineDriftContext = {
     allocatedParentIds,
     childIdsByParentKey,
-    foldedQty,
     keys,
     lineByListing,
   };
   return (
-    items.some((line) => lineEdgeDrifted(line, context)) ||
+    items
+      .filter(bookedOutsideParent(allocations))
+      .some((line) => lineEdgeDrifted(line, context)) ||
     allocations.some((allocation) =>
       allocationEdgeDrifted(allocation, keys, lineByListing),
     )

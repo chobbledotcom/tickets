@@ -148,7 +148,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     const result = await verifyTokensWithRealLine([real.token, sentinel.token]);
     expect(result.verifiedTokens).toEqual([real.token]);
     expect(result.listingIds).toEqual([listingA.id]);
-    expect(result.packageGroupIds).toEqual([]);
+    expect(result.bookingGroupIds).toEqual([0]);
   });
 
   test("verifyTokensWithRealLine verifies a single real token", async () => {
@@ -163,7 +163,7 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     const result = await verifyTokensWithRealLine([token]);
     expect(result.verifiedTokens).toEqual([token]);
     expect(result.listingIds).toEqual([listing.id]);
-    expect(result.packageGroupIds).toEqual([]);
+    expect(result.bookingGroupIds).toEqual([0]);
   });
 
   test("verifyTokensWithRealLine returns the stored package path", async () => {
@@ -184,13 +184,13 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     );
 
     const result = await verifyTokensWithRealLine([token]);
-    expect(result.packageGroupIds).toEqual([group.id]);
+    expect(result.bookingGroupIds).toEqual([group.id]);
   });
 
   test("verifyTokensWithRealLine returns empty results for no tokens", async () => {
     expect(await verifyTokensWithRealLine([])).toEqual({
+      bookingGroupIds: [],
       listingIds: [],
-      packageGroupIds: [],
       verifiedTokens: [],
     });
   });

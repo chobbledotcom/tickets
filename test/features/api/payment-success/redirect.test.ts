@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { clearSessionTokens, reserveSession } from "#db/processed-payments.ts";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -123,6 +124,73 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     const response = await visit("cs_paid_private_thanks");
 
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toMatch(
+      /^\/payment\/success\?tokens=/,
+    );
+  });
+
+  for (const explicit of [false, true]) {
+    test(`keeps a mixed order's thank-you URL on replay (explicit: ${explicit})`, async () => {
+      await setupStripe();
+      const group = await createHiddenPackageGroup("Mixed route package");
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/mixed-thanks",
+        unitPrice: 500,
+      });
+      const sessionId = `cs_paid_mixed_${explicit}`;
+      using _provider = await stubPaidCheckout(
+        sessionId,
+        [
+          { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
+          { e: listing.id, p: 500, q: 1 },
+        ],
+        explicit ? { thank_you_url: listing.thank_you_url } : {},
+      );
+
+      const first = await visit(sessionId);
+      expect(first.status).toBe(explicit ? 200 : 302);
+      if (explicit) {
+        expect(await first.text()).toContain(
+          "url=https://example.com/mixed-thanks",
+        );
+      }
+      await clearSessionTokens(sessionId);
+      const replay = await visit(sessionId);
+      expect(replay.status).toBe(200);
+      expect(await replay.text()).toContain(
+        "url=https://example.com/mixed-thanks",
+      );
+    });
+  }
+
+  test("a folded child cannot reveal a concealed parent's explicit URL", async () => {
+    await setupStripe();
+    const group = await createHiddenPackageGroup("Parent package");
+    const parent = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const child = await createTestListing({ maxAttendees: 50, unitPrice: 300 });
+    await listingChildren.setIds(parent.id, [child.id]);
+    using _provider = await stubPaidCheckout(
+      "cs_concealed_parent",
+      [
+        { e: parent.id, k: "p", p: 500, q: 1, r: group.id },
+        { e: child.id, p: 300, q: 1 },
+      ],
+      {
+        allocations: JSON.stringify([
+          { childId: child.id, parentId: parent.id, qty: 1 },
+        ]),
+        thank_you_url: "https://example.com/concealed-parent",
+      },
+    );
+
+    const response = await visit("cs_concealed_parent");
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toMatch(
       /^\/payment\/success\?tokens=/,

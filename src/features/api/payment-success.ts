@@ -1,4 +1,4 @@
-import { lineGroupIds } from "#booking/signed-metadata.ts";
+import { bookedOutsideParent, lineGroupId } from "#booking/signed-metadata.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { clearSessionTokens } from "#db/processed-payments.ts";
@@ -19,7 +19,7 @@ import {
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { namesConcealedIn } from "#shared/package-privacy.ts";
+import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import { successPage } from "#templates/payment.tsx";
 
 /** The `session_id` query param of a payment callback, or "" when absent. */
@@ -43,23 +43,20 @@ const renderPaidSuccessPage = async (
   );
 };
 
-/** Whether any booked package path conceals listing names. */
-const pathsConcealListings = async (
-  packageGroupIds: Iterable<number>,
+const pathsShowListings = async (
+  bookingGroupIds: readonly number[],
 ): Promise<boolean> => {
-  const groupIds = [...packageGroupIds];
-  if (groupIds.length === 0) return false;
-  const displays = await getPackageDisplaysByIds(groupIds);
-  return namesConcealedIn(displays, groupIds);
+  if (bookingGroupIds.includes(0)) return true;
+  const displays = await getPackageDisplaysByIds(bookingGroupIds);
+  return hasNamedBookingPath(displays, bookingGroupIds);
 };
 
-/** The thank-you redirect for one listing, unless its booked package path
- * conceals listing names. */
+/** Only a named path can expose the listing's configured URL. */
 const singleListingThankYou = async (
   listingId: number,
-  packageGroupIds: Iterable<number>,
+  bookingGroupIds: readonly number[],
 ): Promise<string> => {
-  if (await pathsConcealListings(packageGroupIds)) return "";
+  if (!(await pathsShowListings(bookingGroupIds))) return "";
   const listing = await getListingWithCount(listingId);
   return listing?.thank_you_url.trim() ?? "";
 };
@@ -78,9 +75,11 @@ const processSessionAndRedirect = async (
   // — that path renders the success page directly here (below), where the
   // verified intent still holds it, rather than redirecting to the token path.
   const intent = validation.data.intent;
-  const packageGroupIds = lineGroupIds(intent.items);
+  const bookingGroupIds = intent.items
+    .filter(bookedOutsideParent(intent.allocations ?? []))
+    .map((item) => lineGroupId(item) ?? 0);
   const explicitThankYou =
-    intent.thankYouUrl && !(await pathsConcealListings(packageGroupIds))
+    intent.thankYouUrl && (await pathsShowListings(bookingGroupIds))
       ? intent.thankYouUrl
       : "";
 
@@ -135,8 +134,8 @@ const processSessionAndRedirect = async (
   // path never loads it; a since-deleted listing simply yields no URL.
   const thankYouUrl =
     explicitThankYou ||
-    (intent.items.length === 1
-      ? await singleListingThankYou(result.listingId, packageGroupIds)
+    (unique(intent.items.map((item) => item.e)).length === 1
+      ? await singleListingThankYou(result.listingId, bookingGroupIds)
       : "");
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
@@ -151,7 +150,7 @@ const renderSuccessFromTokens = async (
   // Only tokens with a real (quantity > 0) line are valid: an all-ghost token's
   // /t link would 404, and a ghost line must not inflate the single-listing
   // thank-you check.
-  const { verifiedTokens, listingIds, packageGroupIds } =
+  const { verifiedTokens, listingIds, bookingGroupIds } =
     await verifyTokensWithRealLine(tokens);
 
   if (verifiedTokens.length === 0) {
@@ -164,7 +163,7 @@ const renderSuccessFromTokens = async (
   const uniqueListingIds = unique(listingIds);
   const thankYouUrl =
     uniqueListingIds.length === 1
-      ? await singleListingThankYou(uniqueListingIds[0]!, packageGroupIds)
+      ? await singleListingThankYou(uniqueListingIds[0]!, bookingGroupIds)
       : "";
 
   return renderPaidSuccessPage(thankYouUrl, ticketUrl);

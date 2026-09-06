@@ -18,6 +18,7 @@ import {
   packageMemberPriceRule,
 } from "#booking/price-tree.ts";
 import {
+  bookedOutsideParent,
   edgeDrifted,
   lineGroupId,
   standaloneLineListingIds,
@@ -27,15 +28,6 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
 import type { ListingWithCount } from "#types";
-
-const allocatedUnitsByChild = (intent: BookingIntent): Map<number, number> => {
-  const allocatedByChild = new Map<number, number>();
-  for (const allocation of intent.allocations ?? []) {
-    const prior = allocatedByChild.get(allocation.childId) ?? 0;
-    allocatedByChild.set(allocation.childId, prior + allocation.qty);
-  }
-  return allocatedByChild;
-};
 
 export type ValidatedItem = {
   item: BookingItem;
@@ -99,12 +91,10 @@ export const orderEdgeDriftedFromFacts = (
   pricingByGroup: ReadonlyMap<number, RegistrationPackagePricing>,
   facts: OrderRelationshipFacts,
 ): boolean => {
-  const allocatedByChild = allocatedUnitsByChild(intent);
-  const fullyFolded = (listingId: number, quantity: number): boolean =>
-    (allocatedByChild.get(listingId) ?? 0) >= quantity;
+  const hasOwnUnits = bookedOutsideParent(intent.allocations ?? []);
   const topLevel = uniqueBy((info: TicketListing) => info.listing.id)(
     validatedItems
-      .filter((v) => !fullyFolded(v.item.e, v.item.q))
+      .filter((v) => hasOwnUnits(v.item))
       .map((v) => buildTicketListing(v.listing, false, undefined)),
   );
   const childrenByParentId = new Map(
@@ -117,7 +107,7 @@ export const orderEdgeDriftedFromFacts = (
       }),
     ]),
   );
-  const nonFolded = intent.items.filter((item) => !fullyFolded(item.e, item.q));
+  const nonFolded = intent.items.filter(hasOwnUnits);
   const packages: TreePackage[] = [...pricingByGroup].map(([groupId, pkg]) => ({
     dayPrices: pkg.dayPriceMap,
     groupId,
@@ -148,19 +138,19 @@ export const hasStaleStandaloneChildFromFacts = (
 ): boolean => {
   if (nonStandaloneChildIds.size === 0) return false;
   const orderIdSet = new Set(intent.items.map((item) => item.e));
-  const allocatedByChild = allocatedUnitsByChild(intent);
+  const allocations = intent.allocations ?? [];
+  const allocatedChildIds = new Set(
+    allocations.map((allocation) => allocation.childId),
+  );
+  const hasOwnUnits = bookedOutsideParent(allocations);
   const adoptedByInOrderParent = childIdsMatching(parentsByChild, (parentIds) =>
     parentIds.some((parentId) => orderIdSet.has(parentId)),
   );
   return intent.items.some((item) => {
     if (!nonStandaloneChildIds.has(item.e)) return false;
-    const allocated = allocatedByChild.get(item.e) ?? 0;
-    const standalone =
-      allocated > 0
-        ? item.q - allocated
-        : adoptedByInOrderParent.has(item.e)
-          ? 0
-          : item.q;
-    return standalone > 0;
+    return (
+      hasOwnUnits(item) &&
+      (allocatedChildIds.has(item.e) || !adoptedByInOrderParent.has(item.e))
+    );
   });
 };

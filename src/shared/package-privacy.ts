@@ -16,6 +16,15 @@ export const namesConcealedIn = (
     (groupId) => displays.get(groupId)?.hideListings ?? true,
   );
 
+/** Group 0 is a standalone path. An unresolved package cannot reveal names. */
+export const hasNamedBookingPath = (
+  displays: ReadonlyMap<number, Pick<PackageDisplay, "hideListings">>,
+  bookingGroupIds: readonly number[],
+): boolean =>
+  bookingGroupIds.some(
+    (groupId) => groupId === 0 || displays.get(groupId)?.hideListings === false,
+  );
+
 /** Stand-in names for pages that sell several packages. */
 export type PackageStandIns = {
   /** Package name by group id for lines booked through that package. */

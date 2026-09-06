@@ -179,6 +179,31 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     );
   });
 
+  for (const separateTokens of [false, true]) {
+    test(`keeps a mixed order's standalone redirect (separate tokens: ${separateTokens})`, async () => {
+      await setupStripe();
+      const group = await createHiddenPackageGroup("Mixed paths");
+      const member = await paidListing({
+        groupId: group.id,
+        thankYouUrl: "https://example.com/mixed-thanks",
+      });
+      const packageLine = { ...lineFor(member), k: "p", r: group.id };
+      const standaloneLine = lineFor(member);
+      const bookings = separateTokens
+        ? [
+            { items: [packageLine], sessionId: "cs_mixed_package" },
+            { items: [standaloneLine], sessionId: "cs_mixed_standalone" },
+          ]
+        : [{ items: [packageLine, standaloneLine], sessionId: "cs_mixed" }];
+
+      const { response, tokens } = await renderTokenPage(...bookings);
+      expect(response.status).toBe(200);
+      const page = await response.text();
+      expect(page).toContain(`href="/t/${tokens}"`);
+      expect(page).toContain("url=https://example.com/mixed-thanks");
+    });
+  }
+
   test("shows no thank-you redirect when the listing has none", async () => {
     await setupStripe();
     const listing = await paidListing({ thankYouUrl: " " });

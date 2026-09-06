@@ -1,4 +1,4 @@
-import { fixedParentDays } from "#booking/model.ts";
+import { childDaysFromParent } from "#booking/model.ts";
 import { nodesDeepestFirst } from "#booking/node-order.ts";
 import {
   type BookingNode,
@@ -235,7 +235,7 @@ const packageMemberDays = (
   node: BookingNode,
   chosenDays: number | undefined,
 ): number => {
-  const fixedDays = fixedParentDays(node.listing);
+  const fixedDays = childDaysFromParent<number | null>(node.listing, null, 1);
   return fixedDays === null ? chosenDays! : fixedDays;
 };
 

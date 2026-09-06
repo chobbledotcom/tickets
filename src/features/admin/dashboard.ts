@@ -115,8 +115,6 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
-      // Listings with no standalone public page are excluded from the
-      // multi-booking link builder: a booking can never start from a
       // A non-standalone child has no own booking page. A `bookable_alone`
       // child stays available here.
       const listingIds = sortedListings.map((l) => l.id);

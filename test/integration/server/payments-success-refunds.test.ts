@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
 import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
@@ -73,28 +74,28 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const group = await createHiddenPackageGroup();
       // Package concealment does not apply to this standalone booking path.
       const member = await createTestListing({
-        groupId: group.id,
         name: "Concealed Member XYZ",
         unitPrice: 500,
       });
+      const metadata = signMeta(
+        {
+          email: "stale@example.com",
+          items: JSON.stringify([
+            { e: visible.id, p: 500, q: 1 },
+            { e: member.id, p: 500, q: 1 },
+          ]),
+          name: "Stale Buyer",
+        },
+        1000,
+      );
+      expect(await assignListingsToGroup([member.id], group.id)).toBeNull();
       await deactivateTestListing(member.id);
-
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
           id: "cs_stale_hidden_multi",
-          metadata: signMeta(
-            {
-              email: "stale@example.com",
-              items: JSON.stringify([
-                { e: visible.id, p: 500, q: 1 },
-                { e: member.id, p: 500, q: 1 },
-              ]),
-              name: "Stale Buyer",
-            },
-            1000,
-          ),
+          metadata,
           payment_intent: "pi_stale_hidden_multi",
           payment_status: "paid",
         } as unknown as Awaited<
