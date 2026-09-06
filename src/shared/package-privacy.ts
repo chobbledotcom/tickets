@@ -1,21 +1,5 @@
 import type { PackageDisplay } from "#db/groups.ts";
 
-/** Whether a SIGNED order's member names must be concealed, read fail-safe from
- * its persisted package group ids against displays the caller already holds.
- * Hidden when ANY booked package hides its listings.
- *
- * A group that no longer resolves also reads as hidden. A delete or an
- * un-package mid-checkout destroys the evidence of which kind it was, and the
- * refund path must not name its members. An order with no packages conceals
- * nothing. */
-export const namesConcealedIn = (
-  displays: ReadonlyMap<number, PackageDisplay>,
-  packageGroupIds: Iterable<number>,
-): boolean =>
-  [...packageGroupIds].some(
-    (groupId) => displays.get(groupId)?.hideListings ?? true,
-  );
-
 /** Group 0 is a standalone path. An unresolved package cannot reveal names. */
 export const hasNamedBookingPath = (
   displays: ReadonlyMap<number, Pick<PackageDisplay, "hideListings">>,
@@ -77,9 +61,25 @@ export const ctxStandInNames = (ctx: {
     ),
   );
 
-/** Replace each concealed package line's buyer-facing name with its package's
- * name. Standalone and visible-package lines keep the listing name. Prices,
- * quantities and listing ids are untouched. */
+export type StandInName = (
+  listingId: number,
+  parentIds?: readonly [number, ...number[]],
+) => string | undefined;
+
+/** A named selection reveals its own name and the names of its selected children. */
+export const standInNameFor =
+  (
+    standIns: PackageStandIns,
+    namedListingIds: ReadonlySet<number>,
+  ): StandInName =>
+  (listingId, parentIds = [listingId]) =>
+    namedListingIds.has(listingId) ||
+    parentIds.some((parentId) => namedListingIds.has(parentId))
+      ? undefined
+      : (standIns.byListingId.get(parentIds[0]) ??
+        standIns.byListingId.get(listingId));
+
+/** Tagged package lines stay concealed even beside a named standalone selection. */
 export const concealLineNames = <
   T extends {
     name: string;
@@ -89,13 +89,15 @@ export const concealLineNames = <
 >(
   items: T[],
   standIns: PackageStandIns,
-): T[] =>
-  standIns.byGroupId.size === 0
-    ? items
-    : items.map((item) => {
-        const standIn =
-          item.packageGroupId === undefined
-            ? undefined
-            : standIns.byGroupId.get(item.packageGroupId);
-        return standIn === undefined ? item : { ...item, name: standIn };
-      });
+  namedListingIds: ReadonlySet<number>,
+): T[] => {
+  if (standIns.byGroupId.size === 0) return items;
+  const nameFor = standInNameFor(standIns, namedListingIds);
+  return items.map((item) => {
+    const standIn =
+      item.packageGroupId === undefined
+        ? nameFor(item.listingId)
+        : standIns.byGroupId.get(item.packageGroupId);
+    return standIn === undefined ? item : { ...item, name: standIn };
+  });
+};

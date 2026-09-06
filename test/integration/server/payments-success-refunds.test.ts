@@ -107,6 +107,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
         );
+        expect(response.status).toBe(410);
         const body = await response.text();
         expect(body).toContain("Concealed Member XYZ");
       } finally {

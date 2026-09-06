@@ -26,6 +26,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import {
+  prepareTestOrder,
   quantityForm,
   ticketContext,
   twoListingContext,
@@ -37,8 +38,7 @@ const preparedOrder = async (
   counts: Record<number, number>,
 ) => {
   const ctx = await ticketContext(listingIds);
-  const result = await prepareOrder(ctx, quantityForm(counts));
-  if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+  const result = await prepareTestOrder(ctx, quantityForm(counts));
   return result.pricingParams;
 };
 
@@ -181,8 +181,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const form = quantityForm({ [listing.id]: 1 });
       form.set("date", offered);
 
-      const result = await prepareOrder(ctx, form);
-      if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+      const result = await prepareTestOrder(ctx, form);
       expect(result.pricingParams.date).toBe(offered);
     });
 
@@ -215,8 +214,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const form = quantityForm({ [listing.id]: 1 });
       form.set("promo_code", "SAVE10");
 
-      const result = await prepareOrder(ctx, form);
-      if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+      const result = await prepareTestOrder(ctx, form);
       expect(result.pricingParams.promoCode).toBe("SAVE10");
     });
   });
@@ -229,8 +227,10 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       });
       const ctx = await ticketContext([listing.id]);
 
-      const result = await prepareOrder(ctx, quantityForm({ [listing.id]: 1 }));
-      if (!result.ok) throw new Error(result.error);
+      const result = await prepareTestOrder(
+        ctx,
+        quantityForm({ [listing.id]: 1 }),
+      );
       expect(singleListingThankYouUrl(ctx, result.pricingParams.items)).toBe(
         (await getListingWithCount(listing.id))!.thank_you_url,
       );
@@ -300,10 +300,10 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       });
       const ctx = await ticketContext([member.id], group);
       ctx.slugs = [group.slug, member.slug];
-      const form = quantityForm({ [member.id]: 1 });
-      form.set(packageQuantityFieldName(group.id), "1");
-      const result = await prepareOrder(ctx, form);
-      if (!result.ok) throw new Error(result.error);
+      const result = await prepareTestOrder(
+        ctx,
+        quantityForm({ [member.id]: 1 }, { [group.id]: 1 }),
+      );
 
       expect(result.pricingParams.items).toHaveLength(2);
       expect(singleListingThankYouUrl(ctx, result.pricingParams.items)).toBe(
@@ -322,10 +322,10 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       await listingChildren.setIds(member.id, [child.id]);
       const ctx = await ticketContext([member.id], group);
       ctx.slugs = [group.slug];
-      const form = quantityForm({ [member.id]: 0 });
-      form.set(packageQuantityFieldName(group.id), "1");
-      const result = await prepareOrder(ctx, form);
-      if (!result.ok) throw new Error(result.error);
+      const result = await prepareTestOrder(
+        ctx,
+        quantityForm({}, { [group.id]: 1 }),
+      );
 
       expect(result.pricingParams.items).toHaveLength(2);
       expect(

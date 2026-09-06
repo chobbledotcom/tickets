@@ -6,8 +6,8 @@ import {
   concealLineNames,
   ctxStandInNames,
   hasNamedBookingPath,
-  namesConcealedIn,
   packageStandIns,
+  standInNameFor,
 } from "#shared/package-privacy.ts";
 
 import { testListingWithCount } from "#test-utils/factories.ts";
@@ -52,7 +52,7 @@ describe("per-path stand-in names (several bundles per page)", () => {
       { listingId: 1, name: "Secret A", packageGroupId: 7, unitPrice: 500 },
       { listingId: 3, name: "Open Thing", packageGroupId: 8, unitPrice: 700 },
     ];
-    const result = concealLineNames(items, standIns);
+    const result = concealLineNames(items, standIns, new Set());
     expect(result.map((i) => i.name)).toEqual(["Secret Box", "Open Thing"]);
     expect(result.map((i) => i.unitPrice)).toEqual([500, 700]);
   });
@@ -71,10 +71,9 @@ describe("per-path stand-in names (several bundles per page)", () => {
       { listingId: 1, name: "Secret A", unitPrice: 500 },
     ];
     // Neither line uses the hidden package path.
-    expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
-      "Secret A",
-      "Secret A",
-    ]);
+    expect(
+      concealLineNames(items, standIns, new Set([1])).map((i) => i.name),
+    ).toEqual(["Secret A", "Secret A"]);
   });
 
   test("two hidden packages sharing a listing each name their OWN line", () => {
@@ -94,21 +93,64 @@ describe("per-path stand-in names (several bundles per page)", () => {
       { listingId: 1, name: "Secret A", packageGroupId: 7 },
       { listingId: 1, name: "Secret A", packageGroupId: 8 },
     ];
-    expect(concealLineNames(items, standIns).map((i) => i.name)).toEqual([
-      "Secret Box",
-      "Mystery Kit",
-    ]);
+    expect(
+      concealLineNames(items, standIns, new Set()).map((i) => i.name),
+    ).toEqual(["Secret Box", "Mystery Kit"]);
   });
 
   test("concealLineNames is a no-op when nothing is concealed", () => {
     const items = [{ listingId: 3, name: "Open Thing" }];
     expect(
-      concealLineNames(items, { byGroupId: new Map(), byListingId: new Map() }),
+      concealLineNames(
+        items,
+        { byGroupId: new Map(), byListingId: new Map() },
+        new Set(),
+      ),
     ).toBe(items);
+  });
+
+  test("a named child does not reveal a tagged package line", () => {
+    const standIns = packageStandIns(packages, childIds);
+    const items = [
+      { listingId: 2, name: "Secret B", packageGroupId: 7 },
+      { listingId: 9, name: "Child" },
+    ];
+    expect(
+      concealLineNames(items, standIns, new Set([2, 9])).map(
+        (item) => item.name,
+      ),
+    ).toEqual(["Secret Box", "Child"]);
+    expect(
+      concealLineNames(items, standIns, new Set()).map((item) => item.name),
+    ).toEqual(["Secret Box", "Secret Box"]);
+  });
+
+  test("a child error names its actual concealed parent package", () => {
+    const standIns = packageStandIns(
+      [
+        ...packages,
+        {
+          groupId: 10,
+          hideListings: true,
+          memberListingIds: [4],
+          name: "Second Box",
+        },
+      ],
+      () => [9],
+    );
+    const nameFor = standInNameFor(standIns, new Set([3]));
+    expect(nameFor(9, [2])).toBe("Secret Box");
+    expect(nameFor(9, [4])).toBe("Second Box");
+    expect(nameFor(9, [3])).toBeUndefined();
+    expect(nameFor(9, [4, 3])).toBeUndefined();
+    expect(nameFor(9, [4, 2])).toBe("Second Box");
+    expect(nameFor(3, [2])).toBeUndefined();
+    expect(nameFor(9)).toBe("Second Box");
+    expect(nameFor(99)).toBeUndefined();
   });
 });
 
-describe("namesConcealedIn (fail-safe)", () => {
+describe("hasNamedBookingPath", () => {
   const DISPLAYS = new Map([
     [1, { hideListings: false, name: "Open Kit" }],
     [2, { hideListings: true, name: "Box Kit" }],
@@ -128,25 +170,6 @@ describe("namesConcealedIn (fail-safe)", () => {
       expect(hasNamedBookingPath(DISPLAYS, ids)).toBe(expected);
     });
   }
-
-  test("an order booking no packages never conceals", () => {
-    expect(namesConcealedIn(DISPLAYS, [])).toBe(false);
-  });
-
-  test("a live package resolves its own hide flag", () => {
-    expect(namesConcealedIn(DISPLAYS, [1])).toBe(false);
-    expect(namesConcealedIn(DISPLAYS, [2])).toBe(true);
-  });
-
-  test("hidden when ANY of several booked packages hides its listings", () => {
-    expect(namesConcealedIn(DISPLAYS, [1, 2])).toBe(true);
-  });
-
-  test("a package id that no longer resolves fails SAFE as hidden", () => {
-    // The stale group may have been hidden, and the refund path must not name
-    // its members either way.
-    expect(namesConcealedIn(DISPLAYS, [99])).toBe(true);
-  });
 });
 
 describe("ctxStandInNames", () => {

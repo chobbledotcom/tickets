@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { setGroupPackageMembers } from "#db/groups.ts";
+import { groups, setGroupPackageMembers } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -127,18 +127,23 @@ describeWithEnv("API package booking", { db: true }, () => {
     await expectPackageNeedsEmail(group.slug);
   });
 
-  test("POST rejects a child mix that does not total the member's units", async () => {
-    const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
-    const { child } = await twoChildAddons(a, "Mix Kit");
+  for (const concealed of [false, true]) {
+    test(`POST names the selected package path in a child-total error (${concealed})`, async () => {
+      const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
+      const { child } = await twoChildAddons(a, "Mix Kit");
+      await groups.table.update(group.id, { hidePackageListings: concealed });
 
-    // Member A books 2 units per package; a single chosen add-on undershoots.
-    const { body, response } = await apiBookPackage(group.slug, {
-      children: [{ parent: a.slug, quantity: 1, slug: child.slug }],
+      // Member A books 2 units per package; a single chosen add-on undershoots.
+      const { body, response } = await apiBookPackage(group.slug, {
+        children: [{ parent: a.slug, quantity: 1, slug: child.slug }],
+      });
+      expect(response.status).toBe(400);
+      expect(body.error).toBe(
+        `Choose 1 more add-on for ${concealed ? group.name : a.name}.`,
+      );
+      expect(await bookingRows(a.id)).toHaveLength(0);
     });
-    expect(response.status).toBe(400);
-    expect(body.error).toBeDefined();
-    expect(await bookingRows(a.id)).toHaveLength(0);
-  });
+  }
 
   test("POST returns 404 for an unknown package", async () => {
     const { response } = await apiBookPackage("nope");
@@ -237,7 +242,7 @@ describeWithEnv("API package booking", { db: true }, () => {
 
     const { group } = await fixedPackage("Paid Kit", "paid-kit");
     const hidden = await fixedPackage("Secret Kit", "secret-kit");
-    const { groups } = await import("#db/groups.ts");
+    const { child } = await twoChildAddons(hidden.a, "Secret Kit");
     await groups.table.update(hidden.group.id, { hidePackageListings: true });
 
     const intents: import("#shared/payments.ts").CheckoutIntent[] = [];
@@ -267,10 +272,13 @@ describeWithEnv("API package booking", { db: true }, () => {
         "Paid Kit B",
       ]);
 
-      const concealed = await apiBookPackage(hidden.group.slug);
+      const concealed = await apiBookPackage(hidden.group.slug, {
+        children: [{ parent: hidden.a.slug, quantity: 2, slug: child.slug }],
+      });
       expect(concealed.response.status).toBe(200);
       // A hidden package's hosted checkout must never name its members.
       expect(intents[1]!.items.map((i) => i.name)).toEqual([
+        "Secret Kit",
         "Secret Kit",
         "Secret Kit",
       ]);

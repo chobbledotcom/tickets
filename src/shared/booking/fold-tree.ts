@@ -22,6 +22,7 @@ import type { ChildAllocation } from "#db/attendee-types.ts";
 import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
+import type { StandInName } from "#shared/package-privacy.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import type { Holiday } from "#types";
 
@@ -116,6 +117,8 @@ export type FoldChildrenResult =
  * maps (page listings, before children fold in), and the active holidays. */
 export type FoldBase = OrderSpan & {
   customPrices: Map<number, number>;
+  /** Absent when the booking has no concealed package names. */
+  nameFor?: StandInName;
 };
 
 type FoldableParent = { node: BookingNode; parentQty: number };
@@ -194,8 +197,8 @@ export const resolveChildSelections = (
   bookable: TicketListing[],
   parentQty: number,
   form: FormParams,
+  name = parent.listing.name,
 ): ChildSelection[] | { error: string } => {
-  const name = parent.listing.name;
   if (bookable.length === 0) {
     return { error: t("public.ticket.child_sold_out", { name }) };
   }
@@ -247,6 +250,7 @@ const childCustomPrice = (
   parentId: number,
   child: TicketListing,
   form: FormParams,
+  name: string,
 ): number | { error: string } | undefined => {
   if (!child.listing.can_pay_more) return;
   const result = parseCustomPrice(
@@ -255,7 +259,7 @@ const childCustomPrice = (
     child.listing.unit_price,
     child.listing.max_price,
   );
-  if (!result.ok) return { error: `${child.listing.name}: ${result.error}` };
+  if (!result.ok) return { error: `${name}: ${result.error}` };
   return result.price;
 };
 
@@ -293,6 +297,7 @@ export const foldChild = (
   duration: number,
   parentId: number,
   price: number | undefined,
+  name = child.listing.name,
 ): string | null => {
   const childId = child.listing.id;
   const summed = (state.quantities.get(childId) ?? 0) + childQty;
@@ -303,7 +308,7 @@ export const foldChild = (
   // (rejected, never clamped). A STANDARD child's cap is cumulative and
   // date-independent, so it stays authoritative here.
   if (child.listing.listing_type !== "daily" && summed > child.maxPurchasable) {
-    return formatAtomicError("capacity_exceeded", child.listing.name);
+    return formatAtomicError("capacity_exceeded", name);
   }
   if (child.listing.customisable_days) {
     const durationError = recordDuration(state, duration);
@@ -313,7 +318,7 @@ export const foldChild = (
     const existing = state.customPrices.get(childId);
     if (existing !== undefined && existing !== price) {
       return t("public.ticket.child_price_mismatch", {
-        name: child.listing.name,
+        name,
       });
     }
     state.customPrices.set(childId, price);
@@ -341,6 +346,7 @@ const foldParentNode = (
   dayCount: number,
   date: string | null,
   holidays: Holiday[],
+  nameFor: StandInName | undefined,
 ): string | null => {
   const duration = parentResolvedDuration(parent.listing, dayCount);
   // Every child node was built from the same resolved context, so its key is
@@ -348,10 +354,23 @@ const foldParentNode = (
   const bookable = node.children
     .map((childNode) => resolved.get(childNode.nodeKey)!)
     .filter((child) => childIsBookable(child, { date, duration, holidays }));
-  const selections = resolveChildSelections(parent, bookable, parentQty, form);
+  const selections = resolveChildSelections(
+    parent,
+    bookable,
+    parentQty,
+    form,
+    nameFor?.(parent.listing.id),
+  );
   if ("error" in selections) return selections.error;
   for (const { child, qty } of selections) {
-    const price = childCustomPrice(parent.listing.id, child, form);
+    const name =
+      nameFor?.(child.listing.id, [
+        parent.listing.id,
+        ...state.allocations
+          .filter((allocation) => allocation.childId === child.listing.id)
+          .map((allocation) => allocation.parentId),
+      ]) ?? child.listing.name;
+    const price = childCustomPrice(parent.listing.id, child, form, name);
     if (price && typeof price === "object") return price.error;
     const error = foldChild(
       state,
@@ -360,6 +379,7 @@ const foldParentNode = (
       duration,
       parent.listing.id,
       price,
+      name,
     );
     if (error) return error;
   }
@@ -446,6 +466,7 @@ export const foldBookingTree = (
       base.dayCount,
       base.date,
       holidays,
+      base.nameFor,
     );
     if (error) return { error, ok: false };
   }

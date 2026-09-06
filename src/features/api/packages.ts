@@ -42,7 +42,11 @@ import type { ServerContext } from "#routes/types.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
+import {
+  concealLineNames,
+  ctxStandInNames,
+  standInNameFor,
+} from "#shared/package-privacy.ts";
 import type { Group } from "#types";
 
 /* jscpd:ignore-end */
@@ -311,6 +315,7 @@ export const handleBookPackage = async (
         date,
         dayCount,
         hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+        nameFor: standInNameFor(standIns, new Set()),
         quantities,
       },
       tree,
@@ -324,7 +329,7 @@ export const handleBookPackage = async (
     // the lines reach the provider. Paid-ness must come from these lines, not
     // `isPaidListing`: a package override can make a free member paid (and a
     // paid member free).
-    const items = concealLineNames(built.items, standIns);
+    const items = concealLineNames(built.items, standIns, new Set());
     return finishFoldedBooking(
       request,
       form,
