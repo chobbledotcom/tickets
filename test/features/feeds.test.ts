@@ -114,6 +114,16 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
   });
 });
 
+describeWithEnv("news feed contracts", { db: true }, () => {
+  test("uses News when the site has no title", async () => {
+    await enablePublicSite();
+
+    const body = await feedBody("/feeds/news.rss");
+    expect(body).toContain("<title>News</title>");
+    expect(body).toContain("<description>News from News</description>");
+  });
+});
+
 describeWithEnv("calendar feed contracts", { db: true }, () => {
   test("returns the complete not-found response when feeds are disabled", async () => {
     const response = await handleRequest(mockRequest("/caldav/events.ics"));
