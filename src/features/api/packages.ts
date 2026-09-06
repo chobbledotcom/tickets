@@ -215,6 +215,21 @@ const applyPackageChildSelections = (
   return null;
 };
 
+/** Every failed client refusal on a CONCEALED package reads this one generic
+ * message: a wrong member slug, a wrong child slug, a bad total, or missing
+ * contact fields must be indistinguishable, or the errors confirm what is
+ * inside the package. Named packages keep their specific responses. */
+const PACKAGE_BOOKING_REFUSED =
+  "This package cannot be booked with those choices.";
+
+/** Re-body a failed client refusal (400 or 409) as the generic refusal.
+ * Successful responses, root 404s, rate limits, and server errors pass
+ * through, and nothing here turns a failure into a success. */
+const concealedPackageRefusal = (response: Response): Response =>
+  response.status === 400 || response.status === 409
+    ? apiError(PACKAGE_BOOKING_REFUSED)
+    : response;
+
 /** Reads a package API booking body and builds the form the booking flow uses. */
 const resolvePackageOrder = async (
   body: Record<string, unknown>,
@@ -286,7 +301,9 @@ export const handleBookPackage = async (
   if (pkg instanceof Response) return pkg;
   const { ctx, group, limit, tree } = pkg;
 
-  return withApiBody(request, async (body) => {
+  const bookOrFail = async (
+    body: Record<string, unknown>,
+  ): Promise<Response> => {
     const standIns = ctxStandInNames(ctx);
     const order = await resolvePackageOrder(
       body,
@@ -336,5 +353,12 @@ export const handleBookPackage = async (
       items.some((item) => Boolean(item.unitPrice)),
       { date, fold, items },
     );
-  });
+  };
+
+  return withApiBody(
+    request,
+    ctx.packages.every((pkg) => pkg.hideListings)
+      ? async (body) => concealedPackageRefusal(await bookOrFail(body))
+      : bookOrFail,
+  );
 };

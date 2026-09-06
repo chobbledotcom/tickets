@@ -128,7 +128,7 @@ describeWithEnv("API package booking", { db: true }, () => {
   });
 
   for (const concealed of [false, true]) {
-    test(`POST names the selected package path in a child-total error (${concealed})`, async () => {
+    test(`POST shapes a child-total error by the package's visibility (${concealed})`, async () => {
       const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
       const { child } = await twoChildAddons(a, "Mix Kit");
       await groups.table.update(group.id, { hidePackageListings: concealed });
@@ -138,8 +138,13 @@ describeWithEnv("API package booking", { db: true }, () => {
         children: [{ parent: a.slug, quantity: 1, slug: child.slug }],
       });
       expect(response.status).toBe(400);
+      // A concealed package's refusals are one generic message, so a probe
+      // cannot distinguish a real member from a guess; named packages keep
+      // their specific diagnostics.
       expect(body.error).toBe(
-        `Choose 1 more add-on for ${concealed ? group.name : a.name}.`,
+        concealed
+          ? "This package cannot be booked with those choices."
+          : `Choose 1 more add-on for ${a.name}.`,
       );
       expect(await bookingRows(a.id)).toHaveLength(0);
     });

@@ -1,4 +1,4 @@
-import { childDaysFromParent } from "#booking/model.ts";
+import { childDaysFromParent, childSupportsDays } from "#booking/model.ts";
 import { nodesDeepestFirst } from "#booking/node-order.ts";
 import {
   type BookingNode,
@@ -216,8 +216,10 @@ export const effectivePrice = (
  * bookable child is auto-selected), so every booked parent unit carries at
  * least its cheapest bookable child's price. `bookableChildIds` scopes the
  * minimum to children a buyer can actually choose (a render fact the tree
- * doesn't carry); 0 for a childless member — and for a parent with NO bookable
- * child, which the bookable gate rejects before any price is advertised. */
+ * doesn't carry), and `childSupportsDays` drops children that cannot serve
+ * this span — an unoffered day count must not price as free. 0 for a childless
+ * member — and for a parent with NO bookable child, which the bookable gate
+ * rejects before any price is advertised. */
 const minBookableChildPrice = (
   node: BookingNode,
   days: number,
@@ -225,6 +227,7 @@ const minBookableChildPrice = (
 ): number => {
   const prices = node.children
     .filter((child) => bookableChildIds.has(child.listingId))
+    .filter((child) => childSupportsDays(child, days))
     .map((child) =>
       effectivePrice(child.priceRule, child.listing, NO_CUSTOM_PRICES, days),
     );

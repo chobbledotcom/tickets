@@ -298,6 +298,47 @@ describeWithEnv("API package detail", { db: true }, () => {
     }
   });
 
+  test("GET prices a two-day span with only its bookable children", async () => {
+    // A child alternative that cannot serve the chosen span is not free —
+    // its missing day price must not drag the bundle minimum down to 500.
+    // The fold prices the sole span-compatible child: 500 + 2000 = 2500.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Span Price",
+      slug: "span-price",
+    });
+    const member = await createDailyTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 500, 2: 500 },
+      durationDays: 2,
+      groupId: group.id,
+      maxAttendees: 10,
+      maxQuantity: 10,
+      name: "Span Price Member",
+    });
+    const oneDay = await createDailyTestListing({
+      customisableDays: true,
+      dayPrices: { 1: 100 },
+      durationDays: 1,
+      name: "One Day Addon",
+    });
+    const twoDays = await createDailyTestListing({
+      customisableDays: true,
+      dayPrices: { 2: 2000 },
+      durationDays: 2,
+      name: "Two Day Addon",
+    });
+    await listingChildren.setIds(member.id, [oneDay.id, twoDays.id]);
+
+    const { package: pkg } = await (
+      await apiGet(`/api/packages/${group.slug}`)
+    ).json();
+    expect(
+      pkg.dayCounts.find((option: { days: number }) => option.days === 2)
+        .priceMinor,
+    ).toBe(2500);
+  });
+
   test("two parents sharing one sole add-on aggregate their demand in the cap", async () => {
     // One bundle folds BOTH members' units into the same sole add-on, so its
     // 2 spots serve exactly 1 bundle — the per-member caps each read 2 and

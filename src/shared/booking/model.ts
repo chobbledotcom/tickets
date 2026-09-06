@@ -262,6 +262,24 @@ export const dayCountsChildSupports = (
   return null;
 };
 
+/** Whether a required child can serve a booking of exactly `days` days:
+ * standard children serve any span, a fixed daily child only its own, and a
+ * customisable child only a count it prices. Shared by the fold and by the
+ * advertised bundle minimum, so a span a child can't serve never reads as a
+ * free alternative. */
+export const childSupportsDays = (
+  child: Pick<TicketListing, "listing">,
+  days: number,
+): boolean => {
+  if (child.listing.customisable_days) {
+    return availableDayCounts(child.listing).includes(days);
+  }
+  if (child.listing.listing_type === "daily") {
+    return clampDurationDays(child.listing.duration_days) === days;
+  }
+  return true;
+};
+
 /** Keeps day counts that each member's children can support. */
 const keepDayCountsChildrenSupport = (
   members: TicketListing[],
