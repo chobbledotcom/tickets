@@ -130,28 +130,13 @@ const buildDailyDateFilter = async (
   };
 };
 
-/** Whether a package member has no live booking path on the searched date:
- * sold out or closed on its own date-less row, or (for a daily member)
- * outside its calendar / full for that date. Mirrors the listing card's own
- * unavailable check. */
-const memberUnavailableOn = (
-  info: { isSoldOut: boolean; isClosed: boolean; listing: ListingWithCount },
-  dailyUnavailableIds: ReadonlySet<number>,
-): boolean =>
-  info.isSoldOut ||
-  info.isClosed ||
-  (info.listing.listing_type === "daily" &&
-    dailyUnavailableIds.has(info.listing.id));
-
 /** A package is bought as one whole bundle, so one member that cannot be booked
- * on the chosen date makes the whole bundle unbookable. Members come from the
- * group liveness load, not the page's own listing set, because a hidden
- * package's members never join that set yet still decide this.
+ * on the chosen date makes the whole bundle unbookable. Public package loading
+ * already rejects closed or statically full members. This check adds each daily
+ * member's selected-date calendar and capacity.
  *
- * This is a projection of the booking page's date rules, not a re-run. Two
- * edges are knowingly unchecked: a member needing quantity > 1 with one spot
- * left, and a daily parent whose required child cannot serve the date. The
- * booking page stays the real gate. */
+ * Two edges remain on the booking page: a member quantity above the remaining
+ * capacity, and a daily parent whose required child cannot serve the date. */
 const soldOutPackageIds = async (
   groups: readonly GroupWithMembers[],
   requestedDate: string | null,
@@ -161,14 +146,8 @@ const soldOutPackageIds = async (
   const soldOutIds = await Promise.all(
     packages.map(async ({ group, members }) => {
       const daily = members.filter((m) => m.listing_type === "daily");
-      const [ticketListings, dailyUnavailableIds] = await Promise.all([
-        buildTicketListingsWithGroupCapacity(members),
-        dailyUnavailableOn(daily, requestedDate),
-      ]);
-      const anyUnavailable = ticketListings.some((info) =>
-        memberUnavailableOn(info, dailyUnavailableIds),
-      );
-      return anyUnavailable ? group.id : null;
+      const unavailableIds = await dailyUnavailableOn(daily, requestedDate);
+      return unavailableIds.size > 0 ? group.id : null;
     }),
   );
   return new Set(compact(soldOutIds));
