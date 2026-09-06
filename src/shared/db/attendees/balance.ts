@@ -78,6 +78,8 @@ export const getAttendeeBalanceState = async (
 export type OrderLine = {
   listingId: number;
   name: string;
+  /** The package this line was booked through (0 = standalone or unknown). */
+  packageGroupId: number;
   quantity: number;
 };
 
@@ -97,6 +99,7 @@ export type OrderSummary = {
  */
 type OrderRow = {
   listing_id: number;
+  package_group_id: number;
   quantity: number;
   listing_name: EnvKeyEncrypted | null;
 };
@@ -108,6 +111,7 @@ const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
     // so the pay page shows (and checks out against) a real product, never a
     // lower-id ghost.
     `SELECT listingAttendee.listing_id,
+            listingAttendee.package_group_id,
             listingAttendee.quantity,
             listing.name AS listing_name
        FROM listing_attendees AS listingAttendee
@@ -132,6 +136,7 @@ const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
     : {
         listingId: row.listing_id,
         name: await decrypt(row.listing_name),
+        packageGroupId: Number(row.package_group_id),
         quantity: row.quantity,
       };
 

@@ -15,6 +15,8 @@ import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { nameList } from "#shared/name-list.ts";
+import type { PackageRowGroup } from "#shared/package-rows.ts";
+import { groupPackageRows } from "#shared/package-rows.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import {
@@ -153,32 +155,32 @@ type FromOrderEntries<T> = (
 
 /** Walk an order's entries once, gathering every package that `collapses` into
  * one group sitting where its first row was; every other row stands alone. The
- * one place the entry→display walk lives — the buyer grouping and the heading
- * names below are both maps over it. */
+ * grouping itself lives in {@link groupPackageRows}; this adds each collapsed
+ * group's display. The buyer grouping and the heading names below are both
+ * maps over it. */
 const entryGroupsBy = (
   entries: EmailEntry[],
   displays: ReadonlyMap<number, PackageDisplay>,
   collapses: (display: PackageDisplay) => boolean,
-): EntryGroup[] => {
-  const groups: EntryGroup[] = [];
-  const collapsedByGroupId = new Map<number, EntryGroup>();
-  for (const entry of entries) {
-    const display = displays.get(entry.attendee.package_group_id);
-    if (display === undefined || !collapses(display)) {
-      groups.push({ entries: [entry] });
-      continue;
-    }
-    const started = collapsedByGroupId.get(entry.attendee.package_group_id);
-    if (started) {
-      started.entries.push(entry);
-      continue;
-    }
-    const group = { display, entries: [entry] };
-    collapsedByGroupId.set(entry.attendee.package_group_id, group);
-    groups.push(group);
-  }
-  return groups;
-};
+): EntryGroup[] =>
+  map(
+    (group: PackageRowGroup<EmailEntry>): EntryGroup => {
+      if (group.groupId === undefined) return { entries: group.rows };
+      const display = displays.get(group.groupId);
+      return display === undefined
+        ? { entries: group.rows }
+        : { display, entries: group.rows };
+    },
+  )(
+    groupPackageRows(
+      entries,
+      (entry) => entry.attendee.package_group_id,
+      (groupId) => {
+        const display = displays.get(groupId);
+        return display !== undefined && collapses(display);
+      },
+    ),
+  );
 
 /** Group an order's entries for buyer-facing rendering (the confirmation body
  * and its SVG tickets): each hidden package's rows collapse into one group

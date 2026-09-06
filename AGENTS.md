@@ -10,6 +10,9 @@ Read this file and follow its links for additional guidance. Do not search the
 wider machine for instructions, plans, or approval records. If required guidance
 is absent from these sources, ask the user for its location.
 
+The proposed corrections for PR #2259 are in the
+[group page and package privacy contract](docs/group-page-corrections.md).
+
 ## Getting Started
 
 Assume the workspace is probably running on NixOS. Use the repository's Nix

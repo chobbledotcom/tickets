@@ -75,11 +75,19 @@ const processSessionAndRedirect = async (
   // — that path renders the success page directly here (below), where the
   // verified intent still holds it, rather than redirecting to the token path.
   const intent = validation.data.intent;
-  const bookingGroupIds = intent.items
-    .filter(bookedOutsideParent(intent.allocations ?? []))
-    .map((item) => lineGroupId(item) ?? 0);
+  // A balance checkout's single synthetic line references a listing but
+  // selects no path, so a balance payment never shows a thank-you redirect —
+  // whatever its original booking's paths were.
+  const isBalancePayment = intent.balanceAttendeeId !== undefined;
+  const bookingGroupIds = isBalancePayment
+    ? []
+    : intent.items
+        .filter(bookedOutsideParent(intent.allocations ?? []))
+        .map((item) => lineGroupId(item) ?? 0);
   const explicitThankYou =
-    intent.thankYouUrl && (await pathsShowListings(bookingGroupIds))
+    !isBalancePayment &&
+    intent.thankYouUrl &&
+    (await pathsShowListings(bookingGroupIds))
       ? intent.thankYouUrl
       : "";
 
@@ -134,7 +142,8 @@ const processSessionAndRedirect = async (
   // path never loads it; a since-deleted listing simply yields no URL.
   const thankYouUrl =
     explicitThankYou ||
-    (unique(intent.items.map((item) => item.e)).length === 1
+    (!isBalancePayment &&
+    unique(intent.items.map((item) => item.e)).length === 1
       ? await singleListingThankYou(result.listingId, bookingGroupIds)
       : "");
   return htmlResponse(

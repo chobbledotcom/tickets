@@ -9,8 +9,12 @@
 import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
+  type OrderLine,
   type OrderSummary,
 } from "#db/attendees/balance.ts";
+import { getPackageDisplaysByIds } from "#db/groups.ts";
+import { map, sumOf, unique } from "#fp";
+import { t } from "#i18n";
 import { withCsrfForm } from "#routes/csrf.ts";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { htmlResponse } from "#routes/response.ts";
@@ -18,6 +22,8 @@ import type { PathMethodRoute } from "#routes/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { PackageRowGroup } from "#shared/package-rows.ts";
+import { groupPackageRows } from "#shared/package-rows.ts";
 import {
   type CheckoutIntent,
   getActivePaymentProvider,
@@ -63,11 +69,48 @@ const withOutstanding = async (
   return fn({ amount: state.remainingBalance, attendeeId: payload.a, summary });
 };
 
+/** The buyer-facing recap: rows booked through a package collapse behind its
+ * name (the same convention the confirmation email uses), with a generic
+ * label when the package row is gone — a missing package grants no permission
+ * to name its members. Standalone rows keep their own names. */
+const publicRecapLines = async (
+  lines: readonly OrderLine[],
+): Promise<OrderLine[]> => {
+  const groupIds = unique(
+    lines.flatMap((line) =>
+      line.packageGroupId === 0 ? [] : [line.packageGroupId],
+    ),
+  );
+  const displays = await getPackageDisplaysByIds(groupIds);
+  return map((group: PackageRowGroup<OrderLine>) => {
+    if (group.groupId === undefined) return group.rows;
+    return [
+      {
+        listingId: group.rows[0]!.listingId,
+        name: displays.get(group.groupId)?.name ?? t("public_balance.package"),
+        packageGroupId: group.groupId,
+        quantity: sumOf((line: OrderLine) => line.quantity)(group.rows),
+      },
+    ];
+  })(
+    groupPackageRows(
+      lines,
+      (line) => line.packageGroupId,
+      (groupId) => groupId !== 0,
+    ),
+  ).flat();
+};
+
 /** GET /pay/:token — render the recap + pay button. */
 const handleBalanceGet = (token: string): Promise<Response> =>
-  withOutstanding(token, async (out) => {
+  withOutstanding(token, async ({ amount, summary }) => {
     await signCsrfToken();
-    return htmlResponse(balancePaymentPage(token, out.amount, out.summary));
+    return htmlResponse(
+      balancePaymentPage(token, amount, {
+        ...summary,
+        lines: await publicRecapLines(summary.lines),
+      }),
+    );
   });
 
 /** POST /pay/:token — create a fee-free checkout for the balance and redirect. */
