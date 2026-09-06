@@ -1,14 +1,3 @@
-/**
- * Branch cover for the public listings page GET /listings
- *
- * Sits beside the story `@story:catalogue.the-list-a-visitor-reads`, which
- * owns what a visitor finds on the list and which ways in it offers. These
- * touch the render branches behind it — the call-to-action each card picks,
- * the two headings the page splits into, the empty page, the legacy address,
- * and the robots headers a page carries — because a Cucumber run does not
- * count towards coverage.
- */
-
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -63,6 +52,20 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "My Listings",
       );
       expect(html).not.toContain('href="/admin/login"');
+    });
+  });
+
+  describe("the terms page", () => {
+    test("shows the configured terms", async () => {
+      await enablePublicSite();
+      await settings.update.terms("Use the venue with care.");
+      await assertPublicHtml("/terms", "Use the venue with care.");
+    });
+
+    test("returns not found when no terms exist", async () => {
+      await enablePublicSite();
+      const response = await handleRequest(mockRequest("/terms"));
+      expect(response.status).toBe(404);
     });
   });
 
