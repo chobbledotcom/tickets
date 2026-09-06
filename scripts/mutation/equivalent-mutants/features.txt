@@ -170,6 +170,8 @@ src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProvide
 # Public listing page (pages.ts): downstream duration normalization makes zero
 # and one the same one-day span.
 src/features/public/pages.ts::cardSpanDays~11dl3n9  1 → 0   # getListingRemainingForRange clamps both spans to one day before it reads capacity
+src/features/public/pages.ts::cardSpanDays~11dl3n9  1 → -1   # getListingRemainingForRange clamps both spans to one day before it reads capacity
+src/features/public/pages.ts::renderContactPage.content~1090zn7  || → ??   # the setting is a string, and contactPage normalizes both null and the only falsy string to the same empty Markdown input
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity
 # reading applies again, and key halves that are always present.

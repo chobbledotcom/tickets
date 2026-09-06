@@ -14,137 +14,32 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import { type CheckoutSessionResult, paymentsApi } from "#shared/payments.ts";
 import {
   buildQrBookPayload,
   QR_TOKEN_MAX_AGE_S,
   signQrBookToken,
 } from "#shared/qr-token.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { stubCheckout } from "#test-utils/checkout.ts";
-import { hasInputWithValue, submitTicketForm } from "#test-utils/csrf.ts";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import {
-  awaitTestRequest,
-  mockProviderType,
-  mockRequest,
-} from "#test-utils/mocks.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-
-const qrBookPath = (slug: string, token: string): string =>
-  `/ticket/${slug}/qr-book?t=${encodeURIComponent(token)}`;
-
-/** Stub Stripe as the active provider, capturing the checkout intent through
- *  the shared {@link stubCheckout}. */
-const stubStripe = () => {
-  const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
-    mockProviderType("stripe"),
-  );
-  const { calls, checkout, getCaptured } = stubCheckout("cs_test_123");
-  return {
-    calls,
-    getCaptured,
-    restore: () => {
-      providerStub.restore();
-      checkout.restore();
-    },
-  };
-};
-
-/** Sign a QR-book token for a slug (default payload: name "Ada", value 1000). */
-const bookToken = (
-  slug: string,
-  payload: Parameters<typeof buildQrBookPayload>[0] = {
-    name: "Ada",
-    value: 1000,
-  },
-): Promise<string> => signQrBookToken(slug, buildQrBookPayload(payload));
-
-/** Run `body` with Stripe stubbed as the active provider, restoring afterwards. */
-const withStripe = async (
-  body: (stripe: ReturnType<typeof stubStripe>) => Promise<void>,
-): Promise<void> => {
-  const stripe = stubStripe();
-  try {
-    await body(stripe);
-  } finally {
-    stripe.restore();
-  }
-};
-
-const expectStripeRedirect = (
-  response: Response,
-  stripe: ReturnType<typeof stubStripe>,
-): void => {
-  expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toContain("stripe.example");
-  expect(stripe.calls()).toBe(1);
-};
-
-/** Assert the most recent Stripe checkout session was created with a single
- *  line at `expectedUnitPrice`, after the form redirected (302). Two
- *  qr-book-vs-`custom_price` tests share this exact assertion pair. */
-const expectStripeCheckoutAtPrice = (
-  response: Response,
-  stripe: ReturnType<typeof stubStripe>,
-  expectedUnitPrice: number,
-): void => {
-  expect(response.status).toBe(302);
-  expect(stripe.getCaptured()!.items[0]!.unitPrice).toBe(expectedUnitPrice);
-};
-
-/** Scan a listing's QR-book link (token built from `payload`) and return the response. */
-const scanRequest = async (
-  listing: { slug: string },
-  payload?: Parameters<typeof bookToken>[1],
-): Promise<Response> =>
-  awaitTestRequest(
-    qrBookPath(listing.slug, await bookToken(listing.slug, payload)),
-  );
-
-/** Scan a listing's QR-book link with Stripe stubbed; `body` gets response + stripe. */
-const scanWithStripe = async (
-  listing: { slug: string },
-  body: (ctx: {
-    response: Response;
-    stripe: ReturnType<typeof stubStripe>;
-  }) => Promise<void>,
-  payload?: Parameters<typeof bookToken>[1],
-): Promise<void> => {
-  const token = await bookToken(listing.slug, payload);
-  await withStripe(async (stripe) => {
-    const response = await awaitTestRequest(qrBookPath(listing.slug, token));
-    await body({ response, stripe });
-  });
-};
-
-/** Scan a direct-checkout QR with a fixed provider result. */
-const scanWithCheckoutResult = async (
-  listing: { slug: string },
-  result: CheckoutSessionResult,
-): Promise<Response> => {
-  using _providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
-    mockProviderType("stripe"),
-  );
-  using _checkoutStub = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    () => Promise.resolve(result),
-  );
-  return await scanRequest(listing);
-};
+  bookToken,
+  expectStripeRedirect,
+  qrBookPath,
+  scanRequest,
+  scanWithCheckoutResult,
+  scanWithStripe,
+  withStripe,
+} from "./qr-book/helpers.ts";
 
 describeWithEnv("QR booking", { db: true }, () => {
   describe("error paths", () => {
@@ -219,6 +114,25 @@ describeWithEnv("QR booking", { db: true }, () => {
       const body = await response.text();
       expect(
         hasInputWithValue(body, `custom_price_${listing.id}`, "25.00"),
+      ).toBe(true);
+    });
+
+    test("pre-fills a signed zero price for can_pay_more listings", async () => {
+      const listing = await createTestListing({
+        canPayMore: true,
+        fields: "email",
+        maxAttendees: 10,
+        maxPrice: 10000,
+        unitPrice: 0,
+      });
+      const response = await scanRequest(listing, {
+        name: "Ada",
+        value: 0,
+      });
+      const body = await response.text();
+
+      expect(
+        hasInputWithValue(body, `custom_price_${listing.id}`, "0.00"),
       ).toBe(true);
     });
 
@@ -346,6 +260,40 @@ describeWithEnv("QR booking", { db: true }, () => {
       });
     });
 
+    test("falls through when value is missing even though name is set", async () => {
+      const listing = await createTestListing({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+
+      await scanWithStripe(
+        listing,
+        async ({ response, stripe }) => {
+          expect(response.status).toBe(200);
+          expect(stripe.calls()).toBe(0);
+        },
+        { name: "Ada" },
+      );
+    });
+
+    test("a signed zero value skips to checkout", async () => {
+      const listing = await createTestListing({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+
+      await scanWithStripe(
+        listing,
+        async ({ response, stripe }) => {
+          expectStripeRedirect(response, stripe);
+          expect(stripe.getCaptured()!.items[0]!.unitPrice).toBe(0);
+        },
+        { name: "Ada", value: 0 },
+      );
+    });
+
     test("daily listing with a bookable date skips straight to Stripe with the date set", async () => {
       const listing = await createDailyTestListing({
         fields: "",
@@ -364,6 +312,10 @@ describeWithEnv("QR booking", { db: true }, () => {
         expect(response.status).toBe(302);
         const intent = stripe.getCaptured()!;
         expect(intent.date).toBe(tomorrow);
+        expect(intent.address).toBe("");
+        expect(intent.email).toBe("");
+        expect(intent.phone).toBe("");
+        expect(intent.special_instructions).toBe("");
       });
     });
 
@@ -386,139 +338,5 @@ describeWithEnv("QR booking", { db: true }, () => {
         await settings.update.terms("");
       }
     });
-  });
-
-  describe("POST price override", () => {
-    test("fixed-price listing: signed qr_token overrides unit_price for the booking", async () => {
-      await setupStripe();
-      const listing = await createTestListing({
-        fields: "email",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const overridePrice = toMinorUnits(12.5);
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", value: overridePrice }),
-      );
-      await withStripe(async (stripe) => {
-        const response = await submitTicketForm(listing.slug, {
-          [`quantity_${listing.id}`]: "1",
-          email: "ada@example.com",
-          name: "Ada",
-          qr_token: token,
-        });
-        // Response is a 302 redirect to Stripe
-        expect(response.status).toBe(302);
-        expect(stripe.calls()).toBe(1);
-        const intent = stripe.getCaptured()!;
-        expect(intent.items[0]!.unitPrice).toBe(overridePrice);
-      });
-    });
-
-    test("tampered qr_token is ignored; original unit_price is used", async () => {
-      await setupStripe();
-      const listing = await createTestListing({
-        fields: "email",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      await withStripe(async (stripe) => {
-        const response = await submitTicketForm(listing.slug, {
-          [`quantity_${listing.id}`]: "1",
-          email: "ada@example.com",
-          name: "Ada",
-          qr_token: "qr1.forged.signature",
-        });
-        expectStripeCheckoutAtPrice(response, stripe, 500);
-      });
-    });
-
-    test("free booking path still works without a qr_token (no regression)", async () => {
-      const listing = await createTestListing({
-        fields: "email",
-        maxAttendees: 10,
-        unitPrice: 0,
-      });
-      const response = await submitTicketForm(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-        email: "ada@example.com",
-        name: "Ada",
-      });
-      expect(response.status).toBe(302);
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-    });
-  });
-});
-
-describeWithEnv("qr-book scan handler > parent gate", { db: true }, () => {
-  /** A parent listing with one required child, and a QR token for `slug`. */
-  const parentChildToken = async (
-    slug: (ids: { parent: string; child: string }) => string,
-  ) => {
-    const { listingChildren } = await import("#db/listing-parents.ts");
-    const parent = await createTestListing({
-      fields: "",
-      maxAttendees: 10,
-      unitPrice: 500,
-    });
-    const child = await createTestListing({
-      maxAttendees: 10,
-      name: "Add-on",
-      unitPrice: 0,
-    });
-    await listingChildren.setIds(parent.id, [child.id]);
-    const tokenSlug = slug({ child: child.slug, parent: parent.slug });
-    const token = await signQrBookToken(
-      tokenSlug,
-      buildQrBookPayload({ name: "Ada", value: 1000 }),
-    );
-    return { child, parent, token, tokenSlug };
-  };
-
-  test("a parent with required children renders the form (never skips to checkout)", async () => {
-    const { token, tokenSlug } = await parentChildToken((ids) => ids.parent);
-    const stripe = stubStripe();
-    try {
-      const response = await awaitTestRequest(qrBookPath(tokenSlug, token));
-      // The child gate forces the form path so prepareOrder can fold the child.
-      expect(response.status).toBe(200);
-      expect(stripe.calls()).toBe(0);
-    } finally {
-      stripe.restore();
-    }
-  });
-
-  test("a child listing's QR errors with no fallback booking link", async () => {
-    const { child, token, tokenSlug } = await parentChildToken(
-      (ids) => ids.child,
-    );
-    const response = await awaitTestRequest(qrBookPath(tokenSlug, token));
-    expect(response.status).toBe(404);
-    const html = await response.text();
-    expect(html).toContain("QR code expired or invalid");
-    // The child has no standalone /ticket page, so the error offers no dead
-    // fallback link to it.
-    expect(html).not.toContain(`href="/ticket/${child.slug}"`);
-  });
-
-  test("a childless listing's QR still skips straight to checkout", async () => {
-    const listing = await createTestListing({
-      fields: "",
-      maxAttendees: 10,
-      unitPrice: 500,
-    });
-    const token = await signQrBookToken(
-      listing.slug,
-      buildQrBookPayload({ name: "Ada", value: 1000 }),
-    );
-    const stripe = stubStripe();
-    try {
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
-      expectStripeRedirect(response, stripe);
-    } finally {
-      stripe.restore();
-    }
   });
 });

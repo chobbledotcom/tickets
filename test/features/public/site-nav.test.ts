@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
@@ -77,6 +78,19 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
     expect(calls).toBe(1);
   });
 
+  test("does not classify listings when the current page has none", async () => {
+    const page = await addPage("About", "about", 1);
+    const current = sitePageItemTargets.key(
+      sitePageItemTargets.of("page")(page.id),
+    );
+
+    const calls = await runWithRequestCache(() =>
+      countDatabaseCalls(3, () => publicNavModel(current)),
+    );
+
+    expect(calls).toBe(3);
+  });
+
   test("resolves a page's listing item to a live link", async () => {
     const { listing, model } = await navShowingListing("Live listing");
 
@@ -94,6 +108,18 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
 
     expect(model.currentChildren.map((node) => node.label)).toEqual([
       "Off sale",
+    ]);
+    expect(model.currentChildren[0]?.live).toBe(false);
+  });
+
+  test("keeps a required child in the nav but not as a link", async () => {
+    const parent = await createTestListing({ name: "Parent" });
+    const { model } = await navShowingListing("Required child", (listingId) =>
+      listingChildren.setIds(parent.id, [listingId]),
+    );
+
+    expect(model.currentChildren.map((node) => node.label)).toEqual([
+      "Required child",
     ]);
     expect(model.currentChildren[0]?.live).toBe(false);
   });

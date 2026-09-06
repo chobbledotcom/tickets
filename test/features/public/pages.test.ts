@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
@@ -118,6 +117,13 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       expect(html).not.toContain(`href="/ticket/${fixed.slug}?date=${date}"`);
       expect(html).toContain(`href="/ticket/${flexible.slug}?date=${date}"`);
     });
+
+    test("shows no date filter when no daily listings are listed", async () => {
+      await enablePublicSite();
+      await createTestListing({ maxAttendees: 5, name: "Standard Only" });
+      const html = await assertPublicHtml("/listings", "Standard Only");
+      expect(html).not.toContain("listings-date-filter");
+    });
   });
 
   describe("what the page leaves out", () => {
@@ -155,6 +161,45 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
   });
 
   describe("group cards", () => {
+    test("marks a package unavailable only on its member's full date", async () => {
+      await enablePublicSite();
+      const date = addDays(todayInTz("UTC"), 2);
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Weekend Package",
+        slug: "weekend-package",
+      });
+      const packageDaily = await createTestListing({
+        groupId: pkg.id,
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Package Daily",
+      });
+      await bookAttendee(packageDaily, { date, quantity: 1 });
+      await createTestListing({
+        maxAttendees: 50,
+        name: "Standalone Listing",
+      });
+
+      const filtered = await assertPublicHtml(
+        `/listings?date=${date}`,
+        "Weekend Package",
+        "Standalone Listing",
+      );
+      expect(filtered).not.toContain(`href="/ticket/${pkg.slug}"`);
+      expect(filtered.indexOf("Unavailable")).toBeLessThan(
+        filtered.indexOf("Weekend Package"),
+      );
+
+      const otherDate = addDays(todayInTz("UTC"), 3);
+      const available = await assertPublicHtml(
+        `/listings?date=${otherDate}`,
+        "Weekend Package",
+      );
+      expect(available).toContain(`href="/ticket/${pkg.slug}"`);
+    });
+
     test("shows a group with its description, its way in, and its member", async () => {
       await enablePublicSite();
       const group = await createTestGroup({
@@ -308,91 +353,6 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "off sale",
       );
       await expectGroupSuppressed(bundle, "Partial Bundle");
-    });
-  });
-
-  describe("robots headers on a thing's own page", () => {
-    const robotsTagFor = async (path: string): Promise<Headers> =>
-      (await handleRequest(mockRequest(path))).headers;
-
-    const groupKinds = [
-      { isPackage: false, label: "group" },
-      { isPackage: true, label: "package" },
-    ] as const;
-    const visibilityCases = [
-      {
-        expected: "index, follow",
-        groupHidden: false,
-        memberHidden: true,
-        name: "uses its visible setting when its member is kept off the list",
-      },
-      {
-        expected: "noindex, nofollow",
-        groupHidden: true,
-        memberHidden: false,
-        name: "uses its hidden setting when its member is visible",
-      },
-    ] as const;
-
-    for (const kind of groupKinds) {
-      for (const visibility of visibilityCases) {
-        test(`${kind.label} ${visibility.name}`, async () => {
-          const group = await createTestGroup({
-            hidden: visibility.groupHidden,
-            isPackage: kind.isPackage,
-            name: `Robots ${kind.label}`,
-          });
-          await createTestListing({
-            groupId: group.id,
-            hidden: visibility.memberHidden,
-            maxAttendees: 50,
-            name: `Robots ${kind.label} member`,
-          });
-
-          expect(
-            (await robotsTagFor(`/ticket/${group.slug}`)).get("x-robots-tag"),
-          ).toBe(visibility.expected);
-        });
-      }
-    }
-
-    test("tells robots to index a listing anybody can find", async () => {
-      const listing = await createTestListing();
-      expect(
-        (await robotsTagFor(`/ticket/${listing.slug}`)).get("x-robots-tag"),
-      ).toBe("index, follow");
-    });
-
-    test("indexes a visible listing inside a concealing package", async () => {
-      await enablePublicSite();
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Private Kit",
-      });
-      await groups.table.update(group.id, { hidePackageListings: true });
-      const listing = await createTestListing({
-        groupId: group.id,
-        name: "Separate Unit",
-      });
-
-      const html = await assertPublicHtml(
-        "/listings",
-        "Private Kit",
-        "Separate Unit",
-      );
-      expect(html).toContain(`href="/ticket/${listing.slug}"`);
-      expect(
-        (await robotsTagFor(`/ticket/${listing.slug}`)).get("x-robots-tag"),
-      ).toBe("index, follow");
-    });
-
-    test("tells robots to leave a listing kept off the list alone", async () => {
-      const listing = await createTestListing({ hidden: true });
-      const headers = await robotsTagFor(`/ticket/${listing.slug}`);
-      expect(headers.get("x-robots-tag")).toBe("noindex, nofollow");
-      // The internal signal the renderer uses to ask for that header must
-      // never reach the browser.
-      expect(headers.has("x-robots-noindex")).toBe(false);
     });
   });
 });

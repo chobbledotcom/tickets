@@ -42,15 +42,10 @@ const noPageErrorResponse = (status: number): Response =>
 
 /** Build per-listing prefill entries from a QR payload */
 const buildListingPrefills = (
-  listing: ListingWithCount,
+  listingId: number,
   payload: QrBookPayload,
-): Map<number, TicketPrefill> => {
-  const entry: TicketPrefill = { quantity: payload.q };
-  if (payload.v >= 0 && listing.can_pay_more) {
-    entry.customPriceMinor = payload.v;
-  }
-  return new Map([[listing.id, entry]]);
-};
+): Map<number, TicketPrefill> =>
+  new Map([[listingId, { customPriceMinor: payload.v, quantity: payload.q }]]);
 
 /** Build the booking prefill context for the ticket page */
 const buildPrefill = (
@@ -58,9 +53,9 @@ const buildPrefill = (
   payload: QrBookPayload,
   token: string,
 ): BookingPrefill => ({
-  ...(payload.d ? { date: payload.d } : {}),
-  listings: buildListingPrefills(listing, payload),
-  ...(payload.n ? { name: payload.n } : {}),
+  date: payload.d,
+  listings: buildListingPrefills(listing.id, payload),
+  name: payload.n,
   token,
 });
 

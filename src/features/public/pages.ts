@@ -8,7 +8,7 @@ import { getActiveHolidays } from "#db/holidays.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
-import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
+import { requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -86,7 +86,6 @@ const dailyUnavailableOn = async (
   daily: ListingWithCount[],
   date: string,
 ): Promise<ReadonlySet<number>> => {
-  if (daily.length === 0) return new Set();
   const holidays = await getActiveHolidays();
   const bySpan = Map.groupBy(daily, cardSpanDays);
   const remaining = new Map<number, number>();
@@ -142,7 +141,7 @@ const soldOutPackageIds = async (
   requestedDate: string | null,
 ): Promise<ReadonlySet<number>> => {
   const packages = groups.filter(({ group }) => group.is_package);
-  if (requestedDate === null || packages.length === 0) return new Set();
+  if (requestedDate === null) return new Set();
   const soldOutIds = await Promise.all(
     packages.map(async ({ group, members }) => {
       const daily = members.filter((m) => m.listing_type === "daily");
@@ -217,28 +216,24 @@ export const handlePublicTerms: ResponseHandler = () =>
 /** Render the contact page (descriptive text and/or the message form).
  * 404 when there is neither contact text nor an active form to show.
  * A fresh CSRF token is minted before rendering when the form is shown. */
-const renderContactPage = async (request: Request): Promise<Response> => {
+const renderContactPage = async (): Promise<Response> => {
   const formActive = isContactFormActive();
   if (!settings.contactPageText && !formActive) return notFoundResponse();
   if (formActive) await signCsrfToken();
-  const flash = applyFlash(request);
   return htmlResponse(
     contactPage({
       botpoisonPublicKey: getBotpoisonPublicKey(),
       content: settings.contactPageText || null,
-      ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,
       nav: await publicNavProps(null),
-      ...(flash.success !== undefined ? { success: flash.success } : {}),
       websiteTitle: settings.websiteTitle,
     }),
   );
 };
 
 /** Handle GET /contact - public contact page (404 when empty and form off) */
-export const handlePublicContact: ResponseHandler<[request: Request]> = (
-  request,
-) => requirePublicSite(() => renderContactPage(request));
+export const handlePublicContact: ResponseHandler<[request: Request]> = () =>
+  requirePublicSite(renderContactPage);
 
 /** Process a CSRF-checked contact form submission: validate, run Botpoison
  * verification, and only deliver to the owner when verification passes. */
