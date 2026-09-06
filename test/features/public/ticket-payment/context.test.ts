@@ -188,6 +188,22 @@ describeWithEnv("ticket context branches", { db: true }, () => {
     expect(handled).toBe(true);
   });
 
+  test("a visible group page stays visible when its listing is hidden", async () => {
+    const group = await createTestGroup({ name: "Visible group" });
+    const listing = await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Hidden listing",
+    });
+
+    const ctx = await getTicketContext(
+      [await ticketListing(listing.id)],
+      group,
+    );
+
+    expect(ctx.pageHidden).toBe(false);
+  });
+
   test("a daily package parent keeps only dates its daily child can serve", async () => {
     const group = await createTestGroup({ isPackage: true });
     const parent = await createTestListing({
