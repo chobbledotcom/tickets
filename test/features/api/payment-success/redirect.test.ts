@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { clearSessionTokens, reserveSession } from "#db/processed-payments.ts";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deleteTestListing,
@@ -100,6 +102,55 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
     const page = await replay.text();
     expect(page).toContain("url=https://example.com/parent-thanks");
     expect(page).not.toContain("listing-thanks");
+  });
+
+  test("hides an explicit thank-you URL for a concealing package", async () => {
+    await setupStripe();
+    const group = await createHiddenPackageGroup("Private route package");
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: listing.id, price: 500 },
+    ]);
+    using _provider = await stubPaidCheckout(
+      "cs_paid_private_thanks",
+      [{ e: listing.id, k: "p", p: 500, q: 1, r: group.id }],
+      { thank_you_url: "https://example.com/private-member-thanks" },
+    );
+
+    const response = await visit("cs_paid_private_thanks");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toMatch(
+      /^\/payment\/success\?tokens=/,
+    );
+  });
+
+  test("replays several listings without a thank-you redirect", async () => {
+    await setupStripe();
+    const first = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    const second = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 500,
+    });
+    using _provider = await stubPaidCheckout("cs_paid_many_replay", [
+      { e: first.id, p: 500, q: 1 },
+      { e: second.id, p: 500, q: 1 },
+    ]);
+
+    expect((await visit("cs_paid_many_replay")).status).toBe(302);
+    const replay = await visit("cs_paid_many_replay");
+
+    expect(replay.status).toBe(200);
+    const page = await replay.text();
+    expect(page).toContain('data-payment-result="success"');
+    expect(page).not.toContain('http-equiv="refresh"');
   });
 
   test("renders a replay without a thank-you URL when the listing was deleted", async () => {

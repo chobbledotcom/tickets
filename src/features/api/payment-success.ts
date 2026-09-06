@@ -133,13 +133,11 @@ const processSessionAndRedirect = async (
   // explicit (parent) thank-you URL from the intent wins; otherwise resolve the
   // listing lazily (the only place a thank-you URL is needed) so the webhook
   // path never loads it; a since-deleted listing simply yields no URL.
-  let thankYouUrl = explicitThankYou;
-  if (!thankYouUrl && intent.items.length === 1) {
-    thankYouUrl = await singleListingThankYou(
-      result.listingId,
-      packageGroupIds,
-    );
-  }
+  const thankYouUrl =
+    explicitThankYou ||
+    (intent.items.length === 1
+      ? await singleListingThankYou(result.listingId, packageGroupIds)
+      : "");
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
   );
