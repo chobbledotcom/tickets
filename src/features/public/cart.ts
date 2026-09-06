@@ -136,7 +136,20 @@ export const handleCartBySlugs: BySlugsHandler<
     ),
   );
   return handleTicket({
-    getContext: (listings) => getTicketContext(listings, undefined, packages),
+    // The page's robots policy follows the SELECTED roots: each package group
+    // and each explicit standalone listing exactly as the visitor picked them,
+    // not the listings the packages expand into.
+    getContext: (listings) =>
+      getTicketContext(
+        listings,
+        undefined,
+        packages,
+        items.map((item) =>
+          item.kind === "package"
+            ? { hidden: item.group.hidden }
+            : { hidden: item.listing.hidden },
+        ),
+      ),
     listings: activeListings,
     mode,
     prefill: parseQuantityPrefill(request, activeListings),

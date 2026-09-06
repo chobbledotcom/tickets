@@ -44,6 +44,7 @@ type DetailOptions = Omit<
   sort?: AttendeeSort | null;
   availableDates?: DateOption[];
   isOwner?: boolean;
+  publicPage?: "available" | "child" | "inactive" | undefined;
 };
 
 const rosterListViewOf = (opts: DetailOptions): RosterListView => ({
@@ -68,7 +69,6 @@ export const renderListingDetail = (opts: DetailOptions): string =>
       aggregateRecalculation: opts.aggregateRecalculation,
       allowedDomain: opts.allowedDomain,
       groupContext: opts.groupContext,
-      isChild: opts.isChild,
       isOwner: opts.isOwner ?? false,
       ledgerHref: opts.moneyTotals
         ? listingLedgerHref(opts.listing.id)
@@ -79,6 +79,7 @@ export const renderListingDetail = (opts: DetailOptions): string =>
       // the raw attendee list; derive them from the fixture's attendees so these
       // tests exercise the same rendered output the SQL path produces.
       noteNames: fieldById("name")(opts.attendees),
+      publicPage: opts.publicPage,
       questionData: opts.questionData,
       stats: overviewStatsFromAttendees(
         opts.listing,

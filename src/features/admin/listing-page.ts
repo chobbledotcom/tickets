@@ -212,15 +212,17 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       "entity.tab.questions",
       loadListingQuestionsPanel,
     ),
-    // Staff-only. A non-standalone child's QR would point at a dead link.
-    // Hidden in read-only mode too: the QR form posts to
-    // POST /admin/listing/:id/qr, which the read-only guard default-denies —
-    // so a followable tab would carry an unsubmittable form.
+    // Staff-only, and only while the listing's public page serves: a child
+    // has no standalone page at all, and an inactive listing's page is off, so
+    // either tab would link straight to a 404. Hidden in read-only mode too:
+    // the QR form posts to POST /admin/listing/:id/qr, which the read-only
+    // guard default-denies — so a followable tab would carry an unsubmittable
+    // form.
     writeFormTab(
       "qr",
       "entity.tab.qr",
       (entity) => loadListingQrPanel(entity),
-      staffAnd((entity) => !entity.isChild),
+      staffAnd((entity) => entity.publicPage === "available"),
     ),
     {
       labelKey: "entity.tab.activity",

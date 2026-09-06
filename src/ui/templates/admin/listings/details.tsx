@@ -11,10 +11,7 @@ import {
 } from "#templates/admin/copyable-row.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
-import {
-  PublicTicketLink,
-  UnavailablePublicUrlRow,
-} from "#templates/admin/share-rows.tsx";
+import { PublicTicketLink } from "#templates/admin/share-rows.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import {
@@ -111,17 +108,24 @@ const PublicUrlRow = ({
   listing,
   allowedDomain,
   ticketUrl,
-  isChild,
+  publicPage,
 }: {
   listing: ListingWithCount;
   allowedDomain: string;
   ticketUrl: string;
-  isChild: boolean;
+  publicPage: "available" | "child" | "inactive";
 }): JSX.Element =>
-  isChild ? (
-    UnavailablePublicUrlRow({
-      message: t("listings_table.child_share_suppressed"),
-    })
+  publicPage !== "available" ? (
+    <tr>
+      <th>{t("common.public_url")}</th>
+      <td>
+        <em>
+          {publicPage === "child"
+            ? t("listings_table.child_share_suppressed")
+            : t("listings_table.inactive_share_suppressed")}
+        </em>
+      </td>
+    </tr>
   ) : (
     <tr>
       <th>
@@ -204,7 +208,7 @@ export const ListingDetailsTable = ({
   embedIframeCode,
   capacity,
   sharedRows,
-  isChild,
+  publicPage,
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation | undefined;
@@ -214,14 +218,13 @@ export const ListingDetailsTable = ({
   embedIframeCode: string;
   capacity: ListingCapacityRowsProps;
   sharedRows: DetailRow[];
-  isChild: boolean;
+  publicPage: "available" | "child" | "inactive";
 }): JSX.Element => {
-  const shareSuppressed = isChild;
   const copyRows = buildListingCopyRows(
     listing,
     embedScriptCode,
     embedIframeCode,
-    shareSuppressed,
+    publicPage !== "available",
   );
   return (
     <article>
@@ -295,8 +298,8 @@ export const ListingDetailsTable = ({
         </tr>
         <PublicUrlRow
           allowedDomain={allowedDomain}
-          isChild={isChild}
           listing={listing}
+          publicPage={publicPage}
           ticketUrl={ticketUrl}
         />
         {copyRows.map(CopyableInputRow)}

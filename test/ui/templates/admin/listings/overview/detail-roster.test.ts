@@ -300,8 +300,8 @@ describe("adminListingPage optional fields", () => {
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
-      isChild: true,
       listing,
+      publicPage: "child",
     });
     expect(html).not.toContain(`embed-script-${listing.id}`);
     expect(html).not.toContain(`embed-iframe-${listing.id}`);

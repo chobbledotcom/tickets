@@ -20,7 +20,9 @@ type ListingPanelSharedOptions = {
   groupContext?: GroupContext | undefined;
   moneyTotals?: ListingMoneyTotals | undefined;
   ledgerHref?: string | undefined;
-  isChild?: boolean | undefined;
+  /** Why the listing's public page may not be shared: absent when its page
+   * serves, `child` when none exists, `inactive` when the page is off. */
+  publicPage?: "available" | "child" | "inactive" | undefined;
   systemNotes?: SystemNote[] | undefined;
   /** Only owners may open the ledger pages, so a note's ledger link renders
    * as plain text for everyone else. */

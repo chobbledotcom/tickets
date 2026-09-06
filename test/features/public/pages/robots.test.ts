@@ -87,6 +87,44 @@ describeWithEnv(
       ).toBe("index, follow");
     });
 
+    test("mixed carts follow each package root's visibility, not its members", async () => {
+      await enablePublicSite();
+      const hiddenPackage = await createTestGroup({
+        hidden: true,
+        isPackage: true,
+        name: "Robots Hidden Pkg",
+      });
+      await groups.table.update(hiddenPackage.id, {
+        hidePackageListings: true,
+      });
+      const visiblePackage = await createTestGroup({
+        hidden: false,
+        isPackage: true,
+        name: "Robots Visible Pkg",
+      });
+      // A hidden package whose members are all visible, and a visible one
+      // holding a hidden member: the roots alone decide the cart page.
+      await createTestListing({ groupId: hiddenPackage.id, maxAttendees: 5 });
+      await createTestListing({
+        groupId: visiblePackage.id,
+        hidden: true,
+        maxAttendees: 5,
+      });
+      const extra = await createTestListing({ maxAttendees: 5 });
+
+      const withHiddenRoot = await robotsTagFor(
+        `/ticket/${hiddenPackage.slug}+${extra.slug}`,
+      );
+      const withVisibleRoot = await robotsTagFor(
+        `/ticket/${visiblePackage.slug}+${extra.slug}`,
+      );
+      expect(withHiddenRoot.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(withVisibleRoot.get("x-robots-tag")).toBe("index, follow");
+      for (const headers of [withHiddenRoot, withVisibleRoot]) {
+        expect(headers.has("x-robots-noindex")).toBe(false);
+      }
+    });
+
     test("tells robots to leave a listing kept off the list alone", async () => {
       const listing = await createTestListing({ hidden: true });
       const headers = await robotsTagFor(`/ticket/${listing.slug}`);

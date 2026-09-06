@@ -14,11 +14,12 @@ import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { mockFormRequest } from "#test-utils/mocks.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** Extract the ?t= token from a generated QR booking link */
@@ -349,6 +350,54 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const body = await response.text();
       const token = extractToken(body)!;
       expect(await verifyQrBookToken(b.slug, token)).toBeNull();
+    });
+
+    test("an inactive listing's share actions and QR generators are gone", async () => {
+      const group = await createTestGroup({ isPackage: true });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const overview = async (): Promise<string> =>
+        (await adminGet(`/admin/listing/${listing.id}`)).text();
+
+      const before = await overview();
+      expect(before).toContain("/ticket/");
+
+      const { deactivateTestListing, reactivateTestListing } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
+      await deactivateTestListing(listing.id);
+
+      // The overview hides the public URL, QR, and embed controls whose
+      // destinations would 404, and names the state honestly.
+      const after = await overview();
+      expect(after).not.toContain(`href="${listing.slug}"`);
+      expect(after).not.toContain(`/admin/listing/${listing.id}/qr">`);
+      expect(after).toContain("inactive");
+
+      // The generator refuses before minting anything, and a signed QR
+      // refresh is equally closed.
+      const post = await adminFormPost(`/admin/listing/${listing.id}/qr`, {
+        customer_name: "Ada",
+        quantity: "1",
+        value: "5.00",
+      });
+      expect(post.response.status).toBe(404);
+      const json = await adminGet(`/admin/listing/${listing.id}/qr.json`);
+      expect(json.status).toBe(404);
+      json.body?.cancel();
+
+      // The public QR image route 404s too: it encodes a page that is off.
+      const publicQr = await handleRequest(
+        mockRequest(`/ticket/${listing.slug}/qr`),
+      );
+      expect(publicQr.status).toBe(404);
+      publicQr.body?.cancel();
+
+      await reactivateTestListing(listing.id);
+      expect(await overview()).toContain("/ticket/");
     });
   });
 

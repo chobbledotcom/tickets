@@ -99,10 +99,17 @@ export const getListingAndGroups = async (
     : null;
 };
 
+/** Whether the listing's own public page serves right now. A non-standalone
+ * child has no such page at all; an inactive listing's page is switched off.
+ * Governs every share affordance — URL, embed, QR — so nothing links to a
+ * page that would 404. */
+export type ListingPublicPageState = "available" | "child" | "inactive";
+
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
- * tab may gate on. A child listing has no standalone public page, so its share,
- * QR, and booking-link actions are suppressed. `hasEmailableAttendees` gates
+ * tab may gate on. `publicPage` explains why share, QR, and booking-link
+ * actions are suppressed — a child listing has no standalone public page, an
+ * inactive one's page is switched off. `hasEmailableAttendees` gates
  * the owner-only Email
  * action so it never links to the compose page's 404 (empty-recipient) path; it
  * is resolved lazily by the Actions tab's `prepare` hook (via
@@ -112,6 +119,7 @@ export const getListingAndGroups = async (
 export type LoadedListing = {
   listing: ListingWithCount;
   isChild: boolean;
+  publicPage: ListingPublicPageState;
   hasEmailableAttendees: boolean;
 };
 
@@ -126,6 +134,7 @@ export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
       hasEmailableAttendees: false,
       isChild,
       listing,
+      publicPage: isChild ? "child" : listing.active ? "available" : "inactive",
     };
   });
 
@@ -187,7 +196,7 @@ const noteAuthorNames = async (
  *  individual attendee rows are never loaded or decrypted here (see
  *  {@link getListingOverviewStats}). */
 export const loadListingOverviewPanel = async (
-  { listing, isChild }: LoadedListing,
+  { listing, publicPage }: LoadedListing,
   canViewLedger = false,
 ): Promise<JSX.Element> => {
   // Housekeeping the old detail view ran on every load: clear reservations
@@ -209,7 +218,7 @@ export const loadListingOverviewPanel = async (
     aggregateRecalculation: recalc,
     allowedDomain: getEffectiveDomain(),
     groupContext,
-    isChild,
+    publicPage,
     ...(canViewLedger ? { ledgerHref: listingLedgerHref(listing.id) } : {}),
     isOwner: canViewLedger,
     listing,

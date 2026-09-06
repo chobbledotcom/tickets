@@ -731,10 +731,30 @@ export const ticketGalleryTarget = (
 const ticketPageHidden = (listings: TicketListing[], group?: Group): boolean =>
   group?.hidden ?? listings.some(({ listing }) => listing.hidden);
 
+/** The page's visibility facts: an explicit root collection when the caller
+ * holds one (a mixed cart's package groups beside its standalone listings),
+ * otherwise the resolved listings and group the page already carries. */
+export type TicketPageRoots = {
+  group?: Group | undefined;
+  listings: TicketListing[];
+  packages?: readonly PagePackage[] | undefined;
+  roots?: readonly { hidden: boolean }[] | undefined;
+};
+
+const pageHiddenFor = (
+  activeListings: TicketListing[],
+  group: Group | undefined,
+  roots: readonly { hidden: boolean }[] | undefined,
+): boolean =>
+  roots === undefined
+    ? ticketPageHidden(activeListings, group)
+    : roots.some((root) => root.hidden);
+
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
   pagePackages?: PagePackage[],
+  roots?: readonly { hidden: boolean }[],
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
   const childrenByParentId = await loadChildrenByParentId(activeListings);
@@ -822,7 +842,7 @@ export const getTicketContext = async (
     packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
     packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
     packages,
-    pageHidden: ticketPageHidden(activeListings, group),
+    pageHidden: pageHiddenFor(activeListings, group, roots),
     promoCodesEnabled,
     terms,
     ...questionsResult,

@@ -90,9 +90,10 @@ export const handleTicketQrGet = async (
   { slug }: { slug: string },
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  // A child has no standalone booking page, so its QR would be a dead end.
+  // A child has no standalone booking page, and an inactive listing's page is
+  // off, so either QR would be a dead end.
   if (listing) {
-    return (await lacksStandalonePublicPage(listing.id))
+    return !listing.active || (await lacksStandalonePublicPage(listing.id))
       ? notFoundResponse()
       : qrResponse(slug);
   }

@@ -130,13 +130,26 @@ describe("listing details table copy rows", () => {
     const suppressedChild = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
-      isChild: true,
       listing: testListingWithCount({ id: 12 }),
+      publicPage: "child",
     });
     expect(suppressedChild).toContain("offered as a child of another listing");
     expect(suppressedChild).not.toContain('id="embed-toggle-12"');
     expect(suppressedChild).not.toContain('id="embed-script-12"');
     expect(suppressedChild).not.toContain('id="embed-iframe-12"');
+  });
+
+  test("an inactive listing names its switched-off page instead of the links", () => {
+    const inactive = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing: testListingWithCount({ id: 12 }),
+      publicPage: "inactive",
+    });
+    expect(inactive).toContain("This listing is inactive");
+    expect(inactive).not.toContain('id="embed-toggle-12"');
+    expect(inactive).not.toContain('id="embed-script-12"');
+    expect(inactive).not.toContain('id="embed-iframe-12"');
   });
 
   test("the public url row toggles the embed inputs beside the link", () => {

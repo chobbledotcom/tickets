@@ -69,13 +69,16 @@ export const loadBookableDates = async (
 
 const withListing = withEntityLoader(getListingWithCount);
 
-/** Run `fn` only when `listing` has a standalone booking entry point. A child
- * without its own page cannot use a standalone booking QR. */
+/** Run `fn` only when `listing` has a standalone booking entry point: a child
+ * without its own page cannot use a standalone booking QR, and an inactive
+ * listing's page is switched off so the QR would encode a 404. */
 const unlessChild = async (
   listing: ListingWithCount,
   fn: () => Promise<Response>,
 ): Promise<Response> =>
-  (await lacksStandalonePublicPage(listing.id)) ? notFoundResponse() : fn();
+  !listing.active || (await lacksStandalonePublicPage(listing.id))
+    ? notFoundResponse()
+    : fn();
 
 /** A listing with its child-constrained bookable date set, the context
  * the QR validator needs so a submitted date is checked against the same dates

@@ -69,6 +69,9 @@ export const expectStripeCheckoutAtPrice = (
   expectedUnitPrice: number,
 ): void => {
   expect(response.status).toBe(302);
+  // Exactly one provider checkout: a price override must not mint a second
+  // session beside the one the redirect follows.
+  expect(stripe.calls()).toBe(1);
   expect(stripe.getCaptured()!.items[0]!.unitPrice).toBe(expectedUnitPrice);
 };
 
