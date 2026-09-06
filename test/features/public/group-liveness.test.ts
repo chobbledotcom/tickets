@@ -2,13 +2,21 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-import { getVisibleGroupMembers } from "#routes/public/group-liveness.ts";
+import {
+  getVisibleGroupMembers,
+  loadBookableGroupIds,
+} from "#routes/public/group-liveness.ts";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -202,3 +210,106 @@ describeWithEnv(
     });
   },
 );
+
+describeWithEnv("public regular group liveness", { db: true }, () => {
+  test("a visible group stays live when its listing is hidden", async () => {
+    const group = await createTestGroup({ name: "Visible group" });
+    await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Hidden listing",
+    });
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set([group.id]));
+  });
+
+  test("a group with only an inactive listing has no booking page", async () => {
+    const group = await createTestGroup({ name: "Inactive group" });
+    const listing = await createTestListing({
+      groupId: group.id,
+      name: "Inactive listing",
+    });
+    await deactivateTestListing(listing.id);
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+
+  test("a group with only an add-on has no public booking page", async () => {
+    const group = await createTestGroup({ name: "Add-on group" });
+    const parent = await createTestListing({ name: "Parent" });
+    const child = await createTestListing({
+      groupId: group.id,
+      name: "Add-on",
+    });
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+
+  test("a group with only a sold-out parent has no booking page", async () => {
+    const group = await createTestGroup({ name: "Parent group" });
+    const parent = await createTestListing({
+      groupId: group.id,
+      name: "Parent",
+    });
+    const child = await createTestListing({
+      maxAttendees: 1,
+      name: "Full add-on",
+    });
+    await createTestAttendee(
+      child.id,
+      child.slug,
+      "Buyer",
+      "buyer@example.com",
+    );
+    await listingChildren.setIds(parent.id, [child.id]);
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+});
+
+describeWithEnv("public package liveness", { db: true }, () => {
+  test("an empty package has no booking page", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Empty package",
+    });
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+
+  test("a package with an inactive member has no booking page", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Incomplete package",
+    });
+    await createTestListing({ groupId: group.id, name: "Active member" });
+    const inactive = await createTestListing({
+      groupId: group.id,
+      name: "Inactive member",
+    });
+    await deactivateTestListing(inactive.id);
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+
+  test("a package with no remaining capacity has no booking page", async () => {
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Full package",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 1,
+      name: "Full member",
+    });
+    await createTestAttendee(
+      member.id,
+      member.slug,
+      "Buyer",
+      "full@example.com",
+    );
+
+    expect(await loadBookableGroupIds([group])).toEqual(new Set());
+  });
+});

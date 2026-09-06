@@ -151,8 +151,13 @@ const bookablePackageIds = async (
   return packages
     .filter((group) => {
       const members = membersOf(group, membersByGroup);
-      const rows = rowsByGroup.get(group.id) ?? [];
-      if (members.length === 0 || members.length < rows.length) return false;
+      if (members.length === 0) return false;
+      const rows = requiredMapValue(
+        rowsByGroup,
+        group.id,
+        `Package members missing for group ${group.id}`,
+      );
+      if (members.length < rows.length) return false;
       const ticketListings = members.map(toTicketListing);
       const maps = packageMemberMaps(rows);
       const tree = buildBookingTree({
@@ -162,7 +167,7 @@ const bookablePackageIds = async (
           {
             dayPrices: new Map(),
             groupId: group.id,
-            hideListings: false,
+            hideListings: group.hide_package_listings,
             memberListingIds: members.map((member) => member.id),
             prices: maps.prices,
             quantities: maps.quantities,
