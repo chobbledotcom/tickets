@@ -305,13 +305,16 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       const diagnosis = refusedOrderUnfitListingIds(lines);
       // The facts batch and the whole-order probe are the read's first two
       // round trips. Free the two held places once the probe has run, so
-      // every later probe sees the freed room.
+      // every later probe sees the freed room. A limit expiry must fail the
+      // test, not free the room too early and pass vacuously.
+      const probeObserved = (): boolean =>
+        getQueryLog().some((entry) => entry.sql.includes("AS fits"));
       let spins = 0;
-      while (
-        !getQueryLog().some((entry) => entry.sql.includes("AS fits")) &&
-        spins++ < 5_000
-      ) {
+      while (!probeObserved() && spins++ < 5_000) {
         await Promise.resolve();
+      }
+      if (!probeObserved()) {
+        throw new Error("Setup: the whole-order probe was never observed");
       }
       await execute("DELETE FROM listing_attendees WHERE listing_id = ?", [
         holder.id,
