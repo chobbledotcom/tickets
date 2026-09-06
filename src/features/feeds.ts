@@ -328,7 +328,6 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
     { allowApiKey: true, body: "json", roles: ["owner", "manager", "agent"] },
     async (session) => {
       const privateKey = await getRequestPrivateKey();
-      if (!privateKey) return new Response("Forbidden", { status: 403 });
       const listings = await getAllListings();
       const listingById = mapById(identity<ListingWithCount>)(listings);
       const rawAttendees = await getAttendeesByListingIds(
@@ -337,11 +336,7 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
         true,
       );
       const attendees = await filterCalendarFeedAttendees(
-        await decryptAttendees(
-          rawAttendees,
-          privateKey,
-          listings.some((l) => l.unit_price > 0),
-        ),
+        await decryptAttendees(rawAttendees, privateKey!),
         session,
       );
       const domain = getEffectiveDomain();

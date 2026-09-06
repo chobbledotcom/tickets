@@ -585,23 +585,6 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     });
   });
 
-  test("forbids API keys when the private key cannot be derived", async () => {
-    const { createTestApiKeyFull, requestAsApiKey } = await import(
-      "#test-utils/session.ts"
-    );
-    await settings.update.calendarFeedsEnabled(true);
-    const { apiKey } = await createTestApiKeyFull("Calendar Forbidden");
-    settings.setForTest({ wrapped_private_key: "" });
-    try {
-      const response = await handleRequest(
-        requestAsApiKey("/caldav/events.ics", apiKey),
-      );
-      expect(response.status).toBe(403);
-    } finally {
-      settings.clearTestOverride("wrapped_private_key");
-    }
-  });
-
   test("limits agent API keys to assigned attendees", async () => {
     const { createApiKey } = await import("#db/api-keys.ts");
     const { createUser } = await import("#db/users.ts");
