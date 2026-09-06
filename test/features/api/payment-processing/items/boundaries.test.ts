@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
+import type { PaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import {
   bookingIntent,
@@ -16,6 +17,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
+  deactivateTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -62,6 +64,25 @@ const closedPackage = async (
       { e: closed.id, k: "p", p: 400, q: 1, r: group.id },
       { e: open.id, k: "p", p: 400, q: 1, r: group.id },
     ]),
+  };
+};
+
+const withoutPackageDisplay = async (
+  sessionId: string,
+  intent: BookingIntent,
+  groupId: number,
+): Promise<PaidOrderSnapshot> => {
+  const loaded = await loadPaidOrderSnapshot(sessionId, intent);
+  return {
+    ...loaded,
+    notificationPackages: {
+      ...loaded.notificationPackages,
+      displays: new Map(
+        [...loaded.notificationPackages.displays].filter(
+          ([id]) => id !== groupId,
+        ),
+      ),
+    },
   };
 };
 
@@ -117,24 +138,37 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       "Private member",
     );
     const session = paymentSession("cs_items_missing_package", 800, intent);
-    const loaded = await loadPaidOrderSnapshot(session.id, intent);
-    const snapshot = {
-      ...loaded,
-      notificationPackages: {
-        ...loaded.notificationPackages,
-        displays: new Map(
-          [...loaded.notificationPackages.displays].filter(
-            ([id]) => id !== groupId,
-          ),
-        ),
-      },
-    };
+    const snapshot = await withoutPackageDisplay(session.id, intent, groupId);
     using refund = stubRefundPayment("re_items_missing_package", 800);
 
     expect(
       await validateSnapshotItems(session, intent, snapshot),
     ).toMatchObject({
       error: "Sorry, registration closed while you were completing payment.",
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
+  });
+
+  test("keeps an inactive member name private when package facts are missing", async () => {
+    await setupStripe();
+    const { groupId, intent } = await closedPackage(
+      "Removed inactive",
+      "Private inactive member",
+    );
+    await deactivateTestListing(intent.items[0]!.e);
+    const session = paymentSession(
+      "cs_items_missing_inactive_package",
+      800,
+      intent,
+    );
+    const snapshot = await withoutPackageDisplay(session.id, intent, groupId);
+    using refund = stubRefundPayment("re_items_missing_inactive_package", 800);
+
+    expect(
+      await validateSnapshotItems(session, intent, snapshot),
+    ).toMatchObject({
+      error: "This listing is no longer accepting registrations.",
       success: false,
     });
     expect(refund.calls).toHaveLength(1);

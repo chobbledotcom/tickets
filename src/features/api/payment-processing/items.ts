@@ -34,12 +34,9 @@ import type { ListingWithCount } from "#types";
 /** Judge one already-loaded line against the current listing: gone, closed, or
  * good to price. */
 const validateListingForPayment = (
-  listing: ListingWithCount | undefined,
+  listing: ListingWithCount,
   name: string,
 ): ListingValidation => {
-  if (!listing) {
-    return { error: "Listing not found", ok: false, status: 404 };
-  }
   if (!listing.active) {
     return {
       error: name
@@ -64,10 +61,9 @@ const validateListingForPayment = (
 /** The name safe to show for one signed booking path. */
 const buyerLineName = (
   item: BookingIntent["items"][number],
-  listing: ListingWithCount | undefined,
+  listing: ListingWithCount,
   snapshot: PaidOrderSnapshot,
 ): string => {
-  if (!listing) return "";
   const groupId = lineGroupId(item);
   if (groupId === undefined) return listing.name;
   const display = snapshot.notificationPackages.displays.get(groupId);
@@ -148,6 +144,13 @@ export const validateAllItems = async (
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
     const listing = listingsById.get(item.e);
+    if (!listing) {
+      return validationFailure(
+        session,
+        { error: "Listing not found", status: 404 },
+        item.e,
+      );
+    }
     const name = buyerLineName(item, listing, snapshot);
     const vp = validateListingForPayment(listing, name);
     if (!vp.ok) return validationFailure(session, vp, item.e);
