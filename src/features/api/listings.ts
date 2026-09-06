@@ -142,8 +142,9 @@ export const handleCheckAvailability = withGuardedListing(
     // route listing's standalone spots advertise it as bookable.
     if (isSoldOutParent) return apiResponse({ available: false });
     const url = new URL(request.url);
+    const rawQuantity = url.searchParams.get("quantity");
     const quantity =
-      parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
+      rawQuantity === null ? 1 : (parseNonNegativeInt(rawQuantity) ?? 1);
     const date = url.searchParams.get("date") || undefined;
     // A daily parent is available only on dates its required children can serve.
     // A daily listing with no children is returned unchanged by the helper.

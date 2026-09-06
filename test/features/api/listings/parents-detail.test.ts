@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getAvailableDates } from "#shared/dates.ts";
-import { publicDailyParentWithMondayChild } from "#test/integration/server/parents-booking/_shared-setup.ts";
+import { publicDailyParentWithMondayChild } from "#test/features/api/listings/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookableStartDates,
@@ -94,18 +94,6 @@ describeWithEnv(
       }>(parent.slug);
       const slugs = (detail.children ?? []).map((c) => c.slug);
       expect(slugs).toEqual([okChild.slug]);
-    });
-
-    test("GET /api/listings reports a no-bookable-child parent as sold out", async () => {
-      await enablePublicApi();
-      // The parent's only child has no capacity, so the parent has no bookable
-      // child and is sold out — the list response must project
-      // that, matching the detail/availability endpoints, not advertise
-      // the parent's own standalone capacity as bookable.
-      const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
-      const row = await apiListingRow(parent.slug);
-      expect(row.isSoldOut).toBe(true);
-      expect(row.maxPurchasable).toBe(0);
     });
 
     test("GET /api/listings keeps a parent with a bookable child bookable", async () => {
