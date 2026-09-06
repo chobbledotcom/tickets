@@ -186,7 +186,7 @@ describeWithEnv(
       ]);
     });
 
-    test("a hidden package's member never sells standalone, whatever the URL claims", async () => {
+    test("conceals the package path and names the standalone path", async () => {
       const { group, member } = await freePackage(
         "Mystery Box",
         "mystery-box",
@@ -197,11 +197,32 @@ describeWithEnv(
       const solo = await createTestListing({ name: "Lantern", unitPrice: 0 });
 
       const html = await pageHtml(`${group.slug}+${member.slug}+${solo.slug}`);
-      // The bundle sells by name only: no standalone row, no member name.
+      // The package row uses its package name. The standalone row uses the
+      // listing name because it is a separate booking path.
       expect(html).toContain("Mystery Box");
       expect(html).toContain(`name="package_quantity_${group.id}"`);
-      expect(html).not.toContain("Secret Widget");
-      expect(html).not.toContain(`name="quantity_${member.id}"`);
+      expect(html).toContain("Secret Widget");
+      expect(html).toContain(`name="quantity_${member.id}"`);
+
+      const submit = await submitPackageBooking(
+        `${group.slug}+${member.slug}+${solo.slug}`,
+        {
+          email: "mixed-paths@test.com",
+          name: "Mixed Paths",
+          [`package_quantity_${group.id}`]: "1",
+          [`quantity_${member.id}`]: "2",
+        },
+      );
+      await expectPackageBookingAccepted(submit);
+      const rows = await bookingRows(member.id);
+      expect(rows).toEqual([
+        {
+          package_group_id: group.id,
+          parent_listing_id: 0,
+          quantity: 1,
+        },
+        { package_group_id: 0, parent_listing_id: 0, quantity: 2 },
+      ]);
     });
 
     test("overlapping bundles pricing one listing differently keep the paid email", async () => {

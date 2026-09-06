@@ -35,7 +35,7 @@ const slugByName = async (name: string): Promise<string> => {
   return match.slug;
 };
 
-describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
+describeWithEnv("order.js", { db: true, triggers: true }, () => {
   test("disabled by default: returns the console stub with ACAO *", async () => {
     const res = await orderJs("https://shop.example.com");
     const body = await res.text();
@@ -60,7 +60,7 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     expect(body).toContain("isExternalOrderModule");
   });
 
-  test("excludes a hidden package's members from the catalog", async () => {
+  test("includes a concealed package's members in the catalog", async () => {
     await settings.update.externalOrderEnabled(true);
     const group = await createHiddenPackageGroup("Bundle");
     await createTestListing({ groupId: group.id, name: "Hidden Member" });
@@ -69,9 +69,8 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     const standaloneSlug = await slugByName("Standalone");
 
     const body = await (await orderJs()).text();
-    // The standalone listing is advertised; the hidden package's member is not.
     expect(body).toContain(standaloneSlug);
-    expect(body).not.toContain(memberSlug);
+    expect(body).toContain(memberSlug);
   });
 
   test("advertises a bookable package's bundle slug in the catalog packages", async () => {
@@ -105,11 +104,10 @@ describeWithEnv("order.js handler", { db: true, triggers: true }, () => {
     const memberSlug = await slugByName("Concealed");
 
     const body = await (await orderJs()).text();
-    // The bundle slug is offered (the package books as a whole) while its hidden
-    // member is withheld from the listing catalog.
+    // Both booking paths stay available in the widget.
     expect(body).toContain('"secret-bundle"');
-    expect(body).not.toContain(`"${memberSlug}"`);
-    expect(body).not.toContain(member.name);
+    expect(body).toContain(`"${memberSlug}"`);
+    expect(body).toContain(member.name);
   });
 
   test("omits an unbookable package (an inactive member) from the catalog", async () => {

@@ -35,9 +35,7 @@ const groupListingsLoader =
   };
 
 /** Load a group by slug with its buyer-visible active listings, or null when
- * the slug is unknown or the group has none. A non-package group never exposes
- * a hidden package's members, so a regular group made only of them reads as
- * empty rather than leaking them. A package is all-or-nothing: a saved or
+ * the slug is unknown or the group has none. A package is all-or-nothing: a saved or
  * directly-typed /ticket/<package> URL must not sell an incomplete or sold-out
  * bundle when a member was deactivated or the bundle no longer fits, even
  * though /listings and the group QR already hide it — apply the SAME gate they

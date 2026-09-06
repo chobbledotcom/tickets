@@ -149,7 +149,7 @@ const processSubmission = async (
   // The original page ctx still determines the thank-you redirect so folding a
   // child doesn't drop a single parent's configured URL.
   const foldedCtx = pricingParams.ctx;
-  const thankYouUrl = singleListingThankYouUrl(ctx);
+  const thankYouUrl = singleListingThankYouUrl(ctx, pricingParams.items);
 
   const paymentsEnabled = isPaymentsEnabled();
   const requiresPaidFields = pricedOrder.total > 0;

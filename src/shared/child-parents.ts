@@ -6,6 +6,8 @@
  * classification, package folding, …). This is that shared walk.
  */
 
+import type { ChildAllocation } from "#db/attendee-types.ts";
+
 /** Collect the child ids whose parent list passes the test. Both the add-on
  * classifier and the package-fold check walk a child→parents map and keep the
  * children whose parents satisfy some rule. */
@@ -19,3 +21,13 @@ export const childIdsMatching = <P>(
   }
   return ids;
 };
+
+export const allocatedChildIds = (
+  allocations: readonly ChildAllocation[],
+  parentIds: ReadonlySet<number>,
+): Set<number> =>
+  childIdsMatching(
+    Map.groupBy(allocations, (allocation) => allocation.childId),
+    (parents) =>
+      parents.some((allocation) => parentIds.has(allocation.parentId)),
+  );

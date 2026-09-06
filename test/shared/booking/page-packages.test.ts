@@ -75,13 +75,13 @@ describe("explicitStandaloneIds", () => {
     expect(ids).toEqual(new Set([1]));
   });
 
-  test("never lets a hidden package's member sell standalone", () => {
+  test("lets a concealed package's member sell standalone", () => {
     const ids = explicitStandaloneIds(
       listings,
       [treePackage(7, [1, 2], { hideListings: true })],
       ["pkg7s", "bounc"],
     );
-    expect(ids).toEqual(new Set());
+    expect(ids).toEqual(new Set([1]));
   });
 });
 

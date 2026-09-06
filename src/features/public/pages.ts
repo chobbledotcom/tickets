@@ -8,7 +8,7 @@ import { getActiveHolidays } from "#db/holidays.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
-import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
+import { requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -45,11 +45,7 @@ import {
   type GroupWithMembers,
   type ListingWithCount,
 } from "#types";
-import {
-  applyParentSoldOut,
-  classifyForDiscovery,
-  dropHiddenPackageMembers,
-} from "./discovery.ts";
+import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { loadPublicGroups } from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -90,7 +86,6 @@ const dailyUnavailableOn = async (
   daily: ListingWithCount[],
   date: string,
 ): Promise<ReadonlySet<number>> => {
-  if (daily.length === 0) return new Set();
   const holidays = await getActiveHolidays();
   const bySpan = Map.groupBy(daily, cardSpanDays);
   const remaining = new Map<number, number>();
@@ -134,45 +129,24 @@ const buildDailyDateFilter = async (
   };
 };
 
-/** Whether a package member has no live booking path on the searched date:
- * sold out or closed on its own date-less row, or (for a daily member)
- * outside its calendar / full for that date. Mirrors the listing card's own
- * unavailable check. */
-const memberUnavailableOn = (
-  info: { isSoldOut: boolean; isClosed: boolean; listing: ListingWithCount },
-  dailyUnavailableIds: ReadonlySet<number>,
-): boolean =>
-  info.isSoldOut ||
-  info.isClosed ||
-  (info.listing.listing_type === "daily" &&
-    dailyUnavailableIds.has(info.listing.id));
-
 /** A package is bought as one whole bundle, so one member that cannot be booked
- * on the chosen date makes the whole bundle unbookable. Members come from the
- * group liveness load, not the page's own listing set, because a hidden
- * package's members never join that set yet still decide this.
+ * on the chosen date makes the whole bundle unbookable. Public package loading
+ * already rejects closed or statically full members. This check adds each daily
+ * member's selected-date calendar and capacity.
  *
- * This is a projection of the booking page's date rules, not a re-run. Two
- * edges are knowingly unchecked: a member needing quantity > 1 with one spot
- * left, and a daily parent whose required child cannot serve the date. The
- * booking page stays the real gate. */
+ * Two edges remain on the booking page: a member quantity above the remaining
+ * capacity, and a daily parent whose required child cannot serve the date. */
 const soldOutPackageIds = async (
   groups: readonly GroupWithMembers[],
   requestedDate: string | null,
 ): Promise<ReadonlySet<number>> => {
   const packages = groups.filter(({ group }) => group.is_package);
-  if (requestedDate === null || packages.length === 0) return new Set();
+  if (requestedDate === null) return new Set();
   const soldOutIds = await Promise.all(
     packages.map(async ({ group, members }) => {
       const daily = members.filter((m) => m.listing_type === "daily");
-      const [ticketListings, dailyUnavailableIds] = await Promise.all([
-        buildTicketListingsWithGroupCapacity(members),
-        dailyUnavailableOn(daily, requestedDate),
-      ]);
-      const anyUnavailable = ticketListings.some((info) =>
-        memberUnavailableOn(info, dailyUnavailableIds),
-      );
-      return anyUnavailable ? group.id : null;
+      const unavailableIds = await dailyUnavailableOn(daily, requestedDate);
+      return unavailableIds.size > 0 ? group.id : null;
     }),
   );
   return new Set(compact(soldOutIds));
@@ -187,14 +161,11 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
   request,
 ) =>
   requirePublicSite(async () => {
-    const [publicGroups, { listings: allListings }, nav] = await Promise.all([
+    const [publicGroups, { listings }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
     ]);
-    // A hidden package's members never appear standalone — only the package
-    // name is public — so drop them before building the individual cards.
-    const listings = await dropHiddenPackageMembers(allListings);
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
     const classification = await classifyForDiscovery(listings);
@@ -245,28 +216,24 @@ export const handlePublicTerms: ResponseHandler = () =>
 /** Render the contact page (descriptive text and/or the message form).
  * 404 when there is neither contact text nor an active form to show.
  * A fresh CSRF token is minted before rendering when the form is shown. */
-const renderContactPage = async (request: Request): Promise<Response> => {
+const renderContactPage = async (): Promise<Response> => {
   const formActive = isContactFormActive();
   if (!settings.contactPageText && !formActive) return notFoundResponse();
   if (formActive) await signCsrfToken();
-  const flash = applyFlash(request);
   return htmlResponse(
     contactPage({
       botpoisonPublicKey: getBotpoisonPublicKey(),
       content: settings.contactPageText || null,
-      ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,
       nav: await publicNavProps(null),
-      ...(flash.success !== undefined ? { success: flash.success } : {}),
       websiteTitle: settings.websiteTitle,
     }),
   );
 };
 
 /** Handle GET /contact - public contact page (404 when empty and form off) */
-export const handlePublicContact: ResponseHandler<[request: Request]> = (
-  request,
-) => requirePublicSite(() => renderContactPage(request));
+export const handlePublicContact: ResponseHandler<[request: Request]> = () =>
+  requirePublicSite(renderContactPage);
 
 /** Process a CSRF-checked contact form submission: validate, run Botpoison
  * verification, and only deliver to the owner when verification passes. */

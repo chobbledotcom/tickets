@@ -4,9 +4,13 @@
  */
 
 import { buildTicketListing } from "#booking/model.ts";
-import { quantityFieldName } from "#booking/tree.ts";
+import { packageQuantityFieldName, quantityFieldName } from "#booking/tree.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { getTicketContext } from "#routes/public/ticket-payment.ts";
+import {
+  type PrepareResult,
+  prepareOrder,
+} from "#routes/public/ticket-submit/prepare.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -41,10 +45,27 @@ export const twoListingContext = async (): Promise<{
 };
 
 /** A form that selects the given count for each listing. */
-export const quantityForm = (counts: Record<number, number>): FormParams => {
+export const quantityForm = (
+  counts: Record<number, number>,
+  packageCounts: Record<number, number> = {},
+): FormParams => {
   const form = new FormParams();
-  for (const [listingId, quantity] of Object.entries(counts)) {
-    form.set(quantityFieldName(Number(listingId)), String(quantity));
+  for (const [fieldName, quantities] of [
+    [quantityFieldName, counts],
+    [packageQuantityFieldName, packageCounts],
+  ] as const) {
+    for (const [id, quantity] of Object.entries(quantities)) {
+      form.set(fieldName(Number(id)), String(quantity));
+    }
   }
   return form;
+};
+
+export const prepareTestOrder = async (
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Extract<PrepareResult, { ok: true }>> => {
+  const result = await prepareOrder(ctx, form);
+  if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+  return result;
 };

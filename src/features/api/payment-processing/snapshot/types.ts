@@ -5,7 +5,6 @@ import type { GroupListing, ListingWithCount } from "#types";
 
 export interface PaidOrderSnapshot {
   childrenByParentId: ReadonlyMap<number, number[]>;
-  hiddenPackageMemberIds: ReadonlySet<number>;
   ledger: BookingLedgerDisposition;
   listingsById: ReadonlyMap<number, ListingWithCount>;
   modifierSpecs: ModifierSpec[];
@@ -41,7 +40,6 @@ export interface SnapshotModifierRow {
 export interface SnapshotRows {
   childEdges: Array<{ childId: number; parentId: number }>;
   groups: SnapshotGroupRow[];
-  hiddenMemberIds: number[];
   ledger: { hasLegs: boolean; ownerAttendeeId: number | null };
   listings: ListingWithCount[];
   memberships: GroupListing[];

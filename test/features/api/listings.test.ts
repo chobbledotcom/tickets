@@ -25,6 +25,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 describePublicApi(() => {
   describe("GET /api/listings", () => {
@@ -44,7 +45,7 @@ describePublicApi(() => {
       expect(listings[0]!.slug).toBe(listing.slug);
     });
 
-    test("filters hidden listings from listing", async () => {
+    test("omits hidden listings", async () => {
       await createTestListing({ hidden: false, name: "Visible" });
       await createTestListing({ hidden: true, name: "Hidden" });
       const { listings } = await fetchListingsList();
@@ -67,6 +68,18 @@ describePublicApi(() => {
       const { listings } = await fetchListingsList();
       expect(listings[0]!.isSoldOut).toBe(true);
       expect(listings[0]!.maxPurchasable).toBe(0);
+    });
+
+    test("sets a parent without a bookable child to sold out", async () => {
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 0 }],
+      });
+
+      const { listings } = await fetchListingsList();
+      const parentListing = listings.find((row) => row.slug === parent.slug);
+
+      expect(parentListing?.isSoldOut).toBe(true);
+      expect(parentListing?.maxPurchasable).toBe(0);
     });
 
     test("a daily listing full on one date is not sold out date-lessly", async () => {
@@ -293,7 +306,8 @@ describePublicApi(() => {
     });
 
     test("preserves quantity 0 instead of defaulting to 1", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 1 });
+      await createTestAttendeeDirect(listing.id, "Alice", "a@test.com");
       const { response, body } = await fetchAvailability(
         listing.slug,
         "quantity=0",
@@ -304,13 +318,14 @@ describePublicApi(() => {
     });
 
     test("handles invalid quantity gracefully", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing = await createTestListing({ maxAttendees: 1 });
+      await createTestAttendeeDirect(listing.id, "Alice", "a@test.com");
       const { response, body } = await fetchAvailability(
         listing.slug,
         "quantity=abc",
       );
       expect(response.status).toBe(200);
-      expect(body.available).toBe(true);
+      expect(body.available).toBe(false);
     });
 
     test("does not parse a malformed quantity prefix", async () => {

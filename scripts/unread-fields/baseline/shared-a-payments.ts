@@ -18,7 +18,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ])(["slug"]),
   ...identitiesAt([["src/shared/booking/tree.ts", [{ name: "BookingNode" }]]])([
     "dateSpan",
-    "visibility",
   ]),
   ...identitiesAt([["src/shared/booking/tree.ts", [{ name: "BookingTree" }]]])([
     "rootRef",

@@ -10,6 +10,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { packageQuantityFieldName } from "#booking/tree.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
   prepareOrder,
@@ -24,6 +26,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import {
+  prepareTestOrder,
   quantityForm,
   ticketContext,
   twoListingContext,
@@ -35,8 +38,7 @@ const preparedOrder = async (
   counts: Record<number, number>,
 ) => {
   const ctx = await ticketContext(listingIds);
-  const result = await prepareOrder(ctx, quantityForm(counts));
-  if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+  const result = await prepareTestOrder(ctx, quantityForm(counts));
   return result.pricingParams;
 };
 
@@ -52,6 +54,39 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toBe("Please select at least one ticket");
+    });
+
+    test("names a mixed package member by its chosen path", async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500 },
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Standalone Unit",
+      });
+      const ctx = await ticketContext([member.id], group);
+      ctx.slugs = [group.slug, member.slug];
+      const date = (await bookableStartDates(member.id))[0]!;
+      const invalidDaysForm = (
+        standaloneQuantity: number,
+        packageQuantity: number,
+      ) => {
+        const form = quantityForm({ [member.id]: standaloneQuantity });
+        form.set(packageQuantityFieldName(group.id), String(packageQuantity));
+        form.set("date", date);
+        form.set("day_count", "2");
+        return form;
+      };
+
+      expect(await prepareOrder(ctx, invalidDaysForm(1, 0))).toEqual({
+        error: "Standalone Unit does not offer a 2-day booking",
+        ok: false,
+      });
+      expect(await prepareOrder(ctx, invalidDaysForm(0, 1))).toEqual({
+        error: "Mystery Box does not offer a 2-day booking",
+        ok: false,
+      });
     });
   });
 
@@ -146,8 +181,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const form = quantityForm({ [listing.id]: 1 });
       form.set("date", offered);
 
-      const result = await prepareOrder(ctx, form);
-      if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+      const result = await prepareTestOrder(ctx, form);
       expect(result.pricingParams.date).toBe(offered);
     });
 
@@ -180,18 +214,24 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const form = quantityForm({ [listing.id]: 1 });
       form.set("promo_code", "SAVE10");
 
-      const result = await prepareOrder(ctx, form);
-      if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
+      const result = await prepareTestOrder(ctx, form);
       expect(result.pricingParams.promoCode).toBe("SAVE10");
     });
   });
 
   describe("the thank-you page a booking lands on", () => {
     test("uses a single listing's own thank-you page", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        thankYouUrl: "https://example.com/listing-thanks",
+      });
       const ctx = await ticketContext([listing.id]);
 
-      expect(singleListingThankYouUrl(ctx)).toBe(
+      const result = await prepareTestOrder(
+        ctx,
+        quantityForm({ [listing.id]: 1 }),
+      );
+      expect(singleListingThankYouUrl(ctx, result.pricingParams.items)).toBe(
         (await getListingWithCount(listing.id))!.thank_you_url,
       );
     });
@@ -199,7 +239,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
     test("uses none when the cart holds more than one listing", async () => {
       const { ctx } = await twoListingContext();
 
-      expect(singleListingThankYouUrl(ctx)).toBeNull();
+      expect(singleListingThankYouUrl(ctx, [])).toBeNull();
     });
 
     test("uses none for a hidden package's only member", async () => {
@@ -213,7 +253,84 @@ describeWithEnv("prepareOrder", { db: true }, () => {
 
       // Redirecting here would name the member the package conceals.
       expect(ctx.packages.some((pkg) => pkg.hideListings)).toBe(true);
-      expect(singleListingThankYouUrl(ctx)).toBeNull();
+      expect(
+        singleListingThankYouUrl(ctx, [
+          {
+            listingId: member.id,
+            name: "Mystery Box",
+            packageGroupId: group.id,
+            quantity: 1,
+            slug: member.slug,
+            unitPrice: 0,
+          },
+        ]),
+      ).toBeNull();
+    });
+
+    test("uses a package member's URL for its standalone path", async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        name: "Separate Unit",
+        thankYouUrl: "https://example.com/separate",
+      });
+      const ctx = await ticketContext([member.id], group);
+      ctx.slugs = [group.slug, member.slug];
+
+      expect(
+        singleListingThankYouUrl(ctx, [
+          {
+            listingId: member.id,
+            name: member.name,
+            quantity: 1,
+            slug: member.slug,
+            unitPrice: member.unit_price,
+          },
+        ]),
+      ).toBe("https://example.com/separate");
+    });
+
+    test("keeps the standalone URL when both paths are selected", async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        thankYouUrl: "https://example.com/mixed-thanks",
+      });
+      const ctx = await ticketContext([member.id], group);
+      ctx.slugs = [group.slug, member.slug];
+      const result = await prepareTestOrder(
+        ctx,
+        quantityForm({ [member.id]: 1 }, { [group.id]: 1 }),
+      );
+
+      expect(result.pricingParams.items).toHaveLength(2);
+      expect(singleListingThankYouUrl(ctx, result.pricingParams.items)).toBe(
+        "https://example.com/mixed-thanks",
+      );
+    });
+
+    test("a folded child does not reveal a concealed parent's URL", async () => {
+      const group = await createHiddenPackageGroup("Mystery Box");
+      const member = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+        thankYouUrl: "https://example.com/concealed-parent",
+      });
+      const child = await createTestListing({ maxAttendees: 5 });
+      await listingChildren.setIds(member.id, [child.id]);
+      const ctx = await ticketContext([member.id], group);
+      ctx.slugs = [group.slug];
+      const result = await prepareTestOrder(
+        ctx,
+        quantityForm({}, { [group.id]: 1 }),
+      );
+
+      expect(result.pricingParams.items).toHaveLength(2);
+      expect(
+        singleListingThankYouUrl(ctx, result.pricingParams.items),
+      ).toBeNull();
     });
   });
 });

@@ -57,6 +57,19 @@ Feature: An organiser sells several things as one bundle
       And their ticket never names the Tent
       And their ticket never names the Breakfast
 
+  @rule:bookings.a-private-bundle-does-not-hide-a-separate-sale
+  @surface:public
+  Rule: A private bundle does not hide a separate sale
+    Privacy applies to the bundle booking. A thing sold on its own keeps its
+    listing page and its name.
+
+    @case:bundles.a-part-keeps-its-own-page
+    Scenario: A customer opens one part outside its private bundle
+      Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
+      And the organiser sells the Weekend as a private bundle
+      When a customer opens the Tent page on its own
+      Then the booking page named the Tent
+
   @rule:bookings.a-private-bundle-that-has-sold-cannot-be-pulled-apart
   @surface:admin
   Rule: A private bundle that has sold cannot be pulled apart

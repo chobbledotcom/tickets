@@ -124,7 +124,7 @@ describeWithEnv("the paid success token page", { db: true }, () => {
     await expectTokenLinkWithoutRedirect(response, tokens);
   });
 
-  test("hides a hidden package member's thank-you URL", async () => {
+  test("hides the thank-you URL for a concealing package path", async () => {
     await setupStripe();
     const group = await createHiddenPackageGroup("Concealed Pkg");
     const member = await paidListing({
@@ -139,6 +139,25 @@ describeWithEnv("the paid success token page", { db: true }, () => {
 
     const page = await expectTokenLinkWithoutRedirect(response, tokens);
     expect(page).not.toContain("concealed-thanks");
+  });
+
+  test("shows a concealing package member's standalone thank-you URL", async () => {
+    await setupStripe();
+    const group = await createHiddenPackageGroup("Other booking path");
+    const member = await paidListing({
+      groupId: group.id,
+      thankYouUrl: "https://example.com/standalone-thanks",
+    });
+
+    const { response } = await renderTokenPage({
+      items: [lineFor(member)],
+      sessionId: "cs_tok_hidden_member_standalone",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "url=https://example.com/standalone-thanks",
+    );
   });
 
   test("shows a visible package member's thank-you URL", async () => {
@@ -159,6 +178,31 @@ describeWithEnv("the paid success token page", { db: true }, () => {
       "url=https://example.com/shown-thanks",
     );
   });
+
+  for (const separateTokens of [false, true]) {
+    test(`keeps a mixed order's standalone redirect (separate tokens: ${separateTokens})`, async () => {
+      await setupStripe();
+      const group = await createHiddenPackageGroup("Mixed paths");
+      const member = await paidListing({
+        groupId: group.id,
+        thankYouUrl: "https://example.com/mixed-thanks",
+      });
+      const packageLine = { ...lineFor(member), k: "p", r: group.id };
+      const standaloneLine = lineFor(member);
+      const bookings = separateTokens
+        ? [
+            { items: [packageLine], sessionId: "cs_mixed_package" },
+            { items: [standaloneLine], sessionId: "cs_mixed_standalone" },
+          ]
+        : [{ items: [packageLine, standaloneLine], sessionId: "cs_mixed" }];
+
+      const { response, tokens } = await renderTokenPage(...bookings);
+      expect(response.status).toBe(200);
+      const page = await response.text();
+      expect(page).toContain(`href="/t/${tokens}"`);
+      expect(page).toContain("url=https://example.com/mixed-thanks");
+    });
+  }
 
   test("shows no thank-you redirect when the listing has none", async () => {
     await setupStripe();

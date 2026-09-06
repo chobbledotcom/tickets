@@ -75,11 +75,6 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       expect((await loaded(listing.id)).isChild).toBe(false);
     });
 
-    test("says a standalone listing is not hidden inside a package", async () => {
-      const listing = await createTestListing({});
-      expect((await loaded(listing.id)).isHiddenPackageMember).toBe(false);
-    });
-
     test("leaves the emailable flag off until the actions tab asks", async () => {
       // The decrypt behind it is deferred, so loading must not pay for it.
       const listing = await createTestListing({});
@@ -204,18 +199,6 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       ]);
       expect(full.length).toBeGreaterThan(5);
       expect(preview.length).toBe(5);
-    });
-  });
-
-  describe("a listing hidden inside a package", () => {
-    test("is marked as one, so its page can hide the standalone links", async () => {
-      const { createHiddenPackageGroup } = await import(
-        "#test-utils/db-helpers/groups.ts"
-      );
-      const group = await createHiddenPackageGroup();
-      const listing = await createTestListing({ groupId: group.id });
-
-      expect((await loaded(listing.id)).isHiddenPackageMember).toBe(true);
     });
   });
 

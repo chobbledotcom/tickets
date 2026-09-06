@@ -244,7 +244,14 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
       const session = paymentSession("cs_anchor_failure", 1000, intent);
       const bookings = placeholderBookings(
-        [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
+        [
+          {
+            expectedPrice: 1000,
+            item: intent.items[0]!,
+            listing,
+            name: listing.name,
+          },
+        ],
         intent,
       );
       await reserveSession(session.id);
@@ -363,7 +370,14 @@ describeWithEnv(
 
       const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
       const bookings = placeholderBookings(
-        [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
+        [
+          {
+            expectedPrice: 1000,
+            item: intent.items[0]!,
+            listing,
+            name: listing.name,
+          },
+        ],
         intent,
       );
       const session = paymentSession("cs_full", 1000, intent);

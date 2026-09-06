@@ -310,9 +310,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).not.toContain('href="/ticket/combo"');
     });
 
-    test("a hidden package member as a listing item renders dead (no standalone page)", async () => {
-      // A hidden package's member 404s its own /ticket page — only the package
-      // name is public — so a nav leaf pointing at it must not render a live link.
+    test("a concealing package member keeps its listing item link", async () => {
       const page = await makePage("hidden-member");
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
       await groups.table.update(group.id, {
@@ -325,8 +323,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       });
       await addPageItem(page.id, "listing", member.id);
       const html = await assertPublicHtml("/page/hidden-member");
-      expect(html).toContain("<span>Secret Member</span>");
-      expect(html).not.toContain(`href="/ticket/${member.slug}"`);
+      expect(html).toContain(`href="/ticket/${member.slug}"`);
     });
 
     test("an item-less page renders no empty submenu or mobile bar", async () => {

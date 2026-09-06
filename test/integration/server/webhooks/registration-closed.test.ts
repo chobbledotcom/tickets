@@ -54,7 +54,7 @@ describeWithEnv(
         await expectHtmlResponse(
           response,
           410,
-          "registration closed",
+          `registration for ${listing.name} closed`,
           "refunded",
         );
       } finally {
@@ -84,7 +84,7 @@ describeWithEnv(
           sessionId: "cs_closed_wh",
         }),
         "re_closed",
-        "registration closed",
+        `registration for ${listing.name} closed`,
         "sig_closed",
       );
     });

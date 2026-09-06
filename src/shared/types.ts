@@ -411,8 +411,7 @@ export interface Listing extends ItemImageColumns {
   /** When true, a listing that is also a child (offered under one or more
    * parents) keeps its OWN standalone booking page, catalog entry and API
    * eligibility, instead of existing only as a foldable add-on. Default false
-   * ⇒ being a child strips standalone existence, the historic behaviour. The
-   * hidden-package-member arm of the gate still outranks this flag. */
+   * ⇒ being a child strips standalone existence, the historic behaviour. */
   bookable_alone: boolean;
   bookable_days: string[];
   can_pay_more: boolean;

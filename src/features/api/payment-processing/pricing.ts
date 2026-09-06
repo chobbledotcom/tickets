@@ -56,7 +56,7 @@ export const checkoutIntentForSession = (
   date: intent.date,
   items: validatedItems.map((v) => ({
     listingId: v.item.e,
-    name: v.listing.name,
+    name: v.name,
     ...(v.item.k === "p" && v.item.r !== undefined
       ? { packageGroupId: v.item.r }
       : {}),

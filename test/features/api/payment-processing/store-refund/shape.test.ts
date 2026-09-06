@@ -23,6 +23,7 @@ const itemsFor = (items: BookingItem[]): ValidatedItem[] =>
     expectedPrice: item.p,
     item,
     listing: testListingWithCount({ id: item.e }),
+    name: `Listing ${item.e}`,
   }));
 
 const INTENT: BookingIntent = bookingIntent([]);

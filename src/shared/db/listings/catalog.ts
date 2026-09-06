@@ -1,7 +1,6 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
 import { settings } from "#db/settings.ts";
-import { notInSubquery } from "#db/where-clauses.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#types";
 import { rawListingsTable } from "./table.ts";
@@ -82,14 +81,6 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
           clause: `(listing.bookable_alone = 1 OR listing.id NOT IN (
           SELECT listingParent.child_listing_id FROM listing_parents AS listingParent))`,
         },
-        ...notInSubquery("listing.id", {
-          args: [],
-          sql: `SELECT groupListing.listing_id
-                FROM group_listings AS groupListing
-                JOIN groups AS listingGroup ON listingGroup.id = groupListing.group_id
-               WHERE listingGroup.is_package = 1
-                 AND listingGroup.hide_package_listings = 1`,
-        }),
       ],
     },
   );

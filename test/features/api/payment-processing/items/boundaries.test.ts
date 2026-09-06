@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
+import type { PaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import {
   bookingIntent,
@@ -16,6 +17,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
+  deactivateTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -65,8 +67,27 @@ const closedPackage = async (
   };
 };
 
+const withoutPackageDisplay = async (
+  sessionId: string,
+  intent: BookingIntent,
+  groupId: number,
+): Promise<PaidOrderSnapshot> => {
+  const loaded = await loadPaidOrderSnapshot(sessionId, intent);
+  return {
+    ...loaded,
+    notificationPackages: {
+      ...loaded.notificationPackages,
+      displays: new Map(
+        [...loaded.notificationPackages.displays].filter(
+          ([id]) => id !== groupId,
+        ),
+      ),
+    },
+  };
+};
+
 describeWithEnv("paid item validation boundaries", { db: true }, () => {
-  test("returns the generic closed result for a single listing", async () => {
+  test("names a closed standalone listing", async () => {
     await setupStripe();
     const listing = await createTestListing({
       closesAt: pastCloseTime(),
@@ -83,7 +104,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       ),
     ).toEqual({
       detail: undefined,
-      error: "Sorry, registration closed while you were completing payment.",
+      error: `Sorry, registration for ${listing.name} closed while you were completing payment.`,
       refunded: true,
       status: 410,
       success: false,
@@ -117,18 +138,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       "Private member",
     );
     const session = paymentSession("cs_items_missing_package", 800, intent);
-    const loaded = await loadPaidOrderSnapshot(session.id, intent);
-    const snapshot = {
-      ...loaded,
-      notificationPackages: {
-        ...loaded.notificationPackages,
-        displays: new Map(
-          [...loaded.notificationPackages.displays].filter(
-            ([id]) => id !== groupId,
-          ),
-        ),
-      },
-    };
+    const snapshot = await withoutPackageDisplay(session.id, intent, groupId);
     using refund = stubRefundPayment("re_items_missing_package", 800);
 
     expect(
@@ -140,7 +150,31 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
     expect(refund.calls).toHaveLength(1);
   });
 
-  test("fails one standalone listing that joined a hidden package", async () => {
+  test("keeps an inactive member name private when package facts are missing", async () => {
+    await setupStripe();
+    const { groupId, intent } = await closedPackage(
+      "Removed inactive",
+      "Private inactive member",
+    );
+    await deactivateTestListing(intent.items[0]!.e);
+    const session = paymentSession(
+      "cs_items_missing_inactive_package",
+      800,
+      intent,
+    );
+    const snapshot = await withoutPackageDisplay(session.id, intent, groupId);
+    using refund = stubRefundPayment("re_items_missing_inactive_package", 800);
+
+    expect(
+      await validateSnapshotItems(session, intent, snapshot),
+    ).toMatchObject({
+      error: "This listing is no longer accepting registrations.",
+      success: false,
+    });
+    expect(refund.calls).toHaveLength(1);
+  });
+
+  test("keeps a standalone listing that joined a concealing package", async () => {
     const group = await createHiddenPackageGroup("Hidden after checkout");
     const member = await createTestListing({
       groupId: group.id,
@@ -152,7 +186,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
     ]);
     const intent = bookingIntent([{ e: member.id, p: 500, q: 1 }]);
 
-    expect(await pricesFor("cs_items_one_hidden", 500, intent)).toEqual([null]);
+    expect(await pricesFor("cs_items_one_hidden", 500, intent)).toEqual([500]);
   });
 
   test("fails one child that can no longer be booked by itself", async () => {

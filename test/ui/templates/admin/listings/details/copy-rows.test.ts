@@ -123,7 +123,7 @@ describe("listing details table copy rows", () => {
     expect(rows).toContain("<td>Yes — not shown in public listings list</td>");
   });
 
-  test("a child or hidden package member shows no public link or embed rows", () => {
+  test("a child shows no public link or embed rows", () => {
     const child = detailRows({});
     expect(child).toContain('id="embed-toggle-1"');
 
@@ -137,15 +137,6 @@ describe("listing details table copy rows", () => {
     expect(suppressedChild).not.toContain('id="embed-toggle-12"');
     expect(suppressedChild).not.toContain('id="embed-script-12"');
     expect(suppressedChild).not.toContain('id="embed-iframe-12"');
-
-    const suppressedMember = renderListingDetail({
-      allowedDomain: "localhost",
-      attendees: [],
-      isHiddenPackageMember: true,
-      listing: testListingWithCount({ id: 12 }),
-    });
-    expect(suppressedMember).toContain("hides its listings");
-    expect(suppressedMember).not.toContain('id="embed-toggle-12"');
   });
 
   test("the public url row toggles the embed inputs beside the link", () => {

@@ -8,6 +8,7 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildOrderLines } from "#booking/order-lines.ts";
+import { isMemberNodeOf } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
@@ -25,8 +26,16 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { allocatedChildIds } from "#shared/child-parents.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
+import {
+  concealLineNames,
+  ctxStandInNames,
+  hasNamedBookingPath,
+  packageStandIns,
+  standInNameFor,
+} from "#shared/package-privacy.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import {
   applyQrTokenOverride,
@@ -94,12 +103,28 @@ export const prepareOrder = async (
   // A HIDDEN package's day-count errors must name that package, not a
   // concealed member — resolved per listing, since a page can carry several
   // packages with different hide flags.
-  const standIns = ctxStandInNames(ctx);
+  const selectedNodes = tree.nodes.filter(
+    (node) => nodeQuantities.get(node.nodeKey)! > 0,
+  );
+  const selectedPackages = ctx.packages.filter((pkg) =>
+    selectedNodes.some(isMemberNodeOf(pkg.groupId)),
+  );
+  const standIns = ctxStandInNames({ ...ctx, packages: selectedPackages });
+  const shownSelectedIds = new Set(
+    selectedNodes
+      .filter((node) => node.visibility === "SHOWN")
+      .map((node) => node.listingId),
+  );
+  const dayErrorStandIns = new Map(
+    [...standIns.byListingId].filter(
+      ([listingId]) => !shownSelectedIds.has(listingId),
+    ),
+  );
   const dayResult = await resolveDayCount(
     pageSelected,
     form,
     date,
-    standIns.byListingId,
+    dayErrorStandIns,
   );
   if ("error" in dayResult) return { error: dayResult.error, ok: false };
 
@@ -123,6 +148,7 @@ export const prepareOrder = async (
       date,
       dayCount: dayResult.dayCount,
       hasCustomisable: baseHasCustomisable,
+      nameFor: standInNameFor(standIns, shownSelectedIds),
       quantities: pageQuantities,
     },
     tree,
@@ -139,6 +165,19 @@ export const prepareOrder = async (
   // (each priced by its own rule — a package member's override is a node facet
   // scoped to that path) plus one line per folded child; then hidden-package
   // names are masked.
+  const allocationsByParent = Map.groupBy(
+    fold.allocations,
+    (allocation) => allocation.parentId,
+  );
+  const selectedStandIns = packageStandIns(selectedPackages, (parentId) =>
+    (allocationsByParent.get(parentId) ?? []).map(
+      (allocation) => allocation.childId,
+    ),
+  );
+  const namedListingIds = new Set([
+    ...shownSelectedIds,
+    ...allocatedChildIds(fold.allocations, shownSelectedIds),
+  ]);
   const items = concealLineNames(
     buildOrderLines(
       tree,
@@ -147,7 +186,8 @@ export const prepareOrder = async (
       fold.customPrices,
       dayCount,
     ),
-    standIns,
+    selectedStandIns,
+    namedListingIds,
   );
 
   // The order's own lines say which listings this booking is for. Every
@@ -211,14 +251,18 @@ export const prepareOrder = async (
   };
 };
 
-/** The thank-you URL to honour for a submission's post-booking redirect: a
- * genuine single standalone listing's configured URL. A hidden package is never
- * treated as "single listing" here — even with one member, redirecting to that
- * member's thank-you page would reveal the member the package concealed — so it
- * resolves to null and the booking lands on the generic reserved page. (Folding
- * a required child is handled separately: the single page ctx still drives this,
- * so a child fold never drops a single parent's URL.) */
-export const singleListingThankYouUrl = (ctx: TicketCtx): string | null =>
-  ctx.listings.length === 1 && !ctx.packages.some((pkg) => pkg.hideListings)
+/** Folded children cannot reveal the parent's URL or change the page listing
+ * count. */
+export const singleListingThankYouUrl = (
+  ctx: TicketCtx,
+  items: readonly CheckoutItem[],
+): string | null =>
+  ctx.listings.length === 1 &&
+  hasNamedBookingPath(
+    new Map(ctx.packages.map((pkg) => [pkg.groupId, pkg])),
+    items
+      .filter((item) => item.listingId === ctx.listings[0]!.listing.id)
+      .map((item) => item.packageGroupId ?? 0),
+  )
     ? ctx.listings[0]!.listing.thank_you_url
     : null;

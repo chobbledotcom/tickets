@@ -130,7 +130,7 @@ const assertAddOnNote = async (childSlug: string) => {
 };
 
 describeWithEnv(
-  "server > parents discovery suppression",
+  "listing parent discovery",
   { db: true, triggers: true },
   () => {
     describe("public listing cards (/listings)", () => {
@@ -143,6 +143,17 @@ describeWithEnv(
         expect(body).toContain("Available as an add-on to another booking");
         // The parent keeps its normal Book link.
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
+      });
+
+      test("a child sold alone keeps its Book link and has no add-on note", async () => {
+        const { child } = await makeParent({
+          children: [{ bookableAlone: true, name: "Standalone child" }],
+          parent: { name: "Base unit" },
+        });
+
+        const body = await publicBody("/listings");
+        expect(body).toContain(`href="/ticket/${child.slug}"`);
+        expect(body).not.toContain("Available as an add-on to another booking");
       });
 
       test("a parent whose only child is sold out renders sold out", async () => {

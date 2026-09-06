@@ -21,7 +21,6 @@ type ListingPanelSharedOptions = {
   moneyTotals?: ListingMoneyTotals | undefined;
   ledgerHref?: string | undefined;
   isChild?: boolean | undefined;
-  isHiddenPackageMember?: boolean | undefined;
   systemNotes?: SystemNote[] | undefined;
   /** Only owners may open the ledger pages, so a note's ledger link renders
    * as plain text for everyone else. */

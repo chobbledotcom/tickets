@@ -6,6 +6,7 @@ import {
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { pagePackage } from "#test-utils/package-cap-fixtures.ts";
 
 // The ticket page drops any concealed package member from the conflict facts
 // before naming a clash, so these cover the plain (nothing concealed) notes the
@@ -65,6 +66,31 @@ describe("ticketPage (cart conflict notes)", () => {
     });
     expect(html).toContain(
       "'Short' and 'Long' do not share a booking length. Book them separately.",
+    );
+  });
+
+  test("names a member that the cart also sells standalone", () => {
+    const html = ticketPage({
+      cartDateItems: [
+        { dates: ["2026-01-01"], id: 1, name: "Secret Unit" },
+        { dates: ["2026-02-01"], id: 2, name: "Far" },
+      ],
+      listings: [
+        ticketListing({ id: 1, name: "Secret Unit", slug: "secret" }),
+        ticketListing({ id: 2, name: "Far", slug: "far01" }),
+      ],
+      packages: [
+        pagePackage(7, [1], {
+          hideListings: true,
+          name: "Mystery Box",
+          slug: "mystery",
+        }),
+      ],
+      slugs: ["mystery", "secret", "far01"],
+    });
+
+    expect(html).toContain(
+      "'Secret Unit' and 'Far' do not share an available date.",
     );
   });
 });

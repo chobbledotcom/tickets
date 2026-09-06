@@ -37,11 +37,7 @@ export const notFoundPage = (): string =>
     </Layout>,
   );
 
-/** The fallback "Go to booking page" link shown on a QR-book error page —
- *  only when the listing has a standalone /ticket/<slug> page. A `null` slug
- *  (the listing has no standalone page, e.g. a non-standalone child or a hidden
- *  package member whose `/ticket/<slug>` 404s) renders nothing, so the page
- *  never offers a dead link. */
+/** The QR error page's fallback link. A null slug renders no dead link. */
 const qrBookBookingLink = (slug: string | null): JSX.Element | false =>
   slug !== null && (
     <p>
@@ -55,9 +51,7 @@ const qrBookBookingLink = (slug: string | null): JSX.Element | false =>
  *  body is one `<p>` (the explanation) followed by the fallback booking link
  *  when the listing has a standalone page. Both the token-error and the
  *  checkout-error pages render through this, so their body markup exists once.
- *  `slug` is `null` for a listing with no standalone `/ticket/<slug>` page
- *  (a non-standalone child, a hidden package member), so the dead-link case
- *  is impossible. */
+ *  A null slug means the listing has no standalone page. */
 const qrBookPage = (
   titleKey: string,
   headingKey: string,
@@ -76,10 +70,7 @@ const qrBookPage = (
 
 /**
  * QR booking link error page shown when a signed link is invalid or expired.
- * Includes a fallback link to the listing's normal booking page — but only when
- * that page exists: a `null` slug (the listing has no standalone page, e.g. a
- * non-standalone child or a hidden package member whose `/ticket/<slug>` 404s)
- * renders the error without a dead link to offer.
+ * Includes a fallback link only when the listing has a standalone page.
  */
 export const qrBookErrorPage = (slug: string | null): string =>
   qrBookPage(

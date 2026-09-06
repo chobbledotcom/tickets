@@ -171,7 +171,7 @@ describeWithEnv("ticket context branches", { db: true }, () => {
     expect(holidayRows.calls).toHaveLength(1);
   });
 
-  test("rejects a hidden package member before calling the page handler", async () => {
+  test("handles a concealing package member on its own page", async () => {
     const group = await createHiddenPackageGroup("Hidden package");
     const member = await createTestListing({ groupId: group.id });
     await setGroupPackageMembers(group.id, [
@@ -184,8 +184,24 @@ describeWithEnv("ticket context branches", { db: true }, () => {
       return new Response("handled");
     });
 
-    expect(response.status).toBe(404);
-    expect(handled).toBe(false);
+    expect(response.status).toBe(200);
+    expect(handled).toBe(true);
+  });
+
+  test("a visible group page stays visible when its listing is hidden", async () => {
+    const group = await createTestGroup({ name: "Visible group" });
+    const listing = await createTestListing({
+      groupId: group.id,
+      hidden: true,
+      name: "Hidden listing",
+    });
+
+    const ctx = await getTicketContext(
+      [await ticketListing(listing.id)],
+      group,
+    );
+
+    expect(ctx.pageHidden).toBe(false);
   });
 
   test("a daily package parent keeps only dates its daily child can serve", async () => {

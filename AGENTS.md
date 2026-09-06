@@ -2,6 +2,14 @@
 
 A minimal ticket reservation system using Bunny Edge Scripting and libsql.
 
+## Where to find guidance
+
+All repository guidance is in this file or in documents that it links to.
+
+Read this file and follow its links for additional guidance. Do not search the
+wider machine for instructions, plans, or approval records. If required guidance
+is absent from these sources, ask the user for its location.
+
 ## Getting Started
 
 Assume the workspace is probably running on NixOS. Use the repository's Nix

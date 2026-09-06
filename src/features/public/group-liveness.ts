@@ -9,7 +9,6 @@ import {
 } from "#db/attendees/capacity/groups.ts";
 import {
   getGroupPackagePricesByGroupIds,
-  getHiddenPackageMemberIds,
   getListingsByGroupIds,
   groups,
   listingGroups,
@@ -17,7 +16,7 @@ import {
 } from "#db/groups.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 /* jscpd:ignore-start */
-import { requiredMapValue, unique, uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { Group, GroupWithMembers, ListingWithCount } from "#types";
 import {
@@ -79,37 +78,15 @@ const uniqueMembersFor = (
     groupList.flatMap((group) => membersOf(group, membersByGroup)),
   );
 
-/** Apply hidden-package privacy to already-batched member rows. */
-const visibleGroupMembersFrom: GroupMemberOperation<
-  Map<number, ListingWithCount[]>
-> = async (groupList, membersByGroup) => {
-  const regularMemberIds = unique(
-    groupList
-      .filter((group) => !group.is_package)
-      .flatMap((group) =>
-        membersOf(group, membersByGroup).map((member) => member.id),
-      ),
-  );
-  const hidden = await getHiddenPackageMemberIds(regularMemberIds);
-  return new Map(
-    groupList.map((group) => [
-      group.id,
-      group.is_package
-        ? [...membersOf(group, membersByGroup)]
-        : membersOf(group, membersByGroup).filter(
-            (member) => !hidden.has(member.id),
-          ),
-    ]),
-  );
-};
-
 /** Buyer-visible active members of several groups, loaded in a bounded number
- * of reads rather than one member and privacy query per group. */
+ * of reads rather than one query per group. */
 export const getVisibleGroupMembersByGroupIds: LoadGroupMembers = async (
   groupList,
 ) => {
   const membersByGroup = await activeMembersByGroup(groupList);
-  return visibleGroupMembersFrom(groupList, membersByGroup);
+  return new Map(
+    groupList.map((group) => [group.id, [...membersOf(group, membersByGroup)]]),
+  );
 };
 
 /** Load one group's buyer-visible active members through the batch path. */
@@ -174,8 +151,13 @@ const bookablePackageIds = async (
   return packages
     .filter((group) => {
       const members = membersOf(group, membersByGroup);
-      const rows = rowsByGroup.get(group.id) ?? [];
-      if (members.length === 0 || members.length < rows.length) return false;
+      if (members.length === 0) return false;
+      const rows = requiredMapValue(
+        rowsByGroup,
+        group.id,
+        `Package members missing for group ${group.id}`,
+      );
+      if (members.length < rows.length) return false;
       const ticketListings = members.map(toTicketListing);
       const maps = packageMemberMaps(rows);
       const tree = buildBookingTree({
@@ -185,7 +167,7 @@ const bookablePackageIds = async (
           {
             dayPrices: new Map(),
             groupId: group.id,
-            hideListings: false,
+            hideListings: group.hide_package_listings,
             memberListingIds: members.map((member) => member.id),
             prices: maps.prices,
             quantities: maps.quantities,
@@ -249,36 +231,19 @@ type LoadedBookableGroups = {
   membersByGroup: MembersByGroup;
 };
 
-/** Load and decide several groups while overlapping package checks with the
- * hidden-member lookup regular groups need. */
+/** Load and decide several groups from one member read. */
 const loadBookableGroups = async (
   groupList: readonly Group[],
 ): Promise<LoadedBookableGroups> => {
   const membersByGroup = await activeMembersByGroup(groupList);
-  const { packages, regular } = groupKinds(groupList);
-  const visibleRegularMembers = visibleGroupMembersFrom(
-    regular,
-    membersByGroup,
-  );
-  const getRegularIds = async (): Promise<ReadonlySet<number>> =>
-    getBookableGroupIds(regular, await visibleRegularMembers);
-  const [packageIds, regularIds, regularMembersByGroup] = await Promise.all([
-    getBookableGroupIds(packages, membersByGroup),
-    getRegularIds(),
-    visibleRegularMembers,
-  ]);
-  const packageMembersByGroup = new Map(
-    packages.map((group) => [
-      group.id,
-      membersOf(group, membersByGroup).slice(),
-    ]),
-  );
   return {
-    ids: new Set([...packageIds, ...regularIds]),
-    membersByGroup: new Map([
-      ...packageMembersByGroup,
-      ...regularMembersByGroup,
-    ]),
+    ids: await getBookableGroupIds(groupList, membersByGroup),
+    membersByGroup: new Map(
+      groupList.map((group) => [
+        group.id,
+        membersOf(group, membersByGroup).slice(),
+      ]),
+    ),
   };
 };
 

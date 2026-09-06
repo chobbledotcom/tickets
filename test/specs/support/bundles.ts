@@ -212,14 +212,14 @@ export const organiserRevealsParts: ActOnOneThing = (world, name) =>
   }));
 
 /** The bundle as the site has it now, or nothing if it is gone. */
-const storedBundleOrNull = (world: TicketsWorld, name: string) =>
+const readBundle = (world: TicketsWorld, name: string) =>
   groups.table.read.one({ id: bundleNamed(world, name).id });
 
 /** Whether the site is still selling this as one bundle. */
 export const isStillABundle: AsksAboutOneThing = async (world, name) => {
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
-  return stillThere(await storedBundleOrNull(world, name), name).is_package;
+  return stillThere(await readBundle(world, name), name).is_package;
 };
 
 /** What the bundle charges for one part, or nothing when the organiser set no
@@ -302,15 +302,25 @@ export const organiserDeletesBundle: ReadAboutOneThing = async (
   return browser.pageText;
 };
 
-export const bundleStillExists: AsksAboutOneThing =
-  asksIfThereIs(storedBundleOrNull);
+export const bundleStillExists: AsksAboutOneThing = asksIfThereIs(readBundle);
+
+/** A customer opens one part through its own listing path. */
+export const customerOpensPartPage: ReadAboutOneThing<TestBrowser> = async (
+  world,
+  part,
+) => {
+  const listing = listingNamed(world, part);
+  const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
+  world.bundleBookingPage = browser.pageText;
+  return browser;
+};
 
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the
  * database that nobody can reach is not "for sale". */
 export const expectPartOnSaleAlone: ActOnOneThing = async (world, part) => {
   const listing = listingNamed(world, part);
-  const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
+  const browser = await customerOpensPartPage(world, part);
   expect(browser.pageText).toContain(part);
   const box = `quantity_${listing.id}`;
   expect(whyValueCannotBeSent(browser.currentHtml, box, "1")).toBeNull();

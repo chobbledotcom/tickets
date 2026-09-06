@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildTicketListing } from "#booking/model.ts";
 import {
+  bookedOutsideParent,
   edgeDrifted,
   lineNodeKey,
   signedEdgeFor,
@@ -69,6 +70,19 @@ describe("lineNodeKey", () => {
 describe("standaloneLineListingIds", () => {
   test("returns only lines booked outside a package", () => {
     expect(standaloneLineListingIds([childLine, memberLine])).toEqual([9]);
+  });
+});
+
+describe("bookedOutsideParent", () => {
+  test("keeps only quantities beyond all parent allocations", () => {
+    const hasOwnUnits = bookedOutsideParent([
+      childAlloc,
+      { childId: 9, parentId: 6, qty: 2 },
+    ]);
+    expect([memberLine, childLine].filter(hasOwnUnits)).toEqual([memberLine]);
+    expect(hasOwnUnits({ ...childLine, q: 3 })).toBe(false);
+    expect(hasOwnUnits({ ...childLine, q: 4 })).toBe(true);
+    expect(hasOwnUnits({ ...memberLine, q: 0 })).toBe(false);
   });
 });
 

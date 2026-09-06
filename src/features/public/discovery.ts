@@ -19,7 +19,7 @@ import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#db/attendees/capacity/groups.ts";
-import { getHiddenPackageMemberIds, listingGroups } from "#db/groups.ts";
+import { listingGroups } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import {
   getNonStandaloneChildIds,
@@ -36,23 +36,6 @@ import {
   type ListingWithCount,
   sharedGroupCapacity,
 } from "#types";
-
-/**
- * Drop members of a HIDDEN package from a buyer-facing listing set: such a
- * package promises buyers see only its name, never the individual members, so
- * the members must not appear as standalone cards/links/feed items on any
- * public surface. A no-op (and no query) when none of the listings are
- * hidden-package members. The package group itself is unaffected — its CTA is
- * gated separately by the shared group liveness loader.
- */
-export const dropHiddenPackageMembers = async <T extends { id: number }>(
-  listings: T[],
-): Promise<T[]> => {
-  const hidden = await getHiddenPackageMemberIds(listings.map((e) => e.id));
-  return hidden.size === 0
-    ? listings
-    : listings.filter((e) => !hidden.has(e.id));
-};
 
 /**
  * Four sets, because a child is treated differently by structure, by whether it
