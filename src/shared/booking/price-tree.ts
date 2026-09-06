@@ -1,3 +1,4 @@
+import { fixedParentDays } from "#booking/model.ts";
 import { nodesDeepestFirst } from "#booking/node-order.ts";
 import {
   type BookingNode,
@@ -230,26 +231,30 @@ const minBookableChildPrice = (
   return prices.length === 0 ? 0 : Math.min(...prices);
 };
 
-/** The bundle's total price (minor units) for ONE package at the given day
- * count: each member's effective unit price (flat override → per-day override →
- * the listing's own day/base price) plus its minimum unavoidable child charge
- * ({@link minBookableChildPrice} — checkout always folds children totalling the
- * member quantity), × its fixed per-package quantity — the same tree walk
- * checkout uses, shared by the API detail and the booking page's day-count
- * labels so an advertised price can never undercut what a booking charges. */
+const packageMemberDays = (
+  node: BookingNode,
+  chosenDays: number | undefined,
+): number => {
+  const fixedDays = fixedParentDays(node.listing);
+  return fixedDays === null ? chosenDays! : fixedDays;
+};
+
+/** The bundle total for one package. Fixed members use their own spans.
+ * Customisable members use `chosenDays`. */
 export const packageBundleTotal = (
   tree: BookingTree,
-  days: number,
+  chosenDays: number | undefined,
   bookableChildIds: ReadonlySet<number>,
 ): number =>
-  tree.nodes.reduce(
-    (sum, node) =>
+  tree.nodes.reduce((sum, node) => {
+    const days = packageMemberDays(node, chosenDays);
+    return (
       sum +
       (effectivePrice(node.priceRule, node.listing, NO_CUSTOM_PRICES, days) +
         minBookableChildPrice(node, days, bookableChildIds)) *
-        nodeFixedQuantity(node),
-    0,
-  );
+        nodeFixedQuantity(node)
+    );
+  }, 0);
 
 /** Each booked listing's price rule keyed by listing id, with a **top-level**
  * node's rule taking precedence over a child's. This scopes a package member's

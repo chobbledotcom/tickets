@@ -229,6 +229,37 @@ describe("packageBundleTotal", () => {
     // Child 9 is outside the bookable set → filtered out → just the member's 1000.
     expect(packageBundleTotal(tree, 1, new Set())).toBe(1000);
   });
+
+  test("prices a customisable child for its fixed parent's span", () => {
+    const tree = buildBookingTree({
+      childrenByParentId: new Map([
+        [
+          5,
+          [
+            resolved({
+              customisable_days: true,
+              day_prices: { 1: 1000, 3: 3000 },
+              duration_days: 3,
+              id: 9,
+              unit_price: 0,
+            }),
+          ],
+        ],
+      ]),
+      listings: [
+        resolved({
+          duration_days: 3,
+          id: 5,
+          listing_type: "daily",
+          unit_price: 500,
+        }),
+      ],
+      packages: [treePackage(3, [5])],
+      slugs: ["pkg"],
+    });
+
+    expect(packageBundleTotal(tree, undefined, new Set([9]))).toBe(3500);
+  });
 });
 
 describe("priceRuleByListingId", () => {
