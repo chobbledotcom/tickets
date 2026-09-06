@@ -364,5 +364,10 @@ export const refusedOrderUnfitListingIds = async (
     if (await prefixFits(middle)) longestFit = middle;
     else shortestUnfit = middle;
   }
+  // The probes are separate reads, so a booking that frees the room between
+  // them can leave every later probe fitting on top of the whole-order
+  // probe's stale refusal. Re-ask the whole order once: a full order that
+  // now fits names nothing, exactly like the race guard above.
+  if (await prefixFits(lines.length)) return [];
   return [lines[shortestUnfit - 1]!.listingId];
 };

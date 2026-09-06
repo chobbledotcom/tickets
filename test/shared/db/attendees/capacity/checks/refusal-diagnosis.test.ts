@@ -9,6 +9,12 @@ import { it as test } from "@std/testing/bdd";
 import type { LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/checks.ts";
+import { execute } from "#db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -269,12 +275,58 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     ]);
   });
 
+  test("a cancellation during the search names nothing, not the last line", async () => {
+    // The probes are separate reads. If the room frees between the
+    // whole-order probe and the midpoints, every later probe fits on top of
+    // a refusal the room no longer supports — the search must answer no
+    // culprit, like the race guard above it, instead of naming the last
+    // line off the stale probe.
+    const group = await createTestGroup({ maxAttendees: 8 });
+    const holder = await createDailyTestListing({
+      groupId: group.id,
+      maxAttendees: 10,
+    });
+    await attendeesApi.createAttendeeAtomic({
+      bookings: [{ listingId: holder.id, quantity: 2 }],
+      email: "holder@example.com",
+      name: "Holder",
+    });
+    const lines: LineBooking[] = [];
+    for (let index = 0; index < 8; index++) {
+      const listing = await createDailyTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+      });
+      lines.push(line(listing.id));
+    }
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const diagnosis = refusedOrderUnfitListingIds(lines);
+      // The facts batch and the whole-order probe are the read's first two
+      // round trips. Free the two held places once the probe has run, so
+      // every later probe sees the freed room.
+      let spins = 0;
+      while (
+        !getQueryLog().some((entry) => entry.sql.includes("AS fits")) &&
+        spins++ < 5_000
+      ) {
+        await Promise.resolve();
+      }
+      await execute("DELETE FROM listing_attendees WHERE listing_id = ?", [
+        holder.id,
+      ]);
+      expect(await diagnosis).toEqual([]);
+    });
+  });
+
   test("a long refused order is named within a logarithmic call count", async () => {
     // The facts batch plus the whole-order probe plus three halving probes
-    // is five calls — one per prefix would be nine.
+    // plus the final whole-order look is six calls — one per prefix would be
+    // nine.
     const lines = await eightLinesSharingOnePlace();
     expect(
-      await countDatabaseCalls(5, () => refusedOrderUnfitListingIds(lines)),
-    ).toBe(5);
+      await countDatabaseCalls(6, () => refusedOrderUnfitListingIds(lines)),
+    ).toBe(6);
   });
 });
