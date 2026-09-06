@@ -167,6 +167,10 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 # cannot reach any branch, and a recovery count that is never exactly one.
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
 
+# Public listing page (pages.ts): downstream duration normalization makes zero
+# and one the same one-day span.
+src/features/public/pages.ts::cardSpanDays~11dl3n9  1 → 0   # getListingRemainingForRange clamps both spans to one day before it reads capacity
+
 # Public order page (order.ts) — booking-span sums whose floor the capacity
 # reading applies again, and key halves that are always present.
 src/features/public/order.ts::bookingSpanDays~1ybe7gz  1 → 0   # a stored daily listing's duration_days is at least 1, so Math.max never picks the floor

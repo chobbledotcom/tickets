@@ -15,8 +15,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { addDays } from "#shared/dates.ts";
+import { todayInTz } from "#shared/timezone.ts";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
@@ -79,6 +82,38 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       const html = await assertPublicHtml("/listings", "Concert", "Raffle");
       expect(html).toContain(`href="/ticket/${concert.slug}">Book now`);
       expect(html).toContain(`href="/ticket/${raffle.slug}">Buy now`);
+    });
+
+    test("uses the selected stay length for daily capacity", async () => {
+      await enablePublicSite();
+      const date = addDays(todayInTz("UTC"), 2);
+      const secondDay = addDays(date, 1);
+      const fixed = await createTestListing({
+        durationDays: 2,
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Fixed stay",
+      });
+      const flexible = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 0, 2: 0 },
+        durationDays: 2,
+        listingType: "daily",
+        maxAttendees: 1,
+        minimumDaysBefore: 0,
+        name: "Flexible stay",
+      });
+      await bookAttendee(fixed, { date: secondDay });
+      await bookAttendee(flexible, { date: secondDay });
+
+      const html = await assertPublicHtml(
+        `/listings?date=${date}`,
+        "Fixed stay",
+        "Flexible stay",
+      );
+      expect(html).not.toContain(`href="/ticket/${fixed.slug}?date=${date}"`);
+      expect(html).toContain(`href="/ticket/${flexible.slug}?date=${date}"`);
     });
   });
 
