@@ -10,6 +10,7 @@
  *    admits it with no schema change, and nothing writes it yet.
  */
 
+import * as v from "valibot";
 import {
   execute,
   executeBatch,
@@ -314,10 +315,12 @@ export const writeListingDayCounts = async (
 
 /** A `listings` row projected to the one column the `base` mirror derives from.
  * `unit_price` may be NULL (read as 0). */
-export type ListingPriceSourceRow = {
-  id: number;
-  unit_price: number | null;
-};
+const ListingPriceSourceRowSchema = v.object({
+  id: v.number(),
+  unit_price: v.nullable(v.number()),
+});
+
+type ListingPriceSourceRow = v.InferOutput<typeof ListingPriceSourceRowSchema>;
 
 /** The `base`-mirror statements for one raw `listings` row — shared by the
  * backfill and the per-listing {@link syncListingPrices}. A NULL `unit_price`
@@ -343,7 +346,7 @@ const readSourceRows = async (
       WHERE id IN (${inPlaceholders(ids)})`,
     [...ids],
   );
-  return rows.rows as unknown as ListingPriceSourceRow[];
+  return v.parse(v.array(ListingPriceSourceRowSchema), rows.rows);
 };
 
 /** Execute the statements in bounded batches so no single write batch grows past

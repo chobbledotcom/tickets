@@ -298,6 +298,17 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     ]);
   });
 
+  test("a source row whose price is not a number fails the backfill loudly", async () => {
+    // SQLite stores whatever survives the column's affinity: a price that
+    // reached the column as text is a drifted shape the read must refuse, not
+    // silently book as 0.
+    const listing = await createTestListing({ unitPrice: 750 });
+    await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
+      listing.id,
+    ]);
+    await expect(backfillListingPrices()).rejects.toThrow("Invalid type");
+  });
+
   test("deleting a listing removes its price rows", async () => {
     const listing = await createDayPricedListing({ 1: 640 });
     expect((await priceRows(listing.id)).length).toBe(2);
