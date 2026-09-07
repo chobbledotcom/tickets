@@ -118,7 +118,6 @@ export type ListingPublicPageState = "available" | "child" | "inactive";
  */
 export type LoadedListing = {
   listing: ListingWithCount;
-  isChild: boolean;
   publicPage: ListingPublicPageState;
   hasEmailableAttendees: boolean;
 };
@@ -132,7 +131,6 @@ export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
     const isChild = await anyNonStandaloneChild([id]);
     return {
       hasEmailableAttendees: false,
-      isChild,
       listing,
       publicPage: isChild ? "child" : listing.active ? "available" : "inactive",
     };

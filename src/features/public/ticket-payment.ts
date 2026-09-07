@@ -731,16 +731,6 @@ export const ticketGalleryTarget = (
 const ticketPageHidden = (listings: TicketListing[], group?: Group): boolean =>
   group?.hidden ?? listings.some(({ listing }) => listing.hidden);
 
-/** The page's visibility facts: an explicit root collection when the caller
- * holds one (a mixed cart's package groups beside its standalone listings),
- * otherwise the resolved listings and group the page already carries. */
-export type TicketPageRoots = {
-  group?: Group | undefined;
-  listings: TicketListing[];
-  packages?: readonly PagePackage[] | undefined;
-  roots?: readonly { hidden: boolean }[] | undefined;
-};
-
 const pageHiddenFor = (
   activeListings: TicketListing[],
   group: Group | undefined,
@@ -754,6 +744,9 @@ export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
   pagePackages?: PagePackage[],
+  // A mixed cart passes its selected package groups and standalone listings
+  // explicitly: the packages' expanded members must not decide the robots
+  // policy for the roots the visitor actually chose.
   roots?: readonly { hidden: boolean }[],
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
