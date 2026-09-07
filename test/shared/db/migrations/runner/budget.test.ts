@@ -142,19 +142,21 @@ describeWithEnv(
       // number, so the cap must follow it.
       const pending = spendyMigrations();
       await withMigrationLock(async (lockToken) => {
-        const completed = await runWithSubrequestBudget(() =>
-          runPendingMigrations(pending, lockToken),
-        );
         // The cap is the budget minus its bookkeeping reserve (50 − 5), so
         // three 12-call migrations fit and the fourth dies at call 46. The
         // finished prefix is in order, and the reserve still lets the caller
-        // record the batch for the next request.
+        // record the batch for the next request — inside the same budget, as
+        // the production caller does.
+        const completed = await runWithSubrequestBudget(async () => {
+          const ran = await runPendingMigrations(pending, lockToken);
+          await recordMigrationBatch(ran, false, lockToken);
+          return ran;
+        });
         expect(completed.map((migration) => migration.id)).toEqual([
           "m1",
           "m2",
           "m3",
         ]);
-        await recordMigrationBatch(completed, false, lockToken);
       });
     });
 
