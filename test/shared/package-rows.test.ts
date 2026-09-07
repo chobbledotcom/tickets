@@ -7,38 +7,47 @@ type Row = { groupId: number; name: string };
 const rowsOf = (rows: readonly [number, string][]): Row[] =>
   rows.map(([groupId, name]) => ({ groupId, name }));
 
-describe("groupPackageRows", () => {
-  test("keeps rows whose group does not collapse standing alone", () => {
-    const rows = rowsOf([
-      [0, "plain"],
-      [0, "other plain"],
-    ]);
-
-    const groups = groupPackageRows(
-      rows,
-      (row) => row.groupId,
-      () => false,
+/** Walks rows through the real helper and keeps each group's row names. */
+const groupedNames =
+  (collapses: (groupId: number) => boolean) =>
+  (rows: readonly Row[]): string[][] =>
+    groupPackageRows(rows, (row) => row.groupId, collapses).map((group) =>
+      group.rows.map((row) => row.name),
     );
 
-    expect(groups).toEqual([{ rows: [rows[0]] }, { rows: [rows[1]] }]);
+describe("groupPackageRows", () => {
+  test("keeps rows whose group does not collapse standing alone", () => {
+    const walk = groupedNames(() => false);
+
+    expect(walk(rowsOf([[0, "plain"], [0, "other plain"]]))).toEqual([
+      ["plain"],
+      ["other plain"],
+    ]);
   });
 
   test("gathers a collapsed package at its first row's position", () => {
-    const rows = rowsOf([
-      [0, "before"],
-      [7, "member one"],
-      [0, "between"],
-      [7, "member two"],
-      [0, "after"],
-    ]);
-
+    const walk = groupedNames((groupId) => groupId !== 0);
     const groups = groupPackageRows(
-      rows,
+      rowsOf([
+        [0, "before"],
+        [7, "member one"],
+        [0, "between"],
+        [7, "member two"],
+        [0, "after"],
+      ]),
       (row) => row.groupId,
       (groupId) => groupId !== 0,
     );
 
-    expect(groups.map((group) => group.rows.map((row) => row.name))).toEqual([
+    expect(
+      walk(rowsOf([
+        [0, "before"],
+        [7, "member one"],
+        [0, "between"],
+        [7, "member two"],
+        [0, "after"],
+      ])),
+    ).toEqual([
       ["before"],
       ["member one", "member two"],
       ["between"],
@@ -48,32 +57,20 @@ describe("groupPackageRows", () => {
   });
 
   test("keeps two collapsed packages separate, each at its own first row", () => {
-    const rows = rowsOf([
-      [7, "box one"],
-      [8, "kit one"],
-      [7, "box two"],
-      [8, "kit two"],
-    ]);
-
-    const groups = groupPackageRows(
-      rows,
-      (row) => row.groupId,
-      (groupId) => groupId !== 0,
-    );
-
-    expect(groups.map((group) => group.rows.map((row) => row.name))).toEqual([
+    expect(
+      groupedNames((groupId) => groupId !== 0)(rowsOf([
+        [7, "box one"],
+        [8, "kit one"],
+        [7, "box two"],
+        [8, "kit two"],
+      ])),
+    ).toEqual([
       ["box one", "box two"],
       ["kit one", "kit two"],
     ]);
   });
 
   test("answers an empty walk for no rows", () => {
-    expect(
-      groupPackageRows(
-        [],
-        (row: Row) => row.groupId,
-        () => true,
-      ),
-    ).toEqual([]);
+    expect(groupedNames(() => true)([])).toEqual([]);
   });
 });
