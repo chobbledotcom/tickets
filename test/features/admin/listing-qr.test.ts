@@ -9,6 +9,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { EMPTY_QR_VALUES } from "#routes/admin/listing-qr.ts";
 import { addDays } from "#shared/dates.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -27,6 +28,17 @@ const extractToken = (html: string): string | null => {
   const match = html.match(/\/qr-book\?t=([^"\s&]+)/);
   return match ? decodeURIComponent(match[1]!) : null;
 };
+
+describe("EMPTY_QR_VALUES", () => {
+  test("keeps every blankable field empty with quantity at 1", () => {
+    expect(EMPTY_QR_VALUES).toEqual({
+      customer_name: "",
+      date: "",
+      quantity: "1",
+      value: "",
+    });
+  });
+});
 
 const extractAndVerifyToken = async (html: string, slug: string) => {
   const token = extractToken(html);
@@ -243,6 +255,8 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).toContain("/qr-book?t=");
+      const { payload } = await extractAndVerifyToken(body, listing.slug);
+      expect(payload!.d).toBe(date);
     });
 
     test("rejects a daily date no required child can serve", async () => {
@@ -296,6 +310,27 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const body = await response.text();
       expect(body).toContain("/qr-book?t=");
       expect(body).toContain("<svg");
+    });
+
+    test("accepts a zero price override for a fixed-price listing", async () => {
+      // A fixed-price listing has no minimum, so a free override is valid.
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/qr`,
+        {
+          customer_name: "Ada",
+          quantity: "1",
+          value: "0.00",
+        },
+      );
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("/qr-book?t=");
+      const { payload } = await extractAndVerifyToken(body, listing.slug);
+      expect(payload!.v).toBe(0);
     });
 
     test("signed token embeds submitted values and matches the listing slug", async () => {

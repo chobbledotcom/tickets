@@ -163,10 +163,6 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 # cannot reach any branch, and a recovery count that is never exactly one.
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
 
-# Public listing page (listing-date-availability.ts): downstream duration
-# normalization makes zero and one the same one-day span.
-src/features/public/listing-date-availability.ts::cardSpanDays~11dl3n9  1 → 0   # every span consumer clamps again (expandDailyRange, daysOfSpan), so zero and negative both read a one-day span
-src/features/public/listing-date-availability.ts::cardSpanDays~11dl3n9  1 → -1   # every span consumer clamps again (expandDailyRange, daysOfSpan), so zero and negative both read a one-day span
 src/features/public/pages.ts::renderContactPage.content~1090zn7  || → ??   # the setting is a string, and contactPage normalizes both null and the only falsy string to the same empty Markdown input
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity
@@ -268,3 +264,17 @@ src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~0qk
 # redirect paths never produce.
 src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@1  + → ""   # ["tok"].join("+") === ["tok"].join(""): the array holds at most one token (proof above), so the separator never renders
 src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@2  + → ""   # same single-token producer for the redirect URL's encoded token list
+
+src/features/admin/listing-qr.ts::createQrFormValidator.validate.error~1ukv6yx  ?? → ||   # qrPriceError answers null or a non-empty price error string; the empty string never reaches this operand
+src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.hasOwnUnits~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocations~1sr8ybw  ?? → ||   # allocationsByParent.get answers an array or undefined, and every array is truthy
+src/features/api/payment-success.ts::processSessionAndRedirect.bookingGroupIds~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/public/balance.ts::publicRecapLines.name~041ha1p  ?? → ||   # a package display name comes from the groups table, where every writer rejects an empty name
+src/features/public/ticket-submit/prepare.ts::prepareOrder.selectedStandIns~0ikwcj1  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/public/ticket-submit/prepare.ts::singleListingThankYouUrl~0eqzp6w  ?? → ||   # packageGroupId is a group id (an integer at least 1) or absent, and the absent case takes the same fallback under both operators
+src/features/public/listing-date-availability.ts::loadDailyDateAvailability~1phqr9g  Missing date availability → ""   # the snapshot map carries one entry per row of the very rows the filter reads, so the lookup cannot miss and this label is never read
+src/features/api/payment-processing/items.ts::buyerLineName.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/items.ts::buyerLineName.groupIds~0gyzcpq  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
+src/features/api/payment-processing/items.ts::buyerLineName~0e1emou  ?? → ||   # groupIds[0] is a group id (at least 1), the literal 0, or undefined; 0 takes the same fallback under both operators
+src/features/api/payment-processing/items.ts::buyerLineName~1l6caem  ?? → ||   # the display name is a string or undefined, and an empty name falls back to the same empty string

@@ -4,6 +4,7 @@ import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildTicketListing } from "#booking/model.ts";
 import {
   bookedOutsideParent,
+  bookedPathGroupIds,
   edgeDrifted,
   lineNodeKey,
   signedEdgeFor,
@@ -70,6 +71,28 @@ describe("lineNodeKey", () => {
 describe("standaloneLineListingIds", () => {
   test("returns only lines booked outside a package", () => {
     expect(standaloneLineListingIds([childLine, memberLine])).toEqual([9]);
+  });
+});
+
+describe("bookedPathGroupIds", () => {
+  const standaloneLine: BookingItem = { e: 20, p: 50, q: 2 };
+
+  test("keeps package paths, standalone paths, and a child's own surplus", () => {
+    expect(
+      bookedPathGroupIds([memberLine, standaloneLine, childLine], [childAlloc]),
+    ).toEqual([3, 0]);
+    expect(
+      bookedPathGroupIds([memberLine, { ...childLine, q: 4 }], [childAlloc]),
+    ).toEqual([3, 0]);
+  });
+
+  test("narrows the paths to one listing when a listing id is given", () => {
+    expect(
+      bookedPathGroupIds([memberLine, standaloneLine], [], standaloneLine.e),
+    ).toEqual([0]);
+    expect(
+      bookedPathGroupIds([memberLine, standaloneLine], [], memberLine.e),
+    ).toEqual([3]);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   resolveChildSelections,
   resolvedByNodeKey,
 } from "#booking/fold-tree.ts";
+import { formatAtomicError } from "#booking/form.ts";
 import { buildTicketListing, type TicketListing } from "#booking/model.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { t } from "#i18n";
@@ -286,6 +287,18 @@ describe("foldBookingTree — walking the tree", () => {
     });
     expect(fold).toEqual({
       error: expect.stringContaining("Mystery Box"),
+      ok: false,
+    });
+  });
+
+  test("an empty stand-in name still hides the child's real name", () => {
+    // "" is a stand-in the page can hand over; it must not fall back to the
+    // real listing name.
+    const fold = foldOneChild({}, { child_qty_1_9: "2" }, 2, {
+      nameFor: () => "",
+    });
+    expect(fold).toEqual({
+      error: formatAtomicError("capacity_exceeded", ""),
       ok: false,
     });
   });

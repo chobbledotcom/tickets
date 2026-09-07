@@ -331,4 +331,35 @@ describeWithEnv("paid item validation", { db: true }, () => {
       )[0]?.expectedPrice,
     ).toBeNull();
   });
+
+  test("leaves a folded child nameless when its parent line is absent", async () => {
+    const group = await createHiddenPackageGroup("Concealed bundle");
+    // The child's empty name only has meaning while this package holds group
+    // id 1, the id next to the standalone key 0 a wrong lookup would reach.
+    expect(group.id).toBe(1);
+    const member = await createTestListing({
+      groupId: group.id,
+      unitPrice: 300,
+    });
+    await setGroupPackageMembers(group.id, [
+      { listingId: member.id, price: 300 },
+    ]);
+    const { child, parent } = await listingPair({}, {});
+    const intent = bookingIntent(
+      [
+        { e: member.id, k: "p", p: 300, q: 1, r: group.id },
+        { e: child.id, p: 200, q: 1 },
+      ],
+      { allocations: [{ childId: child.id, parentId: parent.id, qty: 1 }] },
+    );
+
+    expect(
+      validatedItems(
+        await validateAllItems(
+          paymentSession("cs_items_nameless_child", 500, intent),
+          intent,
+        ),
+      ).map((item) => item.name),
+    ).toEqual(["Concealed bundle", ""]);
+  });
 });

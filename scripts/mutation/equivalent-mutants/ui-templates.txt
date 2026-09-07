@@ -79,3 +79,5 @@ src/ui/templates/admin/attendees.tsx::EditQuestions.textValue~0a2e8nn  ?? → ||
 src/ui/templates/admin/api-keys.tsx::apiKeyColumns~171hyss  name → ""   # the key table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
 src/ui/templates/admin/api-keys.tsx::apiKeyColumns~1pdocf9  created → ""   # same as the name key — the key table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/api-keys.tsx::apiKeyColumns~13k1qvy  last_used → ""   # same as the name key — the key table renders without columnKeys, hiddenKeys, or filters
+
+src/ui/templates/admin/listings/overview.tsx::overviewStatsFromAttendees~0so9vc9  ?? → ||   # the operand is a Set or undefined, and every Set object is truthy

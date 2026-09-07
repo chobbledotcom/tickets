@@ -96,6 +96,23 @@ describeWithEnv(
       expect(many.length).toBeLessThanOrEqual(40);
     });
 
+    test("a card's span is one day when customisable, its stored duration otherwise", async () => {
+      const { cardSpanDays } = await import(
+        "#routes/public/listing-date-availability.ts"
+      );
+      // Both listings store a 3-day duration, so the two ternary arms differ:
+      // a customisable card is judged per chosen day, a fixed one per booking.
+      const customisable = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 2500 },
+        durationDays: 3,
+      });
+      const fixed = await createDailyTestListing({ durationDays: 3 });
+
+      expect(cardSpanDays(customisable)).toBe(1);
+      expect(cardSpanDays(fixed)).toBe(3);
+    });
+
     test("a fully booked daily member makes only its package sold out", async () => {
       await enablePublicSite();
       const { member } = await makePackage(0);

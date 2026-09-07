@@ -94,3 +94,99 @@ describe("ticketPage (cart conflict notes)", () => {
     );
   });
 });
+
+// The same filters read the concealment facts: a clash stays silent while the
+// page only offers one side of it concealed inside a hidden package, and a
+// clash still speaks when the concealed member also has its own page.
+describe("ticketPage (concealed cart conflict items)", () => {
+  beforeAll(setupAdminPageTest);
+  registerPublicTemplateHooks();
+
+  test("stays silent when the clashing cart date item is only offered concealed", () => {
+    const html = ticketPage({
+      cartDateItems: [
+        { dates: ["2026-01-01"], id: 1, name: "Hidden Unit" },
+        { dates: ["2026-02-01"], id: 2, name: "Far" },
+      ],
+      listings: [
+        ticketListing({ id: 1, name: "Hidden Unit", slug: "secret" }),
+        ticketListing({ id: 2, name: "Far", slug: "far01" }),
+      ],
+      packages: [
+        pagePackage(7, [1], {
+          hideListings: true,
+          name: "Mystery Box",
+          slug: "mystery",
+        }),
+      ],
+      slugs: ["mystery", "far01"],
+    });
+    expect(html).not.toContain("do not share an available date");
+  });
+
+  test("warns about booking lengths for a member the cart also sells standalone", () => {
+    const html = ticketPage({
+      listings: [
+        ticketListing({
+          customisable_days: true,
+          day_prices: { 1: 500 },
+          duration_days: 1,
+          id: 1,
+          name: "Short",
+          slug: "shrt1",
+        }),
+        ticketListing({
+          customisable_days: true,
+          day_prices: { 3: 900 },
+          duration_days: 3,
+          id: 2,
+          name: "Long",
+          slug: "long1",
+        }),
+      ],
+      packages: [
+        pagePackage(7, [1], {
+          hideListings: true,
+          name: "Mystery Box",
+          slug: "mystery",
+        }),
+      ],
+      slugs: ["mystery", "shrt1", "long1"],
+    });
+    expect(html).toContain(
+      "'Short' and 'Long' do not share a booking length. Book them separately.",
+    );
+  });
+
+  test("stays silent when the clashing customisable listing is only offered concealed", () => {
+    const html = ticketPage({
+      listings: [
+        ticketListing({
+          customisable_days: true,
+          day_prices: { 1: 500 },
+          duration_days: 1,
+          id: 1,
+          name: "Hidden Unit",
+          slug: "secret",
+        }),
+        ticketListing({
+          customisable_days: true,
+          day_prices: { 3: 900 },
+          duration_days: 3,
+          id: 2,
+          name: "Long",
+          slug: "long1",
+        }),
+      ],
+      packages: [
+        pagePackage(7, [1], {
+          hideListings: true,
+          name: "Mystery Box",
+          slug: "mystery",
+        }),
+      ],
+      slugs: ["mystery", "long1"],
+    });
+    expect(html).not.toContain("do not share a booking length");
+  });
+});

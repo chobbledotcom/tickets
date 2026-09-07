@@ -148,6 +148,17 @@ describe("per-path stand-in names (several bundles per page)", () => {
     expect(nameFor(9)).toBe("Second Box");
     expect(nameFor(99)).toBeUndefined();
   });
+
+  test("an empty-named hidden package still conceals its children", () => {
+    // The parent's empty stand-in wins; the child's own missing entry must
+    // not turn the empty name into "not concealed".
+    const standIns = packageStandIns(
+      [{ groupId: 7, hideListings: true, memberListingIds: [2], name: "" }],
+      () => [],
+    );
+    const nameFor = standInNameFor(standIns, new Set());
+    expect(nameFor(9, [2])).toBe("");
+  });
 });
 
 describe("hasNamedBookingPath", () => {
