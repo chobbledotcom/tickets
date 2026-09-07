@@ -214,7 +214,9 @@ that ships the behavior:
 - A buyer whose paid checkout was refused gets a truthful answer for every exit:
   money taken with no usable reference says so and asks them to get in touch; a
   return that awaits the provider or a required owner choice says which; money
-  reported paid but not proved returned says that. Unverifiable or foreign price
+  reported paid but not proved returned says that. A proved return says that the
+  money was returned and that no booking was created. Reloads and redeliveries
+  replay that same answer without another effect. Unverifiable or foreign price
   proof keeps the generic not-found answer, because it may belong to another
   site's buyer. The copy comes from the whole-checkout engine's exhaustive buyer
   outcome, never from a second parallel rejection-response state.
