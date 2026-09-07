@@ -257,7 +257,7 @@ export const inRegistrationOrder =
     )(rows);
 
 /** Compare two optional YYYY-MM-DD dates ascending; a missing date sorts after
- *  the dated ones. The booked-date rule every attendee row order shares. */
+ *  the dated ones. One rule for every row order that sorts by such a date. */
 export const compareOptionalDates = (
   first: string | null | undefined,
   second: string | null | undefined,

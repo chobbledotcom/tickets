@@ -8,6 +8,7 @@
 
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getAllListings } from "#db/listings/records.ts";
+import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
 import { getNextBookableDate } from "#shared/dates.ts";
 import type { Holiday, ListingWithCount, SortableListing } from "#types";
 
@@ -33,18 +34,18 @@ const compareDateThenName = (
 const compareDatedStandard = (a: SortableListing, b: SortableListing): number =>
   compareDateThenName(a.date, b.date, a, b);
 
-/** Tier 2: daily — sort by next bookable date ASC, then name */
+/** Tier 2: daily — sort by next bookable date ASC (a missing one last), then
+ * name. The date rule is the one every attendee row order shares. */
 const compareDaily = (
   nextDates: Map<number, string | null>,
   a: SortableListing,
   b: SortableListing,
 ): number => {
-  const dateA = nextDates.get(a.id) ?? null;
-  const dateB = nextDates.get(b.id) ?? null;
-  if (dateA === null && dateB === null) return a.name.localeCompare(b.name);
-  if (dateA === null) return 1;
-  if (dateB === null) return -1;
-  return compareDateThenName(dateA, dateB, a, b);
+  const byDate = compareOptionalDates(
+    nextDates.get(a.id) ?? null,
+    nextDates.get(b.id) ?? null,
+  );
+  return byDate !== 0 ? byDate : a.name.localeCompare(b.name);
 };
 
 /**
