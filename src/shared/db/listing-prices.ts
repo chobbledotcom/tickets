@@ -277,6 +277,13 @@ export const dayCountPriceStatements = (
   ]);
 };
 
+/** One `listing_prices` `day_count` row: the day count it prices and its
+ * per-unit price. */
+const DayCountPriceRowSchema = v.object({
+  price_id: v.string(),
+  unit_price: v.number(),
+});
+
 /** One listing's per-day-count prices from its `day_count` rows, as a
  * {@link DayPrices} map. The bounded single-listing read used to keep an entity
  * honest when the write path can't supply the day prices (a partial update),
@@ -289,12 +296,10 @@ export const getListingDayPrices = async (
       WHERE listing_id = ? AND price_type = ?`,
     [listingId, PRICE_TYPE_DAY_COUNT],
   );
-  const rows = result.rows as unknown as {
-    price_id: string;
-    unit_price: number;
-  }[];
   const dayPrices: DayPrices = {};
-  for (const row of rows) dayPrices[Number(row.price_id)] = row.unit_price;
+  for (const row of v.parse(v.array(DayCountPriceRowSchema), result.rows)) {
+    dayPrices[Number(row.price_id)] = row.unit_price;
+  }
   return parseDayPrices(dayPrices);
 };
 

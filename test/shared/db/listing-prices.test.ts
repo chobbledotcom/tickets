@@ -301,12 +301,27 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
   test("a source row whose price is not a number fails the backfill loudly", async () => {
     // SQLite stores whatever survives the column's affinity: a price that
     // reached the column as text is a drifted shape the read must refuse, not
-    // silently book as 0.
+    // pass through to the base row as-is.
     const listing = await createTestListing({ unitPrice: 750 });
     await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
       listing.id,
     ]);
     await expect(backfillListingPrices()).rejects.toThrow("Invalid type");
+  });
+
+  test("a day-count row whose price is not a number fails the read loudly", async () => {
+    // Before the parse, a drifted row let parseDayPrices quietly drop the day
+    // from the projection, so an editor read a price that was not the stored
+    // one — or none at all.
+    const listing = await createDayPricedListing({ 2: 640 });
+    await queryAll(
+      "UPDATE listing_prices SET unit_price = 'free' " +
+        "WHERE price_type = 'day_count' AND listing_id = ?",
+      [listing.id],
+    );
+    await expect(getListingDayPrices(listing.id)).rejects.toThrow(
+      "Invalid type",
+    );
   });
 
   test("deleting a listing removes its price rows", async () => {
