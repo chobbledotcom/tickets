@@ -6,11 +6,11 @@
  * and adding packages adds no database round trips.
  */
 
-import { requiredMapValue, uniqueBy } from "#fp";
 import {
   loadCapacitySnapshot,
   remainingFromSnapshot,
 } from "#db/attendees/capacity/snapshot.ts";
+import { requiredMapValue, uniqueBy } from "#fp";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { clampDurationDays, type Holiday, type ListingWithCount } from "#types";
 

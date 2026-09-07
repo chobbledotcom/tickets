@@ -16,8 +16,8 @@ import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { nameList } from "#shared/name-list.ts";
 import {
-  type PackageRowGroup,
   groupPackageRows,
+  type PackageRowGroup,
 } from "#shared/package-rows.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
