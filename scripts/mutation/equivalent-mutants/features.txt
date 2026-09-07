@@ -287,7 +287,5 @@ src/features/api/payment-processing/items.ts::buyerLineName~1l6caem  ?? → ||  
 # app routes: the disabled-public-site gate is a short-circuit that saves a
 # lazy module load, not a behavior check — every handler behind it answers the
 # identical redirect itself through requirePublicSite.
-src/features/app/routes.ts::disabledPublicSiteGet~01zed5h  GET → ""   # home, listings, terms, contact, news and page handlers all self-gate via requirePublicSite, so a disabled site still answers the same redirect after the gate
 src/features/app/routes.ts::publicPagePath~05stvfg  → "mutated"   # the mutated literal is the empty-string comparison: for prefix "" the ternary falls to the template branch, which still renders "/" for the empty prefix; every other prefix compares false under both literals
-src/features/app/routes.ts::prefixHandlers.contact~0pv82a2  /contact → ""   # the dead gate only skips work: handlePublicContact and handlePublicContactSubmit both wrap requirePublicSite, so a disabled site still answers the same redirect
 src/features/app/routes.ts::routeMainApp~04n7sdh  ?? → ||   # route.handler answers a Response or null; a Response is always truthy, so a falsy-but-defined answer cannot exist
