@@ -17,7 +17,7 @@ import { clampDurationDays, type Holiday, type ListingWithCount } from "#types";
 /** The booked span a daily listing's card availability is judged over: a
  * customisable listing offers per-day starts (the span is chosen later), a
  * fixed daily listing books its whole duration. */
-export const cardSpanDays = (listing: ListingWithCount): number =>
+const cardSpanDays = (listing: ListingWithCount): number =>
   listing.customisable_days ? 1 : clampDurationDays(listing.duration_days);
 
 /** The daily listings NOT bookable on `date`: outside their bookable calendar,

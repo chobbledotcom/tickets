@@ -96,21 +96,49 @@ describeWithEnv(
       expect(many.length).toBeLessThanOrEqual(40);
     });
 
-    test("a card's span is one day when customisable, its stored duration otherwise", async () => {
-      const { cardSpanDays } = await import(
+    test("a customisable card is judged per chosen day, a fixed one per whole booking", async () => {
+      const { loadDailyDateAvailability } = await import(
         "#routes/public/listing-date-availability.ts"
       );
-      // Both listings store a 3-day duration, so the two ternary arms differ:
-      // a customisable card is judged per chosen day, a fixed one per booking.
+      // Both listings store a 3-day duration. The customisable one is judged
+      // over the chosen start day alone, so a booking on its SECOND bookable
+      // day leaves the first day bookable; the fixed one is judged over its
+      // whole 3-day booking, so one booking starting on the first day sells
+      // that start out.
       const customisable = await createDailyTestListing({
         customisableDays: true,
         dayPrices: { 1: 1000, 3: 2500 },
         durationDays: 3,
+        maxAttendees: 1,
+        maxQuantity: 1,
+        name: "Pick A Day",
       });
-      const fixed = await createDailyTestListing({ durationDays: 3 });
+      const fixed = await createDailyTestListing({
+        durationDays: 3,
+        maxAttendees: 1,
+        maxQuantity: 1,
+        name: "Three Day Block",
+      });
+      const starts = await bookableStartDates(fixed.id);
+      const [date, next] = starts as [string, string];
+      await bookAttendee(customisable, {
+        date: next,
+        email: "next-day@example.com",
+        quantity: 1,
+      });
+      await bookAttendee(fixed, {
+        date,
+        email: "first-day@example.com",
+        quantity: 1,
+      });
 
-      expect(cardSpanDays(customisable)).toBe(1);
-      expect(cardSpanDays(fixed)).toBe(3);
+      const soldOut = await loadDailyDateAvailability(
+        [customisable, fixed],
+        date,
+        [],
+      );
+
+      expect(soldOut).toEqual(new Set([fixed.id]));
     });
 
     test("a fully booked daily member makes only its package sold out", async () => {

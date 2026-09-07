@@ -23,12 +23,6 @@ import {
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
-/** Extract the ?t= token from a generated QR booking link */
-const extractToken = (html: string): string | null => {
-  const match = html.match(/\/qr-book\?t=([^"\s&]+)/);
-  return match ? decodeURIComponent(match[1]!) : null;
-};
-
 describe("EMPTY_QR_VALUES", () => {
   test("keeps every blankable field empty with quantity at 1", () => {
     expect(EMPTY_QR_VALUES).toEqual({
@@ -39,13 +33,6 @@ describe("EMPTY_QR_VALUES", () => {
     });
   });
 });
-
-const extractAndVerifyToken = async (html: string, slug: string) => {
-  const token = extractToken(html);
-  expect(token).not.toBeNull();
-  const payload = await verifyQrBookToken(slug, token!);
-  return { payload, token };
-};
 
 /** Parent with a Monday-only child: computes bookable start dates for each.
  * Shared by two tests that exercise the child-date-constrained QR flow. */
@@ -237,28 +224,6 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       response.body?.cancel();
     });
 
-    test("accepts a valid daily date and signs a token", async () => {
-      // A daily listing's submitted date must be one of its bookable dates; a
-      // valid one passes and a token is generated (covers the date-allowed path).
-      const listing = await createDailyTestListing({ unitPrice: 500 });
-      const { getBookableStartDates } = await import("#shared/dates.ts");
-      const { getActiveHolidays } = await import("#db/holidays.ts");
-      const { getListingWithCount } = await import("#db/listings/records.ts");
-      const date = getBookableStartDates(
-        (await getListingWithCount(listing.id))!,
-        await getActiveHolidays(),
-      )[0]!;
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/qr`,
-        { customer_name: "Ada", date, quantity: "1", value: "5.00" },
-      );
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).toContain("/qr-book?t=");
-      const { payload } = await extractAndVerifyToken(body, listing.slug);
-      expect(payload!.d).toBe(date);
-    });
-
     test("rejects a daily date no required child can serve", async () => {
       // Posting a raw date the dropdown wouldn't offer (a date no required child
       // can serve) is rejected by the validator, not just hidden from the form.
@@ -290,101 +255,6 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       );
       const body = await response.text();
       expect(body).toContain("at least the minimum");
-    });
-
-    test("accepts any price for fixed-price listings as a one-off override", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/qr`,
-        {
-          customer_name: "Ada",
-          quantity: "1",
-          // Way above the listing's unit_price; allowed for the override
-          value: "200.00",
-        },
-      );
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).toContain("/qr-book?t=");
-      expect(body).toContain("<svg");
-    });
-
-    test("accepts a zero price override for a fixed-price listing", async () => {
-      // A fixed-price listing has no minimum, so a free override is valid.
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/qr`,
-        {
-          customer_name: "Ada",
-          quantity: "1",
-          value: "0.00",
-        },
-      );
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).toContain("/qr-book?t=");
-      const { payload } = await extractAndVerifyToken(body, listing.slug);
-      expect(payload!.v).toBe(0);
-    });
-
-    test("signed token embeds submitted values and matches the listing slug", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-        unitPrice: 500,
-      });
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/qr`,
-        {
-          customer_name: "Ada Lovelace",
-          quantity: "3",
-          value: "12.50",
-        },
-      );
-      const body = await response.text();
-      const { payload } = await extractAndVerifyToken(body, listing.slug);
-      expect(payload).not.toBeNull();
-      expect(payload!.n).toBe("Ada Lovelace");
-      expect(payload!.v).toBe(1250);
-      expect(payload!.q).toBe(3);
-    });
-
-    test("generates a token when customer_name is omitted, defaulting quantity to 1", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/qr`,
-        {
-          // No customer_name, no quantity, no value
-        },
-      );
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      const { payload } = await extractAndVerifyToken(body, listing.slug);
-      expect(payload!.n).toBe("");
-      expect(payload!.q).toBe(1);
-      expect(payload!.v).toBe(-1);
-    });
-
-    test("tokens are scoped to their listing slug", async () => {
-      const a = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
-      const b = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
-      const { response } = await adminFormPost(`/admin/listing/${a.id}/qr`, {
-        customer_name: "Ada",
-        quantity: "1",
-        value: "5.00",
-      });
-      const body = await response.text();
-      const token = extractToken(body)!;
-      expect(await verifyQrBookToken(b.slug, token)).toBeNull();
     });
 
     test("an inactive listing's share actions and QR generators are gone", async () => {

@@ -163,6 +163,11 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 # cannot reach any branch, and a recovery count that is never exactly one.
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
 
+# Public listing page (listing-date-availability.ts): downstream duration
+# normalization makes zero and one the same one-day span.
+src/features/public/listing-date-availability.ts::cardSpanDays~11dl3n9  1 → 0   # every span consumer clamps again (expandDailyRange, daysOfSpan), so zero and negative both read a one-day span
+src/features/public/listing-date-availability.ts::cardSpanDays~11dl3n9  1 → -1   # every span consumer clamps again (expandDailyRange, daysOfSpan), so zero and negative both read a one-day span
+
 src/features/public/pages.ts::renderContactPage.content~1090zn7  || → ??   # the setting is a string, and contactPage normalizes both null and the only falsy string to the same empty Markdown input
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity
