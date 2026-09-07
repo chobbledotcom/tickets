@@ -79,20 +79,29 @@ describeWithEnv(
   "db > migrations > runner subrequest budget against a database",
   { db: true },
   () => {
-    /** Run `work` the way a request does: one subrequest budget, one query log,
-     *  with the migration lock held for it. */
-    const asOneRequest = async <T>(
+    /** Hold the migration lock while `work` runs — the lock handling every
+     *  runner below shares. */
+    const withMigrationLock = async <T>(
       work: (lockToken: string) => Promise<T>,
     ): Promise<T> => {
       const lockToken = await takeMigrationLock();
       try {
-        return await runWithSubrequestBudget(() =>
-          runWithQueryLogContext(() => work(lockToken)),
-        );
+        return await work(lockToken);
       } finally {
         await releaseMigrationLock(lockToken);
       }
     };
+
+    /** Run `work` the way a request does: one subrequest budget, one query log,
+     *  with the migration lock held for it. */
+    const asOneRequest = <T>(
+      work: (lockToken: string) => Promise<T>,
+    ): Promise<T> =>
+      withMigrationLock((lockToken) =>
+        runWithSubrequestBudget(() =>
+          runWithQueryLogContext(() => work(lockToken)),
+        ),
+      );
 
     const runBatch = (pending: Migration[]): Promise<Migration[]> =>
       asOneRequest((lockToken) => runPendingMigrations(pending, lockToken));
@@ -103,16 +112,20 @@ describeWithEnv(
       for (let i = 0; i < calls; i += 1) await getDb().execute("SELECT 1");
     };
 
+    /** Six migrations, each spending 12 round-trips — 72 calls in all, more
+     *  than any one request's budget can cover. */
+    const spendyMigrations = (): Migration[] =>
+      ["m1", "m2", "m3", "m4", "m5", "m6"].map((id) =>
+        migrationOf(id, async () => {
+          for (let i = 0; i < 12; i += 1) await getDb().execute("SELECT 1");
+        }),
+      );
+
     test("inside a request, runs as many migrations as fit and returns the finished prefix", async () => {
       // Each migration spends several round-trips; the batch as a whole exceeds
       // the request's budget, so the run stops partway and leaves headroom for
       // the caller's bookkeeping.
-      const spend = async (): Promise<void> => {
-        for (let i = 0; i < 12; i += 1) await getDb().execute("SELECT 1");
-      };
-      const pending = ["m1", "m2", "m3", "m4", "m5", "m6"].map((id) =>
-        migrationOf(id, spend),
-      );
+      const pending = spendyMigrations();
       const completed = await runBatch(pending);
       // Some — but not all — ran: the budget stopped the batch.
       expect(completed.length).toBeGreaterThan(0);
@@ -121,6 +134,28 @@ describeWithEnv(
       expect(completed.map((migration) => migration.id)).toEqual(
         pending.slice(0, completed.length).map((migration) => migration.id),
       );
+    });
+
+    test("caps the run from the budget scope alone — no query log needed", async () => {
+      // The runner asks the budget scope for its cap, not the query-log scope.
+      // The two enter together in a request, but only the budget owns the
+      // number, so the cap must follow it.
+      const pending = spendyMigrations();
+      await withMigrationLock(async (lockToken) => {
+        const completed = await runWithSubrequestBudget(() =>
+          runPendingMigrations(pending, lockToken),
+        );
+        // The cap is the budget minus its bookkeeping reserve (50 − 5), so
+        // three 12-call migrations fit and the fourth dies at call 46. The
+        // finished prefix is in order, and the reserve still lets the caller
+        // record the batch for the next request.
+        expect(completed.map((migration) => migration.id)).toEqual([
+          "m1",
+          "m2",
+          "m3",
+        ]);
+        await recordMigrationBatch(completed, false, lockToken);
+      });
     });
 
     test("stops the batch when a migration cannot reserve its transaction rollback", async () => {

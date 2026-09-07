@@ -3,13 +3,13 @@
  * how each one is applied and re-checked, and how partial progress is kept.
  */
 
-import { isDatabaseRoundTripLimited } from "#db/query-log.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestRemaining,
+  hasSubrequestBudget,
   SubrequestBudgetError,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
@@ -170,7 +170,7 @@ export const runPendingMigrations = async (
 ): Promise<Migration[]> => {
   const completed: Migration[] = [];
   try {
-    if (isDatabaseRoundTripLimited()) {
+    if (hasSubrequestBudget()) {
       const budget = Math.max(
         1,
         getSubrequestRemaining().database - MIGRATION_BOOKKEEPING_RESERVE,
