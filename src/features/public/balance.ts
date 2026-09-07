@@ -22,8 +22,10 @@ import type { PathMethodRoute } from "#routes/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { PackageRowGroup } from "#shared/package-rows.ts";
-import { groupPackageRows } from "#shared/package-rows.ts";
+import {
+  type PackageRowGroup,
+  groupPackageRows,
+} from "#shared/package-rows.ts";
 import {
   type CheckoutIntent,
   getActivePaymentProvider,

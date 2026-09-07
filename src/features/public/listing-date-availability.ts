@@ -7,11 +7,11 @@
  */
 
 import { requiredMapValue, uniqueBy } from "#fp";
-import { getBookableStartDates } from "#shared/dates.ts";
 import {
   loadCapacitySnapshot,
   remainingFromSnapshot,
-} from "#shared/db/attendees/capacity/snapshot.ts";
+} from "#db/attendees/capacity/snapshot.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { clampDurationDays, type Holiday, type ListingWithCount } from "#types";
 
 /** The booked span a daily listing's card availability is judged over: a

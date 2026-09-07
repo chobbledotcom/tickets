@@ -15,8 +15,10 @@ import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { nameList } from "#shared/name-list.ts";
-import type { PackageRowGroup } from "#shared/package-rows.ts";
-import { groupPackageRows } from "#shared/package-rows.ts";
+import {
+  type PackageRowGroup,
+  groupPackageRows,
+} from "#shared/package-rows.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import {
