@@ -102,6 +102,60 @@ describeWithEnv("server listings > export", { db: true }, () => {
       expect(csv).toContain(",Yes");
     });
 
+    test("returns CSV rows in the order the roster shows them", async () => {
+      // Registration order (Mid, Alpha, Zulu) differs from name order, so the
+      // chosen order and the table's own order name three different rows.
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      for (const name of ["Mid Person", "Alpha Person", "Zulu Person"]) {
+        await createTestAttendee(
+          listing.id,
+          listing.slug,
+          name,
+          `${name.toLowerCase().replace(" ", ".")}@example.com`,
+        );
+      }
+
+      /** The names in the order their rows appear in the CSV. */
+      const shownOrder = (csv: string): string[] =>
+        ["Mid Person", "Alpha Person", "Zulu Person"]
+          .map((name) => ({ at: csv.indexOf(name), name }))
+          .sort((first, second) => first.at - second.at)
+          .map(({ name }) => name);
+
+      // The chosen registration order is honoured.
+      const oldest = await fetchListingExportCsv(
+        listing.id,
+        cookie,
+        "?sort=oldest",
+      );
+      expect(shownOrder(oldest)).toEqual([
+        "Mid Person",
+        "Alpha Person",
+        "Zulu Person",
+      ]);
+      const newest = await fetchListingExportCsv(
+        listing.id,
+        cookie,
+        "?sort=newest",
+      );
+      expect(shownOrder(newest)).toEqual([
+        "Zulu Person",
+        "Alpha Person",
+        "Mid Person",
+      ]);
+      // No sort chosen: the table's own date-and-name order applies, here by
+      // name because no booking carries a date.
+      const byName = await fetchListingExportCsv(listing.id, cookie);
+      expect(shownOrder(byName)).toEqual([
+        "Alpha Person",
+        "Mid Person",
+        "Zulu Person",
+      ]);
+    });
+
     test("sanitizes slug for filename", async () => {
       const { cookie } = await setupListingAndLogin({
         maxAttendees: 100,

@@ -27,6 +27,7 @@ import {
   type AttendeeFilter,
   type AttendeeListSetup,
   type AttendeeListState,
+  type AttendeeSort,
   type DateOption,
   readAttendeeListState,
 } from "#shared/attendee-list-controls.ts";
@@ -91,6 +92,8 @@ type FilteredAttendees = {
   dateFilter: string | null;
   checkin: AttendeeFilter;
   filteredByDate: Attendee[];
+  /** The sort chosen in the address bar, or null for the table's own order. */
+  sort: AttendeeSort | null;
 };
 
 /**
@@ -120,6 +123,7 @@ export const filteredAttendeesHandler =
       filteredByDate: filterByDate(attendees, state.date),
       listing,
       session,
+      sort: state.sort,
     });
   };
 

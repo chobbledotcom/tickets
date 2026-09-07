@@ -106,10 +106,11 @@ export const expectCsvDownloadHeaders = (
 export const fetchListingExportCsv = async (
   listingId: number,
   cookie: string,
+  query = "",
 ): Promise<string> => {
   const { awaitTestRequest } = await import("#test-utils/mocks.ts");
   const response = await awaitTestRequest(
-    `/admin/listing/${listingId}/export`,
+    `/admin/listing/${listingId}/export${query}`,
     { cookie },
   );
   expect(response.status).toBe(200);

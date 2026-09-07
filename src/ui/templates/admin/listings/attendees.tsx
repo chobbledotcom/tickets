@@ -167,9 +167,9 @@ export const AttendeesSection = ({
         activeFilter: list.state.checkin,
         allowedDomain,
         phonePrefix,
-        // A chosen sort was applied by the caller; the table's own
-        // date-and-name order applies otherwise.
-        presorted: list.state.sort !== null,
+        // The caller ordered the rows through attendeeListOrder, the same
+        // helper the CSV export applies.
+        presorted: true,
         questionData,
         returnUrl,
         rows: tableRows,
