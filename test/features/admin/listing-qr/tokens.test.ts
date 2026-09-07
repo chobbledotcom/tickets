@@ -3,14 +3,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-import { extractToken, postQr } from "./shared.ts";
+import { extractAndVerifyToken, extractToken, postQr } from "./shared.ts";
 
 describeWithEnv("admin listing QR tokens", { db: true }, () => {
   test("a refused form mints no token", async () => {
@@ -111,11 +110,15 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
   test("tokens are scoped to their listing slug", async () => {
     const a = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
     const b = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
-    const { token } = await postQr(a)({
+    const { body } = await postQr(a)({
       customer_name: "Ada",
       quantity: "1",
       value: "5.00",
     });
-    expect(await verifyQrBookToken(b.slug, token)).toBeNull();
+    // postQr already proved the token verifies against its own listing, so
+    // the helper's refusal is what a mismatched slug meets.
+    await expect(extractAndVerifyToken(body, b.slug)).rejects.toThrow(
+      "QR token failed verification",
+    );
   });
 });
