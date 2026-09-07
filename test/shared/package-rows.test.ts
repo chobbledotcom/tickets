@@ -19,10 +19,14 @@ describe("groupPackageRows", () => {
   test("keeps rows whose group does not collapse standing alone", () => {
     const walk = groupedNames(() => false);
 
-    expect(walk(rowsOf([[0, "plain"], [0, "other plain"]]))).toEqual([
-      ["plain"],
-      ["other plain"],
-    ]);
+    expect(
+      walk(
+        rowsOf([
+          [0, "plain"],
+          [0, "other plain"],
+        ]),
+      ),
+    ).toEqual([["plain"], ["other plain"]]);
   });
 
   test("gathers a collapsed package at its first row's position", () => {
@@ -40,13 +44,15 @@ describe("groupPackageRows", () => {
     );
 
     expect(
-      walk(rowsOf([
-        [0, "before"],
-        [7, "member one"],
-        [0, "between"],
-        [7, "member two"],
-        [0, "after"],
-      ])),
+      walk(
+        rowsOf([
+          [0, "before"],
+          [7, "member one"],
+          [0, "between"],
+          [7, "member two"],
+          [0, "after"],
+        ]),
+      ),
     ).toEqual([
       ["before"],
       ["member one", "member two"],
@@ -58,12 +64,14 @@ describe("groupPackageRows", () => {
 
   test("keeps two collapsed packages separate, each at its own first row", () => {
     expect(
-      groupedNames((groupId) => groupId !== 0)(rowsOf([
-        [7, "box one"],
-        [8, "kit one"],
-        [7, "box two"],
-        [8, "kit two"],
-      ])),
+      groupedNames((groupId) => groupId !== 0)(
+        rowsOf([
+          [7, "box one"],
+          [8, "kit one"],
+          [7, "box two"],
+          [8, "kit two"],
+        ]),
+      ),
     ).toEqual([
       ["box one", "box two"],
       ["kit one", "kit two"],
