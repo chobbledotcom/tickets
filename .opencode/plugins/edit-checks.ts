@@ -6,10 +6,12 @@ import type { Plugin } from "@opencode-ai/plugin";
 // Relative paths: the plugin runs in OpenCode's Bun host, which does not
 // read deno.json's import map.
 import { createPipeline } from "../../scripts/edit-checks/pipeline.ts";
-import { createRunner } from "../../scripts/edit-checks/runner.ts";
+import { createRunner, runnerPrefix } from "../../scripts/edit-checks/runner.ts";
 
 export default (async ({ worktree }) => {
-  const checks = createPipeline({ runTool: createRunner({ worktree }) });
+  const checks = createPipeline({
+    runTool: createRunner({ worktree, prefix: runnerPrefix(process.env) }),
+  });
   return {
     "tool.execute.after": async (input, output) => {
       if (input.tool !== "edit" && input.tool !== "write") return;

@@ -318,6 +318,16 @@ describe("edit-checks runner", () => {
     expect(runnerPrefix({})).toEqual(["nix", "develop", "-c", "deno"]);
   });
 
+  // The machine's own deno binary, so the tests do not depend on Nix
+  // being present the way the default prefix does.
+  const localPrefix: [string, ...string[]] = [Deno.execPath()];
+  const check = createRunner({ prefix: localPrefix, worktree: Deno.cwd() });
+  const stalledCheck = createRunner({
+    prefix: localPrefix,
+    timeoutMs: 200,
+    worktree: Deno.cwd(),
+  });
+
   const withFixture = async (
     body: string,
     run: (path: string) => Promise<void>,
@@ -334,8 +344,7 @@ describe("edit-checks runner", () => {
 
   test("captures the output of a clean check", async () => {
     await withFixture('console.log("from-check");', async (path) => {
-      const runTool = createRunner({ worktree: Deno.cwd() });
-      const result = await runTool([path]);
+      const result = await check([path]);
       expect(result.ok).toBe(true);
       expect(result.text).toContain("from-check");
     });
@@ -345,24 +354,31 @@ describe("edit-checks runner", () => {
     await withFixture(
       'console.error("bad-thing"); Deno.exit(3);',
       async (path) => {
-        const runTool = createRunner({ worktree: Deno.cwd() });
-        const result = await runTool([path]);
+        const result = await check([path]);
         expect(result.ok).toBe(false);
         expect(result.text).toContain("bad-thing");
       },
     );
   });
 
+  test("fails fast when the command cannot spawn", async () => {
+    const runTool = createRunner({
+      prefix: ["definitely-missing-command-xyz"],
+      worktree: Deno.cwd(),
+    });
+    const startedAt = Date.now();
+    const result = await runTool(["--version"]);
+    expect(result.ok).toBe(false);
+    expect(result.text).toContain("could not run");
+    expect(Date.now() - startedAt).toBeLessThan(30_000);
+  });
+
   test("terminates a stalled checker and reports the timeout", async () => {
     await withFixture(
       "await new Promise((resolve) => setTimeout(resolve, 60000));",
       async (path) => {
-        const runTool = createRunner({
-          timeoutMs: 200,
-          worktree: Deno.cwd(),
-        });
         const startedAt = Date.now();
-        const result = await runTool([path]);
+        const result = await stalledCheck([path]);
         const elapsed = Date.now() - startedAt;
         expect(result.ok).toBe(false);
         expect(result.text).toContain("timed out");

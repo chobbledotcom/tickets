@@ -12,16 +12,17 @@ export const runnerPrefix = (
 ): [string, ...string[]] =>
   env.IN_NIX_SHELL ? ["deno"] : ["nix", "develop", "-c", "deno"];
 
-export const createRunner = ({
-  worktree,
-  timeoutMs = CHECK_TIMEOUT_MS,
-}: {
-  worktree: string;
-  timeoutMs?: number;
-}): RunTool => {
-  const prefix = runnerPrefix(process.env);
-
-  return (args) =>
+export const createRunner =
+  ({
+    worktree,
+    timeoutMs = CHECK_TIMEOUT_MS,
+    prefix,
+  }: {
+    worktree: string;
+    timeoutMs?: number;
+    prefix: [string, ...string[]];
+  }): RunTool =>
+  (args) =>
     new Promise((resolve) => {
       // The abort terminates the child; the flag tells a timeout apart
       // from other failures, and the timeout reports no captured output.
@@ -41,30 +42,33 @@ export const createRunner = ({
       // fixture the caller may delete.
       const env = { ...process.env };
       delete env.DENO_COVERAGE_DIR;
-      execFile(
+      const child = execFile(
         prefix[0],
         [...prefix.slice(1), "run", "-A", ...args],
         { cwd: worktree, env, maxBuffer: 10 * 1024 * 1024, signal },
         (err, stdout, stderr) => {
           failure = err;
           output = `${stdout}\n${stderr}`;
+          if (child.pid === undefined) resolve(run(failure));
         },
         // Resolving on close, not in the callback, keeps the resolve
-        // behind the child process teardown.
-      ).on("close", () => {
+        // behind the child process teardown. A command that never spawned
+        // sends no close, so the spawn-failure error resolves above.
+      ).on("close", () => resolve(run(failure)));
+
+      function run(err: Error | null): { ok: boolean; text: string } {
         if (timedOut) {
-          resolve({
+          return {
             ok: false,
             text: `check timed out after ${timeoutMs / 1000}s`,
-          });
-        } else if (failure !== null) {
-          resolve({
-            ok: false,
-            text: `check hook could not run: ${failure.message}\n${output}`,
-          });
-        } else {
-          resolve({ ok: true, text: output });
+          };
         }
-      });
+        if (err !== null) {
+          return {
+            ok: false,
+            text: `check hook could not run: ${err.message}\n${output}`,
+          };
+        }
+        return { ok: true, text: output };
+      }
     });
-};
