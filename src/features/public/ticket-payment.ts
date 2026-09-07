@@ -479,6 +479,15 @@ export const lacksStandalonePublicPage = async (
   listingId: number,
 ): Promise<boolean> => await anyNonStandaloneChild([listingId]);
 
+/** Whether the listing's own public page serves right now: it must be active
+ * AND not a child that cannot be booked alone. The one share-eligibility
+ * decision — the admin QR generators, the overview's share controls, and the
+ * public QR endpoint all gate on it, so a rendered link never dead-ends. */
+export const standalonePageServes = async (
+  listing: ListingWithCount,
+): Promise<boolean> =>
+  listing.active && !(await lacksStandalonePublicPage(listing.id));
+
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
  * so a child never renders as a standalone selectable quantity row.

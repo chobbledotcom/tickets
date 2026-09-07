@@ -18,7 +18,7 @@ import { handleCartBySlugs } from "./cart.ts";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { lacksStandalonePublicPage } from "./ticket-payment.ts";
+import { standalonePageServes } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -90,12 +90,12 @@ export const handleTicketQrGet = async (
   { slug }: { slug: string },
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  // A child has no standalone booking page, and an inactive listing's page is
-  // off, so either QR would be a dead end.
+  // The standalone page's own gate: a child has no page, and an inactive
+  // listing's page is off, so either QR would encode a dead end.
   if (listing) {
-    return !listing.active || (await lacksStandalonePublicPage(listing.id))
-      ? notFoundResponse()
-      : qrResponse(slug);
+    return (await standalonePageServes(listing))
+      ? qrResponse(slug)
+      : notFoundResponse();
   }
 
   const slugIndex = await hmacHash(slug);

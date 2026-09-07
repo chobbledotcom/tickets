@@ -16,7 +16,7 @@ import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import {
   keepParentDailyDatesChildrenCanServe,
-  lacksStandalonePublicPage,
+  standalonePageServes,
 } from "#routes/public/ticket-payment.ts";
 import {
   htmlResponse,
@@ -76,9 +76,7 @@ const unlessChild = async (
   listing: ListingWithCount,
   fn: () => Promise<Response>,
 ): Promise<Response> =>
-  !listing.active || (await lacksStandalonePublicPage(listing.id))
-    ? notFoundResponse()
-    : fn();
+  (await standalonePageServes(listing)) ? fn() : notFoundResponse();
 
 /** A listing with its child-constrained bookable date set, the context
  * the QR validator needs so a submitted date is checked against the same dates
