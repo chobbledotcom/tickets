@@ -143,6 +143,22 @@ describeWithEnv(
         expect(response.status).toBe(404);
       });
 
+      test("answers a POST with a silent bare 404 before the body read", async () => {
+        const response = await handleRequest(
+          new Request(`http://localhost${PROXY_PATH}.jpg`, {
+            body: "test",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              host: "localhost",
+            },
+            method: "POST",
+          }),
+        );
+        expect(response.status).toBe(404);
+        expect(await response.text()).toBe("");
+        expect(errors.calls.length).toBe(0);
+      });
+
       test("returns 404 for filename without extension", async () => {
         const response = await handleRequest(
           mockRequest("/image/abcdef123456"),
