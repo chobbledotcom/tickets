@@ -219,7 +219,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       expect(html).not.toContain('name="start_date"');
     });
 
-    test("shows a hidden package's bundle as bookable while its members stay hidden", async () => {
+    test("shows a concealing package and its standalone member", async () => {
       const group = await createTestGroup({
         isPackage: true,
         name: "Mystery Box",
@@ -231,13 +231,10 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         name: "Secret Widget",
       });
 
-      // The bundle is buyable from /order (the package card), even though its
-      // sole member is dropped from the selectable grid — so the page is not the
-      // empty state and never exposes the member name or a checkbox for it.
       const html = await assertPublicHtml("/order", "Mystery Box");
       expect(html).toContain(`name="select_package_${group.id}"`);
-      expect(html).not.toContain("Secret Widget");
-      expect(html).not.toContain(`name="select_${secret.id}"`);
+      expect(html).toContain("Secret Widget");
+      expect(html).toContain(`name="select_${secret.id}"`);
       expect(html).not.toContain("No items are available to order");
     });
   });

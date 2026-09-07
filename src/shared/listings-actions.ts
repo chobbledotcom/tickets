@@ -94,8 +94,7 @@ type ListingUpdateCheck = (
  * listing form/API can't smuggle an incompatible listing into a package. */
 /** The package-membership error for a listing joining `group`, or null when the
  * group isn't a package or the listing is a valid member. A package member may
- * not be priced by the buyer, may never itself be another listing's add-on
- * CHILD (it is only sold as part of its bundle), and may gate its own children
+ * not be priced by the buyer or be another listing's add-on. It may gate children
  * only on a VISIBLE package — a hidden package collapses members to the package
  * name, so a member's child selector would leak them. Shares the rules with the
  * group-side save via {@link packageMemberError}. (Brand-new child edges

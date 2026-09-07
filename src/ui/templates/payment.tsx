@@ -133,9 +133,7 @@ export const paymentCancelPage = (
           <h1>{t("payment.cancel.heading")}</h1>
           <p>{t("payment.cancel.message")}</p>
         </div>
-        {/* No retry link when the listing has lost its own booking page mid-
-            checkout (now a non-standalone child or hidden package member): the
-            /ticket/<slug> link would 404. Offer a way home instead. */}
+        {/* A listing can lose its own page if it becomes a non-standalone child. */}
         {ticketUrl ? (
           outlineActionRow(ticketUrl, t("payment.cancel.try_again"))
         ) : (
@@ -206,7 +204,9 @@ export const paymentWaitingPage = ({
     <Layout
       {...(refreshUrl
         ? {
-            headExtra: `<meta http-equiv="refresh" content="${WAITING_PAGE_RELOAD_SECONDS};url=${escapeHtml(refreshUrl)}">`,
+            headExtra: `<meta http-equiv="refresh" content="${WAITING_PAGE_RELOAD_SECONDS};url=${escapeHtml(
+              refreshUrl,
+            )}">`,
           }
         : {})}
       title={t("payment.pending.title")}

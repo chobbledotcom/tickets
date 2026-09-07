@@ -9,6 +9,7 @@ import {
   resolveChildSelections,
   resolvedByNodeKey,
 } from "#booking/fold-tree.ts";
+import { formatAtomicError } from "#booking/form.ts";
 import { buildTicketListing, type TicketListing } from "#booking/model.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { t } from "#i18n";
@@ -267,17 +268,39 @@ describe("foldBookingTree — walking the tree", () => {
     expect(fold.customPrices.get(9)).toBe(2000);
   });
 
-  test("rejects an invalid pay-more child price", () => {
+  test("names the package in an invalid pay-more child price", () => {
     const fold = foldOneChild(
       PAY_MORE_CHILD,
       { child_price_1_9: "5", child_qty_1_9: "1" },
       1,
+      { nameFor: () => "Mystery Box" },
     );
-    expect(fold.ok).toBe(false);
+    expect(fold).toEqual({
+      error: expect.stringMatching(/^Mystery Box: /),
+      ok: false,
+    });
   });
 
   test("rejects a child folded above its own max-purchasable", () => {
-    expect(foldOneChild({}, { child_qty_1_9: "2" }, 2).ok).toBe(false);
+    const fold = foldOneChild({}, { child_qty_1_9: "2" }, 2, {
+      nameFor: () => "Mystery Box",
+    });
+    expect(fold).toEqual({
+      error: expect.stringContaining("Mystery Box"),
+      ok: false,
+    });
+  });
+
+  test("an empty stand-in name still hides the child's real name", () => {
+    // "" is a stand-in the page can hand over; it must not fall back to the
+    // real listing name.
+    const fold = foldOneChild({}, { child_qty_1_9: "2" }, 2, {
+      nameFor: () => "",
+    });
+    expect(fold).toEqual({
+      error: formatAtomicError("capacity_exceeded", ""),
+      ok: false,
+    });
   });
 });
 
@@ -384,8 +407,8 @@ describe("foldChild — summing, capacity, duration, price", () => {
     expect(foldChild(state, child, 1, 1, 1, 2000)).toBeNull();
     expect(foldChild(state, child, 1, 1, 2, 2000)).toBeNull();
     expect(state.customPrices.get(9)).toBe(2000);
-    expect(foldChild(state, child, 1, 1, 3, 2500)).toBe(
-      t("public.ticket.child_price_mismatch", { name: "Test Listing" }),
+    expect(foldChild(state, child, 1, 1, 3, 2500, "Mystery Box")).toBe(
+      t("public.ticket.child_price_mismatch", { name: "Mystery Box" }),
     );
   });
 });

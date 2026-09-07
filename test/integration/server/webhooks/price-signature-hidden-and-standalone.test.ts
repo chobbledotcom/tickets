@@ -82,11 +82,8 @@ describeWithEnv(
       );
     });
 
-    test("a standalone session for a now-hidden package member is refunded, not booked", async () => {
+    test("a standalone session completes after its listing joins a concealing package", async () => {
       const { group, listing } = await setupPackage();
-      // The buyer started a STANDALONE (non-package) checkout at the base price;
-      // the operator then hid the package. Completing it would book a leaking
-      // standalone ticket whose /ticket/<slug> 404s, so it must refund instead.
       await groups.table.update(group.id, { hidePackageListings: true });
       await runWebhook(
         {
@@ -97,8 +94,8 @@ describeWithEnv(
           }),
         },
         async (refund) => {
-          await expectStoredRefund(listing.id);
-          expect(refund.calls.length).toBe(1);
+          await expectProcessed(listing.id);
+          expect(refund.calls.length).toBe(0);
         },
       );
     });

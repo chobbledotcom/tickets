@@ -45,8 +45,7 @@ import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   concealLineNames,
   ctxStandInNames,
-  namesConcealed,
-  packagePrivacy,
+  standInNameFor,
 } from "#shared/package-privacy.ts";
 import type { Group } from "#types";
 
@@ -99,8 +98,10 @@ const loadPackageContext = async (
  * guard must reject a limited IP without building a package tree). */
 const loadPackageContextOr404 = async (
   slug: string,
-): Promise<PackageContext | Response> =>
-  (await loadPackageContext(slug)) ?? apiError(PACKAGE_NOT_FOUND, 404);
+): Promise<PackageContext | Response> => {
+  const loaded = await loadPackageContext(slug);
+  return loaded === null ? apiError(PACKAGE_NOT_FOUND, 404) : loaded;
+};
 
 /** Load a bookable package by slug, or respond with the package-not-found 404 —
  * shared by the GET and POST package endpoints via {@link withSlugLoaded} so the
@@ -109,18 +110,20 @@ const withPackageContext = withSlugLoaded<PackageContext>(
   loadPackageContextOr404,
 );
 
+const packageChildren = (ctx: TicketCtx, memberId: number) => {
+  const children = ctx.childrenByParentId.get(memberId);
+  return children === undefined ? [] : children;
+};
+
 /** The contact-field requirement a package booking can validate against: the
  * members' settings merged with their children's (a chosen add-on can add a
- * field). Published as one package-level value, so an API client — which cannot
- * see a hidden package's members through the listing API — knows what to submit
- * before POSTing. */
+ * field). Published as one package-level value, so a client knows what the
+ * package booking requires before it posts. */
 const packageMergedFields = (ctx: TicketCtx): string =>
   mergeListingFields(
     ctx.listings.flatMap((e) => [
       e.listing.fields,
-      ...(ctx.childrenByParentId.get(e.listing.id) ?? []).map(
-        (c) => c.listing.fields,
-      ),
+      ...packageChildren(ctx, e.listing.id).map((c) => c.listing.fields),
     ]),
   );
 
@@ -143,12 +146,10 @@ export const handleGetPackage = withPackageContext(
     const holidays = await getActiveHolidays();
     const memberQuantities = fixedQuantitiesByListingId(tree);
     const bookableChildren = bookableChildIds(ctx.childrenByParentId);
-    const members = namesConcealed(
-      packagePrivacy(group.hide_package_listings, group.name),
-    )
+    const members = group.hide_package_listings
       ? undefined
       : ctx.listings.map((e) => {
-          const children = (ctx.childrenByParentId.get(e.listing.id) ?? [])
+          const children = packageChildren(ctx, e.listing.id)
             .filter((child) => child.listing.active)
             .map((child) =>
               resolvedToPublicListing(
@@ -172,7 +173,7 @@ export const handleGetPackage = withPackageContext(
         maxPurchasable: limit,
         name: group.name,
         slug: group.slug,
-        ...(ctx.dates.length > 0 ? { availableDates: ctx.dates } : {}),
+        ...(ctx.dates.length ? { availableDates: ctx.dates } : {}),
         ...(customisable
           ? {
               dayCounts: dayCounts.map((days) => ({
@@ -180,7 +181,9 @@ export const handleGetPackage = withPackageContext(
                 priceMinor: packageBundleTotal(tree, days, bookableChildren),
               })),
             }
-          : { priceMinor: packageBundleTotal(tree, 1, bookableChildren) }),
+          : {
+              priceMinor: packageBundleTotal(tree, undefined, bookableChildren),
+            }),
         ...(members ? { members } : {}),
       },
     });
@@ -212,6 +215,21 @@ const applyPackageChildSelections = (
   return null;
 };
 
+/** Every failed client refusal on a CONCEALED package reads this one generic
+ * message: a wrong member slug, a wrong child slug, a bad total, or missing
+ * contact fields must be indistinguishable, or the errors confirm what is
+ * inside the package. Named packages keep their specific responses. */
+const PACKAGE_BOOKING_REFUSED =
+  "This package cannot be booked with those choices.";
+
+/** Re-body a failed client refusal (400 or 409) as the generic refusal.
+ * Successful responses, root 404s, rate limits, and server errors pass
+ * through, and nothing here turns a failure into a success. */
+const concealedPackageRefusal = (response: Response): Response =>
+  response.status === 400 || response.status === 409
+    ? apiError(PACKAGE_BOOKING_REFUSED)
+    : response;
+
 /** Reads a package API booking body and builds the form the booking flow uses. */
 const resolvePackageOrder = async (
   body: Record<string, unknown>,
@@ -239,7 +257,9 @@ const resolvePackageOrder = async (
     ]),
   );
 
-  const dateResult = resolvePageDate(ctx.dates, String(body.date ?? ""));
+  const rawDate = body.date;
+  const submittedDate = rawDate === undefined ? null : String(rawDate);
+  const dateResult = resolvePageDate(ctx.dates, submittedDate);
   if (!dateResult.ok) return apiError(dateResult.error);
   const date = dateResult.date;
 
@@ -281,7 +301,9 @@ export const handleBookPackage = async (
   if (pkg instanceof Response) return pkg;
   const { ctx, group, limit, tree } = pkg;
 
-  return withApiBody(request, async (body) => {
+  const bookOrFail = async (
+    body: Record<string, unknown>,
+  ): Promise<Response> => {
     const standIns = ctxStandInNames(ctx);
     const order = await resolvePackageOrder(
       body,
@@ -310,6 +332,7 @@ export const handleBookPackage = async (
         date,
         dayCount,
         hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+        nameFor: standInNameFor(standIns, new Set()),
         quantities,
       },
       tree,
@@ -323,12 +346,19 @@ export const handleBookPackage = async (
     // the lines reach the provider. Paid-ness must come from these lines, not
     // `isPaidListing`: a package override can make a free member paid (and a
     // paid member free).
-    const items = concealLineNames(built.items, standIns);
+    const items = concealLineNames(built.items, standIns, new Set());
     return finishFoldedBooking(
       request,
       form,
-      items.some((item) => item.unitPrice > 0),
+      items.some((item) => Boolean(item.unitPrice)),
       { date, fold, items },
     );
-  });
+  };
+
+  return withApiBody(
+    request,
+    ctx.packages.every((pkg) => pkg.hideListings)
+      ? async (body) => concealedPackageRefusal(await bookOrFail(body))
+      : bookOrFail,
+  );
 };

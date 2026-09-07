@@ -74,7 +74,7 @@ describeWithEnv("booking page guards", { db: true }, () => {
     expect(await lacksStandalonePublicPage(child.id)).toBe(true);
   });
 
-  test("says a hidden package's member has no page of its own", async () => {
+  test("says a concealing package's member has its own page", async () => {
     const group = await createHiddenPackageGroup("Concealed bundle");
     const member = await createTestListing({
       groupId: group.id,
@@ -82,7 +82,7 @@ describeWithEnv("booking page guards", { db: true }, () => {
       name: "Concealed member",
     });
 
-    expect(await lacksStandalonePublicPage(member.id)).toBe(true);
+    expect(await lacksStandalonePublicPage(member.id)).toBe(false);
   });
 
   test("says an ordinary listing does have its own page", async () => {

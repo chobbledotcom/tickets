@@ -115,20 +115,15 @@ src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  
 src/features/api/payment-processing/items.ts::validateAllItems.staleNonStandaloneChild~0bp0o7q  ?? → ||   # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts::paidByItem.current~0h5qe1t  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
-src/features/api/payment-processing/package-pricing.ts::allocatedUnitsByChild~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts::allocatedUnitsByChild.prior~0fwromb  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
 src/features/api/payment-processing/package-pricing.ts::packageBundleMismatch.count~0paa7g7  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.fullyFolded~0b7s0d3  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.topLevel~1g6e18j  false → true   # orderEdgeDriftedFromFacts uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~0t0xtlh  ?? → ||   # child id lists are arrays (always truthy), while a missing parent selects [] under either operator
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~04idxs9  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.packages.hideListings~0xzhsy5  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocated~0ystvom  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
-src/features/api/payment-success.ts::processSessionAndRedirect.thankYouUrl~1sbbxjk  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
 src/features/admin/settings-page.ts::shownPaymentProvider.provider~0qdhvz6  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
@@ -167,6 +162,13 @@ src/shared/booking/page-packages.ts::stampChildRowPackages.parentId~0mh8ima  ?? 
 # Payment provider setup and the balance notice (main #2020): a paid amount that
 # cannot reach any branch, and a recovery count that is never exactly one.
 src/features/admin/settings-page.ts::getAdvancedSettingsPageState.paymentProviderRecoveryNeeded~1fd1z1o  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
+
+# Public listing page (listing-date-availability.ts): downstream duration
+# normalization makes zero and one the same one-day span.
+src/features/public/listing-date-availability.ts::cardSpanDays~11dl3n9  1 → 0   # every span consumer clamps again (expandDailyRange, daysOfSpan), so zero and negative both read a one-day span
+src/features/public/listing-date-availability.ts::cardSpanDays~11dl3n9  1 → -1   # every span consumer clamps again (expandDailyRange, daysOfSpan), so zero and negative both read a one-day span
+
+src/features/public/pages.ts::renderContactPage.content~1090zn7  || → ??   # the setting is a string, and contactPage normalizes both null and the only falsy string to the same empty Markdown input
 
 # Public order page (order.ts) — booking-span sums whose floor the capacity
 # reading applies again, and key halves that are always present.
@@ -226,6 +228,9 @@ src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz
 src/features/public/ticket-submit/parse.ts::validateFormState.selectedQty~1bh9sz0  0 → ""   # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
 src/features/public/ticket-submit/parse.ts::parseCustomPrices.qty~0q3jgeq  ?? → ||   # the quantities map holds whole counts, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::parsePackageCount~1t2qol5  ?? → ||   # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
+src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3  ?? → ||   # URLSearchParams.get answers a string or null, and the only falsy string is the empty fallback
+src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3   → "mutated"   # an absent quantity uses the fallback, and both fallback strings fail the positive-integer parser
+src/features/public/ticket-submit.ts::renderTicketFlow.prefill~160lbzo  ?? → ||   # a supplied prefill is an object, so every present value is truthy
 src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices answers a DayPrices Map or undefined, never a falsy value, so the || fallback is unreachable
 src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds builds its map over the same id list hydrate passes it, so requiredMapValue always finds the entry; the message is an impossible-state guard (AGENTS.md: do not defend against the impossible)
 src/features/public/ticket-routes.ts::getFromEmailIfConfigured.config~15giq6g  ?? → ||   # getEmailConfig answers a populated config object or null (email.ts returns null when apiKey or fromAddress is missing), so the || fallback is unreachable
@@ -264,3 +269,17 @@ src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~0qk
 # redirect paths never produce.
 src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@1  + → ""   # ["tok"].join("+") === ["tok"].join(""): the array holds at most one token (proof above), so the separator never renders
 src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@2  + → ""   # same single-token producer for the redirect URL's encoded token list
+
+src/features/admin/listing-qr.ts::createQrFormValidator.validate.error~1ukv6yx  ?? → ||   # qrPriceError answers null or a non-empty price error string; the empty string never reaches this operand
+src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.hasOwnUnits~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocations~1sr8ybw  ?? → ||   # allocationsByParent.get answers an array or undefined, and every array is truthy
+src/features/api/payment-success.ts::processSessionAndRedirect.bookingGroupIds~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/public/balance.ts::publicRecapLines.name~041ha1p  ?? → ||   # a package display name comes from the groups table, where every writer rejects an empty name
+src/features/public/ticket-submit/prepare.ts::prepareOrder.selectedStandIns~0ikwcj1  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/public/ticket-submit/prepare.ts::singleListingThankYouUrl~0eqzp6w  ?? → ||   # packageGroupId is a group id (an integer at least 1) or absent, and the absent case takes the same fallback under both operators
+src/features/public/listing-date-availability.ts::loadDailyDateAvailability~1phqr9g  Missing date availability → ""   # the snapshot map carries one entry per row of the very rows the filter reads, so the lookup cannot miss and this label is never read
+src/features/api/payment-processing/items.ts::buyerLineName.allocations~1sr8ybw  ?? → ||   # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/items.ts::buyerLineName.groupIds~0gyzcpq  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
+src/features/api/payment-processing/items.ts::buyerLineName~0e1emou  ?? → ||   # groupIds[0] is a group id (at least 1), the literal 0, or undefined; 0 takes the same fallback under both operators
+src/features/api/payment-processing/items.ts::buyerLineName~1l6caem  ?? → ||   # the display name is a string or undefined, and an empty name falls back to the same empty string

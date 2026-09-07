@@ -9,7 +9,6 @@ import {
   getListingsByGroupIds,
   groupExists,
   groups,
-  isHiddenPackageMember,
   listingGroups,
   packageMembersError,
   setGroupListingsActive,
@@ -19,10 +18,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createHiddenPackageGroup,
-  createTestGroup,
-} from "#test-utils/db-helpers/groups.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -136,16 +132,6 @@ describeWithEnv("db > group listing read contracts", { db: true }, () => {
 });
 
 describeWithEnv("db > group validation contracts", { db: true }, () => {
-  test("the singular hidden-package check detects one membership", async () => {
-    const hidden = await createHiddenPackageGroup("Hidden Member Group");
-    const member = await createTestListing({
-      groupId: hidden.id,
-      name: "Hidden Member",
-    });
-
-    expect(await isHiddenPackageMember(member.id)).toBe(true);
-  });
-
   test("the package error names the first listing that cannot be a member", async () => {
     const first = await createTestListing({
       canPayMore: true,

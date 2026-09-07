@@ -115,9 +115,15 @@ type PreparationOptions = {
   matchingPricedItem?: boolean;
   packageGroupId?: number;
   reservationAmount?: string;
+  safeName?: string;
   secondListingName?: string;
   total: number;
 };
+
+const safeNameFor = (
+  options: PreparationOptions,
+  listing: ListingWithCount,
+): string => options.safeName ?? listing.name;
 
 const preparationResult = (options: PreparationOptions) => {
   const listing = testListingWithCount({
@@ -214,13 +220,19 @@ const preparationResult = (options: PreparationOptions) => {
     session,
     intent,
     [
-      { expectedPrice: 1000, item: bookingItem, listing },
+      {
+        expectedPrice: 1000,
+        item: bookingItem,
+        listing,
+        name: safeNameFor(options, listing),
+      },
       ...(secondListing
         ? [
             {
               expectedPrice: 0,
               item: secondBookingItem,
               listing: secondListing,
+              name: secondListing.name,
             },
           ]
         : []),
@@ -332,7 +344,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     });
   });
 
-  test("a package order's capacity error omits the member name", async () => {
+  test("a concealed package capacity error names the package", async () => {
     using _create = stub(attendeesApi, "createBookingAtomic", () =>
       Promise.resolve({
         listingIds: [],
@@ -340,14 +352,18 @@ describeWithEnv("payment booking lines", { db: true }, () => {
         success: false,
       }),
     );
-    expect(await preparationResult({ packageGroupId: 9, total: 1000 })).toEqual(
-      {
-        detail:
-          "Sorry, this listing sold out while you were completing payment.",
-        ok: false,
-        reason: "capacity_exceeded",
-      },
-    );
+    expect(
+      await preparationResult({
+        packageGroupId: 9,
+        safeName: "Mystery Package",
+        total: 1000,
+      }),
+    ).toEqual({
+      detail:
+        "Sorry, Mystery Package sold out while you were completing payment.",
+      ok: false,
+      reason: "capacity_exceeded",
+    });
   });
 
   // What a code did to the price, in the words the owner reads. A discount

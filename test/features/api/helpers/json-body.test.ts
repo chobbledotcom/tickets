@@ -9,6 +9,14 @@ const jsonRequest = (body: string): Request =>
     method: "POST",
   });
 
+const expectInvalidBody = async (body: string): Promise<void> => {
+  const result = await parseApiJsonBody(jsonRequest(body));
+  expect(result).toBeInstanceOf(Response);
+  const response = result as Response;
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "Invalid JSON body" });
+};
+
 describe("parseApiJsonBody", () => {
   test("returns the parsed object for a valid record body", async () => {
     const result = await parseApiJsonBody(jsonRequest('{"quantity":2}'));
@@ -18,20 +26,14 @@ describe("parseApiJsonBody", () => {
   test("rejects a non-record JSON body (null) with an error response", async () => {
     // Regression: `null` parses fine but is not the record JsonBodyReader
     // promises. It must be rejected here, not passed on to field parsing.
-    const result = await parseApiJsonBody(jsonRequest("null"));
-    expect(result).toBeInstanceOf(Response);
-    expect((result as Response).status).toBe(400);
+    await expectInvalidBody("null");
   });
 
   test("rejects a JSON array body with an error response", async () => {
-    const result = await parseApiJsonBody(jsonRequest("[1,2,3]"));
-    expect(result).toBeInstanceOf(Response);
-    expect((result as Response).status).toBe(400);
+    await expectInvalidBody("[1,2,3]");
   });
 
   test("rejects a malformed JSON body with an error response", async () => {
-    const result = await parseApiJsonBody(jsonRequest("{not json"));
-    expect(result).toBeInstanceOf(Response);
-    expect((result as Response).status).toBe(400);
+    await expectInvalidBody("{not json");
   });
 });

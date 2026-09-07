@@ -175,7 +175,6 @@ after 20ms:    295.3/221.9 301.2/220.1 296.0/221.3 297.5/221.2 298.9/222.2 294.3
 The old group path repeated the full work for every regular group:
 
 - Project and decrypt that group's listings.
-- Check hidden-package membership.
 - Read four parent/child relationship views.
 - Read membership and capacity maps.
 
@@ -186,13 +185,11 @@ memberships, and capacity reads. With 14 groups, the page made 119 round trips.
 
 - One grouped projection loads all requested groups in one round trip and
   projects each shared listing only once.
-- All regular groups share one hidden-member lookup and one discovery
-  classification.
+- All regular groups share one discovery classification.
 - All packages share one price read, one child-edge read, one membership map,
   and one capacity map. Each package still runs its own exact booking-tree limit
   over those shared facts.
-- Package checks run at the same time as regular-group privacy and
-  classification work, so batching does not add a serial wait.
+- Package checks run at the same time as regular-group classification work.
 - Group liveness no longer imports the 900-line payment-flow module just to use
   two loaders. In the one-file deploy this defers evaluation work; it does not
   reduce file parsing.

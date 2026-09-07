@@ -9,7 +9,6 @@ src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → ||   
 
 # payment-success.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
-src/features/api/payment-success.ts::processSessionAndRedirect.explicitThankYou~14utous  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
@@ -368,3 +367,7 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → ||   # the 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → ||   # find returns a refund read object or undefined, and every object is truthy
 src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string
+
+src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → ||   # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
+src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → ||   # byChild sums validated quantities of at least 1, so every present value is truthy
+src/shared/package-privacy.ts::ctxStandInNames~1w3noud  ?? → ||   # childrenByParentId.get answers an array or undefined, and every array is truthy

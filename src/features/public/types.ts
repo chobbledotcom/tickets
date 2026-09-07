@@ -54,6 +54,8 @@ export type TicketSharedContext = {
    * multi-listing combo. Just the reference — the images are read lazily on the
    * render path only ({@link renderCtx}), so submit/quote/API flows pay no read. */
   galleryTarget: { type: ImageUseItemType; id: number } | null;
+  /** Whether the page root is hidden. A group is the root, not its members. */
+  pageHidden: boolean;
   /** The header entity's images, rendered as the shared CSS gallery above the
    * form. Populated only when the page is actually rendered (renderCtx); it
    * stays `[]` on the submit/quote/API paths that never show the gallery. */

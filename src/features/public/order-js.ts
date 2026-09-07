@@ -81,10 +81,8 @@ export const handleOrderJs = async (request: Request): Promise<Response> => {
     getCatalogListings(),
     loadBookablePackages(),
   ]);
-  // Package bundles are booked as a whole via /ticket/<group>, so the widget
-  // links to them directly rather than as cart lines (mirroring the /order
-  // gallery). Only bookable, non-hidden packages — hidden-package MEMBERS are
-  // already excluded from the listing catalog by getCatalogListings.
+  // Package bundles link to their group page. Their members keep independent
+  // catalog entries.
   const packages = packageGroups.map(({ group }) => ({
     name: group.name,
     slug: group.slug,

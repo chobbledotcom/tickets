@@ -139,13 +139,8 @@ const buildCatalogEntry = (listing: CatalogSourceListing): CatalogListing => ({
   variablePrice: isVariablePrice(listing),
 });
 
-/** Build the catalog from the site's listings. Only **active, non-hidden**
- * listings are included — the same set the public `/order` and `/listings`
- * pages expose, and the only set whose `/ticket/:slug` page does not 404
- * (`withActiveListings` drops inactive listings). Hidden listings must not be
- * enumerable; inactive listings 404 by direct URL today, so embedding their
- * slug/name would leak otherwise-private names. A `data-add-listing` to a
- * listing outside this set is simply not enhanced and keeps its plain `href`. */
+/** Build the catalog from active listings that can appear in public lists.
+ * Hidden listings stay out of discovery. Inactive listings return 404. */
 export const buildCatalog = (params: {
   origin: string;
   currency: string;

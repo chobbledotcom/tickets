@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { assignListingsToGroup } from "#db/groups/membership.ts";
 import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
@@ -64,39 +65,37 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
-    test("a multi-item session with a now-hidden, deactivated member refunds without leaking the member name", async () => {
+    test("a standalone session keeps its listing name after it joins a concealing package", async () => {
       await setupStripe();
       const visible = await createTestListing({
         name: "Open Add-On",
         unitPrice: 500,
       });
       const group = await createHiddenPackageGroup();
-      // The standalone session was signed before this listing became a hidden
-      // package member; it is then deactivated, so per-item validation fails on
-      // it. The failure message must not expose the concealed member's name.
+      // Package concealment does not apply to this standalone booking path.
       const member = await createTestListing({
-        groupId: group.id,
         name: "Concealed Member XYZ",
         unitPrice: 500,
       });
+      const metadata = signMeta(
+        {
+          email: "stale@example.com",
+          items: JSON.stringify([
+            { e: visible.id, p: 500, q: 1 },
+            { e: member.id, p: 500, q: 1 },
+          ]),
+          name: "Stale Buyer",
+        },
+        1000,
+      );
+      expect(await assignListingsToGroup([member.id], group.id)).toBeNull();
       await deactivateTestListing(member.id);
-
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
           currency: "gbp",
           id: "cs_stale_hidden_multi",
-          metadata: signMeta(
-            {
-              email: "stale@example.com",
-              items: JSON.stringify([
-                { e: visible.id, p: 500, q: 1 },
-                { e: member.id, p: 500, q: 1 },
-              ]),
-              name: "Stale Buyer",
-            },
-            1000,
-          ),
+          metadata,
           payment_intent: "pi_stale_hidden_multi",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -108,8 +107,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
         );
+        expect(response.status).toBe(410);
         const body = await response.text();
-        expect(body).not.toContain("Concealed Member XYZ");
+        expect(body).toContain("Concealed Member XYZ");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

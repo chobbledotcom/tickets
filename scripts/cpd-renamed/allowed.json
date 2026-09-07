@@ -13,7 +13,7 @@
     "hash": "e4a16de1c0af265f3fcc1cfaefc479accbca3a1f415adb61a8622ff8ea829aff",
     "reason": "shared signature with nothing behind it — each takes one () => Promise<void> callback and shares no step (a run-failure report, a best-effort write); a curry has nothing to lift",
     "second": "src/shared/logger.ts",
-    "secondStart": 365
+    "secondStart": 384
   },
   {
     "first": "e2e-payments/src/providers/card.ts",
@@ -141,7 +141,7 @@
     "hash": "f9f71fdc2e0ca0b4117f417ffb4aa457e00206b4388a2fcec28f97887a4c4353",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/types.ts",
-    "secondStart": 739
+    "secondStart": 738
   },
   {
     "first": "src/features/admin/listings-parents.ts",
@@ -192,20 +192,28 @@
     "secondStart": 179
   },
   {
+    "first": "src/features/admin/scanner.ts",
+    "firstStart": 175,
+    "hash": "37469891b87ee9ef27d4877c077208afee14adbbdb81be38d3ebc7d0ff1eedc2",
+    "reason": "shared signature with nothing behind it — processScan and the package book body-user are one async (…, body): Promise<Response> each and share no step (key derivation and scan decision vs package resolve/fold/book); withApiBody/withAuth are already the shared parse wrappers",
+    "second": "src/features/api/packages.ts",
+    "secondStart": 305
+  },
+  {
     "first": "src/features/api/booking.ts",
     "firstStart": 81,
     "hash": "b701d5e740d9715c8f436251a6f4cfcd2cc8ec323767453a2448a1c676628374",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/features/api/packages.ts",
-    "secondStart": 278
+    "secondStart": 298
   },
   {
     "first": "src/features/api/helpers.ts",
-    "firstStart": 92,
+    "firstStart": 88,
     "hash": "7cf69d86f0919dc408e1420b0753b1d86d11b69934e4388b599ac155cabb0e1a",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/features/public/qr-book.ts",
-    "secondStart": 180
+    "secondStart": 173
   },
   {
     "first": "src/features/app/request.ts",
@@ -216,20 +224,12 @@
     "secondStart": 212
   },
   {
-    "first": "src/features/public/group-liveness.ts",
-    "firstStart": 270,
-    "hash": "acbab56af7ba36263258b6a4365f0a9eda046e576a78cf8b4138ac5d29d80071",
-    "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
-    "second": "src/features/public/groups.ts",
-    "secondStart": 107
-  },
-  {
     "first": "src/features/public/ticket-form.ts",
     "firstStart": 160,
     "hash": "f9f7319d095cdd723a406d0f86468fe859e7c7bc5a786c44fb598bfdffb2cfd7",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/features/public/ticket-payment.ts",
-    "secondStart": 178
+    "secondStart": 176
   },
   {
     "first": "src/shared/accounting/mappers.ts",
@@ -297,11 +297,11 @@
   },
   {
     "first": "src/shared/db/attendees/capacity/checks.ts",
-    "firstStart": 74,
+    "firstStart": 89,
     "hash": "0ace2d24f1df61fe03f76959973c1d8e6f525f3efb62a458c3c91fcdce2e88f3",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/db/attendees/capacity/checks.ts",
-    "secondStart": 103
+    "secondStart": 118
   },
   {
     "first": "src/shared/db/attendees/dependent-data.ts",
@@ -385,11 +385,11 @@
   },
   {
     "first": "src/shared/db/groups.ts",
-    "firstStart": 500,
+    "firstStart": 473,
     "hash": "877a03811799227845a23d4e0dbc35267ad46ee8f27ed129f7e599d1367fc984",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/db/link-table.ts",
-    "secondStart": 140
+    "secondStart": 143
   },
   {
     "first": "src/shared/db/keyed-cache.ts",
@@ -409,11 +409,11 @@
   },
   {
     "first": "src/shared/db/logistics-run-sheet.ts",
-    "firstStart": 209,
+    "firstStart": 233,
     "hash": "eb994f14226959b8a636de1f74e495762ea9077b89507a7a71b1fb23a7986b25",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/shared/db/logistics-run-sheet.ts",
-    "secondStart": 262
+    "secondStart": 284
   },
   {
     "first": "src/shared/db/migrations/schema-sync.ts",
@@ -741,7 +741,7 @@
     "hash": "90b34cb05d91e16161e731d826e21362e8ec558d22e29547bce69d810b92af77",
     "reason": "pending merge — same code with different words; unify into one helper or curry, then delete this entry",
     "second": "src/ui/templates/admin/settings/email-tpl-confirmation.tsx",
-    "secondStart": 33
+    "secondStart": 18
   },
   {
     "first": "src/ui/templates/components/labelled-row.tsx",

@@ -14,7 +14,6 @@ import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#db/attendees/servicing.ts";
 import { getActiveListingStats } from "#db/attendees/stats.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { getHiddenPackageMemberIds } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings, listingNames } from "#db/listings/records.ts";
@@ -116,28 +115,19 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
-      // Listings with no standalone public page are excluded from the
-      // multi-booking link builder: a booking can never start from a
-      // non-standalone child, and a hidden package's member 404s
-      // on its own `/ticket/<slug>` — so a `/ticket/<member+other>` URL the
-      // builder emits would be rejected by the server. A `bookable_alone` child
-      // has its own page, so it stays bookable here.
+      // A non-standalone child has no own booking page. A `bookable_alone`
+      // child stays available here.
       const listingIds = sortedListings.map((l) => l.id);
       const activeListings = filter(
         (listing: ListingWithCount) => listing.active,
       )(sortedListings);
-      const [
-        childIds,
-        hiddenMemberIds,
-        upcomingServicingEvents,
-        attributeContext,
-      ] = await Promise.all([
-        getNonStandaloneChildIds(listingIds),
-        getHiddenPackageMemberIds(listingIds),
-        getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-        loadListingAttributeFilterContext(request, activeListings),
-      ]);
-      const unbookableIds = new Set([...childIds, ...hiddenMemberIds]);
+      const [childIds, upcomingServicingEvents, attributeContext] =
+        await Promise.all([
+          getNonStandaloneChildIds(listingIds),
+          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+          loadListingAttributeFilterContext(request, activeListings),
+        ]);
+      const unbookableIds = childIds;
       return htmlResponse(
         adminDashboardPage(
           sortedListings,

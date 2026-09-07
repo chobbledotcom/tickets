@@ -16,10 +16,6 @@ import {
   widestDatedEntry,
 } from "#shared/dates.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import {
-  namesConcealed,
-  packagePrivacyOfDisplay,
-} from "#shared/package-privacy.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { clampDurationDays } from "#types";
@@ -139,7 +135,7 @@ const renderPackageCard = (
   // they bought — otherwise a multi-quantity purchase renders only the package
   // name + QR. Show the package's total booked quantity (summed across members,
   // matching the collapsed email row) without naming any member.
-  const membersHtml = namesConcealed(packagePrivacyOfDisplay(packageInfo))
+  const membersHtml = packageInfo.hideListings
     ? `<div class="ticket-card-package-qty"><span class="package-member-qty">&times;${cards.reduce(
         (total, c) => total + c.entry.attendee.quantity,
         0,

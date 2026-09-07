@@ -33,8 +33,6 @@ import type { ChildAllocation, LineBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDatelessGroupRemaining } from "#db/attendees/capacity/groups.ts";
 import {
-  getHiddenPackageMemberIds,
-  isHiddenPackageMember,
   listingGroups,
   loadPackageMemberPricingByGroupIds,
 } from "#db/groups.ts";
@@ -452,26 +450,13 @@ export const createFreeReservation = async ({
   }
 
   if (!result.success) {
-    // A package order must never name a member in the capacity error — a hidden
-    // package would leak the listing it concealed. Omit the name (generic
-    // message) for a package. A non-package order names the first item whose
-    // listing the refusal says is out of room; when it names none (the room
-    // freed again, or the failure was not one listing's), the first item's
-    // name stands in as before.
     const namedItem = refusedOrderItem(
       items,
       (item) => item.listingId,
       result.listingIds,
     );
-    const errorName = items.some((item) => item.packageGroupId !== undefined)
-      ? ""
-      : requiredMapValue(
-          listingById,
-          namedItem.listingId,
-          `Listing ${namedItem.listingId} was not loaded for checkout`,
-        ).name;
     return {
-      error: formatAtomicError(result.reason, errorName),
+      error: formatAtomicError(result.reason, namedItem.name),
       success: false,
     };
   }
@@ -488,17 +473,34 @@ export const createFreeReservation = async ({
   };
 };
 
-/** Whether a listing has no standalone public booking page — it is a
- * non-standalone child (a child NOT flagged `bookable_alone`) or a
- * hidden package's member — so any admin/public affordance linking to its
- * `/ticket/<slug>` page would dead-end (404). A `bookable_alone` child keeps its
- * own page, so it is NOT flagged here. The single test the admin QR generator and
- * the group QR route share. */
+/** Whether a listing has no standalone public booking page because it is a
+ * child that cannot be booked alone. */
 export const lacksStandalonePublicPage = async (
   listingId: number,
-): Promise<boolean> =>
-  (await anyNonStandaloneChild([listingId])) ||
-  (await isHiddenPackageMember(listingId));
+): Promise<boolean> => await anyNonStandaloneChild([listingId]);
+
+/** Why the listing's own public page does not serve, or that it does. The one
+ * share-eligibility decision — the admin QR generators, the overview's share
+ * controls, the entity page's QR tab, and the public QR endpoint all read
+ * it, so a rendered link never dead-ends. */
+export type ListingPublicPageState = "available" | "child" | "inactive";
+
+/** Resolve the one share-eligibility state for a listing: `child` when it
+ * cannot be booked alone, `inactive` when its page is switched off, else
+ * `available`. */
+export const listingPublicPageState = async (
+  listing: ListingWithCount,
+): Promise<ListingPublicPageState> =>
+  (await lacksStandalonePublicPage(listing.id))
+    ? "child"
+    : listing.active
+      ? "available"
+      : "inactive";
+
+/** Whether the listing's own public page serves right now. */
+export const standalonePageServes = async (
+  listing: ListingWithCount,
+): Promise<boolean> => (await listingPublicPageState(listing)) === "available";
 
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
@@ -532,11 +534,8 @@ export const parentRequiresChild = async (
   listingId: number,
 ): Promise<boolean> => (await listingChildren.getIds(listingId)).length > 0;
 
-/** Load active listings, 404 if none — or if any resolved slug is a
- * non-standalone child (a booking can't start from a child unless it is flagged
- * `bookable_alone`; see {@link anyNonStandaloneChild}) or a member of a HIDDEN
- * package (only the package name is public, never a member's own page; the
- * package itself is reached via its group slug, not these listing slugs). */
+/** Load active listings. Return 404 if none resolve or if a resolved listing is
+ * a child that cannot be booked alone. */
 export const withActiveListings = async (
   slugs: string[],
   handler: ResponseHandler<[listings: TicketListing[]]>,
@@ -547,9 +546,6 @@ export const withActiveListings = async (
   if (activeListings.length === 0) return notFoundResponse();
   const ids = activeListings.map((e) => e.listing.id);
   if (await anyNonStandaloneChild(ids)) return notFoundResponse();
-  if ((await getHiddenPackageMemberIds(ids)).size > 0) {
-    return notFoundResponse();
-  }
   return handler(activeListings);
 };
 
@@ -755,10 +751,26 @@ export const ticketGalleryTarget = (
   return null;
 };
 
+const ticketPageHidden = (listings: TicketListing[], group?: Group): boolean =>
+  group?.hidden ?? listings.some(({ listing }) => listing.hidden);
+
+const pageHiddenFor = (
+  activeListings: TicketListing[],
+  group: Group | undefined,
+  roots: readonly { hidden: boolean }[] | undefined,
+): boolean =>
+  roots === undefined
+    ? ticketPageHidden(activeListings, group)
+    : roots.some((root) => root.hidden);
+
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
   pagePackages?: PagePackage[],
+  // A mixed cart passes its selected package groups and standalone listings
+  // explicitly: the packages' expanded members must not decide the robots
+  // policy for the roots the visitor actually chose.
+  roots?: readonly { hidden: boolean }[],
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
   const childrenByParentId = await loadChildrenByParentId(activeListings);
@@ -846,6 +858,7 @@ export const getTicketContext = async (
     packageGroupRemainingByGroupId: packageCapMaps.groupRemainingByGroupId,
     packageMemberGroupIds: packageCapMaps.groupIdsByListingId,
     packages,
+    pageHidden: pageHiddenFor(activeListings, group, roots),
     promoCodesEnabled,
     terms,
     ...questionsResult,

@@ -55,12 +55,11 @@ Feature: An add-on that can also be bought on its own
       Then a customer cannot open the Cover's own page
 
   @rule:bookings.a-hidden-package-keeps-its-parts-hidden
-  Rule: A hidden bundle keeps its parts hidden whatever they are marked
-    An organiser can hide what a bundle is made of. Those parts stay hidden even
-    when one of them is marked as sellable on its own — the bundle's own choice
-    comes first.
+  Rule: A private bundle does not close its parts' own pages
+    A bundle hides its parts only while a customer books that bundle. A part that
+    can be sold on its own keeps its own page.
 
     @case:add-ons.a-hidden-bundle-part-stays-hidden
-    Scenario: A customer tries to open part of a hidden bundle
+    Scenario: A customer opens part of a private bundle on its own
       Given a hidden Bundle whose Cushion could be bought on its own
-      Then a customer cannot open the Cushion's own page
+      Then a customer can open the Cushion's own page

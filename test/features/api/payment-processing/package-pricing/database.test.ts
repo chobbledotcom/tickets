@@ -20,7 +20,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 const loadedItem = async (item: BookingItem): Promise<ValidatedItem> => {
   const listing = await getListingWithCount(item.e);
   if (!listing) throw new Error(`Listing ${item.e} was not created`);
-  return { expectedPrice: item.p, item, listing };
+  return { expectedPrice: item.p, item, listing, name: listing.name };
 };
 
 const loadedItems = (items: BookingItem[]): Promise<ValidatedItem[]> =>

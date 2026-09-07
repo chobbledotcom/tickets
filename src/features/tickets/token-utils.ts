@@ -222,13 +222,18 @@ export type TokenLookupResult =
 
 /**
  * Keep only the tokens whose attendee has at least one real (quantity > 0) line,
- * plus those lines' listing IDs (input order). A token resolving solely to
- * no-quantity sentinel lines is dropped, so the success pages never build a `/t`
- * CTA that would 404, and a ghost line never inflates the single-listing check.
+ * plus those lines' listing and package IDs. A token resolving solely to
+ * no-quantity sentinel lines is dropped, so the success pages never build a
+ * `/t` CTA that would 404.
  */
 export const verifyTokensWithRealLine = async (
   tokens: string[],
-): Promise<{ verifiedTokens: string[]; listingIds: number[] }> => {
+): Promise<{
+  verifiedTokens: string[];
+  listingIds: number[];
+  /** Group 0 retains the evidence of a standalone booking. */
+  bookingGroupIds: number[];
+}> => {
   const attendees = tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
   const verified = tokens
     .map((token, i) => ({
@@ -237,6 +242,9 @@ export const verifyTokensWithRealLine = async (
     }))
     .filter((entry) => entry.realBookings.length > 0);
   return {
+    bookingGroupIds: verified.flatMap((e) =>
+      e.realBookings.map((booking) => booking.package_group_id),
+    ),
     listingIds: verified.flatMap((e) =>
       e.realBookings.map((b) => b.listing_id),
     ),

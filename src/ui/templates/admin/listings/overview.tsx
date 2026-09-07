@@ -81,8 +81,7 @@ export const ListingOverviewPanel = (
     groupContext,
     moneyTotals,
     ledgerHref,
-    isChild = false,
-    isHiddenPackageMember = false,
+    publicPage,
     systemNotes = [],
     isOwner,
   } = opts;
@@ -112,9 +111,8 @@ export const ListingOverviewPanel = (
         capacity={capacity}
         embedIframeCode={links.embedIframeCode}
         embedScriptCode={links.embedScriptCode}
-        isChild={isChild}
-        isHiddenPackageMember={isHiddenPackageMember}
         listing={listing}
+        publicPage={publicPage}
         sharedRows={sharedRows}
         ticketUrl={links.ticketUrl}
       />

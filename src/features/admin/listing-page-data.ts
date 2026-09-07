@@ -20,17 +20,9 @@ import {
 } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import {
-  getHiddenPackageMemberIds,
-  groups,
-  listingGroups,
-} from "#db/groups.ts";
+import { groups, listingGroups } from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
-import {
-  anyNonStandaloneChild,
-  hydrateListingLinks,
-  listingChildren,
-} from "#db/listing-parents.ts";
+import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
   type ListingAggregateRecalculation,
@@ -49,6 +41,10 @@ import { getQuestionsForListing } from "#db/questions/queries.ts";
 import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import {
+  type ListingPublicPageState,
+  listingPublicPageState,
+} from "#routes/public/ticket-payment.ts";
 import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -105,9 +101,10 @@ export const getListingAndGroups = async (
 
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
- * tab may gate on. A child listing or a hidden package's member has no
- * standalone public page, so its share / QR / booking-link affordances are
- * suppressed (invariant I3). `hasEmailableAttendees` gates the owner-only Email
+ * tab may gate on. `publicPage` is the one share-eligibility state from
+ * {@link listingPublicPageState} — it explains why share, QR, and
+ * booking-link actions are suppressed. `hasEmailableAttendees` gates
+ * the owner-only Email
  * action so it never links to the compose page's 404 (empty-recipient) path; it
  * is resolved lazily by the Actions tab's `prepare` hook (via
  * {@link listingHasEmailableAttendees}) rather than in the page-wide load, so
@@ -115,8 +112,7 @@ export const getListingAndGroups = async (
  */
 export type LoadedListing = {
   listing: ListingWithCount;
-  isChild: boolean;
-  isHiddenPackageMember: boolean;
+  publicPage: ListingPublicPageState;
   hasEmailableAttendees: boolean;
 };
 
@@ -124,20 +120,11 @@ export type LoadedListing = {
  *  `hasEmailableAttendees` defaults to false here — the decrypt behind it is
  *  deferred to the Actions tab, the only surface that reads it. */
 export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
-  loadListingOr(id, async (listing) => {
-    const [isChild, hiddenMemberIds] = await Promise.all([
-      // A `bookable_alone` child keeps its standalone share / QR affordances, so
-      // gate on non-standalone children only (matches the public booking guard).
-      anyNonStandaloneChild([id]),
-      getHiddenPackageMemberIds([id]),
-    ]);
-    return {
-      hasEmailableAttendees: false,
-      isChild,
-      isHiddenPackageMember: hiddenMemberIds.size > 0,
-      listing,
-    };
-  });
+  loadListingOr(id, async (listing) => ({
+    hasEmailableAttendees: false,
+    listing,
+    publicPage: await listingPublicPageState(listing),
+  }));
 
 /** Whether the listing has at least one attendee with an email on file — the
  *  same recipient resolution the bulk-email compose route uses, so the Email
@@ -197,7 +184,7 @@ const noteAuthorNames = async (
  *  individual attendee rows are never loaded or decrypted here (see
  *  {@link getListingOverviewStats}). */
 export const loadListingOverviewPanel = async (
-  { listing, isChild, isHiddenPackageMember }: LoadedListing,
+  { listing, publicPage }: LoadedListing,
   canViewLedger = false,
 ): Promise<JSX.Element> => {
   // Housekeeping the old detail view ran on every load: clear reservations
@@ -219,8 +206,7 @@ export const loadListingOverviewPanel = async (
     aggregateRecalculation: recalc,
     allowedDomain: getEffectiveDomain(),
     groupContext,
-    isChild,
-    isHiddenPackageMember,
+    publicPage,
     ...(canViewLedger ? { ledgerHref: listingLedgerHref(listing.id) } : {}),
     isOwner: canViewLedger,
     listing,

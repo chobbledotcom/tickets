@@ -301,33 +301,6 @@ export const anyListingInPackageGroup = async (
   );
 };
 
-/** Of the given listing ids, those that belong to a HIDDEN package — a package
- * group (`is_package = 1`) with `hide_package_listings = 1`. Buyers must never
- * meet these members standalone: the package name is the only public surface,
- * so every buyer-facing discovery/direct path drops them. */
-export const getHiddenPackageMemberIds = async (
-  listingIds: readonly number[],
-): Promise<Set<number>> => {
-  if (listingIds.length === 0) return new Set();
-  const rows = await queryAll<{ listing_id: number }>(
-    `SELECT DISTINCT groupListing.listing_id
-       FROM group_listings AS groupListing
-       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
-      WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
-        AND groupRow.is_package = 1
-        AND groupRow.hide_package_listings = 1`,
-    [...listingIds],
-  );
-  return new Set(rows.map((r) => r.listing_id));
-};
-
-/** Whether a single listing is a HIDDEN package's member — the one-listing form
- * of `getHiddenPackageMemberIds`, for the buyer-facing guards (API lookup, QR
- * booking, standalone-page test) that ask this of one listing at a time. */
-export const isHiddenPackageMember = async (
-  listingId: number,
-): Promise<boolean> => (await getHiddenPackageMemberIds([listingId])).size > 0;
-
 /** The member-naming package error for the first listing in `listings` that
  * can't be a package member (pay-what-you-want, an add-on of another listing,
  * or — on a hidden package — a member gating its own children), or null when

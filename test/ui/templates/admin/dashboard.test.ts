@@ -445,10 +445,7 @@ describe("adminDashboardPage multi-booking link", () => {
     expect(html).not.toContain('data-multi-booking-slug="cd34e"');
   });
 
-  test("excludes unbookable listings (children, hidden package members) from checkboxes", () => {
-    // A hidden package's member 404s on its own /ticket page, so the builder
-    // must not offer it — otherwise an operator could compose a multi-slug URL
-    // the server rejects.
+  test("excludes listings without standalone pages from checkboxes", () => {
     const html = adminDashboardPage(
       [
         testListingWithCount({

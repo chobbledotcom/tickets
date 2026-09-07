@@ -151,7 +151,7 @@ describeWithEnv("the tabs a listing does not offer", { db: true }, () => {
     expect((await tabsOf(parent.id)).qr).toBe("Booking QR");
   });
 
-  test("no booking QR on a member of a package that hides its members", async () => {
+  test("a package member keeps its standalone booking QR", async () => {
     const hidden = await createTestGroup({ isPackage: true, name: "Hidden" });
     await groups.table.update(hidden.id, { hidePackageListings: true });
     const member = await createTestListing({
@@ -160,6 +160,6 @@ describeWithEnv("the tabs a listing does not offer", { db: true }, () => {
       name: "Collapsed",
     });
 
-    expect((await tabsOf(member.id)).qr).toBeUndefined();
+    expect((await tabsOf(member.id)).qr).toBe("Booking QR");
   });
 });

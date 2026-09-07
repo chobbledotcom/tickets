@@ -50,11 +50,7 @@ import { loadSortedListings } from "#shared/sort-listings.ts";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
 import type { Group, ListingWithCount } from "#types";
 /* jscpd:ignore-start */
-import {
-  applyParentSoldOut,
-  classifyForDiscovery,
-  dropHiddenPackageMembers,
-} from "./discovery.ts";
+import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { loadBookablePackages } from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -93,17 +89,13 @@ type OrderCatalog = {
   options: OrderOption[];
 };
 
-/** Load the order page's catalog: the selectable listing cards (children and
- * hidden-package members never appear standalone), the bookable packages with
- * their members, and the evaluator options for both. */
+/** Load the order page's catalog: the selectable listing cards, bookable
+ * packages with their members, and the evaluator options for both. */
 const loadOrderCatalog = async (): Promise<OrderCatalog> => {
-  const [rawListings, packageGroups] = await Promise.all([
+  const [listings, packageGroups] = await Promise.all([
     loadOrderListings(),
     loadBookablePackages(),
   ]);
-  // A hidden package's members never appear standalone — only the package name
-  // is public — so drop them before classifying and building cards.
-  const listings = await dropHiddenPackageMembers(rawListings);
   const [classification, priceRowsByGroupId] = await Promise.all([
     classifyForDiscovery(listings),
     getGroupPackagePricesByGroupIds(packageGroups.map(({ group }) => group.id)),

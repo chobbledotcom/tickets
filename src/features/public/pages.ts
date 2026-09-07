@@ -2,13 +2,10 @@
  * Public pages - home, listings, terms, contact
  */
 
-import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { getActiveHolidays } from "#db/holidays.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { compact } from "#fp";
-import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
+import { requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -22,7 +19,7 @@ import {
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getBookableStartDates, parseIsoDateParam } from "#shared/dates.ts";
+import { parseIsoDateParam } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
@@ -40,17 +37,10 @@ import {
   type DailyDateFilter,
   homepagePage,
 } from "#templates/public/homepage.tsx";
-import {
-  clampDurationDays,
-  type GroupWithMembers,
-  type ListingWithCount,
-} from "#types";
-import {
-  applyParentSoldOut,
-  classifyForDiscovery,
-  dropHiddenPackageMembers,
-} from "./discovery.ts";
+import type { GroupWithMembers, ListingWithCount } from "#types";
+import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { loadPublicGroups } from "./group-liveness.ts";
+import { loadDailyDateAvailability } from "./listing-date-availability.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
@@ -76,107 +66,39 @@ const renderPublicPage: ResponseHandler<
 export const handleHome: ResponseHandler = () =>
   renderPublicPage("home", () => settings.homepageText);
 
-/** The booked span a daily listing's card availability is judged over: a
- * customisable listing offers per-day starts (the span is chosen later), a
- * fixed daily listing books its whole duration. Mirrors
- * {@link getBookableStartDates}'s span. */
-const cardSpanDays = (listing: ListingWithCount): number =>
-  listing.customisable_days ? 1 : clampDurationDays(listing.duration_days);
-
-/** The daily listings NOT bookable on `date`: outside their bookable calendar,
- * or without capacity for their span starting that day. One remaining query
- * per distinct span (via the shared date-aware capacity projection). */
-const dailyUnavailableOn = async (
-  daily: ListingWithCount[],
-  date: string,
-): Promise<ReadonlySet<number>> => {
-  if (daily.length === 0) return new Set();
-  const holidays = await getActiveHolidays();
-  const bySpan = Map.groupBy(daily, cardSpanDays);
-  const remaining = new Map<number, number>();
-  await Promise.all(
-    [...bySpan].map(async ([span, rows]) => {
-      const bySpanRemaining = await getListingRemainingForRange(
-        rows,
-        date,
-        span,
-      );
-      for (const [id, left] of bySpanRemaining) remaining.set(id, left);
-    }),
-  );
-  // Every daily row was passed to exactly one remaining query, so the map is
-  // total over `daily` by construction.
-  return new Set(
-    daily
+/** A package is bought as one whole bundle, so one member that cannot be booked
+ * on the chosen date makes the whole bundle unbookable. The date availability
+ * itself is resolved once for the whole page in
+ * {@link loadDailyDateAvailability}; this is the projection of that result. */
+const soldOutPackageIds = (
+  groups: readonly GroupWithMembers[],
+  unavailableIds: ReadonlySet<number>,
+): ReadonlySet<number> =>
+  new Set(
+    groups
       .filter(
-        (listing) =>
-          !getBookableStartDates(listing, holidays).includes(date) ||
-          remaining.get(listing.id)! < 1,
+        ({ group, members }) =>
+          group.is_package &&
+          members.some(
+            (member) =>
+              member.listing_type === "daily" && unavailableIds.has(member.id),
+          ),
       )
-      .map((listing) => listing.id),
+      .map(({ group }) => group.id),
   );
-};
 
 /** The /listings date filter (#51): present whenever daily cards are on the
  * page (so the form renders and invites a date), with per-listing unavailable
  * ids resolved date-aware once a date is chosen. A daily listing's capacity is
  * a per-date fact, so the cards claim nothing until the visitor picks one. */
-const buildDailyDateFilter = async (
-  listings: ListingWithCount[],
+const dailyDateFilter = (
+  listings: readonly ListingWithCount[],
+  unavailableIds: ReadonlySet<number>,
   requestedDate: string | null,
-): Promise<DailyDateFilter | null> => {
-  const daily = listings.filter((e) => e.listing_type === "daily");
-  if (daily.length === 0) return null;
-  if (requestedDate === null) return { date: null, unavailableIds: new Set() };
-  return {
-    date: requestedDate,
-    unavailableIds: await dailyUnavailableOn(daily, requestedDate),
-  };
-};
-
-/** Whether a package member has no live booking path on the searched date:
- * sold out or closed on its own date-less row, or (for a daily member)
- * outside its calendar / full for that date. Mirrors the listing card's own
- * unavailable check. */
-const memberUnavailableOn = (
-  info: { isSoldOut: boolean; isClosed: boolean; listing: ListingWithCount },
-  dailyUnavailableIds: ReadonlySet<number>,
-): boolean =>
-  info.isSoldOut ||
-  info.isClosed ||
-  (info.listing.listing_type === "daily" &&
-    dailyUnavailableIds.has(info.listing.id));
-
-/** A package is bought as one whole bundle, so one member that cannot be booked
- * on the chosen date makes the whole bundle unbookable. Members come from the
- * group liveness load, not the page's own listing set, because a hidden
- * package's members never join that set yet still decide this.
- *
- * This is a projection of the booking page's date rules, not a re-run. Two
- * edges are knowingly unchecked: a member needing quantity > 1 with one spot
- * left, and a daily parent whose required child cannot serve the date. The
- * booking page stays the real gate. */
-const soldOutPackageIds = async (
-  groups: readonly GroupWithMembers[],
-  requestedDate: string | null,
-): Promise<ReadonlySet<number>> => {
-  const packages = groups.filter(({ group }) => group.is_package);
-  if (requestedDate === null || packages.length === 0) return new Set();
-  const soldOutIds = await Promise.all(
-    packages.map(async ({ group, members }) => {
-      const daily = members.filter((m) => m.listing_type === "daily");
-      const [ticketListings, dailyUnavailableIds] = await Promise.all([
-        buildTicketListingsWithGroupCapacity(members),
-        dailyUnavailableOn(daily, requestedDate),
-      ]);
-      const anyUnavailable = ticketListings.some((info) =>
-        memberUnavailableOn(info, dailyUnavailableIds),
-      );
-      return anyUnavailable ? group.id : null;
-    }),
-  );
-  return new Set(compact(soldOutIds));
-};
+): DailyDateFilter | null =>
+  listings.some((e) => e.listing_type === "daily")
+    ? { date: requestedDate, unavailableIds }
+    : null;
 
 /** Handle GET /listings - public listings listing. Shows every active, visible
  * listing alongside the non-hidden groups. (Type filtering lives on the admin
@@ -187,28 +109,36 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
   request,
 ) =>
   requirePublicSite(async () => {
-    const [publicGroups, { listings: allListings }, nav] = await Promise.all([
+    const [publicGroups, { listings, holidays }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
     ]);
-    // A hidden package's members never appear standalone — only the package
-    // name is public — so drop them before building the individual cards.
-    const listings = await dropHiddenPackageMembers(allListings);
     // Parents with no bookable child read as sold out; a (visible) child keeps
     // its card but loses its standalone Book CTA (invariants I3/I6).
     const classification = await classifyForDiscovery(listings);
     const requestedDate = parseIsoDateParam(
       new URL(request.url).searchParams.get("date"),
     );
+    // One capacity snapshot answers both the dated cards and the package
+    // sold-out badges: daily cards and package members share the read.
+    const unavailableOnDate =
+      requestedDate === null
+        ? new Set<number>()
+        : await loadDailyDateAvailability(
+            [
+              ...listings.filter((e) => e.listing_type === "daily"),
+              ...publicGroups.flatMap(({ members }) => members),
+            ],
+            requestedDate,
+            holidays,
+          );
     const groups = publicGroups.map(({ group }) => group);
-    const [ticketListings, dateFilter, soldOutPackages, attributesByListing] =
-      await Promise.all([
-        buildTicketListingsWithGroupCapacity(listings),
-        buildDailyDateFilter(listings, requestedDate),
-        soldOutPackageIds(publicGroups, requestedDate),
-        getSelectedAttributesForListings(listings.map((listing) => listing.id)),
-      ]);
+    const [ticketListings, attributesByListing] = await Promise.all([
+      buildTicketListingsWithGroupCapacity(listings),
+      getSelectedAttributesForListings(listings.map((listing) => listing.id)),
+    ]);
+    const soldOutPackages = soldOutPackageIds(publicGroups, unavailableOnDate);
     return htmlResponse(
       homepagePage(
         applyParentSoldOut(ticketListings, classification),
@@ -218,7 +148,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
           classification.nonStandaloneChildIds,
           classification.addOnChildIds,
         ),
-        dateFilter,
+        dailyDateFilter(listings, unavailableOnDate, requestedDate),
         nav,
         soldOutPackages,
         requestedDate,
@@ -245,28 +175,24 @@ export const handlePublicTerms: ResponseHandler = () =>
 /** Render the contact page (descriptive text and/or the message form).
  * 404 when there is neither contact text nor an active form to show.
  * A fresh CSRF token is minted before rendering when the form is shown. */
-const renderContactPage = async (request: Request): Promise<Response> => {
+const renderContactPage = async (): Promise<Response> => {
   const formActive = isContactFormActive();
   if (!settings.contactPageText && !formActive) return notFoundResponse();
   if (formActive) await signCsrfToken();
-  const flash = applyFlash(request);
   return htmlResponse(
     contactPage({
       botpoisonPublicKey: getBotpoisonPublicKey(),
       content: settings.contactPageText || null,
-      ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,
       nav: await publicNavProps(null),
-      ...(flash.success !== undefined ? { success: flash.success } : {}),
       websiteTitle: settings.websiteTitle,
     }),
   );
 };
 
 /** Handle GET /contact - public contact page (404 when empty and form off) */
-export const handlePublicContact: ResponseHandler<[request: Request]> = (
-  request,
-) => requirePublicSite(() => renderContactPage(request));
+export const handlePublicContact: ResponseHandler<[request: Request]> = () =>
+  requirePublicSite(renderContactPage);
 
 /** Process a CSRF-checked contact form submission: validate, run Botpoison
  * verification, and only deliver to the owner when verification passes. */

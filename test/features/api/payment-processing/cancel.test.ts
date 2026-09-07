@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { groups } from "#db/groups.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
@@ -99,14 +103,12 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     expect(html).not.toContain(`/ticket/${member.slug}`);
   });
 
-  test("offers the member's page when the bundle can no longer be bought", async () => {
-    // A package is all or nothing, so turning off a second member leaves the
-    // bundle incomplete and its page gone.
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Dead Bundle",
-      slug: "dead-bundle-direct",
-    });
+  /** A package with its second member deactivated, so the bundle's page is
+   * gone while the first member's standalone page still serves. */
+  const deadBundle = async (
+    makeGroup: () => Promise<{ id: number; slug: string }>,
+  ) => {
+    const group = await makeGroup();
     const member = await createTestListing({
       groupId: group.id,
       maxAttendees: 50,
@@ -121,6 +123,19 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       args: [turnedOff.id],
       sql: "UPDATE listings SET active = 0 WHERE id = ?",
     });
+    return { group, member };
+  };
+
+  test("offers the member's page when the bundle can no longer be bought", async () => {
+    // A package is all or nothing, so turning off a second member leaves the
+    // bundle incomplete and its page gone.
+    const { group, member } = await deadBundle(() =>
+      createTestGroup({
+        isPackage: true,
+        name: "Dead Bundle",
+        slug: "dead-bundle-direct",
+      }),
+    );
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
@@ -128,15 +143,76 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     expect(html).not.toContain(`/ticket/${group.slug}`);
   });
 
-  test("offers the member's page when the bundle has been deleted", async () => {
+  test("keeps a concealed member private when the bundle can no longer be bought", async () => {
+    // The hidden bundle became unbookable, but a live standalone page is not
+    // permission to name its member — the buyer only ever chose the bundle.
+    const { group, member } = await deadBundle(() =>
+      createHiddenPackageGroup("Dead Private Bundle"),
+    );
+
+    const { html } = await renderCancelPage(packageLine(member.id, group.id));
+
+    expect(html).toContain("Payment Cancelled");
+    expect(html).not.toContain(`/ticket/${member.slug}`);
+  });
+
+  test("keeps a member private when the package no longer resolves", async () => {
+    // An unresolved package grants no evidence for naming the first member.
     const member = await createTestListing({
       maxAttendees: 50,
       unitPrice: 1000,
     });
-
     const { html } = await renderCancelPage(packageLine(member.id, 99999));
 
-    expect(html).toContain(`/ticket/${member.slug}`);
+    expect(html).not.toContain(`/ticket/${member.slug}`);
+  });
+
+  test("offers no retry when the package became a regular group", async () => {
+    // The group still serves, but as a plain group it no longer sells the
+    // bundle this checkout bought — and the conversion leaves the buyer's
+    // package path with no display, so neither link is honest.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Converted Bundle",
+      slug: "converted-bundle",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    await groups.table.update(group.id, { isPackage: false });
+
+    const { html } = await renderCancelPage(packageLine(member.id, group.id));
+
+    expect(html).toContain("Payment Cancelled");
+    expect(html).not.toContain(`/ticket/${group.slug}`);
+    expect(html).not.toContain(`/ticket/${member.slug}`);
+  });
+
+  test("offers no retry link for a cancelled balance checkout", async () => {
+    // The synthetic balance line references a listing but selects no path.
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const session = {
+      ...cancelledSession(singleItem(listing.id, 1, 500)),
+      metadata: webhookMeta({
+        balance_attendee_id: "1",
+        email: "b@example.com",
+        items: singleItem(listing.id, 1, 500),
+        name: "Buyer",
+      }) satisfies SessionMetadata,
+    };
+    const { logged } = { logged: [] as string[] };
+    const response = await cancelPageResponse(session, (detail) =>
+      logged.push(detail),
+    );
+
+    const html = await response.text();
+    expect(html).toContain("Payment Cancelled");
+    expect(html).not.toContain(`/ticket/${listing.slug}`);
   });
 
   test("offers nothing to try again when the listing lost its own page", async () => {

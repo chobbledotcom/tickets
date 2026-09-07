@@ -239,3 +239,6 @@ src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a
 # the requested key set, but the reader's WHERE clause already restricts every
 # returned row to a requested key, so the throw is unreachable.
 src/shared/db/link-table.ts::oneDirectionReader.fetchIdsByKeys~0a4lik4 Unexpected link key→""   # unreachable: WHERE key_id IN (...) lets only requested keys through
+
+src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → ""   # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
+src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → ||   # read.one answers the row object or null, and every row object is truthy

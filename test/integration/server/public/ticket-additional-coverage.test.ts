@@ -27,10 +27,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-/** A free, phone-only listing plus a £5 "Returning customer fee" modifier
- * that only fires once the buyer's phone has visited before — the shared
- * setup behind both returning-customer Square tests below (one records the
- * visit without an email configured, the other with). */
+/** Add a one-penny returning-customer charge to a free, phone-only listing. */
 const setupReturningCustomerFeeListing = async () => {
   await setContactVisits(await hashPhone("555-1234"), 1);
   const listing = await createTestListing({
@@ -41,7 +38,7 @@ const setupReturningCustomerFeeListing = async () => {
   });
   await modifiersTable.insert({
     calcKind: "fixed",
-    calcValue: 5,
+    calcValue: 0.01,
     direction: "charge",
     minVisits: 1,
     name: "Returning customer fee",
@@ -56,6 +53,7 @@ describeWithEnv(
   () => {
     describe("routes/public.ts (additional coverage)", () => {
       test("ticket form with phone-only fields (no email field) works", async () => {
+        await settings.update.paymentProvider("square");
         const listing = await createTestListing({
           fields: "phone",
           maxAttendees: 50,
@@ -68,6 +66,36 @@ describeWithEnv(
         });
         // With fields="phone", email is not collected and extractContact returns "" for email
         expectRedirect(response, "https://example.com/thanks");
+      });
+
+      test("Square requires email before a returning discount makes a paid listing free", async () => {
+        await settings.update.paymentProvider("square");
+        await setContactVisits(await hashPhone("555-1234"), 1);
+        const listing = await createTestListing({
+          fields: "phone",
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com/thanks",
+          unitPrice: 1,
+        });
+        await modifiersTable.insert({
+          calcKind: "fixed",
+          calcValue: 0.01,
+          direction: "discount",
+          minVisits: 1,
+          name: "Returning customer discount",
+          trigger: "automatic",
+        });
+
+        const response = await submitTicketForm(listing.slug, {
+          name: "John Doe",
+          phone: "555-1234",
+        });
+
+        expectFlash(
+          response,
+          expect.stringContaining("Your Email is required"),
+          false,
+        );
       });
 
       test("Square requires email when a free listing has a paid add-on", async () => {

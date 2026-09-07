@@ -18,7 +18,7 @@ import { handleCartBySlugs } from "./cart.ts";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { lacksStandalonePublicPage } from "./ticket-payment.ts";
+import { standalonePageServes } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -90,14 +90,12 @@ export const handleTicketQrGet = async (
   { slug }: { slug: string },
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
-  // A child has no standalone booking page, so its QR — which
-  // encodes `/ticket/<child>` — would be a dead end. A hidden package's member
-  // is the same: its page now 404s, so its QR must too. Suppress both like the
-  // rest of the listing's share affordances.
+  // The standalone page's own gate: a child has no page, and an inactive
+  // listing's page is off, so either QR would encode a dead end.
   if (listing) {
-    return (await lacksStandalonePublicPage(listing.id))
-      ? notFoundResponse()
-      : qrResponse(slug);
+    return (await standalonePageServes(listing))
+      ? qrResponse(slug)
+      : notFoundResponse();
   }
 
   const slugIndex = await hmacHash(slug);

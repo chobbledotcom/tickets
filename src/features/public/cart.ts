@@ -11,7 +11,6 @@ import { getListingsBySlugs } from "#db/listings/records.ts";
 import { unique, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import type { Group, ListingWithCount } from "#types";
-import { dropHiddenPackageMembers } from "./discovery.ts";
 import { type GroupWithListings, loadCartPackagesBySlugs } from "./groups.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
@@ -78,27 +77,14 @@ const resolveCartSlugs = async (
   return anyPackage ? items : null;
 };
 
-/** The cart's listings in item order — packages expanded to their members,
- * each listing kept ONCE (a listing reachable through several items keeps all
- * its paths via `packages` + the standalone slugs, not repeated rows) — with a
- * hidden package's members dropped from the STANDALONE items (they only sell
- * through their package; an unknown-slug-style drop, not a 404, so the rest of
- * the cart still books). */
-const cartListings = async (items: CartItem[]): Promise<ListingWithCount[]> => {
-  const standalone = await dropHiddenPackageMembers(
-    items.flatMap((item) => (item.kind === "listing" ? [item.listing] : [])),
-  );
-  const standaloneIds = new Set(standalone.map((listing) => listing.id));
-  return uniqueBy((listing: ListingWithCount) => listing.id)(
+/** The cart's listings in item order, with packages expanded to their members.
+ * Each listing stays once. Its package and standalone paths remain separate. */
+const cartListings = (items: CartItem[]): ListingWithCount[] =>
+  uniqueBy((listing: ListingWithCount) => listing.id)(
     items.flatMap((item) =>
-      item.kind === "listing"
-        ? standaloneIds.has(item.listing.id)
-          ? [item.listing]
-          : []
-        : item.members,
+      item.kind === "listing" ? [item.listing] : item.members,
     ),
   );
-};
 
 /**
  * Handle a multi-slug booking page whose slugs include at least one package,
@@ -124,7 +110,7 @@ export const handleCartBySlugs: BySlugsHandler<
         : [],
     ),
   );
-  const listings = await cartListings(items);
+  const listings = cartListings(items);
   const dropped = new Set(
     (await dropChildListings(listings)).map((listing) => listing.id),
   );
@@ -150,7 +136,20 @@ export const handleCartBySlugs: BySlugsHandler<
     ),
   );
   return handleTicket({
-    getContext: (listings) => getTicketContext(listings, undefined, packages),
+    // The page's robots policy follows the SELECTED roots: each package group
+    // and each explicit standalone listing exactly as the visitor picked them,
+    // not the listings the packages expand into.
+    getContext: (listings) =>
+      getTicketContext(
+        listings,
+        undefined,
+        packages,
+        items.map((item) =>
+          item.kind === "package"
+            ? { hidden: item.group.hidden }
+            : { hidden: item.listing.hidden },
+        ),
+      ),
     listings: activeListings,
     mode,
     prefill: parseQuantityPrefill(request, activeListings),

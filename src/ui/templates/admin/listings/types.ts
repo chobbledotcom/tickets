@@ -1,6 +1,7 @@
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
 import type { SystemNote } from "#db/notes/types.ts";
+import type { ListingPublicPageState } from "#routes/public/ticket-payment.ts";
 import type {
   AttendeeListSetup,
   AttendeeListState,
@@ -20,8 +21,6 @@ type ListingPanelSharedOptions = {
   groupContext?: GroupContext | undefined;
   moneyTotals?: ListingMoneyTotals | undefined;
   ledgerHref?: string | undefined;
-  isChild?: boolean | undefined;
-  isHiddenPackageMember?: boolean | undefined;
   systemNotes?: SystemNote[] | undefined;
   /** Only owners may open the ledger pages, so a note's ledger link renders
    * as plain text for everyone else. */
@@ -57,6 +56,9 @@ export type ListingOverviewPanelOptions = ListingPanelSharedOptions & {
   allowedDomain: string;
   stats: OverviewStats;
   noteNames: Map<number, string>;
+  /** The one share-eligibility state: why the listing's public page does not
+   * serve, or that it does. */
+  publicPage: ListingPublicPageState;
 };
 
 /** A selectable child candidate on the edit page's "required children" list: the

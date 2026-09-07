@@ -21,7 +21,14 @@ export const reservedPlaceholder = async (id: string) => {
   const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
   const data = trustedPayment(id, intent, 1000);
   const bookings = placeholderBookings(
-    [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
+    [
+      {
+        expectedPrice: 1000,
+        item: intent.items[0]!,
+        listing,
+        name: listing.name,
+      },
+    ],
     intent,
   );
   await reserveSession(id);

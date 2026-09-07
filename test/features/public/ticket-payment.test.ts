@@ -32,9 +32,8 @@ import type { ContactInfo, ListingWithCount } from "#types";
 /** Wrap a listing-with-count as a selected cart line. */
 const line = (listing: ListingWithCount, qty = 1) => ({ listing, qty });
 
-/** Build the per-path checkout items an old quantities map described: one line
- * per listing with a positive quantity, priced at the listing's own unit price.
- * A `packageGroupId` stamps every line as booked through that package. */
+/** Build per-path checkout items from positive quantities. A
+ * `packageGroupId` stamps every line as booked through that package. */
 const itemsFor = (
   listings: TicketListing[],
   quantities: Map<number, number>,
@@ -169,11 +168,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
     });
 
-    test("a package order's capacity error omits the member name", async () => {
-      // A hidden package conceals its members, so a sellout between render and
-      // insert must not surface a member's name in the capacity error. The
-      // omission applies to every package order (packageGroupId set); the hidden
-      // package is the privacy-critical case.
+    test("a package capacity error uses its buyer-safe name", async () => {
+      // The prepared package line supplies its buyer-safe name to a later
+      // capacity error.
       const group = await createTestGroup({
         isPackage: true,
         name: "Sellout Kit",
@@ -193,19 +190,21 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       if (!first.success) throw new Error("setup booking failed");
 
       const memberListings = [await ticketListingFor(member.id)];
+      const items = itemsFor(
+        memberListings,
+        new Map([[member.id, 1]]),
+        group.id,
+      ).map((item) => ({ ...item, name: group.name }));
       const result = await createFreeReservation({
         contact,
         date: null,
-        // The member's item carries the package id — the per-line stamp every
-        // package path now rides on.
-        items: itemsFor(memberListings, new Map([[member.id, 1]]), group.id),
+        items,
         ledgerOrder: null,
         listings: memberListings,
         modifierUsages: [],
       });
       if (result.success) throw new Error("expected a capacity failure");
-      // Generic message — never the concealed member's name.
-      expect(result.error).toContain("not enough spots available");
+      expect(result.error).toContain("Sellout Kit");
       expect(result.error).not.toContain("Secret Widget");
     });
   });
@@ -606,6 +605,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       packageGroupRemainingByGroupId: new Map(),
       packageMemberGroupIds: new Map(),
       packages: [],
+      pageHidden: false,
       questionListingMap: new Map(),
       questions: [],
       slugs: [],

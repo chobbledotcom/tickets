@@ -70,14 +70,9 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       expect(found.listing.name).toBe("Summer Fete");
     });
 
-    test("says a standalone listing is not somebody's child", async () => {
+    test("a standalone listing's own page is available", async () => {
       const listing = await createTestListing({});
-      expect((await loaded(listing.id)).isChild).toBe(false);
-    });
-
-    test("says a standalone listing is not hidden inside a package", async () => {
-      const listing = await createTestListing({});
-      expect((await loaded(listing.id)).isHiddenPackageMember).toBe(false);
+      expect((await loaded(listing.id)).publicPage).toBe("available");
     });
 
     test("leaves the emailable flag off until the actions tab asks", async () => {
@@ -207,26 +202,14 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     });
   });
 
-  describe("a listing hidden inside a package", () => {
-    test("is marked as one, so its page can hide the standalone links", async () => {
-      const { createHiddenPackageGroup } = await import(
-        "#test-utils/db-helpers/groups.ts"
-      );
-      const group = await createHiddenPackageGroup();
-      const listing = await createTestListing({ groupId: group.id });
-
-      expect((await loaded(listing.id)).isHiddenPackageMember).toBe(true);
-    });
-  });
-
   describe("a listing offered under a parent", () => {
-    test("is marked as a child", async () => {
+    test("has no public page of its own", async () => {
       const parent = await createTestListing({ name: "The Package" });
       const child = await createTestListing({ name: "The Member" });
       const { listingChildren } = await import("#db/listing-parents.ts");
       await listingChildren.setIds(parent.id, [child.id]);
 
-      expect((await loaded(child.id)).isChild).toBe(true);
+      expect((await loaded(child.id)).publicPage).toBe("child");
     });
 
     test("names its children on the parent's roster", async () => {

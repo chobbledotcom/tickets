@@ -117,7 +117,6 @@ export const buildPaidOrderSnapshot = (
   );
   return {
     ...relationshipMaps(rows.childEdges),
-    hiddenPackageMemberIds: new Set(rows.hiddenMemberIds),
     ledger: classifyBookingLedger(
       rows.ledger.hasLegs,
       rows.ledger.ownerAttendeeId,

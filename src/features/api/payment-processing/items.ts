@@ -2,13 +2,13 @@
  * Validate every signed line of a paid order against the CURRENT database:
  * confirm each listing still accepts registrations, compute its expected price,
  * and fail the whole order closed to a price_changed refund when the package
- * structure, a required child-edge, or a hidden/non-standalone flag drifted
+ * structure, a required child-edge, or a non-standalone flag drifted
  * mid-checkout.
  */
 
 import {
+  bookedOutsideParent,
   lineGroupId,
-  lineGroupIds,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
 /* jscpd:ignore-start -- import block */
@@ -27,7 +27,8 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { namesConcealedIn } from "#shared/package-privacy.ts";
+import { allocatedChildIds } from "#shared/child-parents.ts";
+import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
 
@@ -36,13 +37,9 @@ import type { ListingWithCount } from "#types";
 /** Judge one already-loaded line against the current listing: gone, closed, or
  * good to price. */
 const validateListingForPayment = (
-  listing: ListingWithCount | undefined,
-  includeListingName: boolean,
+  listing: ListingWithCount,
+  name: string,
 ): ListingValidation => {
-  if (!listing) {
-    return { error: "Listing not found", ok: false, status: 404 };
-  }
-  const name = includeListingName ? listing.name : undefined;
   if (!listing.active) {
     return {
       error: name
@@ -64,6 +61,40 @@ const validateListingForPayment = (
   return { listing, ok: true };
 };
 
+/** The name safe to show for one signed booking path. */
+const buyerLineName = (
+  intent: BookingIntent,
+  snapshot: PaidOrderSnapshot,
+): ((
+  item: BookingIntent["items"][number],
+  listing: ListingWithCount,
+) => string) => {
+  const allocations = intent.allocations ?? [];
+  const outsideParent = bookedOutsideParent(allocations);
+  const displays = snapshot.notificationPackages.displays;
+  return (item, listing) => {
+    const groupId = lineGroupId(item);
+    if (groupId === undefined && outsideParent(item)) return listing.name;
+    const groupIds =
+      groupId === undefined
+        ? intent.items
+            .filter(
+              (parent) =>
+                parent.q > 0 &&
+                allocations.some(
+                  (allocation) =>
+                    allocation.childId === item.e &&
+                    allocation.parentId === parent.e,
+                ),
+            )
+            .map((parent) => lineGroupId(parent) ?? 0)
+        : [groupId];
+    if (hasNamedBookingPath(displays, groupIds)) return listing.name;
+    // Missing package facts must not reveal a member or its allocated child.
+    return displays.get(groupIds[0] ?? 0)?.name ?? "";
+  };
+};
+
 interface BookingPaths {
   allocations: NonNullable<BookingIntent["allocations"]>;
   foldedChildIds: Set<number>;
@@ -80,11 +111,7 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
       .map((item) => item.e),
   );
   // Children folded under a tagged member book as part of that bundle.
-  const bundledChildIds = new Set(
-    allocations
-      .filter((allocation) => taggedParentIds.has(allocation.parentId))
-      .map((allocation) => allocation.childId),
-  );
+  const bundledChildIds = allocatedChildIds(allocations, taggedParentIds);
   // Standalone-ness is judged per LINE, not per listing: an order may book
   // the same listing through a package AND its own row, and the standalone
   // path must still take the stale checks below even though a tagged line
@@ -109,27 +136,6 @@ export const validateAllItems = async (
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const { allocations, foldedChildIds, standaloneLineIds } =
     bookingPaths(intent);
-  // For a hidden package, a per-member failure message would reveal a member
-  // name on /payment/success, so never include the listing name in those errors.
-  const hiddenPackage = namesConcealedIn(
-    snapshot.notificationPackages.displays,
-    lineGroupIds(intent.items),
-  );
-  // A standalone session started before its listing joined a HIDDEN package must
-  // not book the now-hidden member: its /ticket/<slug> 404s and /t/<token> would
-  // render the member name/details. Detected here, failed closed after pricing so
-  // the order takes the price_changed refund instead of a leaking standalone
-  // ticket. Lines booked through a package are that bundle's own members, so
-  // only the order's standalone lines are checked.
-  const staleHiddenMember = standaloneLineIds.some((listingId) =>
-    snapshot.hiddenPackageMemberIds.has(listingId),
-  );
-  // Suppress per-member names in failure messages for BOTH hidden cases: a hidden
-  // package intent, and a stale standalone session whose listing has since become
-  // a hidden member (else a member closed/deactivated mid-checkout surfaces its
-  // name on /payment/success before the stale-member refund below runs).
-  const includeListingName =
-    intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
   const pricingByGroup = snapshot.notificationPackages.pricingByGroup;
   // A folded child rides an UNTAGGED line that bundledChildIds removes from
   // standaloneLineIds wholesale, yet that one line can hold more units than
@@ -155,12 +161,19 @@ export const validateAllItems = async (
       snapshot.parentsByChildId,
     );
   const listingsById = snapshot.listingsById;
+  const nameFor = buyerLineName(intent, snapshot);
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
-    const vp = validateListingForPayment(
-      listingsById.get(item.e),
-      includeListingName,
-    );
+    const listing = listingsById.get(item.e);
+    if (!listing) {
+      return validationFailure(
+        session,
+        { error: "Listing not found", status: 404 },
+        item.e,
+      );
+    }
+    const name = nameFor(item, listing);
+    const vp = validateListingForPayment(listing, name);
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
@@ -177,6 +190,7 @@ export const validateAllItems = async (
       ),
       item,
       listing: vp.listing,
+      name,
     });
   }
   // Order-level package check: if any bundle's signed lines no longer match its
@@ -184,7 +198,6 @@ export const validateAllItems = async (
   // package count), fail every line closed so the whole order takes the
   // price_changed refund rather than booking a partial/stale bundle.
   if (
-    staleHiddenMember ||
     staleNonStandaloneChild ||
     anyPackageBundleMismatch(pricingByGroup, intent.items) ||
     orderEdgeDriftedFromFacts(intent, validatedItems, pricingByGroup, {

@@ -114,25 +114,29 @@ const resolveTicketHeader = ({
   };
 };
 
-/** The page's cart conflict notes. A concealed package member's name is never
- * public (a hidden package shows only its package name), so concealed members
- * are dropped from the facts — resolved through the page's stand-ins, like
- * every other buyer-facing surface — before any message could name them.
- * Their clashes fall back to the selectors' plain empty copy. */
+/** The page's cart conflict notes. Drop a name only when every page path that
+ * offers the listing conceals it. */
 const cartConflicts = (
   cartDateItems: readonly CartDateItem[],
   listings: TicketListing[],
   packages: readonly PagePackage[],
   childrenByParentId: Map<number, TicketListing[]> | undefined,
+  shownListingIds: ReadonlySet<number>,
 ): string[] => {
   const concealed = ctxStandInNames({
     childrenByParentId: childrenByParentId ?? new Map(),
     packages,
   }).byListingId;
   return cartConflictMessages({
-    dateItems: cartDateItems.filter((item) => !concealed.has(item.id)),
+    dateItems: cartDateItems.filter(
+      (item) => shownListingIds.has(item.id) || !concealed.has(item.id),
+    ),
     lengthItems: customisableLengthItems(
-      listings.filter((entry) => !concealed.has(entry.listing.id)),
+      listings.filter(
+        (entry) =>
+          shownListingIds.has(entry.listing.id) ||
+          !concealed.has(entry.listing.id),
+      ),
     ),
   });
 };
@@ -311,6 +315,11 @@ export const ticketPage = ({
             listings,
             packages,
             childrenByParentId,
+            new Set(
+              tree.nodes
+                .filter((node) => node.visibility === "SHOWN")
+                .map((node) => node.listingId),
+            ),
           )}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}

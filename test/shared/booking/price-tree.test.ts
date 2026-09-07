@@ -229,6 +229,55 @@ describe("packageBundleTotal", () => {
     // Child 9 is outside the bookable set → filtered out → just the member's 1000.
     expect(packageBundleTotal(tree, 1, new Set())).toBe(1000);
   });
+
+  for (const { listingType, customisable, chosenDays, total } of [
+    {
+      chosenDays: undefined,
+      customisable: false,
+      listingType: "standard",
+      total: 1500,
+    },
+    {
+      chosenDays: undefined,
+      customisable: false,
+      listingType: "daily",
+      total: 3500,
+    },
+    { chosenDays: 2, customisable: true, listingType: "daily", total: 2500 },
+  ] as const) {
+    test(`prices a customisable child for its ${listingType} parent's span (${chosenDays ?? "fixed"})`, () => {
+      const tree = buildBookingTree({
+        childrenByParentId: new Map([
+          [
+            5,
+            [
+              resolved({
+                customisable_days: true,
+                day_prices: { 1: 1000, 2: 2000, 3: 3000 },
+                duration_days: 3,
+                id: 9,
+                unit_price: 0,
+              }),
+            ],
+          ],
+        ]),
+        listings: [
+          resolved({
+            customisable_days: customisable,
+            day_prices: { 2: 500 },
+            duration_days: 3,
+            id: 5,
+            listing_type: listingType,
+            unit_price: 500,
+          }),
+        ],
+        packages: [treePackage(3, [5])],
+        slugs: ["pkg"],
+      });
+
+      expect(packageBundleTotal(tree, chosenDays, new Set([9]))).toBe(total);
+    });
+  }
 });
 
 describe("priceRuleByListingId", () => {

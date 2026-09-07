@@ -108,11 +108,8 @@ const MultiBookingField = ({
   </>
 );
 
-/** Multi-booking link builder section (only rendered when 2+ selectable
- * listings). The caller has already excluded every listing with no standalone
- * public page — a child and a hidden package's member both 404
- * on their own `/ticket/<slug>` — so an operator can't build a
- * `/ticket/<…+unbookable+…>` URL the server then rejects. */
+/** Multi-booking link builder section. The caller excludes listings with no
+ * standalone page, so every generated booking link works. */
 const multiBookingSection = (
   selectableListings: ListingWithCount[],
 ): string => {
@@ -233,10 +230,7 @@ export const adminDashboardPage = (
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
   const activeListings = activeOnly(listings);
-  // The multi-booking builder offers only standalone-bookable listings; a child
-  // is never an entry point (I3) and a hidden package's member 404s on its own
-  // page, so both are excluded from the selectable set and the "2+ listings"
-  // gate that decides whether to show the builder at all.
+  // The multi-booking builder offers only listings with a standalone page.
   const multiBookingListings = filter(
     (e: ListingWithCount) => !unbookableIds.has(e.id),
   )(activeListings);
