@@ -89,6 +89,69 @@ export const getPayPage = async (attendeeId: number): Promise<string> => {
   return response.text();
 };
 
+/** An attendee whose order mixes a concealed package row with a plain row:
+ * one booking through `group` and one standalone, both recognised as ledger
+ * revenue with nothing paid, so the attendee owes exactly `fullPrice`. */
+export const createMixedConcealedAttendee = async (group: {
+  id: number;
+}): Promise<{
+  attendeeId: number;
+  concealedName: string;
+  plainName: string;
+}> => {
+  const { requirePublicDefaultStatus } = await import(
+    "#db/attendee-statuses.ts"
+  );
+  const { attendeesApi } = await import("#db/attendees/api.ts");
+  const { bookedAttendee } = await import(
+    "#test-utils/db-helpers/attendee-payments.ts"
+  );
+  const { createTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
+  const { postListingSale } = await import("#test-utils/ledger.ts");
+  const concealed = await createTestListing({
+    groupId: group.id,
+    maxAttendees: 10,
+    maxQuantity: 10,
+    name: "Secret Contents",
+    unitPrice: 1000,
+  });
+  const plain = await createTestListing({
+    maxAttendees: 10,
+    name: "Workshop Ticket",
+    unitPrice: 1000,
+  });
+  await requirePublicDefaultStatus();
+  const attendee = bookedAttendee(
+    await attendeesApi.createAttendeeAtomic({
+      bookings: [
+        { listingId: concealed.id, packageGroupId: group.id, quantity: 1 },
+        { listingId: plain.id, quantity: 2 },
+      ],
+      email: "balance@example.com",
+      name: "Balance Buyer",
+      remainingBalance: 3000,
+    }),
+  );
+  for (const [listingId, gross] of [
+    [concealed.id, 1000],
+    [plain.id, 2000],
+  ] as const) {
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId: attendee.id,
+      gross,
+      listingId,
+    });
+  }
+  return {
+    attendeeId: attendee.id,
+    concealedName: concealed.name,
+    plainName: plain.name,
+  };
+};
+
 /**
  * A signed Stripe balance-payment checkout session for `attendeeId`.
  * `signedAmount` is the proof/items total; `chargedAmount` (defaults to it) is

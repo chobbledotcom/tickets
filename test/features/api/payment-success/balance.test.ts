@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
 import { apiBookPackage } from "#test/features/api/packages/helpers.ts";
-import { getPayPage } from "#test/integration/balance-helpers.ts";
+import {
+  createMixedConcealedAttendee,
+  getPayPage,
+} from "#test/integration/balance-helpers.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
 import { stubPaidCheckout } from "#test-utils/payment-session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -94,44 +94,11 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
 
   test("collapses a concealing package row behind the package name", async () => {
     const group = await createHiddenPackageGroup("Mystery Box");
-    const member = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 10,
-      maxQuantity: 10,
-      name: "Secret Contents",
-      unitPrice: 1000,
-    });
-    const plain = await createTestListing({
-      maxAttendees: 10,
-      name: "Workshop Ticket",
-      unitPrice: 1000,
-    });
-    const result = await attendeesApi.createAttendeeAtomic({
-      bookings: [
-        { listingId: member.id, packageGroupId: group.id, quantity: 1 },
-        { listingId: plain.id, quantity: 2 },
-      ],
-      email: "balance@example.com",
-      name: "Balance Buyer",
-      remainingBalance: 3000,
-    });
-    const attendee = bookedAttendee(result);
-    await postListingSale({
-      amountPaid: 0,
-      attendeeId: attendee.id,
-      gross: 1000,
-      listingId: member.id,
-    });
-    await postListingSale({
-      amountPaid: 0,
-      attendeeId: attendee.id,
-      gross: 2000,
-      listingId: plain.id,
-    });
-    expect((await getAttendeeBalanceState(attendee.id))?.remainingBalance).toBe(
+    const { attendeeId } = await createMixedConcealedAttendee(group);
+    expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       3000,
     );
-    const html = await getPayPage(attendee.id);
+    const html = await getPayPage(attendeeId);
 
     expect(html).not.toContain("Secret Contents");
     expect(html).toContain("Mystery Box");

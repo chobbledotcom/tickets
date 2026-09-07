@@ -102,14 +102,12 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     expect(html).not.toContain(`/ticket/${member.slug}`);
   });
 
-  test("offers the member's page when the bundle can no longer be bought", async () => {
-    // A package is all or nothing, so turning off a second member leaves the
-    // bundle incomplete and its page gone.
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Dead Bundle",
-      slug: "dead-bundle-direct",
-    });
+  /** A package with its second member deactivated, so the bundle's page is
+   * gone while the first member's standalone page still serves. */
+  const deadBundle = async (
+    makeGroup: () => Promise<{ id: number; slug: string }>,
+  ) => {
+    const group = await makeGroup();
     const member = await createTestListing({
       groupId: group.id,
       maxAttendees: 50,
@@ -124,6 +122,19 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       args: [turnedOff.id],
       sql: "UPDATE listings SET active = 0 WHERE id = ?",
     });
+    return { group, member };
+  };
+
+  test("offers the member's page when the bundle can no longer be bought", async () => {
+    // A package is all or nothing, so turning off a second member leaves the
+    // bundle incomplete and its page gone.
+    const { group, member } = await deadBundle(() =>
+      createTestGroup({
+        isPackage: true,
+        name: "Dead Bundle",
+        slug: "dead-bundle-direct",
+      }),
+    );
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
@@ -134,21 +145,9 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
   test("keeps a concealed member private when the bundle can no longer be bought", async () => {
     // The hidden bundle became unbookable, but a live standalone page is not
     // permission to name its member — the buyer only ever chose the bundle.
-    const group = await createHiddenPackageGroup("Dead Private Bundle");
-    const member = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    const turnedOff = await createTestListing({
-      groupId: group.id,
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-    await getDb().execute({
-      args: [turnedOff.id],
-      sql: "UPDATE listings SET active = 0 WHERE id = ?",
-    });
+    const { group, member } = await deadBundle(() =>
+      createHiddenPackageGroup("Dead Private Bundle"),
+    );
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 
