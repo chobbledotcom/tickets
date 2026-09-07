@@ -408,10 +408,10 @@ const prefixHandlers: Record<string, PrefixRoute> = {
   "read-only": prefixRoute([], readOnlyInfoHandler),
 };
 
-/** Prefixes whose routes are all GET, so no handler under them can ever read
- * a request body. Each entry is proven by that prefix's own route table. Leave
- * a prefix out when unsure: an unlisted prefix falls back to normal routing,
- * so a wrong entry only loses the fast 404. */
+/** Prefixes whose routes are all GET, each proven by that prefix's own
+ * route table. Name a prefix here only from that proof. A false entry
+ * answers real requests with a 404. Leave a prefix out when unsure. A
+ * missing entry only loses the fast 404. */
 const GET_ONLY_PREFIXES: readonly string[] = [
   ...PUBLIC_GET_PAGES.map(({ prefix }) => prefix),
   "address-lookup",
@@ -423,6 +423,7 @@ const GET_ONLY_PREFIXES: readonly string[] = [
   "gwallet",
   "image",
   "news",
+  "order",
   "order.js",
   "page",
   "read-only",
@@ -430,7 +431,7 @@ const GET_ONLY_PREFIXES: readonly string[] = [
   "wallet",
 ];
 
-/** Whether a request that carries a body could ever route here: the setup
+/** Whether a body-bearing request can route here: the setup
  * router, or a prefix route that serves a body-bearing method. Coarse by
  * design — deeper 404s (missing slugs, unknown admin tabs) still need the
  * database. */

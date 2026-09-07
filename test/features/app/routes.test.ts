@@ -203,6 +203,7 @@ describe("servesBodyRequests", () => {
       "/gwallet/a-token",
       "/image/a-file.jpg",
       "/news/latest",
+      "/order",
       "/order.js",
       "/page/about",
       "/read-only",

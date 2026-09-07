@@ -287,10 +287,10 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
-    // POST /read-only could never route (the page is GET-only), so the
+    // POST /read-only serves no route (the page is GET-only), so the
     // pre-routing fast-404 gate answers it with a bare 404 before the
-    // read-only guard runs. The mutation still never reaches a handler, and
-    // the default-deny guard itself stays covered by the /admin/* posts above.
+    // read-only guard runs. The mutation still never reaches a handler. The
+    // default-deny guard itself stays covered by the /admin/* posts above.
     test("POST /read-only is fast-404'd before the guard", async () => {
       const res = await handleRequest(
         mockRequest("/read-only", {

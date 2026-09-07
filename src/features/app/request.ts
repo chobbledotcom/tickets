@@ -246,10 +246,9 @@ const processRequest = async (
 
   let response!: Response;
   try {
-    // A body-bearing request no route could ever take — a path nothing
-    // serves, or a GET-only one — is a bot probe. 404 it before the body
-    // read, which would otherwise wait out the connection and report a CDN
-    // error for a scanner.
+    // A body-bearing request to a path no route serves is a bot probe. 404 it
+    // before the body read: the read waits out the connection and reports a
+    // CDN error for a scanner.
     if (method !== "GET" && method !== "HEAD" && !servesBodyRequests(path)) {
       return finish(new Response(null, { status: 404 }));
     }

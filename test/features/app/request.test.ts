@@ -24,7 +24,9 @@ const deleteSetting = async (key: string): Promise<void> => {
 };
 
 /** A POST whose body stream dies mid-transfer, like a client that opens the
- * request and hangs up before the body arrives. */
+ * request and hangs up before the body arrives. The cast covers `duplex`:
+ * the runtime needs it for a stream body, but Deno 2.5.6's RequestInit type
+ * does not know it. */
 const brokenBodyPost = (path: string): Request =>
   new Request(`http://localhost${path}`, {
     body: new ReadableStream({
