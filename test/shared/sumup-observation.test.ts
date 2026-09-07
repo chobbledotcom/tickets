@@ -7,11 +7,11 @@ import {
 } from "#shared/sumup-observation.ts";
 
 /**
- * Wire shapes follow the sandbox evidence recorded in PR3_PLAN.md ("SumUp
- * sandbox evidence result", collected 2026-08-05): pending carries an empty
- * transactions array and no transaction_id; paid names its transaction and
- * carries exactly one matching successful entry; failed carries exactly one
- * failed entry and no transaction_id.
+ * Wire shapes follow the sandbox evidence recorded in
+ * docs/sumup-sandbox-evidence.md (collected 2026-08-05): pending carries an
+ * empty transactions array and no transaction_id; paid names its transaction
+ * and carries exactly one matching successful entry; failed carries exactly
+ * one failed entry and no transaction_id.
  */
 const FACTS: SumupReadFacts = {
   merchantCode: "MC123",

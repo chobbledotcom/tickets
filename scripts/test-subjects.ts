@@ -70,7 +70,7 @@ export const resolveProjectImportOrNull = (
  * and the env overlay begin nearly every test and reach the database, config and
  * storage on the way. Only these two are listed, not all of `test-utils/`:
  * helpers like `session.ts` drive real pages, so what they reach genuinely is
- * the test's subject (see TODO.md for the wider fix).
+ * the test's subject (see issue #2312 for the report that sees past them).
  */
 const SHARED_SETUP_FILES = ["test/test-utils/db.ts", "test/test-utils/env.ts"];
 
