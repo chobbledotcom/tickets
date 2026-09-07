@@ -11,11 +11,20 @@ export const extractToken = (html: string): string | null => {
   return match ? decodeURIComponent(match[1]!) : null;
 };
 
-export const extractAndVerifyToken = async (html: string, slug: string) => {
+/** A verified QR booking token's payload. */
+type QrPayload = NonNullable<Awaited<ReturnType<typeof verifyQrBookToken>>>;
+
+export const extractAndVerifyToken = async (
+  html: string,
+  slug: string,
+): Promise<{ payload: QrPayload; token: string }> => {
   const token = extractToken(html);
   expect(token).not.toBeNull();
   const payload = await verifyQrBookToken(slug, token!);
-  return { payload, token };
+  if (payload === null) {
+    throw new Error(`QR token failed verification against ${slug}`);
+  }
+  return { payload, token: token! };
 };
 
 /** Post the generator form for `listing` and verify the token it mints. */
@@ -25,7 +34,7 @@ export const postQr =
     fields: Record<string, string>,
   ): Promise<{
     body: string;
-    payload: Awaited<ReturnType<typeof verifyQrBookToken>>;
+    payload: QrPayload;
     response: Response;
     token: string;
   }> => {
@@ -35,5 +44,5 @@ export const postQr =
     );
     const body = await response.text();
     const { payload, token } = await extractAndVerifyToken(body, listing.slug);
-    return { body, payload, response, token: token! };
+    return { body, payload, response, token };
   };

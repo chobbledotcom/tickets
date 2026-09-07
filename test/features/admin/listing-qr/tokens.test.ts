@@ -46,7 +46,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       value: "5.00",
     });
     expect(response.status).toBe(200);
-    expect(payload!.d).toBe(date);
+    expect(payload.d).toBe(date);
   });
 
   test("accepts any price for fixed-price listings as a one-off override", async () => {
@@ -77,7 +77,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       value: "0.00",
     });
     expect(response.status).toBe(200);
-    expect(payload!.v).toBe(0);
+    expect(payload.v).toBe(0);
   });
 
   test("signed token embeds submitted values and matches the listing slug", async () => {
@@ -91,10 +91,9 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       quantity: "3",
       value: "12.50",
     });
-    expect(payload).not.toBeNull();
-    expect(payload!.n).toBe("Ada Lovelace");
-    expect(payload!.v).toBe(1250);
-    expect(payload!.q).toBe(3);
+    expect(payload.n).toBe("Ada Lovelace");
+    expect(payload.v).toBe(1250);
+    expect(payload.q).toBe(3);
   });
 
   test("generates a token when customer_name is omitted, defaulting quantity to 1", async () => {
@@ -104,9 +103,9 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
     });
     const { response, payload } = await postQr(listing)({});
     expect(response.status).toBe(200);
-    expect(payload!.n).toBe("");
-    expect(payload!.q).toBe(1);
-    expect(payload!.v).toBe(-1);
+    expect(payload.n).toBe("");
+    expect(payload.q).toBe(1);
+    expect(payload.v).toBe(-1);
   });
 
   test("tokens are scoped to their listing slug", async () => {
