@@ -2,7 +2,8 @@
  * Turns one fetched SumUp checkout into a typed provider read. Pure: the caller
  * fetches, and passes the facts to check the body against.
  *
- * The shapes follow sandbox evidence in PR3_PLAN.md. A pending checkout carries
+ * The shapes follow sandbox evidence in docs/sumup-sandbox-evidence.md. A
+ * pending checkout carries
  * an empty transactions array. A paid one names its transaction and carries
  * exactly one matching successful entry. A failed one carries failed entries
  * only.

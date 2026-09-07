@@ -52,7 +52,7 @@ a later attempt skips the provider call. This must stay.
 > (`getPaymentProviderForExistingPayments`) therefore never decides which
 > provider takes a refund. An older untagged reference is a typed permanent
 > refusal, not a guess — the owner refunds it in the provider's own dashboard.
-> See TODO.md, "Historical refund references deliberately remain manual".
+> See PLAN.md, M4 as-built "Reference identity and storage".
 
 ## 3. Multiple captured charges require owner review
 
