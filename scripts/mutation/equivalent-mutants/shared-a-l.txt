@@ -275,3 +275,9 @@ src/shared/bulk-email.ts::buildMailtoLink.to~1lrzg1h  = → +=   # to is still t
 # input at that boundary the slice is empty, parseInt gives NaN, and both
 # range masks fail, so NaN and null land on the same false.
 src/shared/local-host.ts::ipv6FirstGroup~16zpdpl  1 → 0   # at to === 1 the group slice is empty, NaN fails both masks like null does, and every real group sits past index 1
+
+# compareOptionalDates normalises an optional date string with `?? ""`. For
+# every input the operand can hold — a date string, "", null, undefined —
+# `?? ""` and `|| ""` return the same value, so no test can tell them apart.
+src/shared/attendee-list-controls.ts::compareOptionalDates.firstDate~0yc1a5v  ?? → ||   # "" is falsy, but both operators fall back to the same "" here; a non-empty string is returned by both
+src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?? → ||   # same proof as firstDate

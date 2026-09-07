@@ -154,6 +154,16 @@ describeWithEnv("server listings > export", { db: true }, () => {
         "Mid Person",
         "Zulu Person",
       ]);
+      // The download's name carries no day when none was chosen.
+      const response = await awaitTestRequest(
+        `/admin/listing/${listing.id}/export`,
+        {
+          cookie,
+        },
+      );
+      expect(response.headers.get("content-disposition")).toMatch(
+        /filename="[^"]*_attendees\.csv"/,
+      );
     });
 
     test("sanitizes slug for filename", async () => {
