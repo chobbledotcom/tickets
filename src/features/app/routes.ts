@@ -28,6 +28,7 @@ import { isReadOnly } from "#shared/env.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
 import { readOnlyBlock } from "./read-only.ts";
+import { isSetupPath } from "./rules.ts";
 
 /* jscpd:ignore-end */
 
@@ -405,6 +406,40 @@ const prefixHandlers: Record<string, PrefixRoute> = {
   events: prefixRoute([], legacyEventsRedirectHandler),
   "order.js": prefixRoute([], orderJsPrefixHandler),
   "read-only": prefixRoute([], readOnlyInfoHandler),
+};
+
+/** Prefixes whose routes are all GET, so no handler under them can ever read
+ * a request body. Each entry is proven by that prefix's own route table. Leave
+ * a prefix out when unsure: an unlisted prefix falls back to normal routing,
+ * so a wrong entry only loses the fast 404. */
+const GET_ONLY_PREFIXES: readonly string[] = [
+  ...PUBLIC_GET_PAGES.map(({ prefix }) => prefix),
+  "address-lookup",
+  "attachment",
+  "caldav",
+  "custom.css",
+  "events",
+  "feeds",
+  "gwallet",
+  "image",
+  "news",
+  "order.js",
+  "page",
+  "read-only",
+  "t",
+  "wallet",
+];
+
+/** Whether a request that carries a body could ever route here: the setup
+ * router, or a prefix route that serves a body-bearing method. Coarse by
+ * design — deeper 404s (missing slugs, unknown admin tabs) still need the
+ * database. */
+export const servesBodyRequests = (path: string): boolean => {
+  if (isSetupPath(path)) return true;
+  const prefix = getPrefix(path);
+  return (
+    Object.hasOwn(prefixHandlers, prefix) && !GET_ONLY_PREFIXES.includes(prefix)
+  );
 };
 
 /** Route main application requests after setup is complete. */
