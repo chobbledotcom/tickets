@@ -9,7 +9,7 @@
 import type { Liquid } from "liquidjs";
 import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
-import { lazyRef, map, mapNotNullish, sumOf } from "#fp";
+import { lazyRef, map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
 import { bookedRangeLabel, widestDatedEntry } from "#shared/dates.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -163,15 +163,19 @@ const entryGroupsBy = (
   displays: ReadonlyMap<number, PackageDisplay>,
   collapses: (display: PackageDisplay) => boolean,
 ): EntryGroup[] =>
-  map(
-    (group: PackageRowGroup<EmailEntry>): EntryGroup => {
-      if (group.groupId === undefined) return { entries: group.rows };
-      const display = displays.get(group.groupId);
-      return display === undefined
-        ? { entries: group.rows }
-        : { display, entries: group.rows };
-    },
-  )(
+  map((group: PackageRowGroup<EmailEntry>): EntryGroup => {
+    if (group.groupId === undefined) return { entries: group.rows };
+    // A group only collapses when its display resolves (the predicate
+    // checks), so the display is always present here.
+    return {
+      display: requiredMapValue(
+        displays,
+        group.groupId,
+        `Missing package display for collapsed group ${group.groupId}`,
+      ),
+      entries: group.rows,
+    };
+  })(
     groupPackageRows(
       entries,
       (entry) => entry.attendee.package_group_id,

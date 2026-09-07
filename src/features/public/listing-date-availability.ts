@@ -6,7 +6,7 @@
  * and adding packages adds no database round trips.
  */
 
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   loadCapacitySnapshot,
@@ -38,7 +38,10 @@ export const loadDailyDateAvailability = async (
       .filter(
         (listing) =>
           !getBookableStartDates(listing, [...holidays]).includes(date) ||
-          (remaining.get(listing.id) ?? 0) < 1,
+          // The snapshot answers every row it was loaded for, so a missing
+          // entry would be a capacity-reader bug, not a bookable listing.
+          requiredMapValue(remaining, listing.id, "Missing date availability") <
+            1,
       )
       .map((listing) => listing.id),
   );

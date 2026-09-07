@@ -74,6 +74,19 @@ describeWithEnv(
   "the date-filtered listings page",
   { db: true, triggers: true },
   () => {
+    test("a page with no daily listings needs no date read", async () => {
+      const { loadDailyDateAvailability } = await import(
+        "#routes/public/listing-date-availability.ts"
+      );
+      // A daily listing the buyer cannot start on the request date is
+      // unavailable; with none there is nothing to judge.
+      const listing = await createDailyTestListing();
+      const date = (await bookableStartDates(listing.id))[0]!;
+      const empty = await loadDailyDateAvailability([], date, []);
+
+      expect(empty).toEqual(new Set());
+    });
+
     test("adding daily packages does not add capacity reads or break the budget", async () => {
       await enablePublicSite();
       const many = await dateFilterQueries(CAPPED_DAILY_PACKAGES);
