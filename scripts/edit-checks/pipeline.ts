@@ -2,6 +2,8 @@
 // order they run in, and how the results read. The plugin in
 // .opencode/plugins/ wires this to the editor and to the tool runner.
 
+import { extname } from "node:path";
+
 export type CheckResult = { label: string; ok: boolean; text: string };
 export type ToolRun = { ok: boolean; text: string };
 export type RunTool = (args: string[]) => Promise<ToolRun>;
@@ -19,7 +21,18 @@ export const biomeApplies = (relPath: string): boolean =>
   !BIOME_SKIP_TREES.some((tree) => relPath.startsWith(tree)) &&
   !BIOME_SKIP_FILES.includes(relPath);
 
-export type ScanRun = { config: string; paths?: string[] };
+// jscpd finds clones only between files of one format, so a post-edit scan
+// narrows to the edited file's format; the precommit gate still scans
+// every format.
+const FORMAT_FOR_EXTENSION: Record<string, string> = {
+  js: "javascript",
+  json: "json",
+  jsx: "jsx",
+  ts: "typescript",
+  tsx: "tsx",
+};
+
+export type ScanRun = { config: string; format: string; paths?: string[] };
 
 // Every jscpd config whose scan covers the edited file's tree. A src edit
 // also runs the specs and helpers configs because those compare the test
@@ -29,11 +42,12 @@ export const scansFor = (relPath: string): ScanRun[] => {
   // scan directories when scss is the only format. The code configs do
   // not list scss, so this file gets no other scan.
   if (relPath === "src/ui/static/style.scss") {
-    return [{ config: ".jscpd.css.json", paths: [relPath] }];
+    return [{ config: ".jscpd.css.json", format: "scss", paths: [relPath] }];
   }
-  if (!/\.(?:ts|tsx|js|jsx|json)$/.test(relPath)) return [];
+  const format = FORMAT_FOR_EXTENSION[extname(relPath).slice(1)];
+  if (format === undefined) return [];
   const runs: ScanRun[] = [];
-  const add = (config: string) => runs.push({ config });
+  const add = (config: string) => runs.push({ config, format });
   if (relPath.startsWith("src/")) {
     add(".jscpd.json");
     add(".jscpd.specs.json");
@@ -158,7 +172,10 @@ export const createPipeline = ({
       // report directory, so scans cannot contend on report files.
       "--reporters",
       "ai",
-      "--no-tips",
+      // Scan only the edited file's format: jscpd cannot pair the edit
+      // with a file of another format.
+      "--format",
+      run.format,
     ]);
 
   // Returns the check output for one edited file, or "" when no check

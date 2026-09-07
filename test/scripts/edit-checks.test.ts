@@ -73,6 +73,49 @@ describe("edit-checks pipeline", () => {
       ".jscpd.specs.json",
       ".jscpd.helpers.json",
     ]);
+    for (const pending of calls.slice(1)) {
+      expect(pending.args).toContain("--format");
+      expect(pending.args[pending.args.indexOf("--format") + 1]).toBe(
+        "typescript",
+      );
+    }
+  });
+
+  test("scans only the edited file's format", async () => {
+    const { calls, pipeline, drain } = recordingPipeline();
+
+    const typescript = pipeline("src/shared/dates.ts");
+    await drain();
+    await typescript;
+    const json = pipeline("src/locales/en/tickets.json");
+    await drain();
+    await json;
+    const stylesheet = pipeline("src/ui/static/style.scss");
+    await drain();
+    await stylesheet;
+
+    const formats = calls
+      .filter((pending) => pending.args[0] === "scripts/cpd.ts")
+      .map((pending) => pending.args[pending.args.indexOf("--format") + 1]);
+    expect(formats).toEqual([
+      "typescript",
+      "typescript",
+      "typescript",
+      "json",
+      "json",
+      "json",
+      "scss",
+    ]);
+    expect(call(calls, calls.length - 1).args).toEqual([
+      "scripts/cpd.ts",
+      "--config",
+      ".jscpd.css.json",
+      "src/ui/static/style.scss",
+      "--reporters",
+      "ai",
+      "--format",
+      "scss",
+    ]);
   });
 
   test("keeps a second edit's Biome write behind the first edit's scans", async () => {
@@ -182,7 +225,11 @@ describe("edit-checks file classification", () => {
 
   test("scans the stylesheet with the css config and its file path", () => {
     expect(scansFor("src/ui/static/style.scss")).toEqual([
-      { config: ".jscpd.css.json", paths: ["src/ui/static/style.scss"] },
+      {
+        config: ".jscpd.css.json",
+        format: "scss",
+        paths: ["src/ui/static/style.scss"],
+      },
     ]);
   });
 });
