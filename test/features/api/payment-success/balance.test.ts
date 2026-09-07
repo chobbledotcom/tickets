@@ -89,6 +89,7 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
+    expect(refund.calls).toHaveLength(0);
   });
 
   test("collapses a concealing package row behind the package name", async () => {

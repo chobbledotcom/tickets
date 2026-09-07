@@ -18,8 +18,8 @@ describe("public balance templates", () => {
       depositPaid: 500,
       fullPrice: 1750,
       lines: [
-        { listingId: 1, name: "First item", quantity: 2 },
-        { listingId: 2, name: "Second item", quantity: 1 },
+        { listingId: 1, name: "First item", packageGroupId: 0, quantity: 2 },
+        { listingId: 2, name: "Second item", packageGroupId: 0, quantity: 1 },
       ],
       reservationSubtotal: 500,
       totalQuantity: 3,
