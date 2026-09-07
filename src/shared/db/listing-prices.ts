@@ -395,12 +395,17 @@ export const syncListingPricesForIds = async (
  * after every listing insert/update (the form/API `afterCommit`) so the mirror
  * never drifts from the column. The source row is read on the primary
  * (write-mode batch) so it reflects the just-committed write rather than a
- * lagging replica. A missing listing is a no-op. Day-count rows are written from
- * input by the write paths, not re-derived here. */
+ * lagging replica, and parsed there — it does not go through
+ * {@link readSourceRows}, whose bulk read need not be primary-pinned. A
+ * missing listing is a no-op. Day-count rows are written from input by the
+ * write paths, not re-derived here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const row = await queryOnePrimary<ListingPriceSourceRow>(
+  const row = await queryOnePrimary<unknown>(
     "SELECT id, unit_price FROM listings WHERE id = ?",
     [listingId],
   );
-  if (row) await executeBatch(sourceRowStatements(row));
+  if (row === null) return;
+  await executeBatch(
+    sourceRowStatements(v.parse(ListingPriceSourceRowSchema, row)),
+  );
 };

@@ -378,6 +378,14 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     expect(await priceRows(987654)).toEqual([]);
   });
 
+  test("a source row that is not a number fails the sync loudly", async () => {
+    const listing = await createTestListing({ unitPrice: 750 });
+    await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
+      listing.id,
+    ]);
+    await expect(syncListingPrices(listing.id)).rejects.toThrow("Invalid type");
+  });
+
   test("updating a missing listing writes no price rows", async () => {
     // The table wrapper only re-syncs when the update returns a row; a missing
     // id yields null and must not touch listing_prices.
