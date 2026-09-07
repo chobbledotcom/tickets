@@ -125,6 +125,32 @@ describeWithEnv(
       }
     });
 
+    test("a hidden standalone root hides its whole mixed cart", async () => {
+      await enablePublicSite();
+      const packageGroup = await createTestGroup({
+        isPackage: true,
+        name: "Robots Cart Pkg",
+      });
+      const packageMember = await createTestListing({
+        groupId: packageGroup.id,
+        maxAttendees: 5,
+      });
+      const hiddenStandalone = await createTestListing({
+        hidden: true,
+        maxAttendees: 5,
+      });
+
+      const headers = await robotsTagFor(
+        `/ticket/${packageGroup.slug}+${hiddenStandalone.slug}`,
+      );
+
+      expect(headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(headers.has("x-robots-noindex")).toBe(false);
+      // The member's own inference stays out of it: the cart is hidden through
+      // the buyer's chosen hidden listing, not the visible package member.
+      expect(packageMember.hidden).toBe(false);
+    });
+
     test("tells robots to leave a listing kept off the list alone", async () => {
       const listing = await createTestListing({ hidden: true });
       const headers = await robotsTagFor(`/ticket/${listing.slug}`);

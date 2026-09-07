@@ -116,6 +116,7 @@ describe("adminListingPage with questionData", () => {
         isOwner: false,
         listing,
         noteNames: new Map(),
+        publicPage: "available",
         questionData: singleAnswerSizeQuestionData(),
         stats: overviewStatsFromAttendees(listing, []),
       }),

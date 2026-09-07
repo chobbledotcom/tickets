@@ -1,4 +1,4 @@
-import { bookedOutsideParent, lineGroupId } from "#booking/signed-metadata.ts";
+import { bookedPathGroupIds } from "#booking/signed-metadata.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { clearSessionTokens } from "#db/processed-payments.ts";
@@ -81,9 +81,7 @@ const processSessionAndRedirect = async (
   const isBalancePayment = intent.balanceAttendeeId !== undefined;
   const bookingGroupIds = isBalancePayment
     ? []
-    : intent.items
-        .filter(bookedOutsideParent(intent.allocations ?? []))
-        .map((item) => lineGroupId(item) ?? 0);
+    : bookedPathGroupIds(intent.items, intent.allocations ?? []);
   const explicitThankYou =
     !isBalancePayment &&
     intent.thankYouUrl &&

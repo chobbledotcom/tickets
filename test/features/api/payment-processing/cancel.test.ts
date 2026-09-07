@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { groups } from "#db/groups.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import type {
   SessionMetadata,
@@ -161,9 +162,31 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-
     const { html } = await renderCancelPage(packageLine(member.id, 99999));
 
+    expect(html).not.toContain(`/ticket/${member.slug}`);
+  });
+
+  test("offers no retry when the package became a regular group", async () => {
+    // The group still serves, but as a plain group it no longer sells the
+    // bundle this checkout bought — and the conversion leaves the buyer's
+    // package path with no display, so neither link is honest.
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Converted Bundle",
+      slug: "converted-bundle",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    await groups.table.update(group.id, { isPackage: false });
+
+    const { html } = await renderCancelPage(packageLine(member.id, group.id));
+
+    expect(html).toContain("Payment Cancelled");
+    expect(html).not.toContain(`/ticket/${group.slug}`);
     expect(html).not.toContain(`/ticket/${member.slug}`);
   });
 

@@ -7,11 +7,10 @@ import {
   childDateKey,
   childDateOk,
   childHasDateOrStockForDays,
-  childHasPriceForDays,
   childInStock,
   childOpen,
   childPassesAllChecks,
-  childUsesSameDays,
+  childSupportsDays,
 } from "#booking/model.ts";
 import {
   dailyOverrides,
@@ -141,80 +140,40 @@ describe("booking model — child eligibility", () => {
     });
   });
 
-  describe("childHasPriceForDays", () => {
-    test("non-customisable listings always have a price", () => {
-      const check = childHasPriceForDays(5);
-      expect(check(resolved({ customisable_days: false }))).toBe(true);
+  describe("childSupportsDays", () => {
+    test("a standard child serves any span", () => {
+      expect(childSupportsDays(resolved({ customisable_days: false }), 5)).toBe(
+        true,
+      );
     });
 
-    test("customisable listing with a price for the day count", () => {
-      const check = childHasPriceForDays(3);
+    test("a customisable child serves only a count it prices", () => {
       const child = resolved({
         customisable_days: true,
         day_prices: { 3: 500 },
         duration_days: 5,
       });
-      expect(check(child)).toBe(true);
+      expect(childSupportsDays(child, 3)).toBe(true);
+      expect(childSupportsDays(child, 4)).toBe(false);
     });
 
-    test("customisable listing missing a price for the day count", () => {
-      const check = childHasPriceForDays(3);
+    test("a customisable child with no offered count serves nothing", () => {
       const child = resolved({
         customisable_days: true,
-        day_prices: { 4: 500 },
+        day_prices: {},
         duration_days: 5,
       });
-      expect(check(child)).toBe(false);
-    });
-  });
-
-  describe("childUsesSameDays", () => {
-    test("customisable-day children always match", () => {
-      const check = childUsesSameDays(3);
-      expect(
-        check(
-          resolved({
-            customisable_days: true,
-            duration_days: 7,
-            listing_type: "daily",
-          }),
-        ),
-      ).toBe(true);
+      expect(childSupportsDays(child, 1)).toBe(false);
     });
 
-    test("non-daily children always match regardless of duration", () => {
-      const check = childUsesSameDays(3);
-      expect(
-        check(
-          resolved({
-            customisable_days: false,
-            duration_days: 99,
-            listing_type: "standard",
-          }),
-        ),
-      ).toBe(true);
-    });
-
-    test("fixed daily child matches only its own duration", () => {
-      const check = childUsesSameDays(3);
-      expect(
-        check(
-          resolved({
-            customisable_days: false,
-            duration_days: 3,
-            listing_type: "daily",
-          }),
-        ),
-      ).toBe(true);
-      expect(
-        check(
-          resolved({
-            customisable_days: false,
-            duration_days: 4,
-            listing_type: "daily",
-          }),
-        ),
-      ).toBe(false);
+    test("a fixed daily child serves only its own duration", () => {
+      const child = resolved({
+        customisable_days: false,
+        duration_days: 3,
+        listing_type: "daily",
+      });
+      expect(childSupportsDays(child, 3)).toBe(true);
+      expect(childSupportsDays(child, 4)).toBe(false);
     });
   });
 

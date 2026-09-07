@@ -6,7 +6,6 @@ import {
   ascending,
   availableDayCounts,
   clampDurationDays,
-  dayPriceFor,
   type Holiday,
   type ListingWithCount,
   PARENT_CHILD_GROUP_UNITS,
@@ -72,21 +71,6 @@ export const childHasDateOrStockForDays =
     child.listing.listing_type === "daily"
       ? childHasStartForDays(child, days ?? 1, holidays, parentDates)
       : childInStock(child);
-
-/** Checks the child has a price for the chosen day count. */
-export const childHasPriceForDays =
-  (days: number) =>
-  (child: TicketListing): boolean =>
-    !child.listing.customisable_days ||
-    dayPriceFor(child.listing, days) !== null;
-
-/** Checks a fixed daily child lasts the same number of days as the parent. */
-export const childUsesSameDays =
-  (days: number) =>
-  (child: TicketListing): boolean =>
-    child.listing.customisable_days ||
-    child.listing.listing_type !== "daily" ||
-    clampDurationDays(child.listing.duration_days) === days;
 
 /** The order's resolved date is valid for a daily child's own calendar. */
 export const childDateOk =
@@ -253,7 +237,7 @@ const dayCountsEveryListingSupports = (listings: TicketListing[]): number[] => {
 
 /** Day counts a required child supports, or null when any count is fine. */
 export const dayCountsChildSupports = (
-  child: TicketListing,
+  child: Pick<TicketListing, "listing">,
 ): number[] | null => {
   if (child.listing.customisable_days) return availableDayCounts(child.listing);
   if (child.listing.listing_type === "daily") {
@@ -264,20 +248,15 @@ export const dayCountsChildSupports = (
 
 /** Whether a required child can serve a booking of exactly `days` days:
  * standard children serve any span, a fixed daily child only its own, and a
- * customisable child only a count it prices. Shared by the fold and by the
- * advertised bundle minimum, so a span a child can't serve never reads as a
- * free alternative. */
+ * customisable child only a count it prices — one answer derived from the
+ * counts every shareable surface reads, so the fold and the advertised
+ * bundle minimum can never disagree about a span. */
 export const childSupportsDays = (
   child: Pick<TicketListing, "listing">,
   days: number,
 ): boolean => {
-  if (child.listing.customisable_days) {
-    return availableDayCounts(child.listing).includes(days);
-  }
-  if (child.listing.listing_type === "daily") {
-    return clampDurationDays(child.listing.duration_days) === days;
-  }
-  return true;
+  const supported = dayCountsChildSupports(child);
+  return supported === null || supported.includes(days);
 };
 
 /** Keeps day counts that each member's children can support. */

@@ -3,9 +3,8 @@ import {
   childCanBeBooked,
   childDateOk,
   childDaysFromParent,
-  childHasPriceForDays,
   childPassesAllChecks,
-  childUsesSameDays,
+  childSupportsDays,
   type TicketListing,
 } from "#booking/model.ts";
 import { nodesDeepestFirst } from "#booking/node-order.ts";
@@ -63,8 +62,9 @@ export const childSelectableForSpan = (
   childPassesAllChecks(
     compact([
       childCanBeBooked,
-      duration === null ? null : childHasPriceForDays(duration),
-      duration === null ? null : childUsesSameDays(duration),
+      duration === null
+        ? null
+        : (c: TicketListing) => childSupportsDays(c, duration),
     ]),
   )(child);
 

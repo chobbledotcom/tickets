@@ -47,6 +47,20 @@ export const standaloneLineListingIds = (
 ): number[] =>
   items.filter((item) => lineGroupId(item) === undefined).map((item) => item.e);
 
+/** The booking-path group ids an order's real selections carry: 0 for a
+ * standalone path, else the package its line was booked through. Fully
+ * folded children carry no id of their own — their units belong to the
+ * parent's path. `listingId` narrows the answer to one listing's paths. */
+export const bookedPathGroupIds = (
+  items: readonly BookingItem[],
+  allocations: readonly ChildAllocation[],
+  listingId?: number,
+): number[] =>
+  items
+    .filter(bookedOutsideParent(allocations))
+    .filter((item) => listingId === undefined || item.e === listingId)
+    .map((item) => lineGroupId(item) ?? 0);
+
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.
  * A package/group member needs its group id (`r`); a line missing that ref (or
  * untagged) is a standalone `listing:<id>`. */
@@ -92,16 +106,6 @@ const childIdsByParentNodeKey = (tree: BookingTree): Map<string, number[]> => {
   return byKey;
 };
 
-/**
- * Whether any signed line's edge no longer resolves against the current tree.
- *
- * A line whose current node carries required-child edges must have SOME of
- * those children in the order. Otherwise an edge ADDED mid-checkout would book
- * the parent without the add-on the current page requires.
- *
- * The caller fails such an order closed, so it takes the `price_changed` refund
- * and never books a stale bundle. Per-line price drift is checked separately.
- */
 /** A child also has its own path when its quantity exceeds its parent
  * allocations. */
 export const bookedOutsideParent = (
@@ -150,6 +154,16 @@ const allocationEdgeDrifted = (
   );
 };
 
+/**
+ * Whether any signed line's edge no longer resolves against the current tree.
+ *
+ * A line whose current node carries required-child edges must have SOME of
+ * those children in the order. Otherwise an edge ADDED mid-checkout would book
+ * the parent without the add-on the current page requires.
+ *
+ * The caller fails such an order closed, so it takes the `price_changed` refund
+ * and never books a stale bundle. Per-line price drift is checked separately.
+ */
 export const edgeDrifted = (
   tree: BookingTree,
   items: readonly BookingItem[],

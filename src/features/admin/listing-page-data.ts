@@ -22,11 +22,7 @@ import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import { groups, listingGroups } from "#db/groups.ts";
 import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
-import {
-  anyNonStandaloneChild,
-  hydrateListingLinks,
-  listingChildren,
-} from "#db/listing-parents.ts";
+import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
   type ListingAggregateRecalculation,
@@ -45,6 +41,10 @@ import { getQuestionsForListing } from "#db/questions/queries.ts";
 import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import {
+  type ListingPublicPageState,
+  listingPublicPageState,
+} from "#routes/public/ticket-payment.ts";
 import { readAttendeeListState } from "#shared/attendee-list-controls.ts";
 import { resolveRecipientEmails } from "#shared/bulk-email.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -99,17 +99,11 @@ export const getListingAndGroups = async (
     : null;
 };
 
-/** Whether the listing's own public page serves right now. A non-standalone
- * child has no such page at all; an inactive listing's page is switched off.
- * Governs every share affordance — URL, embed, QR — so nothing links to a
- * page that would 404. */
-export type ListingPublicPageState = "available" | "child" | "inactive";
-
 /**
  * The listing entity page's loaded row: the listing plus the derived flags any
- * tab may gate on. `publicPage` explains why share, QR, and booking-link
- * actions are suppressed — a child listing has no standalone public page, an
- * inactive one's page is switched off. `hasEmailableAttendees` gates
+ * tab may gate on. `publicPage` is the one share-eligibility state from
+ * {@link listingPublicPageState} — it explains why share, QR, and
+ * booking-link actions are suppressed. `hasEmailableAttendees` gates
  * the owner-only Email
  * action so it never links to the compose page's 404 (empty-recipient) path; it
  * is resolved lazily by the Actions tab's `prepare` hook (via
@@ -126,15 +120,11 @@ export type LoadedListing = {
  *  `hasEmailableAttendees` defaults to false here — the decrypt behind it is
  *  deferred to the Actions tab, the only surface that reads it. */
 export const loadListingForPage = (id: number): Promise<LoadedListing | null> =>
-  loadListingOr(id, async (listing) => {
-    // A child that can be booked alone keeps its share and QR actions.
-    const isChild = await anyNonStandaloneChild([id]);
-    return {
-      hasEmailableAttendees: false,
-      listing,
-      publicPage: isChild ? "child" : listing.active ? "available" : "inactive",
-    };
-  });
+  loadListingOr(id, async (listing) => ({
+    hasEmailableAttendees: false,
+    listing,
+    publicPage: await listingPublicPageState(listing),
+  }));
 
 /** Whether the listing has at least one attendee with an email on file — the
  *  same recipient resolution the bulk-email compose route uses, so the Email

@@ -112,7 +112,7 @@ export const ListingOverviewPanel = (
         embedIframeCode={links.embedIframeCode}
         embedScriptCode={links.embedScriptCode}
         listing={listing}
-        publicPage={publicPage ?? "available"}
+        publicPage={publicPage}
         sharedRows={sharedRows}
         ticketUrl={links.ticketUrl}
       />
