@@ -107,6 +107,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       // chosen order and the table's own order name three different rows.
       const { listing, cookie } = await setupListingAndLogin({
         maxAttendees: 100,
+        name: "Roster Order",
         thankYouUrl: "https://example.com",
       });
       for (const name of ["Mid Person", "Alpha Person", "Zulu Person"]) {
@@ -161,8 +162,8 @@ describeWithEnv("server listings > export", { db: true }, () => {
           cookie,
         },
       );
-      expect(response.headers.get("content-disposition")).toMatch(
-        /filename="[^"]*_attendees\.csv"/,
+      expect(response.headers.get("content-disposition")).toContain(
+        'attachment; filename="Roster_Order_attendees.csv"',
       );
     });
 
