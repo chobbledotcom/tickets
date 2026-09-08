@@ -1,3 +1,9 @@
+import {
+  createClient,
+  type InStatement,
+  type Transaction,
+  type TransactionMode,
+} from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -5,36 +11,51 @@ import {
   countSchemaTableRows,
   createBackup,
   exportTable,
+  snapshotReader,
 } from "#db/backup-snapshot.ts";
-import { getDb } from "#db/client.ts";
+import { getDb, setDb, withReadSnapshot } from "#db/client.ts";
 import { initDb, SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
+import { getEnv } from "#shared/env.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("backup snapshot", { db: true }, () => {
+  /** Export one table through its own snapshot, the way a dump does. */
+  const exportFromSnapshot = async (
+    table: string,
+    pageSize?: number,
+  ): Promise<{ sql: string; rowCount: number }> =>
+    withReadSnapshot((snapshot) =>
+      exportTable(table, snapshotReader(snapshot), pageSize),
+    );
+
   describe("exportTable", () => {
     test("returns empty sql and zero rowCount for empty table", async () => {
-      expect(await exportTable("listings")).toEqual({ rowCount: 0, sql: "" });
+      expect(await exportFromSnapshot("listings")).toEqual({
+        rowCount: 0,
+        sql: "",
+      });
     });
 
     test("exports INSERT statements for table with data", async () => {
       await createTestListing({ name: "Test Listing" });
-      const { sql, rowCount } = await exportTable("listings");
+      const { sql, rowCount } = await exportFromSnapshot("listings");
       expect(sql).toContain('INSERT INTO "listings"');
       expect(rowCount).toBe(1);
     });
 
     test("quotes column names in INSERT statements", async () => {
       await createTestListing({ name: "Quote Test" });
-      const { sql } = await exportTable("listings");
+      const { sql } = await exportFromSnapshot("listings");
       expect(sql).toMatch(/INSERT INTO "listings" \("id", "created"/);
     });
 
     test("batches multiple rows into a single multi-row INSERT", async () => {
       await createTestListing({ name: "Row One" });
       await createTestListing({ name: "Row Two" });
-      const { sql, rowCount } = await exportTable("listings");
+      const { sql, rowCount } = await exportFromSnapshot("listings");
       expect(rowCount).toBe(2);
       // One statement (one trailing semicolon), two value tuples.
       expect(sql.match(/;/g)).toHaveLength(1);
@@ -43,7 +64,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
 
     test("handles NULL values", async () => {
       await createTestListing({ name: "Null Test" });
-      const { sql } = await exportTable("listings");
+      const { sql } = await exportFromSnapshot("listings");
       expect(sql).toContain("NULL");
     });
 
@@ -54,7 +75,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
         args: ["quote-test", "O'Brien's Gala"],
         sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
       });
-      const { sql } = await exportTable("settings");
+      const { sql } = await exportFromSnapshot("settings");
       expect(sql).toContain("'O''Brien''s Gala'");
     });
 
@@ -65,7 +86,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
 
       // A page size of 2 forces two reads (2 rows, then 1) so the keyset loop
       // must continue past the first full page and stop on the short one.
-      const { sql, rowCount } = await exportTable("listings", 2);
+      const { sql, rowCount } = await exportFromSnapshot("listings", 2);
 
       expect(rowCount).toBe(3);
       // One INSERT statement per page, and the cursor alias never leaks into the
@@ -86,28 +107,117 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       for (let n = 1; n <= 5; n++) {
         ids.push((await createTestListing({ name: `Cursor ${n}` })).id);
       }
-      const { sql, rowCount } = await exportTable("listings", 2);
+      const { sql, rowCount } = await exportFromSnapshot("listings", 2);
       expect(rowCount).toBe(5);
       expect(sql).toContain(`(${ids[4]},`);
     });
   });
 
+  describe("withReadSnapshot", () => {
+    test("refuses a write smuggled into the snapshot", async () => {
+      await expect(
+        withReadSnapshot((snapshot) =>
+          snapshot.execute("DELETE FROM listings"),
+        ),
+      ).rejects.toThrow("accept only SELECT statements");
+    });
+
+    test("refuses a write smuggled into a snapshot batch", async () => {
+      await expect(
+        withReadSnapshot((snapshot) =>
+          snapshot.batch([
+            { args: [], sql: "SELECT 1" },
+            { args: [], sql: "UPDATE settings SET value = 'x'" },
+          ]),
+        ),
+      ).rejects.toThrow("accept only SELECT statements");
+    });
+
+    test("closes the snapshot when the work throws", async () => {
+      await expect(
+        withReadSnapshot(() => Promise.reject(new Error("boom"))),
+      ).rejects.toThrow("boom");
+      // The next snapshot opens cleanly: the failed one released its stream.
+      await expect(
+        withReadSnapshot((snapshot) =>
+          snapshot.batch([{ args: [], sql: "SELECT 1" }]),
+        ),
+      ).resolves.toHaveLength(1);
+    });
+  });
+  describe("one snapshot per dump", () => {
+    test("every page of a dump reads one database state", async () => {
+      const before = await createTestListing({ name: "Before" });
+      // WAL gives the reader/writer independence a remote libsql database has;
+      // the suite's other clients carry a speed pragma that cannot hold a WAL
+      // file, so the dump runs on a client opened after the switch.
+      await getDb().execute("PRAGMA journal_mode=WAL");
+      const dumpBase = createClient({ url: getEnv("DB_URL")! });
+      setDb(dumpBase);
+      const intruder = createClient({ url: getEnv("DB_URL")! });
+      let snapshotBatches = 0;
+      // The dump's snapshot writes one intruder listing through a second
+      // connection as its first-page batch begins — after the table-list read
+      // pinned the snapshot, before any later page — so the pages that follow
+      // race a committed write. With one snapshot they must not see it.
+      const injected = proxyMembers(dumpBase, {
+        transaction: async (mode?: TransactionMode): Promise<Transaction> => {
+          const tx = await dumpBase.transaction(mode);
+          return proxyMembers(tx, {
+            batch: async (statements: InStatement[]) => {
+              if (snapshotBatches++ === 0) {
+                await intruder.execute({
+                  args: ["2026-01-01T00:00:00.000Z", 10, "Mid-dump intruder"],
+                  sql: "INSERT INTO listings (created, max_attendees, name) VALUES (?, ?, ?)",
+                });
+              }
+              return tx.batch(statements);
+            },
+          });
+        },
+      });
+      setDb(injected);
+      try {
+        // A page size of 1 forces the listings table through a second page
+        // read; the intruder write lands before it. Names are encrypted at
+        // rest, so rows are told apart by id: Before is the rowid before the
+        // intruder's.
+        using _pageSize = withEnv({ BACKUP_PAGE_SIZE: "1" });
+        const backups = await createBackup();
+
+        const listings = backups.find((b) => b.table === "listings");
+        expect(listings?.rowCount).toBe(1);
+        expect(listings?.sql).toContain(`(${before.id},`);
+        expect(snapshotBatches).toBeGreaterThan(0);
+        // The intruder's row carries the next rowid; it is in no table's dump:
+        // every page read the same pre-write state.
+        for (const backup of backups) {
+          expect(backup.sql).not.toContain(`(${before.id + 1},`);
+        }
+      } finally {
+        setDb(null);
+        await intruder.close();
+        await dumpBase.close();
+      }
+    });
+  });
+
   describe("backupDumpDatabaseCalls", () => {
-    test("charges two calls for an empty database", () => {
-      expect(backupDumpDatabaseCalls([], 500)).toBe(2);
+    test("charges three calls for an empty database", () => {
+      expect(backupDumpDatabaseCalls([], 500)).toBe(3);
     });
 
     test("tables that fit their first page ride the shared batch", () => {
-      expect(backupDumpDatabaseCalls([499, 1, 250], 500)).toBe(2);
+      expect(backupDumpDatabaseCalls([499, 1, 250], 500)).toBe(3);
     });
 
     test("each full page costs one extra read", () => {
       const cases: [rows: number, pageSize: number, calls: number][] = [
-        [500, 500, 3],
-        [501, 500, 3],
-        [999, 500, 3],
-        [1000, 500, 4],
-        [3, 1, 5],
+        [500, 500, 4],
+        [501, 500, 4],
+        [999, 500, 4],
+        [1000, 500, 5],
+        [3, 1, 6],
       ];
       for (const [rows, pageSize, calls] of cases) {
         expect(backupDumpDatabaseCalls([rows], pageSize)).toBe(calls);
@@ -115,13 +225,13 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     });
 
     test("sums extra pages across tables", () => {
-      expect(backupDumpDatabaseCalls([500, 1000, 499], 500)).toBe(5);
+      expect(backupDumpDatabaseCalls([500, 1000, 499], 500)).toBe(6);
     });
 
     test("reads the page size from BACKUP_PAGE_SIZE by default", () => {
       using _env = withEnv({ BACKUP_PAGE_SIZE: "1" });
-      // Three one-row pages past the shared first-page batch: 2 + 3.
-      expect(backupDumpDatabaseCalls([3])).toBe(5);
+      // Three one-row pages past the shared first-page batch: 3 + 3.
+      expect(backupDumpDatabaseCalls([3])).toBe(6);
     });
   });
 
