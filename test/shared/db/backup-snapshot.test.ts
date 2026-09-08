@@ -113,38 +113,9 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     });
   });
 
-  describe("withReadSnapshot", () => {
-    test("refuses a write smuggled into the snapshot", async () => {
-      await expect(
-        withReadSnapshot((snapshot) =>
-          snapshot.execute("DELETE FROM listings"),
-        ),
-      ).rejects.toThrow("accept only SELECT statements");
-    });
+  // The snapshot's own SELECT-only and close-on-error contracts are direct
+  // client tests: test/shared/db/client/snapshot.test.ts.
 
-    test("refuses a write smuggled into a snapshot batch", async () => {
-      await expect(
-        withReadSnapshot((snapshot) =>
-          snapshot.batch([
-            { args: [], sql: "SELECT 1" },
-            { args: [], sql: "UPDATE settings SET value = 'x'" },
-          ]),
-        ),
-      ).rejects.toThrow("accept only SELECT statements");
-    });
-
-    test("closes the snapshot when the work throws", async () => {
-      await expect(
-        withReadSnapshot(() => Promise.reject(new Error("boom"))),
-      ).rejects.toThrow("boom");
-      // The next snapshot opens cleanly: the failed one released its stream.
-      await expect(
-        withReadSnapshot((snapshot) =>
-          snapshot.batch([{ args: [], sql: "SELECT 1" }]),
-        ),
-      ).resolves.toHaveLength(1);
-    });
-  });
   describe("one snapshot per dump", () => {
     test("every page of a dump reads one database state", async () => {
       const before = await createTestListing({ name: "Before" });
