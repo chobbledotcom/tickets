@@ -44,7 +44,7 @@ describe("content form fields", () => {
     });
   });
 
-  test("the SEO meta pair keeps the declared meta_title and meta_description caps", () => {
+  test("the SEO Title and SEO Description fields keep their declared caps", () => {
     const byName = new Map(forms.createForm.fields.map((f) => [f.name, f]));
     expect(byName.get("meta_title")).toMatchObject({
       maxlength: CONTENT_FIELD_LIMITS.meta_title,

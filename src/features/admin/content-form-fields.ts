@@ -17,10 +17,8 @@ import { slugFieldBase } from "#templates/fields/validators.ts";
 // jscpd:ignore-end
 
 /**
- * The character limits of the shared SEO/content fields, keyed by the field
- * name the form and the stored column both use. The form field's `maxlength`
- * reads from here, so a new content editor reusing these fields imports the
- * same limits instead of restating them.
+ * The shared SEO/content fields' character limits, keyed by the form field
+ * name a new content editor imports.
  */
 export const CONTENT_FIELD_LIMITS = {
   content: MAX_TEXTAREA_LENGTH,
