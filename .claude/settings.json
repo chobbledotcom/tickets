@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.json|*.jsonc|*.css) D=$(command -v deno || true); [ -n \"$D\" ] && \"$D\" run -A scripts/biome.ts check --write \"$f\" ;; esac; } 2>/dev/null || true"
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.json|*.jsonc|*.css) devenv shell -- deno run -A scripts/biome.ts check --write \"$f\" ;; esac; }"
           }
         ]
       }

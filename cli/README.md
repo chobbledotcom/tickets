@@ -1,6 +1,7 @@
 # Tickets CLI
 
-Deno-only, `curl`-powered tools for the Tickets admin API.
+Deno-only, `curl`-powered tools for the Tickets admin API. Run the commands
+below inside `devenv shell`, which provides the pinned Deno and `curl`.
 
 Rezi was evaluated from `https://github.com/RtlZeroMemory/Rezi/`. Its public
 packages currently target Node/Bun and its terminal backend depends on the Node

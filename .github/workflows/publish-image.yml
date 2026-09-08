@@ -34,6 +34,8 @@ defaults:
 
 jobs:
   publish:
+    # workflow_dispatch can select any branch; only main may own :latest.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
