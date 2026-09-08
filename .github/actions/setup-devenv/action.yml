@@ -1,10 +1,10 @@
 name: Set up devenv
 description: >-
   Install Nix and the devenv CLI, use the public devenv binary cache,
-  restore the Nix store and the Deno dependency cache, evaluate the
-  project environment once, and optionally populate it with deno
-  install. The evaluated environment is the same one developers get
-  from devenv shell.
+  evaluate the project environment once, restore the shared Deno
+  dependency cache, and optionally populate it with deno install. The
+  evaluated environment is the same one developers get from devenv
+  shell.
 inputs:
   install_dependencies:
     description: Populate the Deno module cache with deno install.
@@ -19,33 +19,17 @@ runs:
     - name: Set up Nix
       uses: cachix/install-nix-action@v31
 
-    # Pull devenv's own prebuilt binaries from its public cache. We run
-    # no private cache service of our own; the other substituters are
-    # cache.nixos.org and the cached Nix store below.
+    # Pull devenv's own prebuilt binaries from its public cache. We run no
+    # binary cache of our own; the other substituter is cache.nixos.org.
+    # The Nix store itself is deliberately not cached through the GitHub
+    # Actions cache: both a substituter directory and
+    # nix-community/cache-nix-action restored it slower than the public
+    # caches serve it, because the closure is big but the runner sits a
+    # few hops from Fastly.
     - name: Use the devenv binary cache
       uses: cachix/cachix-action@v16
       with:
         name: devenv
-
-    # Part of the store-cache key: the cache holds the store database
-    # as well as the files, so the Nix version that wrote it must match
-    # the one that reads it back.
-    - name: Resolve the Nix version
-      shell: bash
-      id: nix-version
-      run: echo "version=$(nix --version | cut -d' ' -f3)" >> "$GITHUB_OUTPUT"
-
-    # The runner's single biggest setup cost is downloading the shell
-    # closure (dominated by Chromium's dependency tree). The Nix store
-    # rides the GitHub Actions cache — restored as real store paths
-    # with a merged database, saved once per dependency change — so the
-    # downloads happen only when the environment definition moves.
-    - name: Restore the Nix store
-      id: nix-store
-      uses: nix-community/cache-nix-action/restore@v7
-      with:
-        primary-key: nix-${{ steps.nix-version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('devenv.lock', 'devenv.yaml', 'devenv.nix') }}
-        restore-prefixes-first-match: nix-${{ steps.nix-version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Install devenv.sh
       shell: bash
@@ -75,9 +59,3 @@ runs:
       if: inputs.install_dependencies == 'true'
       shell: bash
       run: devenv shell -- deno install --allow-scripts
-
-    - name: Save the Nix store
-      if: steps.nix-store.outputs.hit-primary-key != 'true'
-      uses: nix-community/cache-nix-action/save@v7
-      with:
-        primary-key: ${{ steps.nix-store.outputs.primary-key }}
