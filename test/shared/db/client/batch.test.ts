@@ -3,7 +3,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
+  deleteWithChildren,
   getDb,
+  queryAll,
   queryAllPrimary,
   queryBatch,
   queryBatchPrimary,
@@ -17,6 +19,8 @@ import {
   runWithQueryLogContext,
 } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -145,5 +149,28 @@ describeWithEnv("db > client batch", { db: true }, () => {
       expect(entry!.startedAtMs).toBe(1000);
       expect(entry!.durationMs).toBe(7);
     });
+  });
+
+  test("deleteWithChildren removes the children and the parent row itself", async () => {
+    // The parent delete must name the parent's own id column — a delete
+    // keyed by anything else would silently leave the row standing.
+    const listing = await createTestListing({ name: "Child delete listing" });
+    const attribute = await createTestAttributeWithOptions("Season", [
+      "Spring",
+    ]);
+    const option = attribute.options[0]!.id;
+    const { listingAttributeOptions } = await import("#db/attributes.ts");
+    await listingAttributeOptions.setIds(listing.id, [option]);
+
+    await deleteWithChildren("attribute_options", [
+      { field: "option_id", table: "listing_attribute_options" },
+    ])(option);
+
+    expect(
+      await queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_attribute_options",
+      ),
+    ).toEqual([]);
+    expect(await queryAll("SELECT id FROM attribute_options")).toEqual([]);
   });
 });

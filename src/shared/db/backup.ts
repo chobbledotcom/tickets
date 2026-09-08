@@ -240,6 +240,11 @@ export type BackupBudget = {
  * allowance. Counting the rows costs one database call; `available` is what is
  * left after it. Only meaningful inside a request — the out-of-band
  * `deno task backup` runs with no allowance to fit in.
+ *
+ * The count is one snapshot attempt. A mid-dump transient blip replays the
+ * whole attempt (`withReadSnapshot`), so a dump near the allowance can spend
+ * the rest on the replay and fail the request; the admin retries, which starts
+ * a fresh allowance.
  */
 export const backupBudget = async (): Promise<BackupBudget> => {
   const needed =

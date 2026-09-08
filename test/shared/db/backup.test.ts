@@ -13,8 +13,8 @@ import {
   restoreFromZip,
   splitStatements,
 } from "#db/backup.ts";
-import { exportTable } from "#db/backup-snapshot.ts";
-import { getDb, queryAll } from "#db/client.ts";
+import { exportTable, snapshotReader } from "#db/backup-snapshot.ts";
+import { getDb, queryAll, withReadSnapshot } from "#db/client.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import {
@@ -42,15 +42,23 @@ const budgetWithAllowance = (total: number) =>
     ),
   );
 
+/** Export one table through its own snapshot, as a dump would. */
+const exportInSnapshot = async (table: string): Promise<string> =>
+  (
+    await withReadSnapshot((snapshot) =>
+      exportTable(table, snapshotReader(snapshot)),
+    )
+  ).sql;
+
 describeWithEnv("backup", { db: true }, () => {
   describe("backupBudget", () => {
     test("prices a small database at the fixed dump and storage calls", async () => {
       // Outside a request scope the full 50-call allowance is reported, and
-      // every fixture table fits its first page: 2 dump + 3 storage calls.
+      // every fixture table fits its first page: 3 dump + 3 storage calls.
       expect(await backupBudget()).toEqual({
         available: 50,
         fits: true,
-        needed: 5,
+        needed: 6,
       });
     });
 
@@ -238,8 +246,8 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("restoreFromSql", () => {
     const dumpWithFutureMigrations = async (ids: string[]): Promise<string> => {
-      const recorded = await exportTable("schema_migrations");
-      return `${recorded.sql}\n${ids
+      const recorded = await exportInSnapshot("schema_migrations");
+      return `${recorded}\n${ids
         .map(
           (id) =>
             `INSERT INTO "schema_migrations" ("id", "description", "applied_at") VALUES ('${id}', 'Future change', '2099-01-01T00:00:00.000Z');`,
@@ -249,7 +257,7 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("restores data from SQL statements", async () => {
       await createTestListing({ name: "Before Restore" });
-      const { sql } = await exportTable("listings");
+      const sql = await exportInSnapshot("listings");
       await restoreFromSql(sql);
       const listings = await queryAll<Record<string, unknown>>(
         "SELECT * FROM listings",
