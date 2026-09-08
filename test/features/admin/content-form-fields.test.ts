@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  CONTENT_FIELD_LIMITS,
   contentFieldValues,
   contentSlugField,
   defineContentForms,
@@ -32,37 +33,47 @@ describe("content form fields", () => {
     ]);
   });
 
-  test("the name field is required text capped at 128 characters", () => {
+  test("the name field is required text capped at the declared name limit", () => {
     const name = forms.createForm.fields[0];
     expect(JSON.parse(JSON.stringify(name))).toEqual({
       label: "Thing name",
-      maxlength: 128,
+      maxlength: CONTENT_FIELD_LIMITS.name,
       name: "name",
       required: true,
       type: "text",
     });
   });
 
-  test("the SEO meta pair keeps its 64 and 160 character caps", () => {
+  test("the SEO meta pair keeps the declared meta_title and meta_description caps", () => {
     const byName = new Map(forms.createForm.fields.map((f) => [f.name, f]));
     expect(byName.get("meta_title")).toMatchObject({
-      maxlength: 64,
+      maxlength: CONTENT_FIELD_LIMITS.meta_title,
       type: "text",
     });
     expect(byName.get("meta_description")).toMatchObject({
-      maxlength: 160,
+      maxlength: CONTENT_FIELD_LIMITS.meta_description,
       type: "text",
     });
   });
 
-  test("the content field is a markdown textarea with the shared cap", () => {
+  test("the content field is a markdown textarea with the declared content cap", () => {
     const content = forms.createForm.fields.at(-1);
     expect(content).toMatchObject({
       markdown: true,
-      maxlength: MAX_TEXTAREA_LENGTH,
+      maxlength: CONTENT_FIELD_LIMITS.content,
       name: "content",
       type: "textarea",
     });
+  });
+
+  test("every shared limit is declared once in CONTENT_FIELD_LIMITS", () => {
+    // The table is the one place a new content editor imports its limits
+    // from, so each shared field's maxlength must read from it.
+    expect(CONTENT_FIELD_LIMITS.meta_description).toBe(160);
+    expect(CONTENT_FIELD_LIMITS.meta_title).toBe(64);
+    expect(CONTENT_FIELD_LIMITS.name).toBe(128);
+    // The body rides the shared textarea limit.
+    expect(CONTENT_FIELD_LIMITS.content).toBe(MAX_TEXTAREA_LENGTH);
   });
 
   test("only the edit form's slug links to the public page", () => {

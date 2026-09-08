@@ -16,15 +16,24 @@ import { slugFieldBase } from "#templates/fields/validators.ts";
 
 // jscpd:ignore-end
 
-const MAX_NAME = 128;
-const MAX_META_TITLE = 64;
-const MAX_META_DESCRIPTION = 160;
+/**
+ * The character limits of the shared SEO/content fields, keyed by the field
+ * name the form and the stored column both use. The form field's `maxlength`
+ * reads from here, so a new content editor reusing these fields imports the
+ * same limits instead of restating them.
+ */
+export const CONTENT_FIELD_LIMITS = {
+  content: MAX_TEXTAREA_LENGTH,
+  meta_description: 160,
+  meta_title: 64,
+  name: 128,
+} as const;
 
 /** The required display-name field (each editor supplies its own label). */
 const contentNameField = (label: string) =>
   ({
     label,
-    maxlength: MAX_NAME,
+    maxlength: CONTENT_FIELD_LIMITS.name,
     name: "name",
     required: true,
     type: "text",
@@ -49,14 +58,14 @@ const seoMetaFields = () =>
     {
       hint: t("fields.meta_title_hint"),
       label: t("fields.meta_title"),
-      maxlength: MAX_META_TITLE,
+      maxlength: CONTENT_FIELD_LIMITS.meta_title,
       name: "meta_title",
       type: "text",
     },
     {
       hint: t("fields.meta_description_hint"),
       label: t("fields.meta_description"),
-      maxlength: MAX_META_DESCRIPTION,
+      maxlength: CONTENT_FIELD_LIMITS.meta_description,
       name: "meta_description",
       type: "text",
     },
@@ -68,7 +77,7 @@ const markdownContentField = () =>
     hintHtml: formattingHint(),
     label: t("fields.content"),
     markdown: true,
-    maxlength: MAX_TEXTAREA_LENGTH,
+    maxlength: CONTENT_FIELD_LIMITS.content,
     name: "content",
     type: "textarea",
   }) as const;
