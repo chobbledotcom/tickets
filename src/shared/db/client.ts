@@ -774,35 +774,37 @@ export const useTransaction = <T>(
  * The transaction begins `READ ONLY`, so it never takes the write lock and
  * never blocks a writer; every statement it sees is one snapshot of the data,
  * however many round trips the work makes. Statements must be SELECTs — a
- * write smuggled into the scope throws before it reaches the database.
- *
- * The snapshot never commits. It ends by closing, which discards it without
- * another round trip, on success and on failure alike. Cache invalidation does
- * not apply: nothing was written.
+ * write smuggled into the scope throws before it reaches the database. The
+ * snapshot never commits: it ends by closing; cache invalidation does not
+ * apply because nothing was written. An upstream failure replays the whole
+ * attempt on a fresh transaction, so `work` must be safe to run twice, as
+ * with {@link withTransaction}.
  */
-/** Open the read-only transaction a snapshot reads through: `READ ONLY` never
- *  takes the write lock, and a replica-pinned one is one consistent state. */
-const openReadSnapshot = (): Promise<Transaction> =>
-  getDb().transaction("read");
-
-export const withReadSnapshot: TransactionRunner = async (work) => {
-  const tx = await openReadSnapshot();
-  // The SELECT-only runners the snapshot hands its work: each refuses a
-  // non-SELECT before it reaches `tx`.
-  const batch = (statements: InStatement[]): Promise<ResultSet[]> => {
-    requireReadStatements(statements);
-    return trackedTxBatch(tx)(statements);
-  };
-  const execute = (stmt: InStatement): Promise<ResultSet> => {
-    requireReadStatements([stmt]);
-    return trackedTxExecute(tx)(stmt);
-  };
-  try {
-    return await work({ batch, execute });
-  } finally {
-    tx.close();
-  }
-};
+export const withReadSnapshot: TransactionRunner = (work) =>
+  retryOnTransientDatabaseError(
+    async () => {
+      // READ ONLY never takes the write lock, and a replica-pinned transaction
+      // is one consistent database state.
+      const tx = await getDb().transaction("read");
+      // The SELECT-only runners the snapshot hands its work: each refuses a
+      // non-SELECT before it reaches `tx`.
+      const batch = (statements: InStatement[]): Promise<ResultSet[]> => {
+        requireReadStatements(statements);
+        return trackedTxBatch(tx)(statements);
+      };
+      const execute = (stmt: InStatement): Promise<ResultSet> => {
+        requireReadStatements([stmt]);
+        return trackedTxExecute(tx)(stmt);
+      };
+      try {
+        return await work({ batch, execute });
+      } finally {
+        tx.close();
+      }
+    },
+    // Every statement inside is a read, so a retried attempt cannot double-apply.
+    { retryUpstream: true },
+  );
 
 /**
  * Run a write that ends in `RETURNING` and read back the row it wrote. A
