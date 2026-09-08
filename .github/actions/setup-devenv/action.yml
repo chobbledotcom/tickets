@@ -1,10 +1,10 @@
 name: Set up devenv
 description: >-
   Install Nix and the devenv CLI, use the public devenv binary cache,
-  restore the shared Deno dependency cache and the local Nix binary
-  cache, evaluate the project environment once, and optionally populate
-  it with deno install. The evaluated environment is the same one
-  developers get from devenv shell.
+  restore the Nix store and the Deno dependency cache, evaluate the
+  project environment once, and optionally populate it with deno
+  install. The evaluated environment is the same one developers get
+  from devenv shell.
 inputs:
   install_dependencies:
     description: Populate the Deno module cache with deno install.
@@ -13,42 +13,39 @@ inputs:
 runs:
   using: composite
   steps:
-    # A plain directory written by `nix copy`, carried by the GitHub
-    # Actions cache. Wired as a substituter below, it serves the whole
-    # shell closure (the runner's single biggest setup cost is that
-    # download, dominated by Chromium's dependency tree) at
-    # local-disk speed, and new paths still fall back to the public
-    # caches. One entry per dependency change, filled once.
-    - name: Restore the Nix binary cache
-      id: nix-cache
-      uses: actions/cache/restore@v4
-      with:
-        path: ~/.cache/nix-binary-cache
-        key: nix-binary-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('devenv.lock', 'devenv.yaml', 'devenv.nix') }}
-        restore-keys: |
-          nix-binary-cache-${{ runner.os }}-${{ runner.arch }}-
-
     # Every step here pins shell: bash — jobs commonly set
     # `defaults.run.shell: devenv shell bash -- -e {0}`, which must not be
     # used before the devenv CLI exists.
     - name: Set up Nix
       uses: cachix/install-nix-action@v31
 
-    # Pull devenv's own prebuilt binaries from its public cache. We run no
-    # private cache service of our own; the other substituters are
-    # cache.nixos.org and the locally cached directory below.
+    # Pull devenv's own prebuilt binaries from its public cache. We run
+    # no private cache service of our own; the other substituters are
+    # cache.nixos.org and the cached Nix store below.
     - name: Use the devenv binary cache
       uses: cachix/cachix-action@v16
       with:
         name: devenv
 
-    # Local file substituters are trusted without keys. This must reach
-    # every later nix call in the job, so it goes through GITHUB_ENV.
-    - name: Add the cached store as a substituter
+    # Part of the store-cache key: the cache holds the store database
+    # as well as the files, so the Nix version that wrote it must match
+    # the one that reads it back.
+    - name: Resolve the Nix version
       shell: bash
-      run: >-
-        echo "NIX_CONFIG=extra-substituters = file://$HOME/.cache/nix-binary-cache"
-        >> "$GITHUB_ENV"
+      id: nix-version
+      run: echo "version=$(nix --version | cut -d' ' -f3)" >> "$GITHUB_OUTPUT"
+
+    # The runner's single biggest setup cost is downloading the shell
+    # closure (dominated by Chromium's dependency tree). The Nix store
+    # rides the GitHub Actions cache — restored as real store paths
+    # with a merged database, saved once per dependency change — so the
+    # downloads happen only when the environment definition moves.
+    - name: Restore the Nix store
+      id: nix-store
+      uses: nix-community/cache-nix-action/restore@v7
+      with:
+        primary-key: nix-${{ steps.nix-version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('devenv.lock', 'devenv.yaml', 'devenv.nix') }}
+        restore-prefixes-first-match: nix-${{ steps.nix-version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Install devenv.sh
       shell: bash
@@ -79,27 +76,8 @@ runs:
       shell: bash
       run: devenv shell -- deno install --allow-scripts
 
-    # The store now holds everything this job — and so the next run with
-    # the same dependency set — needs: the devenv profile, the flake
-    # inputs, and the evaluated shell closure. Shell globs skip the
-    # store's hidden .links directory on their own. The copy runs as
-    # root: the runner user is untrusted for the Nix daemon, which
-    # leaves a client-written cache directory it cannot then write
-    # into. Root can, and the files go back to the runner afterwards so
-    # the cache save can read them. sudo resets PATH, so it passes
-    # through explicitly.
-    - name: Copy the evaluated store into the binary cache
-      if: steps.nix-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        cache_dir="$HOME/.cache/nix-binary-cache"
-        ls -d /nix/store/* | xargs -r sudo -n env "PATH=$PATH" nix copy \
-          --to "file://$cache_dir?compression=zstd&parallel-compression=true&compression-level=3"
-        sudo -n chown -R "$(id -u):$(id -g)" "$cache_dir"
-
-    - name: Save the Nix binary cache
-      if: steps.nix-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+    - name: Save the Nix store
+      if: steps.nix-store.outputs.hit-primary-key != 'true'
+      uses: nix-community/cache-nix-action/save@v7
       with:
-        path: ~/.cache/nix-binary-cache
-        key: ${{ steps.nix-cache.outputs.cache-primary-key }}
+        primary-key: ${{ steps.nix-store.outputs.primary-key }}
