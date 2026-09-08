@@ -287,9 +287,11 @@ describeWithEnv(
       expect(res.headers.get("location")).not.toBe("/read-only");
     });
 
-    // POST /read-only is not on the safe list, so the default-deny guard
-    // blocks it with a redirect (same as any other unguarded mutation).
-    test("POST /read-only is blocked by default-deny guard", async () => {
+    // POST /read-only serves no route (the page is GET-only), so the
+    // pre-routing fast-404 gate answers it with a bare 404 before the
+    // read-only guard runs. The mutation still never reaches a handler. The
+    // default-deny guard itself stays covered by the /admin/* posts above.
+    test("POST /read-only is fast-404'd before the guard", async () => {
       const res = await handleRequest(
         mockRequest("/read-only", {
           body: "test=1",
@@ -297,7 +299,8 @@ describeWithEnv(
           method: "POST",
         }),
       );
-      expectReadOnlyRedirect(res);
+      expect(res.status).toBe(404);
+      expect(await res.text()).toBe("");
     });
 
     // HEAD is not a mutating method, so it passes the guard and reaches the

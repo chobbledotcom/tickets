@@ -57,7 +57,7 @@ import {
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
-import { defineAppRoute, routeMainApp } from "./routes.ts";
+import { defineAppRoute, routeMainApp, servesBodyRequests } from "./routes.ts";
 import {
   bufferRequestIfNeeded,
   ensureCustomCssResponse,
@@ -246,6 +246,13 @@ const processRequest = async (
 
   let response!: Response;
   try {
+    // A body-bearing request to a path no route serves is a bot probe. 404 it
+    // before the body read: the read waits out the connection and reports a
+    // CDN error for a scanner.
+    if (method !== "GET" && method !== "HEAD" && !servesBodyRequests(path)) {
+      return finish(new Response(null, { status: 404 }));
+    }
+
     const bufferedRequest = await bufferRequestIfNeeded(request);
 
     const staticResponse = await routeStatic(bufferedRequest, path, method);
