@@ -17,6 +17,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Two merges to main close together must not race the :latest tag — the
+# older build finishing last would silently roll every consumer back.
+# Queued runs publish in the order the pushes arrived.
+concurrency:
+  group: publish-image
+  cancel-in-progress: false
+
 permissions:
   contents: read
   packages: write
@@ -45,32 +52,35 @@ jobs:
       - name: Build the runtime image
         run: container-build
 
-      - name: Load the image into Podman
+      - name: Load the image into the container engine
         run: container-load
 
       # Build the exact image that will be pushed, then boot it and prove the
       # server answers before it becomes anyone's :latest. The module cache
-      # is baked in, so a healthy image answers within seconds.
+      # is baked in, so a healthy image answers within seconds. GitHub
+      # runners ship Docker but not Podman, so every step picks the same
+      # engine `container-load` falls back to.
       - name: Verify the image boots and serves
         env:
           # Throwaway key for the ephemeral container DB — not a real secret.
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: |
-          podman rm -f tickets-verify >/dev/null 2>&1 || true
-          podman run -d --name tickets-verify -p 127.0.0.1:13000:3000 \
+          engine="$(command -v podman || command -v docker)"
+          "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
+          "$engine" run -d --name tickets-verify -p 127.0.0.1:13000:3000 \
             -e DB_ENCRYPTION_KEY="$DB_ENCRYPTION_KEY" \
             ghcr.io/chobbledotcom/tickets:latest
           for _ in $(seq 1 20); do
             if [ "$(curl -fsS -m 5 http://127.0.0.1:13000/health 2>/dev/null)" = "Up :)" ]; then
               echo "Server answered /health."
-              podman rm -f tickets-verify >/dev/null
+              "$engine" rm -f tickets-verify >/dev/null
               exit 0
             fi
             sleep 3
           done
           echo "::error::The image did not serve /health within a minute. Logs:"
-          podman logs tickets-verify || true
-          podman rm -f tickets-verify >/dev/null 2>&1 || true
+          "$engine" logs tickets-verify || true
+          "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
           exit 1
 
       - name: Copy the image to the registry
@@ -82,6 +92,7 @@ jobs:
           # once, so platforms and self-hosters can pull without credentials:
           # GitHub → the chobbledotcom org → the tickets package → Package
           # settings → Change visibility.
-          echo "$GHCR_TOKEN" | podman login ghcr.io -u "$GHCR_USER" --password-stdin
-          podman push ghcr.io/chobbledotcom/tickets:latest
+          engine="$(command -v podman || command -v docker)"
+          echo "$GHCR_TOKEN" | "$engine" login ghcr.io -u "$GHCR_USER" --password-stdin
+          "$engine" push ghcr.io/chobbledotcom/tickets:latest
 

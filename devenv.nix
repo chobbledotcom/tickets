@@ -71,7 +71,7 @@ let
       # The container's root filesystem is a writable union, so Deno writes
       # its analysis caches into the baked module cache directly.
       export DENO_DIR=/deno-cache
-      export DB_URL="''${DB_URL:-file:/data/tickets.db}"
+      export DB_URL="''${DB_URL-file:/data/tickets.db}"
       cd /app
       exec deno run \
         --allow-net \
@@ -138,8 +138,28 @@ let
       chown -R 1000:1000 ./app ./deno-cache ./data
     '';
     config = {
+      # The healthcheck execs Deno without the entrypoint's shell, so the
+      # module cache location must reach it through the image environment.
+      Env = [ "DENO_DIR=/deno-cache" ];
       Entrypoint = [ "${serverStart}/bin/tickets-server" ];
       WorkingDir = "/app";
+      # Same HEALTHCHECK the deleted Dockerfile declared: localhost port
+      # 3000, 30s apart, 5s budget, 10s grace, three strikes. The engine
+      # execs the array without a shell, so Deno needs its absolute path;
+      # `deno eval` runs with all permissions. /health answers before
+      # setup is complete; / does not.
+      Healthcheck = {
+        Test = [
+          "CMD"
+          "${deno}/bin/deno"
+          "eval"
+          "const r = await fetch('http://127.0.0.1:3000/health'); if (!r.ok) Deno.exit(1);"
+        ];
+        Interval = 30000000000;
+        Retries = 3;
+        StartPeriod = 10000000000;
+        Timeout = 5000000000;
+      };
     };
   };
 in
