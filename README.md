@@ -354,7 +354,10 @@ one prebuilt OCI image serves every other target. `devenv.nix` defines it
 (`outputs.tickets-image`), and `.github/workflows/publish-image.yml` publishes
 it as `ghcr.io/chobbledotcom/tickets:latest` on every merge to `main`. The image
 carries the pinned Deno runtime, the built static assets, and the server's
-module cache, and it runs as an unprivileged user.
+module cache, and it runs as an unprivileged user. The image is built for x86-64
+hosts. GitHub creates the registry package as private on the first publish, so a
+repository admin must make it public once: GitHub, the `chobbledotcom`
+organisation, the `tickets` package, Package settings, Change visibility.
 
 ### Docker
 

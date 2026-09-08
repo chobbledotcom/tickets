@@ -78,6 +78,10 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
         run: |
+          # GHCR creates the package private on the first push. Make it public
+          # once, so platforms and self-hosters can pull without credentials:
+          # GitHub → the chobbledotcom org → the tickets package → Package
+          # settings → Change visibility.
           echo "$GHCR_TOKEN" | podman login ghcr.io -u "$GHCR_USER" --password-stdin
           podman push ghcr.io/chobbledotcom/tickets:latest
 
