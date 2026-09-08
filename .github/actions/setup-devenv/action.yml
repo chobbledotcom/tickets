@@ -82,14 +82,20 @@ runs:
     # The store now holds everything this job — and so the next run with
     # the same dependency set — needs: the devenv profile, the flake
     # inputs, and the evaluated shell closure. Shell globs skip the
-    # store's hidden .links directory on their own.
+    # store's hidden .links directory on their own. The copy runs as
+    # root: the runner user is untrusted for the Nix daemon, which
+    # leaves a client-written cache directory it cannot then write
+    # into. Root can, and the files go back to the runner afterwards so
+    # the cache save can read them. sudo resets PATH, so it passes
+    # through explicitly.
     - name: Copy the evaluated store into the binary cache
       if: steps.nix-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         cache_dir="$HOME/.cache/nix-binary-cache"
-        ls -d /nix/store/* | xargs -r nix copy \
+        ls -d /nix/store/* | xargs -r sudo -n env "PATH=$PATH" nix copy \
           --to "file://$cache_dir?compression=zstd&parallel-compression=true&compression-level=3"
+        sudo -n chown -R "$(id -u):$(id -g)" "$cache_dir"
 
     - name: Save the Nix binary cache
       if: steps.nix-cache.outputs.cache-hit != 'true'
