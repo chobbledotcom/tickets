@@ -84,14 +84,8 @@ const LIBRARY_PATHS = [
   // production caller. Each entry below names the rule it answers in
   // docs/payment-aggregate-acceptance.md, or says that no rule asks for it. A
   // module leaves this list when its last unconsumed export gains a caller.
-  "shared/ledger/project.ts", // profitOfListing, sumOfKind: no rule
   "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs: rule 2
   "shared/accounting/queries.ts", // whole-account reads: rules 1 and 3
-  // Only tests call reverseOf, and no rule asks for it: reverse.ts scopes it to
-  // an admin void or correction, and refunds use a separate multi-row model.
-  // The usage check cannot see this, because the {@link reverseOf} in its own
-  // JSDoc reads as a production use. isInverseOf beside it has a live caller.
-  "shared/ledger/reverse.ts",
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /
   // public route / recursive-nav slices that consume them, so — like the

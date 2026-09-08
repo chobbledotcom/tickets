@@ -36,7 +36,6 @@ src/shared/ledger/reconcile.ts::multisetDiff~06icm7q  ?? → ||   # multisetDiff
 src/shared/ledger/reconcile.ts::multisetDiff.count~06icm7q  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts::reconcileLegs.want~1kc2onf  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
 src/shared/ledger/reconcile.ts::reconcileLegs.got~15zy9vn  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/ledger/reverse.ts::reverseOf.memo~0ibvp6e  ?? → ||   # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → ||   # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
 src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → ||   # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy

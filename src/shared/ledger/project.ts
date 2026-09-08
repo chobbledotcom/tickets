@@ -5,11 +5,9 @@
  * carry or compare.
  */
 
-import { costAccount, revenueAccount } from "#accounting/accounts.ts";
 import { filter } from "#fp";
-import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
+import { instantToEpochMs } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
-import { legMatches, sumLegs } from "./legs.ts";
 import type { AccountRef, Transfer } from "./types.ts";
 
 /** Every account's balance, keyed by {@link accountKey}. */
@@ -36,52 +34,6 @@ export const balanceOf =
   (acct: AccountRef) =>
   (transfers: Transfer[]): number =>
     allBalances(transfers).get(accountKey(acct)) ?? 0;
-
-/** Positive cost total for one listing. Cost legs source `cost:<listingId>`. */
-export const costOfListing =
-  (listingId: number) =>
-  (transfers: Transfer[]): number =>
-    -balanceOf(costAccount(listingId))(transfers);
-
-/** Gross listing revenue less servicing costs. */
-export const profitOfListing =
-  (listingId: number) =>
-  (transfers: Transfer[]): number =>
-    balanceOf(revenueAccount(listingId))(transfers) -
-    costOfListing(listingId)(transfers);
-
-/** Total amount across transfers of one kind (e.g. cash refunded). */
-export const sumOfKind =
-  (kind: string) =>
-  (transfers: Transfer[]): number =>
-    sumLegs(legMatches({ kind }))(transfers);
-
-/**
- * Transfers whose business time falls in the half-open window [from, to).
- * Bounds are compared as instants, not strings, so a whole-second bound like
- * `2026-02-01T00:00:00Z` still includes the canonical `2026-02-01T00:00:00.000Z`.
- * Invalid bounds are rejected up front via {@link isInstant}, so an impossible
- * date (e.g. `2026-02-30`) can't silently shift the window. An inverted window
- * (`from` after `to`) throws rather than silently returning an empty slice,
- * which would read as zero revenue/refunds for what is really a swapped-argument
- * bug.
- */
-export const inPeriod =
-  (from: string, to: string) =>
-  (transfers: Transfer[]): Transfer[] => {
-    if (!isInstant(from) || !isInstant(to)) {
-      throw new Error(`inPeriod: invalid bound (from=${from}, to=${to})`);
-    }
-    const fromMs = instantToEpochMs(from);
-    const toMs = instantToEpochMs(to);
-    if (fromMs > toMs) {
-      throw new Error(`inPeriod: inverted window (from=${from}, to=${to})`);
-    }
-    return filter((t: Transfer) => {
-      const at = instantToEpochMs(t.occurredAt);
-      return at >= fromMs && at < toMs;
-    })(transfers);
-  };
 
 /**
  * One line of an account statement: the transfer, its signed effect on the
