@@ -75,20 +75,12 @@ src/shared/sort-listings.ts::compareListings~05ktsrt  0 → -1   # tierA===-1 ne
 # sort-listings.ts's compareDaily: nextDates.get() is typed string|null, never
 # undefined in practice because every daily listing gets an explicit entry, and
 # getNextBookableDate never returns "". Therefore `?? null` and `|| null` agree.
-src/shared/sort-listings.ts::compareDaily.dateA~0elhh75  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
-src/shared/sort-listings.ts::compareDaily.dateB~17fwox0  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts::compareDaily.byDate~0elhh75  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts::compareDaily.byDate~17fwox0  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
 
-# sort-listings.ts's compareDaily return values on the dateA===null branch:
-# confirmed by direct experiment that Array.sort's swap decision only checks
-# whether a comparator result is strictly negative — 0, a positive number, or
-# NaN (from `return undefined`) are all treated identically ("don't swap").
-# Since the mirrored `dateB === null` branch independently and correctly
-# returns -1 for the reverse pairing, no input can ever make this branch's
-# non-negative return value observably differ from the intended `1` (the
-# magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
-src/shared/sort-listings.ts::compareDaily~08bj7h9  1 → 0   # non-negative result; see block comment above
-src/shared/sort-listings.ts::compareDaily~08bj7h9  1 → 2   # sign-preserving magnitude change; see block comment above
-src/shared/sort-listings.ts::compareDaily~05rrw2z  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
+# sort-listings.ts's compareDaily return-value entries are gone with the fold:
+# compareOptionalDates now supplies the null-last branch they guarded, in
+# src/shared/attendee-list-controls.ts.
 
 # orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
 # gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'

@@ -1,5 +1,6 @@
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { sort } from "#fp";
+import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
 import { nonBlankLines } from "#shared/split.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type {
@@ -87,14 +88,8 @@ type AttendeeRowComparator = (
   second: AttendeeTableRow,
 ) => number;
 
-const compareAttendeeDates: AttendeeRowComparator = (first, second) => {
-  const firstDate = first.attendee.date ?? "";
-  const secondDate = second.attendee.date ?? "";
-  if (firstDate === secondDate) return 0;
-  if (firstDate === "") return 1;
-  if (secondDate === "") return -1;
-  return firstDate.localeCompare(secondDate);
-};
+const compareAttendeeDates: AttendeeRowComparator = (first, second) =>
+  compareOptionalDates(first.attendee.date, second.attendee.date);
 
 const compareTextBy =
   (getText: (row: AttendeeTableRow) => string): AttendeeRowComparator =>

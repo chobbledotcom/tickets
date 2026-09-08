@@ -12,6 +12,7 @@ import { settings } from "#db/settings.ts";
 import { csvResponse, listingAttendeesLoader } from "#routes/admin/actions.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { attendeeListOrder } from "#shared/attendee-list-controls.ts";
 import {
   completePaymentAttendees,
   filterAttendees,
@@ -35,20 +36,22 @@ export const handleAdminListingExport: TypedRouteHandler<
   )(
     filteredAttendeesHandler(
       request,
-      async ({ listing, dateFilter, checkin, filteredByDate }) => {
+      async ({ listing, dateFilter, checkin, filteredByDate, sort }) => {
         const isDaily = listing.listing_type === "daily";
         const paymentReferenceAttendeeIds =
           await getAttendeeIdsWithPaymentReference(filteredByDate);
         // Mirror the on-screen attendee table: drop the failed-payment rows
         // that are split into the Failed Payments section, then apply the
-        // /in /out check-in filter.
-        const exported = filterAttendees(
-          completePaymentAttendees(
-            listing,
-            filteredByDate,
-            paymentReferenceAttendeeIds,
+        // /in /out check-in filter and the roster's row order.
+        const exported = attendeeListOrder(sort)(
+          filterAttendees(
+            completePaymentAttendees(
+              listing,
+              filteredByDate,
+              paymentReferenceAttendeeIds,
+            ),
+            checkin,
           ),
-          checkin,
         );
 
         const attendeeIds = exported.map((a) => a.id);
