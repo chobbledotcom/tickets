@@ -76,6 +76,16 @@ export const durationsCompatible = (
     : childDuration === parentFixedDuration(parent);
 };
 
+/** The operator-facing description of one listing's booking lengths: the day
+ *  counts a customisable listing prices, or the one span a fixed listing
+ *  sells. Pure. */
+export const describedDayCounts = (counts: readonly number[]): string => {
+  const sorted = [...counts].toSorted((a, b) => a - b);
+  const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
+  if (sorted.length <= 1) return sorted[0] === undefined ? "" : days(sorted[0]);
+  return `${sorted.slice(0, -1).join(", ")} or ${days(sorted[sorted.length - 1]!)}`;
+};
+
 /** A parent/child rule as a {@link Reason} over the pairing. */
 type EdgeReason = Reason<[parent: EdgeListing, child: EdgeListing]>;
 
@@ -88,12 +98,21 @@ const childReason = (
     t(`listings_table.${messageKey}`, { name: child.name }),
   );
 
+/** The lengths a listing sells, for the operator-facing descriptions: a
+ *  customisable listing prices its priced day counts; a fixed listing sells
+ *  one resolved span. */
+const offeredLengths = (listing: EdgeListing): string =>
+  listing.customisable_days
+    ? describedDayCounts(availableDayCounts(listing))
+    : describedDayCounts([parentFixedDuration(listing)]);
+
 /** Every parent→child field rule as data, most fundamental first — the order IS
- * the precedence: the first rule a pairing breaks decides the error, so a
- * pairing that breaks several reports the deepest one. A renewal tier can't be
- * a parent, then can't be a child, then a daily child needs a daily parent,
- * then the child's span must match the one it inherits. Adding a rule is one
- * new entry in its precedence slot, never another `if` arm. */
+ *  the precedence: the first rule a pairing breaks decides the error, so a
+ *  pairing that breaks several reports the deepest one. A renewal tier can't be
+ *  a parent, then can't be a child, then a daily child needs a daily parent,
+ *  then the child's span must match the one it inherits. Adding a rule is one
+ *  new entry in its precedence slot, never another `if` arm. The duration rule
+ *  builds its message inline so it can name the exact clash it found. */
 const EDGE_ERROR_RULES: readonly EdgeReason[] = [
   reason(
     (parent) => parent.months_per_unit > 0,
@@ -109,9 +128,14 @@ const EDGE_ERROR_RULES: readonly EdgeReason[] = [
     (parent, child) =>
       child.listing_type === "daily" && parent.listing_type !== "daily",
   ),
-  childReason(
-    "children_err_child_duration",
+  reason(
     (parent, child) => !durationsCompatible(parent, child),
+    (parent, child) =>
+      t("listings_table.children_err_child_duration", {
+        name: child.name,
+        offered: offeredLengths(parent),
+        priced: offeredLengths(child),
+      }),
   ),
 ];
 

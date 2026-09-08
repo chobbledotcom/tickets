@@ -199,8 +199,8 @@ export const createCrudHandlers = <Row, Display = Row>(
         ? `${cfg.singular} name`
         : cfg.identifierLabel,
     load: (id) => operations().loadOrNull(id),
-    onConfirm: async (row, id) => {
-      const result = await operations().delete(id);
+    onConfirm: async (row, id, _session, form) => {
+      const result = await operations().delete(id, form);
       return operationResponse(
         result,
         async (): Promise<undefined> => {

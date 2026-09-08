@@ -203,6 +203,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         dayPrices: { 1: 1000, 2: 1800 },
         durationDays: 2,
         groupId: group.id,
+        maxQuantity: 3,
         name: "Flexi Member",
       });
       await setGroupPackageMembers(group.id, [
@@ -244,7 +245,11 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
 
   describe("group round-trip", () => {
     test("re-creates a package group with its members and overrides", async () => {
-      const a = await createTestListing({ name: "Pkg A", unitPrice: 1000 });
+      const a = await createTestListing({
+        maxQuantity: 2,
+        name: "Pkg A",
+        unitPrice: 1000,
+      });
       const b = await createTestListing({ name: "Pkg B", unitPrice: 2000 });
       // A member that is explicitly FREE in the package (price 0) — distinct
       // from "no override" (null); the two must round-trip separately.

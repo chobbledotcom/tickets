@@ -13,7 +13,11 @@ import {
   type GroupListingSettings,
   groupListingSettingsError,
 } from "#db/groups/homogeneity.ts";
-import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import {
+  groupListings,
+  hasPackageBookingsTx,
+  setGroupPackageMembers,
+} from "#db/groups.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   refusingTheWriteOn,
@@ -25,12 +29,16 @@ import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
   memberBlockKey,
+  packageMemberCapError,
+  packageMemberCapExceeded,
   packageMemberMessage,
 } from "#shared/package-membership.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ListingType } from "#types";
 
 type GroupStateRow = {
   group_id: number;
+  group_quantity: number;
   is_package: number;
   hide_package_listings: number;
   listing_id: number | null;
@@ -38,13 +46,16 @@ type GroupStateRow = {
   customisable_days: number | null;
 };
 
+type GroupMember = GroupListingSettings & { quantity: number };
+
 type GroupState = {
   isPackage: boolean;
   hideListings: boolean;
-  members: GroupListingSettings[];
+  members: GroupMember[];
 };
 
-/** Reads the group rows and all of their current member settings together. */
+/** Reads the group rows and all of their current member settings together,
+ *  with each member's pick count (`group_listings.quantity`). */
 const groupStatesTx = async (
   tx: TxScope,
   groupIds: readonly number[],
@@ -55,7 +66,9 @@ const groupStatesTx = async (
     await tx.execute({
       args: ids,
       sql: `SELECT groupRow.id AS group_id, groupRow.is_package,
-                   groupRow.hide_package_listings, listing.id AS listing_id,
+                   groupRow.hide_package_listings,
+                   COALESCE(groupListing.quantity, 1) AS group_quantity,
+                   listing.id AS listing_id,
                    listing.listing_type, listing.customisable_days
               FROM groups AS groupRow
               LEFT JOIN group_listings AS groupListing
@@ -80,6 +93,7 @@ const groupStatesTx = async (
         customisable_days: row.customisable_days === 1,
         id: row.listing_id,
         listing_type: row.listing_type!,
+        quantity: row.group_quantity,
       });
     }
   }
@@ -104,6 +118,7 @@ type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
   can_pay_more: number;
   has_children: number;
   has_parents: number;
+  max_quantity: number;
 };
 
 type ListingState = GroupListingSettings & {
@@ -111,9 +126,11 @@ type ListingState = GroupListingSettings & {
   canPayMore: boolean;
   hasChildren: boolean;
   hasParents: boolean;
+  maxQuantity: number;
 };
 
-/** Reads the package rules' listing fields and both edge directions in one query. */
+/** Reads the package rules' listing fields, both edge directions, and the
+ *  per-order cap in one query. */
 const listingStatesTx = async (
   tx: TxScope,
   listingIds: readonly number[],
@@ -124,10 +141,11 @@ const listingStatesTx = async (
       args: ids,
       sql: `SELECT listing.id, listing.name, listing.listing_type,
                    listing.customisable_days, listing.can_pay_more,
+                   listing.max_quantity,
                    EXISTS(SELECT 1 FROM listing_parents AS listingParent
-                           WHERE listingParent.parent_listing_id = listing.id) AS has_children,
+                            WHERE listingParent.parent_listing_id = listing.id) AS has_children,
                    EXISTS(SELECT 1 FROM listing_parents AS listingParent
-                           WHERE listingParent.child_listing_id = listing.id) AS has_parents
+                            WHERE listingParent.child_listing_id = listing.id) AS has_parents
               FROM listings AS listing
              WHERE listing.id IN (${inPlaceholders(ids)})`,
     }),
@@ -139,6 +157,7 @@ const listingStatesTx = async (
     hasParents: row.has_parents === 1,
     id: row.id,
     listing_type: row.listing_type,
+    maxQuantity: row.max_quantity,
     name: row.name,
   }));
   const stateById = byId(states);
@@ -169,6 +188,50 @@ const packageMembersErrorTx = async (
   return null;
 };
 
+/** The pick-count refusal for one listing against one membership quantity —
+ *  the package must never demand more units of a member than the member
+ *  sells in one order. Decrypts the name only for a member that fails. */
+const memberCapErrorTx = async (
+  listing: { maxQuantity: number; name: EnvKeyEncrypted },
+  quantity?: number,
+): Promise<string | null> =>
+  packageMemberCapExceeded({ max_quantity: listing.maxQuantity, quantity })
+    ? packageMemberCapError({
+        max_quantity: listing.maxQuantity,
+        name: await decrypt(listing.name),
+        quantity,
+      })
+    : null;
+
+/** The pick-count refusals for a save's submitted member quantities, judged
+ *  against each member's stored cap. Only members the write will keep are
+ *  judged (a stale or crafted id is dropped by the membership write itself);
+ *  duplicate ids collapse last-wins, so a crafted repeat cannot dodge the
+ *  check with a legal first entry. */
+const submittedMembersCapErrorTx = async (
+  tx: TxScope,
+  groupId: number,
+  members: PackageMemberInput[],
+): Promise<string | null> => {
+  const currentIds = new Set(await groupListings.getIdsTx(tx, groupId));
+  const quantities = new Map(
+    members
+      .filter((member) => currentIds.has(member.listingId))
+      .map((member) => [member.listingId, member.quantity]),
+  );
+  if (quantities.size === 0) return null;
+  const states = await listingStatesTx(tx, [...quantities.keys()]);
+  const stateById = byId(states);
+  for (const [listingId, quantity] of quantities) {
+    const capError = await memberCapErrorTx(
+      requireValue(stateById.get(listingId), `Listing ${listingId} missing`),
+      quantity,
+    );
+    if (capError) return capError;
+  }
+  return null;
+};
+
 /** Rechecks every selected group after the listing row write, before membership changes. */
 export type ListingGroupMembershipValidation =
   | { listingMissing: true }
@@ -179,6 +242,32 @@ type MembershipsChecker<Result> = (
   groupIds: readonly number[],
 ) => Promise<Result>;
 
+/** One (listing, group) membership pair judged inside the write transaction:
+ *  the group must exist, its members must stay homogeneous, the listing must
+ *  obey the package rules, and the member's pick count must fit its cap. */
+const oneMembershipErrorTx = async (
+  listing: ListingState,
+  states: Map<number, GroupState>,
+  groupId: number,
+): Promise<string | null> => {
+  const checked = checkGroupListingSettings(
+    states.get(groupId),
+    (group) => group.members,
+    listing,
+    listing.id,
+  );
+  if (!checked.ok) return checked.error;
+  const packageError = await packageMembersErrorTx([listing], checked.group);
+  if (packageError) return packageError;
+  if (!checked.group.isPackage) return null;
+  // A membership row not yet inserted in this transaction (a fresh join)
+  // serves one unit per package, always at or below the cap.
+  const ownQuantity =
+    checked.group.members.find((member) => member.id === listing.id)
+      ?.quantity ?? 1;
+  return memberCapErrorTx(listing, ownQuantity);
+};
+
 const listingGroupMembershipErrorTx = async (
   tx: TxScope,
   listings: readonly ListingState[],
@@ -187,18 +276,8 @@ const listingGroupMembershipErrorTx = async (
   const states = await groupStatesTx(tx, groupIds);
   for (const listing of listings) {
     for (const groupId of groupIds) {
-      const checked = checkGroupListingSettings(
-        states.get(groupId),
-        (group) => group.members,
-        listing,
-        listing.id,
-      );
-      if (!checked.ok) return checked.error;
-      const packageError = await packageMembersErrorTx(
-        [listing],
-        checked.group,
-      );
-      if (packageError) return packageError;
+      const error = await oneMembershipErrorTx(listing, states, groupId);
+      if (error) return error;
     }
   }
   return null;
@@ -344,9 +423,10 @@ const requirePackageGuardsTx = async (
 
 /** Guards a group write and replaces its package members in one call: every
  *  group write path applies the same sold-hidden check and the same "empty
- *  when un-packaging" rule. `flags` is the pre-update transaction snapshot.
- *  `members` is already resolved by the caller (parsed from a form or taken
- *  from the API input); pass `undefined` to leave existing overrides untouched. */
+ *  when un-packaging" rule, and no member's pick count may pass its cap.
+ *  `flags` is the pre-update transaction snapshot. `members` is already
+ *  resolved by the caller (parsed from a form or taken from the API input);
+ *  pass `undefined` to leave existing overrides untouched. */
 export const writePackageMembersTx = async (
   tx: TxScope,
   id: number,
@@ -355,6 +435,10 @@ export const writePackageMembersTx = async (
   members: PackageMemberInput[] | undefined,
 ): Promise<void> => {
   const isPackaging = input.isPackage !== false;
+  if (members !== undefined && isPackaging) {
+    const capError = await submittedMembersCapErrorTx(tx, id, members);
+    if (capError) throw new TransactionValidationError(capError);
+  }
   await requirePackageGuardsTx(tx, id, flags, isPackaging);
   if (members !== undefined) {
     await setGroupPackageMembers(id, isPackaging ? members : [], tx);
@@ -391,7 +475,7 @@ export const assignListingsToGroup = async (
     if (listings.length !== ids.length) {
       return t("error.selected_listing_deleted");
     }
-    const siblings = [...state.members];
+    const siblings: GroupListingSettings[] = [...state.members];
     for (const listing of listings) {
       const typeError = groupListingSettingsError(siblings, listing);
       if (typeError) return typeError;
@@ -399,6 +483,8 @@ export const assignListingsToGroup = async (
     }
     const packageError = await packageMembersErrorTx(listings, state);
     if (packageError) return packageError;
+    // New members join with the default pick count of one, so their own cap
+    // always fits; the group-edit fence judges every saved quantity.
     await tx.batch(groupListingAssignmentStatements(ids, groupId));
     return null;
   });

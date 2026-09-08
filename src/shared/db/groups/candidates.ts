@@ -21,6 +21,7 @@ const candidateColumns = rawListingsTable.read.pick([
   "date",
   "listing_type",
   "bookable_days",
+  "customisable_days",
   "duration_days",
   "minimum_days_before",
   "maximum_days_after",

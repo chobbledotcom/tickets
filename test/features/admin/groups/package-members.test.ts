@@ -4,6 +4,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
+import { t } from "#i18n";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -30,7 +32,8 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   };
 
   /** Save a one-member package with the typed price and quantity, and hand
-   * back the member row it stored. */
+   *  back the member row it stored. The member's cap stays high enough for
+   *  every quantity below; the cap rule itself has its own tests. */
   const savedMemberRow = async (
     label: string,
     typed: { price: string; quantity: string },
@@ -38,6 +41,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     const group = await createTestGroup({ name: `${label} package` });
     const member = await createTestListing({
       groupId: group.id,
+      maxQuantity: 5,
       name: `${label} member`,
       unitPrice: 900,
     });
@@ -130,5 +134,37 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       [`package_qty_${member.id}`]: "1",
     });
     expect(await getGroupDayPrices(group.id)).toEqual(new Map());
+  });
+
+  test("refuses a member quantity above the member's per-order cap", async () => {
+    const group = await createTestGroup({ name: "Capped package" });
+    const member = await createTestListing({
+      groupId: group.id,
+      name: "Two cap member",
+      unitPrice: 900,
+    });
+
+    const response = await adminPost(`/admin/groups/${group.id}/edit`, {
+      description: "",
+      is_package: "1",
+      max_attendees: "0",
+      name: group.name,
+      slug: group.slug,
+      terms_and_conditions: "",
+      [`package_price_${member.id}`]: "9.00",
+      [`package_qty_${member.id}`]: "2",
+    });
+
+    await expectFlashRedirect(
+      `/admin/groups/${group.id}/edit`,
+      t("error.package_member_cap", {
+        max_quantity: 1,
+        name: "Two cap member",
+        quantity: 2,
+      }),
+      false,
+    )(response);
+    const [row] = await getGroupPackagePrices(group.id);
+    expect(row?.quantity).toBe(1);
   });
 });

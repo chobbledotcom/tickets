@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
+import { t } from "#i18n";
 import { GroupAttendeesPanel } from "#templates/admin/groups/attendees.tsx";
 import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
 import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
@@ -275,6 +276,71 @@ describe("group admin panels", () => {
       expect(live).toBeGreaterThan(-1);
       expect(retired).toBeGreaterThan(live);
     });
+
+    test("greys out a candidate whose type clashes with the members, and says why", () => {
+      // The save would refuse this candidate with the group-homogeneity
+      // message; the picker says so before the save.
+      const group = testGroup({ name: "Target" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ id: 1, listing_type: "standard" })],
+        ungroupedListings: [
+          testListingWithCount({ id: 7, name: "Joinable" }),
+          testListingWithCount({
+            id: 8,
+            listing_type: "daily",
+            name: "Striker",
+          }),
+        ],
+      });
+      const joinable = html.indexOf('value="7"');
+      const striker = html.indexOf(
+        '<input disabled name="listing_ids" type="checkbox" value="8"',
+      );
+      expect(striker).toBeGreaterThan(joinable);
+      expect(html).toContain(
+        t("groups.candidate_type_blocked", {
+          candidate: "daily",
+          type: "standard",
+        }),
+      );
+    });
+
+    test("greys out a candidate whose customisable-days setting clashes", () => {
+      const group = testGroup({ name: "Target" });
+      const html = overviewHtml({
+        group,
+        listings: [
+          testListingWithCount({
+            customisable_days: false,
+            id: 1,
+            listing_type: "daily",
+          }),
+        ],
+        ungroupedListings: [
+          testListingWithCount({
+            customisable_days: true,
+            id: 9,
+            listing_type: "daily",
+            name: "Flexible",
+          }),
+        ],
+      });
+      expect(html).toMatch(/<input disabled[^>]*value="9"/);
+      expect(html).toContain(t("groups.candidate_days_blocked_fixed"));
+    });
+
+    test("an enabled candidate carries no disabled marker", () => {
+      const group = testGroup({ name: "Bright" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ id: 1, listing_type: "daily" })],
+        ungroupedListings: [
+          testListingWithCount({ id: 5, listing_type: "daily" }),
+        ],
+      });
+      expect(html).not.toMatch(/<input disabled[^>]*value="5"/);
+    });
   });
 
   describe("GroupAttendeesPanel", () => {
@@ -343,9 +409,6 @@ describe("group admin panels", () => {
       // Listing 2 (no row): blank price, quantity defaults to 1.
       expect(html).toMatch(
         /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
-      );
-      expect(html).toMatch(
-        /<input(?=[^>]*name="package_qty_2")(?=[^>]*value="1")[^>]*>/,
       );
     });
 

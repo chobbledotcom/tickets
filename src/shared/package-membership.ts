@@ -85,6 +85,41 @@ export const packageMemberError = (
   return key ? packageMemberMessage(key, listing.name) : null;
 };
 
+/** Whether a member's pick count exceeds what the listing sells in one order;
+ *  an omitted pick count grants one unit. The one home of that lift. */
+export const packageMemberCapExceeded = (member: {
+  max_quantity: number;
+  quantity?: number | undefined;
+}): boolean => (member.quantity ?? 1) > member.max_quantity;
+
+/**
+ * A package member's stored facts for the pick-count rule: how many units the
+ * package grants (the pick count) against how many the listing sells per
+ * order (the cap).
+ */
+export type PackageMemberCap = {
+  max_quantity: number;
+  name: string;
+  quantity?: number | undefined;
+};
+
+/**
+ * Why a member's pick count cannot be served: the package demands more units
+ * of it than the listing sells in one order, so the bundle's cap floors to
+ * zero and no buyer can book it. Pure: the caller supplies the stored facts,
+ * decrypting the name only for the member that fails.
+ */
+export const packageMemberCapError = (
+  member: PackageMemberCap,
+): string | null =>
+  packageMemberCapExceeded(member)
+    ? t("error.package_member_cap", {
+        max_quantity: member.max_quantity,
+        name: member.name,
+        quantity: member.quantity ?? 1,
+      })
+    : null;
+
 /**
  * Why a would-be parent/child edge conflicts with package membership — distinct
  * from {@link packageMemberError} (which is about a listing JOINING a package):

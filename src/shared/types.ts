@@ -836,6 +836,7 @@ export interface Modifier {
 export type SortableListing = Pick<
   Listing,
   | "bookable_days"
+  | "customisable_days"
   | "date"
   | "duration_days"
   | "id"

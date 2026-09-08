@@ -3,7 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
+import { getGroupPackagePrices } from "#db/groups.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { t } from "#i18n";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
@@ -21,6 +24,7 @@ import {
   type TestFormValues,
   testFormParams,
 } from "#test-utils/form-values.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
 import type { Listing } from "#types";
 
@@ -281,6 +285,48 @@ describeWithEnv("listings form", { db: true }, () => {
       const created = await createListing({ bookable_days: ["Monday"] });
       const row = await updateListing(created.id, {});
       expect(row.bookable_days).toEqual([...VALID_DAY_NAMES]);
+    });
+
+    test("refuses a max_quantity below a package membership quantity", async () => {
+      const group = await createTestGroup({ name: "Cap package" });
+      const created = await createListing({
+        group_ids: [String(group.id)],
+        max_quantity: "3",
+      });
+      // Three units per package stays legal while the cap sits at three.
+      await adminFormPost(`/admin/groups/${group.id}/edit`, {
+        description: "",
+        is_package: "1",
+        max_attendees: "0",
+        name: group.name,
+        slug: group.slug,
+        terms_and_conditions: "",
+        [`package_price_${created.id}`]: "9.00",
+        [`package_qty_${created.id}`]: "3",
+      });
+
+      const form = listingForm({
+        group_ids: [String(group.id)],
+        max_quantity: "2",
+        slug: "kept-slug",
+      });
+      const result = await buildUpdateListingResource(form).update(
+        created.id,
+        form,
+      );
+
+      expect(result).toEqual({
+        error: t("error.package_member_cap", {
+          max_quantity: 2,
+          name: "Parsed listing",
+          quantity: 3,
+        }),
+        ok: false,
+      });
+      const [row] = await getGroupPackagePrices(group.id);
+      expect(row?.quantity).toBe(3);
+      const reread = await getListingWithCount(created.id);
+      expect(reread!.max_quantity).toBe(3);
     });
   });
 });

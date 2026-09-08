@@ -328,6 +328,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         durationDays: 2,
         groupId: group.id,
         listingType: "daily",
+        maxQuantity: 4,
         name: "Member",
         unitPrice: 1000,
       });

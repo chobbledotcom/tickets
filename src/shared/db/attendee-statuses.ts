@@ -8,7 +8,11 @@
  * the human-readable `name` is encrypted at rest.
  */
 
+/* jscpd:ignore-start -- import block */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+/* jscpd:ignore-end */
+import { logActivity } from "#db/activity-log.ts";
 import {
   execute,
   queryAll,
@@ -218,8 +222,70 @@ const saveStatus = (
     return okResult(status);
   });
 
+/** Reads the two statuses a reassign touches — the row being emptied and the
+ *  owner's chosen target — with their decoded names, in one query. Fewer than
+ *  two distinct rows means the target is missing. */
+const reassignNameRows = async (
+  tx: TxScope,
+  fromId: number,
+  toId: number,
+): Promise<{ fromName: string; toName: string } | null> => {
+  const rows = await resultRows<{ id: number; name: EnvKeyEncrypted }>(
+    await tx.execute({
+      args: [fromId, toId],
+      sql: `SELECT status.id, status.name
+              FROM attendee_statuses AS status
+             WHERE status.id IN (?, ?)`,
+    }),
+  );
+  if (rows.length !== 2) return null;
+  const named = new Map(
+    await Promise.all(
+      rows.map(async (row) => [row.id, await decrypt(row.name)] as const),
+    ),
+  );
+  return { fromName: named.get(fromId)!, toName: named.get(toId)! };
+};
+
+/** Moves every attendee off `id` onto the operator's chosen `reassignTo`
+ *  status, inside the caller's transaction, and records the move. Returns the
+ *  moved count, or null when attendees hold the status and the target is
+ *  missing or the status itself. */
+const reassignHeldAttendees = async (
+  tx: TxScope,
+  id: number,
+  reassignTo: number | undefined,
+): Promise<number | null> => {
+  const heldRows = await resultRows<{ held: number }>(
+    await tx.execute({
+      args: [id],
+      sql: "SELECT COUNT(*) AS held FROM attendees WHERE status_id = ?",
+    }),
+  );
+  const held = heldRows[0]!.held;
+  if (held === 0) return 0;
+  if (reassignTo === undefined || reassignTo === id) return null;
+  const names = await reassignNameRows(tx, id, reassignTo);
+  if (names === null) return null;
+  await tx.execute({
+    args: [reassignTo, id],
+    sql: "UPDATE attendees SET status_id = ? WHERE status_id = ?",
+  });
+  await logActivity(
+    `${held} attendee(s) moved from status '${names.fromName}' to '${names.toName}'`,
+    null,
+    null,
+    tx,
+  );
+  return held;
+};
+
+/** The single delete command for a status row. A status attendees hold needs
+ *  the operator's chosen target: every held attendee moves to it inside the
+ *  transaction, then the status goes. A missing target keeps everything. */
 const deleteStatus = (
   id: number,
+  reassignTo?: number,
 ): Promise<Result<void, AttendeeStatusDeleteError>> =>
   withTransaction(async (tx) => {
     const status = await getCurrentDefaults(tx, id);
@@ -237,14 +303,9 @@ const deleteStatus = (
     }
     if (status.is_paid_default) return errorResult("paid_default");
 
-    const attendee = await tx.execute({
-      args: [id],
-      sql: `SELECT attendee.id
-              FROM attendees AS attendee
-             WHERE attendee.status_id = ?
-             LIMIT 1`,
-    });
-    if (attendee.rows.length > 0) return errorResult("status_in_use");
+    if ((await reassignHeldAttendees(tx, id, reassignTo)) === null) {
+      return errorResult("status_in_use");
+    }
 
     await tx.execute({
       args: [id],
@@ -254,7 +315,10 @@ const deleteStatus = (
   });
 
 export interface AttendeeStatusWrites {
-  delete: (id: number) => Promise<Result<void, AttendeeStatusDeleteError>>;
+  delete: (
+    id: number,
+    reassignTo?: number,
+  ) => Promise<Result<void, AttendeeStatusDeleteError>>;
   save: (
     id: number | null,
     input: AttendeeStatusWriteInput,

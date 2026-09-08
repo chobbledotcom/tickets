@@ -9,6 +9,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { t } from "#i18n";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -87,7 +88,7 @@ describeWithEnv("what a new status may not say", { db: true }, () => {
   test("refuses one that is both a reservation and the paid default", () =>
     expectRefused(
       { is_paid_default: "1", is_reservation: "1", name: "Contradiction" },
-      "A paid status can't also be a reservation",
+      t("statuses.error_paid_default_reservation"),
     ));
 
   test("refuses a deposit it cannot read", () =>

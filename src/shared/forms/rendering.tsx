@@ -32,17 +32,25 @@ export const renderSelectOptions = (options: readonly SelectOption[]): string =>
     )
     .join("");
 
+/** The `data-*` attribute string for a field's input, or "" when none: each
+ *  key renders escaped as `data-<key>="<value>"`, trusted template side. */
+const dataAttributeString = (field: Field): string =>
+  Object.entries(field.dataAttrs ?? {})
+    .map(([key, value]) => ` data-${key}="${escapeHtml(value)}"`)
+    .join("");
+
 const renderCheckboxGroup = (
   name: string,
   options: readonly { value: string; label: string }[],
   selectedValues: Set<string>,
+  dataAttrs = "",
 ): string =>
   `<fieldset class="checkboxes">${options
     .map(
       (option) =>
         `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
           option.value,
-        )}"${selectedValues.has(option.value) ? " checked" : ""}> ${escapeHtml(
+        )}"${selectedValues.has(option.value) ? " checked" : ""}${dataAttrs}> ${escapeHtml(
           option.label,
         )}</label>`,
     )
@@ -106,7 +114,12 @@ const renderChoiceFieldInput = (
   }
   requireCheckboxOptions(field.label, field.options);
   return rawField(
-    renderCheckboxGroup(field.name, field.options, new Set(commaParts(value))),
+    renderCheckboxGroup(
+      field.name,
+      field.options,
+      new Set(commaParts(value)),
+      dataAttributeString(field),
+    ),
   );
 };
 

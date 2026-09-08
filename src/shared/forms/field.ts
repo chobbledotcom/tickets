@@ -68,6 +68,9 @@ interface FieldBase<
   autofocus?: boolean;
   /** Trusted template HTML rendered immediately before the field's label. */
   beforeHtml?: string;
+  /** Extra `data-*` attributes for the field's input, so a client script can
+   *  pair controls (e.g. disable a counterpart while this one is ticked). */
+  dataAttrs?: Record<string, string> | undefined;
   defaultValue?: string;
   hint?: string;
   hintHtml?: string;

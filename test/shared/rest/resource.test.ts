@@ -295,13 +295,13 @@ describe("rest/resource", () => {
         name: "To Delete",
         value: 10,
       });
-      const result = await resource.delete(1);
+      const result = await resource.delete(1, undefined);
       expect(result.ok).toBe(true);
       await expectDeleted(resource, 1);
     });
 
     test("returns notFound for non-existent row", async () => {
-      expectResultNotFound(await createTestResource().delete(999));
+      expectResultNotFound(await createTestResource().delete(999, undefined));
     });
   });
 });
@@ -331,7 +331,7 @@ describeWithEnv("rest/resource - additional coverage", { db: true }, () => {
 
       await table.insert({ name: "To Delete", value: 10 });
 
-      const result = await resource.delete(1);
+      const result = await resource.delete(1, undefined);
       expect(result.ok).toBe(true);
       expect(customDeleteCalled).toBe(true);
       expect(deletedId).toBe(1);

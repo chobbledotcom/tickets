@@ -1,5 +1,6 @@
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { GroupListingCandidate } from "#db/groups/candidates.ts";
+import { groupCandidateBlockedError } from "#db/groups/homogeneity.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
@@ -269,7 +270,16 @@ export const GroupOverviewPanel = ({
             groups={[
               {
                 label: t("terms.listings"),
-                options: toLinkedItemOptions(ungroupedListings, []),
+                // The save's own homogeneity rules read the same blocks, so a
+                // candidate the save must refuse is greyed out here with the
+                // why, before the operator saves.
+                options: ungroupedListings.map((candidate) => {
+                  const [option] = toLinkedItemOptions([candidate], []);
+                  return {
+                    ...option!,
+                    blocked: groupCandidateBlockedError(listings, candidate),
+                  };
+                }),
               },
             ]}
             heading={({ type }) => t("linked_items.heading_add", { type })}

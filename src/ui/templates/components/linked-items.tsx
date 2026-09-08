@@ -12,6 +12,9 @@ import type { Child } from "#jsx/jsx-runtime.ts";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 
 export type LinkedItemOption = {
+  /** The refusal that blocks this item from joining, or null/absent when it
+   *  can. A blocked item renders disabled with the why beneath its label. */
+  blocked?: string | null;
   /** Deactivated items render muted at the end of their row. */
   active: boolean;
   checked: boolean;
@@ -73,7 +76,6 @@ const selectedFirst = matchingFirst((option) => option.checked);
 const countLinked = (groups: readonly LinkedItemGroup[]): number =>
   groups.flatMap((group) => group.options).filter((option) => option.checked)
     .length;
-
 const optionCheckboxes =
   (name: string) =>
   (options: readonly LinkedItemOption[]): JSX.Element[] =>
@@ -81,12 +83,14 @@ const optionCheckboxes =
       <CheckboxLabel
         checked={option.checked || undefined}
         className={option.active ? undefined : "muted"}
+        {...(option.blocked ? { disabled: true } : {})}
         label={option.label}
         name={name}
         value={option.value}
-      />
+      >
+        {option.blocked && <small class="muted">{option.blocked}</small>}
+      </CheckboxLabel>
     ));
-
 export const LinkedItemsCheckboxes = ({
   groups,
   name,

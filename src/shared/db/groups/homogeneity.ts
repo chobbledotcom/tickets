@@ -38,6 +38,35 @@ export const groupListingSettingsError = (
     excludeListingId,
   );
 
+/**
+ * Why a group page must not offer a candidate listing to the operator, or null
+ * when it can join. The picker's short why for the same two homogeneity
+ * rules the saves enforce (same listing type, same customisable-days
+ * setting), so the affordance and the refusal cannot drift. Pure: the caller
+ * supplies the members' settings and the candidate's.
+ */
+export const groupCandidateBlockedError = (
+  members: readonly GroupListingSettings[],
+  candidate: GroupListingSettings,
+): string | null => {
+  const typeMismatch = members.find(
+    (member) => member.listing_type !== candidate.listing_type,
+  );
+  if (typeMismatch !== undefined) {
+    return t("groups.candidate_type_blocked", {
+      candidate: candidate.listing_type,
+      type: typeMismatch.listing_type,
+    });
+  }
+  const daysMismatch = members.find(
+    (member) => member.customisable_days !== candidate.customisable_days,
+  );
+  if (daysMismatch === undefined) return null;
+  return candidate.customisable_days
+    ? t("groups.candidate_days_blocked_fixed")
+    : t("groups.candidate_days_blocked_customisable");
+};
+
 export type GroupListingCheck<Group> =
   | { group: Group; ok: true }
   | { error: string; group: null; ok: false };

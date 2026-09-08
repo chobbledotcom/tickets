@@ -9,6 +9,7 @@ import {
   getUserByUsername,
   invalidateUsersCache,
 } from "#db/users.ts";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -175,6 +176,12 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         const response = await getAs(path, cookie);
         expect(response.status, `${label} (${path})`).toBe(403);
       }
+
+      // The refusal that a manager meets when they type an owner-only URL
+      // says who can open it, instead of the bare word "Forbidden".
+      const usersResponse = await getAs("/admin/users", cookie);
+      const usersBody = await usersResponse.text();
+      expect(usersBody).toContain(t("auth.forbidden_owner_only"));
 
       // On the tabbed listing page the staff-only tabs (roster, activity) are
       // hidden — visibility IS authorization, so naming one 404s rather than

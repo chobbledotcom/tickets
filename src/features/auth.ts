@@ -12,6 +12,7 @@ import {
   getUserAuthFieldsById,
   type UserAuthFields,
 } from "#db/users.ts";
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
@@ -353,10 +354,22 @@ const requireSessionFor = async (
   const session = await cookieSessionOrFailure(request, channel);
   if (isResponse(session)) return session;
   if (!sessionRoleAllowed(session.adminLevel, role, roles)) {
-    return authFailure(channel, "forbidden");
+    return authFailure(
+      channel,
+      "forbidden",
+      ownerOnlyAudience(role, roles) ? "owner-only" : undefined,
+    );
   }
   return session;
 };
+
+/** Whether the refused gate admits only the owner account. */
+const ownerOnlyAudience = (
+  role?: AdminLevel,
+  roles?: readonly AdminLevel[],
+): boolean =>
+  role === "owner" ||
+  (roles !== undefined && roles.length === 1 && roles[0] === "owner");
 
 const isResponse = (v: unknown): v is Response => v instanceof Response;
 
@@ -550,13 +563,25 @@ const requireAnyUserOr = (
 /** Any-authenticated-user GET page: authenticate, apply flash, render HTML */
 export const anyUserPage = authPage(requireAnyUserOr);
 
+/** The HTML 403 body: a role refusal says the account cannot open the page;
+ *  an owner-only refusal says only the owner account can. The audience fact
+ *  comes from the same route declaration that the guards admit by. */
+const forbiddenBody = (detail?: ForbiddenDetail): string =>
+  detail === "owner-only"
+    ? t("auth.forbidden_owner_only")
+    : t("auth.forbidden_role");
+
 /** Shared auth failure response factories (avoids jscpd duplication) */
-const htmlForbidden = () => htmlResponse("Forbidden", 403);
+const htmlForbidden = () => htmlResponse(forbiddenBody(), 403);
 const jsonForbidden = () => apiErrorResponse("Forbidden", 403);
 
 /** Auth failure responses keyed by reason, with html and json variants side-by-side. */
 const AUTH_FAILURES = {
-  forbidden: { html: htmlForbidden, json: jsonForbidden },
+  forbidden: {
+    html: (detail?: ForbiddenDetail) =>
+      htmlResponse(forbiddenBody(detail), 403),
+    json: jsonForbidden,
+  },
   "invalid-api-key": {
     html: htmlForbidden,
     json: () => apiErrorResponse("Invalid API key", 401),
@@ -569,16 +594,29 @@ const AUTH_FAILURES = {
     html: () => redirectResponse("/admin"),
     json: () => apiErrorResponse("Not authenticated", 401),
   },
-} satisfies Record<string, Record<"html" | "json", () => Response>>;
+} satisfies Record<
+  string,
+  Record<"html" | "json", (...args: never[]) => Response>
+>;
 
 type AuthFailureReason = keyof typeof AUTH_FAILURES;
 type AuthChannel = keyof (typeof AUTH_FAILURES)[AuthFailureReason];
+
+/** How a forbidden response narrows its who-can-open message: the route's
+ *  declared audience knows whether the page is owner-only. */
+export type ForbiddenDetail = "owner-only";
 
 /** Construct a standardized auth failure response. */
 export const authFailure = (
   channel: AuthChannel,
   reason: AuthFailureReason,
-): Response => AUTH_FAILURES[reason][channel]();
+  forbiddenDetail?: ForbiddenDetail,
+): Response => {
+  const factory = AUTH_FAILURES[reason][channel] as (
+    detail?: ForbiddenDetail,
+  ) => Response;
+  return factory(forbiddenDetail);
+};
 
 /**
  * Safe HTTP methods (RFC 7231 §4.2.1): read-only, so a request using one cannot

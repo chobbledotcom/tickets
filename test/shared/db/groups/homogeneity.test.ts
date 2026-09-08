@@ -3,7 +3,10 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { checkGroupListingSettings } from "#db/groups/homogeneity.ts";
+import {
+  checkGroupListingSettings,
+  groupCandidateBlockedError,
+} from "#db/groups/homogeneity.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -93,5 +96,31 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
       group: members,
       ok: true,
     });
+  });
+
+  test("a matching candidate carries no why", () => {
+    const members = [
+      { customisable_days: true, id: 1, listing_type: "standard" as const },
+    ];
+    expect(
+      groupCandidateBlockedError(members, {
+        customisable_days: true,
+        id: 9,
+        listing_type: "standard",
+      }),
+    ).toBeNull();
+  });
+
+  test("a customisable-days clash says which way the candidates differ", () => {
+    const pickWhy = (memberDays: boolean, candidateDays: boolean): string =>
+      groupCandidateBlockedError(
+        [{ customisable_days: memberDays, id: 1, listing_type: "standard" }],
+        { customisable_days: candidateDays, id: 9, listing_type: "standard" },
+      )!;
+
+    expect(pickWhy(false, true)).toBe(t("groups.candidate_days_blocked_fixed"));
+    expect(pickWhy(true, false)).toBe(
+      t("groups.candidate_days_blocked_customisable"),
+    );
   });
 });

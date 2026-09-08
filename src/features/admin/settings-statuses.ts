@@ -22,18 +22,24 @@ import {
   attendeeStatusWrites,
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
+import { execute } from "#db/client.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
-/* jscpd:ignore-start */
+import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
+import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 /* jscpd:ignore-start */
-import { OWNER_FORM } from "#routes/auth.ts";
+/* jscpd:ignore-start */
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { NamedOperations } from "#shared/rest/resource.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { statusPages } from "#templates/admin/settings-statuses.tsx";
+import {
+  retireStatusDeletePage,
+  statusPages,
+} from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 
 /* jscpd:ignore-end */
@@ -56,7 +62,10 @@ const parseStatusForm = (
   };
   if (!input.name) return { error: "Please enter a name", ok: false };
   if (input.isReservation && input.isPaidDefault) {
-    return { error: "A paid status can't also be a reservation", ok: false };
+    return {
+      error: t("statuses.error_paid_default_reservation"),
+      ok: false,
+    };
   }
   const error = isReservation
     ? validateReservationAmount(input.reservationAmount)
@@ -74,7 +83,7 @@ const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
   last_status: "You must keep at least one status",
   paid_default: "Choose another paid default before deleting this status",
   public_default: "Choose another public default before deleting this status",
-  status_in_use: "This status is in use by attendees",
+  status_in_use: t("statuses.delete_in_use_no_target"),
 };
 
 const saveStatus = async (id: number | null, form: FormParams) => {
@@ -87,8 +96,11 @@ const saveStatus = async (id: number | null, form: FormParams) => {
 
 const statusOperations: NamedOperations<AttendeeStatus> = {
   create: (form) => saveStatus(null, form),
-  delete: async (id) => {
-    const result = await attendeeStatusWrites.delete(id);
+  delete: async (id, form) => {
+    const result = await attendeeStatusWrites.delete(
+      id,
+      form?.getOptionalInt("reassign_status_id") ?? undefined,
+    );
     return result.ok
       ? { ok: true }
       : { error: DELETE_ERRORS[result.error], ok: false };
@@ -128,9 +140,43 @@ const statusOrder = createOrderedCollectionHandlers({
   target: ({ context }) => context.id,
 });
 
+/** How many attendees sit on this status. One count for the delete page's
+ *  reassign affordance; the delete command re-counts inside its transaction. */
+const heldAttendeeCount = async (id: number): Promise<number> => {
+  const result = await execute(
+    "SELECT COUNT(*) AS held FROM attendees WHERE status_id = ?",
+    [id],
+  );
+  return Number(result.rows[0]!.held);
+};
+
+/** The delete page, with the reassign choice a status attendees hold needs:
+ *  the count, the warning, and a required picker of the other statuses. The
+ *  session guard (not the form policy) wraps it, because it is a GET page. */
+const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const status = await getAttendeeStatus(id);
+    if (status === null) return notFoundResponse();
+    const [held, others] = await Promise.all([
+      heldAttendeeCount(id),
+      attendeeStatuses.getAll(),
+    ]);
+    return htmlResponse(
+      retireStatusDeletePage(
+        status,
+        held,
+        others.filter((other) => other.id !== id),
+        session,
+        getFlash().error,
+      ),
+    );
+  });
+
 export const adminHandlers = defineRoutes({
   ...crudRoutes(adminPattern("statuses"), crud),
   ...entityTabRoutes(adminPattern("status"), attendeeStatusPage),
+  "GET /admin/settings/statuses/:id/delete": (request, { id }) =>
+    statusDeleteGet(request, id),
   "POST /admin/settings/statuses/:id/move-down": statusOrder.down,
   "POST /admin/settings/statuses/:id/move-up": statusOrder.up,
 });
