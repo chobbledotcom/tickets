@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
   childAddOnError,
+  describedDayCounts,
   durationsCompatible,
   type EdgeListing,
   edgeFieldError,
@@ -359,6 +360,23 @@ describe("edgeFieldError", () => {
       "",
       "2 days",
     ],
+    [
+      "sorts and counts the parent's offered lengths, including one day",
+      listing({
+        customisable_days: true,
+        day_prices: { 1: 100, 2: 200, 3: 300 },
+        duration_days: 3,
+        name: "Mixed",
+      }),
+      listing({
+        customisable_days: true,
+        day_prices: { 5: 500 },
+        duration_days: 5,
+        name: "Cabin",
+      }),
+      "1, 2 or 3 days",
+      "5 days",
+    ],
   ];
 
   for (const [scenario, parent, child, offered, priced] of durationErrorCases) {
@@ -409,5 +427,20 @@ describe("edgeFieldError", () => {
     expect(edgeFieldError(parent, child)).toBe(
       ruleError("child_daily", "Cabin"),
     );
+  });
+});
+
+describe("describedDayCounts", () => {
+  test("sorts the counts and separates the last one with 'or'", () => {
+    expect(describedDayCounts([7, 3, 1])).toBe("1, 3 or 7 days");
+  });
+
+  test("says 'day' once for a single-day span", () => {
+    expect(describedDayCounts([1])).toBe("1 day");
+    expect(describedDayCounts([6])).toBe("6 days");
+  });
+
+  test("answers nothing for a listing that prices no counts", () => {
+    expect(describedDayCounts([])).toBe("");
   });
 });

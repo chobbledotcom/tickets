@@ -145,6 +145,12 @@ describe("packageMemberCapError", () => {
     );
   });
 
+  test("a zero pick count never breaches the cap", () => {
+    expect(
+      packageMemberCapError({ max_quantity: 0, name: "Day Pass", quantity: 0 }),
+    ).toBeNull();
+  });
+
   test("allows a pick count below the cap", () => {
     expect(packageMemberCapError(member("Day Pass", 1, 9))).toBeNull();
   });

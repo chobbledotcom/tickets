@@ -184,6 +184,26 @@ describe("renderField", () => {
         '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></fieldset></label>',
       );
     });
+
+    test("carries a field's data attributes onto every checkbox of the group", () => {
+      expect(
+        renderField(
+          field({
+            dataAttrs: {
+              "exclusive-why": "One cancels the other",
+              "exclusive-with": "can_pay_more",
+            },
+            label: "Days",
+            name: "days",
+            options: [{ label: "Monday", value: "Monday" }],
+            type: "checkbox-group",
+          }),
+          "",
+        ),
+      ).toBe(
+        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></fieldset></label>',
+      );
+    });
   });
 
   describe("datetime", () => {

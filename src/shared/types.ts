@@ -615,6 +615,18 @@ export const isContentRole = roleIn(CONTENT_ADMIN_LEVELS);
 /** True for roles that may edit public-site content (owner/editor). */
 export const isSiteRole = roleIn(SITE_ADMIN_LEVELS);
 
+/** A gate's two audience spellings: one required role, or a role list. */
+export type GateAudience = {
+  role: AdminLevel | undefined;
+  roles: readonly AdminLevel[] | undefined;
+};
+
+/** True when a refused gate admits only the owner account: either the guard
+ *  names the role exactly, or it names one role and that role is owner. */
+export const ownerOnlyAudience = ({ role, roles }: GateAudience): boolean =>
+  role === "owner" ||
+  (roles !== undefined && roles.length === 1 && roles[0] === "owner");
+
 /** Type guard: check if a string is a valid AdminLevel */
 export const isAdminLevel = guardFor(AdminLevelSchema);
 

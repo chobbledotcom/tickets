@@ -11,8 +11,9 @@ describe("SettingsCheckbox", () => {
       SettingsCheckbox({ checked: true, label: "Enabled", name: "enabled" }),
     );
     expect(html).toContain('<input checked name="enabled"');
+    expect(html).toContain('<input checked name="enabled" type="checkbox"');
+    expect(html).toContain("> Enabled</label>");
     expect(html).toContain('type="checkbox" value="true"');
-    expect(html).toContain("Enabled");
   });
 
   test("keeps the label unstyled when no class is asked for", () => {

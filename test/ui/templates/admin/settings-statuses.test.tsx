@@ -5,6 +5,7 @@ import { t } from "#i18n";
 import { FormParams } from "#shared/form-data.ts";
 import {
   AttendeeStatusEditPanel,
+  retireStatusDeletePage,
   statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 import {
@@ -176,5 +177,60 @@ describe("attendee status templates", () => {
     expect(html).toContain('name="confirm_identifier"');
     expect(html).toContain("Delete status");
     expect(html).not.toContain('<button class="danger"');
+  });
+});
+
+describe("the delete page of a status attendees hold", () => {
+  beforeAll(setupAdminPageTest);
+
+  const BUSY_STATUS: AttendeeStatus = {
+    id: 9,
+    is_paid_default: false,
+    is_public_default: false,
+    is_reservation: false,
+    name: "Busy",
+    reservation_amount: "0",
+    sort_order: 2,
+  };
+  const OTHER_STATUS: AttendeeStatus = { ...PLAIN_STATUS, id: 8 };
+
+  const render = (held: number, error?: string): ReturnType<typeof String> =>
+    String(
+      retireStatusDeletePage(
+        BUSY_STATUS,
+        held,
+        [OTHER_STATUS],
+        OWNER_SESSION,
+        error,
+      ),
+    );
+
+  test("shows the count, a warning, and a required picker of the other statuses", () => {
+    const html = render(1);
+
+    expect(html).toContain(t("statuses.delete_in_use", { count: 1 }));
+    expect(html).toContain(t("statuses.delete_reassign_warning"));
+    expect(html).toContain('<select name="reassign_status_id" required>');
+    expect(html).toContain('<option selected value="">');
+    expect(html).toContain(t("statuses.delete_reassign_prompt"));
+    expect(html).toContain('value="8"');
+    expect(html).toContain("Checked in");
+  });
+
+  test("keeps the picker off a status nobody holds", () => {
+    const html = render(0);
+
+    expect(html).not.toContain('name="reassign_status_id"');
+    expect(html).not.toContain(t("statuses.delete_reassign_warning"));
+  });
+
+  test("renders a rejected submit's error", () => {
+    const html = render(0, "No one may hold nothing");
+
+    expect(html).toContain("No one may hold nothing");
+  });
+
+  test("leaves the error box out when the operator just opened the page", () => {
+    expect(render(0)).not.toContain("error");
   });
 });

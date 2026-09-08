@@ -100,4 +100,23 @@ describe("paired controls", () => {
     ) as unknown as HTMLInputElement;
     expect(whyHolder(days).textContent).toBe("");
   });
+
+  test("a control the server rendered already checked holds its counterpart at once", () => {
+    const window = dom.installDom(`
+      <form>
+        <label><input type="checkbox" name="customisable_days" checked
+               data-exclusive-with="can_pay_more"
+               data-exclusive-why="These cannot combine"> Days</label>
+        <label><input type="checkbox" name="can_pay_more"
+               data-exclusive-with="customisable_days"> Pay more</label>
+      </form>
+    `);
+
+    initPairedControls();
+
+    const payMore = window.document.querySelector(
+      'input[name="can_pay_more"]',
+    ) as unknown as HTMLInputElement;
+    expect(payMore.disabled).toBe(true);
+  });
 });

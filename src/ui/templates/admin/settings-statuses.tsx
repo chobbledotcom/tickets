@@ -171,6 +171,7 @@ export const retireStatusDeletePage = (
       args: { name: status.name },
       key: "statuses.delete_confirm",
     },
+    error,
     ...DELETE_PAGE_LABELS,
     name: status.name,
     session,
@@ -196,7 +197,6 @@ export const retireStatusDeletePage = (
           warning: <p>{t("statuses.delete_reassign_warning")}</p>,
         }
       : {}),
-    ...(error === undefined ? {} : { error }),
   });
 };
 

@@ -24,7 +24,6 @@ export const initPairedControls = (): void => {
     }
     const holder = document.createElement("small");
     holder.className = "exclusive-why";
-    holder.hidden = true;
     holder.textContent = control.dataset.exclusiveWhy ?? "";
     label?.append(holder);
     return holder;

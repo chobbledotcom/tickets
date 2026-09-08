@@ -69,15 +69,17 @@ describe("listing form schema", () => {
   test("pairs customisable days with pay more so only one can hold", () => {
     // Checking either one disables the other and shows why; the save keeps
     // its refusal (`error.customisable_days_with_pay_more`) as the authority.
+    const why = `data-exclusive-why="${t("error.customisable_days_with_pay_more")}"`;
     const html = getListingEditForm().section("customisable");
     expect(html).toMatch(
       /name="customisable_days"[^>]*data-exclusive-with="can_pay_more"/,
     );
+    expect(html).toContain(why);
 
     const payMore = getListingEditForm().section("tickets");
     expect(payMore).toMatch(
       /name="can_pay_more"[^>]*data-exclusive-with="customisable_days"/,
     );
-    expect(payMore).toContain(t("error.customisable_days_with_pay_more"));
+    expect(payMore).toContain(why);
   });
 });

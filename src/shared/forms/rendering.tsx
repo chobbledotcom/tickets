@@ -43,7 +43,7 @@ const renderCheckboxGroup = (
   name: string,
   options: readonly { value: string; label: string }[],
   selectedValues: Set<string>,
-  dataAttrs = "",
+  dataAttrs: string,
 ): string =>
   `<fieldset class="checkboxes">${options
     .map(

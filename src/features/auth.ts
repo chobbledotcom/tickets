@@ -44,6 +44,7 @@ import {
   isRecord,
   isStaffRole,
   type NagItem,
+  ownerOnlyAudience,
   SITE_ADMIN_LEVELS,
 } from "#types";
 
@@ -357,20 +358,13 @@ const requireSessionFor = async (
     return authFailure(
       channel,
       "forbidden",
-      ownerOnlyAudience(role, roles) ? "owner-only" : undefined,
+      ownerOnlyAudience({ role, roles }) ? "owner-only" : undefined,
     );
   }
   return session;
 };
 
 /** Whether the refused gate admits only the owner account. */
-const ownerOnlyAudience = (
-  role?: AdminLevel,
-  roles?: readonly AdminLevel[],
-): boolean =>
-  role === "owner" ||
-  (roles !== undefined && roles.length === 1 && roles[0] === "owner");
-
 const isResponse = (v: unknown): v is Response => v instanceof Response;
 
 /** A response callback that receives the signed-in session. */

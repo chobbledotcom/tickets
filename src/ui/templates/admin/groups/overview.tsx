@@ -8,7 +8,8 @@ import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
-  buildSharedDetailRows,
+  buildStatDetailRows,
+  getCheckedInStats,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 import {
@@ -182,15 +183,12 @@ export const GroupOverviewPanel = ({
   const totalCount = totalAttendeeCount(listings);
   const net = money.netBalance - money.servicingCosts;
   const showMoney = hasPaidListing || money.transferCount > 0;
-  const sharedRows = buildSharedDetailRows({
-    attendeeCount: totalCount,
-    attendees,
-    hasPaidListing: false,
-    maxCapacity: 0,
+  const sharedRows = buildStatDetailRows({
+    checkedInStats: getCheckedInStats(attendees),
+    labelSuffix: "",
     // The ledger includes deleted bookings and package override revenue.
     revenue: money.recognisedIncome,
     ...(questionData !== undefined ? { questionData } : {}),
-    skipAttendees: true,
   });
 
   return (

@@ -7,6 +7,7 @@ import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
 import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import {
+  sizeQuestionAnswerData,
   testAttendee,
   testGroup,
   testListingWithCount,
@@ -79,6 +80,39 @@ describe("group admin panels", () => {
       expect(groupRow![1]).toContain("(no group cap)");
       expect(groupRow![1]).not.toContain("remain");
       expect(groupRow![1]).not.toContain(" / ");
+    });
+
+    test("shows the capacity meter for a cap of one", () => {
+      const group = testGroup({ max_attendees: 1, name: "Single Seat" });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ attendee_count: 0 })],
+      });
+      expect(html).toContain("0 / 1");
+      expect(html).toContain("1 remain");
+      expect(html).not.toContain("(no group cap)");
+    });
+
+    test("keeps one space between the meter and its scope note", () => {
+      const group = testGroup({ max_attendees: 50 });
+      const html = overviewHtml({
+        group,
+        listings: [testListingWithCount({ attendee_count: 20 })],
+      });
+      expect(html).toContain("30 remain</span> <small>");
+    });
+
+    test("headlines the detail table with the group name across both columns", () => {
+      const html = overviewHtml({ group: testGroup({ name: "Named Group" }) });
+      expect(html).toContain('<th colspan="2">Named Group</th>');
+    });
+
+    test("keeps the hidden row off a group that is not hidden", () => {
+      const html = overviewHtml({
+        group: testGroup({ hidden: false, name: "Visible Group" }),
+      });
+      expect(html).toContain("Visible Group");
+      expect(html).not.toContain("Yes (not shown in public list)");
     });
 
     test("Group Attendees row gets danger-text when at cap", () => {
@@ -160,6 +194,7 @@ describe("group admin panels", () => {
           grossSales: 20000,
           netBalance: 20000,
           recognisedIncome: 20000,
+          refunds: 1200,
           servicingCosts: 4000,
           transferCount: 3,
         }),
@@ -168,9 +203,13 @@ describe("group admin panels", () => {
       expect(html).toContain("Total income earned");
       expect(html).toContain("+£200");
       expect(html).toContain("Service event costs");
+      expect(html).toContain("Refunds");
+      expect(html).toContain("−£12");
       expect(html).toContain("−£40");
       expect(html).toContain("Net after refunds and costs");
       expect(html).toContain("£160");
+      expect(html).not.toContain("+£160");
+      expect(html).toContain("<strong>Net after refunds and costs</strong>");
       expect(html).toContain('href="/admin/ledger?group=8"');
       expect(html).toContain("View this group's money changes");
       expect(html).toContain("View every change in the group's money.");
@@ -247,6 +286,29 @@ describe("group admin panels", () => {
       expect(unshareable).not.toContain(`localhost/ticket/${group.slug}`);
       expect(unshareable).not.toContain(`embed-script-${group.id}`);
       expect(unshareable).toContain("isn't currently bookable");
+    });
+
+    test("shows the check-in, revenue, and answer rows the shared stats build", () => {
+      const html = overviewHtml({
+        attendees: [
+          testAttendee({ checked_in: true, id: 1, listing_id: 1, quantity: 2 }),
+        ],
+        group: testGroup({ id: 8 }),
+        money: moneyTotals({ recognisedIncome: 2500 }),
+        questionData: sizeQuestionAnswerData(),
+      });
+      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+      expect(html).toContain("Size?");
+      expect(html).toContain("Small (2), Large (1)");
+    });
+
+    test("leaves the answer rows out when the group carries no questions", () => {
+      const html = overviewHtml({
+        group: testGroup({ id: 8 }),
+        money: moneyTotals({ recognisedIncome: 2500 }),
+      });
+      expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+      expect(html).not.toContain("Size?");
     });
 
     test("offers ungrouped listings as add-to-group candidates", () => {

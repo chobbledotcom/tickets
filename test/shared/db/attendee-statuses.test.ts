@@ -453,6 +453,54 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(await storedAttendeeStatus(attendeeId)).toBe(spareId);
   });
 
+  test("deleting a status nobody holds removes it outright", async () => {
+    const seed = (await attendeeStatuses.getAll())[0]!;
+    const spare = await attendeeStatuses.table.insert({ name: "Free To Go" });
+    await getDb().execute(
+      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
+    );
+
+    expect(await attendeeStatusWrites.delete(spare.id)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(await getAttendeeStatus(spare.id)).toBeNull();
+    expect(await getAttendeeStatus(seed.id)).not.toBeNull();
+  });
+
+  test("deleting a held status moves its attendees and logs the move", async () => {
+    const busy = await attendeeStatuses.table.insert({ name: "Busy" });
+    const other = await attendeeStatuses.table.insert({ name: "Landing" });
+    await getDb().execute(
+      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
+    );
+    const attendeeId = await createAttendeeWithStatus(busy.id);
+
+    expect(await attendeeStatusWrites.delete(busy.id, other.id)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(await storedAttendeeStatus(attendeeId)).toBe(other.id);
+    expect(await getAttendeeStatus(busy.id)).toBeNull();
+  });
+
+  test("deleting a held status without a reachable target keeps everything", async () => {
+    const seed = (await attendeeStatuses.getAll())[0]!;
+    const busy = await attendeeStatuses.table.insert({ name: "Stuck" });
+    await getDb().execute(
+      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
+    );
+    const attendeeId = await createAttendeeWithStatus(busy.id);
+
+    expect(await attendeeStatusWrites.delete(busy.id, 999_999)).toEqual({
+      error: "status_in_use",
+      ok: false,
+    });
+    expect(await storedAttendeeStatus(attendeeId)).toBe(busy.id);
+    expect(await getAttendeeStatus(busy.id)).not.toBeNull();
+    expect(await getAttendeeStatus(seed.id)).not.toBeNull();
+  });
+
   test("createAttendeeAtomic persists status_id and remaining_balance", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,

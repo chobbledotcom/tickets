@@ -123,4 +123,42 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
       t("groups.candidate_days_blocked_customisable"),
     );
   });
+
+  test("a type clash names the candidate's type and the group's", () => {
+    expect(
+      groupCandidateBlockedError(
+        [{ customisable_days: false, id: 1, listing_type: "standard" }],
+        { customisable_days: false, id: 9, listing_type: "daily" },
+      ),
+    ).toBe(
+      t("groups.candidate_type_blocked", {
+        candidate: "daily",
+        type: "standard",
+      }),
+    );
+  });
+
+  test("a listing rejected for a group that is gone names the deleted group", () => {
+    expect(
+      checkGroupListingSettings<IllListed>(
+        undefined,
+        (members) => members ?? [],
+        {
+          customisable_days: false,
+          id: 9,
+          listing_type: "daily",
+        },
+      ),
+    ).toEqual({
+      error: t("error.selected_group_deleted"),
+      group: null,
+      ok: false,
+    });
+  });
 });
+
+type IllListed = readonly {
+  customisable_days: boolean;
+  id: number;
+  listing_type: "daily";
+}[];
