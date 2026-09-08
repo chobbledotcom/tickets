@@ -69,6 +69,12 @@ Move that input to a newer revision deliberately with `devenv update`; the exact
 revision is recorded in `devenv.lock`. CI runs the same devenv environment as
 developers, through `.github/actions/setup-devenv`.
 
+Chromium dominates the environment's size. CI jobs that never launch a browser
+(the Test, backup, docs, and deploy workflows) evaluate the environment through
+its `ci` profile — `devenv --profile ci shell` — which leaves Chromium out. The
+browser-driven workflows (`spec-evidence`, `payment-sandbox-e2e`, `mutation`)
+use the full environment, the same one `devenv shell` gives a developer.
+
 ## stripe-mock
 
 The test harness needs the `stripe-mock` binary at `.bin/stripe-mock`. The

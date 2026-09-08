@@ -29,7 +29,7 @@ permissions:
 # commands stay byte-identical to the local ones.
 defaults:
   run:
-    shell: devenv shell bash -- -e {0}
+    shell: devenv --profile ci shell bash -- -e {0}
 
 # Two jobs that run side by side. Together their steps mirror `getSteps()` in
 # scripts/precommit/steps.ts — if you add a step there, add it to whichever job
@@ -46,6 +46,8 @@ jobs:
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
 
       # Each check is its own step so a failure is attributed individually in
       # the Actions UI.
@@ -91,6 +93,8 @@ jobs:
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
 
       # stripe-mock is downloaded, started, and stopped by scripts/run-tests.ts
       # (invoked via the test:coverage step). Caching .bin just avoids

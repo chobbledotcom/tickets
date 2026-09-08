@@ -25,7 +25,7 @@ permissions:
 
 defaults:
   run:
-    shell: devenv shell bash -- -e {0}
+    shell: devenv --profile ci shell bash -- -e {0}
 
 jobs:
   backup:
@@ -37,6 +37,8 @@ jobs:
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
 
       - name: Create database backup
         # `deno task backup` passes --env-file, so Deno logs a harmless

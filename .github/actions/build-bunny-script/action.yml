@@ -27,9 +27,11 @@ runs:
   steps:
     - name: Set up devenv
       uses: ./.github/actions/setup-devenv
+      with:
+        profile: ci
 
     - name: Build edge script
-      shell: devenv shell bash -- -e {0}
+      shell: devenv --profile ci shell bash -- -e {0}
       run: deno task build:edge
       env:
         BUILD_COMMIT: ${{ inputs.build_commit }}

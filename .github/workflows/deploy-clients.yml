@@ -65,7 +65,7 @@ jobs:
           bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
 
       - name: Back up and deploy each client site
-        shell: devenv shell bash -- -e {0}
+        shell: devenv --profile ci shell bash -- -e {0}
         env:
           MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
           MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}

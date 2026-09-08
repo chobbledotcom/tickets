@@ -23,7 +23,10 @@ let
   # inputs — the same tool set the dev shell exposes), so a stray
   # system-profile binary — for example a newer Biome, or a different
   # OpenSSL whose CMS signing behaves differently — can never answer
-  # inside the gate.
+  # inside the gate. The libstdc++ path must ride along too: the
+  # database FFI loads native libraries that resolve it outside a
+  # shell, and a missing one crashes the test runner partway through
+  # the suite.
   precommitHook = pkgs.writeShellApplication {
     name = "tickets-precommit-hook";
     runtimeInputs = [
@@ -36,7 +39,6 @@ let
     ];
     text = ''
       ${lib.optionalString pkgs.stdenv.isLinux ''
-        export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
         export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"
       ''}
       exec ${deno}/bin/deno task precommit
@@ -164,25 +166,39 @@ let
   };
 in
 {
-  languages.deno = {
-    enable = true;
-    package = deno;
+  # Browser-driven tasks (screenshot contracts, Cucumber Features,
+  # payment e2e) need Chromium, the single largest item in the
+  # environment. CI jobs that never launch a browser select the ci
+  # profile (devenv --profile ci shell) and skip that download;
+  # developers and the browser-driven workflows get the full default.
+  options.ticketsBrowserTools = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
   };
 
-  packages =
-    [
-      pkgs.curl
-      pkgs.jq
-      pkgs.openssl
-    ]
-    ++ lib.optionals (!config.container.isBuilding) (
+  config = {
+    profiles.ci.module.ticketsBrowserTools = false;
+
+    languages.deno = {
+      enable = true;
+      package = deno;
+    };
+
+    packages =
       [
-        pkgs.biome
-        pkgs.gh
-        pkgs.git
+        pkgs.curl
+        pkgs.jq
+        pkgs.openssl
       ]
-      ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ]
-    );
+      ++ lib.optionals (!config.container.isBuilding) (
+        [
+          pkgs.biome
+          pkgs.gh
+          pkgs.git
+        ]
+        ++ lib.optionals (config.ticketsBrowserTools && pkgs.stdenv.isLinux)
+          [ pkgs.chromium ]
+      );
 
   # The self-host image: `container-build` assembles it (running the Deno
   # steps first), `container-load` streams it into Docker/Podman.
@@ -254,13 +270,19 @@ in
     export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(cat .db-key)}"
     export DB_URL="''${DB_URL-file:./local.db}"
     export PORT="''${PORT-8080}"
+    # libstdc++ for the native libraries the database FFI loads — needed
+    # in every Linux shell, also the ci profile, and also outside the
+    # dev shell (the precommit hook exports the same path).
     ${lib.optionalString pkgs.stdenv.isLinux ''
-      export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
       export LD_LIBRARY_PATH="${
         lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]
       }:''${LD_LIBRARY_PATH:-}"
     ''}
+    ${lib.optionalString (config.ticketsBrowserTools && pkgs.stdenv.isLinux) ''
+      export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
+    ''}
   '';
 
   outputs.tickets-image = runtimeImage;
+  };
 }

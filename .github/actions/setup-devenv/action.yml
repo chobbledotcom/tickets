@@ -10,6 +10,15 @@ inputs:
     description: Populate the Deno module cache with deno install.
     required: false
     default: "true"
+  # The devenv profile to evaluate. ci leaves Chromium out — every job
+  # that never launches a browser should select it, because Chromium and
+  # its dependency tree dominate the environment's download. The
+  # browser-driven workflows (spec-evidence, payment-sandbox-e2e,
+  # mutation) pass nothing and get the full developer environment.
+  profile:
+    description: devenv profile for the evaluated environment.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -43,7 +52,9 @@ runs:
       id: deno-version
       run: |
         set -euo pipefail
-        version="$(devenv shell -- deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
+        profile=""
+        [ -n "${{ inputs.profile }}" ] && profile="--profile ${{ inputs.profile }}"
+        version="$(devenv $profile shell -- deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
     # One repo-wide dependency cache instead of one per workflow/job.
@@ -58,4 +69,7 @@ runs:
     - name: Install Deno dependencies
       if: inputs.install_dependencies == 'true'
       shell: bash
-      run: devenv shell -- deno install --allow-scripts
+      run: |
+        profile=""
+        [ -n "${{ inputs.profile }}" ] && profile="--profile ${{ inputs.profile }}"
+        devenv $profile shell -- deno install --allow-scripts
