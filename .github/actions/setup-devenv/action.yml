@@ -1,9 +1,10 @@
 name: Set up devenv
 description: >-
   Install Nix and the devenv CLI, use the public devenv binary cache,
-  evaluate the project environment once, restore the shared Deno dependency
-  cache, and optionally populate it with deno install. The evaluated
-  environment is the same one developers get from devenv shell.
+  restore the shared Deno dependency cache and the local Nix binary
+  cache, evaluate the project environment once, and optionally populate
+  it with deno install. The evaluated environment is the same one
+  developers get from devenv shell.
 inputs:
   install_dependencies:
     description: Populate the Deno module cache with deno install.
@@ -12,6 +13,21 @@ inputs:
 runs:
   using: composite
   steps:
+    # A plain directory written by `nix copy`, carried by the GitHub
+    # Actions cache. Wired as a substituter below, it serves the whole
+    # shell closure (the runner's single biggest setup cost is that
+    # download, dominated by Chromium's dependency tree) at
+    # local-disk speed, and new paths still fall back to the public
+    # caches. One entry per dependency change, filled once.
+    - name: Restore the Nix binary cache
+      id: nix-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/nix-binary-cache
+        key: nix-binary-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('devenv.lock', 'devenv.yaml', 'devenv.nix') }}
+        restore-keys: |
+          nix-binary-cache-${{ runner.os }}-${{ runner.arch }}-
+
     # Every step here pins shell: bash — jobs commonly set
     # `defaults.run.shell: devenv shell bash -- -e {0}`, which must not be
     # used before the devenv CLI exists.
@@ -19,11 +35,20 @@ runs:
       uses: cachix/install-nix-action@v31
 
     # Pull devenv's own prebuilt binaries from its public cache. We run no
-    # binary cache of our own; the other substituter is cache.nixos.org.
+    # private cache service of our own; the other substituters are
+    # cache.nixos.org and the locally cached directory below.
     - name: Use the devenv binary cache
       uses: cachix/cachix-action@v16
       with:
         name: devenv
+
+    # Local file substituters are trusted without keys. This must reach
+    # every later nix call in the job, so it goes through GITHUB_ENV.
+    - name: Add the cached store as a substituter
+      shell: bash
+      run: >-
+        echo "NIX_CONFIG=extra-substituters = file://$HOME/.cache/nix-binary-cache"
+        >> "$GITHUB_ENV"
 
     - name: Install devenv.sh
       shell: bash
@@ -53,3 +78,22 @@ runs:
       if: inputs.install_dependencies == 'true'
       shell: bash
       run: devenv shell -- deno install --allow-scripts
+
+    # The store now holds everything this job — and so the next run with
+    # the same dependency set — needs: the devenv profile, the flake
+    # inputs, and the evaluated shell closure. Shell globs skip the
+    # store's hidden .links directory on their own.
+    - name: Copy the evaluated store into the binary cache
+      if: steps.nix-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cache_dir="$HOME/.cache/nix-binary-cache"
+        ls -d /nix/store/* | xargs -r nix copy \
+          --to "file://$cache_dir?compression=zstd&parallel-compression=true&compression-level=3"
+
+    - name: Save the Nix binary cache
+      if: steps.nix-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.cache/nix-binary-cache
+        key: ${{ steps.nix-cache.outputs.cache-primary-key }}
