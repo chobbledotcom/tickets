@@ -657,13 +657,13 @@ export type TransactionStateReader<State> = (
  *  issues statements through its {@link TxScope} and resolves to a result. */
 type TransactionWork<T> = (tx: TxScope) => Promise<T>;
 
-/** A runner that takes a unit of transactional work and opens whatever the
- *  kind needs for it — a write transaction ({@link withTransaction}) or a read
+/** A runner that takes a unit of transactional work and opens what the kind
+ *  needs for it — a write transaction ({@link withTransaction}) or a read
  *  snapshot ({@link withReadSnapshot}). */
 type TransactionRunner = <T>(work: TransactionWork<T>) => Promise<T>;
 
 /** Run statements through an open transaction as one tracked batch, and one
- *  tracked statement. Both transaction scopes share these, so their reads and
+ *  tracked statement. Both transaction kinds share these, so their reads and
  *  writes reach the query log alike. */
 const trackedTxBatch =
   (tx: Transaction) =>
@@ -675,89 +675,39 @@ const trackedTxExecute =
   (stmt: InStatement): Promise<ResultSet> =>
     trackSql(sqlOf(stmt), () => tx.execute(stmt));
 
-/** What runs before each statement passes through the transaction: the write
- *  scope counts round trips, the snapshot refuses non-SELECTs. */
-type TxGates = {
-  batch: (statements: InStatement[]) => void;
-  execute: (stmt: InStatement) => void;
-};
-
-/** The scope both transaction kinds hand their work: every statement passes
- *  its gate, then runs through `tx`, tracked. */
-const txScopeFor = (tx: Transaction, gates: TxGates): TxScope => ({
-  batch: (statements) => {
-    gates.batch(statements);
-    return trackedTxBatch(tx)(statements);
-  },
-  execute: (stmt) => {
-    gates.execute(stmt);
-    return trackedTxExecute(tx)(stmt);
-  },
-});
-
-/**
- * Open one transaction of `mode` and run `work` against its gated scope.
- * `settle` owns the release protocol and runs exactly once: `error` is
- * `undefined` after the work succeeded, or the thrown error — a write
- * transaction commits and invalidates caches, or rolls a failure back; a
- * snapshot just closes.
- */
-const runInTransaction = async <T>(
-  mode: TransactionMode,
-  gates: TxGates,
-  work: TransactionWork<T>,
-  settle: (tx: Transaction, error: unknown) => void | Promise<void>,
-): Promise<T> => {
-  const tx = await getDb().transaction(mode);
-  try {
-    const result = await work(txScopeFor(tx, gates));
-    await settle(tx, undefined);
-    return result;
-  } catch (error) {
-    await settle(tx, error);
-    throw error;
-  }
-};
-
-/**
- * Run one write transaction begin-to-commit-or-rollback, once — no retry, no
- * queue. {@link withTransaction} wraps this with both. Cache invalidations
- * fire once after a successful commit, and none after a rollback.
- */
-const runWriteTransactionOnce: TransactionRunner = (work) => {
+const runWriteTransactionOnce: TransactionRunner = async (work) => {
+  const tx = await getDb().transaction("write");
   const writtenSql: string[] = [];
   let statementCount = 0;
-  return runInTransaction(
-    "write",
-    {
-      batch: (statements) => {
-        const sqls = statements.map(sqlOf);
-        writtenSql.push(...sqls);
-        statementCount += 1;
-        enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      },
-      execute: (stmt) => {
-        const sql = sqlOf(stmt);
-        writtenSql.push(sql);
-        // Holding the write lock across many sequential round-trips is the
-        // "Transaction timed-out" shape; chatty writes belong in a batch.
-        statementCount += 1;
-        enforceTransactionRoundTripGuard(statementCount, sql);
-      },
+  const scope: TxScope = {
+    batch: (statements) => {
+      const sqls = statements.map(sqlOf);
+      writtenSql.push(...sqls);
+      statementCount += 1;
+      enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
+      return trackedTxBatch(tx)(statements);
     },
-    work,
-    async (tx, error) => {
-      if (error !== undefined) {
-        // After a failed commit the transaction may already be aborted, so the
-        // rollback can itself throw; ignore that and surface the original
-        // error.
-        await tx.rollback().catch(() => undefined);
-        return;
-      }
-      await tx.commit();
-      for (const sql of writtenSql) invalidateForSql(sql);
+    execute: (stmt) => {
+      const sql = sqlOf(stmt);
+      writtenSql.push(sql);
+      // Holding the write lock across many sequential round-trips is the
+      // "Transaction timed-out" shape; chatty writes belong in a batch.
+      statementCount += 1;
+      enforceTransactionRoundTripGuard(statementCount, sql);
+      return trackedTxExecute(tx)(stmt);
     },
-  );
+  };
+  try {
+    const result = await work(scope);
+    await tx.commit();
+    for (const sql of writtenSql) invalidateForSql(sql);
+    return result;
+  } catch (error) {
+    // After a failed commit the transaction may already be aborted, so the
+    // rollback can itself throw; ignore that and surface the original error.
+    await tx.rollback().catch(() => undefined);
+    throw error;
+  }
 };
 
 /** Interactive write transactions share the one libsql connection, so two that
@@ -830,22 +780,29 @@ export const useTransaction = <T>(
  * another round trip, on success and on failure alike. Cache invalidation does
  * not apply: nothing was written.
  */
-export const withReadSnapshot = <T>(work: TransactionWork<T>): Promise<T> =>
-  runInTransaction(
-    // READ ONLY on every connection: a replica-pinned snapshot is one
-    // consistent database state, which is the whole point of the scope.
-    "read",
-    {
-      batch: requireReadStatements,
-      execute: (stmt) => requireReadStatements([stmt]),
-    },
-    work,
-    (tx) => {
-      // A snapshot never commits: closing discards it without another round
-      // trip, on success and on failure alike.
-      tx.close();
-    },
-  );
+/** Open the read-only transaction a snapshot reads through: `READ ONLY` never
+ *  takes the write lock, and a replica-pinned one is one consistent state. */
+const openReadSnapshot = (): Promise<Transaction> =>
+  getDb().transaction("read");
+
+export const withReadSnapshot: TransactionRunner = async (work) => {
+  const tx = await openReadSnapshot();
+  // The SELECT-only runners the snapshot hands its work: each refuses a
+  // non-SELECT before it reaches `tx`.
+  const batch = (statements: InStatement[]): Promise<ResultSet[]> => {
+    requireReadStatements(statements);
+    return trackedTxBatch(tx)(statements);
+  };
+  const execute = (stmt: InStatement): Promise<ResultSet> => {
+    requireReadStatements([stmt]);
+    return trackedTxExecute(tx)(stmt);
+  };
+  try {
+    return await work({ batch, execute });
+  } finally {
+    tx.close();
+  }
+};
 
 /**
  * Run a write that ends in `RETURNING` and read back the row it wrote. A
