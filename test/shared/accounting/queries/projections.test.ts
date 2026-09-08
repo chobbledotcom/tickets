@@ -12,7 +12,8 @@ import {
 import { emptyRange } from "#accounting/range.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
-import { balanceOf, sumOfKind } from "#shared/ledger/project.ts";
+import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
+import { balanceOf } from "#shared/ledger/project.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 // jscpd:ignore-end
@@ -127,14 +128,16 @@ describe("db > accounting > SQL figures agree with pure projections", () => {
     await seedMixedLedger();
     const all = await allTransfers();
     const totals = await ledgerTotals(emptyRange);
-    expect(totals.refunded).toBe(sumOfKind(KIND.refundCash)(all));
+    expect(totals.refunded).toBe(
+      sumLegs(legMatches({ kind: KIND.refundCash }))(all),
+    );
     expect(totals.fees).toBe(balanceOf(feeIncome)(all));
     expect(totals.due).toBe(
       -(balanceOf(attendee1)(all) + balanceOf(attendee2)(all)),
     );
     expect(totals.income).toBe(
-      sumOfKind(KIND.sale)(all) +
-        sumOfKind(MANUAL_LISTING_INCOME)(all) +
+      sumLegs(legMatches({ kind: KIND.sale }))(all) +
+        sumLegs(legMatches({ kind: MANUAL_LISTING_INCOME }))(all) +
         WRITE_UP -
         WRITE_DOWN,
     );
@@ -152,10 +155,14 @@ describe("db > accounting > SQL figures agree with pure projections", () => {
     ] as const) {
       const breakdown = await listingMoneyTotals(emptyRange, [listingId]);
       const legs = await transfersByAccount(revenue);
-      expect(breakdown.grossSales).toBe(sumOfKind(KIND.sale)(legs));
-      expect(breakdown.refunds).toBe(sumOfKind(KIND.refundSale)(legs));
+      expect(breakdown.grossSales).toBe(
+        sumLegs(legMatches({ kind: KIND.sale }))(legs),
+      );
+      expect(breakdown.refunds).toBe(
+        sumLegs(legMatches({ kind: KIND.refundSale }))(legs),
+      );
       expect(breakdown.externalIncome).toBe(
-        sumOfKind(MANUAL_LISTING_INCOME)(legs),
+        sumLegs(legMatches({ kind: MANUAL_LISTING_INCOME }))(legs),
       );
       // Recognised income - refunds - external costs must be exactly the
       // account's net ledger balance: the reconciliation the module promises.
