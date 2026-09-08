@@ -54,8 +54,8 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - name: Set up Deno
-        uses: ./.github/actions/setup-deno
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
 
       - name: Close existing Biome pull request
         env:
@@ -81,6 +81,7 @@ jobs:
         run: git switch -c "$FIX_BRANCH"
 
       - name: Apply Biome fixes
+        shell: devenv shell bash -- -e {0}
         env:
           BIOME_NPM: "1"
         run: deno task lint

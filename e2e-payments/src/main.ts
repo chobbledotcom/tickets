@@ -2,10 +2,10 @@
  * Entrypoint for the payment sandbox e2e run — a thin target/Cucumber
  * boundary.
  *
- *   nix develop -c deno task e2e free
- *   nix develop -c deno task e2e stripe
- *   nix develop -c deno task e2e square
- *   nix develop -c deno task e2e sumup
+ *   devenv shell deno task e2e free
+ *   devenv shell deno task e2e stripe
+ *   devenv shell deno task e2e square
+ *   devenv shell deno task e2e sumup
  *
  * Parses the target, validates its secrets (missing paid credentials fail
  * before any browser or provider call), maps the target to its exhaustive

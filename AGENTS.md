@@ -15,23 +15,30 @@ The proposed corrections for PR #2259 are in the
 
 ## Getting Started
 
-Assume the workspace is probably running on NixOS. Use the repository's Nix
-development shell so Deno and the other tools come from `flake.nix`:
+Assume the workspace is probably running on NixOS. The developer environment is
+devenv (`devenv.nix`); it provides the pinned Deno and the other tools. Install
+devenv once (`nix profile add nixpkgs#devenv`, or see
+<https://devenv.sh/getting-started/>), then enter the shell:
 
 ```bash
-nix develop
+devenv shell
 ```
 
 For one command, run it through the shell instead of entering it:
 
 ```bash
-nix develop -c deno task precommit
+devenv shell deno task precommit
 ```
 
-Do not use `mise` or a host-installed `deno` directly when Nix is available. All
-`deno ...` commands in this file assume you are already inside `nix develop`;
-non-interactive agents must prefix them with `nix develop -c`. On systems
-without Nix, `./setup.sh` remains the fallback.
+A command with its own flags needs `--` before it:
+
+```bash
+devenv shell -- deno task test --filter "formats date"
+```
+
+Every development machine runs NixOS. Do not use a host-installed `deno`
+directly. All `deno ...` commands in this file assume you are already inside
+`devenv shell`; non-interactive agents must prefix them with `devenv shell`.
 
 ## Runtime Environment
 
@@ -49,14 +56,18 @@ development with Deno ensures parity.
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
 project is expected to run on. Local development must use that version too.
 
-The Nix flake pins the required Deno version. Check it with:
+`devenv.yaml` pins the `nixpkgs-deno` input that provides that version.
+`enterShell` in `devenv.nix` refuses to enter when the pinned nixpkgs provides
+anything else. Check the version with:
 
 ```bash
-nix develop -c deno --version
+devenv shell deno --version
 ```
 
-The `.tool-versions` and mise configuration are kept in sync only for
-environments without Nix.
+The other tools (Biome, Chromium, gh) come from the main pinned `nixpkgs` input.
+Move that input to a newer revision deliberately with `devenv update`; the exact
+revision is recorded in `devenv.lock`. CI runs the same devenv environment as
+developers, through `.github/actions/setup-devenv`.
 
 ## stripe-mock
 
@@ -552,7 +563,7 @@ GitHub.
   most clearly. The name and the description are technical text, so they also
   follow
   [Simplified Technical English](#simplified-technical-english--how-we-write-documentation).
-- **Final check**: Run `nix develop -c deno task precommit` before finishing any
+- **Final check**: Run `devenv shell deno task precommit` before finishing any
   job with code or documentation changes. It is the only check that mirrors CI
   exactly — it typechecks the **test** files too, so `deno check <src>` plus
   `test:files` is not a substitute (a test-only type error will pass locally and

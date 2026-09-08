@@ -1,5 +1,5 @@
 name: Build Bunny edge script
-description: Set up Deno, install dependencies, and build the Bunny Edge script bundle.
+description: Set up devenv, install dependencies, and build the Bunny Edge script bundle.
 inputs:
   build_commit:
     description: Commit SHA to embed in the build.
@@ -25,11 +25,11 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up Deno
-      uses: ./.github/actions/setup-deno
+    - name: Set up devenv
+      uses: ./.github/actions/setup-devenv
 
     - name: Build edge script
-      shell: bash
+      shell: devenv shell bash -- -e {0}
       run: deno task build:edge
       env:
         BUILD_COMMIT: ${{ inputs.build_commit }}

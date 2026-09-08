@@ -349,33 +349,38 @@ access control, monitoring) are equally important.
 
 ## Alternative Deployment
 
+The production platform is Bunny Edge Scripting (see above). For self-hosting,
+one prebuilt OCI image serves every other target. `devenv.nix` defines it
+(`outputs.tickets-image`), and `.github/workflows/publish-image.yml` publishes
+it as `ghcr.io/chobbledotcom/tickets:latest` on every merge to `main`. The image
+carries the pinned Deno runtime, the built static assets, and the server's
+module cache, and it runs as an unprivileged user.
+
 ### Docker
 
 ```bash
-docker build -t chobble-tickets .
 docker run -p 3000:3000 \
   -v tickets-data:/data \
   -e DB_URL="file:/data/tickets.db" \
   -e DB_ENCRYPTION_KEY="your-base64-key" \
-  chobble-tickets
+  ghcr.io/chobbledotcom/tickets:latest
 ```
 
-The Dockerfile uses a local SQLite file by default - set `DB_URL` and `DB_TOKEN`
-to point at a remote Turso database instead if you prefer.
+The image uses a local SQLite file by default - set `DB_URL` and `DB_TOKEN` to
+point at a remote Turso database instead if you prefer.
 
-### One-click platforms
+### Platforms
 
 Deploy to:
 [DigitalOcean](https://cloud.digitalocean.com/apps/new?repo=https://github.com/chobbledotcom/tickets/tree/main)
 |
-[Heroku](https://heroku.com/deploy?template=https://github.com/chobbledotcom/tickets/tree/main)
-|
-[Koyeb](https://app.koyeb.com/deploy?type=git&repository=github.com/chobbledotcom/tickets&branch=main&name=chobble-tickets&builder=dockerfile&ports=3000;http;/)
-|
 [Render](https://render.com/deploy?repo=https://github.com/chobbledotcom/tickets)
+|
+[Koyeb](https://app.koyeb.com/deploy?type=image&image_name=ghcr.io/chobbledotcom/tickets:latest&name=chobble-tickets&ports=3000;http;/)
 
-You can also deploy with [Fly.io](https://fly.io) (`fly launch`) or any Docker
-host.
+Each platform's config in this repository (`fly.toml`, `render.yaml`,
+`.do/deploy.template.yaml`) points at the published image. You can also deploy
+with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
 ## Repository layout
 
@@ -407,8 +412,8 @@ deno task screenshot --scenario ../tickets-site/scripts/screenshots/charity-even
 Themes are applied through the site's custom CSS form. The choices are
 `default`, `forest`, `sunset`, and `ink`; use `--theme all` to capture every
 selected page in every theme. Set `CHROMIUM_EXECUTABLE` when Chromium is not in
-Playwright's normal browser cache. On NixOS, `nix develop` provides Chromium and
-sets this variable for you.
+Playwright's normal browser cache. On NixOS, `devenv shell` provides Chromium
+and sets this variable for you.
 
 Form scenes such as `listing-form` and `add-attendee-form` hide the rest of the
 page, trim the image to the visible content, and add 32px of the page background
@@ -469,8 +474,10 @@ Tickets website imports that artifact into a reviewed pull request and keeps its
 ordinary site build offline.
 
 ```bash
-# Install Deno, cache dependencies, run all checks
-./setup.sh
+# Enter the development shell (installs the pinned Deno and the other tools),
+# then run all checks
+devenv shell
+deno task precommit
 
 # Run locally
 DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token \

@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: devenv shell bash -- -e {0}
+
 jobs:
   backup:
     runs-on: ubicloud-standard-4
@@ -31,8 +35,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Deno
-        uses: ./.github/actions/setup-deno
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
 
       - name: Create database backup
         # `deno task backup` passes --env-file, so Deno logs a harmless

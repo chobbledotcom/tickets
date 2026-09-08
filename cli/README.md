@@ -22,7 +22,7 @@ If either value is missing, the TUI/API script prompts for it at startup.
 ## Human TUI
 
 ```sh
-mise exec -- deno task cli:tui
+deno task cli:tui
 ```
 
 The TUI supports `resource`, `list`, `get`, `create`, `update`, `delete`,
@@ -31,14 +31,14 @@ The TUI supports `resource`, `list`, `get`, `create`, `update`, `delete`,
 ## Agent scripts
 
 ```sh
-mise exec -- deno task cli:api list listings
-mise exec -- deno task cli:api get listings 1
-mise exec -- deno task cli:api create listings '{"name":"Demo","max_attendees":10}'
-mise exec -- deno task cli:api update listings 1 '{"active":false}'
-mise exec -- deno task cli:api delete listings 1 '{"confirm_identifier":"Demo"}'
+deno task cli:api list listings
+deno task cli:api get listings 1
+deno task cli:api create listings '{"name":"Demo","max_attendees":10}'
+deno task cli:api update listings 1 '{"active":false}'
+deno task cli:api delete listings 1 '{"confirm_identifier":"Demo"}'
 
-mise exec -- deno task cli:api list groups
-mise exec -- deno task cli:api create holidays '{"name":"Christmas","start_date":"2025-12-25","end_date":"2025-12-26"}'
+deno task cli:api list groups
+deno task cli:api create holidays '{"name":"Christmas","start_date":"2025-12-25","end_date":"2025-12-26"}'
 ```
 
 ## Resources

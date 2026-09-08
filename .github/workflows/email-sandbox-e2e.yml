@@ -49,6 +49,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: devenv shell bash -- -e {0}
+
 concurrency:
   group: email-sandbox-e2e
   cancel-in-progress: false
@@ -68,8 +72,8 @@ jobs:
           # runs repository code with provider secrets in its environment.
           persist-credentials: false
 
-      - name: Set up Deno
-        uses: ./.github/actions/setup-deno
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
 
       - name: Run email sandbox e2e
         id: email-run

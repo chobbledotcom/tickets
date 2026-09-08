@@ -1,0 +1,55 @@
+name: Set up devenv
+description: >-
+  Install Nix and the devenv CLI, use the public devenv binary cache,
+  evaluate the project environment once, restore the shared Deno dependency
+  cache, and optionally populate it with deno install. The evaluated
+  environment is the same one developers get from devenv shell.
+inputs:
+  install_dependencies:
+    description: Populate the Deno module cache with deno install.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    # Every step here pins shell: bash — jobs commonly set
+    # `defaults.run.shell: devenv shell bash -- -e {0}`, which must not be
+    # used before the devenv CLI exists.
+    - name: Set up Nix
+      uses: cachix/install-nix-action@v31
+
+    # Pull devenv's own prebuilt binaries from its public cache. We run no
+    # binary cache of our own; the other substituter is cache.nixos.org.
+    - name: Use the devenv binary cache
+      uses: cachix/cachix-action@v16
+      with:
+        name: devenv
+
+    - name: Install devenv.sh
+      shell: bash
+      run: nix profile add nixpkgs#devenv
+
+    # Evaluating the shell here runs the enterShell Deno-version guard, so a
+    # broken pin fails the job before anything else, and yields the version
+    # for the dependency-cache key.
+    - name: Resolve the Deno version
+      shell: bash
+      id: deno-version
+      run: |
+        set -euo pipefail
+        version="$(devenv shell -- deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    # One repo-wide dependency cache instead of one per workflow/job.
+    - name: Cache Deno dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/deno
+        key: deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-${{ hashFiles('deno.lock', 'deno.json', 'e2e-payments/deno.json') }}
+        restore-keys: |
+          deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-
+
+    - name: Install Deno dependencies
+      if: inputs.install_dependencies == 'true'
+      shell: bash
+      run: devenv shell -- deno install --allow-scripts

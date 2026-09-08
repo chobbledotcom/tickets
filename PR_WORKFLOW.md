@@ -362,8 +362,8 @@ survivors with stronger behavior assertions, not tests of implementation detail.
 Then run the repository's final checks:
 
 ```bash
-nix develop -c deno task precommit
-nix develop -c deno task precommit:mutation
+devenv shell deno task precommit
+devenv shell deno task precommit:mutation
 ```
 
 Commit any final source changes before running `precommit:mutation`. The

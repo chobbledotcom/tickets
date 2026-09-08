@@ -37,6 +37,10 @@ on:
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
+defaults:
+  run:
+    shell: devenv shell bash -- -e {0}
+
 jobs:
   mutation:
     runs-on: ubicloud-standard-30
@@ -45,8 +49,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Deno
-        uses: ./.github/actions/setup-deno
+      - name: Set up devenv
+        uses: ./.github/actions/setup-devenv
 
       # Only needed under --harness, but caching .bin is harmless otherwise and
       # saves re-downloading stripe-mock when the harness is used.

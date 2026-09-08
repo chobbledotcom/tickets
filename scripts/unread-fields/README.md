@@ -3,7 +3,7 @@
 Reports exported fields that nothing reads. Run it with:
 
 ```bash
-nix develop -c deno task unread-fields
+devenv shell deno task unread-fields
 ```
 
 The scan takes a few minutes. It prints a line per reported field, and it does
@@ -13,7 +13,7 @@ false positives listed below, so the report is a place to start.
 Precommit runs the policy gate instead:
 
 ```bash
-nix develop -c deno task check:unread-fields
+devenv shell deno task check:unread-fields
 ```
 
 The gate compares each reported field with two exact registries:

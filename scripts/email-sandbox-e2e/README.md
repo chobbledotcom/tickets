@@ -19,10 +19,10 @@ nightly and on demand.
 
 ```bash
 # Every provider leg (legs without secrets are skipped and reported):
-nix develop -c deno task e2e:email
+devenv shell deno task e2e:email
 
 # One provider:
-RESEND_API_KEY=re_... nix develop -c deno task e2e:email resend
+RESEND_API_KEY=re_... devenv shell -- deno task e2e:email resend
 ```
 
 Exit codes: 0 = executed (each leg sent or skipped), 1 = failed.
