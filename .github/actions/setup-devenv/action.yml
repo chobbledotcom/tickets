@@ -40,14 +40,25 @@ runs:
       with:
         name: devenv
 
-    # The devenv.lock `devenv` node pins the flake that evaluates this
-    # project. Install the CLI from that same commit, so a registry
-    # update can change the driver without the lockfile moving.
+    # The registry nixpkgs gives CI a released, hydra-built devenv CLI.
+    # devenv.lock pins the module flake that evaluates this project, but
+    # not this driver, so the registry can move it. Fail the job up
+    # front when it drifts below the line it was verified on — a
+    # flake-pinned CLI was measured crawling to 7 minutes per step on
+    # these runners, so the pin needs a better home than this action.
     - name: Install devenv.sh
       shell: bash
-      run: >-
-        nix profile add
-        "github:cachix/devenv/$(jq -r .nodes.devenv.locked.rev devenv.lock)"
+      run: |
+        nix profile add nixpkgs#devenv
+        version="$(devenv --version)"
+        echo "devenv CLI: $version"
+        case "$version" in
+          "devenv 2."[2-9].* | "devenv 2."[1-9][0-9].* | "devenv "[3-9].* ) ;;
+          * )
+            echo "::error::The devenv CLI ($version) is older than devenv 2.2, which this setup was verified on. Pin the registry or raise the floor deliberately."
+            exit 1
+            ;;
+        esac
 
     # Evaluating the shell here runs the enterShell Deno-version guard, so a
     # broken pin fails the job before anything else, and yields the version
