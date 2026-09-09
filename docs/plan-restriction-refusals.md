@@ -253,8 +253,9 @@ the bare text "Forbidden".
 | Any other audience       | "Your account can't open this page. Ask the site owner for help."        |
 
 The copy must not name the route or leak its existence beyond what the 403
-already says. The guard knows the audience, so it computes the fact with
-`ownerOnlyAudience` and passes it into the failure builder:
+already says. The gate knows the audience, and the shared predicate
+`ownerOnlyAudience` (#types, next to the other role predicates) answers whether
+the refused gate admits only the owner. The failure builder
 `authFailure(channel, reason, forbiddenDetail?)` in `src/features/auth.ts` takes
 the optional `"owner-only"` detail and picks the body; the JSON channel stays
 generic.
