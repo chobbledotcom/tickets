@@ -207,7 +207,9 @@ describe("the delete page of a status attendees hold", () => {
     expect(html).toContain("1 attendee holds this status.");
     expect(html).toContain(t("statuses.delete_reassign_warning"));
     expect(html).toMatch(/<select[^>]*name="reassign_status_id"[^>]*required/);
-    expect(html).toContain('value="">');
+    // The empty prompt stays preselected, so a save without a real pick
+    // cannot slip through the browser's own required check.
+    expect(html).toContain('<option selected value="">');
     expect(html).toContain(t("statuses.delete_reassign_prompt"));
     expect(html).toContain('value="8"');
     expect(html).toContain("Checked in");
