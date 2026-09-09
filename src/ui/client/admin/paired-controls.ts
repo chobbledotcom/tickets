@@ -37,7 +37,9 @@ export const initPairedControls = (): void => {
       whyHolder(control).hidden = !control.checked;
     };
     control.addEventListener("change", update);
-    update();
+    // A conflict the server re-rendered (both sides ticked) stays editable:
+    // disabling in both directions would lock the pair until a reload.
+    if (!(control.checked && counterpart.checked)) update();
   };
   for (const control of controls) wire(control);
 };

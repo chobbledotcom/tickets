@@ -235,9 +235,6 @@ export const importListing = async (
     null,
     async (tx, newId) => {
       await writeListingDayCounts(tx, newId, input.dayPrices);
-      requireImportedMembership(
-        await validateListingGroupMembershipsTx(tx)([newId], groupResolve.ids),
-      );
       const packageGroupIds = await packageGroupIdsTx(tx, groupResolve.ids);
       for (const [i, membership] of memberships.entries()) {
         if (!packageGroupIds.has(groupResolve.ids[i]!)) continue;
@@ -261,6 +258,12 @@ export const importListing = async (
           "listingId",
           newId,
         ),
+      );
+      // Validate after the membership insert, so the imported pick count is
+      // judged against its own cap as persisted, not against the fresh-join
+      // default of one.
+      requireImportedMembership(
+        await validateListingGroupMembershipsTx(tx)([newId], groupResolve.ids),
       );
       await addParentEdgesWithPackageCheckTx(
         tx,

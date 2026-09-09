@@ -119,4 +119,40 @@ describe("paired controls", () => {
     ) as unknown as HTMLInputElement;
     expect(payMore.disabled).toBe(true);
   });
+
+  test("a conflict the server re-rendered keeps both controls editable", () => {
+    const window = dom.installDom(`
+      <form>
+        <label><input type="checkbox" name="is_reservation" checked
+               data-exclusive-with="is_paid_default"
+               data-exclusive-why="A paid status can't also be a reservation">
+               Reservation</label>
+        <label><input type="checkbox" name="is_paid_default" checked
+               data-exclusive-with="is_reservation"
+               data-exclusive-why="A paid status can't also be a reservation">
+               Paid</label>
+      </form>
+    `);
+
+    initPairedControls();
+
+    const pick = (name: string) =>
+      window.document.querySelector(
+        `input[name="${name}"]`,
+      ) as unknown as HTMLInputElement;
+    // Disabling in both directions would lock the pair until a reload, so
+    // the server-rendered conflict stays editable and its flash explains it.
+    const reservation = pick("is_reservation");
+    const paid = pick("is_paid_default");
+    expect(reservation.disabled).toBe(false);
+    expect(paid.disabled).toBe(false);
+
+    paid.checked = false;
+    paid.dispatchEvent(new Event("change"));
+    expect(reservation.disabled).toBe(false);
+
+    paid.checked = true;
+    paid.dispatchEvent(new Event("change"));
+    expect(reservation.disabled).toBe(true);
+  });
 });
