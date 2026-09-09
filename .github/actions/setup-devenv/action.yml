@@ -36,13 +36,18 @@ runs:
     # caches serve it, because the closure is big but the runner sits a
     # few hops from Fastly.
     - name: Use the devenv binary cache
-      uses: cachix/cachix-action@v16
+      uses: cachix/cachix-action@v17
       with:
         name: devenv
 
+    # The devenv.lock `devenv` node pins the flake that evaluates this
+    # project. Install the CLI from that same commit, so a registry
+    # update can change the driver without the lockfile moving.
     - name: Install devenv.sh
       shell: bash
-      run: nix profile add nixpkgs#devenv
+      run: >-
+        nix profile add
+        "github:cachix/devenv/$(jq -r .nodes.devenv.locked.rev devenv.lock)"
 
     # Evaluating the shell here runs the enterShell Deno-version guard, so a
     # broken pin fails the job before anything else, and yields the version

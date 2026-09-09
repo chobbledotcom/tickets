@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "mcp__Claude_Code_Remote__send_later",
+      "Bash(devenv shell:*)",
       "Bash(deno task test)",
       "Bash(deno task test:*)",
       "Bash(deno task typecheck)",

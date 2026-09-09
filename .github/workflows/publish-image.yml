@@ -17,9 +17,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Two merges to main close together must not race the :latest tag — the
-# older build finishing last would silently roll every consumer back.
-# Queued runs publish in the order the pushes arrived.
+# Two merges to main close together must not race the :latest tag.
+# Concurrency-group ordering is not guaranteed, so keep only one run at
+# a time and make the pushes order-safe below: every run publishes an
+# immutable per-commit tag, and moves :latest only after confirming its
+# commit is still main's tip.
 concurrency:
   group: publish-image
   cancel-in-progress: false
@@ -59,11 +61,17 @@ jobs:
       - name: Load the image into the container engine
         run: container-load
 
-      # Build the exact image that will be pushed, then boot it and prove the
-      # server answers before it becomes anyone's :latest. The module cache
+      # Build the exact image that will be pushed, then boot it and prove
+      # the server answers before it becomes anyone's :latest. The module cache
       # is baked in, so a healthy image answers within seconds. GitHub
       # runners ship Docker but not Podman, so every step picks the same
       # engine `container-load` falls back to.
+      #
+      # /health is served before any database work, so it alone cannot
+      # prove the image serves a site. The probe after it asks for the
+      # home page, which reads the settings table: on a fresh site that
+      # must answer 503 (setup incomplete). A database or FFI failure
+      # answers 500 or nothing, and fails publication.
       - name: Verify the image boots and serves
         env:
           # Throwaway key for the ephemeral container DB — not a real secret.
@@ -77,6 +85,14 @@ jobs:
           for _ in $(seq 1 20); do
             if [ "$(curl -fsS -m 5 http://127.0.0.1:13000/health 2>/dev/null)" = "Up :)" ]; then
               echo "Server answered /health."
+              home="$(curl -sS -m 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:13000/)"
+              if [ "$home" != "503" ]; then
+                echo "::error::The home page answered $home where 503 was expected. Logs:"
+                "$engine" logs tickets-verify || true
+                "$engine" rm -f tickets-verify >/dev/null 2>&1 || true
+                exit 1
+              fi
+              echo "Server answered the home page with 503 — the database path served."
               "$engine" rm -f tickets-verify >/dev/null
               exit 0
             fi
@@ -98,5 +114,22 @@ jobs:
           # settings → Change visibility.
           engine="$(command -v podman || command -v docker)"
           echo "$GHCR_TOKEN" | "$engine" login ghcr.io -u "$GHCR_USER" --password-stdin
-          "$engine" push ghcr.io/chobbledotcom/tickets:latest
+          image="ghcr.io/chobbledotcom/tickets"
+          # The immutable per-commit tag first, so every run publishes
+          # its own commit regardless of run ordering.
+          "$engine" tag "$image:latest" "$image:sha-${GITHUB_SHA}"
+          "$engine" push "$image:sha-${GITHUB_SHA}"
+          # Move :latest only when this run's commit is still main's tip;
+          # an overtaken run leaves :latest to the newer one, and cannot
+          # roll consumers back.
+          tip="$(curl -fsS \
+            -H "Authorization: Bearer $GHCR_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" \
+            | jq -r .sha)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::warning::$GITHUB_SHA is no longer main's tip ($tip). Published the commit tag, left :latest to the newer run."
+            exit 0
+          fi
+          "$engine" push "$image:latest"
 
